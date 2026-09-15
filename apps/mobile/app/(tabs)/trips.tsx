@@ -19,7 +19,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
-import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
+import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
@@ -741,6 +741,54 @@ export default function TripsScreen() {
     }
   }, [selectedIds, trips, mergeClassification, mergePlatform, exitMergeMode, loadTrips, loadSummary, loadUnclassifiedCount]);
 
+  // Possible double-count. The server marks the newer of two trips that
+  // overlap in time and share both ends (a drive added by hand whose
+  // recording landed later, or a missed-journey gap the app then filled).
+  // Nothing is removed until the driver chooses: Merge folds the pair into
+  // one trip through the ordinary merge endpoint, Keep both clears the mark.
+  const [duplicateBusyId, setDuplicateBusyId] = useState<string | null>(null);
+
+  const handleMergeDuplicate = useCallback(
+    async (item: TripItem, other: TripItem) => {
+      setDuplicateBusyId(item.id);
+      try {
+        // The newer trip's own classification and platform carry over. If it
+        // has not been sorted yet, the merged trip is not either.
+        await mergeTrips({
+          tripIds: [item.id, other.id],
+          classification: item.classification,
+          platformTag: item.platformTag ?? null,
+        });
+        haptic("success");
+        setLoading(true);
+        loadTrips(1);
+        loadSummary();
+        loadUnclassifiedCount();
+      } catch (err: unknown) {
+        const { title, message } = describeError(err, "Couldn't merge the trips", { savedLocally: false });
+        Alert.alert(title, message);
+      } finally {
+        setDuplicateBusyId(null);
+      }
+    },
+    [loadTrips, loadSummary, loadUnclassifiedCount]
+  );
+
+  const handleKeepBoth = useCallback(async (tripId: string) => {
+    setDuplicateBusyId(tripId);
+    try {
+      await clearDuplicateFlag(tripId);
+      haptic("selection");
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, possibleDuplicateOfId: null } : t)));
+    } catch (err: unknown) {
+      const { title, message } = describeError(err, "Couldn't save that", { savedLocally: false });
+      Alert.alert(title, message);
+    } finally {
+      setDuplicateBusyId(null);
+    }
+  }, []);
+
   const toggleGroupExpanded = useCallback((key: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev);
@@ -833,6 +881,14 @@ export default function TripsScreen() {
     const note = displayNote(item.notes);
     const isEditingNote = editingNoteId === item.id;
     const inInbox = filter === "unclassified";
+    // The trip this one may be a double of, if it is loaded on this screen.
+    const duplicateOther = item.possibleDuplicateOfId
+      ? trips.find((t) => t.id === item.possibleDuplicateOfId) ?? null
+      : null;
+    const duplicateOtherIsBelow =
+      duplicateOther != null &&
+      trips.findIndex((t) => t.id === duplicateOther.id) > trips.findIndex((t) => t.id === item.id);
+    const isDuplicateBusy = duplicateBusyId === item.id;
 
     // iOS Mail-style left bar — single coloured stripe telling the
     // classification at a glance. Replaces the heavier right-aligned
@@ -1155,6 +1211,44 @@ export default function TripsScreen() {
                     <Text style={tripSuggestion?.classification === "personal" ? styles.quickClassifyBtnTextDark : styles.quickClassifyBtnTextLight}>Personal</Text>
                   </>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+        {/* Possible double-count: only shown while the other trip is on
+            screen too, so the driver can see both before choosing. */}
+        {duplicateOther && !mergeMode && (
+          <View style={styles.duplicateWrap}>
+            <View style={styles.duplicateNoteRow}>
+              <Ionicons name="copy-outline" size={12} color={AMBER} accessible={false} />
+              <Text style={styles.duplicateNoteText}>
+                Looks like the same journey as the one {duplicateOtherIsBelow ? "below" : "above"}
+              </Text>
+            </View>
+            <View style={styles.duplicateActions}>
+              <TouchableOpacity
+                style={[styles.duplicateBtn, styles.duplicateBtnPrimary]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleMergeDuplicate(item, duplicateOther);
+                }}
+                disabled={isDuplicateBusy}
+                accessibilityRole="button"
+                accessibilityLabel="Merge the two trips into one"
+              >
+                <Text style={styles.duplicateBtnPrimaryText}>{isDuplicateBusy ? "Working" : "Merge"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.duplicateBtn}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  handleKeepBoth(item.id);
+                }}
+                disabled={isDuplicateBusy}
+                accessibilityRole="button"
+                accessibilityLabel="Keep both trips"
+              >
+                <Text style={styles.duplicateBtnText}>Keep both</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -2449,6 +2543,51 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: AMBER,
     marginLeft: 6,
+  },
+  duplicateWrap: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.25)",
+  },
+  duplicateNoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  duplicateNoteText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: "#d4a053",
+  },
+  duplicateActions: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  duplicateBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  duplicateBtnPrimary: {
+    backgroundColor: AMBER,
+    borderColor: AMBER,
+  },
+  duplicateBtnPrimaryText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: BG,
+  },
+  duplicateBtnText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   unclassifiedBadgeText: {
     fontSize: 11,

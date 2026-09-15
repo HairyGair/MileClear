@@ -32,10 +32,12 @@ import {
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
+import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
 import {
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
   isRecordedDiscardWorthOffering,
+  discardedRecordingSource,
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
@@ -57,6 +59,12 @@ import {
 } from "../../services/tripSplit.js";
 import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
 import { visitAutoSplitEnabled } from "../../jobs/visitSplit.js";
+import {
+  suggestPlacePairClassification,
+  PLACE_PAIR_SOURCE,
+  QUIET_CLASSIFICATION_SOURCES,
+  type PlacePairOutcome,
+} from "../../services/placePairClassifier.js";
 
 // In-memory per-user cooldown for /trips/signal-start so a double-signal can't
 // start two Live Activities. Per-process is fine: a duplicate within the window
@@ -181,6 +189,10 @@ const updateTripSchema = z.object({
   classificationAutoAccepted: z.boolean().optional(),
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
+  // "Keep both" on a possible double-count. Only clearing is allowed: the
+  // server sets the mark at create time and a client never points a trip at
+  // another one by hand.
+  possibleDuplicateOfId: z.null().optional(),
   // Breadcrumbs for a segment being merged into this trip (multi-stop merge,
   // mobile detection.ts). APPEND-ONLY: stored coordinates are never deleted,
   // and an incoming point whose recordedAt already exists on the trip is
@@ -767,6 +779,40 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // Did the A->B learner just decide this trip? Fixed here, before the
+    // place-pair signal can change finalClassification, so the row is marked
+    // with the source that actually decided it.
+    const learnerApplied = learnedSuggestion != null && finalClassification !== tripData.classification;
+
+    // Place-pair signal (free for everyone, 15 Sep 2026): the driver's own
+    // decisions between the same two PLACES in either direction. Consulted
+    // only when the A->B learner stayed quiet. Never decides Home <-> Work;
+    // see services/placePairClassifier.ts.
+    let placePair: PlacePairOutcome | null = null;
+    if (
+      !learnerApplied &&
+      tripData.classification === "unclassified" &&
+      resolvedEndLat != null &&
+      resolvedEndLng != null &&
+      hasValidCoords(resolvedStartLat, resolvedStartLng)
+    ) {
+      placePair = await suggestPlacePairClassification({
+        userId,
+        startLat: resolvedStartLat,
+        startLng: resolvedStartLng,
+        endLat: resolvedEndLat,
+        endLng: resolvedEndLng,
+      });
+      if (placePair.suggestion) {
+        finalClassification = placePair.suggestion.classification as typeof finalClassification;
+        finalPlatformTag = finalPlatformTag ?? placePair.suggestion.platformTag;
+        finalBusinessPurpose = finalBusinessPurpose ?? placePair.suggestion.businessPurpose;
+        finalCategory = finalCategory ?? placePair.suggestion.category;
+      }
+    }
+    const placePairApplied = placePair?.suggestion != null;
+    const quietSource = learnerApplied ? "pattern_learning" : placePairApplied ? PLACE_PAIR_SOURCE : null;
+
     const isManualEntry = !hasCoordinates;
     const gq = tripData.gpsQuality as
       | {
@@ -824,9 +870,9 @@ export async function tripRoutes(app: FastifyInstance) {
       category: finalCategory,
       // Mark a quiet classification so the app can show it and offer undo,
       // and so the learner never mistakes its own output for a decision.
-      ...(learnedSuggestion && finalClassification !== tripData.classification
+      ...(quietSource
         ? {
-            classificationSource: "pattern_learning",
+            classificationSource: quietSource,
             autoClassifiedAt: new Date(),
             preAutoClassification: tripData.classification,
           }
@@ -885,6 +931,58 @@ export async function tripRoutes(app: FastifyInstance) {
           endLng: resolvedEndLng,
           userId,
         }).catch(() => {});
+      }
+    }
+
+    // Possible double-count (15 Sep 2026). A hand-added drive whose recording
+    // lands hours later, or a missed-journey gap the app then fills, used to
+    // sit next to the original with nothing pointing it out: 104 of 661
+    // manual trips in 14 days overlapped a recorded one. Look for an existing
+    // trip in the surrounding day that overlaps this one by half the shorter
+    // duration and shares both ends within 0.5 mi, and mark the NEWER trip.
+    // Nothing is deleted here: the app offers a merge, "Keep both" clears it.
+    // Runs for manual and tracked creates alike, since either can arrive
+    // second. Awaited so the 201 carries the mark, but never allowed to fail
+    // the save.
+    if (!isPhantomTrip && trip.endedAt) {
+      try {
+        const dayMs = 24 * 60 * 60 * 1000;
+        const neighbours = await prisma.trip.findMany({
+          where: {
+            userId,
+            id: { not: trip.id },
+            isPhantomTrip: false,
+            startedAt: {
+              gte: new Date(trip.startedAt.getTime() - dayMs),
+              lte: new Date(trip.startedAt.getTime() + dayMs),
+            },
+          },
+          select: {
+            id: true,
+            startedAt: true,
+            endedAt: true,
+            startLat: true,
+            startLng: true,
+            endLat: true,
+            endLng: true,
+            isManualEntry: true,
+          },
+        });
+        const duplicateOf = findDuplicateCandidate(trip, neighbours);
+        if (duplicateOf) {
+          trip = await prisma.trip.update({
+            where: { id: trip.id },
+            data: { possibleDuplicateOfId: duplicateOf.id },
+            include: { vehicle: true, shift: true },
+          });
+          logEvent("trip.possible_duplicate", userId, {
+            tripId: trip.id,
+            ofTripId: duplicateOf.id,
+            newIsManual: isManualEntry,
+          });
+        }
+      } catch (err) {
+        request.log.warn({ err, tripId: trip.id }, "possible-duplicate check failed");
       }
     }
 
@@ -984,12 +1082,13 @@ export async function tripRoutes(app: FastifyInstance) {
         isManualEntry: !hasCoordinates,
         platformTag: finalPlatformTag,
         autoClassified: finalClassification !== data.classification,
-        autoClassifySource:
-          learnedSuggestion && finalClassification !== data.classification
-            ? "pattern_learning"
-            : null,
+        autoClassifySource: quietSource,
         learnedSuggestionConfidence: learnedSuggestion?.confidence ?? null,
         learnedSuggestionMatchCount: learnedSuggestion?.matchCount ?? null,
+        // Why the place-pair signal did or did not decide, so its reach can
+        // be measured from events alone.
+        placePairReason: placePair?.reason ?? null,
+        placePairMatchCount: placePair?.matchCount ?? null,
       });
     }
 
@@ -1011,12 +1110,16 @@ export async function tripRoutes(app: FastifyInstance) {
       // Tell the client whether we auto-applied a learned classification.
       // Mobile uses this to render an undo-able "Auto-classified as Work
       // (5 similar trips)" toast.
+      // A place-pair decision rides in the same slot with autoApplied true,
+      // so the app's existing toast and undo work without a new branch.
       learnedSuggestion: learnedSuggestion
         ? {
             ...learnedSuggestion,
-            autoApplied: finalClassification !== data.classification,
+            autoApplied: learnerApplied,
           }
-        : null,
+        : placePair?.suggestion
+          ? { ...placePair.suggestion, autoApplied: true }
+          : null,
     });
   });
 
@@ -1285,6 +1388,12 @@ export async function tripRoutes(app: FastifyInstance) {
     departedAt: z.coerce.date(),
     arrivedAt: z.coerce.date(),
     recordedMiles: z.number().min(0).max(50),
+    // Which guard dropped it. Older clients send nothing, which is the
+    // too-short discard this endpoint was built for. The walk verdict and the
+    // walking-shape phantom guard (15 Sep 2026) report here too, under their
+    // own sources, so a slow crawl judged a walk is one tap from recovery.
+    reason: z.enum(["too_short", "walk", "phantom"]).optional().default("too_short"),
+    walkReason: z.string().max(200).optional(),
   });
 
   app.post("/missed-journeys/recorded", async (request, reply) => {
@@ -1303,9 +1412,12 @@ export async function tripRoutes(app: FastifyInstance) {
     // too brief to be more than a pair of fixes, or that went nowhere, are
     // dropped here; the rest are offered and the driver decides.
     const worth = isRecordedDiscardWorthOffering(d);
+    const source = discardedRecordingSource(d.reason);
     if (!worth.ok) {
       logEvent("trip.discarded_recording_skipped", userId, {
         reason: worth.reason,
+        discardReason: d.reason,
+        source,
         recordedMiles: d.recordedMiles,
         seconds: Math.round((d.arrivedAt.getTime() - d.departedAt.getTime()) / 1000),
       });
@@ -1313,7 +1425,9 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     // Keyed on the departure instant so a retry from the sync queue updates the
-    // same row rather than stacking duplicates.
+    // same row rather than stacking duplicates. One recording is dropped by
+    // exactly one guard, so the key needs no source in it: a walk and a
+    // too-short discard can never share a departure instant.
     const key = `recorded:${d.departedAt.toISOString()}`;
 
     // If a trip already covers this moment, the drive was captured after all
@@ -1357,7 +1471,7 @@ export async function tripRoutes(app: FastifyInstance) {
         userId,
         key,
         status: "proposed",
-        source: "recorded",
+        source,
         fromLat: d.fromLat, fromLng: d.fromLng,
         toLat: d.toLat, toLng: d.toLng,
         fromAddress: null, toAddress: null,
@@ -1369,6 +1483,9 @@ export async function tripRoutes(app: FastifyInstance) {
       update: {},
     });
     logEvent("trip.discarded_recording_offered", userId, {
+      discardReason: d.reason,
+      source,
+      walkReason: d.walkReason ?? null,
       recordedMiles: d.recordedMiles,
       crowMiles: Math.round(crow * 100) / 100,
       offeredMiles: Math.round(offeredMiles * 100) / 100,
@@ -3088,7 +3205,14 @@ export async function suggestPairClassification(args: {
       OR: [
         {
           classification: { not: "unclassified" },
-          NOT: { classificationSource: "pattern_learning" },
+          // NULL-safe on purpose. `NOT { classificationSource: "pattern_learning" }`
+          // compiles to `NOT (col = ?)`, which is NULL, so false, for every
+          // trip sorted before 8 Sep 2026 (35,851 of 41,951 classified rows on
+          // 15 Sep 2026). The learner was seeing 14% of drivers' history.
+          OR: [
+            { classificationSource: null },
+            { classificationSource: { notIn: [...QUIET_CLASSIFICATION_SOURCES] } },
+          ],
         },
         { classificationSource: "user_undo" },
       ],
