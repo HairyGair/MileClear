@@ -71,6 +71,11 @@ export interface TripWithVehicle extends Trip {
    *  has always carried it; the trip card started drawing it on 2 Sep 2026
    *  (TripRouteCard). Null for unmatched and manual trips. */
   routePolyline?: string | null;
+  /** Set by the server at create time when this trip looks like the same
+   *  journey as an older one (overlapping in time, both ends within half a
+   *  mile). The list shows a note with Merge / Keep both; nothing is
+   *  removed until the driver says so. Null once "Keep both" is chosen. */
+  possibleDuplicateOfId?: string | null;
 }
 
 export interface TripDetail extends Trip {
@@ -317,6 +322,16 @@ export function deleteTrip(id: string) {
   });
 }
 
+/** "Keep both" on a possible double-count: clears the server's mark so the
+ *  note goes away for good. Direct call, not queued: it is a one-tap answer
+ *  to a question the list is asking right now. */
+export function clearDuplicateFlag(id: string) {
+  return apiRequest<{ data: TripWithVehicle }>(`/trips/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ possibleDuplicateOfId: null }),
+  });
+}
+
 export function fetchUnclassifiedCount(olderThanHours?: number) {
   const qs = olderThanHours ? `?olderThanHours=${olderThanHours}` : "";
   return apiRequest<{ count: number }>(`/trips/unclassified/count${qs}`);
@@ -447,8 +462,10 @@ export interface MissedJourneyProposal {
   /** "gap" = inferred from a hole between two trips. "recorded" = the engine
    *  captured this drive and then discarded it for being too short.
    *  "trip_start" = the next trip was already moving when it began recording,
-   *  so this is its opening stretch: "extend" it rather than add a trip. */
-  source?: "gap" | "recorded" | "trip_start";
+   *  so this is its opening stretch: "extend" it rather than add a trip.
+   *  "dropped_walk" = recorded, then judged a walk and dropped.
+   *  "dropped_phantom" = recorded, then judged phone drift and dropped. */
+  source?: "gap" | "recorded" | "trip_start" | "dropped_walk" | "dropped_phantom";
   /** What the engine captured before discarding it, for "recorded" rows. */
   recordedMiles?: number | null;
 }
@@ -457,9 +474,13 @@ export function fetchMissedJourneys() {
   return apiRequest<{ proposals: MissedJourneyProposal[] }>("/trips/missed-journeys");
 }
 
-// Report a drive the engine recorded and then discarded for being under the
-// minimum distance, so it can be offered back in Missed Journeys instead of
-// disappearing. Best-effort: a failure here must never affect the finalize.
+// Report a drive the engine recorded and then discarded, so it can be offered
+// back in Missed Journeys instead of disappearing. `reason` says which guard
+// dropped it: under the minimum distance (the default), the walk verdict, or
+// the walking-shape phantom guard. Best-effort: a failure here must never
+// affect the finalize.
+export type DiscardedRecordingReason = "too_short" | "walk" | "phantom";
+
 export function reportDiscardedRecording(data: {
   fromLat: number;
   fromLng: number;
@@ -468,10 +489,14 @@ export function reportDiscardedRecording(data: {
   departedAt: string;
   arrivedAt: string;
   recordedMiles: number;
+  reason?: DiscardedRecordingReason;
+  /** The walk verdict's reason string, for "walk" reports only. */
+  walkReason?: string;
 }) {
+  const { reason = "too_short", ...rest } = data;
   return apiRequest<{ ok: boolean; skipped?: string }>("/trips/missed-journeys/recorded", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...rest, reason }),
   });
 }
 
