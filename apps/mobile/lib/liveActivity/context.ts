@@ -10,6 +10,7 @@
  * cache aggressively because the values shift while the user is driving.
  */
 
+import { Platform } from "react-native";
 import { MILESTONE_MILES } from "@mileclear/shared";
 import { getDatabase } from "../db";
 
@@ -38,6 +39,12 @@ export async function getLiveActivityContext(args: {
    *  When omitted we skip the milestone subtitle. */
   lifetimeMiles?: number;
 }): Promise<LiveActivityContext> {
+  // Only ever feeds updateLiveActivity, which is iOS-only: off iOS the
+  // widget does not exist, so skip the SQLite reads and return the shape
+  // the callers get when the reads fail.
+  if (Platform.OS !== "ios") {
+    return { dailyTotalMiles: args.currentTripMiles, milestoneText: null, earningsTodayPence: null };
+  }
   const now = Date.now();
   if (cached && now - cached.computedAt < CACHE_TTL_MS) {
     // Refresh the live trip portion only; pre-trip totals don't change.

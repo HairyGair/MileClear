@@ -18,6 +18,7 @@
 // Called from every place the app checks the phase: launch, foreground, the
 // legacy detection task, the native location + heartbeat handlers.
 
+import { Platform } from "react-native";
 import {
   getLiveActivityPhase,
   markLiveActivityClassified,
@@ -154,6 +155,8 @@ async function applyPhaseDecision(): Promise<PendingLiveActivityAction> {
  * the user made somewhere else.
  */
 export async function applyPendingLiveActivityAction(): Promise<PendingLiveActivityAction> {
+  // iOS-only: the widget that records a decision does not exist elsewhere.
+  if (Platform.OS !== "ios") return null;
   try {
     const shared = await applySharedDecision();
     if (shared) return shared;

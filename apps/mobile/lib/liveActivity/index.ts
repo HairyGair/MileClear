@@ -3,6 +3,13 @@
  *
  * Wraps the native LiveActivityModule with graceful fallbacks.
  * Returns null/void silently when not supported (Expo Go, Android, iOS < 16.2).
+ *
+ * Every export checks Platform.OS before anything else. Live Activities are
+ * iOS-only, yet the 15 Sep 2026 Android audit found Android phones logging
+ * la_* diagnostics and reaching the server through the unguarded paths, which
+ * polluted the fleet measurements. Off iOS: no native call, no event, no
+ * network, and the same "not available" value the iOS code returns when the
+ * native module is missing.
  */
 
 import { AppState, NativeModules, Platform } from "react-native";
@@ -27,6 +34,7 @@ function logLiveActivityEvent(event: string, meta?: Record<string, unknown>): vo
     .catch(() => {});
 }
 export function getLastLiveActivityStartError(): string | null {
+  if (Platform.OS !== "ios") return null;
   return lastStartError;
 }
 
@@ -358,6 +366,7 @@ export async function getActiveActivityId(): Promise<string | null> {
  * this restores the currentActivityId so updates can resume.
  */
 export async function recoverLiveActivity(startDateMs?: number): Promise<boolean> {
+  if (Platform.OS !== "ios" || !LiveActivityModule) return false;
   const id = await getActiveActivityId();
   if (id) {
     currentActivityId = id;
@@ -456,6 +465,7 @@ export async function getPushToStartToken(): Promise<string | null> {
  * launch and on foreground (the token can rotate). Safe no-op off iOS 17.2+.
  */
 export async function syncPushToStartToken(): Promise<void> {
+  if (Platform.OS !== "ios" || !LiveActivityModule?.getPushToStartToken) return;
   const token = await getPushToStartToken();
   if (!token || token === lastRegisteredLaToken) return;
   try {

@@ -125,6 +125,15 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
   } catch {
     // default to business mode
   }
+  // Live Activities are iOS only. Android phones were logging la_* events
+  // and asking for a push-to-start they can never show (15 Sep 2026 audit),
+  // noise in every fleet measurement. The signal-start itself must still go:
+  // the server's recording watchdog reads trip.signal_start as "a recording
+  // just opened" (Check 1b), for every platform.
+  if (Platform.OS !== "ios") {
+    signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
+    return;
+  }
   // The in-app switch (Settings > Notifications > "Live Activity") decides
   // BOTH the local start and the push-to-start. Until 3 Sep 2026 only the
   // local start honoured it: the push request below ran regardless, so a

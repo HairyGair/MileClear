@@ -48,11 +48,13 @@ async function writeState(key: string, value: string): Promise<void> {
 
 /** Stamped when startLiveActivity found an activity already running and adopted it. */
 export async function noteLiveActivityAdopted(): Promise<void> {
+  if (Platform.OS !== "ios") return;
   await writeState(KEY_ADOPT_AT, String(Date.now()));
 }
 
 /** Called by detection when an activity was started locally or a push-to-start was requested. */
 export async function noteLiveActivitySignal(kind: LiveActivitySignalKind): Promise<void> {
+  if (Platform.OS !== "ios") return;
   await writeState(KEY_SIGNAL_AT, String(Date.now()));
   await writeState(KEY_SIGNAL_KIND, kind);
 }
@@ -69,17 +71,22 @@ export interface LiveActivityState {
 
 /** Snapshot for the diagnostic dump. Null fields = not an iOS device or the module is missing. */
 export async function getLiveActivityState(): Promise<LiveActivityState> {
-  const [signalAt, signalKind] = await Promise.all([readState(KEY_SIGNAL_AT), readState(KEY_SIGNAL_KIND)]);
   const base: LiveActivityState = {
     enabled: null,
     present: null,
     activityId: null,
     hasPushToStartToken: null,
-    lastSignalAt: signalAt ? new Date(Number(signalAt)).toISOString() : null,
-    lastSignalKind: (signalKind as LiveActivitySignalKind | null) ?? null,
+    lastSignalAt: null,
+    lastSignalKind: null,
     lastStartError: null,
   };
+  // Not an iOS device: nothing was ever signalled or adopted here, so the
+  // stored signal keys are not read either (an Android dump used to carry
+  // stale ones from before the note* guards).
   if (Platform.OS !== "ios") return base;
+  const [signalAt, signalKind] = await Promise.all([readState(KEY_SIGNAL_AT), readState(KEY_SIGNAL_KIND)]);
+  base.lastSignalAt = signalAt ? new Date(Number(signalAt)).toISOString() : null;
+  base.lastSignalKind = (signalKind as LiveActivitySignalKind | null) ?? null;
   try {
     const la = await import("./index");
     const [enabled, activityId, token] = await Promise.all([
