@@ -1755,6 +1755,28 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }).catch(() => {});
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
+    // The verdict stands, but it is not silent any more. The walking-pace
+    // rule will occasionally call a real slow crawl a walk, and until now the
+    // drive simply vanished. Offer it back as a "was this a drive?" row, the
+    // same plumbing the too-short discard uses; the driver decides.
+    try {
+      const { reportDiscardedRecording } = await import("../api/trips");
+      await reportDiscardedRecording({
+        fromLat: first.lat,
+        fromLng: first.lng,
+        toLat: last.lat,
+        toLng: last.lng,
+        departedAt: new Date(first.recorded_at).toISOString(),
+        arrivedAt: new Date(last.recorded_at).toISOString(),
+        recordedMiles: Math.round(totalDistance * 100) / 100,
+        reason: "walk",
+        walkReason: walk.reason,
+      });
+      logDetectionEvent("walk_offered_back", { distance: totalDistance, reason: walk.reason }).catch(() => {});
+    } catch {
+      // Offline or the call failed. The recording is already gone either way,
+      // and failing here must not break the rest of the finalize.
+    }
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
       await setDepartureAnchor(last.lat, last.lng);
@@ -1771,6 +1793,25 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }).catch(() => {});
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
+    // Same as the walk verdict above: keep the drop, lose the silence. A slow
+    // crawl through traffic has this shape too, so offer it back and let the
+    // driver say whether it was real.
+    try {
+      const { reportDiscardedRecording } = await import("../api/trips");
+      await reportDiscardedRecording({
+        fromLat: first.lat,
+        fromLng: first.lng,
+        toLat: last.lat,
+        toLng: last.lng,
+        departedAt: new Date(first.recorded_at).toISOString(),
+        arrivedAt: new Date(last.recorded_at).toISOString(),
+        recordedMiles: Math.round(totalDistance * 100) / 100,
+        reason: "phantom",
+      });
+      logDetectionEvent("phantom_offered_back", { distance: totalDistance }).catch(() => {});
+    } catch {
+      // Offline or the call failed. Must not break the rest of the finalize.
+    }
     try {
       const { setDepartureAnchor } = await import("../geofencing/index");
       await setDepartureAnchor(last.lat, last.lng);
