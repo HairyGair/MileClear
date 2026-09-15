@@ -19,7 +19,7 @@ vi.mock("../../lib/redis.js", () => ({
   cacheSet: vi.fn(async (k: string, v: string) => { cache.set(k, v); }),
 }));
 
-import { reverseGeocode } from "../../services/geocoding.js";
+import { reverseGeocode, reverseGeocodeDetailed } from "../../services/geocoding.js";
 
 const nominatim = (body: unknown, ok = true) =>
   vi.fn().mockResolvedValue({ ok, json: async () => body } as never);
@@ -91,5 +91,74 @@ describe("reverseGeocode", () => {
     vi.stubGlobal("fetch", f);
     expect(await reverseGeocode(56.1, -3.9)).toBeNull();
     expect(f).not.toHaveBeenCalled();
+  });
+});
+
+// The backfill job needs to know WHY there is no address. "nowhere" is
+// Nominatim saying the point has no name (the Channel, mid-Atlantic) and will
+// never change; "unavailable" is a timeout, 429 or 5xx that a retry fixes.
+// Confusing the two kept the job at "filled 0, aborted" for ten days.
+describe("reverseGeocodeDetailed", () => {
+  beforeEach(() => {
+    cache.clear();
+    vi.restoreAllMocks();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("reports a real address as found, and a repeat as cached so callers need not pace", async () => {
+    vi.stubGlobal("fetch", nominatim(HOUSE));
+    expect(await reverseGeocodeDetailed(53.7025, -2.26571)).toEqual({
+      address: "Johnny Barn Close, Rossendale, BB4 7TB", outcome: "found", cached: false,
+    });
+    expect(await reverseGeocodeDetailed(53.7025, -2.26571)).toEqual({
+      address: "Johnny Barn Close, Rossendale, BB4 7TB", outcome: "found", cached: true,
+    });
+  });
+
+  it("calls a point Nominatim has no name for 'nowhere', not a provider failure", async () => {
+    vi.stubGlobal("fetch", nominatim({ error: "Unable to geocode" }));
+    expect(await reverseGeocodeDetailed(45.25, -13.78)).toEqual({
+      address: null, outcome: "nowhere", cached: false,
+    });
+    // and the miss is remembered, without another request
+    const f = nominatim(HOUSE);
+    vi.stubGlobal("fetch", f);
+    expect(await reverseGeocodeDetailed(45.25, -13.78)).toEqual({
+      address: null, outcome: "nowhere", cached: true,
+    });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("treats the sentinel and non-numbers as nowhere without a request", async () => {
+    const f = nominatim(HOUSE);
+    vi.stubGlobal("fetch", f);
+    expect((await reverseGeocodeDetailed(0, 0)).outcome).toBe("nowhere");
+    expect((await reverseGeocodeDetailed(NaN, 1)).outcome).toBe("nowhere");
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("calls a 429 / 5xx 'unavailable', does not cache it, and says so in the log", async () => {
+    // The log line is throttled to one a minute across the whole process, and
+    // earlier tests in this file already tripped it: step the clock past it.
+    vi.useFakeTimers({ now: Date.now() + 10 * 60_000 });
+    try {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({}) } as never));
+      expect(await reverseGeocodeDetailed(53.71, -2.27)).toEqual({
+        address: null, outcome: "unavailable", cached: false,
+      });
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("HTTP 429"));
+      // next call tries again
+      vi.stubGlobal("fetch", nominatim(HOUSE));
+      expect((await reverseGeocodeDetailed(53.71, -2.27)).outcome).toBe("found");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("calls a network failure 'unavailable' and never throws", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("ECONNRESET")));
+    await expect(reverseGeocodeDetailed(53.7, -2.26)).resolves.toEqual({
+      address: null, outcome: "unavailable", cached: false,
+    });
   });
 });

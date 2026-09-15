@@ -65,7 +65,12 @@ function conciseAddress(r: NominatimResult): string {
 // and keyless, and its UK coverage is good — it resolves a bare coordinate to
 // "McDonald's, Tyldesley Road, Atherton, M46 9AT". Its usage policy asks for
 // an identifying User-Agent, at most one request a second, and that results be
-// cached; the volume here is roughly 56 lookups a day, well inside that.
+// cached. Volume (15 Sep 2026): the device fails to name one side of roughly
+// 600 of the 1,900 auto-recorded trips a day, so the create path and the
+// backfill job together make on the order of 1,000 lookups a day before the
+// cache — about a quarter of an hour at one a second, inside the policy but no
+// longer the "56 a day" it was in August. A paid or self-hosted instance is the
+// next step if that grows.
 //
 // Cached on coordinates rounded to 4dp (~11 m, the same precision RouteCache
 // uses) because drivers return to the same places constantly — a depot, a
@@ -76,15 +81,64 @@ function roundCoord(value: number): number {
   return Math.round(value * 10_000) / 10_000;
 }
 
-export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+/**
+ * Why a lookup produced no address. The distinction matters to the backfill
+ * job: "nowhere" is Nominatim saying there is nothing to name at that point
+ * (a coordinate in the Channel from a GPS glitch) and will never change, while
+ * "unavailable" is a timeout, a 429 or a 5xx that a retry will fix. The job
+ * stopped filling anything for ten days in September 2026 because five
+ * offshore trips sat at the head of its queue and each "nowhere" counted as a
+ * provider failure, tripping its dead-provider cut-off before it reached a
+ * single real trip.
+ */
+export type ReverseGeocodeOutcome = "found" | "nowhere" | "unavailable";
+
+export interface ReverseGeocodeResult {
+  address: string | null;
+  outcome: ReverseGeocodeOutcome;
+  /** True when no provider request was made, so callers need not pace. */
+  cached: boolean;
+}
+
+// The service swallows every failure so a trip save never sees an exception,
+// which also meant ten days of an empty error log while the backfill job filled
+// nothing. One line a minute is enough to show a 429 storm or an outage
+// without letting a storm write a line per lookup.
+const WARN_INTERVAL_MS = 60_000;
+let lastWarnAt = 0;
+let suppressedWarnings = 0;
+function warnThrottled(message: string): void {
+  const now = Date.now();
+  if (now - lastWarnAt < WARN_INTERVAL_MS) {
+    suppressedWarnings += 1;
+    return;
+  }
+  const suffix = suppressedWarnings > 0 ? ` (+${suppressedWarnings} more in the last minute)` : "";
+  suppressedWarnings = 0;
+  lastWarnAt = now;
+  console.warn(`[reverseGeocode] ${message}${suffix}`);
+}
+
+export async function reverseGeocodeDetailed(
+  lat: number,
+  lng: number
+): Promise<ReverseGeocodeResult> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { address: null, outcome: "nowhere", cached: true };
+  }
   // 0,0 is the established "no coordinates" sentinel — reverse-geocoding it
   // returns a point in the Atlantic, which is worse than showing nothing.
-  if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) return null;
+  if (Math.abs(lat) < 0.001 && Math.abs(lng) < 0.001) {
+    return { address: null, outcome: "nowhere", cached: true };
+  }
 
   const key = `revgeo:v1:${roundCoord(lat)},${roundCoord(lng)}`;
   const cached = await cacheGet(key);
-  if (cached !== null && cached !== undefined) return cached === "" ? null : cached;
+  if (cached !== null && cached !== undefined) {
+    return cached === ""
+      ? { address: null, outcome: "nowhere", cached: true }
+      : { address: cached, outcome: "found", cached: true };
+  }
 
   const url = new URL("/reverse", NOMINATIM_URL);
   url.searchParams.set("lat", String(lat));
@@ -100,24 +154,37 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
       headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
       signal: controller.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      warnThrottled(`Nominatim answered HTTP ${res.status}`);
+      return { address: null, outcome: "unavailable", cached: false };
+    }
     const row = (await res.json()) as NominatimResult & { error?: string };
     if (row.error) {
-      // Cache the miss briefly so a point in the sea is not retried forever.
-      await cacheSet(key, "", CACHE_TTL_SECONDS);
-      return null;
+      // Nothing to name here and nothing will change that: remember it as
+      // long as a real address so the point is not asked about again.
+      await cacheSet(key, "", REVERSE_CACHE_TTL_SECONDS);
+      return { address: null, outcome: "nowhere", cached: false };
     }
     const address = conciseAddress(row);
-    if (!address) return null;
+    if (!address) return { address: null, outcome: "nowhere", cached: false };
     await cacheSet(key, address, REVERSE_CACHE_TTL_SECONDS);
-    return address;
-  } catch {
+    return { address, outcome: "found", cached: false };
+  } catch (err) {
     // Timeout or network failure: return null and leave the trip as it was.
     // A missing label is a nuisance; a failed trip save is not acceptable.
-    return null;
+    warnThrottled(
+      controller.signal.aborted
+        ? `Nominatim timed out after ${TIMEOUT_MS} ms`
+        : `Nominatim request failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return { address: null, outcome: "unavailable", cached: false };
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  return (await reverseGeocodeDetailed(lat, lng)).address;
 }
 
 // ── Google Places Autocomplete (primary path) ─────────────────────
