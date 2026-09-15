@@ -544,7 +544,9 @@ export interface Trip {
   createdAt?: string;
   syncedAt: string | null;
   /** How the current classification was decided: "pattern_learning" (quiet,
-   *  server, undoable), "user", or "user_undo". Absent on older rows. */
+   *  server, same A->B pair, undoable), "place_pair" (quiet, server, the same
+   *  two places in either direction, undoable), "user", or "user_undo".
+   *  Absent on older rows. */
   classificationSource?: string | null;
   /** Present only while a quiet classification is still undoable. */
   autoClassifiedAt?: string | null;
