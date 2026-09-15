@@ -806,7 +806,7 @@ export default function DashboardScreen() {
         });
       } else if (it.id === "motion") {
         out.push({
-          key: it.id, icon: "walk-outline", label: "Turn on Motion & Fitness",
+          key: it.id, icon: "walk-outline", label: Platform.OS === "android" ? "Allow Physical activity" : "Turn on Motion & Fitness",
           hint: "It is how we catch the moment a drive starts",
           done: it.done, actionable: it.actionable, onPress: fixMotionFromChecklist,
         });

@@ -205,17 +205,21 @@ function computeHealth(
           "Take a short drive to confirm it captures. If no trip appears, toggle ClearTrack off (falls back to the JS engine) and tap Restart detection.",
       });
     }
-    // iOS only: Android has no Motion & Fitness setting, and the activity
-    // permission is deliberately not requested there (Play policy). Showing
-    // the iOS instruction on an Android phone sent SteveG looking for a
-    // setting that does not exist (2 Sep 2026).
-    if (Platform.OS === "ios" && d.motionPermission === "denied") {
+    // Since Android build 6 (15 Sep 2026) the activity permission is requested
+    // on Android too, so the nudge names each platform's own setting. Before
+    // that, showing the iOS instruction on an Android phone sent SteveG
+    // looking for a setting that did not exist (2 Sep 2026).
+    if (d.motionPermission === "denied") {
+      const android = Platform.OS === "android";
       problems.push({
         severity: "warning",
-        title: "Motion & Fitness is off",
-        cause:
-          "ClearTrack uses iOS motion detection to catch the moment a drive starts. With Motion & Fitness denied, it falls back to the slower geofence path and is more likely to miss the start of short trips.",
-        action: "Turn it on in Settings → MileClear → Motion & Fitness.",
+        title: android ? "Physical activity is off" : "Motion & Fitness is off",
+        cause: android
+          ? "MileClear reads your phone's motion state (in a vehicle, walking, still) only to start and stop trip recording. With Physical activity denied, it relies on a single wake trigger and is more likely to miss the start of a drive, and it cannot tell a walk from a drive."
+          : "ClearTrack uses iOS motion detection to catch the moment a drive starts. With Motion & Fitness denied, it falls back to the slower geofence path and is more likely to miss the start of short trips.",
+        action: android
+          ? "Turn it on in Settings, Apps, MileClear, Permissions, Physical activity."
+          : "Turn it on in Settings → MileClear → Motion & Fitness.",
         onAction: () => {
           Linking.openSettings().catch(() => {});
         },

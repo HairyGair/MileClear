@@ -308,7 +308,11 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // blockedPermissions, 27 Aug 2026). Without it RNBG leaves the stationary
     // state via its stationary geofence + speed instead of the motion API.
     // iOS keeps motion activity (Motion & Fitness).
-    disableMotionActivityUpdates: Platform.OS === "android",
+    // Both platforms since 15 Sep 2026 (Android build 6): ACTIVITY_RECOGNITION
+    // is requested on Android with the honest Play declaration ("no health
+    // features; motion state only starts and stops mileage recording"), so the
+    // engine gets a second wake trigger and the walk rule gets its evidence.
+    disableMotionActivityUpdates: false,
     // Heartbeat: fires every 60s, but ONLY while the app is kept alive
     // (preventSuspend). We turn preventSuspend on for the duration of a
     // recording (see openNativeRecording) so the app survives the ~5min

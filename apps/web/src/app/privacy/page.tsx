@@ -108,6 +108,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Real-time location during active shifts (with your explicit permission)</li>
                   <li className="legal__list-item">Significant location changes outside shifts for drive detection</li>
                   <li className="legal__list-item">Location history for route replay and trip reconstruction</li>
+                  <li className="legal__list-item">Your phone&apos;s motion state (in a vehicle, walking, still), read on the device only to start and stop trip recording and to tell a walk from a drive. This is not health data and is used for nothing else.</li>
                   <li className="legal__list-item">GPS quality metadata (percentage of high-accuracy fixes, outliers dropped, road map-matching success - used internally to improve trip accuracy, not sold or shared)</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>

@@ -67,8 +67,8 @@
         "backgroundColor": "#030712"
       },
       "package": "com.mileclear.app",
-      "versionCode": 5,
-      "runtimeVersion": "1.3.9-build87",
+      "versionCode": 6,
+      "runtimeVersion": "1.3.11-build6",
       "googleServicesFile": "./google-services.json",
       "config": {
         "googleMaps": {
@@ -81,12 +81,10 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "ACTIVITY_RECOGNITION"
       ],
       "blockedPermissions": [
-        "android.permission.ACTIVITY_RECOGNITION",
-        "com.google.android.gms.permission.ACTIVITY_RECOGNITION",
-        "com.huawei.hms.permission.ACTIVITY_RECOGNITION",
         "android.permission.RECORD_AUDIO"
       ]
     },
