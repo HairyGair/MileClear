@@ -79,7 +79,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
 import { getLiveActivityContext } from "../../lib/liveActivity/context";
 import { useLayoutPrefs } from "../../lib/layout/index";
-import { selectDashboardMessages } from "../../lib/dashboardMessages";
+import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
 import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
 import { SetupChecklistCard, type SetupChecklistRow } from "../../components/SetupChecklistCard";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
@@ -99,7 +99,6 @@ import {
 } from "../../lib/tracking/batteryOptimisation";
 import {
   batteryNudgeDecision,
-  batteryNudgeCopy,
   type BatteryOptimisationState,
 } from "../../lib/tracking/batteryOptimisationRule";
 import { haptic } from "../../lib/haptics";
@@ -597,12 +596,11 @@ export default function DashboardScreen() {
     dismissedAt: batteryNudgeDismissedAt,
     now: Date.now(),
   });
-  const batteryNudgeText =
-    batteryNudge.show && batteryNudge.screen
-      ? batteryNudgeCopy(batteryNudge.screen, (batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer))
-      : null;
+  // The checklist row itself is owned by lib/dashboardMessages: shown until
+  // the phone reads ignoring:true, snoozed 7 days per dismissal, never gone
+  // for good. This effect only logs the first time it is visible.
   useEffect(() => {
-    if (!batteryNudge.show || batteryNudgeShownLogged.current) return;
+    if (batteryOptState?.ignoring !== false || !batteryNudge.show || batteryNudgeShownLogged.current) return;
     batteryNudgeShownLogged.current = true;
     trackEvent("battery_opt_nudge.shown", {
       screen: batteryNudge.screen,
@@ -614,13 +612,17 @@ export default function DashboardScreen() {
   const dismissBatteryNudge = useCallback(async () => {
     const now = Date.now();
     setBatteryNudgeDismissedAt(now);
-    trackEvent("battery_opt_nudge.dismissed", { screen: batteryNudge.screen });
+    trackEvent("battery_opt_nudge.snoozed", {
+      screen: batteryNudge.screen,
+      until: now + SEVEN_DAYS_MS,
+      manufacturer: (batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer) ?? null,
+    });
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('battery_opt_nudge_dismissed_at', ?)",
       [String(now)]
     );
-  }, [batteryNudge.screen]);
+  }, [batteryNudge.screen, batteryOptState, SEVEN_DAYS_MS]);
   const openBatteryNudgeSettings = useCallback(async () => {
     const screen = batteryNudge.screen ?? "stock";
     trackEvent("battery_opt_nudge.tapped", {
@@ -751,7 +753,9 @@ export default function DashboardScreen() {
         motionDenied,
         notifPermission,
         batteryApplicable: Platform.OS === "android",
-        batteryNudgeShow: !!(batteryNudge.show && batteryNudgeText),
+        batteryIgnoring: batteryOptState?.ignoring ?? null,
+        batteryDismissedAt: batteryNudgeDismissedAt,
+        now: Date.now(),
         bgLocNudgeSilenced,
         motionNudgeSilenced,
         notifDeniedNudgeSilenced,
@@ -764,7 +768,7 @@ export default function DashboardScreen() {
       }),
     [
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
-      motionDenied, notifPermission, batteryNudge.show, batteryNudgeText,
+      motionDenied, notifPermission, batteryOptState, batteryNudgeDismissedAt,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
       notifPrimerSilenced, showFirstTripNudge, showSavedLocationsNudge,
       showReferralCard, showProNudge, amapBannerSeen,
@@ -817,17 +821,19 @@ export default function DashboardScreen() {
               : () => { Linking.openSettings().catch(() => {}); },
         });
       } else if (it.id === "battery") {
+        const copy = batteryChecklistCopy(
+          batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer
+        );
         out.push({
           key: it.id, icon: "battery-half-outline",
-          label: batteryNudgeText?.title ?? "Battery settings",
-          hint: batteryNudgeText?.body ?? "",
+          label: copy.label, hint: copy.hint,
           done: it.done, actionable: it.actionable, onPress: openBatteryNudgeSettings,
         });
       }
     }
     return out;
   }, [
-    dashboardMessages.setup, notifPermission, batteryNudgeText,
+    dashboardMessages.setup, notifPermission, batteryOptState,
     fixLocationFromBlocker, fixMotionFromChecklist, enableNotifications,
     openBatteryNudgeSettings,
   ]);

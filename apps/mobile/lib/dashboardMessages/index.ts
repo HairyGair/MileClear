@@ -69,6 +69,12 @@ export const SUGGESTION_ORDER: SuggestionId[] = [
 /** Two is enough to be useful and few enough not to be a list of chores. */
 export const MAX_SUGGESTIONS = 2;
 
+/** Battery snooze. 7 days, the same cadence as every other nudge here.
+ *  15 Sep 2026 Android audit: optimisation was still ON for 12 of the 17
+ *  phones reporting it, and a Samsung or Honor with it on ends the recorder
+ *  between drives. A dismissal can only ever be a snooze. */
+export const BATTERY_SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
+
 export interface MessageInputs {
   /** The dashboard renders a separate screen during a shift; belt and braces. */
   activeShift: boolean;
@@ -83,7 +89,18 @@ export interface MessageInputs {
   /** Android only. `batteryApplicable` distinguishes "not on this platform"
    *  from "already sorted" - without it, iOS would show 3 of 4 done forever. */
   batteryApplicable: boolean;
-  batteryNudgeShow: boolean;
+  /** The phone's own answer to isIgnoringBatteryOptimizations(): the same
+   *  value the diagnostic dump reports as `batteryOptimisation.ignoring`.
+   *  The row is done when, and only when, this reads true. null = the
+   *  module could not answer (Expo Go, a build without it), and the row is
+   *  left out rather than shown as done or as a chore nobody can finish. */
+  batteryIgnoring: boolean | null;
+  /** When the driver last tapped "later" on the battery row. Snoozes the row
+   *  for BATTERY_SNOOZE_MS, then it comes back; nothing makes it go away for
+   *  good except the setting itself. Same tracking_state pattern as the
+   *  other flags (`battery_opt_nudge_dismissed_at`). */
+  batteryDismissedAt: number | null;
+  now: number;
 
   // Per-item snoozes (7 days), already persisted in tracking_state.
   bgLocNudgeSilenced: boolean;
@@ -142,6 +159,10 @@ function pickBlocker(i: MessageInputs): BlockerId | null {
 
 function buildSetup(i: MessageInputs): SetupItem[] {
   const alwaysDone = i.locationTier === "always";
+  // Applicable only where the phone could actually answer. Done only when
+  // the answer is the one the dump would report as ignoring:true.
+  const batteryApplicable = i.batteryApplicable && i.batteryIgnoring !== null;
+  const batteryDone = batteryApplicable && i.batteryIgnoring === true;
   return [
     {
       id: "always_location",
@@ -171,12 +192,57 @@ function buildSetup(i: MessageInputs): SetupItem[] {
     },
     {
       id: "battery",
-      applicable: i.batteryApplicable,
-      done: i.batteryApplicable ? !i.batteryNudgeShow : true,
-      actionable: i.batteryApplicable && i.batteryNudgeShow,
-      silenced: false, // dismissal already clears batteryNudgeShow upstream
+      applicable: batteryApplicable,
+      done: batteryDone,
+      actionable: batteryApplicable && !batteryDone,
+      silenced:
+        i.batteryDismissedAt !== null &&
+        i.now - i.batteryDismissedAt < BATTERY_SNOOZE_MS,
     },
   ];
+}
+
+export interface BatteryChecklistCopy {
+  label: string;
+  /** The exact path through this maker's Settings app, since the tap can
+   *  only open the stock screen and on Samsung, Honor and Xiaomi the setting
+   *  that actually matters is a different one. */
+  hint: string;
+}
+
+/**
+ * What the battery row says, by phone maker. The manufacturer string is
+ * whatever the phone reports ("samsung", "HONOR", "Xiaomi"); matching is
+ * case-insensitive and by substring so "HUAWEI" and "Huawei" both land.
+ * Unknown or empty falls back to the stock Android path, which exists on
+ * every phone even where a vendor screen sits on top of it.
+ */
+export function batteryChecklistCopy(
+  manufacturer: string | null | undefined
+): BatteryChecklistCopy {
+  const m = (manufacturer ?? "").toLowerCase();
+  if (m.includes("samsung")) {
+    return {
+      label: "Stop Samsung putting MileClear to sleep",
+      hint: "Settings, Battery, Background usage limits, Never sleeping apps: add MileClear",
+    };
+  }
+  if (m.includes("honor") || m.includes("huawei")) {
+    return {
+      label: "Let MileClear run in the background",
+      hint: "Settings, Battery, App launch: MileClear, Manage manually, all three on",
+    };
+  }
+  if (m.includes("xiaomi") || m.includes("redmi") || m.includes("poco")) {
+    return {
+      label: "Let MileClear run in the background",
+      hint: "Settings, Battery, App battery saver: MileClear, No restrictions",
+    };
+  }
+  return {
+    label: "Set MileClear's battery use to Unrestricted",
+    hint: "Settings, Apps, MileClear, Battery, Unrestricted",
+  };
 }
 
 export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
