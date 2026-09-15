@@ -45,6 +45,24 @@ export function readHeadlessIsMoving(name: string, params: unknown): boolean | n
   return typeof p.isMoving === "boolean" ? p.isMoving : null;
 }
 
+/**
+ * The SDK location object carried by a headless event: the params themselves
+ * for `location`, `params.location` for `motionchange`, nothing otherwise.
+ * Used to hand a driving-speed fix to the foreground handler so a trip that
+ * STARTS while the app is closed opens a recording, the same way it would if
+ * the app were alive (until 15 Sep 2026 the headless task only woke the SDK
+ * and left the route to the next app open's orphan sweep).
+ */
+export function pickHeadlessLocation(name: string, params: unknown): Record<string, unknown> | null {
+  const p = (params ?? {}) as Record<string, unknown>;
+  if (name === "location") return p && typeof p === "object" && "coords" in p ? p : null;
+  if (name === "motionchange") {
+    const loc = p.location;
+    return loc && typeof loc === "object" && "coords" in (loc as object) ? (loc as Record<string, unknown>) : null;
+  }
+  return null;
+}
+
 export function routeHeadlessEvent({ platform, name, isMoving, recordingOpen }: HeadlessRouteInput): HeadlessRoute {
   if (platform !== "android") return "ignore";
   if (name !== "location" && name !== "motionchange") return "ignore";

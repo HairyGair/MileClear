@@ -50,7 +50,7 @@
 
 import { Platform } from "react-native";
 import { decideHeadlessWake, readHeadlessFix } from "./headlessSpeedRule";
-import { readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
+import { pickHeadlessLocation, readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
 type BgGeoHeadless = {
@@ -106,6 +106,29 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
       speedMph: Math.round((fix?.speedMs ?? 0) * 2.23694),
       accuracy: Math.round(fix?.accuracyM ?? 0),
     });
+    // Waking the SDK is not the same as opening a recording. Until 15 Sep
+    // 2026 a trip that started while Android had ended the app was tracked
+    // only by the SDK's own store and became a trip at the next app open.
+    // Hand the same fix to the foreground handler: its speed backstop applies
+    // the same guards (shift lock, Not Driving cooldown, 12 mph within 30 m)
+    // and opens the recording, after which headless fixes buffer and the
+    // parked event finalises at the kerb.
+    const loc = pickHeadlessLocation(name, params);
+    if (loc) {
+      try {
+        const { handleNativeLocation } = await import("./nativeLocation");
+        await handleNativeLocation(loc as unknown as Parameters<typeof handleNativeLocation>[0]);
+        await log?.("native_headless_recording_opened", {
+          trigger: name,
+          opened: await isRecordingOpen(),
+        });
+      } catch (err) {
+        await log?.("native_headless_open_failed", {
+          trigger: name,
+          error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        }).catch(() => {});
+      }
+    }
   } catch (err) {
     await log?.("native_headless_wake_failed", {
       trigger: name,

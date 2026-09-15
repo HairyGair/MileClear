@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readHeadlessIsMoving, routeHeadlessEvent } from "../headlessFinalizeRule";
+import { pickHeadlessLocation, readHeadlessIsMoving, routeHeadlessEvent } from "../headlessFinalizeRule";
 
 describe("readHeadlessIsMoving", () => {
   it("reads the motionchange flag and nothing else", () => {
@@ -34,6 +34,18 @@ describe("routeHeadlessEvent", () => {
     expect(routeHeadlessEvent({ ...android, name: "location", isMoving: null, recordingOpen: false })).toBe("wake");
     expect(routeHeadlessEvent({ ...android, name: "motionchange", isMoving: false, recordingOpen: false })).toBe("wake");
     expect(routeHeadlessEvent({ ...android, name: "motionchange", isMoving: true, recordingOpen: false })).toBe("wake");
+  });
+
+  it("hands the fix itself to the handler for a location event, the nested one for motionchange", () => {
+    const loc = { coords: { latitude: 1, longitude: 2, speed: 9 } };
+    expect(pickHeadlessLocation("location", loc)).toBe(loc);
+    expect(pickHeadlessLocation("motionchange", { isMoving: true, location: loc })).toBe(loc);
+  });
+
+  it("hands nothing to the handler when there is no fix to hand", () => {
+    expect(pickHeadlessLocation("heartbeat", { location: { coords: {} } })).toBeNull();
+    expect(pickHeadlessLocation("location", {})).toBeNull();
+    expect(pickHeadlessLocation("motionchange", { isMoving: true })).toBeNull();
   });
 
   it("ignores every other event and every other platform", () => {
