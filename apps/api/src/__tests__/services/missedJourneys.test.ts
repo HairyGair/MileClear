@@ -7,6 +7,7 @@ import {
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
   isRecordedDiscardWorthOffering,
+  discardedRecordingSource,
   MISSED_RECORDED_MIN_SECONDS,
   MISSED_WAKE_LAG_MILES,
   MISSED_MIN_MILES,
@@ -265,5 +266,17 @@ describe("isRecordedDiscardWorthOffering", () => {
     expect(isRecordedDiscardWorthOffering({
       ...parked, recordedMiles: 0.2, departedAt: new Date(t0), arrivedAt: new Date(t0 + 60_000),
     })).toEqual({ ok: true });
+  });
+});
+
+describe("discardedRecordingSource - which guard dropped it (15 Sep 2026)", () => {
+  it("keeps the too-short discard under its original 'recorded' source", () => {
+    expect(discardedRecordingSource("too_short")).toBe("recorded");
+  });
+
+  it("gives the walk verdict and the walking-shape phantom their own sources", () => {
+    // The daily digest and the missed-journeys card read these exact values.
+    expect(discardedRecordingSource("walk")).toBe("dropped_walk");
+    expect(discardedRecordingSource("phantom")).toBe("dropped_phantom");
   });
 });

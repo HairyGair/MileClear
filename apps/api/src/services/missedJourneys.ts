@@ -70,6 +70,28 @@ export const MISSED_MAX_IMPLIED_MPH = 80;
 export const MISSED_RECORDED_MIN_SECONDS = 30;
 export const MISSED_RECORDED_MIN_MILES = 0.01; // recorded OR crow-flies, whichever is larger
 
+/**
+ * Which guard in finalizeAutoTrip threw the recording away, as the client
+ * reports it, and the proposal `source` each one is stored under. "recorded"
+ * is the original too-short discard and keeps its name; the walk verdict and
+ * the walking-shape phantom guard used to drop a drive without a word
+ * (15 Sep 2026) and now come back as offers of their own. The daily digest
+ * reads these exact source values.
+ */
+export type DiscardedRecordingReason = "too_short" | "walk" | "phantom";
+export type DiscardedRecordingSource = "recorded" | "dropped_walk" | "dropped_phantom";
+
+export function discardedRecordingSource(reason: DiscardedRecordingReason): DiscardedRecordingSource {
+  switch (reason) {
+    case "walk":
+      return "dropped_walk";
+    case "phantom":
+      return "dropped_phantom";
+    default:
+      return "recorded";
+  }
+}
+
 export interface RecordedDiscardInput {
   fromLat: number;
   fromLng: number;

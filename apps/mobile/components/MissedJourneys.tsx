@@ -26,13 +26,40 @@ import {
 // 10+ proposals waiting (one had 70) and a wall that long gets ignored wholesale.
 const PAGE_SIZE = 3;
 
-// "recorded" rows (a short drive the engine captured then dropped) are turned
-// down three times in four, so they go after gap and trip_start rows. Stable
-// within each group: the API already returns newest first.
+// Rows the engine recorded and then dropped: too short ("recorded"), judged
+// a walk ("dropped_walk"), or judged phone drift ("dropped_phantom"). The
+// too-short ones are turned down three times in four and the other two are
+// drops the engine was confident about, so all three go after gap and
+// trip_start rows. Stable within each group: the API already returns newest
+// first.
+const DROPPED_SOURCES = new Set<MissedJourneyProposal["source"]>([
+  "recorded",
+  "dropped_walk",
+  "dropped_phantom",
+]);
+function isDroppedRecording(p: MissedJourneyProposal): boolean {
+  return DROPPED_SOURCES.has(p.source);
+}
+
 function orderProposals(list: MissedJourneyProposal[]): MissedJourneyProposal[] {
-  const rest = list.filter((p) => p.source !== "recorded");
-  const recorded = list.filter((p) => p.source === "recorded");
-  return [...rest, ...recorded];
+  const rest = list.filter((p) => !isDroppedRecording(p));
+  const dropped = list.filter(isDroppedRecording);
+  return [...rest, ...dropped];
+}
+
+// One line under the route saying why we are asking, for a drive we
+// actually recorded. A gap row gets nothing: it is a guess from a hole.
+function droppedNote(source: MissedJourneyProposal["source"]): string | null {
+  switch (source) {
+    case "recorded":
+      return "We recorded this one but it was too short to save on its own";
+    case "dropped_walk":
+      return "The app thought this was a walk. If you were driving, add it.";
+    case "dropped_phantom":
+      return "This looked like the phone drifting rather than a drive. Add it if it was real.";
+    default:
+      return null;
+  }
 }
 
 function shortPlace(addr: string | null, lat: number, lng: number): string {
@@ -143,13 +170,11 @@ export function MissedJourneys() {
           <Text style={styles.meta}>
             {formatWhen(p.arrivedAt)} · ~{p.estimatedMiles} mi
           </Text>
-          {p.source === "recorded" && (
+          {droppedNote(p.source) != null && (
             // Worth distinguishing. A gap row is us guessing from a hole in the
-            // list; this one is a drive we actually recorded and then dropped
-            // for being short, so the driver can trust it happened.
-            <Text style={styles.recordedNote}>
-              We recorded this one but it was too short to save on its own
-            </Text>
+            // list; these are movement we actually recorded and then dropped,
+            // so the driver knows something happened and why we were unsure.
+            <Text style={styles.recordedNote}>{droppedNote(p.source)}</Text>
           )}
           {p.source === "trip_start" && (
             <Text style={styles.recordedNote}>
