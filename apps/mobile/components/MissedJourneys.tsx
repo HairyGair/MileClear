@@ -22,6 +22,19 @@ import {
   type MissedJourneyProposal,
 } from "../lib/api/trips";
 
+// How many rows a driver sees before they have to ask for more. 87 drivers had
+// 10+ proposals waiting (one had 70) and a wall that long gets ignored wholesale.
+const PAGE_SIZE = 3;
+
+// "recorded" rows (a short drive the engine captured then dropped) are turned
+// down three times in four, so they go after gap and trip_start rows. Stable
+// within each group: the API already returns newest first.
+function orderProposals(list: MissedJourneyProposal[]): MissedJourneyProposal[] {
+  const rest = list.filter((p) => p.source !== "recorded");
+  const recorded = list.filter((p) => p.source === "recorded");
+  return [...rest, ...recorded];
+}
+
 function shortPlace(addr: string | null, lat: number, lng: number): string {
   if (addr && addr.trim()) return addr.split(",")[0].trim();
   return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
@@ -39,10 +52,13 @@ export function MissedJourneys() {
   const router = useRouter();
   const [items, setItems] = useState<MissedJourneyProposal[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Rows revealed so far. Not reset on refetch: after an accept/dismiss the
+  // list shrinks by one and the next hidden row moves up to fill the slot.
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const load = useCallback(() => {
     fetchMissedJourneys()
-      .then((r) => setItems(r.proposals ?? []))
+      .then((r) => setItems(orderProposals(r.proposals ?? [])))
       .catch(() => {});
   }, []);
 
@@ -108,13 +124,16 @@ export function MissedJourneys() {
         ? "A journey you might have missed"
         : `${items.length} journeys to check`;
 
+  const shown = items.slice(0, visibleCount);
+  const hidden = items.length - shown.length;
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Ionicons name="git-compare-outline" size={16} color={colors.amber} />
         <Text style={styles.headerText}>{header}</Text>
       </View>
-      {items.map((p) => (
+      {shown.map((p) => (
         <View key={p.id} style={styles.row}>
           <Text style={styles.route} numberOfLines={1}>
             {shortPlace(p.fromAddress, p.fromLat, p.fromLng)}
@@ -168,6 +187,17 @@ export function MissedJourneys() {
           </View>
         </View>
       ))}
+      {hidden > 0 && (
+        <TouchableOpacity
+          style={styles.moreBtn}
+          onPress={() => setVisibleCount((n) => n + PAGE_SIZE)}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.moreText}>
+            Show {Math.min(hidden, PAGE_SIZE)} more{hidden > PAGE_SIZE ? ` (${hidden} left)` : ""}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -244,5 +274,16 @@ const styles = StyleSheet.create({
     color: colors.text2,
     fontFamily: fonts.medium,
     fontSize: 13.5,
+  },
+  moreBtn: {
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceBorder,
+    alignItems: "center",
+  },
+  moreText: {
+    color: colors.amber,
+    fontFamily: fonts.medium,
+    fontSize: 13,
   },
 });
