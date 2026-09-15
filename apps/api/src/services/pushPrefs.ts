@@ -25,6 +25,9 @@ export const PUSH_PREF_KEYS = [
   "autoTripLiveActivity",
   "fuelAlert",
   "morningBriefing",
+  // Evening "Today: N trips, M miles" push (jobs/eveningDigest.ts). Missing
+  // key = on, like every other key here.
+  "eveningDigest",
 ] as const;
 
 export type PushPrefKey = (typeof PUSH_PREF_KEYS)[number];

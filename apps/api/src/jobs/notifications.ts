@@ -30,6 +30,7 @@ import { runGeocodeMissingAddressesJob } from "./geocodeMissingAddresses.js";
 import { runVisitSplitJob } from "./visitSplit.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
+import { runEveningDigestJob } from "./eveningDigest.js";
 import {
   runUnclassifiedNudgeEmailJob,
   runWeeklyRecapEmailJob,
@@ -1701,6 +1702,16 @@ export function startNotificationJobs(): void {
       WEEKLY_DIGEST_INTERVAL_MS
     );
 
+    // Evening digest: hourly tick, internal 20:30-21:29 UK gate, per-user
+    // per-day dedup. "Today: 4 trips, 21 miles. 2 walks ignored." Dry run
+    // unless EVENING_DIGEST_DRY_RUN=0.
+    const EVENING_DIGEST_INTERVAL_MS = 60 * 60 * 1000;
+    void runJob("evening_digest", () => runEveningDigestJob());
+    setInterval(
+      () => void runJob("evening_digest", () => runEveningDigestJob()),
+      EVENING_DIGEST_INTERVAL_MS
+    );
+
     // HMRC deadline reminders: hourly tick with 8am UK gate. Posts
     // when a deadline is 30/14/7/1/0 days away. Per-deadline dedup.
     const DEADLINE_REMINDER_INTERVAL_MS = 60 * 60 * 1000;
@@ -1720,15 +1731,17 @@ export function startNotificationJobs(): void {
       FIRST_TRIP_INTERVAL_MS
     );
 
-    // Missing trip addresses: every 6 hours. Fills null start/end addresses
-    // left by support-side trip splits and device reverse-geocode failures
-    // through the Nominatim reverse geocoder. 50 trips a run, paced to
-    // Nominatim's one-request-a-second policy, so a full run is under two
-    // minutes.
+    // Missing trip addresses: hourly. Fills null start/end addresses left by
+    // device reverse-geocode failures (about 600 auto-recorded trips a day,
+    // 15 Sep 2026) and support-side trip splits through the Nominatim reverse
+    // geocoder. 300 trips a run, newest first, paced to Nominatim's
+    // one-request-a-second policy, so a full run is about eleven minutes and
+    // a blank arrow in the trips list is gone within the hour.
+    const GEOCODE_INTERVAL_MS = 60 * 60 * 1000;
     void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob);
     setInterval(
       () => void runJob("geocode_missing_addresses", runGeocodeMissingAddressesJob),
-      INTERVAL_MS
+      GEOCODE_INTERVAL_MS
     );
 
     // Visit auto-split: every 30 minutes, cut welded trips at the visits
