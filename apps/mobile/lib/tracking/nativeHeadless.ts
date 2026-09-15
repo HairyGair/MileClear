@@ -24,12 +24,33 @@
 // lives only in the foreground code. Now it opens tracking; the native store
 // keeps the fixes and the next app open reconciles them into a trip.
 //
+// And since 15 Sep 2026 it finishes the trip at the kerb. The Android audit
+// that day found distances right but delivery late: median 90 minutes from
+// trip end to server (iOS 12), 34% over six hours late (iOS 10%), because a
+// recording opened while the app was alive was only ever finalised at the
+// next app open once Android had ended the app. The SDK's parked
+// `motionchange {isMoving:false}` reached this task, which ignored it. Now,
+// with a recording open, the task hands that event to the same foreground
+// stop handler (finalise, sync or queue offline, keep-alive window), and a
+// headless `location` fix to the same buffering handler, so nothing about
+// the verdict, distance or walk logic differs between the two contexts.
+//
+// Why the two contexts cannot both handle one event: the SDK routes every
+// event either to the live JS listeners or to this task, by
+// LifecycleManager.isHeadless. That flag is set by onActivityDestroy (the
+// RN module's onHostDestroy, which also runs removeAllListeners()) and
+// cleared by setActivity on onHostResume; RN itself refuses to start a
+// headless task while the app is in the foreground. Inside one JS context
+// finalizeAutoTrip's re-entrancy guard and syncCreateTrip's two-minute
+// dedup window stand behind that.
+//
 // Registered from the app entry (index.js) so it exists before anything
 // renders. Android-only by construction: the SDK only fires headless events
 // there, and the module is required lazily so Expo Go and iOS never touch it.
 
 import { Platform } from "react-native";
 import { decideHeadlessWake, readHeadlessFix } from "./headlessSpeedRule";
+import { readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
 type BgGeoHeadless = {
@@ -93,6 +114,91 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
   }
 }
 
+type DetectionLog = (event: string, data?: Record<string, unknown>) => Promise<void>;
+
+async function loadLog(): Promise<DetectionLog | null> {
+  try {
+    return (await import("./detection")).logDetectionEvent;
+  } catch {
+    return null;
+  }
+}
+
+/** tracking_state.auto_recording_active === '1'. False when the DB is unreachable. */
+async function isRecordingOpen(): Promise<boolean> {
+  try {
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    return row?.value === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** How many fixes the route holds right now: the JS buffer and the SDK's own store. */
+async function routeSize(): Promise<{ jsCoords: number; nativeCoords: number | null }> {
+  let jsCoords = 0;
+  let nativeCoords: number | null = null;
+  try {
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    jsCoords = (await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM detection_coordinates"))?.n ?? 0;
+  } catch {}
+  try {
+    const { getNativeStoreSummary } = await import("./nativeLocation");
+    nativeCoords = (await getNativeStoreSummary())?.count ?? null;
+  } catch {}
+  return { jsCoords, nativeCoords };
+}
+
+/**
+ * The car has parked with a recording open and the app is not running:
+ * finalise here, through the foreground stop handler, instead of waiting for
+ * the next app open. Events prove it fleet-wide: started / done / failed.
+ */
+async function finalizeHeadless(params: unknown): Promise<void> {
+  const log = await loadLog();
+  const startedAt = Date.now();
+  const before = await routeSize();
+  await log?.("native_headless_finalize_started", before);
+  try {
+    const { handleNativeMotionChange } = await import("./nativeLocation");
+    // The SDK's motionchange JSON is the same object the live listener gets.
+    await handleNativeMotionChange(params as Parameters<typeof handleNativeMotionChange>[0]);
+    const { readPersistedLastSavedTrip } = await import("../events/lastTrip");
+    const last = await readPersistedLastSavedTrip();
+    const saved = !!last && last.savedAt >= startedAt;
+    await log?.("native_headless_finalize_done", {
+      distance: saved ? last!.distanceMiles : null,
+      coords: Math.max(before.jsCoords, before.nativeCoords ?? 0),
+      saved,
+      // Still armed afterwards = a multileg deferral, or the handler stood
+      // down (detection off, a shift owns GPS, or it logged
+      // native_motionchange_error); the next app open still covers it.
+      stillArmed: await isRecordingOpen(),
+      ms: Date.now() - startedAt,
+    });
+  } catch (err) {
+    await log?.("native_headless_finalize_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      ms: Date.now() - startedAt,
+    }).catch(() => {});
+  }
+}
+
+/** A headless fix while a recording is open: buffer it as the live listener would. */
+async function bufferHeadless(params: unknown): Promise<void> {
+  try {
+    const { handleNativeLocation } = await import("./nativeLocation");
+    await handleNativeLocation(params as Parameters<typeof handleNativeLocation>[0]);
+  } catch {
+    // handleNativeLocation never throws; the SDK's own store still holds the fix.
+  }
+}
+
 export function registerNativeHeadlessTask(): void {
   if (Platform.OS !== "android") return;
   let BGGeo: BgGeoHeadless | null = null;
@@ -114,7 +220,19 @@ export function registerNativeHeadlessTask(): void {
           await rearmIfStationary(BGGeo!, name);
         }
       } else if (name === "location" || name === "motionchange") {
-        await wakeIfDriving(BGGeo!, name, event?.params);
+        const route = routeHeadlessEvent({
+          platform: Platform.OS,
+          name,
+          isMoving: readHeadlessIsMoving(name, event?.params),
+          recordingOpen: await isRecordingOpen(),
+        });
+        if (route === "finalize") {
+          await finalizeHeadless(event?.params);
+        } else if (route === "buffer") {
+          await bufferHeadless(event?.params);
+        } else if (route === "wake") {
+          await wakeIfDriving(BGGeo!, name, event?.params);
+        }
       }
       // Every other event (geofence, providerchange, connectivitychange,
       // http, schedule, powersavechange, activitychange) is the SDK's own

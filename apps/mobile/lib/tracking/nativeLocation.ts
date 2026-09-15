@@ -82,7 +82,7 @@ type BgGeo = {
   [key: string]: unknown;
 };
 
-interface NativeLocation {
+export interface NativeLocation {
   coords: { latitude: number; longitude: number; speed: number | null; accuracy: number | null };
   timestamp: string;
   is_moving?: boolean;
@@ -93,7 +93,7 @@ interface NativeLocation {
   // on Android because ACTIVITY_RECOGNITION is blocked there.
   activity?: { type?: string | null; confidence?: number | null } | null;
 }
-interface NativeMotionEvent {
+export interface NativeMotionEvent {
   isMoving: boolean;
   location: NativeLocation;
 }
@@ -946,7 +946,12 @@ async function applyKerbsideDecision(): Promise<{ kind: string } | null> {
   }
 }
 
-async function handleNativeLocation(loc: NativeLocation): Promise<void> {
+// Exported for the Android headless task (nativeHeadless.ts), which hands it
+// the SDK's headless `location` event while a recording is open so the fix
+// is buffered exactly as it is when the app is alive. Not for any other
+// caller: the SDK routes each event to either the live listeners or the
+// headless task, never both.
+export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
     const db = await getDatabase();
@@ -1051,7 +1056,12 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   }
 }
 
-async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void> {
+// Exported for the Android headless task (nativeHeadless.ts): the parked
+// `motionchange {isMoving:false}` arrives there when Android has ended the
+// app, and until 15 Sep 2026 nothing finalised the open recording until the
+// driver next opened the app (median 90 minutes late). Same code path, so
+// the verdict, distance and walk logic stay in one place.
+export async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void> {
   try {
     if (!(await isDriveDetectionEnabled())) return;
     // Log every motion-state change (low volume, high diagnostic value) so a
