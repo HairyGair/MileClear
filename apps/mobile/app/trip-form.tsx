@@ -647,6 +647,23 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const router = useRouter();
+
+  // "Save as place" under a trip's start/end address: open the saved-location
+  // form with the pin and address already filled, so the driver only names it.
+  const openSaveAsPlace = useCallback(
+    (lat: number, lng: number, addr: string | null) => {
+      router.push({
+        pathname: "/saved-location-form",
+        params: {
+          lat: String(lat),
+          lng: String(lng),
+          ...(addr ? { address: addr } : {}),
+        },
+      });
+    },
+    [router]
+  );
+
   const {
     id,
     mode: modeParam,
@@ -3174,6 +3191,18 @@ export default function TripFormScreen() {
                 setStartAddress(null);
               }}
             />
+            {isEditing && startLat != null && startLng != null && (
+              <TouchableOpacity
+                style={styles.savePlaceLink}
+                onPress={() => openSaveAsPlace(startLat, startLng, startAddress)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Save the start location as a place"
+              >
+                <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
+                <Text style={styles.savePlaceText}>Save as place</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Distance card */}
             <View style={styles.distanceCard}>
@@ -3481,6 +3510,18 @@ export default function TripFormScreen() {
                 setEndAddress(null);
               }}
             />
+            {isEditing && endLat != null && endLng != null && (
+              <TouchableOpacity
+                style={styles.savePlaceLink}
+                onPress={() => openSaveAsPlace(endLat, endLng, endAddress)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Save the end location as a place"
+              >
+                <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
+                <Text style={styles.savePlaceText}>Save as place</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Start Time */}
             <DateTimePickerField
@@ -3965,6 +4006,21 @@ const styles = StyleSheet.create({
   },
   backToQuickText: {
     fontSize: 14,
+    fontFamily: fonts.medium,
+    color: AMBER,
+  },
+  // "Save as place" under a trip's start/end address (edit mode only)
+  savePlaceLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginTop: 2,
+  },
+  savePlaceText: {
+    fontSize: 13,
     fontFamily: fonts.medium,
     color: AMBER,
   },

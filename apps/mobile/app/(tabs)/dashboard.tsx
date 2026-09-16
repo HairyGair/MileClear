@@ -2195,6 +2195,19 @@ export default function DashboardScreen() {
                   <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
                   <Text style={s.quickActionLabel}>Insights</Text>
                 </TouchableOpacity>
+                {/* Save the spot the driver is parked at right now, so a
+                    customer's door becomes a saved place without typing a
+                    postcode (Chris, 16 Sep 2026). */}
+                <TouchableOpacity
+                  style={s.quickAction}
+                  onPress={() => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } })}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save this spot as a place"
+                >
+                  <Ionicons name="bookmark-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
+                  <Text style={s.quickActionLabel}>Save spot</Text>
+                </TouchableOpacity>
               </View>
             );
           case "journey_map":
