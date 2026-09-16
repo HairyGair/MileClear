@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -187,15 +187,53 @@ const sliderStyles = StyleSheet.create({
 
 export default function SavedLocationFormScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  // Optional prefill params. A trip's "Save as place" passes lat/lng/address;
+  // the dashboard's "Save this spot" passes useCurrent=1. Either way the
+  // driver lands on a form with the pin already set and only a name to type
+  // (Chris, 357 trips, 16 Sep 2026: "laboriously typing in postcodes").
+  const {
+    id,
+    lat: latParam,
+    lng: lngParam,
+    address: addressParam,
+    name: nameParam,
+    type: typeParam,
+    useCurrent,
+  } = useLocalSearchParams<{
+    id?: string;
+    lat?: string;
+    lng?: string;
+    address?: string;
+    name?: string;
+    type?: string;
+    useCurrent?: string;
+  }>();
   const { user } = useUser();
   const isEditing = !!id;
 
-  const [name, setName] = useState("");
-  const [locationType, setLocationType] = useState<LocationType>("home");
-  const [latitude, setLatitude] = useState<number | null>(null);
-  const [longitude, setLongitude] = useState<number | null>(null);
-  const [address, setAddress] = useState<string | null>(null);
+  const prefillLat = latParam != null ? Number(latParam) : NaN;
+  const prefillLng = lngParam != null ? Number(lngParam) : NaN;
+  const hasPrefillCoords = Number.isFinite(prefillLat) && Number.isFinite(prefillLng);
+  const isPrefilled = !isEditing && (hasPrefillCoords || useCurrent === "1");
+  const isValidType = (v: string | undefined): v is LocationType =>
+    LOCATION_TYPES.some((opt) => opt.value === v);
+
+  const [name, setName] = useState(() => (!isEditing && nameParam ? nameParam : ""));
+  // A prefilled place is usually a customer's door, not home, so it starts
+  // as Custom unless the caller says otherwise. A plain "Add Location" open
+  // keeps Home as before.
+  const [locationType, setLocationType] = useState<LocationType>(() =>
+    !isEditing && isValidType(typeParam) ? typeParam : isPrefilled ? "custom" : "home"
+  );
+  const [latitude, setLatitude] = useState<number | null>(() =>
+    !isEditing && hasPrefillCoords ? prefillLat : null
+  );
+  const [longitude, setLongitude] = useState<number | null>(() =>
+    !isEditing && hasPrefillCoords ? prefillLng : null
+  );
+  const [address, setAddress] = useState<string | null>(() =>
+    !isEditing && hasPrefillCoords && addressParam ? addressParam : null
+  );
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_RADIUS);
   // Geofence-enabled state stays in the form (and the DB column persists) for
   // backward compatibility with the API, but the toggle is no longer shown
@@ -255,6 +293,15 @@ export default function SavedLocationFormScreen() {
       setLoadingLocation(false);
     }
   }, []);
+
+  // "Save this spot" from the dashboard: read the phone's location once on
+  // mount. The ref stops a re-render or a param change from asking twice.
+  const usedCurrentRef = useRef(false);
+  useEffect(() => {
+    if (isEditing || useCurrent !== "1" || usedCurrentRef.current) return;
+    usedCurrentRef.current = true;
+    handleUseCurrentLocation();
+  }, [isEditing, useCurrent, handleUseCurrentLocation]);
 
   const handleMapConfirm = useCallback(
     (lat: number, lng: number, confirmedAddress: string | null) => {
@@ -345,10 +392,16 @@ export default function SavedLocationFormScreen() {
     );
   }, [id, name, router]);
 
+  const screenTitle = isEditing
+    ? "Edit Location"
+    : isPrefilled
+    ? "Save this place"
+    : "Add Location";
+
   if (loadingExisting) {
     return (
       <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: isEditing ? "Edit Location" : "Add Location" }} />
+        <Stack.Screen options={{ title: screenTitle }} />
         <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
       </View>
     );
@@ -361,7 +414,7 @@ export default function SavedLocationFormScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Stack.Screen options={{ title: isEditing ? "Edit Location" : "Add Location" }} />
+      <Stack.Screen options={{ title: screenTitle }} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Location Name */}

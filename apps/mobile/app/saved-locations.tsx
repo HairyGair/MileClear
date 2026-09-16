@@ -123,11 +123,19 @@ export default function SavedLocationsScreen() {
   // affordance in the empty state. Updated alongside the locations
   // fetch — fire-and-forget, never blocks the UI.
   const [suggestionCount, setSuggestionCount] = useState<number>(0);
+  // Whether the driver has any trips at all (local SQLite, one row). Drives
+  // the one-line "Places you visit often" row in the footer, so the
+  // suggestions screen stays reachable even when the server has no fresh
+  // suggestions to headline.
+  const [hasTrips, setHasTrips] = useState(false);
 
   const loadLocations = useCallback(async () => {
     try {
       // Load from local SQLite first (offline-first)
       const db = await getDatabase();
+      db.getFirstAsync<{ id: string }>("SELECT id FROM trips LIMIT 1")
+        .then((row) => setHasTrips(!!row))
+        .catch(() => {});
       const localRows = await db.getAllAsync<{
         id: string;
         name: string;
@@ -313,6 +321,22 @@ export default function SavedLocationsScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            {/* One-line route to the suggestions screen for anyone with trip
+                history. Hidden when the header CTA above already shows it,
+                and at the free cap (same gate as that CTA). */}
+            {hasTrips && !atFreeLimit && suggestionCount === 0 && (
+              <TouchableOpacity
+                style={styles.oftenRow}
+                onPress={() => router.push("/saved-locations-suggest" as never)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Places you visit often"
+              >
+                <Ionicons name="sparkles-outline" size={16} color={AMBER} accessible={false} />
+                <Text style={styles.oftenRowText}>Places you visit often</Text>
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+              </TouchableOpacity>
+            )}
             {atFreeLimit ? (
               <TouchableOpacity
                 style={styles.lockedAddBtn}
@@ -413,6 +437,20 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 8,
     paddingBottom: 20,
+  },
+  oftenRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    marginBottom: 8,
+  },
+  oftenRowText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: AMBER,
   },
   // Locked add button
   lockedAddBtn: {

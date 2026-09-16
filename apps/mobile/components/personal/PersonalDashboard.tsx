@@ -174,6 +174,18 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
                 <Ionicons name="trophy-outline" size={20} color={EMERALD} accessible={false} />
                 <Text style={styles.quickActionLabel}>Badges</Text>
               </TouchableOpacity>
+              {/* Save the spot the driver is parked at right now, without
+                  typing a postcode. */}
+              <TouchableOpacity
+                style={styles.quickAction}
+                onPress={() => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } })}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Save this spot as a place"
+              >
+                <Ionicons name="bookmark-outline" size={20} color={EMERALD} accessible={false} />
+                <Text style={styles.quickActionLabel}>Save spot</Text>
+              </TouchableOpacity>
             </View>
           </View>
         );
