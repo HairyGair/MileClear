@@ -70,6 +70,7 @@ import * as Notifications from "expo-notifications";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
+import { needsTimeConfirm, defaultEndFor, clockTime } from "../lib/trips/manualTimeRule";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -717,6 +718,19 @@ export default function TripFormScreen() {
   // Time data
   const [startedAt, setStartedAt] = useState<Date>(new Date());
   const [endedAt, setEndedAt] = useState<Date | null>(null);
+  // Manual entry opens with the start set to "now". A driver adding a
+  // morning drive at lunchtime who never looks at the time field would save
+  // it stamped with the moment they opened the form (Emily Russell, 16 Sep
+  // 2026). So Save asks first when neither time has been set, and the end
+  // follows the routed duration until the driver sets it themselves.
+  // Prefilled times (a missed-journey offer) count as set.
+  const [timeTouched, setTimeTouched] = useState(false);
+  const [endTimeTouched, setEndTimeTouched] = useState(false);
+  // Set when the driver answers "Save anyway" to the time question, so the
+  // re-run continues into the other guards instead of asking again.
+  const timeConfirmedRef = useRef(false);
+  // The routed drive time from /trips/route-distance, feeding the default end.
+  const [routedDurationSecs, setRoutedDurationSecs] = useState<number | null>(null);
 
   // Trip metadata
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
@@ -892,9 +906,18 @@ export default function TripFormScreen() {
             });
             setStartedAt(times.startedAt);
             setEndedAt(times.endedAt);
+            setTimeTouched(true);
+            setEndTimeTouched(true);
           } else {
-            if (dep && !Number.isNaN(dep.getTime())) setStartedAt(dep);
-            if (arr && !Number.isNaN(arr.getTime())) setEndedAt(arr);
+            if (dep && !Number.isNaN(dep.getTime())) {
+              setStartedAt(dep);
+              setTimeTouched(true);
+            }
+            if (arr && !Number.isNaN(arr.getTime())) {
+              setEndedAt(arr);
+              setTimeTouched(true);
+              setEndTimeTouched(true);
+            }
           }
           setMode("manual");
           return; // finally sets loading=false
@@ -1269,17 +1292,31 @@ export default function TripFormScreen() {
         if (result) {
           setDistanceMiles(result.distanceMiles);
           setRouteSource(result.source);
+          setRoutedDurationSecs(
+            Number.isFinite(result.durationSecs) && result.durationSecs > 0 ? result.durationSecs : null
+          );
         } else {
           // Routing unavailable. Don't invent a haversine number — let the
           // user see "couldn't calculate" and enter the distance manually
           // if they want to. Honest friction beats silent under-counting.
           setDistanceMiles(null);
           setRouteUnavailable(true);
+          setRoutedDurationSecs(null);
         }
       })
       .finally(() => { if (!cancelled) setCalculatingRoute(false); });
     return () => { cancelled = true; };
   }, [startLat, startLng, endLat, endLng, mode]);
+
+  // Manual entry: once the route is known, an end time the driver has not
+  // set follows the start by the routed drive time rather than the old
+  // one-minute stub. Moving the start moves it too. Stops the moment the
+  // driver sets or clears the end themselves.
+  useEffect(() => {
+    if (mode !== "manual" || isEditing || endTimeTouched) return;
+    if (routedDurationSecs == null) return;
+    setEndedAt(defaultEndFor(startedAt, routedDurationSecs / 60));
+  }, [mode, isEditing, endTimeTouched, routedDurationSecs, startedAt]);
 
   // ── Driving state: timer + location watch ────────────────────────────────
 
@@ -1920,6 +1957,31 @@ export default function TripFormScreen() {
     // Only on new trips; an edit shouldn't re-nag. Re-runs the save with
     // skipGuards once the user confirms.
     if (!skipGuards && !isEditing) {
+      // The time question comes first: a drive stamped with the wrong hour
+      // lands in the wrong place in the day and invites a bogus missed
+      // journey offer between it and its neighbours. "Save anyway" marks
+      // the time as confirmed and re-runs so the remaining guards still get
+      // their turn.
+      if (
+        !timeConfirmedRef.current &&
+        needsTimeConfirm({ isNew: !isEditing, isManual: mode === "manual", timeTouched })
+      ) {
+        Alert.alert(
+          `Did it start at ${clockTime(startedAt)} today?`,
+          "That is just the time you opened the form. If the drive was earlier, set the real start and end so it lands in the right place in your day.",
+          [
+            { text: "Change time", style: "cancel" },
+            {
+              text: "Save anyway",
+              onPress: () => {
+                timeConfirmedRef.current = true;
+                handleSave();
+              },
+            },
+          ]
+        );
+        return;
+      }
       if (distanceMiles == null || distanceMiles <= 0) {
         Alert.alert(
           "This trip has no distance",
@@ -2289,7 +2351,7 @@ export default function TripFormScreen() {
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
-    odometerStart, odometerEnd, missedId, mode,
+    odometerStart, odometerEnd, missedId, mode, timeTouched,
   ]);
 
   const handleCancel = useCallback(() => {
@@ -3527,7 +3589,10 @@ export default function TripFormScreen() {
             <DateTimePickerField
               label="Start Time"
               value={startedAt}
-              onChange={setStartedAt}
+              onChange={(d) => {
+                setStartedAt(d);
+                setTimeTouched(true);
+              }}
               disabled={isEditing}
               maximumDate={new Date()}
             />
@@ -3536,8 +3601,16 @@ export default function TripFormScreen() {
             <DateTimePickerField
               label="End Time"
               value={endedAt}
-              onChange={setEndedAt}
-              onClear={() => setEndedAt(null)}
+              onChange={(d) => {
+                setEndedAt(d);
+                setTimeTouched(true);
+                setEndTimeTouched(true);
+              }}
+              onClear={() => {
+                setEndedAt(null);
+                setTimeTouched(true);
+                setEndTimeTouched(true);
+              }}
               maximumDate={new Date()}
             />
 
