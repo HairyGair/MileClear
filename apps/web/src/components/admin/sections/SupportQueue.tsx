@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { formatReportedDate } from "@/lib/reportedDate";
 import { Ago } from "../Ago";
 import { DataTable, type Column } from "../DataTable";
 import { Pill } from "../Pill";
@@ -19,6 +20,9 @@ interface QueueItem {
   at: string;
   ageHours: number;
   summary: string;
+  /** Missing-trip reports only: the day the user said they drove, "YYYY-MM-DD".
+   *  Null for reports filed before the date picker (16 Sep 2026). */
+  reportedDate: string | null;
   status: string | null;
   replies: number;
   lastReplyBy: "admin" | "user" | null;
@@ -111,7 +115,21 @@ export function SupportQueue() {
         </>
       ),
     },
-    { key: "summary", header: "What", render: (r) => r.summary },
+    {
+      key: "summary",
+      header: "What",
+      // A missing-trip report leads with the day the user says they drove, so
+      // nobody reads the note against the wrong day again (Adrian Bunn's
+      // "To Peterborough" was 6 Aug, filed 14 Sep).
+      render: (r) =>
+        r.kind === "missing_trip" ? (
+          <>
+            <Pill tone={r.reportedDate ? "accent" : "warn"}>Drove {formatReportedDate(r.reportedDate)}</Pill> {r.summary}
+          </>
+        ) : (
+          r.summary
+        ),
+    },
     {
       key: "age",
       header: "Waiting",

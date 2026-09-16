@@ -39,6 +39,7 @@ import {
 } from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import { adminObservabilityRoutes } from "./observability.js";
+import { parseReportedDate } from "../../lib/reportedDate.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
   getSubscriptionTruth,
@@ -3089,7 +3090,7 @@ export async function adminRoutes(app: FastifyInstance) {
         nativeEngineEnabled?: boolean;
         activitySummary?: Record<string, number>;
       };
-      const meta = (e.metadata ?? {}) as { note?: string };
+      const meta = (e.metadata ?? {}) as { note?: string; reportedDate?: string };
       const recent = e.userId ? (recentBy.get(e.userId) ?? 0) : 0;
       const at = e.createdAt.getTime();
       const userEvents = e.userId ? (eventsBy.get(e.userId) ?? []) : [];
@@ -3204,6 +3205,9 @@ export async function adminRoutes(app: FastifyInstance) {
         email: e.user?.email ?? null,
         displayName: e.user?.displayName ?? null,
         note: meta.note ?? null,
+        // The calendar day the user said they drove ("YYYY-MM-DD", their
+        // local day). Null for reports filed before the picker (16 Sep 2026).
+        reportedDate: parseReportedDate(meta.reportedDate),
         reportedAt: e.createdAt.toISOString(),
         dumpVerdict: dump?.verdict ?? null,
         dumpAt: dump?.capturedAt.toISOString() ?? null,

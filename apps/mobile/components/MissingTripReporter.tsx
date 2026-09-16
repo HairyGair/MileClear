@@ -22,6 +22,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { reportMissingTrip } from "../lib/api/trips";
+import { DateTimePickerField } from "./DateTimePickerField";
 import { apiRequest } from "../lib/api/index";
 import { getDatabase } from "../lib/db/index";
 import { resolveLiveRun, describeElapsed } from "../lib/tracking/liveRecording";
@@ -46,6 +47,17 @@ async function newestLocalTrip(): Promise<{
   } catch {
     return null;
   }
+}
+
+/**
+ * The user's LOCAL calendar day as "YYYY-MM-DD". Not toISOString(), which
+ * gives the UTC day and is yesterday for a late-evening pick in summer.
+ */
+function localIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 /** Fire-and-forget event log, so the deflection rate is measurable. */
@@ -135,6 +147,10 @@ async function settleBeforeReporting(): Promise<{ landed: Awaited<ReturnType<typ
 export function MissingTripReporter() {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
+  // The day they drove. Defaults to today; a report that said only "To
+  // Peterborough" once cost an hour on the wrong day (the drive was five
+  // weeks before the report).
+  const [driveDate, setDriveDate] = useState<Date>(() => new Date());
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -144,7 +160,7 @@ export function MissingTripReporter() {
 
   const send = async () => {
     try {
-      await reportMissingTrip(note.trim());
+      await reportMissingTrip(note.trim(), localIsoDate(driveDate));
       setOpen(false);
       setNote("");
       Alert.alert(
@@ -231,7 +247,12 @@ export function MissingTripReporter() {
     <>
       <TouchableOpacity
         style={styles.link}
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          // Fresh sheet each time: a date left over from an earlier open
+          // would be filed silently as this report's day.
+          setDriveDate(new Date());
+          setOpen(true);
+        }}
         activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel="Missing a trip you made? Tap to tell us."
@@ -253,9 +274,17 @@ export function MissingTripReporter() {
           <View style={styles.sheet}>
             <Text style={styles.title}>Missing a trip?</Text>
             <Text style={styles.sub}>
-              Tell us roughly when you drove and where from and to. We&apos;ll check what happened
-              and make sure it&apos;s captured.
+              Pick the day you drove, then tell us roughly what time and where from and to.
+              We&apos;ll check what happened and make sure it&apos;s captured.
             </Text>
+            <DateTimePickerField
+              label="When was the drive?"
+              mode="date"
+              value={driveDate}
+              onChange={setDriveDate}
+              maximumDate={new Date()}
+              disabled={sending}
+            />
             <TextInput
               style={styles.input}
               placeholder="e.g. around 9am, home to Tesco on the high street"

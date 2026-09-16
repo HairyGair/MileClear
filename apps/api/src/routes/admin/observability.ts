@@ -11,6 +11,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
+import { parseReportedDate } from "../../lib/reportedDate.js";
 import {
   ageHours,
   classifyAndroidTester,
@@ -110,6 +111,9 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       at: string;
       ageHours: number;
       summary: string;
+      /** Missing-trip reports only: the calendar day the user said they
+       *  drove, "YYYY-MM-DD" local to them. Null before the picker existed. */
+      reportedDate: string | null;
       status: string | null;
       replies: number;
       lastReplyBy: "admin" | "user" | null;
@@ -132,6 +136,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         at: f.createdAt.toISOString(),
         ageHours: ageHours(now, f.createdAt),
         summary: `${f.category}: ${f.title}`,
+        reportedDate: null,
         status: f.status,
         replies: replies.length,
         lastReplyBy: last,
@@ -141,7 +146,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       if (handled.has(r.id)) continue;
       const ups = r.userId ? (followBy.get(r.userId) ?? []) : [];
       if (missingTripAnswered(r.createdAt, ups)) continue;
-      const meta = (r.metadata ?? {}) as { note?: string };
+      const meta = (r.metadata ?? {}) as { note?: string; reportedDate?: string };
       items.push({
         kind: "missing_trip",
         id: r.id,
@@ -152,6 +157,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         at: r.createdAt.toISOString(),
         ageHours: ageHours(now, r.createdAt),
         summary: meta.note?.slice(0, 160) ?? "(no note)",
+        reportedDate: parseReportedDate(meta.reportedDate),
         status: null,
         replies: 0,
         lastReplyBy: null,

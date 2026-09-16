@@ -44,6 +44,7 @@ import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
+import { parseReportedDate, formatReportedDate } from "../../lib/reportedDate.js";
 import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
 import { reverseGeocode } from "../../services/geocoding.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, type KnownPlace } from "../../services/mapMatching.js";
@@ -292,8 +293,18 @@ export async function tripRoutes(app: FastifyInstance) {
   // just carries one line of context; we attach the latest dump's verdict +
   // time so a glance at #trip-reports tells us whether the engine logged
   // anything for that drive. Posts to Discord (best-effort), never blocks.
+  //
+  // reportedDate (16 Sep 2026): the calendar day the user says they drove,
+  // "YYYY-MM-DD" in their local time. Optional so builds before the date
+  // picker keep filing; a report without it is shown as "no date". A shape
+  // that passes the regex but is not a real day (2026-02-30) is dropped, not
+  // rejected: the note is still worth having.
   const reportMissingSchema = z.object({
     note: z.string().trim().max(1000).optional(),
+    reportedDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .optional(),
   });
   app.post("/report-missing", async (request, reply) => {
     const userId = request.userId!;
@@ -302,6 +313,7 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Invalid report" });
     }
     const note = parsed.data.note?.trim() || "(no details given)";
+    const reportedDate = parseReportedDate(parsed.data.reportedDate);
 
     const [user, latestDump] = await Promise.all([
       prisma.user.findUnique({ where: { id: userId }, select: { email: true, displayName: true } }),
@@ -317,11 +329,15 @@ export async function tripRoutes(app: FastifyInstance) {
       : "No diagnostic dump on file for this user.";
 
     // Store the note itself (not just hasNote) so the admin missing-trip
-    // inbox can show it without cross-referencing Discord.
+    // inbox can show it without cross-referencing Discord. reportedDate is
+    // only written when the app sent a valid one, so older rows and older
+    // builds look the same: no key.
     logEvent("trip.report_missing", userId, {
       hasNote: note !== "(no details given)",
       note: note.slice(0, 500),
+      ...(reportedDate ? { reportedDate } : {}),
     });
+    const driveLine = `Drive: ${formatReportedDate(reportedDate)}`;
 
     // Best-effort Discord post — import locally to avoid widening the route's
     // import surface, and never let a Discord failure fail the user's report.
@@ -331,7 +347,7 @@ export async function tripRoutes(app: FastifyInstance) {
         embeds: [
           {
             title: "Missing trip reported",
-            description: `**${user?.displayName || user?.email || userId}**\n\n> ${note}\n\n${dumpLine}`,
+            description: `**${user?.displayName || user?.email || userId}**\n\n${driveLine}\n\n> ${note}\n\n${dumpLine}`,
             color: 0xf5a623,
             fields: [{ name: "User ID", value: userId, inline: true }],
             timestamp: new Date().toISOString(),
@@ -940,6 +956,10 @@ export async function tripRoutes(app: FastifyInstance) {
     // manual trips in 14 days overlapped a recorded one. Look for an existing
     // trip in the surrounding day that overlaps this one by half the shorter
     // duration and shares both ends within 0.5 mi, and mark the NEWER trip.
+    // A hand-added trip is also checked against consecutive recorded legs
+    // joined end to end (the visit auto-split cuts one drive into two), so
+    // the day-wide window below matters: it has to hold the neighbouring
+    // leg, not just the trips overlapping this one.
     // Nothing is deleted here: the app offers a merge, "Keep both" clears it.
     // Runs for manual and tracked creates alike, since either can arrive
     // second. Awaited so the 201 carries the mark, but never allowed to fail

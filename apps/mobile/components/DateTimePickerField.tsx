@@ -25,6 +25,8 @@ try {
   // Fallback to text input in Expo Go
 }
 
+type PickerMode = "date" | "datetime";
+
 interface DateTimePickerFieldProps {
   label: string;
   value: Date | null;
@@ -32,6 +34,9 @@ interface DateTimePickerFieldProps {
   onClear?: () => void;
   disabled?: boolean;
   maximumDate?: Date;
+  /** "date" asks for a calendar day only (no time step on Android, no time
+   *  wheel on iOS, DD/MM/YYYY in the Expo Go fallback). Default "datetime". */
+  mode?: PickerMode;
 }
 
 /** Coerce any value into a real Date instance (handles strings from JSON). */
@@ -44,10 +49,18 @@ function toDate(v: any): Date {
   return new Date();
 }
 
-function formatDateTime(date: Date | any): string {
+function formatDateTime(date: Date | any, mode: PickerMode = "datetime"): string {
   if (!date) return "";
   if (!(date instanceof Date)) date = new Date(date);
   if (isNaN(date.getTime())) return "";
+  if (mode === "date") {
+    return date.toLocaleDateString("en-GB", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }
   return date.toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
@@ -58,19 +71,27 @@ function formatDateTime(date: Date | any): string {
   });
 }
 
-function formatFallback(d: Date | null | undefined): string {
+function formatFallback(d: Date | null | undefined, mode: PickerMode = "datetime"): string {
   if (!d) return "";
   if (!(d instanceof Date)) d = new Date(d);
   if (isNaN(d.getTime())) return "";
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
+  if (mode === "date") return `${day}/${month}/${year}`;
   const hours = String(d.getHours()).padStart(2, "0");
   const mins = String(d.getMinutes()).padStart(2, "0");
   return `${day}/${month}/${year} ${hours}:${mins}`;
 }
 
-function parseFallback(text: string): Date | null {
+function parseFallback(text: string, mode: PickerMode = "datetime"): Date | null {
+  if (mode === "date") {
+    // DD/MM/YYYY
+    const m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    const d = new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+    return isNaN(d.getTime()) ? null : d;
+  }
   // DD/MM/YYYY HH:MM
   const match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})$/);
   if (!match) return null;
@@ -91,21 +112,26 @@ export function DateTimePickerField({
   onClear,
   disabled,
   maximumDate,
+  mode = "datetime",
 }: DateTimePickerFieldProps) {
   const [showModal, setShowModal] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(() => toDate(value));
-  // Android shows date first, then time
+  // Android shows date first, then time (date mode stops after the date)
   const [androidMode, setAndroidMode] = useState<"date" | "time">("date");
   const [showAndroid, setShowAndroid] = useState(false);
   // Fallback text input for Expo Go
   const [fallbackText, setFallbackText] = useState(
-    formatFallback(value)
+    formatFallback(value, mode)
   );
+  const nowLabel = mode === "date" ? "Today" : "Now";
+  const fallbackPlaceholder = mode === "date" ? "DD/MM/YYYY" : "DD/MM/YYYY HH:MM";
+  const fallbackHint = mode === "date" ? "format: day month year" : "format: day month year hour minute";
+  const shownValue = value ? formatDateTime(value, mode) : "";
 
   const handleSetNow = () => {
     const now = new Date();
     onChange(now);
-    setFallbackText(formatFallback(now));
+    setFallbackText(formatFallback(now, mode));
   };
 
   // No native picker available — fallback text input
@@ -118,9 +144,9 @@ export function DateTimePickerField({
             onPress={handleSetNow}
             disabled={disabled}
             accessibilityRole="button"
-            accessibilityLabel={`Set ${label} to now`}
+            accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
           >
-            <Text style={styles.nowBtn}>Now</Text>
+            <Text style={styles.nowBtn}>{nowLabel}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.fieldRow}>
@@ -129,13 +155,13 @@ export function DateTimePickerField({
             value={fallbackText}
             onChangeText={(t) => {
               setFallbackText(t);
-              const parsed = parseFallback(t);
+              const parsed = parseFallback(t, mode);
               if (parsed) onChange(parsed);
             }}
-            placeholder="DD/MM/YYYY HH:MM"
+            placeholder={fallbackPlaceholder}
             placeholderTextColor={TEXT_3}
             editable={!disabled}
-            accessibilityLabel={`${label}, format: day month year hour minute`}
+            accessibilityLabel={`${label}, ${fallbackHint}`}
           />
           {onClear && value && (
             <TouchableOpacity
@@ -163,9 +189,9 @@ export function DateTimePickerField({
             onPress={handleSetNow}
             disabled={disabled}
             accessibilityRole="button"
-            accessibilityLabel={`Set ${label} to now`}
+            accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
           >
-            <Text style={styles.nowBtn}>Now</Text>
+            <Text style={styles.nowBtn}>{nowLabel}</Text>
           </TouchableOpacity>
         </View>
         <TouchableOpacity
@@ -178,10 +204,10 @@ export function DateTimePickerField({
           }}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={`${label}: ${value ? formatDateTime(value) : "not set"}. Tap to change`}
+          accessibilityLabel={`${label}: ${shownValue || "not set"}. Tap to change`}
         >
           <Text style={value ? styles.fieldText : styles.fieldPlaceholder}>
-            {value ? formatDateTime(value) : "Tap to set"}
+            {shownValue || "Tap to set"}
           </Text>
           {onClear && value && (
             <TouchableOpacity
@@ -219,14 +245,14 @@ export function DateTimePickerField({
                     setShowModal(false);
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel="Confirm date and time"
+                  accessibilityLabel={mode === "date" ? "Confirm date" : "Confirm date and time"}
                 >
                   <Text style={styles.modalDone}>Done</Text>
                 </TouchableOpacity>
               </View>
               <DateTimePicker
                 value={tempDate}
-                mode="datetime"
+                mode={mode}
                 display="spinner"
                 onChange={(_: any, date?: Date) => {
                   if (date) setTempDate(date);
@@ -242,7 +268,7 @@ export function DateTimePickerField({
     );
   }
 
-  // ── Android: Native dialogs (date → time) ──
+  // ── Android: Native dialogs (date → time; date mode stops after the date) ──
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
@@ -251,9 +277,9 @@ export function DateTimePickerField({
           onPress={handleSetNow}
           disabled={disabled}
           accessibilityRole="button"
-          accessibilityLabel={`Set ${label} to now`}
+          accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
         >
-          <Text style={styles.nowBtn}>Now</Text>
+          <Text style={styles.nowBtn}>{nowLabel}</Text>
         </TouchableOpacity>
       </View>
       <TouchableOpacity
@@ -267,10 +293,10 @@ export function DateTimePickerField({
         }}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={`${label}: ${value ? formatDateTime(value) : "not set"}. Tap to change`}
+        accessibilityLabel={`${label}: ${shownValue || "not set"}. Tap to change`}
       >
         <Text style={value ? styles.fieldText : styles.fieldPlaceholder}>
-          {value ? formatDateTime(value) : "Tap to set"}
+          {shownValue || "Tap to set"}
         </Text>
         {onClear && value && (
           <TouchableOpacity
@@ -295,7 +321,7 @@ export function DateTimePickerField({
               setShowAndroid(false);
               return;
             }
-            if (androidMode === "date") {
+            if (androidMode === "date" && mode === "datetime") {
               setTempDate(date);
               setAndroidMode("time");
             } else {

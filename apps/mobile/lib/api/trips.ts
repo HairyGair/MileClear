@@ -438,11 +438,15 @@ export function splitTrip(tripId: string, cutTimestamps: string[]) {
  * "Missing a trip?" report from the Trips screen. The server already has the
  * user's diagnostic dumps, so we only send one line of context; the API
  * attaches the latest dump and posts it to Discord for the team to triage.
+ *
+ * reportedDate is the day the user says they drove, "YYYY-MM-DD" in their
+ * local calendar (16 Sep 2026). Optional on the wire so the API keeps
+ * accepting reports from builds without the picker.
  */
-export function reportMissingTrip(note: string) {
+export function reportMissingTrip(note: string, reportedDate?: string) {
   return apiRequest<{ ok: boolean }>("/trips/report-missing", {
     method: "POST",
-    body: JSON.stringify({ note }),
+    body: JSON.stringify(reportedDate ? { note, reportedDate } : { note }),
   });
 }
 

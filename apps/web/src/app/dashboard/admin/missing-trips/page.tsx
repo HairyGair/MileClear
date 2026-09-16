@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "../../../../lib/api";
+import { formatReportedDate } from "../../../../lib/reportedDate";
 
 // Triage inbox for "Missing a trip?" reports (the Trips-screen affordance,
 // live since 9 Jun 2026). Each report arrives pre-diagnosed using the
@@ -27,6 +28,9 @@ interface Report {
   email: string | null;
   displayName: string | null;
   note: string | null;
+  /** The day the user said they drove, "YYYY-MM-DD" local to them. Null for
+   *  reports filed before the date picker (16 Sep 2026). */
+  reportedDate: string | null;
   reportedAt: string;
   dumpVerdict: string | null;
   dumpAt: string | null;
@@ -194,11 +198,20 @@ export default function MissingTripReportsPage() {
                   Added a manual trip themselves afterwards
                 </div>
               )}
-              {r.note && (
-                <p style={{ color: "#cbd5e1", margin: "0.5rem 0 0", fontStyle: "italic" }}>
-                  &ldquo;{r.note}&rdquo;
-                </p>
-              )}
+              <p style={{ color: "#cbd5e1", margin: "0.5rem 0 0" }}>
+                <span
+                  title="The day the user said they drove. Filed on the picker since 16 Sep 2026; older reports have no date."
+                  style={{
+                    color: r.reportedDate ? "#fbbf24" : "#64748b",
+                    fontSize: "0.8125rem",
+                    fontWeight: 600,
+                    marginRight: "0.5rem",
+                  }}
+                >
+                  Drove {formatReportedDate(r.reportedDate)}
+                </span>
+                {r.note && <span style={{ fontStyle: "italic" }}>&ldquo;{r.note}&rdquo;</span>}
+              </p>
 
               <p style={{ color: "#94a3b8", fontSize: "0.8125rem", margin: "0.5rem 0 0" }}>
                 Dump: {r.dumpVerdict ?? "none"} ({ago(r.dumpAt)}) · bg-location:{" "}
