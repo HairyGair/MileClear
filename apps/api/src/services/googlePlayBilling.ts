@@ -212,6 +212,14 @@ export function isTrialPurchase(sub: GooglePlaySubscription): boolean {
   return (sub.lineItems || []).some((li) => !!li.offerDetails?.offerId);
 }
 
+/** Which plan the active line item is on, for the founder alerts. */
+export function planFromGoogleSubscription(sub: GooglePlaySubscription): "monthly" | "annual" | null {
+  const plans = (sub.lineItems || []).map((li) => li.offerDetails?.basePlanId).filter((p): p is string => !!p);
+  if (plans.includes(BASE_PLAN_ANNUAL)) return "annual";
+  if (plans.includes(BASE_PLAN_MONTHLY)) return "monthly";
+  return null;
+}
+
 /** Validate that the purchase is for a plan we actually sell. */
 export function hasValidBasePlan(sub: GooglePlaySubscription): boolean {
   const plans = (sub.lineItems || [])

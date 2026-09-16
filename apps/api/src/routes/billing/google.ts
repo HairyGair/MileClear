@@ -16,6 +16,7 @@ import {
 } from "../../services/googlePlayBilling.js";
 import { logEvent } from "../../services/appEvents.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
+import { planFromGoogleSubscription } from "../../services/googlePlayBilling.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
 
 /**
@@ -109,6 +110,7 @@ export async function googleBillingRoutes(app: FastifyInstance) {
           body: `${fullUser?.displayName || fullUser?.email || request.userId}'s Google Play subscription just bound to their MileClear account.`,
           userId: request.userId!,
           userEmail: fullUser?.email ?? null,
+          plan: planFromGoogleSubscription(sub),
           details: {
             premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null,
             orderId: sub.latestOrderId ?? null,

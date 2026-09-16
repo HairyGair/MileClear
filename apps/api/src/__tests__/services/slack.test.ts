@@ -19,3 +19,20 @@ describe("slackEscape", () => {
     expect(slackEscape("Jo <jo@x.com> & co")).toBe("Jo &lt;jo@x.com&gt; &amp; co");
   });
 });
+
+import { planFromAppleProductId } from "../../services/appleIap.js";
+import { planFromGoogleSubscription } from "../../services/googlePlayBilling.js";
+
+describe("plan detection for the subscriber alert", () => {
+  it("reads Apple product ids", () => {
+    expect(planFromAppleProductId("com.mileclear.premium.annual")).toBe("annual");
+    expect(planFromAppleProductId("com.mileclear.premium.monthly")).toBe("monthly");
+    expect(planFromAppleProductId(undefined)).toBeNull();
+  });
+  it("reads Google base plans", () => {
+    const sub = (id: string) => ({ lineItems: [{ offerDetails: { basePlanId: id } }] }) as never;
+    expect(planFromGoogleSubscription(sub("annual"))).toBe("annual");
+    expect(planFromGoogleSubscription(sub("monthly"))).toBe("monthly");
+    expect(planFromGoogleSubscription({ lineItems: [] } as never)).toBeNull();
+  });
+});

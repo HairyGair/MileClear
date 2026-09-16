@@ -176,6 +176,9 @@ export async function billingRoutes(app: FastifyInstance) {
             body: `${fullUser?.displayName || fullUser?.email || userId} just subscribed via Stripe Checkout.`,
             userId,
             userEmail: fullUser?.email ?? null,
+            // Stripe Checkout sells one price today (STRIPE_PRICE_ID, monthly);
+            // the parked annual work would set this from the price id.
+            plan: "monthly",
             details: { platform: "stripe", subscriptionId, livemode: event.livemode },
           });
           await sendProWelcomeEmailOnce(userId, fullUser?.email ?? null, fullUser?.displayName ?? null);

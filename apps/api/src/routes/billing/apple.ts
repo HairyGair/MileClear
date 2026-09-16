@@ -15,6 +15,7 @@ import {
 import { logEvent } from "../../services/appEvents.js";
 import { respondToConsumptionRequest } from "../../services/appleConsumption.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
+import { planFromAppleProductId } from "../../services/appleIap.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
 
 // Notification types that imply an active payment relationship. When
@@ -158,6 +159,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
             userEmail: fullUser?.email ?? null,
             originalTransactionId,
             environment: fetched.environment,
+            plan: planFromAppleProductId(transaction.productId),
             details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null },
           });
           // One-shot founder welcome email. Idempotent — checks
@@ -488,6 +490,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                 userEmail: fullUser?.email ?? null,
                 originalTransactionId,
                 environment,
+                plan: planFromAppleProductId(transactionInfo.productId),
                 details: { premiumExpiresAt: premiumExpiresAt?.toISOString() ?? null, subtype: subtype ?? null },
               });
               // Customer thank-you/welcome email. Previously ONLY the /validate

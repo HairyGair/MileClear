@@ -53,6 +53,8 @@ export interface BillingAlertInput {
    *  from Apple. Sandbox events are demoted or suppressed - see
    *  billingAlertPolicy.ts. Omit for Stripe, which is live-mode only. */
   environment?: string | null;
+  /** Monthly or annual, when the store told us. Shown in Slack (16 Sep 2026). */
+  plan?: "monthly" | "annual" | null;
   details?: Record<string, unknown>;
 }
 
@@ -146,6 +148,7 @@ async function notifyAdminByDiscord(input: BillingAlertInput): Promise<boolean> 
       userEmail: input.userEmail ?? undefined,
       userId: input.userId ?? undefined,
       platform: input.kind,
+      plan: input.plan ?? undefined,
     }).catch(() => {});
   }
   const channel = input.tier === "aware" ? "botLogs" : "founder";

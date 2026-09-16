@@ -306,3 +306,10 @@ export function isTransactionActive(transaction: JWSTransactionDecodedPayload): 
 }
 
 export { PRODUCT_ID_MONTHLY, PRODUCT_ID_ANNUAL, VALID_PRODUCT_IDS, bundleId };
+
+/** Which plan an App Store product id is, for the founder alerts. */
+export function planFromAppleProductId(productId: string | null | undefined): "monthly" | "annual" | null {
+  if (productId === PRODUCT_ID_ANNUAL) return "annual";
+  if (productId === PRODUCT_ID_MONTHLY) return "monthly";
+  return null;
+}
