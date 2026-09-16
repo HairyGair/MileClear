@@ -4,8 +4,11 @@ import {
   planAutoSplit,
   partitionAtCuts,
   legDistanceMiles,
+  detectDwells,
+  dwellDriftMph,
   AUTO_SPLIT_MIN_DWELL_SEC,
   AUTO_SPLIT_MAX_CUTS,
+  AUTO_SPLIT_MAX_DWELL_DRIFT_MPH,
   shareParentDistance,
   AUTO_SPLIT_MAX_SCALE,
   type SplitCoord,
@@ -124,6 +127,81 @@ describe("planAutoSplit", () => {
     }
     const cuts = planAutoSplit([...before, ...after]);
     expect(cuts).toEqual([before.length - 1]);
+  });
+});
+
+describe("planAutoSplit - a queue is not a visit (Terry Lamb, 15 Sep 2026)", () => {
+  // Terry's shape: one 17.5-mile drive cut in two at Spitfire Island because
+  // four minutes of crawling round the roundabout at 0 to 9 m/s read as a
+  // stop. Every interval is under 3 mph and the run is longer than 240 s;
+  // the difference from a visit is that the car got 225 m down the road.
+  const CRAWL = 0.9; // m/s, about 2 mph
+  function crawlingRoute(crawlTicks: number): SplitCoord[] {
+    const coords = route([{ n: 50, speed: DRIVING }]);
+    let lat = coords[coords.length - 1].lat;
+    let t = coords[coords.length - 1].recordedAt.getTime();
+    for (let k = 0; k < crawlTicks; k++) {
+      lat += 0.0000845; // ~9.4 m per 10 s tick
+      t += 10_000;
+      coords.push({ lat, lng: -0.3271, speed: CRAWL, recordedAt: new Date(t) });
+    }
+    for (let k = 0; k < 50; k++) {
+      lat += 0.00036;
+      t += 10_000;
+      coords.push({ lat, lng: -0.3271, speed: DRIVING, recordedAt: new Date(t) });
+    }
+    return coords;
+  }
+
+  it("still splits at a genuine five-minute stop", () => {
+    const coords = route([
+      { n: 50, speed: DRIVING },
+      { n: 30, speed: STOPPED },
+      { n: 50, speed: DRIVING },
+    ]);
+    const dwell = detectDwells(coords).find((d) => d.dwellSec >= AUTO_SPLIT_MIN_DWELL_SEC);
+    expect(dwell).toBeDefined();
+    expect(dwell!.driftMeters).toBeLessThan(20);
+    expect(planAutoSplit(coords)).toHaveLength(1);
+  });
+
+  it("no longer splits Terry's four-minute crawl that drifted 225 m along the road", () => {
+    const coords = crawlingRoute(26);
+    const dwell = detectDwells(coords).find((d) => d.dwellSec >= AUTO_SPLIT_MIN_DWELL_SEC);
+    // The dwell itself is still found: long enough, slow enough.
+    expect(dwell).toBeDefined();
+    expect(dwell!.driftMeters).toBeGreaterThan(150);
+    expect(dwellDriftMph(dwell!)).toBeGreaterThan(AUTO_SPLIT_MAX_DWELL_DRIFT_MPH);
+    // But it is not a visit, so nothing is cut.
+    expect(planAutoSplit(coords)).toEqual([]);
+  });
+
+  it("leaves a three-minute parked stop alone, as it always did", () => {
+    const coords = route([
+      { n: 50, speed: DRIVING },
+      { n: 18, speed: STOPPED },
+      { n: 50, speed: DRIVING },
+    ]);
+    expect(planAutoSplit(coords)).toEqual([]);
+  });
+
+  it("keeps a long visit where the driver moved the car a little", () => {
+    // A 49-minute stop with the car shifted 136 m to another bay part way
+    // through (a real one, 8 Sep 2026): slow enough over that long to be a
+    // stop, not a queue.
+    const coords = route([{ n: 50, speed: DRIVING }, { n: 10, speed: STOPPED }]);
+    let lat = coords[coords.length - 1].lat + 0.00122; // 136 m away
+    let t = coords[coords.length - 1].recordedAt.getTime() + 25 * 60_000;
+    for (let k = 0; k < 10; k++) {
+      t += 10_000;
+      coords.push({ lat, lng: -0.3271, speed: STOPPED, recordedAt: new Date(t) });
+    }
+    for (let k = 0; k < 50; k++) {
+      lat += 0.00036;
+      t += 10_000;
+      coords.push({ lat, lng: -0.3271, speed: DRIVING, recordedAt: new Date(t) });
+    }
+    expect(planAutoSplit(coords)).toHaveLength(1);
   });
 });
 

@@ -52,6 +52,65 @@ describe("findDuplicateCandidate - hand-added trips", () => {
   });
 });
 
+describe("findDuplicateCandidate - a hand-added drive that spans two split legs (Terry Lamb, 16 Sep 2026)", () => {
+  // NEC to Spitfire Island to home, 17.5 miles. The recording was auto-split
+  // at the roundabout; the hand-added entry covers the whole drive.
+  const NEC = { lat: 52.453, lng: -1.718 };
+  const SPITFIRE = { lat: 52.5139, lng: -1.7983 };
+  const HOME_TAMWORTH = { lat: 52.59, lng: -1.81 };
+  const at = (h: number, m: number) => new Date(Date.UTC(2026, 8, 15, h, m));
+  const leg = (
+    id: string,
+    from: { lat: number; lng: number },
+    to: { lat: number; lng: number },
+    start: Date,
+    end: Date
+  ): DuplicateCheckTrip => ({
+    id,
+    startedAt: start,
+    endedAt: end,
+    startLat: from.lat,
+    startLng: from.lng,
+    endLat: to.lat,
+    endLng: to.lng,
+    isManualEntry: false,
+  });
+  const leg1 = leg("leg1", NEC, SPITFIRE, at(16, 0), at(16, 23));
+  const leg2 = leg("leg2", SPITFIRE, HOME_TAMWORTH, at(16, 27), at(16, 50));
+  const manual: DuplicateCheckTrip = {
+    ...leg("manual", NEC, HOME_TAMWORTH, at(16, 2), at(16, 49)),
+    isManualEntry: true,
+  };
+
+  it("matches the joined legs and points at the first leg", () => {
+    // Leg by leg, nothing matches: leg 1 ends nine miles short of home and
+    // leg 2 starts seven miles from the NEC.
+    expect(findDuplicateCandidate(manual, [leg1])).toBeNull();
+    expect(findDuplicateCandidate(manual, [leg2])).toBeNull();
+    expect(findDuplicateCandidate(manual, [leg2, leg1])?.id).toBe("leg1");
+  });
+
+  it("does not join two recorded legs with two hours between them", () => {
+    const later = leg("leg2", SPITFIRE, HOME_TAMWORTH, at(18, 27), at(18, 50));
+    expect(findDuplicateCandidate(manual, [leg1, later])).toBeNull();
+  });
+
+  it("does not join legs whose ends are miles apart", () => {
+    const elsewhere = leg("leg2", { lat: 52.53, lng: -1.86 }, HOME_TAMWORTH, at(16, 27), at(16, 50));
+    expect(findDuplicateCandidate(manual, [leg1, elsewhere])).toBeNull();
+  });
+
+  it("never joins a hand-added leg with anything", () => {
+    const manualLeg1: DuplicateCheckTrip = { ...leg1, isManualEntry: true };
+    expect(findDuplicateCandidate(manual, [manualLeg1, leg2])).toBeNull();
+  });
+
+  it("only joins legs for a hand-added trip", () => {
+    const recordedWhole = leg("whole", NEC, HOME_TAMWORTH, at(16, 2), at(16, 49));
+    expect(findDuplicateCandidate(recordedWhole, [leg1, leg2])).toBeNull();
+  });
+});
+
 describe("findDuplicateCandidate", () => {
   it("matches the exact same journey", () => {
     const recorded = t("recorded", 0, 20);

@@ -45,6 +45,7 @@ const WINDOW_MERGE_MAX_GAP_SEC = 90;
 const WINDOW_MERGE_MAX_METERS = 120;
 
 const MS_TO_MPH = 2.23694;
+const METERS_PER_MILE = 1609.34;
 
 // ── Pure core (unit-tested without prisma) ────────────────────────────────
 
@@ -65,6 +66,11 @@ export interface DwellSuggestion {
   lng: number;
   /** How long the vehicle sat below the speed threshold. */
   dwellSec: number;
+  /** How far the car got over the whole dwell, in metres: from the fix it
+   *  arrived on to the last fix before the one it left on. A parked car
+   *  reads as a few metres however far the driver wanders with the phone;
+   *  a traffic queue reads as the length of the queue. */
+  driftMeters: number;
 }
 
 /**
@@ -157,12 +163,23 @@ export function detectDwells(coords: SplitCoord[]): DwellSuggestion[] {
       (coords[w.endIdx].recordedAt.getTime() - coords[w.startIdx].recordedAt.getTime()) / 1000;
     if (dwellSec < MIN_DWELL_SEC) continue;
     const cutIndex = Math.floor((w.startIdx + w.endIdx) / 2);
+    // Drift is measured to the last fix BEFORE the departure fix. Where the
+    // phone slept through the stop, the departure fix is the wake-up fix,
+    // which can be a kilometre down the road (Rachel's 8319b610 woke 1.38 km
+    // after a client visit) and says nothing about where the car sat.
+    const arrived = coords[w.startIdx];
+    const lastBeforeLeaving = coords[Math.max(w.startIdx, w.endIdx - 1)];
+    const driftMeters = Math.round(
+      haversineDistance(arrived.lat, arrived.lng, lastBeforeLeaving.lat, lastBeforeLeaving.lng) *
+        METERS_PER_MILE
+    );
     dwells.push({
       cutIndex,
       timestamp: coords[cutIndex].recordedAt,
       lat: coords[cutIndex].lat,
       lng: coords[cutIndex].lng,
       dwellSec: Math.round(dwellSec),
+      driftMeters,
     });
   }
 
@@ -295,6 +312,34 @@ export const AUTO_SPLIT_MIN_LEG_MILES = 0.25;
 export const AUTO_SPLIT_MAX_CUTS = 2;
 /** Above this, it is a shift or a motorway run, not a hop between stops. */
 export const AUTO_SPLIT_MAX_TRIP_MILES = 20;
+/**
+ * Over the whole dwell the car must have got nowhere: its net drift divided
+ * by the dwell's length may not exceed this speed.
+ *
+ * Terry Lamb, 15 Sep 2026: one 17.5-mile NEC-to-home drive came back as two
+ * legs, cut at Spitfire Island (the A452 roundabout at Castle Vale). His
+ * breadcrumbs from 17:23 to 17:27 crawl at 0 to 9 m/s and cover 225 m in
+ * four minutes: under 3 mph on every interval, longer than 240 s, so the
+ * time and speed tests both passed. A queue is slow for as long as a visit
+ * is. What it cannot do is stay put.
+ *
+ * Why net drift over time and not a radius round the stop: a dry run over
+ * 151 of the 4,226 automatic splits in the 14 days to 16 Sep 2026 showed a
+ * visit's fixes wander with the driver's pocket. Rachel Thorndyke's genuine
+ * client visits spread 63 to 82 m from their centre (she walks round the
+ * yard) while their net drift is 13 to 53 m over ten to twenty minutes;
+ * long stops where the driver moved the car or walked spread 150 to 400 m
+ * at 0.05 to 0.09 m/s. Terry's queue drifts 111 m in 257 s, 0.43 m/s, and
+ * every other queue in the sample sits at 0.34 m/s or above. The slowest
+ * real-looking visit reads 0.26 m/s. 0.7 mph (0.31 m/s) sits between them.
+ */
+export const AUTO_SPLIT_MAX_DWELL_DRIFT_MPH = 0.7;
+
+/** Net drift over the dwell as a speed, in mph. */
+export function dwellDriftMph(d: Pick<DwellSuggestion, "driftMeters" | "dwellSec">): number {
+  if (d.dwellSec <= 0) return 0;
+  return (d.driftMeters / d.dwellSec) * MS_TO_MPH;
+}
 
 /**
  * Choose the cuts a trip can be split on with no human in the loop. Returns
@@ -307,7 +352,12 @@ export const AUTO_SPLIT_MAX_TRIP_MILES = 20;
 export function planAutoSplit(coords: SplitCoord[]): number[] {
   if (coords.length < MIN_LEG_COORDS * 2) return [];
 
-  const dwells = detectDwells(coords).filter((d) => d.dwellSec >= AUTO_SPLIT_MIN_DWELL_SEC);
+  // Long enough to be a visit, and still enough to be one: a traffic queue
+  // is slow for as long as a visit, but it gets down the road while a
+  // visit stays put (Terry Lamb, Spitfire Island, 15 Sep 2026).
+  const dwells = detectDwells(coords).filter(
+    (d) => d.dwellSec >= AUTO_SPLIT_MIN_DWELL_SEC && dwellDriftMph(d) <= AUTO_SPLIT_MAX_DWELL_DRIFT_MPH
+  );
   // Deliberately NOT "take the longest two". Needing to choose is itself the
   // evidence that this is a multi-stop shift rather than one interrupted
   // journey, and picking two of six stops would leave a mess no one asked for.

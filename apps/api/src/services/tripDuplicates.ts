@@ -76,9 +76,56 @@ export function isDuplicatePair(a: DuplicateCheckTrip, b: DuplicateCheckTrip): b
   return endMiles <= radius;
 }
 
+/** Two recorded trips are read as consecutive legs of one journey when the
+ *  first ends within this distance and this time of where the second
+ *  starts. The visit auto-split cuts a recording into legs that abut
+ *  exactly; the slack is for the phone waking a little down the road. */
+export const JOIN_MAX_GAP_MILES = 0.3;
+export const JOIN_MAX_GAP_MINUTES = 10;
+
+/**
+ * Consecutive recorded legs, each pair joined into one trip spanning the
+ * first leg's start to the second leg's end. The joined trip carries the
+ * FIRST leg's id, since possibleDuplicateOfId can point at only one trip.
+ *
+ * Terry Lamb, 16 Sep 2026: his hand-added NEC-to-home drive (17:02 to
+ * 17:49, 14.4 mi) started where leg one started and ended where leg two
+ * ended, and the auto-split had cut the recording in two at Spitfire
+ * Island. Compared leg by leg, neither matched on both ends.
+ */
+export function joinedRecordedPairs(existing: DuplicateCheckTrip[]): DuplicateCheckTrip[] {
+  const recorded = existing
+    .filter((t) => !t.isManualEntry && t.endedAt && t.endLat != null && t.endLng != null)
+    .sort((a, b) => a.startedAt.getTime() - b.startedAt.getTime());
+  const joined: DuplicateCheckTrip[] = [];
+  for (let i = 0; i + 1 < recorded.length; i++) {
+    const a = recorded[i];
+    const b = recorded[i + 1];
+    const gapMin = (b.startedAt.getTime() - a.endedAt!.getTime()) / 60_000;
+    if (gapMin < 0 || gapMin > JOIN_MAX_GAP_MINUTES) continue;
+    if (haversineDistance(a.endLat!, a.endLng!, b.startLat, b.startLng) > JOIN_MAX_GAP_MILES) continue;
+    joined.push({
+      id: a.id,
+      startedAt: a.startedAt,
+      endedAt: b.endedAt,
+      startLat: a.startLat,
+      startLng: a.startLng,
+      endLat: b.endLat,
+      endLng: b.endLng,
+      isManualEntry: false,
+    });
+  }
+  return joined;
+}
+
 /**
  * The existing trip that looks like the same journey as newTrip, or null.
  * When more than one qualifies, the one that overlaps it most wins.
+ *
+ * A hand-added trip is also compared against consecutive recorded legs
+ * joined end to end (see joinedRecordedPairs); a hit there points at the
+ * first leg. Recorded trips are never joined for a recorded newTrip: the
+ * app does not record the same drive twice in one piece.
  */
 export function findDuplicateCandidate(
   newTrip: DuplicateCheckTrip,
@@ -86,12 +133,19 @@ export function findDuplicateCandidate(
 ): DuplicateCheckTrip | null {
   let best: DuplicateCheckTrip | null = null;
   let bestShare = 0;
-  for (const candidate of existing) {
-    if (!isDuplicatePair(newTrip, candidate)) continue;
+  const consider = (candidate: DuplicateCheckTrip, resolved: DuplicateCheckTrip) => {
+    if (!isDuplicatePair(newTrip, candidate)) return;
     const share = overlapShare(newTrip, candidate);
     if (best == null || share > bestShare) {
-      best = candidate;
+      best = resolved;
       bestShare = share;
+    }
+  };
+  for (const candidate of existing) consider(candidate, candidate);
+  if (newTrip.isManualEntry) {
+    const byId = new Map(existing.map((t) => [t.id, t]));
+    for (const pair of joinedRecordedPairs(existing.filter((t) => t.id !== newTrip.id))) {
+      consider(pair, byId.get(pair.id)!);
     }
   }
   return best;
