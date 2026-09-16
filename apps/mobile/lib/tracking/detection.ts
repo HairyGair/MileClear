@@ -1,4 +1,5 @@
 import { AppState, Platform } from "react-native";
+import { isPauseActive } from "./pauseRule";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
@@ -546,6 +547,9 @@ export interface DriveDetectionDiagnostics {
   // "unavailable"). CoreMotion start-detection needs it; "unavailable" means the
   // build doesn't bundle expo-sensors yet (OTA-only / pre-native-build).
   motionPermission: string;
+  // A pause with an end (16 Sep 2026): epoch ms, or null. While set, `enabled`
+  // reads false so the fleet monitors treat it as a choice, not a fault.
+  pausedUntil: number | null;
 }
 
 /**
@@ -792,7 +796,12 @@ export async function getDriveDetectionDiagnostics(): Promise<DriveDetectionDiag
     nativeEngineEnabled: false,
     lastNativeLocationAt: null,
     motionPermission: "unavailable",
+    pausedUntil: null,
   };
+
+  try {
+    result.pausedUntil = await getDrivePauseUntil();
+  } catch {}
 
   try {
     const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
@@ -4282,7 +4291,104 @@ export async function isDriveDetectionEnabled(): Promise<boolean> {
   const row = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
   );
-  return row ? row.value === "1" : true;
+  if (row && row.value !== "1") return false;
+  // A pause with an end (16 Sep 2026). Every path that can open a recording
+  // asks this function first, so the pause needs no other hook. Once the end
+  // has passed this reads true again on its own; the engine is restarted by
+  // the next foreground or by the reminder tap (autoResumeIfPauseExpired).
+  const until = await getDrivePauseUntil();
+  return !isPauseActive(until, Date.now());
+}
+
+const PAUSE_KEY = "drive_pause_until";
+const OFF_AT_KEY = "drive_detection_off_at";
+const PAUSE_NOTIFICATION_ID = "drive-pause-ended";
+
+/** Epoch ms when the current pause ends, or null when not paused. Expired
+ *  pauses read as null. */
+export async function getDrivePauseUntil(): Promise<number | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM tracking_state WHERE key = '${PAUSE_KEY}'`
+  );
+  const until = row ? Number(row.value) : Number.NaN;
+  return isPauseActive(until, Date.now()) ? until : null;
+}
+
+/** Pause automatic recording until `until`. Stops the engine (the JS task
+ *  AND the native one; the settings switch leaves the native engine running,
+ *  and the whole point here is battery), schedules a local reminder for the
+ *  end, and logs it. */
+export async function pauseDriveDetection(until: number, choice: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+    [PAUSE_KEY, String(until)]
+  );
+  logDetectionEvent("drive_paused", { choice, until, hours: Math.round((until - Date.now()) / 36e5) }).catch(() => {});
+  try {
+    await stopDriveDetection();
+  } catch {}
+  try {
+    const { stopNativeLocationEngine } = await import("./nativeLocation");
+    await stopNativeLocationEngine();
+  } catch {}
+  try {
+    const Notifications = require("expo-notifications");
+    await Notifications.cancelScheduledNotificationAsync(PAUSE_NOTIFICATION_ID).catch(() => {});
+    await Notifications.scheduleNotificationAsync({
+      identifier: PAUSE_NOTIFICATION_ID,
+      content: {
+        title: "Recording is back on",
+        body: "Your pause has ended. Open MileClear once and it will pick up your next drive on its own.",
+        data: { action: "resume_detection" },
+        ...(require("react-native").Platform.OS === "android" && { channelId: "reminders" }),
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(until) },
+    });
+  } catch {
+    // No notification module (Expo Go) or permission: the pause still ends
+    // on its own; only the reminder is lost.
+  }
+}
+
+/** End a pause now (the driver tapped Resume, the reminder, or the pause
+ *  expired and the app came to the foreground). Restarts the engine. */
+export async function resumeDriveDetection(reason: "manual" | "notification" | "expired"): Promise<void> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM tracking_state WHERE key = '${PAUSE_KEY}'`
+  );
+  if (!row) return;
+  await db.runAsync(`DELETE FROM tracking_state WHERE key = '${PAUSE_KEY}'`);
+  logDetectionEvent("drive_resumed", { reason, early: reason === "manual" && isPauseActive(Number(row.value), Date.now()) }).catch(() => {});
+  try {
+    const Notifications = require("expo-notifications");
+    await Notifications.cancelScheduledNotificationAsync(PAUSE_NOTIFICATION_ID).catch(() => {});
+  } catch {}
+  await startDriveDetection();
+}
+
+/** Called on every foreground: if a pause has run out, clear it and log it
+ *  so the engine restart that follows is attributed to the pause ending. */
+export async function autoResumeIfPauseExpired(): Promise<void> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM tracking_state WHERE key = '${PAUSE_KEY}'`
+  );
+  if (!row) return;
+  if (isPauseActive(Number(row.value), Date.now())) return;
+  await resumeDriveDetection("expired");
+}
+
+/** When the permanent switch went off, for the "off since" card. */
+export async function getDriveDetectionOffAt(): Promise<number | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM tracking_state WHERE key = '${OFF_AT_KEY}'`
+  );
+  const at = row ? Number(row.value) : Number.NaN;
+  return Number.isFinite(at) ? at : null;
 }
 
 export async function getJourneyEndMinutes(): Promise<number> {
@@ -4309,6 +4415,13 @@ export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> 
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('drive_detection_enabled', ?)",
     [enabled ? "1" : "0"]
   );
+  // Remember WHEN it went off, so the dashboard can say "off since Wed 3 Sep"
+  // instead of nothing (16 Sep 2026: 26 phones had it off, silently).
+  if (enabled) {
+    await db.runAsync(`DELETE FROM tracking_state WHERE key = '${OFF_AT_KEY}'`);
+  } else {
+    await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [OFF_AT_KEY, String(Date.now())]);
+  }
 
   if (enabled) {
     await startDriveDetection();

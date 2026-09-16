@@ -15,6 +15,8 @@ import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
 import { colors, fonts } from "../../lib/theme";
+import { PauseRecordingRow } from "../PauseRecordingRow";
+import type { PauseChoice } from "../../lib/tracking/pauseRule";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const TEXT_2 = colors.text2;
@@ -32,6 +34,10 @@ interface PersonalDashboardProps {
   recentTrips?: any[];
   dailyRecap?: PeriodRecap | null;
   onShowRecap?: (recap: PeriodRecap) => void;
+  /** Pause with an end (16 Sep 2026). Optional so older callers still compile. */
+  pausedUntil?: number | null;
+  onPause?: (choice: PauseChoice) => void;
+  onResume?: () => void;
 }
 
 function ordinal(n: number): string {
@@ -40,7 +46,7 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap: _onShowRecap }: PersonalDashboardProps) {
+export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap: _onShowRecap, pausedUntil, onPause, onResume }: PersonalDashboardProps) {
   const router = useRouter();
   const {
     monthMiles,
@@ -122,6 +128,9 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
               <Ionicons name="navigate" size={20} color={BG} />
               <Text style={styles.startTripBtnText}>Start Trip</Text>
             </TouchableOpacity>
+            {onPause && onResume && (
+              <PauseRecordingRow pausedUntil={pausedUntil ?? null} now={Date.now()} onPause={onPause} onResume={onResume} />
+            )}
 
             {/* Quick actions row */}
             <View style={styles.quickActions}>
