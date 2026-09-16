@@ -11,6 +11,7 @@ import type { FastifyRequest } from "fastify";
 import geoip from "geoip-lite";
 import { prisma } from "../lib/prisma.js";
 import { postFounderAlert } from "./discord.js";
+import { slackNewUser } from "./slack.js";
 
 export type Platform = "ios" | "android" | "web" | "unknown";
 
@@ -96,13 +97,16 @@ export async function onUserRegistered(
       location ? `From ${location}` : "Location unknown",
       user.referredByCode ? `Referred with code ${user.referredByCode}` : null,
     ].filter(Boolean);
+    const link = `https://mileclear.com/dashboard/admin?user=${user.id}`;
     await postFounderAlert({
       severity: "info",
       title: "New user",
       detail: lines.join("\n"),
       userId: user.id,
-      link: `https://mileclear.com/dashboard/admin?user=${user.id}`,
+      link,
     });
+    // Slack gets this one and new subscribers, nothing else (16 Sep 2026).
+    slackNewUser({ lines: lines as string[], userId: user.id, link }).catch(() => {});
   } catch (err) {
     console.error("[signup] onUserRegistered failed:", err);
   }

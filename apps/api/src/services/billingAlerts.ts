@@ -16,6 +16,7 @@ import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
 import { postToChannel } from "./discord.js";
+import { isNewSubscriberAlert, slackNewSubscriber } from "./slack.js";
 import { syncProMemberRole } from "./discordBot.js";
 import { applyEnvironmentPolicy } from "./billingAlertPolicy.js";
 import { sendAdminEmail } from "./email.js";
@@ -136,6 +137,17 @@ async function notifyAdminByEmail(input: BillingAlertInput): Promise<boolean> {
  * Defensive: no-op when DISCORD_WEBHOOK_* env vars aren't set.
  */
 async function notifyAdminByDiscord(input: BillingAlertInput): Promise<boolean> {
+  // Slack mirror: new subscribers only (16 Sep 2026). Renewals, orphans,
+  // payment failures and refunds stay in Discord.
+  if (isNewSubscriberAlert(input)) {
+    slackNewSubscriber({
+      title: input.title,
+      body: input.body,
+      userEmail: input.userEmail ?? undefined,
+      userId: input.userId ?? undefined,
+      platform: input.kind,
+    }).catch(() => {});
+  }
   const channel = input.tier === "aware" ? "botLogs" : "founder";
   const color =
     input.tier === "act_now"
