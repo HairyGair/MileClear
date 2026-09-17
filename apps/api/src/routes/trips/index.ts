@@ -52,6 +52,7 @@ import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, typ
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
+import { planTripEndEdit } from "../../services/tripEndEdit.js";
 import {
   getSplitSuggestions,
   executeTripSplit,
@@ -2694,16 +2695,47 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // Moving the end of a RECORDED trip. The driver is saying the journey went
+    // on further than the recording did (Chris Saunders, 17 Sep 2026: the
+    // phone finalised at a long red light and the last 0.8 miles home went
+    // unrecorded), so the trail is kept and the missing stretch is added after
+    // it. A manual trip stays on the end-to-end re-route below. A merge that
+    // brings its own breadcrumbs is not an end edit either: the appended
+    // coordinates ARE the stretch to the new end, and a routed point on top of
+    // them would be invented. See services/tripEndEdit.ts.
+    let endEdit: Awaited<ReturnType<typeof planTripEndEdit>> = null;
+    const incomingCoordinateCount = updates.coordinates?.length ?? 0;
+    const recordedEndMoved =
+      !existing.isManualEntry &&
+      incomingCoordinateCount === 0 &&
+      newEndLat != null &&
+      newEndLng != null &&
+      (newEndLat !== existing.endLat || newEndLng !== existing.endLng);
+    if (recordedEndMoved && newEndLat != null && newEndLng != null) {
+      endEdit = await planTripEndEdit({
+        userId,
+        trip: existing,
+        newLat: newEndLat,
+        newLng: newEndLng,
+        newEndedAt: updates.endedAt,
+      });
+    }
+
     // Use explicit distanceMiles if provided (e.g. merged trip with GPS-measured distance),
     // otherwise recalculate via the routing service if end coords changed.
     let distanceMiles: number | undefined = updates.distanceMiles;
-    // A tracked trip whose start moved keeps every recorded mile and gains the
-    // routed stretch in front. Never a re-route between two points: that would
-    // discard the trail they actually drove.
-    if (distanceMiles === undefined && startEdit?.addedMiles) {
-      distanceMiles = Math.round((existing.distanceMiles + startEdit.addedMiles) * 100) / 100;
+    // A tracked trip whose start or end moved keeps every recorded mile and
+    // gains the routed stretch outside it. Never a re-route between two
+    // points: that would discard the trail they actually drove.
+    const extensionMiles = (startEdit?.addedMiles ?? 0) + (endEdit?.addedMiles ?? 0);
+    if (distanceMiles === undefined && extensionMiles > 0) {
+      distanceMiles = Math.round((existing.distanceMiles + extensionMiles) * 100) / 100;
     }
-    if (distanceMiles === undefined) {
+    // A recorded trip whose end moved never takes the end-to-end route below,
+    // whether the stretch could not be priced or the pin only shifted a few
+    // metres: replacing its recorded miles with a route between its two ends
+    // is the thing being avoided.
+    if (distanceMiles === undefined && !recordedEndMoved) {
       const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
       const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
       const startMovedOnManual = startEdit?.rerouteEndToEnd === true;
@@ -2797,8 +2829,9 @@ export async function tripRoutes(app: FastifyInstance) {
       ...(rememberDeviceStart
         ? { originalStartLat: existing.startLat, originalStartLng: existing.startLng }
         : {}),
-      // The drawn route no longer starts where the trip does.
+      // The drawn route no longer starts (or ends) where the trip does.
       ...(startEdit ? { routePolyline: null } : {}),
+      ...(endEdit ? { routePolyline: null } : {}),
       // New breadcrumbs extend the route, so a polyline matched against the
       // old, shorter coordinate set no longer describes this trip. Drop it;
       // POST /trips/:id/recalc rebuilds it from the full set.
@@ -2927,6 +2960,39 @@ export async function tripRoutes(app: FastifyInstance) {
       });
       const taxYearForStart = getTaxYear(existing.startedAt);
       upsertMileageSummary(userId, taxYearForStart).catch(() => {});
+    }
+
+    if (endEdit) {
+      if (endEdit.appendCoordinate) {
+        // The breadcrumb is dated after the recording's last point, so the
+        // trail reads in order and the map draws the extra stretch. The count
+        // only moves when the row actually landed.
+        const appended = await prisma.tripCoordinate
+          .create({
+            data: {
+              tripId: id,
+              lat: endEdit.appendCoordinate.lat,
+              lng: endEdit.appendCoordinate.lng,
+              speed: null,
+              accuracy: null,
+              recordedAt: endEdit.appendCoordinate.recordedAt,
+            },
+          })
+          .then(() => true, () => false);
+        if (appended) {
+          await prisma.trip.update({
+            where: { id },
+            data: { coordinateCount: { increment: 1 } },
+          });
+        }
+      }
+      logEvent("trip.end_edited", userId, {
+        tripId: id,
+        addedMiles: endEdit.addedMiles,
+        crowMiles: endEdit.crowMiles,
+        distanceUnchanged: endEdit.distanceUnchangedReason,
+        wasManual: existing.isManualEntry,
+      });
     }
 
     if (endMoved) {
