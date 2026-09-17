@@ -391,10 +391,16 @@ function setupSilentPushHandler(): void {
         const enabled = (data as { enabled?: string } | null)?.enabled === "1";
         const { setNativeLocationEngineEnabled } = await import("../tracking/nativeEngineFlag");
         const { stopNativeLocationEngine } = await import("../tracking/nativeLocation");
-        const { stopDriveDetection, restartDriveDetection, logDetectionEvent } = await import(
-          "../tracking/detection"
-        );
+        const {
+          stopDriveDetection,
+          restartDriveDetection,
+          logDetectionEvent,
+          clearSelfHealMarkers,
+        } = await import("../tracking/detection");
         await setNativeLocationEngineEnabled(enabled);
+        // A deliberate switch outranks any earlier self-heal, so drop its
+        // markers: the rollback check must not undo this a moment later.
+        await clearSelfHealMarkers();
         if (enabled) {
           await stopDriveDetection().catch(() => {});
         } else {

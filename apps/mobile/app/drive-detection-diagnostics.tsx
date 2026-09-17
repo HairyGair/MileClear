@@ -26,6 +26,7 @@ import {
   clearDetectionEvents,
   restartDriveDetection,
   stopDriveDetection,
+  clearSelfHealMarkers,
   type DriveDetectionDiagnostics,
 } from "../lib/tracking/detection";
 import { getBatterySnapshot, type BatterySnapshot } from "../lib/tracking/batteryAware";
@@ -616,6 +617,9 @@ export default function DriveDetectionDiagnosticsScreen() {
     setBusy(true);
     try {
       await setNativeLocationEngineEnabled(next);
+      // Choosing an engine by hand outranks any earlier self-heal, so its
+      // markers go: the rollback check must not undo this choice.
+      await clearSelfHealMarkers();
       setNativeOn(next);
       if (!next) {
         await stopNativeLocationEngine();
