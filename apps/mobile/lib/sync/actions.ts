@@ -168,6 +168,7 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   if (data.startAddress !== undefined) { setClauses.push("start_address = ?"); values.push(data.startAddress); }
   if (data.startLat !== undefined) { setClauses.push("start_lat = ?"); values.push(data.startLat); }
   if (data.startLng !== undefined) { setClauses.push("start_lng = ?"); values.push(data.startLng); }
+  if (data.startedAt !== undefined) { setClauses.push("started_at = ?"); values.push(data.startedAt); }
   if (data.endAddress !== undefined) { setClauses.push("end_address = ?"); values.push(data.endAddress); }
   if (data.endLat !== undefined) { setClauses.push("end_lat = ?"); values.push(data.endLat); }
   if (data.endLng !== undefined) { setClauses.push("end_lng = ?"); values.push(data.endLng); }

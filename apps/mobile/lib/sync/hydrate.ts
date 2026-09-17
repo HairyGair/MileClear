@@ -330,11 +330,14 @@ export async function reconcileTrips(): Promise<void> {
 
       if (existing) {
         // Update only the fields that can drift after creation. Local-only
-        // columns are intentionally absent from this SET.
+        // columns are intentionally absent from this SET. started_at joined
+        // on 17 Sep 2026: a manual trip's start time can now be corrected,
+        // on the web or another phone included, and this is how the
+        // correction reaches this one.
         await db.runAsync(
           `UPDATE trips SET
              shift_id = ?, vehicle_id = ?, end_lat = ?, end_lng = ?,
-             end_address = ?, distance_miles = ?, ended_at = ?,
+             end_address = ?, distance_miles = ?, started_at = ?, ended_at = ?,
              classification = ?, platform_tag = ?, category = ?,
              business_purpose = ?, notes = ?, synced_at = ?
            WHERE id = ?`,
@@ -345,6 +348,7 @@ export async function reconcileTrips(): Promise<void> {
             t.endLng ?? null,
             t.endAddress ?? null,
             t.distanceMiles,
+            t.startedAt,
             t.endedAt ?? null,
             t.classification,
             t.platformTag ?? null,

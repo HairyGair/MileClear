@@ -1060,6 +1060,14 @@ export default function TripFormScreen() {
    *  PATCH carries the start only then, so an ordinary classification tap does
    *  not ask the server to reconcile an opening stretch that has not changed. */
   const [startMoved, setStartMoved] = useState(false);
+  // Whether the trip being edited was typed in by hand. Only then may its
+  // start time be changed: a recorded trip's start is its first breadcrumb
+  // and the API refuses to move it. A hand-typed trip has no breadcrumbs, so
+  // the driver's correction is the only truth (Emily Russell, 17 Sep 2026,
+  // whose morning drive saved at the 13:50 she opened the form).
+  const [editingIsManual, setEditingIsManual] = useState(false);
+  // The start time as loaded, so Save can tell whether it actually changed.
+  const loadedStartedAtRef = useRef<number | null>(null);
   const [routeCoords, setRouteCoords] = useState<{ lat: number; lng: number }[]>([]);
   /** Road-snapped version of the same route, when the server has one. Kept
    *  separate rather than merged so the widget can do what it is built to do:
@@ -1131,6 +1139,9 @@ export default function TripFormScreen() {
       };
       setDistanceMiles(t.distanceMiles);
       setStartedAt(new Date(t.startedAt));
+      loadedStartedAtRef.current = new Date(t.startedAt).getTime();
+      // Both the server payload and the local-SQLite fallback carry this.
+      setEditingIsManual(t.isManualEntry === true);
       setEndedAt(t.endedAt ? new Date(t.endedAt) : null);
       setNotes(t.notes ?? "");
       setProjectLabel(t.projectLabel ?? "");
@@ -2031,6 +2042,14 @@ export default function TripFormScreen() {
       }
     }
 
+    // A start moved past the end on a hand-typed trip. The API would refuse
+    // the PATCH, and a refused PATCH sits in the sync queue with the wrong
+    // time already written locally, so it is caught here instead.
+    if (isEditing && editingIsManual && endedAt && startedAt.getTime() > endedAt.getTime()) {
+      Alert.alert("Check the times", "The start time is after the end time. Set the start earlier, or move the end.");
+      return;
+    }
+
     setSaving(true);
     let createdTripId: string | null = null;
     let createLearnedSuggestion: ClassificationSuggestion | null = null;
@@ -2048,6 +2067,14 @@ export default function TripFormScreen() {
           endLat: endLat ?? null,
           endLng: endLng ?? null,
           endedAt: endedAt ? endedAt.toISOString() : null,
+          // The start TIME, correctable on a hand-typed trip from 17 Sep 2026.
+          // Only sent when the driver changed it: the API refuses it on a
+          // recorded trip, and a refused PATCH would sit in the sync queue.
+          ...(editingIsManual &&
+          loadedStartedAtRef.current != null &&
+          startedAt.getTime() !== loadedStartedAtRef.current
+            ? { startedAt: startedAt.toISOString() }
+            : {}),
           // The start, correctable from 28 Aug 2026. Only sent when it actually
           // moved: the server treats an incoming start as an instruction to
           // reconcile the trip's opening stretch, and there is no point asking
@@ -2346,7 +2373,7 @@ export default function TripFormScreen() {
     }
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
-    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved,
+    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
@@ -3593,7 +3620,10 @@ export default function TripFormScreen() {
                 setStartedAt(d);
                 setTimeTouched(true);
               }}
-              disabled={isEditing}
+              // A recorded trip's start is its first breadcrumb and stays
+              // put; a hand-typed one has no breadcrumbs, so the driver may
+              // put it right (Emily Russell, 17 Sep 2026).
+              disabled={isEditing && !editingIsManual}
               maximumDate={new Date()}
             />
 

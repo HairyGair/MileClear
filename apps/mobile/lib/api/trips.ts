@@ -163,6 +163,10 @@ export interface UpdateTripData {
   startAddress?: string;
   startLat?: number;
   startLng?: number;
+  // Correcting WHEN a journey began (17 Sep 2026). Manual trips only: the API
+  // refuses it on a recorded trip, whose start is its first breadcrumb. Sent
+  // only when the driver actually changed it.
+  startedAt?: string;
   distanceMiles?: number;
   // Correct a wrong vehicle after the fact (audit point 5).
   vehicleId?: string | null;
