@@ -331,6 +331,13 @@ function RootNavigator() {
       reconcileTrips().catch(() => {});
       setDepartureAnchor().catch(() => {});
       shadeExpiredUnconfirmedTrips().catch(() => {});
+      // A trip the driver arrived at but never saved. A recent one is left
+      // alone - the trip form puts it back on screen. An old one is handed to
+      // Missed Journeys so the day is still recoverable. See
+      // lib/tracking/arrivedRecovery.ts.
+      import("../lib/tracking")
+        .then((m) => m.sweepStalePendingArrivedTrip())
+        .catch(() => {});
       // Register the push token only when permission is ALREADY granted -
       // never fire the system permission prompt from the startup chain. The
       // bare prompt used to fire right here with zero explanation and both
