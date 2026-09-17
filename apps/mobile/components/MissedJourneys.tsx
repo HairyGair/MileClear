@@ -32,6 +32,11 @@ const PAGE_SIZE = 3;
 // drops the engine was confident about, so all three go after gap and
 // trip_start rows. Stable within each group: the API already returns newest
 // first.
+//
+// "dropped_start_trip" is deliberately NOT in this set. That one is a drive
+// the driver started by hand and never saved, so it is a whole journey rather
+// than a fragment the engine threw out, and it belongs at the top with the
+// rest.
 const DROPPED_SOURCES = new Set<MissedJourneyProposal["source"]>([
   "recorded",
   "dropped_walk",
@@ -57,6 +62,8 @@ function droppedNote(source: MissedJourneyProposal["source"]): string | null {
       return "The app thought this was a walk. If you were driving, add it.";
     case "dropped_phantom":
       return "This looked like the phone drifting rather than a drive. Add it if it was real.";
+    case "dropped_start_trip":
+      return "You recorded this one with Start Trip but it was never saved. Add it back if you want it.";
     default:
       return null;
   }
