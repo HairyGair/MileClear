@@ -4,7 +4,9 @@
  * Emily Russell (17 Sep 2026) typed in a morning drive at 13:50, it saved at
  * 13:50, and the start time then could not be changed. A hand-typed trip has
  * no breadcrumbs, so the driver's correction is the only truth about its time.
- * A recorded trip's start is its first breadcrumb and stays put.
+ * A recorded trip's start is its first breadcrumb: it may move earlier (Mus,
+ * 17 Sep 2026, whose phone slept for the first hour of Weymouth to Exeter
+ * and left 57 miles in 14 minutes) but never later.
  */
 import { describe, it, expect } from "vitest";
 import { startTimeChangeAllowed, type TimeEditTrip } from "../../services/tripTimeEdit.js";
@@ -23,10 +25,29 @@ describe("startTimeChangeAllowed", () => {
     ).toEqual({ ok: true });
   });
 
-  it("refuses to move the start of a recorded trip", () => {
+  it("lets a recorded trip's start move earlier, for the hour the phone slept", () => {
     expect(
-      startTimeChangeAllowed(recorded, { startedAt: new Date("2026-09-17T08:10:00Z") })
-    ).toEqual({ ok: false, error: "The start time of a recorded trip cannot be changed" });
+      startTimeChangeAllowed(recorded, { startedAt: new Date("2026-09-17T12:50:00Z") })
+    ).toEqual({ ok: true });
+    // Resending the stored start unchanged is not a move at all.
+    expect(startTimeChangeAllowed(recorded, { startedAt: recorded.startedAt })).toEqual({ ok: true });
+  });
+
+  it("refuses to move a recorded trip's start later than its first breadcrumb", () => {
+    expect(
+      startTimeChangeAllowed(recorded, { startedAt: new Date("2026-09-17T13:51:00Z") })
+    ).toEqual({ ok: false, error: "A recorded trip's start time can only be moved earlier" });
+  });
+
+  it("still keeps a recorded trip's earlier start before its end", () => {
+    // Earlier than the stored start, but the same PATCH pulls the end back
+    // past it.
+    expect(
+      startTimeChangeAllowed(recorded, {
+        startedAt: new Date("2026-09-17T13:00:00Z"),
+        endedAt: new Date("2026-09-17T12:30:00Z"),
+      })
+    ).toEqual({ ok: false, error: "Start time cannot be after the end time" });
   });
 
   it("refuses a start after the end the trip will have once the PATCH lands", () => {

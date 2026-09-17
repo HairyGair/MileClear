@@ -4,9 +4,10 @@
  * Emily Russell typed in a morning drive at 13:50, it saved at 13:50, and the
  * start time then could not be changed: the field was left out of the update
  * schema on purpose. These tests pin what the route now does: a manual trip's
- * start time reaches the database, a recorded one is refused, the ordering is
- * checked against the end the PATCH leaves in place, and a move across
- * 5 April recomputes both tax years.
+ * start time reaches the database, a recorded one may only move earlier (Mus,
+ * 17 Sep 2026: the phone slept for the first hour of Weymouth to Exeter), the
+ * ordering is checked against the end the PATCH leaves in place, and a move
+ * across 5 April recomputes both tax years.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildApp } from "../helpers/build-app.js";
@@ -128,16 +129,33 @@ describe("PATCH /trips/:id with startedAt", () => {
     expect(upsertMileageSummary).toHaveBeenCalledWith(USER_ID, "2026-27");
   });
 
-  it("refuses to move the start time of a recorded trip", async () => {
+  it("moves a recorded trip's start earlier without touching its distance", async () => {
     vi.mocked(prisma.trip.findFirst).mockResolvedValue(RECORDED_TRIP as any);
 
     const res = await app.inject({
       method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
-      payload: { startedAt: "2026-09-16T08:10:00.000Z" },
+      payload: { startedAt: "2026-09-16T12:50:00.000Z" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(prisma.trip.update).toHaveBeenCalledTimes(1);
+    const written = vi.mocked(prisma.trip.update).mock.calls[0][0].data as Record<string, unknown>;
+    expect(written.startedAt).toEqual(new Date("2026-09-16T12:50:00.000Z"));
+    // A time-only change never recomputes the miles from the trail.
+    expect(written).not.toHaveProperty("distanceMiles");
+    expect(upsertMileageSummary).toHaveBeenCalledWith(USER_ID, "2026-27");
+  });
+
+  it("refuses to move a recorded trip's start later than its first breadcrumb", async () => {
+    vi.mocked(prisma.trip.findFirst).mockResolvedValue(RECORDED_TRIP as any);
+
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+      payload: { startedAt: "2026-09-16T13:55:00.000Z" },
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({ error: "The start time of a recorded trip cannot be changed" });
+    expect(res.json()).toEqual({ error: "A recorded trip's start time can only be moved earlier" });
     expect(prisma.trip.update).not.toHaveBeenCalled();
   });
 

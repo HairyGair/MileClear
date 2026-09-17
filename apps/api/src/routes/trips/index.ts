@@ -2614,8 +2614,11 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
-    // Moving the start time. Only a manual trip may, and never past the end
-    // the trip will have once this PATCH lands. See services/tripTimeEdit.ts.
+    // Moving the start time. A manual trip may move it either way, a recorded
+    // one only earlier (its first breadcrumb is the latest it can be), and
+    // never past the end the trip will have once this PATCH lands. See
+    // services/tripTimeEdit.ts. The distance is untouched by a time-only
+    // change: nothing below reads the clock to recompute miles.
     const timeEdit = startTimeChangeAllowed(existing, updates);
     if (!timeEdit.ok) {
       return reply.status(400).send({ error: timeEdit.error });
