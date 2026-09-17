@@ -3507,8 +3507,8 @@ export async function bootNativeEngineOnLaunch(): Promise<void> {
 // device, fall back to the JS engine — which ran the fleet reliably for months
 // — and say so out loud.
 
-const SELF_HEAL_MIN_ENGINE_AGE_MS = 3 * 24 * 60 * 60 * 1000; // evidence window
-const SELF_HEAL_RECENT_TRIP_MS = 3 * 24 * 60 * 60 * 1000;
+// ⚠️ iOS ONLY. On Android the JS engine is not a fallback, it is silence: see
+// the header of selfHealRule.ts and Becky O'Neill's week of zero trips.
 
 /**
  * Decide whether the native engine is demonstrably deaf on this device, and if
@@ -3517,11 +3517,20 @@ const SELF_HEAL_RECENT_TRIP_MS = 3 * 24 * 60 * 60 * 1000;
  *
  * Heals at most once per native binary: the heal stamps the current
  * runtimeVersion, and resetSelfHealOnNewBinary() re-tries the native engine
- * when a new build (which may fix the device class) is installed.
+ * when a new build (which may fix the device class) is installed. A heal that
+ * does not restore capture is undone by maybeRollBackSelfHeal().
+ *
+ * The verdict itself lives in selfHealRule.ts so it can be tested without the
+ * native stack.
  */
 async function maybeSelfHealNativeEngine(): Promise<boolean> {
   try {
+    // Cheapest guard first: Android can never heal, so nothing below is worth
+    // reading there.
+    if (Platform.OS !== "ios") return false;
+
     const db = await getDatabase();
+    const { shouldSelfHeal } = await import("./selfHealRule");
 
     // Evidence 1: the engine has had a fair chance — its earliest start event
     // is old enough. (Busy devices roll the 500-row event log faster, but busy
@@ -3529,9 +3538,7 @@ async function maybeSelfHealNativeEngine(): Promise<boolean> {
     const firstStart = await db.getFirstAsync<{ recorded_at: string }>(
       "SELECT recorded_at FROM detection_events WHERE event = 'native_engine_started' ORDER BY id ASC LIMIT 1"
     );
-    if (!firstStart) return false;
-    const engineAge = Date.now() - new Date(firstStart.recorded_at).getTime();
-    if (!Number.isFinite(engineAge) || engineAge < SELF_HEAL_MIN_ENGINE_AGE_MS) return false;
+    const engineAge = firstStart ? Date.now() - new Date(firstStart.recorded_at).getTime() : null;
 
     // Evidence 2: in all that time it has NEVER opened a recording, never
     // speed-started, and never once heard isMoving:true.
@@ -3540,7 +3547,6 @@ async function maybeSelfHealNativeEngine(): Promise<boolean> {
         WHERE event IN ('native_recording_started', 'native_force_start_from_speed')
            OR (event = 'native_motionchange' AND data LIKE '%"isMoving":true%')`
     );
-    if ((signs?.n ?? 0) > 0) return false;
 
     // Evidence 3: this user genuinely drives — they have auto-captured trips
     // historically, and none in the recent window (i.e. drives are being
@@ -3548,21 +3554,47 @@ async function maybeSelfHealNativeEngine(): Promise<boolean> {
     const lifetimeAuto = await db.getFirstAsync<{ n: number }>(
       "SELECT COUNT(*) AS n FROM trips WHERE is_manual_entry = 0"
     );
-    if ((lifetimeAuto?.n ?? 0) < 3) return false;
+    const { SELF_HEAL_RECENT_TRIP_MS } = await import("./selfHealRule");
     const recentCutoff = new Date(Date.now() - SELF_HEAL_RECENT_TRIP_MS).toISOString();
     const recentAuto = await db.getFirstAsync<{ n: number }>(
       "SELECT COUNT(*) AS n FROM trips WHERE is_manual_entry = 0 AND started_at > ?",
       [recentCutoff]
     );
-    if ((recentAuto?.n ?? 0) > 0) return false;
 
-    // Evidence 4: it's not a permissions problem (that's the nudges' job, and
+    // Evidence 4: a previous heal on this device may already have been undone;
+    // if so the native engine keeps the device for a while (no engine flapping).
+    const rolledBack = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'native_self_heal_rolled_back_at'"
+    );
+    const rolledBackAt = rolledBack ? Number(rolledBack.value) : null;
+
+    const evidence = {
+      platform: Platform.OS as string,
+      engineAgeMs: engineAge,
+      motionSigns: signs?.n ?? 0,
+      lifetimeAutoTrips: lifetimeAuto?.n ?? 0,
+      recentAutoTrips: recentAuto?.n ?? 0,
+      backgroundPermission: null as string | null,
+      motionPermission: null as string | null,
+      rolledBackAt: rolledBackAt !== null && Number.isFinite(rolledBackAt) ? rolledBackAt : null,
+      now: Date.now(),
+    };
+
+    // Everything above is local SQLite; the two permission reads are only worth
+    // paying for once the rest already points at a heal.
+    if (shouldSelfHeal(evidence).reason !== "permissions_unknown") return false;
+
+    // Evidence 5: it's not a permissions problem (that's the nudges' job, and
     // the JS engine would be equally blind without these).
     const bg = await Location.getBackgroundPermissionsAsync();
-    if (bg.status !== "granted") return false;
     const { getMotionPermission } = await import("./motionPermission");
     const motion = await getMotionPermission();
-    if (motion === "denied") return false;
+    const verdict = shouldSelfHeal({
+      ...evidence,
+      backgroundPermission: bg.status,
+      motionPermission: motion,
+    });
+    if (!verdict.heal) return false;
 
     // Verdict: deaf engine on a driving user. Heal.
     let runtime: string | null = null;
@@ -3586,7 +3618,7 @@ async function maybeSelfHealNativeEngine(): Promise<boolean> {
       [runtime ?? "unknown"]
     );
     logDetectionEvent("engine_self_healed", {
-      engineAgeDays: Math.round(engineAge / 86_400_000),
+      engineAgeDays: engineAge === null ? null : Math.round(engineAge / 86_400_000),
       lifetimeAutoTrips: lifetimeAuto?.n ?? 0,
       runtime,
     }).catch(() => {});
@@ -3632,12 +3664,114 @@ async function resetSelfHealOnNewBinary(): Promise<void> {
     const { setNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
     await setNativeLocationEngineEnabled(true);
     await db.runAsync(
-      "DELETE FROM tracking_state WHERE key IN ('native_self_heal_at', 'native_self_heal_runtime')"
+      "DELETE FROM tracking_state WHERE key IN ('native_self_heal_at', 'native_self_heal_runtime', 'native_self_heal_rolled_back_at')"
     );
     logDetectionEvent("engine_self_heal_reset", {
       fromRuntime: healedRuntime.value,
       toRuntime: runtime,
     }).catch(() => {});
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Undo a self-heal that did not help.
+ *
+ * Two ways a heal fails. On Android it never had a chance: there is no JS
+ * fallback there, so the heal just switched capture off (Becky O'Neill, moto
+ * g55 5G, healed 10 Sep 2026, zero auto trips in the week that followed). On
+ * iOS the fallback usually works, but when it has captured nothing at all in
+ * SELF_HEAL_ROLLBACK_MS the native engine was not the problem and the device is
+ * better off back on it.
+ *
+ * The old code only ever re-armed the engine on a new RUNTIME VERSION, which an
+ * OTA-only fleet never gets, so a bad heal was permanent. This runs on the same
+ * schedule as that reset (every startDriveDetection, i.e. every foreground).
+ *
+ * Only a heal writes native_self_heal_at, so a device switched to the JS engine
+ * by hand (the diagnostics toggle) or by the server (the set_native_engine
+ * push) is never fought with here.
+ */
+async function maybeRollBackSelfHeal(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const healedRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'native_self_heal_at'"
+    );
+    if (!healedRow) return;
+    const healedAtRaw = Number(healedRow.value);
+    const healedAt = Number.isFinite(healedAtRaw) ? healedAtRaw : null;
+
+    const { shouldRollBackHeal } = await import("./selfHealRule");
+    // Did the fallback engine capture anything since the heal? Auto trips are
+    // the only honest test on Android, where taskRunning:false is by design.
+    const since = healedAt === null ? null : new Date(healedAt).toISOString();
+    const captured = since
+      ? await db.getFirstAsync<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM trips WHERE is_manual_entry = 0 AND started_at > ?",
+          [since]
+        )
+      : null;
+
+    const now = Date.now();
+    const decision = shouldRollBackHeal({
+      platform: Platform.OS as string,
+      healedAt,
+      autoTripsSinceHeal: captured?.n ?? 0,
+      now,
+    });
+    if (!decision.rollBack) return;
+
+    // Hand the device back to the native engine. No explicit start needed: this
+    // runs at the top of startDriveDetection, whose flag check a few lines down
+    // tears down the JS layer and starts the native engine for us, exactly as
+    // resetSelfHealOnNewBinary relies on.
+    const { setNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    await setNativeLocationEngineEnabled(true);
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('native_self_heal_at', 'native_self_heal_runtime')"
+    );
+    // Remembered so the heal check cannot flip the engine straight back.
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('native_self_heal_rolled_back_at', ?)",
+      [now.toString()]
+    );
+    logDetectionEvent("engine_self_heal_rolled_back", {
+      reason: decision.reason,
+      platform: Platform.OS,
+      healedHoursAgo: healedAt === null ? null : Math.round((now - healedAt) / 3_600_000),
+      autoTripsSinceHeal: captured?.n ?? 0,
+    }).catch(() => {});
+
+    // Same promise as the heal notification, kept the same way: the driver was
+    // told trips would record automatically, so they get told when that moves.
+    if (!isQuietHours()) {
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Trip detection switched back",
+          body: "The other detection method was not picking up your drives, so we have switched back. Trips will record automatically again.",
+          data: { action: "open_diagnostics" },
+        },
+        trigger: null,
+      }).catch(() => {});
+    }
+  } catch {
+    // Never break detection startup.
+  }
+}
+
+/**
+ * Forget that this device ever self-healed. Called when a human or the server
+ * sets the engine flag deliberately, so maybeRollBackSelfHeal() cannot undo
+ * their choice a moment later.
+ */
+export async function clearSelfHealMarkers(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('native_self_heal_at', 'native_self_heal_runtime', 'native_self_heal_rolled_back_at')"
+    );
   } catch {
     // best-effort
   }
@@ -3654,6 +3788,10 @@ export async function startDriveDetection(): Promise<void> {
   // A previous self-heal parked this device on the JS engine; a new binary
   // earns the native engine another try.
   await resetSelfHealOnNewBinary();
+
+  // ...and a heal that did not restore capture is undone here, without waiting
+  // for a new binary that an OTA-only fleet never gets.
+  await maybeRollBackSelfHeal();
 
   // Native engine opt-in. When this device has flipped the flag AND the native
   // binary is present (a dev/production build that bundled it), hand wake +
