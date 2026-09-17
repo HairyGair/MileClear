@@ -18,7 +18,38 @@ import {
   type PlacePrediction,
 } from "../lib/location/geocoding";
 import { MapPickerModal } from "./MapPickerModal";
+import { haversineDistance } from "@mileclear/shared";
+import { getDatabase } from "../lib/db";
+import {
+  selectPickerPlaces,
+  type PickerPlace,
+  type PickerPlaces,
+  type RecentTripRow,
+  type SavedPlaceRow,
+} from "../lib/location/recentPlaces";
 import { colors, fonts } from "../lib/theme";
+
+// Enough trips to find eight distinct places for most drivers without
+// reading the whole table every time the search box opens.
+const RECENT_TRIP_SCAN = 120;
+
+async function loadPickerPlaces(): Promise<PickerPlaces> {
+  const db = await getDatabase();
+  const [savedPlaces, trips] = await Promise.all([
+    db.getAllAsync<SavedPlaceRow>(
+      `SELECT id, name, latitude, longitude FROM saved_locations
+       ORDER BY CASE location_type WHEN 'home' THEN 0 WHEN 'work' THEN 1 ELSE 2 END,
+                name COLLATE NOCASE ASC`
+    ),
+    db.getAllAsync<RecentTripRow>(
+      `SELECT started_at, ended_at, start_lat, start_lng, start_address,
+              end_lat, end_lng, end_address
+       FROM trips ORDER BY started_at DESC LIMIT ?`,
+      [RECENT_TRIP_SCAN]
+    ),
+  ]);
+  return selectPickerPlaces({ trips, savedPlaces, haversine: haversineDistance });
+}
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -55,12 +86,29 @@ export function LocationPickerField({
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [typing, setTyping] = useState(false);
   const [noResults, setNoResults] = useState(false);
+  // Saved places and recent trip ends, offered while the search box is empty.
+  const [pickerPlaces, setPickerPlaces] = useState<PickerPlaces>({ saved: [], recent: [] });
 
   const sessionRef = useRef<string>(newSessionToken());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
 
   const hasValue = lat != null && lng != null;
+
+  // Read the places afresh each time the search opens, so a place saved or a
+  // trip added a moment ago is there.
+  useEffect(() => {
+    if (!showSearch) return;
+    let cancelled = false;
+    loadPickerPlaces()
+      .then((places) => {
+        if (!cancelled) setPickerPlaces(places);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [showSearch]);
 
   // Clean up any pending debounce on unmount.
   useEffect(() => () => {
@@ -157,6 +205,19 @@ export function LocationPickerField({
     setSuggestions([]);
     setNoResults(false);
   };
+
+  const handlePickPlace = (p: PickerPlace) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    onLocationChange(p.lat, p.lng, p.label);
+    setShowSearch(false);
+    setSearchText("");
+    setPredictions([]);
+    setSuggestions([]);
+    setNoResults(false);
+  };
+
+  const showPickerPlaces =
+    searchText.trim().length === 0 && (pickerPlaces.saved.length > 0 || pickerPlaces.recent.length > 0);
 
   const handleMapConfirm = (mapLat: number, mapLng: number, mapAddress: string | null) => {
     onLocationChange(mapLat, mapLng, mapAddress);
@@ -264,6 +325,44 @@ export function LocationPickerField({
             />
             {typing && <ActivityIndicator size="small" color={AMBER} style={{ paddingHorizontal: 6 }} />}
           </View>
+
+          {/* Before typing: saved places, then places from recent trips */}
+          {showPickerPlaces && pickerPlaces.saved.length > 0 && (
+            <View style={styles.suggestionList}>
+              <Text style={styles.suggestionHint}>Saved places</Text>
+              {pickerPlaces.saved.map((p) => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={styles.suggestionRow}
+                  onPress={() => handlePickPlace(p)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Saved place, ${p.label}`}
+                >
+                  <Ionicons name="bookmark-outline" size={15} color={AMBER} accessible={false} />
+                  <Text style={styles.suggestionText} numberOfLines={1}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {showPickerPlaces && pickerPlaces.recent.length > 0 && (
+            <View style={styles.suggestionList}>
+              <Text style={styles.suggestionHint}>Recent places</Text>
+              {pickerPlaces.recent.map((p) => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={styles.suggestionRow}
+                  onPress={() => handlePickPlace(p)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Recent place, ${p.label}`}
+                >
+                  <Ionicons name="time-outline" size={15} color={AMBER} accessible={false} />
+                  <Text style={styles.suggestionText} numberOfLines={2}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {/* Google Places predictions (tap to pick a real place) */}
           {predictions.length > 0 && (
