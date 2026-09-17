@@ -41,7 +41,8 @@ export default function AndroidPage() {
           <p className="updates__subtitle">
             The Android app is in closed testing on Google Play ahead of a public
             release. Same MileClear as the iPhone app, same account, same trips.
-            Testers get Pro free while the test runs.
+            Testers get Pro free while the test runs, and for six months after
+            the public release as thanks for testing it.
             {latest && (
               <>
                 {" "}Current build: v{latest.version}
