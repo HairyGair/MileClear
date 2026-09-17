@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useMemo, useState, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
   View,
@@ -26,6 +26,7 @@ import { processSyncQueue } from "../../lib/sync";
 import { isNetworkError } from "../../lib/sync/errors";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
+import { groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
@@ -1281,6 +1282,24 @@ export default function TripsScreen() {
     ? groupUnclassifiedTrips(trips.filter((t) => t.classification === "unclassified"))
     : [];
 
+  // The flat list reads day by day: newest day at the top, and inside a day
+  // the first trip first, so checking a day for missed journeys runs
+  // forwards rather than backwards. Regrouped over the whole loaded array
+  // every time a page arrives, so the oldest day on screen fills in as the
+  // next page loads.
+  const dayRows = useMemo<DayRow<TripItem>[]>(() => groupTripsByDay(trips), [trips]);
+
+  const renderDayRow = ({ item }: { item: DayRow<TripItem> }) => {
+    if (item.kind === "header") {
+      return (
+        <Text style={styles.dayHeader} accessibilityRole="header">
+          {item.label}
+        </Text>
+      );
+    }
+    return renderTrip({ item: item.trip });
+  };
+
   // Drives the collapsed Filters control: label + count so a narrowed list
   // never reads as trips having gone missing.
   const activePlatformLabel =
@@ -1438,9 +1457,13 @@ export default function TripsScreen() {
       <AppHeader title="Trips" showBack addRoute="/trip-form" />
       <FlatList
         key={filter === "unclassified" ? "grouped" : "flat"}
-        data={filter === "unclassified" ? (routeGroups as any[]) : trips}
-        keyExtractor={(item) => (filter === "unclassified" ? (item as RouteGroup).key : (item as TripItem).id)}
-        renderItem={filter === "unclassified" ? (renderRouteGroup as any) : renderTrip}
+        data={filter === "unclassified" ? (routeGroups as any[]) : dayRows}
+        keyExtractor={(item) => {
+          if (filter === "unclassified") return (item as RouteGroup).key;
+          const row = item as DayRow<TripItem>;
+          return row.kind === "header" ? row.key : row.trip.id;
+        }}
+        renderItem={filter === "unclassified" ? (renderRouteGroup as any) : (renderDayRow as any)}
         onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
         // Each card now carries a map. Keep the render window tight so the
@@ -2105,6 +2128,17 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
+  },
+  // Day header in the flat list. Matches the month header on the shifts
+  // screen: small, muted, tracked, sitting just above its first card.
+  dayHeader: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
   },
   // Inbox banner
   inboxBanner: {
