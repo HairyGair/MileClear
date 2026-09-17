@@ -25,6 +25,7 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
   return "car";
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
+import { startTimeChangeAllowed } from "../../services/tripTimeEdit.js";
 import {
   parseTripCsvPreview,
   confirmTripCsvImport,
@@ -174,8 +175,16 @@ const updateTripSchema = z.object({
   endedAt: z.coerce.date().nullable().optional(),
   // The start, editable from 28 Aug 2026. Not nullable, unlike the end: a trip
   // has to begin somewhere, and clearing it would leave a row no map can draw.
-  // startedAt stays out of this schema deliberately - it is half the dedup key,
-  // and the ask was to correct WHERE a journey began, not when.
+  // The start TIME joined on 17 Sep 2026, for manual trips only (the handler
+  // refuses it on a recorded one, see services/tripTimeEdit.ts). Emily
+  // Russell typed in a morning drive at 13:50 and could not move it: a
+  // hand-typed trip has no breadcrumbs, so the driver's correction is the
+  // only truth about its time. It is half the create-time dedup key, but a
+  // queued update only runs once its create has completed, so a retried
+  // create cannot arrive after the time has moved.
+  startedAt: z.coerce.date()
+    .refine((d) => d <= new Date(Date.now() + 86400000), "Start date cannot be in the future")
+    .optional(),
   startAddress: z.string().max(500).optional(),
   startLat: z.number().min(-90).max(90).optional(),
   startLng: z.number().min(-180).max(180).optional(),
@@ -2605,10 +2614,20 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Trip not found" });
     }
 
-    // Same end-before-start invariant as the create path, but resolved against
-    // the STORED startedAt since a PATCH usually sends endedAt alone (this is
-    // the path a user takes when correcting times on a trip we added for them).
-    if (updates.endedAt && updates.endedAt.getTime() < existing.startedAt.getTime()) {
+    // Moving the start time. Only a manual trip may, and never past the end
+    // the trip will have once this PATCH lands. See services/tripTimeEdit.ts.
+    const timeEdit = startTimeChangeAllowed(existing, updates);
+    if (!timeEdit.ok) {
+      return reply.status(400).send({ error: timeEdit.error });
+    }
+
+    // Same end-before-start invariant as the create path, resolved against the
+    // start this PATCH leaves in place: the incoming one when the time is
+    // being corrected, otherwise the STORED one, since a PATCH usually sends
+    // endedAt alone (the path a user takes when correcting times on a trip we
+    // added for them).
+    const effectiveStartedAt = updates.startedAt ?? existing.startedAt;
+    if (updates.endedAt && updates.endedAt.getTime() < effectiveStartedAt.getTime()) {
       return reply.status(400).send({ error: "End time cannot be before the start time" });
     }
 
@@ -2918,9 +2937,22 @@ export async function tripRoutes(app: FastifyInstance) {
       }).catch(() => {});
     }
 
-    // Fire-and-forget: update mileage summary + check achievements
+    // Fire-and-forget: update mileage summary + check achievements. A start
+    // time moved across 5 April changes two tax years, so both are redone.
     const taxYear = getTaxYear(existing.startedAt);
     upsertMileageSummary(userId, taxYear).catch(() => {});
+    if (updates.startedAt) {
+      const newTaxYear = getTaxYear(updates.startedAt);
+      if (newTaxYear !== taxYear) {
+        upsertMileageSummary(userId, newTaxYear).catch(() => {});
+      }
+      logEvent("trip.start_time_edited", userId, {
+        tripId: id,
+        from: existing.startedAt.toISOString(),
+        to: updates.startedAt.toISOString(),
+        taxYearChanged: newTaxYear !== taxYear,
+      });
+    }
     checkAndAwardAchievements(userId).catch(() => {});
 
     logEvent("trip.updated", userId, { classification: updates.classification });
