@@ -15,7 +15,8 @@ import {
   AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams, Stack } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation, Stack } from "expo-router";
+import { usePreventRemove } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
 import {
@@ -44,7 +45,24 @@ import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Ve
 import { formatPence } from "@mileclear/shared";
 import { createExpense } from "../lib/api/expenses";
 import { getDatabase } from "../lib/db/index";
-import { startQuickTripTracking, stopQuickTripTracking, stopQuickTripLocationTask, clearDetectionCooldown, peekBackgroundCoordinates } from "../lib/tracking";
+import {
+  startQuickTripTracking,
+  stopQuickTripTracking,
+  stopQuickTripLocationTask,
+  clearDetectionCooldown,
+  peekBackgroundCoordinates,
+  savePendingArrivedTrip,
+  updatePendingArrivedTrip,
+  loadPendingArrivedTrip,
+  clearPendingArrivedTrip,
+  reportPendingArrivedDiscard,
+} from "../lib/tracking";
+import {
+  pendingArrivedAction,
+  qualifiesForDiscardReport,
+  shouldPersistArrivedTrip,
+  type PendingArrivedFacts,
+} from "../lib/tracking/arrivedRecovery";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
@@ -228,6 +246,32 @@ function getTimeOfDayNote(startedAt: string | null): string | null {
   if (hour >= 16 && hour < 19) return "Evening rush hour drive";
   if (hour >= 19 && hour < 22) return "Evening drive";
   return "Night owl - driving after hours";
+}
+
+/** One trail from two, oldest first, with points within 2 seconds of each
+ *  other treated as the same fix. Foreground breadcrumbs are high-resolution
+ *  (10m/3s); the background task writes every 50m. */
+function mergeTrails(a: Breadcrumb[], b: Breadcrumb[]): Breadcrumb[] {
+  const all = [...a, ...b];
+  all.sort((x, y) => new Date(x.recordedAt).getTime() - new Date(y.recordedAt).getTime());
+  const merged: Breadcrumb[] = [];
+  for (const p of all) {
+    const t = new Date(p.recordedAt).getTime();
+    if (merged.length === 0 || t - new Date(merged[merged.length - 1].recordedAt).getTime() > 2000) {
+      merged.push(p);
+    }
+  }
+  return merged;
+}
+
+/** Straight-line sum along a trail. The honest first figure for the copy we
+ *  keep on disk, before the gap-filling road lookups refine it. */
+function trailHaversineMiles(crumbs: Breadcrumb[]): number {
+  let total = 0;
+  for (let i = 1; i < crumbs.length; i++) {
+    total += haversineDistance(crumbs[i - 1].lat, crumbs[i - 1].lng, crumbs[i].lat, crumbs[i].lng);
+  }
+  return total;
 }
 
 function computeInsights(crumbs: Breadcrumb[], distMiles: number, durationSecs: number): TripInsights | null {
@@ -648,6 +692,9 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const router = useRouter();
+  // For the exit guard: usePreventRemove hands back the navigation action it
+  // blocked, and this is what re-dispatches it once the driver has decided.
+  const navigation = useNavigation();
 
   // "Save as place" under a trip's start/end address: open the saved-location
   // form with the pin and address already filled, so the driver only names it.
@@ -809,6 +856,16 @@ export default function TripFormScreen() {
 
   // Breadcrumb trail (collected during driving mode)
   const breadcrumbsRef = useRef<Breadcrumb[]>([]);
+  // The arrived-but-unsaved trip as written to SQLite, so a discard can offer
+  // it back as a missed journey without reconstructing it from screen state.
+  const pendingArrivedRef = useRef<PendingArrivedFacts | null>(null);
+  // Set the moment the trip is saved or genuinely discarded, so the exit
+  // guard stops asking. A ref, not state: leaving happens in the same tick as
+  // the save finishing, and a re-render would not have landed in time.
+  const exitGuardOffRef = useRef(false);
+  // True when this screen was re-opened onto a trip the driver arrived at but
+  // never saved, so the summary can say where it came from.
+  const [restoredArrived, setRestoredArrived] = useState(false);
   const [routeTrail, setRouteTrail] = useState<{ latitude: number; longitude: number }[]>([]);
   const [insights, setInsights] = useState<TripInsights | null>(null);
   // Per-trip confidence (only populated when loading an existing trip)
@@ -982,6 +1039,70 @@ export default function TripFormScreen() {
         }
 
         const db = await getDatabase();
+
+        // ── A trip arrived at but never saved ───────────────────────────────
+        //
+        // Checked BEFORE the in-progress row, and it wins: handleArrived
+        // clears the in-progress row now, so the two can only coexist on a
+        // phone that arrived on the old build. The summary comes back with its
+        // real trail so the driver can Save or Discard it themselves - never
+        // saved behind their back, and never quietly thrown away.
+        const pending = await loadPendingArrivedTrip().catch(() => null);
+        if (pending) {
+          const action = pendingArrivedAction(pending.facts, Date.now());
+          if (action === "expire") {
+            // Too old to put back on screen. Hand it to Missed Journeys so the
+            // day is still recoverable, rather than deleting it quietly.
+            await reportPendingArrivedDiscard(pending.facts).catch(() => {});
+            await clearPendingArrivedTrip().catch(() => {});
+          } else if (action === "offer") {
+            const f = pending.facts;
+            pendingArrivedRef.current = f;
+            setStartLat(f.startLat);
+            setStartLng(f.startLng);
+            setStartAddress(f.startAddress);
+            setEndLat(f.endLat);
+            setEndLng(f.endLng);
+            setEndAddress(f.endAddress);
+            const start = new Date(f.startedAt);
+            const end = new Date(f.endedAt);
+            setStartedAt(start);
+            setEndedAt(end);
+            setTimeTouched(true);
+            setEndTimeTouched(true);
+            setDistanceMiles(f.distanceMiles);
+            const crumbs: Breadcrumb[] = pending.crumbs.map((c) => ({
+              lat: c.lat,
+              lng: c.lng,
+              speed: c.speed,
+              accuracy: c.accuracy,
+              recordedAt: c.recordedAt,
+            }));
+            breadcrumbsRef.current = crumbs;
+            if (crumbs.length >= 2) {
+              setRouteTrail(crumbs.map((c) => ({ latitude: c.lat, longitude: c.lng })));
+            }
+            if (f.distanceMiles != null) {
+              const durationSecs = Math.round((end.getTime() - start.getTime()) / 1000);
+              setInsights(computeInsights(crumbs, f.distanceMiles, durationSecs));
+              runningDistanceRef.current = f.distanceMiles;
+              setLiveDistance(f.distanceMiles);
+            }
+            setRestoredArrived(true);
+            // The summary's cards fade in from zero opacity on arrival. A trip
+            // coming back is not a moment of triumph, so show it plainly
+            // rather than replaying the celebration.
+            celebHeaderAnim.setValue(1);
+            celebStatsAnim.setValue(1);
+            celebInsightsAnim.setValue(1);
+            celebSlideAnim.setValue(0);
+            setMode("arrived");
+            // A live-trip row left over from a build that did not clear one.
+            await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]).catch(() => {});
+            return; // finally sets loading=false
+          }
+        }
+
         const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = ?",
           [QUICK_TRIP_KEY]
@@ -1092,8 +1213,13 @@ export default function TripFormScreen() {
       }
     })();
     // Prefill params are route params — stable for the screen's lifetime, so
-    // listing them never re-runs this mount-time init.
+    // listing them never re-runs this mount-time init. The celebration values
+    // are useRef handles, so they are stable too.
   }, [
+    celebHeaderAnim,
+    celebStatsAnim,
+    celebInsightsAnim,
+    celebSlideAnim,
     isEditing,
     hasMissedPrefill,
     hasPlacePrefill,
@@ -1633,6 +1759,18 @@ export default function TripFormScreen() {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       setMode("driving");
 
+      // A trip arrived at but never saved, still sitting there while the
+      // driver starts a new one. It cannot be offered back on screen any more,
+      // so hand it to Missed Journeys rather than letting a fresh recording
+      // bury it. Normally impossible (the form restores it on open), but the
+      // form can be reached from manual mode without that check.
+      const stranded = await loadPendingArrivedTrip().catch(() => null);
+      if (stranded) {
+        await reportPendingArrivedDiscard(stranded.facts).catch(() => {});
+        await clearPendingArrivedTrip().catch(() => {});
+        pendingArrivedRef.current = null;
+      }
+
       const db = await getDatabase();
       // Clear any leftover quick-trip background coordinates from a previous
       // session. If a prior trip crashed or was force-killed, its shift_coordinates
@@ -1675,31 +1813,79 @@ export default function TripFormScreen() {
       const now = new Date();
       setEndedAt(now);
 
-      // Stop background tracking and retrieve background GPS coordinates
-      const bgCoords = await stopQuickTripTracking().catch(() => []);
-
-      // Merge foreground breadcrumbs with background coordinates for a complete trail.
-      // Foreground gives high-res points while app is active (10m/3s intervals).
-      // Background fills gaps when app was backgrounded (50m intervals).
-      const fgCrumbs = breadcrumbsRef.current;
-      const bgCrumbs = bgCoords.map((c) => ({
-        lat: c.lat,
-        lng: c.lng,
-        speed: c.speed,
-        accuracy: c.accuracy,
-        recordedAt: c.recorded_at,
-      }));
-      const allPoints = [...fgCrumbs, ...bgCrumbs];
-      allPoints.sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime());
-      // Deduplicate points within 2 seconds of each other
-      const crumbs: typeof allPoints = [];
-      for (const p of allPoints) {
-        const t = new Date(p.recordedAt).getTime();
-        if (crumbs.length === 0 || t - new Date(crumbs[crumbs.length - 1].recordedAt).getTime() > 2000) {
-          crumbs.push(p);
-        }
-      }
+      // Read the background trail WITHOUT clearing anything yet, and merge it
+      // with the foreground breadcrumbs. Foreground gives high-res points while
+      // the app is active (10m/3s); background fills the gaps (50m).
+      const bgCoords = await peekBackgroundCoordinates().catch(() => []);
+      const toCrumbs = (rows: typeof bgCoords): Breadcrumb[] =>
+        rows.map((c) => ({
+          lat: c.lat,
+          lng: c.lng,
+          speed: c.speed,
+          accuracy: c.accuracy,
+          recordedAt: c.recorded_at,
+        }));
+      let crumbs = mergeTrails(breadcrumbsRef.current, toCrumbs(bgCoords));
       breadcrumbsRef.current = crumbs;
+
+      // ── Keep the route before anything is torn down ──────────────────────
+      //
+      // The teardown below deletes shift_coordinates, empties the detection
+      // buffer and destroys the native store. Until 17 Sep 2026 that left the
+      // day's route living only in this screen's React state, so a back
+      // chevron, an edge swipe or an app kill took it for good, with no
+      // confirmation and nothing to recover (Liam Darkin, Emily Russell,
+      // Matthew Booth; 33 such bursts from 23 drivers in a fortnight).
+      //
+      // So it goes to SQLite first, with the distance GPS has proved so far.
+      // The refined figure follows once the gap fills below have run.
+      const pendingFacts: PendingArrivedFacts | null =
+        shouldPersistArrivedTrip({
+          startLat,
+          startLng,
+          endLat: loc.lat,
+          endLng: loc.lng,
+          crumbCount: crumbs.length,
+          distanceMiles: trailHaversineMiles(crumbs),
+        }) && startLat != null && startLng != null
+          ? {
+              startLat,
+              startLng,
+              startAddress,
+              endLat: loc.lat,
+              endLng: loc.lng,
+              endAddress: loc.address,
+              startedAt: startedAt.toISOString(),
+              endedAt: now.toISOString(),
+              distanceMiles: Math.round(trailHaversineMiles(crumbs) * 100) / 100,
+              arrivedAtMs: now.getTime(),
+            }
+          : null;
+      pendingArrivedRef.current = pendingFacts;
+      if (pendingFacts) {
+        await savePendingArrivedTrip(pendingFacts, crumbs).catch(() => {});
+      }
+
+      // Now stop background tracking. It returns every stored coordinate, so
+      // a fix that landed between the peek above and this call is still caught.
+      const finalBg = await stopQuickTripTracking().catch(() => []);
+      if (finalBg.length > bgCoords.length) {
+        crumbs = mergeTrails(crumbs, toCrumbs(finalBg));
+        breadcrumbsRef.current = crumbs;
+        if (pendingFacts) await savePendingArrivedTrip(pendingFacts, crumbs).catch(() => {});
+      }
+
+      // The trip is no longer in progress, so the "trip in progress" row must
+      // go with it. Leaving it behind meant re-opening the form resumed a
+      // zombie live trip with an empty trail over the top of the arrived one -
+      // which is the state Matthew Booth then tapped Discard on (17 Sep 2026).
+      try {
+        const db = await getDatabase();
+        await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
+      } catch {
+        // The lock itself is already gone; a stale start row resolves on the
+        // 12-hour resume guard.
+      }
 
       // Calculate distance from merged breadcrumb trail. Where a GPS gap left
       // a long straight chord between consecutive points (app backgrounded /
@@ -1790,6 +1976,13 @@ export default function TripFormScreen() {
           ? Math.round(haversineDistance(startLat, startLng, loc.lat, loc.lng) * 100) / 100
           : null);
       setDistanceMiles(finalDistance);
+
+      // Refine the figure on the copy we kept, now the road lookups have run.
+      if (pendingFacts && finalDistance != null && finalDistance !== pendingFacts.distanceMiles) {
+        pendingFacts.distanceMiles = finalDistance;
+        pendingArrivedRef.current = pendingFacts;
+        updatePendingArrivedTrip({ distanceMiles: finalDistance }).catch(() => {});
+      }
 
       // Compute trip insights
       const durationSecs = startedAt ? Math.round((now.getTime() - startedAt.getTime()) / 1000) : 0;
@@ -1889,7 +2082,7 @@ export default function TripFormScreen() {
     } finally {
       setLoading(false);
     }
-  }, [startLat, startLng, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim]);
+  }, [startLat, startLng, startAddress, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim]);
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);
@@ -2124,6 +2317,10 @@ export default function TripFormScreen() {
     }
 
     setSaving(true);
+    // The trip is on its way to being saved, so the exit guard has nothing
+    // left to protect. Set before the await, not after: the save finishes and
+    // navigates in the same tick, ahead of any re-render.
+    exitGuardOffRef.current = true;
     let createdTripId: string | null = null;
     let createLearnedSuggestion: ClassificationSuggestion | null = null;
     let createAutoApplied = false;
@@ -2303,6 +2500,12 @@ export default function TripFormScreen() {
         //    task is SHARED with shift tracking, so it may only be stopped
         //    when the lock we just released was actually the quick trip.
         if (mode !== "manual") {
+          // The trip is on the server (or queued for it), so the safety copy
+          // of the route has done its job and must go - otherwise the next
+          // open would offer the driver a trip they have already saved.
+          await clearPendingArrivedTrip().catch(() => {});
+          pendingArrivedRef.current = null;
+
           const db = await getDatabase();
           await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
           const releasedQuickTrip = await db.runAsync(
@@ -2439,6 +2642,9 @@ export default function TripFormScreen() {
         router.back();
       }
     } catch (err: unknown) {
+      // Nothing was saved, so the trail is still the only copy and the exit
+      // guard goes back on.
+      exitGuardOffRef.current = false;
       const { title, message } = describeError(err, "Couldn't save the trip");
       Alert.alert(title, message);
     } finally {
@@ -2454,22 +2660,117 @@ export default function TripFormScreen() {
     odometerStart, odometerEnd, missedId, mode, timeTouched,
   ]);
 
+  /**
+   * What was recorded, for a discard that happens before the summary screen
+   * (the Cancel button during a drive). After arrival the copy on disk is
+   * better than anything screen state can rebuild, so that wins.
+   */
+  const liveDiscardFacts = useCallback((): PendingArrivedFacts | null => {
+    if (pendingArrivedRef.current) return pendingArrivedRef.current;
+    const crumbs = breadcrumbsRef.current;
+    const last = crumbs.length > 0 ? crumbs[crumbs.length - 1] : null;
+    const finishLat = endLat ?? last?.lat ?? userLat;
+    const finishLng = endLng ?? last?.lng ?? userLng;
+    if (startLat == null || startLng == null || finishLat == null || finishLng == null) return null;
+    const finishedAt = endedAt ?? (last ? new Date(last.recordedAt) : new Date());
+    const miles =
+      distanceMiles ?? Math.round(Math.max(0, runningDistanceRef.current) * 100) / 100;
+    return {
+      startLat,
+      startLng,
+      startAddress,
+      endLat: finishLat,
+      endLng: finishLng,
+      endAddress,
+      startedAt: startedAt.toISOString(),
+      endedAt: finishedAt.toISOString(),
+      distanceMiles: miles,
+      arrivedAtMs: Date.now(),
+    };
+  }, [endLat, endLng, userLat, userLng, startLat, startLng, startAddress, endAddress, startedAt, endedAt, distanceMiles]);
+
+  /**
+   * Throw the recording away for real: stop tracking, drop every trace of it,
+   * and hand anything substantial to Missed Journeys on the way out so a
+   * day's driving is never lost without a route back to it.
+   */
+  const discardRecording = useCallback(async (leave: () => void) => {
+    exitGuardOffRef.current = true;
+    const facts = liveDiscardFacts();
+    try {
+      await stopQuickTripTracking().catch(() => []);
+      const db = await getDatabase();
+      await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]).catch(() => {});
+      if (facts) await reportPendingArrivedDiscard(facts).catch(() => {});
+      await clearPendingArrivedTrip().catch(() => {});
+      pendingArrivedRef.current = null;
+    } catch {
+      // Leaving must never be blocked by a cleanup failure.
+    }
+    leave();
+  }, [liveDiscardFacts]);
+
   const handleCancel = useCallback(() => {
-    Alert.alert("Cancel trip?", "This will discard the current trip.", [
-      { text: "Keep going", style: "cancel" },
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: async () => {
-          // Stop background tracking and clean up
-          await stopQuickTripTracking().catch(() => []);
-          const db = await getDatabase();
-          await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
-          router.back();
+    const recoverable = qualifiesForDiscardReport(liveDiscardFacts());
+    Alert.alert(
+      "Discard this trip?",
+      recoverable
+        ? "It will not be saved. If you change your mind, look under journeys you might have missed on your dashboard."
+        : "This will discard the current trip.",
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => discardRecording(() => router.back()),
         },
-      },
-    ]);
-  }, [router]);
+      ]
+    );
+  }, [router, discardRecording, liveDiscardFacts]);
+
+  // ── The exit guard ───────────────────────────────────────────────────────
+  //
+  // trip-form is a plain stack screen, so until 17 Sep 2026 the back chevron
+  // and the iOS edge swipe both left it without a word - and after "I've
+  // Arrived" that used to take the route with them. The trail now survives on
+  // disk either way, but a driver still deserves to be asked rather than to
+  // find their day sitting in Missed Journeys tomorrow.
+  //
+  // Only while a recording is unsaved. Manual entry, editing and the ready
+  // screen have nothing to lose and are never interrupted.
+  const exitGuardActive =
+    (mode === "arrived" || (mode === "driving" && (liveDistance > 0 || drivingTrail.length > 0))) &&
+    !saving;
+
+  usePreventRemove(exitGuardActive, ({ data }) => {
+    const leave = () => navigation.dispatch(data.action);
+    // A save or a discard that has just finished flips the ref before this
+    // screen re-renders, so the boolean above can still be true here.
+    if (exitGuardOffRef.current) {
+      leave();
+      return;
+    }
+    if (mode === "driving") {
+      Alert.alert(
+        "Still recording",
+        "This trip has not finished yet. You can leave it running and come back to it, or discard it.",
+        [
+          { text: "Keep it", style: "cancel" },
+          { text: "Leave it running", onPress: leave },
+          { text: "Discard", style: "destructive", onPress: () => discardRecording(leave) },
+        ]
+      );
+      return;
+    }
+    Alert.alert(
+      "Save this trip?",
+      "It has not been saved yet. Keep it and tap Save Trip, or discard it.",
+      [
+        { text: "Keep it", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: () => discardRecording(leave) },
+      ]
+    );
+  });
 
   const handleDelete = useCallback(() => {
     Alert.alert("Delete trip", "Remove this trip? This can't be undone.", [
@@ -2881,7 +3182,9 @@ export default function TripFormScreen() {
               <View style={styles.celebCheckCircle}>
                 <Ionicons name="checkmark" size={28} color="#fff" />
               </View>
-              <Text style={styles.celebTitle}>Trip complete!</Text>
+              <Text style={styles.celebTitle}>
+                {restoredArrived ? "Trip not saved yet" : "Trip complete!"}
+              </Text>
               <Text style={[styles.celebDistance, isPersonal && { color: GREEN }]}>
                 {distance != null ? `${distance} mi` : "--"}
               </Text>
@@ -2889,7 +3192,9 @@ export default function TripFormScreen() {
                 {duration != null ? formatTimer(duration) : ""}
               </Text>
               <Text style={styles.celebMessage}>
-                {getPositiveMessage(distance, insights?.numberOfStops ?? 0, insights?.routeEfficiency ?? 0)}
+                {restoredArrived
+                  ? "You arrived on this one but never saved it. Here it is again."
+                  : getPositiveMessage(distance, insights?.numberOfStops ?? 0, insights?.routeEfficiency ?? 0)}
               </Text>
             </Animated.View>
 

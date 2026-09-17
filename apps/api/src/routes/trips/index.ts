@@ -1417,12 +1417,20 @@ export async function tripRoutes(app: FastifyInstance) {
     toLng: z.number().min(-180).max(180),
     departedAt: z.coerce.date(),
     arrivedAt: z.coerce.date(),
-    recordedMiles: z.number().min(0).max(50),
+    // The ceiling was 50 while every report came from a guard that only ever
+    // dropped short recordings. A discarded Start Trip is a whole day's drive
+    // (17 Sep 2026), so it has to fit; the client clamps at the same figure.
+    recordedMiles: z.number().min(0).max(1000),
     // Which guard dropped it. Older clients send nothing, which is the
     // too-short discard this endpoint was built for. The walk verdict and the
     // walking-shape phantom guard (15 Sep 2026) report here too, under their
     // own sources, so a slow crawl judged a walk is one tap from recovery.
-    reason: z.enum(["too_short", "walk", "phantom"]).optional().default("too_short"),
+    // "start_trip_discarded" is the driver themselves throwing away a
+    // recording they made with Start Trip.
+    reason: z
+      .enum(["too_short", "walk", "phantom", "start_trip_discarded"])
+      .optional()
+      .default("too_short"),
     walkReason: z.string().max(200).optional(),
   });
 
@@ -1491,9 +1499,11 @@ export async function tripRoutes(app: FastifyInstance) {
       Number.isFinite(route.distanceMiles) &&
       route.distanceMiles >= crow * 0.95 &&
       route.distanceMiles <= Math.max(crow * 4, 1);
-    const offeredMiles = routeUsable
-      ? route.distanceMiles
-      : Math.max(crow, d.recordedMiles);
+    // Never offer less than what was actually recorded. A there-and-back ends
+    // where it started, so both the straight line and the road route between
+    // the two points are near zero while the drive itself was real (a
+    // discarded Start Trip is often exactly that shape).
+    const offeredMiles = Math.max(routeUsable ? route.distanceMiles : crow, d.recordedMiles);
 
     await prisma.missedJourneyProposal.upsert({
       where: { userId_key: { userId, key } },

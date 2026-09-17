@@ -77,9 +77,19 @@ export const MISSED_RECORDED_MIN_MILES = 0.01; // recorded OR crow-flies, whiche
  * the walking-shape phantom guard used to drop a drive without a word
  * (15 Sep 2026) and now come back as offers of their own. The daily digest
  * reads these exact source values.
+ *
+ * "start_trip_discarded" (17 Sep 2026) is the one reason that is not a guard
+ * at all: the driver tapped Start Trip, drove, arrived, and then discarded the
+ * recording (or walked away from the summary screen and never came back to
+ * it). Those are whole days rather than car-park shuffles, so they are offered
+ * back at full priority rather than filed with the engine's own drops.
  */
-export type DiscardedRecordingReason = "too_short" | "walk" | "phantom";
-export type DiscardedRecordingSource = "recorded" | "dropped_walk" | "dropped_phantom";
+export type DiscardedRecordingReason = "too_short" | "walk" | "phantom" | "start_trip_discarded";
+export type DiscardedRecordingSource =
+  | "recorded"
+  | "dropped_walk"
+  | "dropped_phantom"
+  | "dropped_start_trip";
 
 export function discardedRecordingSource(reason: DiscardedRecordingReason): DiscardedRecordingSource {
   switch (reason) {
@@ -87,6 +97,8 @@ export function discardedRecordingSource(reason: DiscardedRecordingReason): Disc
       return "dropped_walk";
     case "phantom":
       return "dropped_phantom";
+    case "start_trip_discarded":
+      return "dropped_start_trip";
     default:
       return "recorded";
   }

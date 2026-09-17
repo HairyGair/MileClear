@@ -279,4 +279,11 @@ describe("discardedRecordingSource - which guard dropped it (15 Sep 2026)", () =
     expect(discardedRecordingSource("walk")).toBe("dropped_walk");
     expect(discardedRecordingSource("phantom")).toBe("dropped_phantom");
   });
+
+  it("gives a discarded Start Trip recording its own source (17 Sep 2026)", () => {
+    // Not a guard at all: the driver recorded a drive by hand and then threw
+    // it away, so the card says something different and it is offered at full
+    // priority rather than filed with the engine's own drops.
+    expect(discardedRecordingSource("start_trip_discarded")).toBe("dropped_start_trip");
+  });
 });

@@ -11,6 +11,15 @@ import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
+import {
+  ARRIVED_PENDING_SHIFT_ID,
+  PENDING_ARRIVED_KEY,
+  buildDiscardReport,
+  parsePendingArrived,
+  pendingArrivedAction,
+  type PendingArrivedCrumb,
+  type PendingArrivedFacts,
+} from "./arrivedRecovery";
 
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -266,6 +275,149 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
   setDepartureAnchor().catch(() => {});
 
   return coords;
+}
+
+// ── The arrived-but-unsaved trip ────────────────────────────────────────────
+//
+// "I've Arrived" tears the recording down (shift_coordinates deleted, the
+// detection buffer emptied, the native store destroyed) and until 17 Sep 2026
+// the only copy of the route from that moment on was React state inside the
+// open screen. Backing out took the day with it. The trail and the trip's
+// facts are now written here first, and stay until the driver saves or
+// discards. See arrivedRecovery.ts for the rules and the drivers it cost.
+//
+// Deliberately NOT a new table. shift_coordinates already has exactly these
+// columns and every read of it is scoped by shift_id, so a reserved id is
+// invisible to the shift and quick-trip paths - the same trick __quick_trip__
+// already uses. tracking_state already carries quick_trip_start as a JSON
+// blob. Both tables exist on every install and are already in the GDPR wipe
+// list, so nothing needs migrating: a driver upgrading mid-drive is covered
+// the moment the new code runs, which a new table could not promise.
+
+/** Rows per INSERT when saving the trail. A day's driving can be ten thousand
+ *  fixes, and one statement each would keep the driver on a spinner; 100 rows
+ *  is 600 bound parameters, well inside SQLite's limit. */
+const ARRIVED_INSERT_CHUNK = 100;
+
+/** Write the merged trail and the trip's facts, replacing any earlier one. */
+export async function savePendingArrivedTrip(
+  facts: PendingArrivedFacts,
+  crumbs: PendingArrivedCrumb[]
+): Promise<void> {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [ARRIVED_PENDING_SHIFT_ID]);
+    for (let i = 0; i < crumbs.length; i += ARRIVED_INSERT_CHUNK) {
+      const chunk = crumbs.slice(i, i + ARRIVED_INSERT_CHUNK);
+      const values = chunk.map(() => "(?, ?, ?, ?, ?, ?)").join(", ");
+      const params: (string | number | null)[] = [];
+      for (const c of chunk) {
+        params.push(ARRIVED_PENDING_SHIFT_ID, c.lat, c.lng, c.speed, c.accuracy, c.recordedAt);
+      }
+      await db.runAsync(
+        `INSERT INTO shift_coordinates (shift_id, lat, lng, speed, accuracy, recorded_at) VALUES ${values}`,
+        params
+      );
+    }
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+      [PENDING_ARRIVED_KEY, JSON.stringify(facts)]
+    );
+  });
+}
+
+/** Change a fact or two without rewriting the trail, which can run to
+ *  thousands of rows. Used when the road-routed distance lands after the
+ *  trail has already been saved. No-op when there is nothing stored. */
+export async function updatePendingArrivedTrip(patch: Partial<PendingArrivedFacts>): Promise<void> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = ?",
+    [PENDING_ARRIVED_KEY]
+  );
+  const facts = parsePendingArrived(row?.value ?? null);
+  if (!facts) return;
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+    [PENDING_ARRIVED_KEY, JSON.stringify({ ...facts, ...patch })]
+  );
+}
+
+/** The stored arrived trip, or null when there is none or it is unreadable. */
+export async function loadPendingArrivedTrip(): Promise<{
+  facts: PendingArrivedFacts;
+  crumbs: PendingArrivedCrumb[];
+} | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = ?",
+    [PENDING_ARRIVED_KEY]
+  );
+  const facts = parsePendingArrived(row?.value ?? null);
+  if (!facts) {
+    // A half-written or corrupt record is not worth keeping its trail either.
+    if (row) await clearPendingArrivedTrip();
+    return null;
+  }
+  const stored = await db.getAllAsync<StoredCoordinate>(
+    "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+    [ARRIVED_PENDING_SHIFT_ID]
+  );
+  return {
+    facts,
+    crumbs: stored.map((c) => ({
+      lat: c.lat,
+      lng: c.lng,
+      speed: c.speed,
+      accuracy: c.accuracy,
+      recordedAt: c.recorded_at,
+    })),
+  };
+}
+
+/** Drop it. Called once the trip is saved, or once it is truly discarded. */
+export async function clearPendingArrivedTrip(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [ARRIVED_PENDING_SHIFT_ID]);
+  await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [PENDING_ARRIVED_KEY]);
+}
+
+/**
+ * Hand a discarded recording back to the server as a missed journey, when it
+ * was long enough to be worth asking about. Best effort: a failure here must
+ * never stop a driver leaving the screen, and the day is no worse off than it
+ * was before this existed.
+ *
+ * Returns true if a report was actually sent.
+ */
+export async function reportPendingArrivedDiscard(facts: PendingArrivedFacts): Promise<boolean> {
+  const report = buildDiscardReport(facts);
+  if (!report) return false;
+  try {
+    const { reportDiscardedRecording } = await import("../api/trips");
+    await reportDiscardedRecording(report);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * App start: an arrived trip nobody ever saved or discarded. A fresh one is
+ * left alone - the trip form puts it back on screen. An old one is reported
+ * as a discarded recording, so the day comes back as a "journey you might
+ * have missed" card instead of sitting in SQLite forever.
+ */
+export async function sweepStalePendingArrivedTrip(): Promise<void> {
+  try {
+    const pending = await loadPendingArrivedTrip();
+    if (!pending) return;
+    if (pendingArrivedAction(pending.facts, Date.now()) !== "expire") return;
+    await reportPendingArrivedDiscard(pending.facts);
+    await clearPendingArrivedTrip();
+  } catch {
+    // Never let a recovery sweep break app start.
+  }
 }
 
 /**

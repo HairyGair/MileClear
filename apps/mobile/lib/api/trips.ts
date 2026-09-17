@@ -472,8 +472,16 @@ export interface MissedJourneyProposal {
    *  "trip_start" = the next trip was already moving when it began recording,
    *  so this is its opening stretch: "extend" it rather than add a trip.
    *  "dropped_walk" = recorded, then judged a walk and dropped.
-   *  "dropped_phantom" = recorded, then judged phone drift and dropped. */
-  source?: "gap" | "recorded" | "trip_start" | "dropped_walk" | "dropped_phantom";
+   *  "dropped_phantom" = recorded, then judged phone drift and dropped.
+   *  "dropped_start_trip" = recorded with Start Trip, then discarded (or left
+   *  unsaved on the summary screen until it went stale). */
+  source?:
+    | "gap"
+    | "recorded"
+    | "trip_start"
+    | "dropped_walk"
+    | "dropped_phantom"
+    | "dropped_start_trip";
   /** What the engine captured before discarding it, for "recorded" rows. */
   recordedMiles?: number | null;
 }
@@ -487,7 +495,7 @@ export function fetchMissedJourneys() {
 // dropped it: under the minimum distance (the default), the walk verdict, or
 // the walking-shape phantom guard. Best-effort: a failure here must never
 // affect the finalize.
-export type DiscardedRecordingReason = "too_short" | "walk" | "phantom";
+export type DiscardedRecordingReason = "too_short" | "walk" | "phantom" | "start_trip_discarded";
 
 export function reportDiscardedRecording(data: {
   fromLat: number;
