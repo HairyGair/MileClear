@@ -665,6 +665,23 @@ export default function TripFormScreen() {
     [router]
   );
 
+  // "Start from here" / "Go to here" under a trip's start/end address: open a
+  // new hand-typed trip with that point already in From or To. Chris
+  // Saunders, 17 Sep 2026, wanted to reuse an address he had already driven
+  // to instead of hunting for it in the search. The time is left unset, so
+  // Save still asks whether the drive started now.
+  const openNewTripWith = useCallback(
+    (end: "from" | "to", lat: number, lng: number, addr: string | null) => {
+      const params: Record<string, string> =
+        end === "from"
+          ? { mode: "manual", prefillFromLat: String(lat), prefillFromLng: String(lng) }
+          : { mode: "manual", prefillToLat: String(lat), prefillToLng: String(lng) };
+      if (addr) params[end === "from" ? "prefillFromAddress" : "prefillToAddress"] = addr;
+      router.push({ pathname: "/trip-form", params });
+    },
+    [router]
+  );
+
   const {
     id,
     mode: modeParam,
@@ -695,6 +712,13 @@ export default function TripFormScreen() {
   }>();
   const isEditing = !!id;
   const hasMissedPrefill = !!missedId;
+  // A new hand-typed trip opened from another trip's address ("Start from
+  // here" / "Go to here"). Only the place is given, never a time.
+  const hasPlacePrefill =
+    !isEditing &&
+    !hasMissedPrefill &&
+    modeParam === "manual" &&
+    ((!!prefillFromLat && !!prefillFromLng) || (!!prefillToLat && !!prefillToLng));
   const { user: currentUser, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
 
@@ -923,6 +947,40 @@ export default function TripFormScreen() {
           return; // finally sets loading=false
         }
 
+        // Place prefill: fill From and/or To and nothing else. The times stay
+        // untouched on purpose, so Save still asks "Did it start at HH:mm
+        // today?" (lib/trips/manualTimeRule.ts). No quick-trip resume either:
+        // the driver asked for a hand-typed trip.
+        if (hasPlacePrefill) {
+          const fLat = parseFloat(String(prefillFromLat));
+          const fLng = parseFloat(String(prefillFromLng));
+          const tLat = parseFloat(String(prefillToLat));
+          const tLng = parseFloat(String(prefillToLng));
+          const hasFrom = Number.isFinite(fLat) && Number.isFinite(fLng);
+          if (hasFrom) {
+            setStartLat(fLat);
+            setStartLng(fLng);
+            if (prefillFromAddress) setStartAddress(String(prefillFromAddress));
+          }
+          if (Number.isFinite(tLat) && Number.isFinite(tLng)) {
+            setEndLat(tLat);
+            setEndLng(tLng);
+            if (prefillToAddress) setEndAddress(String(prefillToAddress));
+          }
+          if (!hasFrom) {
+            // Same default as any other new hand-typed trip: start where the
+            // phone is now, which the driver can change.
+            const loc = await getCurrentLocation();
+            if (loc) {
+              setStartLat(loc.lat);
+              setStartLng(loc.lng);
+              setStartAddress(loc.address);
+            }
+          }
+          setMode("manual");
+          return; // finally sets loading=false
+        }
+
         const db = await getDatabase();
         const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = ?",
@@ -1038,6 +1096,7 @@ export default function TripFormScreen() {
   }, [
     isEditing,
     hasMissedPrefill,
+    hasPlacePrefill,
     prefillFromLat,
     prefillFromLng,
     prefillFromAddress,
@@ -3295,16 +3354,38 @@ export default function TripFormScreen() {
               }}
             />
             {isEditing && startLat != null && startLng != null && (
-              <TouchableOpacity
-                style={styles.savePlaceLink}
-                onPress={() => openSaveAsPlace(startLat, startLng, startAddress)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Save the start location as a place"
-              >
-                <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
-                <Text style={styles.savePlaceText}>Save as place</Text>
-              </TouchableOpacity>
+              <View style={styles.placeLinkRow}>
+                <TouchableOpacity
+                  style={styles.savePlaceLink}
+                  onPress={() => openSaveAsPlace(startLat, startLng, startAddress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save the start location as a place"
+                >
+                  <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.savePlaceText}>Save as place</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.savePlaceLink}
+                  onPress={() => openNewTripWith("from", startLat, startLng, startAddress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a new trip starting from the start location"
+                >
+                  <Ionicons name="arrow-up-circle-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.savePlaceText}>Start from here</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.savePlaceLink}
+                  onPress={() => openNewTripWith("to", startLat, startLng, startAddress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a new trip going to the start location"
+                >
+                  <Ionicons name="flag-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.savePlaceText}>Go to here</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {/* Distance card */}
@@ -3614,16 +3695,38 @@ export default function TripFormScreen() {
               }}
             />
             {isEditing && endLat != null && endLng != null && (
-              <TouchableOpacity
-                style={styles.savePlaceLink}
-                onPress={() => openSaveAsPlace(endLat, endLng, endAddress)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Save the end location as a place"
-              >
-                <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
-                <Text style={styles.savePlaceText}>Save as place</Text>
-              </TouchableOpacity>
+              <View style={styles.placeLinkRow}>
+                <TouchableOpacity
+                  style={styles.savePlaceLink}
+                  onPress={() => openSaveAsPlace(endLat, endLng, endAddress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save the end location as a place"
+                >
+                  <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.savePlaceText}>Save as place</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.savePlaceLink}
+                  onPress={() => openNewTripWith("from", endLat, endLng, endAddress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a new trip starting from the end location"
+                >
+                  <Ionicons name="arrow-up-circle-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.savePlaceText}>Start from here</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.savePlaceLink}
+                  onPress={() => openNewTripWith("to", endLat, endLng, endAddress)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a new trip going to the end location"
+                >
+                  <Ionicons name="flag-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.savePlaceText}>Go to here</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {/* Start Time */}
@@ -4136,7 +4239,16 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: AMBER,
   },
-  // "Save as place" under a trip's start/end address (edit mode only)
+  // "Save as place", "Start from here" and "Go to here" under a trip's
+  // start/end address (edit mode only). Wraps rather than truncates on a
+  // narrow phone.
+  placeLinkRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: 14,
+    marginTop: 2,
+  },
   savePlaceLink: {
     flexDirection: "row",
     alignItems: "center",
