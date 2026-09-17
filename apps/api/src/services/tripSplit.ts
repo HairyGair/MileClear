@@ -22,6 +22,7 @@ import { prisma } from "../lib/prisma.js";
 import { haversineDistance, getTaxYear } from "@mileclear/shared";
 import { upsertMileageSummary } from "./mileage.js";
 import { logEvent } from "./appEvents.js";
+import { nameInteriorBoundaries, logSplitAddressFill } from "./splitBoundaryNames.js";
 
 // ── Tunables ──────────────────────────────────────────────────────────────
 
@@ -469,6 +470,16 @@ export async function executeTripSplit(args: {
 
   const legs = partitionAtCuts(coords, cutIndices); // throws SplitValidationError on thin legs
 
+  // Name the stops before the transaction opens, so a slow geocoder never
+  // holds one. Capped; whatever it cannot name stays null for the job.
+  const savedLocations = await prisma.savedLocation.findMany({
+    where: { userId },
+    select: { name: true, latitude: true, longitude: true, radiusMeters: true },
+  });
+  const boundary = await nameInteriorBoundaries(legs, { saved: savedLocations });
+
+  // Leg order, for attributing boundary fills once the transaction commits.
+  const createdIds: string[] = [];
   const newTrips = await prisma.$transaction(async (tx) => {
     const created: { id: string }[] = [];
     for (let k = 0; k < legs.length; k++) {
@@ -484,11 +495,11 @@ export async function executeTripSplit(args: {
           startLng: first.lng,
           endLat: last.lat,
           endLng: last.lng,
-          // Boundary legs keep the parent's resolved addresses; interior
-          // stop addresses are unknown server-side — mobile reverse-geocodes
-          // on display exactly as it does for any address-less trip.
-          startAddress: k === 0 ? parent.startAddress : null,
-          endAddress: k === legs.length - 1 ? parent.endAddress : null,
+          // Outer ends keep the parent's resolved addresses. Interior stops
+          // take the driver's saved name or the inline geocoder's, else null
+          // for the address backfill job.
+          startAddress: k === 0 ? parent.startAddress : boundary.starts[k]?.address ?? null,
+          endAddress: k === legs.length - 1 ? parent.endAddress : boundary.ends[k]?.address ?? null,
           distanceMiles: legDistanceMiles(leg),
           startedAt: first.recordedAt,
           endedAt: last.recordedAt,
@@ -515,6 +526,7 @@ export async function executeTripSplit(args: {
         },
       });
       created.push(legTrip);
+      createdIds.push(legTrip.id);
 
       // Move this leg's breadcrumbs BEFORE the parent delete — the FK
       // cascade would otherwise take the whole trail down with the parent.
@@ -549,6 +561,7 @@ export async function executeTripSplit(args: {
   for (const year of taxYears) {
     upsertMileageSummary(userId, year).catch(() => {});
   }
+  createdIds.forEach((id, k) => logSplitAddressFill(userId, id, boundary.starts[k], boundary.ends[k]));
   logEvent("trip.split", userId, {
     parentTripId: parent.id,
     parentMiles: parent.distanceMiles,
@@ -650,42 +663,6 @@ export function trailDistanceMiles(coords: Array<{ lat: number; lng: number }>):
  * Returns null when the trip has no cut worth making, which is the common
  * case — this runs over every recent trip.
  */
-/** Matches the geocode job's tolerance for a fix drifting off a saved pin. */
-const SAVED_LOCATION_DRIFT_BUFFER_M = 50;
-const METERS_TO_MILES = 1 / 1609.34;
-
-/**
- * The driver's own name for a point, or null.
- *
- * A split leg used to be written with null addresses and left for the geocode
- * job, which runs every six hours. Rachel Thorndyke's 7 Sep round: the app cut
- * her journey at Samantha Littlewood's, and for the rest of the evening her
- * trip list showed a leg that started nowhere. She has that place saved, and
- * asked why it was not being named. Nothing was broken, but a name she is
- * already looking at should not wait a quarter of a day.
- *
- * Nearest match wins, so a second saved place a little further off (Longlakes
- * Equestrian, 86 m away against Samantha Littlewood's 53 m) cannot take the
- * label. The geocode job still fills anything left, street names included.
- */
-function nearestSavedName(
-  saved: Array<{ name: string; latitude: number; longitude: number; radiusMeters: number }>,
-  lat: number,
-  lng: number
-): string | null {
-  let best: string | null = null;
-  let bestMiles = Infinity;
-  for (const loc of saved) {
-    const miles = haversineDistance(lat, lng, loc.latitude, loc.longitude);
-    const limit = (loc.radiusMeters + SAVED_LOCATION_DRIFT_BUFFER_M) * METERS_TO_MILES;
-    if (miles <= limit && miles < bestMiles) {
-      best = loc.name;
-      bestMiles = miles;
-    }
-  }
-  return best;
-}
-
 export function driverKeptGoing(gpsQuality: unknown): boolean {
   return (
     !!gpsQuality &&
@@ -732,6 +709,11 @@ export async function autoSplitVisitWelds(args: {
   };
   if (dryRun) return result;
 
+  // Name the stops before the transaction opens, so a slow geocoder never
+  // holds one. Saved place first, then Nominatim within a hard cap; anything
+  // left null is filled by the address backfill job as before.
+  const boundary = await nameInteriorBoundaries(legs, { saved: savedLocations });
+
   const created = await prisma.$transaction(async (tx) => {
     const madeIds: string[] = [];
 
@@ -749,14 +731,11 @@ export async function autoSplitVisitWelds(args: {
           startLng: first.lng,
           endLat: last.lat,
           endLng: last.lng,
-          // Interior boundaries are the stop, and only the driver knows what
-          // it is called. Ask their saved places now; the geocode job fills
-          // anything still null on its next pass.
-          startAddress: nearestSavedName(savedLocations, first.lat, first.lng),
+          // Interior boundaries are the stop: the driver's saved name for it,
+          // else the inline geocoder's, else null for the geocode job.
+          startAddress: boundary.starts[k]?.address ?? null,
           endAddress:
-            k === legs.length - 1
-              ? parent.endAddress
-              : nearestSavedName(savedLocations, last.lat, last.lng),
+            k === legs.length - 1 ? parent.endAddress : boundary.ends[k]?.address ?? null,
           distanceMiles: legMiles[k],
           coordinateCount: leg.length,
           startedAt: first.recordedAt,
@@ -796,8 +775,9 @@ export async function autoSplitVisitWelds(args: {
 
     // The parent keeps leg one's breadcrumbs and shrinks to match them. Its
     // end address belonged to the far end of the welded journey and has moved
-    // to the last leg, so replace it with the driver's name for the stop, and
-    // leave it null for the geocoder only if they have no name for it.
+    // to the last leg, so replace it with the name for the stop, and leave it
+    // null for the geocode job only if neither a saved place nor the inline
+    // lookup could name it.
     const firstLeg = legs[0];
     const parentEnd = firstLeg[firstLeg.length - 1];
     await tx.trip.update({
@@ -805,7 +785,7 @@ export async function autoSplitVisitWelds(args: {
       data: {
         endLat: parentEnd.lat,
         endLng: parentEnd.lng,
-        endAddress: nearestSavedName(savedLocations, parentEnd.lat, parentEnd.lng),
+        endAddress: boundary.ends[0]?.address ?? null,
         endedAt: parentEnd.recordedAt,
         distanceMiles: legMiles[0],
         coordinateCount: firstLeg.length,
@@ -817,6 +797,9 @@ export async function autoSplitVisitWelds(args: {
   });
 
   result.newTripIds = created;
+
+  logSplitAddressFill(userId, parent.id, null, boundary.ends[0]);
+  created.forEach((id, i) => logSplitAddressFill(userId, id, boundary.starts[i + 1], boundary.ends[i + 1]));
 
   const taxYears = new Set<string>([getTaxYear(parent.startedAt)]);
   for (const leg of legs) taxYears.add(getTaxYear(leg[0].recordedAt));
