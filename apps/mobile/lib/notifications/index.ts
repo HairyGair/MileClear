@@ -521,6 +521,15 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/(tabs)/dashboard");
         break;
 
+      case "resume_detection":
+        // The "your pause has ended" reminder. Opening the app already
+        // restarts the engine; this makes the tap itself do it too.
+        import("../tracking/detection")
+          .then((m) => m.resumeDriveDetection("notification"))
+          .catch(() => {});
+        router.navigate("/(tabs)/dashboard");
+        break;
+
       case "open_trips":
         router.navigate("/(tabs)/trips");
         break;

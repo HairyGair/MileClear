@@ -6,6 +6,8 @@ import {
 } from "../index";
 
 // A driver in the healthy steady state: everything granted, nothing to say.
+const NOW = new Date("2026-09-15T09:00:00Z").getTime();
+
 const base: MessageInputs = {
   activeShift: false,
   loading: false,
@@ -20,6 +22,7 @@ const base: MessageInputs = {
   motionNudgeSilenced: false,
   notifDeniedNudgeSilenced: false,
   notifPrimerSilenced: false,
+  detectionOffSince: null,
   firstTripEligible: false,
   savedPlacesEligible: false,
   referralEligible: false,
@@ -27,6 +30,17 @@ const base: MessageInputs = {
   androidBetaEligible: false,
 };
 const on = (over: Partial<MessageInputs>) => selectDashboardMessages({ ...base, ...over });
+
+describe("recording switched off in Settings", () => {
+  it("is the first suggestion, ahead of everything else", () => {
+    const r = on({ detectionOffSince: NOW - 3 * 24 * 3600 * 1000, firstTripEligible: true, referralEligible: true });
+    expect(r.suggestions[0]).toBe("detection_off");
+    expect(r.suggestions).toHaveLength(2);
+  });
+  it("is absent while recording is on", () => {
+    expect(on({}).suggestions).not.toContain("detection_off");
+  });
+});
 
 describe("selectDashboardMessages", () => {
   it("says nothing to a healthy driver", () => {
