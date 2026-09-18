@@ -81,6 +81,8 @@ import { getLiveActivityContext } from "../../lib/liveActivity/context";
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { selectDashboardMessages } from "../../lib/dashboardMessages";
 import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
+import { PauseRecordingRow } from "../../components/PauseRecordingRow";
+import { describeOffSince, type PauseChoice } from "../../lib/tracking/pauseRule";
 import { SetupChecklistCard, type SetupChecklistRow } from "../../components/SetupChecklistCard";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
@@ -245,6 +247,38 @@ export default function DashboardScreen() {
   // nudge (engine still works via the speed backstop), 7-day cooldown.
   const [motionDenied, setMotionDenied] = useState(false);
   const [motionNudgeDismissedAt, setMotionNudgeDismissedAt] = useState<number | null>(null);
+  // Pause with an end (16 Sep 2026): epoch ms while paused, else null. And
+  // when the permanent Settings switch went off, for the "off since" card.
+  const [pausedUntil, setPausedUntil] = useState<number | null>(null);
+  const [detectionOffSince, setDetectionOffSince] = useState<number | null>(null);
+  const refreshPauseState = useCallback(() => {
+    import("../../lib/tracking/detection")
+      .then(async (m) => {
+        setPausedUntil(await m.getDrivePauseUntil());
+        const enabled = await m.isDriveDetectionEnabled();
+        const offAt = await m.getDriveDetectionOffAt();
+        setDetectionOffSince(!enabled && (await m.getDrivePauseUntil()) === null ? (offAt ?? Date.now()) : null);
+      })
+      .catch(() => {});
+  }, []);
+  const pauseRecording = useCallback((choice: PauseChoice) => {
+    import("../../lib/tracking/detection")
+      .then((m) => m.pauseDriveDetection(choice.until, choice.id))
+      .catch(() => {})
+      .finally(refreshPauseState);
+  }, [refreshPauseState]);
+  const resumeRecording = useCallback(() => {
+    import("../../lib/tracking/detection")
+      .then((m) => m.resumeDriveDetection("manual"))
+      .catch(() => {})
+      .finally(refreshPauseState);
+  }, [refreshPauseState]);
+  const turnDetectionBackOn = useCallback(() => {
+    import("../../lib/tracking/detection")
+      .then((m) => m.setDriveDetectionEnabled(true))
+      .catch(() => {})
+      .finally(refreshPauseState);
+  }, [refreshPauseState]);
 
   // Notification permission. On Android a denial doesn't just stop pushes -
   // it also blocks the LOCAL "Looks like you're driving?" prompt and the
@@ -756,6 +790,7 @@ export default function DashboardScreen() {
         motionNudgeSilenced,
         notifDeniedNudgeSilenced,
         notifPrimerSilenced,
+        detectionOffSince,
         firstTripEligible: showFirstTripNudge,
         savedPlacesEligible: showSavedLocationsNudge,
         referralEligible: showReferralCard,
@@ -766,7 +801,7 @@ export default function DashboardScreen() {
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
       motionDenied, notifPermission, batteryNudge.show, batteryNudgeText,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
-      notifPrimerSilenced, showFirstTripNudge, showSavedLocationsNudge,
+      notifPrimerSilenced, detectionOffSince, showFirstTripNudge, showSavedLocationsNudge,
       showReferralCard, showProNudge, amapBannerSeen,
     ]
   );
@@ -1131,6 +1166,7 @@ export default function DashboardScreen() {
           getMotionPermission().then((m) => setMotionDenied(m === "denied"))
         )
         .catch(() => {});
+      refreshPauseState();
       // dashboard_focus rating trigger removed 4 May 2026 — was the
       // dominant source of "Not now" dismissals. Rating prompts now
       // only fire after positive moments (achievement, streak, trip
@@ -2118,7 +2154,8 @@ export default function DashboardScreen() {
             ) : null;
           case "work_cta":
             return (
-              <View key={key} style={s.ctaRow}>
+              <View key={key}>
+              <View style={s.ctaRow}>
                 <TouchableOpacity
                   style={s.ctaPrimary}
                   onPress={() => router.push("/trip-form")}
@@ -2144,6 +2181,8 @@ export default function DashboardScreen() {
                   )}
                   <Text style={s.ctaShiftText}>Start Shift</Text>
                 </TouchableOpacity>
+              </View>
+              <PauseRecordingRow pausedUntil={pausedUntil} now={Date.now()} onPause={pauseRecording} onResume={resumeRecording} />
               </View>
             );
           case "work_shift":
@@ -2284,6 +2323,9 @@ export default function DashboardScreen() {
           recentTrips={recentTrips}
           dailyRecap={dailyRecap}
           onShowRecap={(recap) => { setRecapData(recap); setShowRecap(true); }}
+          pausedUntil={pausedUntil}
+          onPause={pauseRecording}
+          onResume={resumeRecording}
         />
       )}
 
@@ -2319,6 +2361,22 @@ export default function DashboardScreen() {
       {/* First-trip nudge — in-app activation safety net. Shows when the user
           has Always location on but still zero trips. Two paths: take a live
           trip now, or backfill one they already drove. */}
+      {dashboardMessages.suggestions.includes("detection_off") && detectionOffSince !== null && (
+        <TouchableOpacity
+          style={s.offSinceCard}
+          onPress={turnDetectionBackOn}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`${describeOffSince(detectionOffSince)} Tap to turn recording back on.`}
+        >
+          <Ionicons name="power" size={20} color={AMBER} accessible={false} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.offSinceTitle}>{describeOffSince(detectionOffSince)}</Text>
+            <Text style={s.offSinceBody}>No drives are being kept. If you meant to stop for a while, use Pause instead: it comes back on by itself.</Text>
+          </View>
+          <Text style={s.offSinceCta}>Turn on</Text>
+        </TouchableOpacity>
+      )}
       {dashboardMessages.suggestions.includes("first_trip") && (
         <View style={s.ftNudge}>
           <View style={s.bgLocNudgeRow}>
@@ -2777,6 +2835,22 @@ const s = StyleSheet.create({
     fontFamily: fonts.bold,
     color: AMBER,
   },
+
+  // "Recording has been off since ..." (permanent switch, 16 Sep 2026)
+  offSinceCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 166, 35, 0.35)",
+  },
+  offSinceTitle: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1, marginBottom: 2 },
+  offSinceBody: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2, lineHeight: 17 },
+  offSinceCta: { fontSize: 13, fontFamily: fonts.bold, color: AMBER },
 
   // Quick actions
   quickActions: {

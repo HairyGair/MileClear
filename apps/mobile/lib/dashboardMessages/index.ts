@@ -35,6 +35,7 @@ export type SetupId = "always_location" | "motion" | "notifications" | "battery"
 
 /** Optional. Never above the fold. */
 export type SuggestionId =
+  | "detection_off"
   | "first_trip"
   | "saved_places"
   | "referral"
@@ -59,6 +60,9 @@ export const SETUP_ORDER: SetupId[] = [
 
 /** first_trip outranks everything: a driver with zero trips has one job. */
 export const SUGGESTION_ORDER: SuggestionId[] = [
+  // Recording switched off in Settings outranks everything: nothing else on
+  // the screen matters while no miles are being kept (16 Sep 2026, 26 phones).
+  "detection_off",
   "first_trip",
   "saved_places",
   "referral",
@@ -90,6 +94,10 @@ export interface MessageInputs {
   motionNudgeSilenced: boolean;
   notifDeniedNudgeSilenced: boolean;
   notifPrimerSilenced: boolean;
+
+  /** When the permanent Settings switch went off, or null when it is on. A
+   *  timed pause is not this: it shows its own row and ends by itself. */
+  detectionOffSince: number | null;
 
   // Suggestion eligibility, computed by the caller from its own state.
   firstTripEligible: boolean;
@@ -202,6 +210,7 @@ export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
   }
 
   const eligible: Record<SuggestionId, boolean> = {
+    detection_off: i.detectionOffSince !== null,
     first_trip: i.firstTripEligible,
     saved_places: i.savedPlacesEligible,
     referral: i.referralEligible,

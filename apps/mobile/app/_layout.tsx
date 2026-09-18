@@ -376,7 +376,12 @@ function RootNavigator() {
       if (state === "active") {
         finalizeStaleAutoRecordings()
           .catch(() => {})
-          .finally(() => startDriveDetection());
+          .finally(() =>
+            import("../lib/tracking/detection")
+              .then((m) => m.autoResumeIfPauseExpired())
+              .catch(() => {})
+              .finally(() => startDriveDetection())
+          );
         // Re-sync the push-to-start token (it can rotate between launches).
         import("../lib/liveActivity")
           .then((m) => m.syncPushToStartToken())
