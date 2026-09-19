@@ -1,3 +1,4 @@
+import { ANDROID_PLATFORMS_CELL, ANDROID_FAQ_ANSWER, ANDROID_STATUS } from "@/data/android";
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -170,7 +171,7 @@ const ROWS: Array<{ feature: string; mc: string; triplog: string; mileiq: string
   },
   {
     feature: "Platforms",
-    mc: "iOS, Android in closed beta",
+    mc: ANDROID_PLATFORMS_CELL,
     triplog: "iOS + Android",
     mileiq: "iOS + Android",
     driversnote: "iOS + Android",
@@ -227,7 +228,7 @@ const FAQS = [
   },
   {
     q: "Does MileClear work on Android?",
-    a: "Android is in closed beta on Google Play (August 2026); leave your email on mileclear.com for a test invite. Until the public release, MileIQ, Driversnote or TripLog are the cross-platform options available today, with the trade-offs above.",
+    a: ANDROID_FAQ_ANSWER,
   },
 ];
 
@@ -318,9 +319,8 @@ export default function BestMileageTrackerAppUK() {
               cross-platform trackers, but both cap free tracking and default to non-UK rates.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, fontSize: "0.9rem" }}>
-              On Android today? MileClear for Android is in closed beta on Google Play; leave your email on the
-              home page for a test invite. Until the public release, MileIQ, Driversnote or TripLog are the
-              cross-platform choices available today.
+              On Android? MileClear is {ANDROID_STATUS}, with the same account and the same free,
+              unlimited tracking as the iPhone app.
             </p>
           </section>
 

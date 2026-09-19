@@ -1,3 +1,4 @@
+import { ANDROID_OS_SCHEMA } from "@/data/android";
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -65,7 +66,7 @@ const softwareSchema = {
   "@type": "SoftwareApplication",
   name: "MileClear",
   applicationCategory: "BusinessApplication",
-  operatingSystem: "iOS",
+  operatingSystem: ANDROID_OS_SCHEMA,
   description:
     "Free UK mileage tracker app for self-employed drivers, gig workers, and anyone claiming business mileage on HMRC Self Assessment.",
   offers: {

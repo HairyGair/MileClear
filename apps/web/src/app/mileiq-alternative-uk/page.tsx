@@ -1,3 +1,4 @@
+import { ANDROID_FAQ_ANSWER } from "@/data/android";
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -52,7 +53,7 @@ const faqs = [
   },
   {
     q: "Is MileClear available on Android?",
-    a: "MileClear is on iPhone and iPad today. The Android app is in closed beta on Google Play (August 2026). If you are on Android, register your interest at mileclear.com and we will send you a test invite ahead of the public release.",
+    a: ANDROID_FAQ_ANSWER,
   },
 ];
 

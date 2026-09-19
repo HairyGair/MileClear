@@ -1,22 +1,5 @@
-"use client";
-
-import { useState, type FormEvent } from "react";
 import Reveal from "./Reveal";
-import { PLAY_STORE_URL, PLAY_TEST_JOIN_URL } from "@/data/android";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 import StoreButtons from "@/components/StoreButtons";
-
-const types = [
-  { value: "", label: "What do you drive for? (optional)" },
-  { value: "uber", label: "Uber / Uber Eats" },
-  { value: "deliveroo", label: "Deliveroo" },
-  { value: "just_eat", label: "Just Eat" },
-  { value: "amazon_flex", label: "Amazon Flex" },
-  { value: "courier", label: "Courier / logistics" },
-  { value: "personal", label: "Personal driving" },
-  { value: "other", label: "Other" },
-];
 
 const stats = [
   { value: "8,300+", label: "UK fuel stations" },
@@ -25,38 +8,6 @@ const stats = [
 ];
 
 export default function EarlyAccess() {
-  const [email, setEmail] = useState("");
-  const [driverType, setDriverType] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "err">("idle");
-  const [errMsg, setErrMsg] = useState("");
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setStatus("loading");
-    setErrMsg("");
-
-    try {
-      const res = await fetch(`${API_URL}/waitlist`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim(),
-          driverType: driverType || undefined,
-          source: "android",
-        }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => null);
-        throw new Error(d?.error || "Something went wrong. Try again.");
-      }
-      setStatus("ok");
-    } catch (err) {
-      setStatus("err");
-      setErrMsg(err instanceof Error ? err.message : "Something went wrong.");
-    }
-  }
-
   return (
     <section id="early-access" className="section ea">
       <div className="container ea__wrap">
@@ -72,7 +23,7 @@ export default function EarlyAccess() {
               width={64}
               height={64}
             />
-            <p className="label">Available on the App Store</p>
+            <p className="label">On the App Store, and Android next</p>
             <h2 className="heading ea__heading">
               Claim what you&apos;re owed
             </h2>
@@ -98,7 +49,7 @@ export default function EarlyAccess() {
               <span className="ea__qr-label">Scan to download</span>
             </div>
           </div>
-          <p className="ea__download-note">Free on iPhone and iPad</p>
+          <p className="ea__download-note">Free on iPhone and iPad. Android is with Google for approval.</p>
         </Reveal>
 
         <Reveal delay="reveal-d2">
@@ -109,58 +60,6 @@ export default function EarlyAccess() {
                 <span className="ea__stat-label">{s.label}</span>
               </div>
             ))}
-          </div>
-        </Reveal>
-
-        <Reveal delay="reveal-d3">
-          <div className="ea__notify">
-            <div className="ea__notify-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 01-3.46 0" />
-              </svg>
-            </div>
-            <p className="ea__notify-label">
-              On Android? MileClear is in closed beta on Google Play. Leave the Gmail your phone uses and we&apos;ll add you to the test.{" "}
-              <a href="/android" className="ea__notify-link">How it works</a>
-            </p>
-            {status === "ok" ? (
-              <div className="ea__ok">
-                You&apos;re on the list. Once we&apos;ve added you, open{" "}
-                <a href={PLAY_TEST_JOIN_URL} className="ea__notify-link" rel="noopener noreferrer">the join link</a>{" "}
-                on your phone, then install from{" "}
-                <a href={PLAY_STORE_URL} className="ea__notify-link" rel="noopener noreferrer">Google Play</a>.
-              </div>
-            ) : (
-              <form className="ea__form" onSubmit={submit}>
-                <div className="ea__row">
-                  <input
-                    type="email"
-                    required
-                    placeholder="Your email address"
-                    aria-label="Your email address"
-                    className="ea__input"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                  />
-                  <select
-                    className="ea__select"
-                    aria-label="What do you drive for"
-                    value={driverType}
-                    onChange={(e) => setDriverType(e.target.value)}
-                  >
-                    {types.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <button type="submit" className="ea__btn ea__btn--secondary" disabled={status === "loading"}>
-                  {status === "loading" ? "Joining..." : "Notify me"}
-                </button>
-                {status === "err" && <p className="ea__err">{errMsg}</p>}
-              </form>
-            )}
           </div>
         </Reveal>
       </div>

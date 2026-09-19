@@ -161,7 +161,7 @@ const faqs = [
   },
   {
     q: 'Where does MileClear run?',
-    a: 'iPhone and iPad on the App Store, Android in closed beta on Google Play (leave your email at mileclear.com/android to join), and a full web dashboard at mileclear.com for trips, shifts, vehicles, fuel, earnings, expenses, exports and tax - all on one account.',
+    a: 'iPhone and iPad on the App Store, Android on Google Play (UK) once Google approves the release, and a full web dashboard at mileclear.com for trips, shifts, vehicles, fuel, earnings, expenses, exports and tax - all on one account.',
   },
   {
     q: 'Can I cancel anytime?',

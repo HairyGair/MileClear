@@ -1,3 +1,5 @@
+import { ANDROID_FAQ_ANSWER, ANDROID_OS_SCHEMA } from "@/data/android";
+
 export default function StructuredData() {
   const website = {
     "@context": "https://schema.org",
@@ -31,7 +33,7 @@ export default function StructuredData() {
     "@type": "SoftwareApplication",
     name: "MileClear",
     applicationCategory: "BusinessApplication",
-    operatingSystem: "iOS",
+    operatingSystem: ANDROID_OS_SCHEMA,
     downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
     description:
       "The UK mileage tracker built for gig workers, delivery drivers, and anyone who drives for a living. Automatic trip recording, HMRC tax deductions, and real earnings insights.",
@@ -170,7 +172,7 @@ export default function StructuredData() {
         name: "Is it available on Android?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "MileClear is on the App Store for iPhone and iPad. The Android app is in closed beta on Google Play as of August 2026, ahead of a public release. Leave your email on mileclear.com/android to be added to the test, then join from the Google Play test link on your phone.",
+          text: ANDROID_FAQ_ANSWER,
         },
       },
     ],

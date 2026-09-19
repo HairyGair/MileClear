@@ -855,7 +855,7 @@ export function blogUrlForRelease(version: string): string {
 //
 // A separate list, not a platform flag on the one above, because the two
 // products are at genuinely different points: iOS is on its ninth public
-// release and Android is in closed testing on Google Play. Merging them would
+// release and Android reached Google Play in September 2026. Merging them would
 // mean every iOS entry needed an "iPhone only" caveat and every Android entry
 // a "not on the App Store" one, and the version numbers only look the same by
 // coincidence - they share a codebase, not a release history.
@@ -866,6 +866,25 @@ export function blogUrlForRelease(version: string): string {
 // Rendered at /android-releases. Deliberately NOT read by the Product Update
 // email, which goes to the whole fleet and is overwhelmingly iPhone users.
 export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
+  {
+    version: "1.3.11",
+    build: "6",
+    date: "September 2026",
+    label: "Latest",
+    items: [
+      "MileClear for Android is on Google Play for everyone in the UK",
+      "A trip now finishes where you stop, not the next time you open the app",
+      "A short guide to the Allow all the time location setting, so trips record with the phone in your pocket",
+      "A prompt to stop your phone's battery saver switching MileClear off, with the steps for Samsung and other makers",
+      "Your phone's motion sensor now helps spot the start of a drive",
+      "Notifications now arrive on Android",
+      "Pause recording until 6am tomorrow or for a week, and it switches itself back on",
+      "Save a place from where you are or from any trip's address, and pick a recent place when you add a trip",
+      "A trip you stop on the Arrive screen is kept, even if you leave the screen before saving",
+      "Move a trip's start time earlier, or its end pin further on, to add the stretch the phone missed",
+      "The trips list reads down through each day, in the order you drove",
+    ],
+  },
   {
     version: "1.3.9",
     build: "5",

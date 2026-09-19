@@ -1,12 +1,7 @@
 import Link from "next/link";
+import { ANDROID_HREF, PLAY_LIVE } from "@/data/android";
 
 export const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
-
-/** The Android app is in a closed test on Google Play. The Play listing
- *  returns "not found" to anyone we have not added to the tester list, so the
- *  Android button goes to /android (leave your email, we add you) rather
- *  than to the store. Switch ANDROID_HREF to PLAY_STORE_URL at launch. */
-export const ANDROID_HREF = "/android";
 
 type Size = "sm" | "md" | "lg";
 
@@ -37,8 +32,8 @@ function PlayLogo() {
   );
 }
 
-/** Platform-labelled download buttons: App Store (live) + Google Play
- *  (closed beta, via /android). Use everywhere a page invites an install. */
+/** Platform-labelled download buttons: App Store + Google Play. Use
+ *  everywhere a page invites an install. */
 export default function StoreButtons({
   size = "md",
   align = "start",
@@ -63,20 +58,35 @@ export default function StoreButtons({
           <span className="store-btn__name">App Store</span>
         </span>
       </a>
-      {!iosOnly && (
-        <Link
-          href={ANDROID_HREF}
-          className="store-btn store-btn--play"
-          aria-label="Join the MileClear Android closed beta on Google Play"
-        >
-          <PlayLogo />
-          <span className="store-btn__text">
-            <span className="store-btn__eyebrow">Android closed beta</span>
-            <span className="store-btn__name">Google Play</span>
-          </span>
-          <span className="store-btn__tag">Beta</span>
-        </Link>
-      )}
+      {!iosOnly &&
+        (PLAY_LIVE ? (
+          <a
+            href={ANDROID_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="store-btn store-btn--play"
+            aria-label="Get MileClear on Google Play"
+          >
+            <PlayLogo />
+            <span className="store-btn__text">
+              <span className="store-btn__eyebrow">Get it free on</span>
+              <span className="store-btn__name">Google Play</span>
+            </span>
+          </a>
+        ) : (
+          <Link
+            href={ANDROID_HREF}
+            className="store-btn store-btn--play"
+            aria-label="MileClear for Android, coming to Google Play"
+          >
+            <PlayLogo />
+            <span className="store-btn__text">
+              <span className="store-btn__eyebrow">Coming to</span>
+              <span className="store-btn__name">Google Play</span>
+            </span>
+            <span className="store-btn__tag">Soon</span>
+          </Link>
+        ))}
     </div>
   );
 }
