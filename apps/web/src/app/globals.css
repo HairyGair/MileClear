@@ -155,12 +155,21 @@ body::after {
 /* ================================================================
    REVEAL (scroll animation)
    ================================================================ */
+/* The scroll animation is an enhancement layered on top of visible content.
+   Markup ships visible, so a reader still gets the page when JavaScript is
+   blocked, fails to load, or the IntersectionObserver never fires. The inline
+   script in the root layout adds .js-reveal to <html>, and that class is what
+   turns on the hidden starting state. */
 .reveal {
+  opacity: 1;
+  transform: none;
+}
+.js-reveal .reveal {
   opacity: 0;
   transform: translateY(32px);
   transition: opacity 0.75s cubic-bezier(.22,.61,.36,1), transform 0.75s cubic-bezier(.22,.61,.36,1);
 }
-.reveal.revealed {
+.js-reveal .reveal.revealed {
   opacity: 1;
   transform: translateY(0);
 }
@@ -233,9 +242,11 @@ body::after {
 }
 .nav__cta:hover { background: var(--amber-300); transform: translateY(-1px); }
 
-/* Burger */
+/* Burger - WCAG 2.2 AA target size, at least 44x44 of hit area */
 .nav__burger {
   display: none; flex-direction: column; gap: 5px; padding: 8px;
+  align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px;
 }
 .nav__burger span {
   width: 20px; height: 2px;
@@ -837,7 +848,15 @@ body::after {
   transition: border-color .3s, transform .25s;
 }
 .who__card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
-.who__icon { font-size: 1.5rem; flex-shrink: 0; margin-top: 2px; }
+.who__icon {
+  flex-shrink: 0;
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm);
+  color: var(--amber-400);
+  background: var(--amber-glow);
+  border: 1px solid rgba(234,179,8,0.12);
+}
 .who__card-title {
   font-family: var(--font-display);
   font-size: 0.9375rem; font-weight: 700;
@@ -915,7 +934,15 @@ body::after {
   padding: 1.5rem 1.25rem;
   text-align: left;
 }
-.community__perk-icon { font-size: 1.75rem; display: block; margin-bottom: 0.75rem; }
+.community__perk-icon {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px;
+  margin-bottom: 0.75rem;
+  border-radius: var(--r-sm);
+  color: var(--amber-400);
+  background: var(--amber-glow);
+  border: 1px solid rgba(234,179,8,0.12);
+}
 .community__perk-title {
   font-size: 1rem;
   font-weight: 700;
@@ -1579,4 +1606,54 @@ body::after {
 @media (max-width: 480px) {
   .store-btns { flex-direction: column; align-items: stretch; }
   .store-btn { justify-content: center; }
+}
+
+/* ================================================================
+   SKIP LINK
+   ================================================================ */
+/* Visually hidden until it takes focus, so the first Tab on any page
+   offers a jump straight past the header chrome to the main content. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10000;
+  padding: 0.75rem 1.25rem;
+  font-family: var(--font-display);
+  font-size: 0.9375rem; font-weight: 600;
+  color: var(--bg-deep);
+  background: var(--amber-400);
+  border-radius: 0 0 var(--r-sm) 0;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+/* ================================================================
+   REDUCED MOTION
+   ================================================================ */
+/* Anyone who asks their system for less motion gets no reveal animation,
+   no smooth scrolling, and no transition long enough to read as movement. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .reveal,
+  .js-reveal .reveal,
+  .js-reveal .reveal.revealed {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    transition-delay: 0s !important;
+  }
+
+  *, *::before, *::after {
+    animation-duration: 0.01s !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01s !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
 }

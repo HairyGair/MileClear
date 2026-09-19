@@ -7,12 +7,12 @@ const Tick = () => (
 );
 
 const free = [
-  "Unlimited GPS trip tracking with auto-detection - no monthly drive cap (MileIQ stops you at 40, Driversnote at 15)",
-  "Self Assessment wizard - mapped to HMRC SA103 form boxes",
+  "Unlimited GPS trip tracking with auto-detection, and no monthly drive cap",
+  "Self Assessment wizard, mapped to HMRC SA103 form boxes",
   "Tax Readiness card (live tax estimate, weekly set-aside, deadline countdown)",
-  "HMRC Reconciliation - compare what HMRC sees to what you tracked",
+  "HMRC Reconciliation: compare what HMRC sees to what you tracked",
   "Expenses log and on-device receipt scanning",
-  "Invoicing - 3 tracked invoices a month",
+  "Invoicing, 3 tracked invoices a month",
   "1 vehicle with DVLA lookup, MOT history and MOT/tax reminders",
   "Fuel prices from 8,300+ UK stations, EV charging nearby",
   "Anonymous Benchmarking and Activity Heatmap",
@@ -24,13 +24,13 @@ const free = [
 
 const pro = [
   "Everything in Free, plus:",
-  "Print-ready Self Assessment PDF - the wizard's figures, ready to file",
+  "Print-ready Self Assessment PDF: the wizard's figures, ready to file",
   "PDF mileage log with signed HMRC attestation cover sheet, CSV exports",
   "Accountant Portal (read-only dashboard you can invite by email)",
   "Open Banking earnings import and bank-transaction inbox",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
-  "Auto-Classify Rules - business or personal from your work schedule",
-  "Business insights - earnings/mile, golden hours, weekly P&L, shift grades",
+  "Auto-Classify Rules: business or personal from your work schedule",
+  "Business insights: earnings a mile, golden hours, weekly P&L, shift grades",
   "Driving Analytics and Journey Map",
   "Pickup-wait community insights",
   "Unlimited vehicles, saved locations and invoices",

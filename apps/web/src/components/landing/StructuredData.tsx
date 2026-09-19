@@ -45,18 +45,11 @@ export default function StructuredData() {
       "Business insights with earnings per mile, per hour, and weekly P&L",
       "UK fuel prices from 8,300+ government-mandated stations",
       "Saved locations with geofencing for auto-classification",
-      "18 achievements, streaks, and driving records",
+      "39 achievements, streaks, and driving records",
       "PDF and CSV exports for Self Assessment",
       "Open Banking earnings sync",
       "Offline-first with background tracking",
     ],
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "5",
-      ratingCount: "4",
-      bestRating: "5",
-      worstRating: "1",
-    },
     offers: [
       {
         "@type": "Offer",
@@ -116,7 +109,7 @@ export default function StructuredData() {
         name: "Is MileClear really free?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes. Trip tracking, shift mode, auto detection, fuel prices, achievements, and your HMRC deduction total are all completely free with no limits. Pro features like PDF exports, earnings tracking, and Open Banking are available from \u00A34.99/month or \u00A344.99/year.",
+          text: "Yes, and the tracker itself is unlimited: there is no monthly cap on drives, no trial, and no card to start. Shift mode, auto-detection, fuel prices, the Tax Readiness card showing your live HMRC deduction, the Self Assessment wizard, receipt scanning and achievements are all free. Pro (4.99 a month) adds the filing-ready exports, Open Banking, auto-classification and the insights toolkit. It never gates the tracker.",
         },
       },
       {
@@ -148,7 +141,7 @@ export default function StructuredData() {
         name: "Can I use it for HMRC Self Assessment?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes. Pro users can download PDF trip reports and a Self Assessment summary with every trip dated, timed, classified by business or personal, and distance-verified.",
+          text: "Yes. The free tier gives you the Tax Readiness card with your live HMRC tax and NI estimate, and the step-by-step Self Assessment wizard that maps your figures to the SA103 form boxes. Pro turns that into files you can send: the print-ready Self Assessment PDF, a PDF mileage log with a signed attestation cover sheet, and CSV exports. Pro also lets you invite your accountant to a read-only portal.",
         },
       },
       {

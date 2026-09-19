@@ -7,15 +7,15 @@ import Reveal from "./Reveal";
 const faqs: { q: string; a: React.ReactNode }[] = [
   {
     q: "What is the HMRC mileage rate for 2026-27?",
-    a: <>From 6 April 2026, HMRC&apos;s Approved Mileage Allowance Payment (AMAP) rate for cars and vans rose from 45p to <strong>55p</strong> per mile for the first 10,000 business miles, then 25p above that. Motorbikes stay at 24p flat. MileClear applies the correct rate per trip date - older trips stay at 45p, trips from 6 April 2026 use 55p, automatically. <a href="/hmrc-mileage-rates" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Full breakdown with worked examples</a>.</>,
+    a: <>From 6 April 2026, HMRC&apos;s Approved Mileage Allowance Payment (AMAP) rate for cars and vans rose from 45p to <strong>55p</strong> per mile for the first 10,000 business miles, then 25p above that. Motorbikes stay at 24p flat. MileClear applies the correct rate by trip date, so older trips stay at 45p and trips from 6 April 2026 use 55p. <a href="/hmrc-mileage-rates" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Full breakdown with worked examples</a>.</>,
   },
   {
     q: "Is MileClear really free?",
-    a: <>Yes - and unlike the competition, the tracker itself is <strong>unlimited</strong>. MileIQ caps free users at 40 drives a month, Driversnote caps at 15. MileClear has no monthly drive cap at all - track as many trips as you want, forever, without paying. Shift mode, auto-detection, fuel prices, the Tax Readiness card showing your live HMRC deduction, achievements - all free. Pro (&pound;4.99/month) adds tax exports, the Self Assessment wizard, the Accountant Portal and receipt scanning. It never gates the tracker.</>,
+    a: <>Yes, and the tracker itself is unlimited: there is no monthly cap on drives, no trial, and no card to start. Shift mode, auto-detection, fuel prices, the Tax Readiness card showing your live HMRC deduction, the Self Assessment wizard, receipt scanning and achievements are all free. Pro (&pound;4.99 a month) adds the filing-ready exports, Open Banking, auto-classification and the insights toolkit. It never gates the tracker.</>,
   },
   {
     q: "How is this different from MileIQ?",
-    a: <>Two big things. First, MileClear&apos;s tracking is unlimited and free, while MileIQ caps free users at 40 drives a month then charges for a paid plan. Second, MileClear is built for UK drivers from the ground up - HMRC rates (not IRS), platform tags for Uber/Deliveroo/Amazon Flex, trips grouped into shifts, offline-first so you never lose a trip when signal drops. Pro is &pound;4.99, well under MileIQ&apos;s current price. <a href="/mileclear-vs-mileiq" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>See the full comparison</a>.</>,
+    a: <>Two big things. First, MileClear&apos;s tracking is unlimited and free, while MileIQ caps free users at 40 drives a month then charges for a paid plan. Second, MileClear is built for UK drivers from the ground up: HMRC rates rather than IRS, platform tags for Uber/Deliveroo/Amazon Flex, trips grouped into shifts, offline-first so you never lose a trip when signal drops. Pro is &pound;4.99, well under MileIQ&apos;s current price. <a href="/mileclear-vs-mileiq" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>See the full comparison</a>.</>,
   },
   {
     q: "Does it track in the background?",
@@ -27,7 +27,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Can I use it for HMRC Self Assessment?",
-    a: "Yes. The Tax Readiness card on the free tier shows your live HMRC tax + NI estimate every time you open the app. Pro adds a step-by-step Self Assessment wizard that maps your numbers to specific HMRC SA103 form boxes, plus a PDF mileage log with a signed attestation cover sheet that HMRC inspectors recognise. You can also invite your accountant to a read-only Accountant Portal.",
+    a: "Yes. The free tier gives you the Tax Readiness card with your live HMRC tax and NI estimate, and the step-by-step Self Assessment wizard that maps your figures to the SA103 form boxes. Pro turns that into files you can send: the print-ready Self Assessment PDF, a PDF mileage log with a signed attestation cover sheet, and CSV exports. Pro also lets you invite your accountant to a read-only portal.",
   },
   {
     q: "What vehicles are supported?",

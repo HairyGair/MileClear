@@ -5,7 +5,7 @@ import Reveal from "./Reveal";
 // Scrolls horizontally with snap-to-card at every width — fixed-width
 // cards, so the layout is indifferent to how many shots are in the
 // array (a desktop "fit them all" override crushed the row when the
-// gallery grew from 4 shots to 11). Each card gets a short caption
+// gallery grew and shrank again). Each card gets a short caption
 // underneath so visitors can scan the gallery without reading
 // paragraphs.
 
@@ -17,24 +17,9 @@ interface Shot {
 
 const shots: Shot[] = [
   {
-    file: "iphone-02-first-tax-return.png",
-    caption: "First-time Self Assessment",
-    sub: "Step-by-step from your numbers to HMRC",
-  },
-  {
-    file: "iphone-03-mtd-itsa.png",
-    caption: "HMRC quarterly submissions",
-    sub: "Connect once, submit directly from the app",
-  },
-  {
     file: "iphone-04-live-activity.png",
     caption: "One tap to track",
-    sub: "Start a trip with live fuel prices and busy times nearby",
-  },
-  {
-    file: "iphone-11-split-trip.png",
-    caption: "Split multi-drop runs",
-    sub: "Finds the stops, splits one long trip into every drop",
+    sub: "Or none: it starts on its own when you drive",
   },
   {
     file: "iphone-05-auto-classify.png",
@@ -42,34 +27,19 @@ const shots: Shot[] = [
     sub: "Auto-classifies after three matching trips",
   },
   {
-    file: "iphone-06-road-accurate.png",
-    caption: "Road-accurate distances",
-    sub: "Same A to B, same mileage. Every time.",
+    file: "iphone-11-split-trip.png",
+    caption: "Splits multi-drop runs",
+    sub: "Finds the stops and cuts one long trip into every drop",
   },
   {
-    file: "iphone-07-invoices.png",
-    caption: "Invoice tracking",
-    sub: "For sole traders alongside the gig work",
+    file: "iphone-02-first-tax-return.png",
+    caption: "First-time Self Assessment",
+    sub: "Step by step, from your figures to the SA103 boxes",
   },
   {
     file: "iphone-08-free-tier.png",
     caption: "Free does the heavy lifting",
-    sub: "Tracking, tax tooling, HMRC compliance - all free",
-  },
-  {
-    file: "iphone-12-benchmarking.png",
-    caption: "See how you compare",
-    sub: "Anonymous benchmarks against UK MileClear drivers",
-  },
-  {
-    file: "iphone-09-pro.png",
-    caption: "Pro unlocks the analytics",
-    sub: "Platform comparison, weekly P&L, golden hours",
-  },
-  {
-    file: "iphone-10-your-data.png",
-    caption: "Your data stays yours",
-    sub: "On-device first, exportable anytime",
+    sub: "Tracking and the tax maths cost nothing",
   },
 ];
 
@@ -80,9 +50,10 @@ export default function Screenshots() {
         <Reveal>
           <div className="screenshots__head">
             <p className="label">See it in action</p>
-            <h2 className="heading">A quick tour of what you&apos;re downloading</h2>
+            <h2 className="heading">What it looks like on your phone</h2>
             <p className="subtext">
-              Eleven screens that cover the loop: track, classify, claim. Swipe through them - every screen is what you&apos;d see on day one.
+              Five screens from a normal week: the drive, the classification, the tax. Swipe
+              through them. Every one is what you see on day one.
             </p>
           </div>
         </Reveal>

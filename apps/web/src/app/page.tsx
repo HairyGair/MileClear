@@ -12,12 +12,19 @@ import Community from "@/components/landing/Community";
 import Footer from "@/components/landing/Footer";
 import StructuredData from "@/components/landing/StructuredData";
 
+import {
+  ACTIVE_DRIVERS_DISPLAY,
+  APP_STORE_RATING,
+  APP_STORE_RATING_COUNT,
+  MILES_TRACKED_DISPLAY,
+} from "@/data/stats";
+
 const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
 function SocialProof() {
   return (
     <section
-      aria-label="Social proof"
+      aria-label="How much driving MileClear has recorded"
       style={{
         maxWidth: "var(--max-w)",
         margin: "0 auto",
@@ -38,7 +45,7 @@ function SocialProof() {
           margin: 0,
         }}
       >
-        Trusted by drivers across the UK
+        Recorded by MileClear drivers so far
       </p>
       <div
         style={{
@@ -49,43 +56,39 @@ function SocialProof() {
           justifyContent: "center",
         }}
       >
-        <span
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "0.85rem",
-            color: "var(--text-secondary)",
-          }}
-        >
-          60+ drivers
+        <span style={proofItem}>
+          <strong style={proofFigure}>{MILES_TRACKED_DISPLAY}</strong> miles
         </span>
-        <span style={{ color: "var(--text-secondary)", opacity: 0.4 }}>|</span>
+        <span style={proofDivider}>|</span>
+        <span style={proofItem}>
+          <strong style={proofFigure}>{ACTIVE_DRIVERS_DISPLAY}</strong> drivers tracking last month
+        </span>
+        <span style={proofDivider}>|</span>
         <a
           href={APP_STORE_URL}
           target="_blank"
           rel="noopener noreferrer"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "0.85rem",
-            color: "var(--text-secondary)",
-            textDecoration: "none",
-          }}
+          style={{ ...proofItem, textDecoration: "none" }}
         >
-          Free on the App Store
+          <strong style={proofFigure}>{APP_STORE_RATING}</strong> on the App Store, {APP_STORE_RATING_COUNT} ratings
         </a>
-        <span style={{ color: "var(--text-secondary)", opacity: 0.4 }}>|</span>
-        <span
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "0.85rem",
-            color: "var(--text-secondary)",
-          }}
-        >
-          4.9 rating
-        </span>
       </div>
     </section>
   );
 }
+
+const proofItem = {
+  fontFamily: "var(--font-body)",
+  fontSize: "0.9rem",
+  color: "var(--text-secondary)",
+} as const;
+
+const proofFigure = {
+  color: "var(--text-white)",
+  fontWeight: 700,
+} as const;
+
+const proofDivider = { color: "var(--text-secondary)", opacity: 0.4 } as const;
 
 function AboutSection() {
   return (
@@ -129,9 +132,8 @@ export default function LandingPage() {
     <>
       <StructuredData />
       <Navbar />
-      <main>
+      <main id="main-content" tabIndex={-1}>
         <Hero />
-        <AboutSection />
         <SocialProof />
         <Problem />
         <ClearTrack />
@@ -142,6 +144,7 @@ export default function LandingPage() {
         <EarlyAccess />
         <Community />
         <FAQ />
+        <AboutSection />
       </main>
       <Footer />
     </>

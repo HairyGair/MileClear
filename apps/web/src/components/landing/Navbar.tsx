@@ -1,16 +1,43 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
+const MOBILE_MENU_ID = "nav-mobile-menu";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const burgerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Keyboard handling for the mobile menu: focus moves into the menu when it
+  // opens, Escape closes it, and focus returns to the burger on close so the
+  // tab order does not jump back to the top of the page.
+  useEffect(() => {
+    if (!open) {
+      if (wasOpen.current) {
+        wasOpen.current = false;
+        burgerRef.current?.focus();
+      }
+      return;
+    }
+
+    wasOpen.current = true;
+    menuRef.current?.querySelector("a")?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
 
   const close = () => setOpen(false);
 
@@ -35,16 +62,23 @@ export default function Navbar() {
         </div>
 
         <button
+          ref={burgerRef}
+          type="button"
           className={`nav__burger${open ? " nav__burger--open" : ""}`}
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
           aria-expanded={open}
+          aria-controls={MOBILE_MENU_ID}
         >
           <span /><span /><span />
         </button>
       </div>
 
-      <div className={`nav__mobile${open ? " nav__mobile--open" : ""}`}>
+      <div
+        id={MOBILE_MENU_ID}
+        ref={menuRef}
+        className={`nav__mobile${open ? " nav__mobile--open" : ""}`}
+      >
         <a href="/features" onClick={close}>Features</a>
         <a href="/pricing" onClick={close}>Pricing</a>
         <a href="/faq" onClick={close}>FAQ</a>

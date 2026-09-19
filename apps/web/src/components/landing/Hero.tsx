@@ -18,11 +18,9 @@ export default function Hero() {
           </h1>
           <p className="hero__sub">
             The UK mileage tracker for gig workers, delivery drivers, and
-            anyone who drives their own car for work. ClearTrack records your
-            trips automatically, classification learns your regular routes, and
-            your HMRC or employer claim adds up as you drive.{" "}
-            <strong>There is no monthly drive cap.</strong> MileIQ stops you at
-            40 drives a month unless you pay. We never do.
+            anyone who drives their own car for work. It records your trips on
+            its own and turns them into the figures HMRC or your employer asks
+            for. <strong>Every trip, every month, free.</strong>
           </p>
           <StoreButtons size="lg" />
           <p className="hero__trust">

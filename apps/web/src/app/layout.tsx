@@ -91,6 +91,23 @@ export default function RootLayout({
   return (
     <html lang="en-GB" className={`${sora.variable} ${outfit.variable}`}>
       <body>
+        {/* Runs before the rest of the page is parsed, so there is no flash of
+            visible-then-hidden content. It does two jobs:
+            1. Marks the document as JavaScript-capable, which is what switches
+               the scroll reveal on. Without it every .reveal stays visible, so
+               a no-JS reader still gets the whole page. The watchdog undoes the
+               mark if the app never hydrates, so a failed bundle cannot leave
+               the page blank below the hero.
+            2. Labels the first <main> so the skip link below has a target. The
+               page components own that element and do not set an id. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var d=document.documentElement;d.classList.add("js-reveal");setTimeout(function(){if(!d.hasAttribute("data-reveal-ready")){d.classList.remove("js-reveal");}},3000);function tag(){var m=document.querySelector("main");if(m&&!m.id){m.id="main-content";m.setAttribute("tabindex","-1");}}if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",tag);}else{tag();}})();`,
+          }}
+        />
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
         <ReleaseBanner />
         {children}
         {gaId && (

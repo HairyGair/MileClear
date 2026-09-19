@@ -10,7 +10,7 @@ const features = [
       </svg>
     ),
     title: "ClearTrack auto recording and smart classification",
-    desc: "Powered by ClearTrack, MileClear detects when you start driving and records the trip automatically - even short hops that other apps miss. It learns your routes: classify a trip three times and it's automatic from then on.",
+    desc: "Powered by ClearTrack, MileClear detects when you start driving and records the trip automatically, even the short hops other apps miss. It learns your routes: classify a trip three times and it's automatic from then on.",
     screenshot: "iphone-05-auto-classify.png",
   },
   {
@@ -33,8 +33,8 @@ const features = [
       </svg>
     ),
     title: "HMRC tax deductions",
-    desc: "Your running tax deduction total updates with every trip. 55p/25p for cars in 2026-27 (45p/25p for earlier years), 24p for motorbikes - applied automatically by trip date.",
-    screenshot: "iphone-03-mtd-itsa.png",
+    desc: "Your running tax deduction total updates with every trip. Cars are 55p then 25p in 2026-27, 45p then 25p for earlier years, and motorbikes 24p, applied by the date you drove.",
+    screenshot: "iphone-06-road-accurate.png",
   },
   {
     icon: (
@@ -75,27 +75,6 @@ const features = [
   {
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-        <circle cx="12" cy="10" r="3" />
-      </svg>
-    ),
-    title: "Saved locations and geofencing",
-    desc: "Save your home, depot, or regular stops with geofencing for auto-classification. 2 locations free, unlimited with Pro.",
-    pro: "Unlimited",
-  },
-  {
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-    title: "18 achievements and streaks",
-    desc: "Earn badges for milestones, keep your driving streak alive, and get weekly recaps with shareable stats.",
-    alt: true,
-  },
-  {
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M5 12.55a11 11 0 0114.08 0" />
         <path d="M1.42 9a16 16 0 0121.16 0" />
         <path d="M8.53 16.11a6 6 0 016.95 0" />
@@ -117,29 +96,6 @@ const features = [
     alt: true,
     pro: "Pro",
     screenshot: "iphone-02-first-tax-return.png",
-  },
-  {
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="1" x2="12" y2="23" />
-        <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-      </svg>
-    ),
-    title: "Expense tracking and tax estimate",
-    desc: "Log business expenses like parking, tolls, and congestion charges. See your estimated income tax and National Insurance based on your earnings and deductions.",
-    pro: "Pro",
-  },
-  {
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-        <path d="M7 11V7a5 5 0 0110 0v4" />
-      </svg>
-    ),
-    title: "CSV import and Open Banking",
-    desc: "Bulk import earnings from platform CSVs, or connect your bank through Open Banking with TrueLayer, so you're not typing figures in by hand.",
-    alt: true,
-    pro: "Pro",
   },
   {
     icon: (
@@ -192,9 +148,9 @@ export default function Features() {
         <Reveal>
           <div className="features__head">
             <p className="label">Features</p>
-            <h2 className="heading">Everything you need to track, claim, and earn more</h2>
+            <h2 className="heading">What you get on day one</h2>
             <p className="subtext">
-              Built from scratch for UK drivers. Automatic tracking, smart classification that learns your patterns, real tax savings, and the tools to understand what your driving is actually worth.
+              Built for UK drivers. The tracking and the tax maths are free. Pro adds the files you send to HMRC or your accountant, and the numbers behind your driving.
             </p>
           </div>
         </Reveal>

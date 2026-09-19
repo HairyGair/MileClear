@@ -1,9 +1,10 @@
 import Reveal from "./Reveal";
 import StoreButtons from "@/components/StoreButtons";
+import { FUEL_STATIONS_DISPLAY, MILES_TRACKED_DISPLAY } from "@/data/stats";
 
 const stats = [
-  { value: "8,300+", label: "UK fuel stations" },
-  { value: "43", label: "achievements" },
+  { value: MILES_TRACKED_DISPLAY, label: "miles recorded" },
+  { value: FUEL_STATIONS_DISPLAY, label: "UK fuel stations" },
   { value: "55p", label: "HMRC rate (2026-27)" },
 ];
 
@@ -28,9 +29,9 @@ export default function EarlyAccess() {
               Claim what you&apos;re owed
             </h2>
             <p className="subtext ea__subtext">
-              Download MileClear free. <strong>Unlimited tracking, forever.</strong> Not
-              40 drives a month like MileIQ, or 15 like Driversnote. There is no card
-              and no trial. Open it, drive, and your HMRC deduction builds with every trip.
+              Download MileClear free. <strong>Unlimited tracking, forever.</strong> There is
+              no card and no trial. Open it, drive, and your HMRC deduction builds with every
+              trip.
             </p>
           </div>
         </Reveal>

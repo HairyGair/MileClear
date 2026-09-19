@@ -11,6 +11,8 @@ export default function Footer() {
                 src="/branding/logo-120x120.png"
                 alt=""
                 className="logo-mark"
+                width={24}
+                height={24}
                 style={{ width: 24, height: 24 }}
                 aria-hidden="true"
               />
