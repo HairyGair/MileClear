@@ -44,14 +44,18 @@ const r2 = (n) => Math.round(n * 100) / 100;
 
 const since = new Date(Date.now() - DAYS * 86400e3);
 const splitEvents = await p.appEvent.findMany({
-  where: { type: "trip.visit_auto_split", createdAt: { gte: since }, ...(ONLY_USER ? { userId: ONLY_USER } : {}) },
+  where: { type: "trip.visit_auto_split", createdAt: { gte: since } },
   select: { userId: true, metadata: true, createdAt: true },
 });
-// Latest split per parent: its legMiles[0] is what leg one was given.
+// FIRST split per parent: its legMiles[0] is what leg one was given before any
+// merge inflated it. A later re-split of an inflated parent shares out the
+// inflated figure, so its legMiles[0] cannot be trusted.
 const legOneMiles = new Map();
 for (const e of splitEvents.sort((a, b) => a.createdAt - b.createdAt)) {
   const m = e.metadata;
-  if (m?.tripId && Array.isArray(m.legMiles)) legOneMiles.set(m.tripId, { userId: e.userId, miles: m.legMiles[0] });
+  if (m?.tripId && Array.isArray(m.legMiles) && !legOneMiles.has(m.tripId)) {
+    legOneMiles.set(m.tripId, { userId: e.userId, miles: m.legMiles[0] });
+  }
 }
 
 let found = 0;
@@ -59,9 +63,14 @@ let fixed = 0;
 let milesRemoved = 0;
 const touchedUsers = new Map();
 
-for (const [parentId, { userId, miles: leg1Miles }] of legOneMiles) {
-  const parent = await p.trip.findFirst({ where: { id: parentId, userId } });
+const review = [];
+
+for (const [parentId, { miles: leg1Miles }] of legOneMiles) {
+  // The sweep job logs its splits without a user, so take it from the trip.
+  const parent = await p.trip.findUnique({ where: { id: parentId } });
   if (!parent || !parent.endedAt) continue;
+  if (ONLY_USER && parent.userId !== ONLY_USER) continue;
+  const userId = parent.userId;
   const children = await p.trip.findMany({
     where: { userId, gpsQuality: { path: "$.autoSplitFromTripId", equals: parentId } },
     orderBy: { startedAt: "asc" },
@@ -95,7 +104,19 @@ for (const [parentId, { userId, miles: leg1Miles }] of legOneMiles) {
     byChild.get(target.id).push(c);
   }
 
-  const newParentMiles = leg1Miles ?? trail(keep);
+  // Leg one's own breadcrumbs are the check: a split figure far above them
+  // came from an already-inflated parent, so the trail wins.
+  const keepTrail = trail(keep);
+  const newParentMiles =
+    leg1Miles != null && !(leg1Miles > keepTrail * 1.5 && leg1Miles - keepTrail > 0.5) ? leg1Miles : keepTrail;
+  // Nothing to move, yet the parent would lose miles: those miles might be
+  // double-counted or might be real driving with no breadcrumbs. Not ours to
+  // guess, so list it for a human and leave it alone.
+  if (moving.length === 0 && parent.distanceMiles - newParentMiles > 0.5) {
+    review.push(`REVIEW user ${userId.slice(0, 8)} parent ${parentId} ${parent.startedAt.toISOString().slice(0, 16)} ` +
+      `${parent.distanceMiles}mi, split gave leg one ${newParentMiles}mi, no breadcrumbs after ${firstChildStart.toISOString().slice(11, 16)}`);
+    continue;
+  }
   const before = parent.distanceMiles + children.reduce((a, c) => a + c.distanceMiles, 0);
   const plans = [];
   for (const child of children) {
@@ -183,5 +204,6 @@ if (APPLY && touchedUsers.size) {
   }
 }
 
-console.log(`\n${found} overlapped split trips in ${DAYS} days, ${fixed} fixed, ${r2(milesRemoved)} double-counted miles ${APPLY ? "removed" : "would be removed"}.`);
+for (const line of review) console.log(line);
+console.log(`\n${found} overlapped split trips in ${DAYS} days, ${review.length} left for review, ${fixed} fixed, ${r2(milesRemoved)} double-counted miles ${APPLY ? "removed" : "would be removed"}.`);
 await p.$disconnect();
