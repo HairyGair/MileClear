@@ -401,6 +401,17 @@ body::after {
   animation: heroIn .9s cubic-bezier(.22,.61,.36,1) .15s both;
 }
 
+/* The hero image is a plain device capture, so the page supplies the frame:
+   rounded corners, a hairline edge and depth under it. */
+.hero__shot {
+  max-width: 420px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow:
+    0 30px 70px -25px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(245, 166, 35, 0.06) inset;
+}
+
 @media (max-width: 768px) {
   .hero__grid { grid-template-columns: 1fr; text-align: center; }
   .hero__sub  { margin-left: auto; margin-right: auto; }

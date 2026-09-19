@@ -11,7 +11,7 @@ const features = [
     ),
     title: "ClearTrack auto recording and smart classification",
     desc: "Powered by ClearTrack, MileClear detects when you start driving and records the trip automatically, even the short hops other apps miss. It learns your routes: classify a trip three times and it's automatic from then on.",
-    screenshot: "iphone-05-auto-classify.png",
+    screenshot: "06-route.png",
   },
   {
     icon: (
@@ -23,7 +23,6 @@ const features = [
     title: "Live Activities",
     desc: "See your miles, speed, and timer on the lock screen and Dynamic Island. End a trip or dismiss a false detection with buttons right on the widget.",
     alt: true,
-    screenshot: "iphone-04-live-activity.png",
   },
   {
     icon: (
@@ -34,7 +33,6 @@ const features = [
     ),
     title: "HMRC tax deductions",
     desc: "Your running tax deduction total updates with every trip. Cars are 55p then 25p in 2026-27, 45p then 25p for earlier years, and motorbikes 24p, applied by the date you drove.",
-    screenshot: "iphone-06-road-accurate.png",
   },
   {
     icon: (
@@ -48,7 +46,7 @@ const features = [
     desc: "Log earnings by platform for free. Upgrade to Pro for earnings per mile, per hour, platform comparison, shift grades, and weekly P&L.",
     alt: true,
     pro: "Full insights",
-    screenshot: "iphone-09-pro.png",
+    screenshot: "10-pro.png",
   },
   {
     icon: (
@@ -83,7 +81,7 @@ const features = [
     ),
     title: "Offline first",
     desc: "Every trip is saved to your phone first and synced when you have signal. No dropped trips, no missing data.",
-    screenshot: "iphone-10-your-data.png",
+    screenshot: "09-privacy.png",
   },
   {
     icon: (
@@ -95,7 +93,7 @@ const features = [
     desc: "Download PDF trip reports, CSV exports, and Self Assessment summaries with every trip dated, classified, and distance-verified.",
     alt: true,
     pro: "Pro",
-    screenshot: "iphone-02-first-tax-return.png",
+    screenshot: "04-tax-readiness.png",
   },
   {
     icon: (

@@ -17,29 +17,29 @@ interface Shot {
 
 const shots: Shot[] = [
   {
-    file: "iphone-04-live-activity.png",
+    file: "03-live-activity.png",
     caption: "One tap to track",
-    sub: "Or none: it starts on its own when you drive",
+    sub: "Busy times and the cheapest fuel nearby, before you set off",
   },
   {
-    file: "iphone-05-auto-classify.png",
-    caption: "Learns your routes",
-    sub: "Auto-classifies after three matching trips",
-  },
-  {
-    file: "iphone-11-split-trip.png",
+    file: "11-split-trip.png",
     caption: "Splits multi-drop runs",
     sub: "Finds the stops and cuts one long trip into every drop",
   },
   {
-    file: "iphone-02-first-tax-return.png",
+    file: "04-tax-readiness.png",
     caption: "First-time Self Assessment",
-    sub: "Step by step, from your figures to the SA103 boxes",
+    sub: "Six steps, each one mapped to its SA103 box",
   },
   {
-    file: "iphone-08-free-tier.png",
-    caption: "Free does the heavy lifting",
-    sub: "Tracking and the tax maths cost nothing",
+    file: "12-benchmarking.png",
+    caption: "See how you compare",
+    sub: "Anonymous benchmarks against other UK drivers",
+  },
+  {
+    file: "08-free.png",
+    caption: "39 achievements",
+    sub: "Free, along with streaks and weekly recaps",
   },
 ];
 
@@ -65,7 +65,7 @@ export default function Screenshots() {
                 <div className="screenshots__frame">
                   <Image
                     src={`/screenshot-source/iphone/${s.file}`}
-                    alt={`MileClear: ${s.caption}`}
+                    alt={`MileClear app screen: ${s.caption.toLowerCase()}`}
                     width={420}
                     height={910}
                     sizes="(max-width: 768px) 70vw, 280px"
