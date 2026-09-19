@@ -11,14 +11,14 @@ import "../updates.css";
 export const metadata: Metadata = {
   title: "Android release notes",
   description:
-    "What has changed in MileClear for Android, build by build. The Android app is in closed testing on Google Play.",
+    "What has changed in MileClear for Android, build by build.",
   alternates: {
     canonical: "https://mileclear.com/android-releases",
   },
   openGraph: {
     title: "Android release notes | MileClear",
     description:
-      "What has changed in MileClear for Android, build by build. Currently in closed testing on Google Play.",
+      "What has changed in MileClear for Android, build by build.",
     url: "https://mileclear.com/android-releases",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -70,13 +70,9 @@ export default function AndroidReleasesPage() {
         <header className="updates__header">
           <h1 className="updates__title">Android release notes</h1>
           <p className="updates__subtitle">
-            MileClear for Android is in closed testing on Google Play. It shares
-            a codebase and an account with the iPhone app, but not a release
-            history, so it has its own notes.{" "}
-            <Link href="/android" className="updates__inline-link">
-              How to join the test
-            </Link>
-            {" "}&middot;{" "}
+            MileClear for Android is on Google Play. It shares a codebase and an
+            account with the iPhone app, but not a release history, so it has
+            its own notes.{" "}
             <a href={PLAY_STORE_URL} className="updates__inline-link" rel="noopener noreferrer">
               Open on Google Play
             </a>
@@ -86,7 +82,7 @@ export default function AndroidReleasesPage() {
             </Link>
           </p>
         {/* The notes tell people what changed; the buttons let them get it
-              without leaving the page. Android stays on the closed-beta route. */}
+              without leaving the page. */}
           <StoreButtons align="center" className="updates__store-btns" />
         </header>
 

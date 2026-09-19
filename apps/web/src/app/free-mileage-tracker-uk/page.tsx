@@ -43,7 +43,7 @@ const softwareSchema = {
   "@type": "SoftwareApplication",
   name: "MileClear - Free Mileage Tracker App (UK)",
   applicationCategory: "FinanceApplication",
-  operatingSystem: "iOS",
+  operatingSystem: "iOS, Android",
   downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
   description:
     "Free mileage tracker app for UK drivers. Unlimited automatic GPS trip tracking with no monthly drive cap, HMRC 55p/25p AMAP rates built in, and gig-platform tagging. Free forever.",

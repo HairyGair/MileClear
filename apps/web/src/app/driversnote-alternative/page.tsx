@@ -52,7 +52,7 @@ const faqs = [
   },
   {
     q: "Is MileClear available on Android?",
-    a: "MileClear is on iPhone and iPad today. The Android app is in closed beta on Google Play (August 2026). If you're on Android, register your interest at mileclear.com and we'll send you a test invite ahead of the public release.",
+    a: "Yes. MileClear is on the App Store for iPhone and iPad and on Google Play for Android (UK), with one account across both.",
   },
 ];
 

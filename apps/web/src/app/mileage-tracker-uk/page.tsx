@@ -65,7 +65,7 @@ const softwareSchema = {
   "@type": "SoftwareApplication",
   name: "MileClear",
   applicationCategory: "BusinessApplication",
-  operatingSystem: "iOS",
+  operatingSystem: "iOS, Android",
   description:
     "Free UK mileage tracker app for self-employed drivers, gig workers, and anyone claiming business mileage on HMRC Self Assessment.",
   offers: {

@@ -143,9 +143,9 @@ export default function TabSwitcher({
         className="updates__content"
       >
         <p className="updates__panel-intro">
-          MileClear for Android is in closed testing on Google Play. It shares a
-          codebase and an account with the iPhone app, but not a release
-          history, so its builds are listed separately.
+          MileClear for Android is on Google Play. It shares a codebase and an
+          account with the iPhone app, but not a release history, so its builds
+          are listed separately.
         </p>
         <ReleaseList notes={androidReleaseNotes} label="Android release notes" />
       </div>

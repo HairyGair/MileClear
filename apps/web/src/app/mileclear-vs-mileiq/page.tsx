@@ -59,7 +59,7 @@ const productSchema = {
   "@type": "SoftwareApplication",
   name: "MileClear",
   applicationCategory: "BusinessApplication",
-  operatingSystem: "iOS",
+  operatingSystem: "iOS, Android",
   downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
   description:
     "The UK mileage tracker built for gig workers. HMRC-native rates, gig platform tagging, offline-first tracking, and a generous free tier.",
@@ -320,7 +320,7 @@ export default function MileClearVsMileIQ() {
                     },
                     {
                       feature: "OS Support",
-                      mileclear: "iOS, Android in closed beta",
+                      mileclear: "iOS and Android",
                       mileiq: "iOS and Android",
                       highlight: false,
                     },
@@ -563,9 +563,8 @@ export default function MileClearVsMileIQ() {
             </h2>
             <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               It would not be a fair comparison without acknowledging where MileIQ has an advantage. MileIQ
-              is available on both iOS and Android. MileClear for Android is in closed beta on Google Play
-              (August 2026), so until the public release MileIQ or one of the other alternatives is the
-              option you can install today; Android users can leave an email on mileclear.com for a test invite.
+              has been on Android for years, while MileClear for Android only reached Google Play in
+              September 2026, so MileIQ has the longer track record on Android phones.
             </p>
             <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
               MileIQ also has a longer track record and a larger user base, which can matter if you want
