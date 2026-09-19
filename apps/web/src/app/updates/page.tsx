@@ -90,6 +90,7 @@ export default function UpdatesPage() {
       <Navbar />
 
       <main className="updates">
+        <div className="container">
         <div className="updates__glow" aria-hidden="true" />
 
         <div className="container">
@@ -103,6 +104,7 @@ export default function UpdatesPage() {
           </header>
 
           <TabSwitcher defaultTab="ios" />
+        </div>
         </div>
       </main>
 

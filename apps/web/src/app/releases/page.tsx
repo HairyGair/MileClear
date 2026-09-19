@@ -65,9 +65,10 @@ export default function ReleasesPage() {
       />
 
       <main className="updates">
+        <div className="container">
         <header className="updates__header">
-          <h1 className="updates__title">Release notes</h1>
-          <p className="updates__subtitle">
+          <h1 className="updates__heading">Release notes</h1>
+          <p className="updates__sub">
             What's changed in MileClear, version by version. Looking for
             engineering deep-dives, guides, or news?{" "}
             <Link href="/updates" className="updates__inline-link">
@@ -134,6 +135,7 @@ export default function ReleasesPage() {
               </li>
             ))}
           </ul>
+        </div>
         </div>
       </main>
 

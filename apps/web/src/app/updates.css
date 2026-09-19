@@ -769,3 +769,59 @@
 .updates__store-btns {
   margin-top: 1.5rem;
 }
+
+/* ----------------------------------------------------------------
+   Android page
+   ---------------------------------------------------------------- */
+.updates__meta {
+  margin-top: 1.25rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.updates__meta--left {
+  text-align: left;
+  margin-top: 2rem;
+}
+
+.android-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+}
+
+.android-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  padding: clamp(1.25rem, 2.5vw, 1.5rem);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.android-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-white);
+  margin: 0 0 0.5rem;
+}
+
+.android-card__text {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.android-section {
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .android-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -872,7 +872,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
     date: "September 2026",
     label: "Latest",
     items: [
-      "MileClear for Android is on Google Play for everyone in the UK",
+      "The build submitted to Google Play for the public UK release",
       "A trip now finishes where you stop, not the next time you open the app",
       "A short guide to the Allow all the time location setting, so trips record with the phone in your pocket",
       "A prompt to stop your phone's battery saver switching MileClear off, with the steps for Samsung and other makers",

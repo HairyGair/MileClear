@@ -67,9 +67,10 @@ export default function AndroidReleasesPage() {
       />
 
       <main className="updates">
+        <div className="container">
         <header className="updates__header">
-          <h1 className="updates__title">Android release notes</h1>
-          <p className="updates__subtitle">
+          <h1 className="updates__heading">Android release notes</h1>
+          <p className="updates__sub">
             MileClear for Android is in testing, with its public release waiting
             on Google. It shares a codebase and an account with the iPhone app,
             but not a release history, so it has its own notes.{" "}
@@ -131,7 +132,7 @@ export default function AndroidReleasesPage() {
             ))}
           </ul>
 
-          <p className="updates__subtitle" style={{ marginTop: "2rem" }}>
+          <p className="updates__sub" style={{ marginTop: "2rem" }}>
             Testing is closed while we work through the first round of real
             drives on real hardware. If you drive for a living on an Android
             phone and want in,{" "}
@@ -140,6 +141,7 @@ export default function AndroidReleasesPage() {
             </Link>
             .
           </p>
+        </div>
         </div>
       </main>
 
