@@ -23,7 +23,7 @@ export default function EarlyAccess() {
               width={64}
               height={64}
             />
-            <p className="label">On the App Store and Google Play</p>
+            <p className="label">On the App Store, and Android next</p>
             <h2 className="heading ea__heading">
               Claim what you&apos;re owed
             </h2>
@@ -49,7 +49,7 @@ export default function EarlyAccess() {
               <span className="ea__qr-label">Scan to download</span>
             </div>
           </div>
-          <p className="ea__download-note">Free on iPhone, iPad and Android</p>
+          <p className="ea__download-note">Free on iPhone and iPad. Android is with Google for approval.</p>
         </Reveal>
 
         <Reveal delay="reveal-d2">

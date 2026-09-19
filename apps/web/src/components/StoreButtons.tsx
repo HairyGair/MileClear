@@ -1,9 +1,7 @@
-import { PLAY_STORE_URL } from "@/data/android";
+import Link from "next/link";
+import { ANDROID_HREF, PLAY_LIVE } from "@/data/android";
 
 export const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
-
-/** Android went public on Google Play (UK) in September 2026. */
-export const ANDROID_HREF = PLAY_STORE_URL;
 
 type Size = "sm" | "md" | "lg";
 
@@ -60,21 +58,35 @@ export default function StoreButtons({
           <span className="store-btn__name">App Store</span>
         </span>
       </a>
-      {!iosOnly && (
-        <a
-          href={ANDROID_HREF}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="store-btn store-btn--play"
-          aria-label="Get MileClear on Google Play"
-        >
-          <PlayLogo />
-          <span className="store-btn__text">
-            <span className="store-btn__eyebrow">Get it free on</span>
-            <span className="store-btn__name">Google Play</span>
-          </span>
-        </a>
-      )}
+      {!iosOnly &&
+        (PLAY_LIVE ? (
+          <a
+            href={ANDROID_HREF}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="store-btn store-btn--play"
+            aria-label="Get MileClear on Google Play"
+          >
+            <PlayLogo />
+            <span className="store-btn__text">
+              <span className="store-btn__eyebrow">Get it free on</span>
+              <span className="store-btn__name">Google Play</span>
+            </span>
+          </a>
+        ) : (
+          <Link
+            href={ANDROID_HREF}
+            className="store-btn store-btn--play"
+            aria-label="MileClear for Android, coming to Google Play"
+          >
+            <PlayLogo />
+            <span className="store-btn__text">
+              <span className="store-btn__eyebrow">Coming to</span>
+              <span className="store-btn__name">Google Play</span>
+            </span>
+            <span className="store-btn__tag">Soon</span>
+          </Link>
+        ))}
     </div>
   );
 }

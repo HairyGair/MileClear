@@ -1,3 +1,4 @@
+import { ANDROID_FAQ_ANSWER } from "@/data/android";
 import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
@@ -52,7 +53,7 @@ const faqs = [
   },
   {
     q: "Is MileClear available on Android?",
-    a: "Yes. MileClear is on the App Store for iPhone and iPad and on Google Play for Android (UK), with one account across both.",
+    a: ANDROID_FAQ_ANSWER,
   },
 ];
 

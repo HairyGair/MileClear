@@ -70,9 +70,9 @@ export default function AndroidReleasesPage() {
         <header className="updates__header">
           <h1 className="updates__title">Android release notes</h1>
           <p className="updates__subtitle">
-            MileClear for Android is on Google Play. It shares a codebase and an
-            account with the iPhone app, but not a release history, so it has
-            its own notes.{" "}
+            MileClear for Android is in testing, with its public release waiting
+            on Google. It shares a codebase and an account with the iPhone app,
+            but not a release history, so it has its own notes.{" "}
             <a href={PLAY_STORE_URL} className="updates__inline-link" rel="noopener noreferrer">
               Open on Google Play
             </a>

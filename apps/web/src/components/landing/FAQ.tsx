@@ -1,5 +1,6 @@
 "use client";
 
+import { ANDROID_FAQ_ANSWER } from "@/data/android";
 import { useState } from "react";
 import Reveal from "./Reveal";
 
@@ -38,7 +39,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Is it available on Android?",
-    a: <>Yes. MileClear is on the App Store for iPhone and iPad and on <a href="https://play.google.com/store/apps/details?id=com.mileclear.app" style={{ color: "var(--amber-400)", textDecoration: "underline" }}>Google Play</a> for Android in the UK. One account works on both, and your trips follow you.</>,
+    a: <>{ANDROID_FAQ_ANSWER}</>,
   },
 ];
 

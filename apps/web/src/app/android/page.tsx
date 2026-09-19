@@ -5,12 +5,14 @@ import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import StoreButtons from "@/components/StoreButtons";
 import { ANDROID_RELEASE_NOTES } from "@mileclear/shared";
+import { PLAY_LIVE } from "@/data/android";
 import "../updates.css";
 
 export const metadata: Metadata = {
   title: "MileClear for Android",
-  description:
-    "MileClear is on Google Play. Free, unlimited mileage tracking for UK drivers, with the same account as the iPhone app.",
+  description: PLAY_LIVE
+    ? "MileClear is on Google Play. Free, unlimited mileage tracking for UK drivers, with the same account as the iPhone app."
+    : "MileClear for Android is finished and waiting on Google's approval to appear on Google Play.",
   alternates: { canonical: "https://mileclear.com/android" },
   openGraph: {
     title: "MileClear for Android",
@@ -38,9 +40,20 @@ export default function AndroidPage() {
         <header className="updates__header">
           <h1 className="updates__title">MileClear for Android</h1>
           <p className="updates__subtitle">
-            MileClear is on Google Play in the UK. It is the same app as on
-            iPhone: free, unlimited tracking, the same account and the same
-            trips, so you can switch phones without losing anything.
+            {PLAY_LIVE ? (
+              <>
+                MileClear is on Google Play in the UK. It is the same app as on
+                iPhone: free, unlimited tracking, the same account and the same
+                trips, so you can switch phones without losing anything.
+              </>
+            ) : (
+              <>
+                The Android app is finished, and its public release is with
+                Google now. It appears on Google Play as soon as they approve it.
+                Same app as on iPhone: free, unlimited tracking, one account,
+                and your trips follow you between phones.
+              </>
+            )}
             {latest && (
               <>
                 {" "}Current build: v{latest.version}
@@ -56,8 +69,8 @@ export default function AndroidPage() {
             <h2 className="release-card__version">Tested it for us?</h2>
             <p className="updates__subtitle" style={{ margin: "0.5rem 0 0" }}>
               Thank you. Keep the app you have: it updates from Google Play like
-              any other. Your Pro stays free for six months from the public
-              release, as promised.
+              any other, and you do not need to install it again. Your Pro stays
+              free for six months from the public release, as promised.
             </p>
           </div>
 

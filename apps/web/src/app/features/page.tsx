@@ -1420,7 +1420,7 @@ export default function FeaturesPage() {
                 color: "var(--text-muted)",
               }}
             >
-              On iPhone and Android. Have questions?{" "}
+              On iPhone, and on Android once Google approves the release. Have questions?{" "}
               <a
                 href="/support"
                 style={{ color: "var(--amber-400)", textDecoration: "underline" }}
