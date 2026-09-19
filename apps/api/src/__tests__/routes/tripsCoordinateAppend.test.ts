@@ -48,6 +48,10 @@ vi.mock("../../services/appEvents.js", () => ({
 vi.mock("../../services/routing.js", () => ({
   resolveRouteDistance: vi.fn().mockResolvedValue(null),
 }));
+vi.mock("../../services/splitTailAppend.js", () => ({
+  findSplitFamily: vi.fn().mockResolvedValue(null),
+  appendToSplitTail: vi.fn(),
+}));
 vi.mock("../../services/userActivity.js", () => ({
   advanceLastTripAt: vi.fn().mockResolvedValue(undefined),
 }));
@@ -66,6 +70,7 @@ vi.mock("../../services/apns.js", () => ({
 import { tripRoutes } from "../../routes/trips/index.js";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
+import { findSplitFamily, appendToSplitTail } from "../../services/splitTailAppend.js";
 
 const USER_ID = "00000000-0000-0000-0000-000000000009";
 const TRIP_ID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
@@ -129,6 +134,7 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    vi.mocked(findSplitFamily).mockResolvedValue(null);
     vi.mocked(prisma.trip.findFirst).mockResolvedValue(EXISTING_TRIP as any);
     vi.mocked(prisma.trip.update).mockResolvedValue(EXISTING_TRIP as any);
     app = await createTestApp();
@@ -255,5 +261,37 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
     expect(tx.trip.update).toHaveBeenCalledTimes(2);
     expect(tx.trip.update.mock.calls[1][0].data.coordinateCount).toEqual({ increment: 3 });
     expect(tx.trip.update.mock.calls[0][0].data.distanceMiles).toBe(7.03);
+  });
+
+  it("sends a merge into a split trip to its LAST leg, never stretching leg one over the others", async () => {
+    // Sonny Grant, 19 Sep 2026: the parent became 14:33-15:34 and 14.48 mi
+    // on top of the two legs split out of it.
+    const TAIL_ID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+    vi.mocked(findSplitFamily).mockResolvedValue({ familyIds: [TRIP_ID, TAIL_ID], tailId: TAIL_ID });
+    vi.mocked(appendToSplitTail).mockResolvedValue({
+      tailId: TAIL_ID, appended: 3, duplicates: 0, beforeTail: 0, addedMiles: 2.1,
+    });
+
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+      payload: { ...MERGE_BODY, classification: "business" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(appendToSplitTail).toHaveBeenCalledWith(
+      expect.objectContaining({ coordinates: expect.any(Array), endAddress: MERGE_BODY.endAddress })
+    );
+    // The parent gets the classification and nothing that moves its end.
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    const parentData = vi.mocked(prisma.trip.update).mock.calls[0][0].data as Record<string, unknown>;
+    expect(parentData.classification).toBe("business");
+    expect(parentData.endedAt).toBeUndefined();
+    expect(parentData.endLat).toBeUndefined();
+    expect(parentData.distanceMiles).toBeUndefined();
+    expect(logEvent).toHaveBeenCalledWith(
+      "trip.append_redirected_to_split_tail",
+      USER_ID,
+      expect.objectContaining({ tripId: TRIP_ID, tailId: TAIL_ID, appended: 3 })
+    );
   });
 });

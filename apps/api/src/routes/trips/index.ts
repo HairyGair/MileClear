@@ -62,6 +62,7 @@ import {
 } from "../../services/tripSplit.js";
 import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
 import { visitAutoSplitEnabled } from "../../jobs/visitSplit.js";
+import { findSplitFamily, appendToSplitTail } from "../../services/splitTailAppend.js";
 import {
   suggestPlacePairClassification,
   PLACE_PAIR_SOURCE,
@@ -2623,6 +2624,44 @@ export async function tripRoutes(app: FastifyInstance) {
     });
     if (!existing) {
       return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    // The phone is folding new driving into a trip the server has already
+    // split. The new stretch goes after the LAST leg, not onto the parent,
+    // which is leg one and would otherwise stretch back over every leg after
+    // it. The rest of this PATCH still applies to the parent. See
+    // services/splitTailAppend.ts.
+    if ((updates.coordinates?.length ?? 0) > 0 && !existing.isManualEntry) {
+      const family = await findSplitFamily(userId, id);
+      if (family) {
+        const moved = await appendToSplitTail({
+          userId,
+          family,
+          coordinates: updates.coordinates!,
+          endAddress: updates.endAddress,
+        });
+        logEvent("trip.append_redirected_to_split_tail", userId, {
+          tripId: id,
+          tailId: moved.tailId,
+          received: updates.coordinates!.length,
+          appended: moved.appended,
+          duplicatesSkipped: moved.duplicates,
+          beforeTail: moved.beforeTail,
+          addedMiles: moved.addedMiles,
+        });
+        if (moved.appended > 0) {
+          upsertMileageSummary(userId, getTaxYear(existing.startedAt)).catch(() => {});
+          if (visitAutoSplitEnabled()) {
+            autoSplitVisitWelds({ userId, tripId: moved.tailId }).catch(() => {});
+          }
+        }
+        updates.coordinates = undefined;
+        updates.endedAt = undefined;
+        updates.endLat = undefined;
+        updates.endLng = undefined;
+        updates.endAddress = undefined;
+        updates.distanceMiles = undefined;
+      }
     }
 
     // Moving the start time. A manual trip may move it either way, a recorded
