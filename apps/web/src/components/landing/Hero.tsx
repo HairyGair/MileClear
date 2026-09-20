@@ -1,6 +1,5 @@
-import Image from "next/image";
-
 import StoreButtons from "@/components/StoreButtons";
+import HeroDemo from "./HeroDemo";
 
 export default function Hero() {
   return (
@@ -28,16 +27,7 @@ export default function Hero() {
           </p>
         </div>
         <div className="hero__phone">
-          <Image
-            src="/screenshot-source/iphone/01-dashboard.png"
-            alt="The MileClear dashboard: 44.30 pounds saved in tax this year, 11.9 miles today, and Start Trip and Start Shift buttons"
-            className="hero__shot"
-            width={440}
-            height={956}
-            priority
-            sizes="(max-width: 768px) 80vw, 480px"
-            style={{ width: "100%", height: "auto", display: "block" }}
-          />
+          <HeroDemo />
         </div>
       </div>
     </section>
