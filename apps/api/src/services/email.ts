@@ -2626,25 +2626,74 @@ export async function sendFeedbackReplyNotification(
   await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
 
+/**
+ * Waitlist confirmation. Same branded shell as every other email, and it
+ * comes from gair@ because the Android version invites a reply: anyone who
+ * does not want to wait for the public listing can be added to the Play test
+ * track by hand.
+ */
+export function renderWaitlistConfirmation(opts: { android?: boolean } = {}): {
+  subject: string;
+  html: string;
+} {
+  const subject = opts.android
+    ? "You are on the list for MileClear on Android"
+    : "You are on the MileClear waitlist";
+
+  const body = opts.android
+    ? [
+        para(
+          "Thanks for leaving your address. MileClear for Android is finished and the public release is with Google now. The day the Play listing opens, you get one email from me with the link, and that is the only email you will get about it."
+        ),
+        para(
+          "If you would rather not wait, reply to this email and I will add you to the test track. It is the same app, and once the public release lands it updates from Google Play like any other."
+        ),
+        replyCard(
+          "While you are here: MileClear records your trips on its own, prices your business miles at HMRC's 55p and 25p rates, and never caps how much you track. All free."
+        ),
+        SIGN_OFF,
+      ].join("\n")
+    : [
+        para(
+          "Thanks for signing up. MileClear tracks your mileage on its own, prices your business miles at HMRC's approved rates, and turns the year into figures you can file. We will let you know as soon as there is something for you to try."
+        ),
+        para("If you did not sign up, you can ignore this email."),
+        SIGN_OFF,
+      ].join("\n");
+
+  const html = emailShell({
+    preheader: opts.android
+      ? "We will email you the day MileClear for Android lands on Google Play."
+      : "We will let you know as soon as MileClear is ready for you.",
+    eyebrow: opts.android ? "Android" : "Waitlist",
+    title: opts.android ? "We will tell you the day it lands" : "You are on the list",
+    bodyHtml: body,
+    footerHtml: opts.android
+      ? `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#5a6678;text-decoration:underline;">Support</a> &middot; You asked us to tell you when Android lands. One email, then nothing.`
+      : `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#5a6678;text-decoration:underline;">Support</a> &middot; You joined the MileClear waitlist.`,
+  });
+
+  return { subject, html };
+}
+
 export async function sendWaitlistConfirmation(
-  email: string
+  email: string,
+  opts: { android?: boolean } = {}
 ): Promise<void> {
-  const subject = "You're on the MileClear waitlist!";
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-      <h2 style="color: #1a1a1a; margin-bottom: 8px;">You're on the list!</h2>
-      <p style="color: #555; font-size: 15px; line-height: 1.5;">Thanks for signing up for MileClear. We'll let you know as soon as it's ready.</p>
-      <p style="color: #555; font-size: 15px; line-height: 1.5;">MileClear helps UK gig workers track mileage, calculate HMRC deductions, and save time on tax returns  - all from your phone.</p>
-      <p style="color: #888; font-size: 13px;">If you didn't sign up, you can ignore this email.</p>
-    </div>
-  `;
+  const { subject, html } = renderWaitlistConfirmation(opts);
 
   if (!transporter) {
     console.log(`[EMAIL] Waitlist confirmation for ${email}`);
     return;
   }
 
-  await transporter.sendMail({ from: FROM, to: email, subject, html });
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: email,
+    replyTo: "gair@mileclear.com",
+    subject,
+    html,
+  });
 }
 
 /**

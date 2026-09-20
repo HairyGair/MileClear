@@ -33,7 +33,7 @@ export async function waitlistRoutes(app: FastifyInstance) {
       },
     });
 
-    await sendWaitlistConfirmation(body.email);
+    await sendWaitlistConfirmation(body.email, { android: body.source === "android" });
 
     if (body.source === "android") {
       postFounderAlert({
