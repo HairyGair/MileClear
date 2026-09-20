@@ -78,6 +78,29 @@ export async function slackNewUser(args: {
 }
 
 /**
+ * "Android tester request" mirror: somebody left their email on /android
+ * while the Play listing is still in review. The link goes straight to the
+ * Play tester list so the address can be added without hunting for the page.
+ */
+export async function slackAndroidRequest(args: {
+  email: string;
+  driverType?: string | null;
+  link: string;
+}): Promise<boolean> {
+  const email = slackEscape(args.email);
+  const meta = ["Wants MileClear on Android", args.driverType ? slackEscape(args.driverType) : null]
+    .filter(Boolean)
+    .join("  ·  ");
+  return postToSlackFounder({
+    text: `Android tester request: ${args.email}`,
+    blocks: [
+      section(`*Android tester request*\n${email}\n<${args.link}|Add to the Play tester list>`),
+      context(meta),
+    ],
+  });
+}
+
+/**
  * "New subscriber" mirror. Only first subscriptions and resubscriptions
  * come through here; renewals stay in Discord.
  */

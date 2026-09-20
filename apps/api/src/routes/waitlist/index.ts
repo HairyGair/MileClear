@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { sendWaitlistConfirmation } from "../../services/email.js";
 import { postFounderAlert } from "../../services/discord.js";
+import { slackAndroidRequest } from "../../services/slack.js";
 import { z } from "zod";
 
 const waitlistSchema = z.object({
@@ -41,6 +42,11 @@ export async function waitlistRoutes(app: FastifyInstance) {
         detail: `${body.email}${body.driverType ? ` · ${body.driverType}` : ""}\nAdd to Play Console › Closed testing › Beta Testers.`,
         link: PLAY_TESTERS_URL,
       }).catch((err) => console.error("[waitlist] founder alert failed:", err));
+      slackAndroidRequest({
+        email: body.email,
+        driverType: body.driverType,
+        link: PLAY_TESTERS_URL,
+      }).catch((err) => console.error("[waitlist] slack alert failed:", err));
     }
 
     return { data: { id: entry.id }, message: "You're on the list!" };

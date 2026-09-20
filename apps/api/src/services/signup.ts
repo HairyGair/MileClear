@@ -105,7 +105,7 @@ export async function onUserRegistered(
       userId: user.id,
       link,
     });
-    // Slack gets this one and new subscribers, nothing else (16 Sep 2026).
+    // Slack gets this one, new subscribers, and Android tester requests.
     slackNewUser({ lines: lines as string[], userId: user.id, link }).catch(() => {});
   } catch (err) {
     console.error("[signup] onUserRegistered failed:", err);
