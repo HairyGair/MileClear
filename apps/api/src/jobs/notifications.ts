@@ -1661,16 +1661,23 @@ export function startNotificationJobs(): void {
       GEOFENCE_RECOMMEND_INTERVAL_MS
     );
 
-    // HMRC dev-hub keep-alive: weekly. Calls /hello/application against
-    // the sandbox so the "Last API call" timestamp on the developer hub
-    // stays current while production-credentials review is in progress.
-    // No-op when HMRC creds aren't configured.
-    const HMRC_KEEP_ALIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
-    void runJob("hmrc_keep_alive", runHmrcKeepAliveJob);
-    setInterval(
-      () => void runJob("hmrc_keep_alive", runHmrcKeepAliveJob),
-      HMRC_KEEP_ALIVE_INTERVAL_MS
-    );
+    // HMRC dev-hub keep-alive: OFF since 20 Sep 2026 (Anthony's call). It
+    // pinged /hello/application weekly so the "Last API call" timestamp on
+    // the developer hub stayed current while the credentials application sat
+    // in the queue. The application has since passed the fraud prevention
+    // header evaluation, so there is nothing left to look busy for, and the
+    // ping never worked anyway: the sandbox app was never subscribed to the
+    // Hello World API, so all 341 calls came back RESOURCE_FORBIDDEN.
+    // To bring it back: subscribe Hello World on the dev hub (free, instant),
+    // then set HMRC_KEEP_ALIVE=1. See jobs/hmrcKeepAlive.ts.
+    if (process.env.HMRC_KEEP_ALIVE === "1") {
+      const HMRC_KEEP_ALIVE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+      void runJob("hmrc_keep_alive", runHmrcKeepAliveJob);
+      setInterval(
+        () => void runJob("hmrc_keep_alive", runHmrcKeepAliveJob),
+        HMRC_KEEP_ALIVE_INTERVAL_MS
+      );
+    }
 
     // Discord Pro Member role sync: daily. Reconciles every linked
     // user's Pro role against the source-of-truth subscription state.
