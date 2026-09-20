@@ -4,6 +4,7 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import StoreButtons from "@/components/StoreButtons";
+import AndroidNotifyForm from "@/components/android/AndroidNotifyForm";
 import { ANDROID_RELEASE_NOTES } from "@mileclear/shared";
 import { PLAY_LIVE } from "@/data/android";
 import "../updates.css";
@@ -112,6 +113,18 @@ export default function AndroidPage() {
                 <Link href="/android-releases" className="release-card__cta">
                   Every Android build &rarr;
                 </Link>
+              </article>
+            )}
+
+            {!PLAY_LIVE && (
+              <article className="release-card android-section">
+                <h2 className="release-card__version">Want it the day it lands?</h2>
+                <p className="android-card__text" style={{ marginTop: "0.75rem" }}>
+                  Leave your email and we will tell you the moment the Play listing opens. If you
+                  would rather not wait, say so in your reply and we will add you to the test
+                  track, which is the same app.
+                </p>
+                <AndroidNotifyForm />
               </article>
             )}
 
