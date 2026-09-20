@@ -16,7 +16,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type Step = "waiting" | "detected" | "recording" | "arrived" | "classified";
+type Step =
+  | "waiting"
+  | "detected"
+  | "recording"
+  | "arrived"
+  | "classified"
+  | "learned"
+  | "filed";
 
 /** 3.1 miles at the 2026-27 AMAP rate of 55p, driven in 12 minutes 4 seconds. */
 const TRIP_MILES = 3.1;
@@ -27,14 +34,24 @@ const MILES_TODAY = 11.9;
 const TRIPS_TODAY = 19;
 
 const BEATS: Record<Step, number> = {
-  waiting: 2600,
+  waiting: 2400,
   detected: 2200,
   recording: 5400,
-  arrived: 4000,
-  classified: 4200,
+  arrived: 3600,
+  classified: 3400,
+  learned: 3000,
+  filed: 3800,
 };
 
-const ORDER: Step[] = ["waiting", "detected", "recording", "arrived", "classified"];
+const ORDER: Step[] = [
+  "waiting",
+  "detected",
+  "recording",
+  "arrived",
+  "classified",
+  "learned",
+  "filed",
+];
 
 const clock = (totalSeconds: number) => {
   const mins = Math.floor(totalSeconds / 60);
@@ -53,6 +70,14 @@ export default function HeroDemo() {
   const frame = useRef<number | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null);
+
+  const recording = step === "recording";
+  const settled = step === "classified" || step === "learned" || step === "filed";
+  const saved = step === "arrived" || settled;
+  const counted = settled && choice === "business";
+  const filed = step === "filed";
+  const milesToday = counted ? MILES_TODAY + TRIP_MILES : MILES_TODAY;
+  const tripCount = saved ? TRIPS_TODAY + 1 : TRIPS_TODAY;
 
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -114,8 +139,11 @@ export default function HeroDemo() {
 
   // The claim only moves for business miles. That is what classifying decides.
   useEffect(() => {
-    if (step !== "classified" || choice !== "business" || held) {
-      if (step !== "classified") setClaim(CLAIM_BEFORE);
+    if (!settled || choice !== "business" || held) {
+      // Not settled yet, or the viewer said personal: either way the claim
+      // sits where it was. Personal miles are recorded and claim nothing,
+      // which is the whole point of being asked.
+      setClaim(CLAIM_BEFORE);
       return;
     }
     const started = performance.now();
@@ -129,16 +157,16 @@ export default function HeroDemo() {
     return () => {
       if (frame.current) cancelAnimationFrame(frame.current);
     };
-  }, [step, choice, held]);
+  }, [settled, choice, held]);
 
   useEffect(() => {
-    if (step === "classified" && choice === null) setChoice("business");
-  }, [step, choice]);
+    if (settled && choice === null) setChoice("business");
+  }, [settled, choice]);
 
   // Reduced motion: hold the finished frame rather than animate towards it.
   useEffect(() => {
     if (!held) return;
-    setStep("classified");
+    setStep("filed");
     setChoice("business");
     setMiles(TRIP_MILES);
     setSeconds(TRIP_SECONDS);
@@ -153,11 +181,6 @@ export default function HeroDemo() {
     setStep("classified");
   }
 
-  const recording = step === "recording";
-  const saved = step === "arrived" || step === "classified";
-  const counted = step === "classified" && choice === "business";
-  const milesToday = counted ? MILES_TODAY + TRIP_MILES : MILES_TODAY;
-  const tripCount = saved ? TRIPS_TODAY + 1 : TRIPS_TODAY;
 
   return (
     <div
@@ -197,10 +220,18 @@ export default function HeroDemo() {
               <span>You have driven 57.8 miles this week. Above your usual pace.</span>
             </div>
             <div className="demo__claim">
-              <span className="demo__claim-label">Mileage claim · 2026-27</span>
+              <span className="demo__claim-label">
+                {filed ? "Self Assessment · SA103 box 20" : "Mileage claim · 2026-27"}
+              </span>
               <strong className="demo__claim-value">£{claim.toFixed(2)}</strong>
               <span className="demo__claim-sub">
-                {counted ? "+£1.71 from this trip" : "at 55p a mile, first 10,000"}
+                {choice === "personal" && settled
+                  ? "Personal trip, nothing claimed"
+                  : filed
+                    ? "Your mileage, in the box it belongs in"
+                    : counted
+                      ? "+£1.71 from this trip"
+                      : "at 55p a mile, first 10,000"}
               </span>
               <span className="demo__claim-stats">
                 {milesToday.toFixed(1)} mi today · 57.8 mi this week · {tripCount} trips
@@ -232,6 +263,13 @@ export default function HeroDemo() {
                   strokeWidth="5"
                   strokeLinecap="round"
                 />
+                <circle className="demo__car" r="4.5">
+                  <animateMotion
+                    dur="5.4s"
+                    repeatCount="1"
+                    path="M48 126 C 92 126, 92 96, 120 88 S 170 70, 208 56 C 232 46, 252 38, 272 28"
+                  />
+                </circle>
                 <circle className="demo__pin demo__pin--start" cx="48" cy="126" r="6" />
                 <circle className="demo__pin demo__pin--end" cx="272" cy="28" r="6" />
               </svg>
@@ -261,7 +299,12 @@ export default function HeroDemo() {
 
         <div className="demo__classify">
           <p className="demo__route-line" aria-hidden="true">
-            {saved ? (
+            {step === "learned" || filed ? (
+              <>
+                Learned: this route files itself as{" "}
+                {choice === "personal" ? "personal" : "business"} from now on
+              </>
+            ) : saved ? (
               <>
                 Newcastle City Centre <span>to</span> Quayside
               </>

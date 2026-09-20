@@ -1734,8 +1734,12 @@ body::after {
 .demo--recording .demo__layer--trip,
 .demo--arrived .demo__layer--trip,
 .demo--classified .demo__layer--trip { opacity: 1; }
-.demo--classified .demo__layer--home { opacity: 1; transition-delay: 0.35s; }
-.demo--classified .demo__layer--trip { opacity: 0; }
+.demo--classified .demo__layer--home,
+.demo--learned .demo__layer--home,
+.demo--filed .demo__layer--home { opacity: 1; transition-delay: 0.35s; }
+.demo--classified .demo__layer--trip,
+.demo--learned .demo__layer--trip,
+.demo--filed .demo__layer--trip { opacity: 0; }
 
 .demo__nudge {
   border-radius: var(--r-sm);
@@ -1790,16 +1794,26 @@ body::after {
 .demo__route { stroke-dasharray: 320; stroke-dashoffset: 320; }
 .demo--recording .demo__route { animation: demoDraw 5.4s linear forwards; }
 .demo--arrived .demo__route,
-.demo--classified .demo__route { stroke-dashoffset: 0; }
+.demo--classified .demo__route,
+.demo--learned .demo__route,
+.demo--filed .demo__route { stroke-dashoffset: 0; }
+
+/* The car runs the route while it records, then the end pin takes over. */
+.demo__car { fill: #ffffff; opacity: 0; filter: drop-shadow(0 0 6px rgba(252,211,77,0.9)); }
+.demo--recording .demo__car { opacity: 1; }
 
 .demo__pin { opacity: 0; transition: opacity 0.4s ease; }
 .demo__pin--start { fill: var(--emerald-400); }
 .demo__pin--end { fill: var(--amber-300); }
 .demo--recording .demo__pin--start,
 .demo--arrived .demo__pin--start,
-.demo--classified .demo__pin--start { opacity: 1; }
+.demo--classified .demo__pin--start,
+.demo--learned .demo__pin--start,
+.demo--filed .demo__pin--start { opacity: 1; }
 .demo--arrived .demo__pin--end,
-.demo--classified .demo__pin--end { opacity: 1; }
+.demo--classified .demo__pin--end,
+.demo--learned .demo__pin--end,
+.demo--filed .demo__pin--end { opacity: 1; }
 
 .demo__readout { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
 .demo__figure { display: flex; flex-direction: column; }
@@ -1831,7 +1845,12 @@ body::after {
   transition: opacity 0.4s ease, border-color 0.4s ease;
 }
 .demo--arrived .demo__classify,
-.demo--classified .demo__classify { opacity: 1; border-color: rgba(245, 166, 35, 0.22); }
+.demo--classified .demo__classify,
+.demo--learned .demo__classify,
+.demo--filed .demo__classify { opacity: 1; border-color: rgba(245, 166, 35, 0.22); }
+/* The route line becomes what the app just learned, so it reads as news. */
+.demo--learned .demo__route-line,
+.demo--filed .demo__route-line { color: var(--emerald-400); }
 .demo__route-line { margin: 0 0 0.5rem; font-size: 0.78rem; color: var(--text-primary); }
 .demo__route-line span { color: var(--text-faint); }
 .demo__choice { display: flex; gap: 0.45rem; }
@@ -1886,6 +1905,7 @@ body::after {
 
 @media (prefers-reduced-motion: reduce) {
   .demo--recording .demo__route { animation: none; stroke-dashoffset: 0; }
+  .demo__car { display: none; }
   .demo__live i { animation: none; }
   .demo__layer, .demo__toast, .demo__classify { transition: none; }
 }
