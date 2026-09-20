@@ -15,6 +15,7 @@
 // height in every case, so the hero never jumps.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { HERO_ROUTE } from "@/data/heroRoute";
 
 type Step =
   | "waiting"
@@ -25,18 +26,21 @@ type Step =
   | "learned"
   | "filed";
 
-/** 3.1 miles at the 2026-27 AMAP rate of 55p, driven in 12 minutes 4 seconds. */
-const TRIP_MILES = 3.1;
-const TRIP_SECONDS = 724;
+/** The real drive in data/heroRoute.ts, priced at the 2026-27 AMAP rate. */
+const TRIP_MILES = HERO_ROUTE.miles;
+const TRIP_SECONDS = HERO_ROUTE.seconds;
+const AMAP_RATE = 0.55;
 const CLAIM_BEFORE = 39.72;
-const CLAIM_AFTER = 41.43;
 const MILES_TODAY = 11.9;
 const TRIPS_TODAY = 19;
+
+/** What a given number of business miles adds to the claim, in pounds. */
+const claimFor = (miles: number) => Math.round(miles * AMAP_RATE * 100) / 100;
 
 const BEATS: Record<Step, number> = {
   waiting: 2400,
   detected: 2200,
-  recording: 5400,
+  recording: 6000,
   arrived: 3600,
   classified: 3400,
   learned: 3000,
@@ -65,6 +69,11 @@ export default function HeroDemo() {
   const [seconds, setSeconds] = useState(0);
   const [claim, setClaim] = useState(CLAIM_BEFORE);
   const [choice, setChoice] = useState<"business" | "personal" | null>(null);
+  /** Miles on the clock when the trip stopped. Whole route unless a visitor stops it early. */
+  const [banked, setBanked] = useState<number>(TRIP_MILES);
+  const [shiftFrom, setShiftFrom] = useState<number | null>(null);
+  const [shiftSeconds, setShiftSeconds] = useState(0);
+  const [shiftTrips, setShiftTrips] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [held, setHeld] = useState(false);
   const frame = useRef<number | undefined>(undefined);
@@ -75,8 +84,9 @@ export default function HeroDemo() {
   const settled = step === "classified" || step === "learned" || step === "filed";
   const saved = step === "arrived" || settled;
   const counted = settled && choice === "business";
+  const added = claimFor(banked);
   const filed = step === "filed";
-  const milesToday = counted ? MILES_TODAY + TRIP_MILES : MILES_TODAY;
+  const milesToday = counted ? MILES_TODAY + banked : MILES_TODAY;
   const tripCount = saved ? TRIPS_TODAY + 1 : TRIPS_TODAY;
 
   useEffect(() => {
@@ -110,9 +120,11 @@ export default function HeroDemo() {
     if (next === "waiting") {
       setMiles(0);
       setSeconds(0);
+      setBanked(TRIP_MILES);
       setClaim(CLAIM_BEFORE);
       setChoice(null);
     }
+    if (next === "arrived") setBanked(TRIP_MILES);
   }, []);
 
   useEffect(() => {
@@ -150,18 +162,32 @@ export default function HeroDemo() {
     const run = (now: number) => {
       const progress = Math.min(1, (now - started) / 900);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setClaim(CLAIM_BEFORE + (CLAIM_AFTER - CLAIM_BEFORE) * eased);
+      setClaim(CLAIM_BEFORE + added * eased);
       if (progress < 1) frame.current = requestAnimationFrame(run);
     };
     frame.current = requestAnimationFrame(run);
     return () => {
       if (frame.current) cancelAnimationFrame(frame.current);
     };
-  }, [settled, choice, held]);
+  }, [settled, choice, held, added]);
 
   useEffect(() => {
     if (settled && choice === null) setChoice("business");
   }, [settled, choice]);
+
+  useEffect(() => {
+    if (step !== "arrived" || shiftFrom === null) return;
+    setShiftTrips((n) => (n === 0 ? 1 : n));
+  }, [step, shiftFrom]);
+
+  // The shift clock, which is the only thing here that runs on real time.
+  useEffect(() => {
+    if (shiftFrom === null) return;
+    const tick = () => setShiftSeconds(Math.floor((Date.now() - shiftFrom) / 1000));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [shiftFrom]);
 
   // Reduced motion: hold the finished frame rather than animate towards it.
   useEffect(() => {
@@ -170,15 +196,40 @@ export default function HeroDemo() {
     setChoice("business");
     setMiles(TRIP_MILES);
     setSeconds(TRIP_SECONDS);
-    setClaim(CLAIM_AFTER);
+    setClaim(CLAIM_BEFORE + claimFor(TRIP_MILES));
   }, [held]);
 
   function classify(as: "business" | "personal") {
     clearTimeout(timer.current);
     setChoice(as);
-    setMiles(TRIP_MILES);
-    setSeconds(TRIP_SECONDS);
     setStep("classified");
+  }
+
+  /** Start Trip, and Stop Trip once it is running. Both are the real buttons. */
+  function toggleTrip() {
+    clearTimeout(timer.current);
+    if (recording) {
+      setBanked(Math.round(miles * 100) / 100);
+      setStep("arrived");
+      if (shiftFrom !== null) setShiftTrips((n) => n + 1);
+      return;
+    }
+    setMiles(0);
+    setSeconds(0);
+    setChoice(null);
+    setClaim(CLAIM_BEFORE);
+    setStep("recording");
+  }
+
+  /** Start Shift, and End Shift once one is running. */
+  function toggleShift() {
+    if (shiftFrom === null) {
+      setShiftFrom(Date.now());
+      setShiftSeconds(0);
+      setShiftTrips(0);
+      return;
+    }
+    setShiftFrom(null);
   }
 
 
@@ -209,6 +260,11 @@ export default function HeroDemo() {
         <div className="demo__modes" aria-hidden="true">
           <span className="demo__mode demo__mode--on">Work</span>
           <span className="demo__mode">Personal</span>
+          {shiftFrom !== null && (
+            <span className="demo__shift">
+              On shift {clock(shiftSeconds)} · {shiftTrips} {shiftTrips === 1 ? "trip" : "trips"}
+            </span>
+          )}
         </div>
 
         {/* The middle swaps between the dashboard and the live trip. Fixed
@@ -230,7 +286,7 @@ export default function HeroDemo() {
                   : filed
                     ? "Your mileage, in the box it belongs in"
                     : counted
-                      ? "+£1.71 from this trip"
+                      ? `+£${added.toFixed(2)} from this trip`
                       : "at 55p a mile, first 10,000"}
               </span>
               <span className="demo__claim-stats">
@@ -241,50 +297,81 @@ export default function HeroDemo() {
 
           <div className="demo__layer demo__layer--trip">
             <div className="demo__map">
-              <svg viewBox="0 0 320 150" role="presentation">
+              {/* Real OpenStreetMap tiles, positioned by percentage inside the
+                  same frame the route is drawn in, so they scale together. */}
+              <div className="demo__tiles">
+                {HERO_ROUTE.tiles.map((t) => (
+                  <img
+                    key={`${t.x}-${t.y}`}
+                    src={`https://tile.openstreetmap.org/${HERO_ROUTE.zoom}/${t.x}/${t.y}.png`}
+                    alt=""
+                    width={256}
+                    height={256}
+                    loading="lazy"
+                    style={{
+                      left: `${t.left}%`,
+                      top: `${t.top}%`,
+                      width: `${t.w}%`,
+                      height: `${t.h}%`,
+                    }}
+                  />
+                ))}
+              </div>
+              <svg
+                className="demo__overlay"
+                viewBox={`0 0 ${HERO_ROUTE.w} ${HERO_ROUTE.h}`}
+                preserveAspectRatio="xMidYMid slice"
+                role="presentation"
+              >
                 <defs>
                   <linearGradient id="demoRoute" x1="0" y1="1" x2="1" y2="0">
                     <stop offset="0%" stopColor="#fcd34d" />
                     <stop offset="100%" stopColor="#eab308" />
                   </linearGradient>
                 </defs>
-                <rect width="320" height="150" fill="#0a1120" />
-                <path d="M0 106 H320" stroke="rgba(148,163,184,0.10)" strokeWidth="20" />
-                <path d="M78 0 V150 M226 0 V150" stroke="rgba(148,163,184,0.07)" strokeWidth="11" />
-                <path d="M0 42 H320" stroke="rgba(148,163,184,0.07)" strokeWidth="9" />
-                <rect x="20" y="8" width="40" height="24" rx="6" fill="rgba(148,163,184,0.05)" />
-                <rect x="240" y="52" width="58" height="40" rx="8" fill="rgba(16,185,129,0.06)" />
-                <rect x="100" y="114" width="88" height="28" rx="6" fill="rgba(148,163,184,0.05)" />
                 <path
                   className="demo__route"
-                  d="M48 126 C 92 126, 92 96, 120 88 S 170 70, 208 56 C 232 46, 252 38, 272 28"
+                  d={HERO_ROUTE.path}
                   fill="none"
                   stroke="url(#demoRoute)"
                   strokeWidth="5"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
                 <circle className="demo__car" r="4.5">
-                  <animateMotion
-                    dur="5.4s"
-                    repeatCount="1"
-                    path="M48 126 C 92 126, 92 96, 120 88 S 170 70, 208 56 C 232 46, 252 38, 272 28"
-                  />
+                  <animateMotion dur="6s" repeatCount="1" path={HERO_ROUTE.path} />
                 </circle>
-                <circle className="demo__pin demo__pin--start" cx="48" cy="126" r="6" />
-                <circle className="demo__pin demo__pin--end" cx="272" cy="28" r="6" />
+                <circle
+                  className="demo__pin demo__pin--start"
+                  cx={HERO_ROUTE.start.x}
+                  cy={HERO_ROUTE.start.y}
+                  r="5.5"
+                />
+                <circle
+                  className="demo__pin demo__pin--end"
+                  cx={HERO_ROUTE.end.x}
+                  cy={HERO_ROUTE.end.y}
+                  r="5.5"
+                />
               </svg>
               <span className="demo__live">
                 <i />
                 {recording ? "Recording" : "Trip saved"}
               </span>
+              <span className="demo__osm">
+                &copy;{" "}
+                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                  OpenStreetMap
+                </a>
+              </span>
             </div>
             <div className="demo__readout">
               <div className="demo__figure">
-                <strong>{(saved ? TRIP_MILES : miles).toFixed(1)}</strong>
+                <strong>{(saved ? banked : miles).toFixed(1)}</strong>
                 <span>miles</span>
               </div>
               <div className="demo__figure">
-                <strong>{clock(saved ? TRIP_SECONDS : seconds)}</strong>
+                <strong>{clock(saved ? Math.round((banked / TRIP_MILES) * TRIP_SECONDS) : seconds)}</strong>
                 <span>duration</span>
               </div>
               <div className="demo__figure">
@@ -332,11 +419,13 @@ export default function HeroDemo() {
           </div>
         </div>
 
-        <div className="demo__actions" aria-hidden="true">
-          <span className="demo__action demo__action--primary">
+        <div className="demo__actions">
+          <button type="button" className="demo__action demo__action--primary" onClick={toggleTrip}>
             {recording ? "Stop Trip" : "Start Trip"}
-          </span>
-          <span className="demo__action">{recording ? "Pause" : "Start Shift"}</span>
+          </button>
+          <button type="button" className="demo__action" onClick={toggleShift}>
+            {shiftFrom !== null ? "End Shift" : "Start Shift"}
+          </button>
         </div>
 
         <div className="demo__today" aria-hidden="true">
