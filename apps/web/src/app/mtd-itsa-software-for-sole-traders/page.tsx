@@ -464,8 +464,9 @@ export default function MtdItsaSoftwarePage() {
               one app: track every mile automatically, classify trips by
               platform (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri,
               Stuart, Gophr, Yodel), capture earnings via Open Banking or
-              CSV import, log allowable expenses, and submit the quarterly
-              figures to HMRC without leaving the product.
+              CSV import, log allowable expenses, and prepare the quarterly
+              figures for HMRC. The submission journey is built and running
+              against HMRC's sandbox while we wait on production credentials.
             </p>
 
             <div

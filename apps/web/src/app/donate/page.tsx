@@ -149,7 +149,7 @@ export default function DonatePage() {
             <li>
               <strong>Want ongoing access to Pro features?</strong> You're looking
               for the <a href="https://apps.apple.com/app/mileclear/id6759671005" className="donate__inline-link">subscription</a>{" "}
-              instead - £4.99/month or £44.99/year unlocks HMRC quarterly submissions,
+              instead. £4.99/month or £44.99/year unlocks the filing-ready exports,
               unlimited invoices, business insights, and the rest.
             </li>
             <li>
