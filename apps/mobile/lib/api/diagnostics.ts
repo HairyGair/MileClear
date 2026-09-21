@@ -18,6 +18,7 @@ import { getBatterySnapshot } from "../tracking/batteryAware";
 import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
 import { getNativeEngineDiagnostics } from "../tracking/nativeLocation";
 import { getLiveActivityState } from "../liveActivity/presence";
+import { summariseDetectionEvents } from "./activitySummaryRule";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
 const BUILD_NUMBER =
@@ -129,18 +130,27 @@ async function getSavedLocations() {
  * registration-grace rejected. Lets the diagnostic reader see at a glance
  * what shape of activity the user has been having before scrolling 50
  * raw events.
+ *
+ * Counted per event AND per reason since 21 Sep 2026. The old query grouped by
+ * event name alone, which is why the fleet's biggest counter told us nothing:
+ * 1,035 `detection_skipped` across 41 Android dumps and not one of them saying
+ * whether the recorder was off, already recording, or standing down for a
+ * shift. The device had the reason all along; the GROUP BY dropped it. See
+ * summariseDetectionEvents() for the key shape and the guards.
+ *
+ * The grouping moved into JS with it: expo-sqlite has no portable JSON
+ * extraction, and the table is capped at DETECTION_EVENT_LOG_LIMIT rows, so a
+ * single pass over a day of events is cheaper than teaching SQL the payload.
  */
 async function getActivitySummary() {
   try {
     const db = await getDatabase();
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const rows = await db.getAllAsync<{ event: string; count: number }>(
-      "SELECT event, COUNT(*) as count FROM detection_events WHERE recorded_at >= ? GROUP BY event ORDER BY count DESC",
+    const rows = await db.getAllAsync<{ event: string; data: string | null }>(
+      "SELECT event, data FROM detection_events WHERE recorded_at >= ?",
       [cutoff]
     );
-    const summary: Record<string, number> = {};
-    for (const row of rows) summary[row.event] = row.count;
-    return summary;
+    return summariseDetectionEvents(rows);
   } catch {
     return {};
   }

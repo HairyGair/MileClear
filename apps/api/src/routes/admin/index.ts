@@ -2297,6 +2297,7 @@ export async function adminRoutes(app: FastifyInstance) {
       select: {
         capturedAt: true,
         statusJson: true,
+        platform: true,
         appVersion: true,
         buildNumber: true,
         user: { select: { email: true, displayName: true } },
@@ -2320,16 +2321,53 @@ export async function adminRoutes(app: FastifyInstance) {
     let nativeStale = 0;
     let nativeNever = 0;
 
+    // Why Android devices decline to record. `detection_skipped` is the biggest
+    // counter the fleet reports and was the least useful: 1,035 of them across
+    // 41 Android dumps on 21 Sep 2026, every one a bare number, so every "my
+    // drives are missing" report started with a guess about which guard fired.
+    // The app now counts skips under "detection_skipped:<reason>" alongside the
+    // bare name (apps/mobile/lib/api/activitySummaryRule.ts), so sum those here.
+    // The shortfall against the bare total is kept visible rather than folded
+    // into the breakdown: a device on an older build reports no reasons at all,
+    // and hiding that would flatter the numbers while the fleet updates.
+    const SKIP_REASON_PREFIX = "detection_skipped:";
+    const skipReasonCounts = new Map<string, { skips: number; devices: number }>();
+    let androidSkipsTotal = 0;
+    let androidSkipsAttributed = 0;
+    let androidDumpsWithSkips = 0;
+
     for (const d of dumps) {
       const s = (d.statusJson ?? {}) as {
         nativeEngineEnabled?: boolean;
         lastNativeLocationAt?: string | null;
+        activitySummary?: Record<string, number>;
         updates?: {
           isEnabled?: boolean;
           runtimeVersion?: string | null;
           isEmbeddedLaunch?: boolean | null;
         };
       };
+
+      // ── Skip reasons (Android, last 24h of each dump) ──
+      if (d.platform === "android") {
+        const activity = s.activitySummary ?? {};
+        const bareSkips = Number(activity.detection_skipped ?? 0) || 0;
+        if (bareSkips > 0) {
+          androidSkipsTotal += bareSkips;
+          androidDumpsWithSkips++;
+        }
+        for (const [key, value] of Object.entries(activity)) {
+          if (!key.startsWith(SKIP_REASON_PREFIX)) continue;
+          const count = Number(value) || 0;
+          if (count <= 0) continue;
+          const reason = key.slice(SKIP_REASON_PREFIX.length);
+          const row = skipReasonCounts.get(reason) ?? { skips: 0, devices: 0 };
+          row.skips += count;
+          row.devices++;
+          skipReasonCounts.set(reason, row);
+          androidSkipsAttributed += count;
+        }
+      }
 
       // ── Version reconciliation ──
       // Real binary = runtimeVersion; fall back to "build<N>" for old dumps
@@ -2461,6 +2499,34 @@ export async function adminRoutes(app: FastifyInstance) {
               .sort((a, b) => b.count - a.count),
           }))
           .sort((a, b) => b.devices - a.devices),
+        // Why Android declined to record, summed over the 24h window each dump
+        // in the fortnight carries. DiagnosticDump.userId is unique, so every
+        // row is already that user's latest and there is nothing to reduce —
+        // which is just as well, because a findMany that sorts while selecting
+        // statusJson throws MysqlError 1038 on prod (three of those fixed
+        // 14 Sep 2026), so nothing here sorts in SQL.
+        skipReasons: {
+          platform: "android",
+          dumpWindowDays: 14,
+          dumpsWithSkips: androidDumpsWithSkips,
+          totalSkips: androidSkipsTotal,
+          attributedSkips: androidSkipsAttributed,
+          // Skips reported by devices on a build from before 21 Sep 2026: they
+          // send the bare total and no reason. Shrinks as the fleet updates,
+          // and until it does it is the honest size of what we still can't see.
+          unattributedSkips: Math.max(0, androidSkipsTotal - androidSkipsAttributed),
+          reasons: Array.from(skipReasonCounts.entries())
+            .map(([reason, v]) => ({
+              reason,
+              skips: v.skips,
+              devices: v.devices,
+              sharePercent:
+                androidSkipsAttributed > 0
+                  ? Math.round((v.skips / androidSkipsAttributed) * 1000) / 10
+                  : 0,
+            }))
+            .sort((a, b) => b.skips - a.skips),
+        },
         quietDrivers: quietRows.map((r) => ({
           email: r.email,
           displayName: r.displayName,
