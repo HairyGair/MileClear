@@ -819,6 +819,56 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // GET /admin/users/:userId/trip-paths
   // Returns recent trips with their coordinate arrays for admin map visualisation.
+  // What is sitting on this driver's Trips screen waiting for a yes or no.
+  //
+  // Rachel Thorndyke, 21 Sep 2026: "I have 3 journeys in my inbox that I am
+  // not sure what to do with." There was no way to see them from here, so
+  // answering meant asking her to describe her own screen back to us. A
+  // proposal is either a gap we inferred between two captured trips, or a
+  // drive the engine really did record and then discarded for being too
+  // short, and the answer a driver needs is different for each.
+  app.get("/users/:userId/missed-journeys", async (request, reply) => {
+    const { userId } = request.params as { userId: string };
+    const { status, limit } = request.query as { status?: string; limit?: string };
+    const take = Math.min(100, Math.max(1, parseInt(limit || "25", 10) || 25));
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) return reply.status(404).send({ error: "User not found" });
+
+    const rows = await prisma.missedJourneyProposal.findMany({
+      where: { userId, ...(status ? { status } : { status: "proposed" }) },
+      select: {
+        id: true,
+        status: true,
+        source: true,
+        fromAddress: true,
+        toAddress: true,
+        departedAt: true,
+        arrivedAt: true,
+        estimatedMiles: true,
+        recordedMiles: true,
+        decidedAt: true,
+        createdAt: true,
+      },
+      orderBy: { departedAt: "desc" },
+      take,
+    });
+
+    return reply.send({
+      data: rows.map((p) => ({
+        ...p,
+        gapMinutes: Math.round((p.arrivedAt.getTime() - p.departedAt.getTime()) / 60000),
+        // ⚠️ estimatedMiles is crow-flies for a gap row, so it reads short on
+        // any real road. A recorded row carries what the engine actually saw.
+        milesAreCrowFlies: p.source === "gap",
+      })),
+      generatedAt: new Date().toISOString(),
+    });
+  });
+
   app.get("/users/:userId/trip-paths", async (request, reply) => {
     const { userId } = request.params as { userId: string };
     const { limit, days } = request.query as { limit?: string; days?: string };
