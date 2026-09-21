@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { describeOffSince, describePause, isPauseActive, pauseChoices, tomorrowAtResumeHour } from "../pauseRule";
+import {
+  describeOffSince,
+  describePause,
+  isPauseActive,
+  pauseChoices,
+  pauseWakeDecision,
+  tomorrowAtResumeHour,
+} from "../pauseRule";
 
 // Wed 16 Sep 2026 11:30 local.
 const NOW = new Date(2026, 8, 16, 11, 30).getTime();
@@ -27,6 +34,30 @@ describe("isPauseActive", () => {
     expect(isPauseActive(null, NOW)).toBe(false);
     expect(isPauseActive(undefined, NOW)).toBe(false);
     expect(isPauseActive(Number.NaN, NOW)).toBe(false);
+  });
+});
+
+describe("pauseWakeDecision", () => {
+  it("records when there is no pause at all", () => {
+    expect(pauseWakeDecision(null, NOW)).toBe("record");
+    expect(pauseWakeDecision(undefined, NOW)).toBe("record");
+  });
+  it("sleeps while the pause is still running", () => {
+    expect(pauseWakeDecision(NOW + 60_000, NOW)).toBe("sleep");
+  });
+  it("resumes on the first wake after the end time, with no app open", () => {
+    expect(pauseWakeDecision(NOW - 1, NOW)).toBe("resume");
+  });
+  it("resumes Samantha's phone at 09:40 instead of losing her day", () => {
+    // Pause set 20:00 on Sun 20 Sep, due to end 06:00 on Mon 21 Sep. Her
+    // first drive of the working day was 09:40.
+    const until = new Date(2026, 8, 21, 6, 0).getTime();
+    const firstDrive = new Date(2026, 8, 21, 9, 40).getTime();
+    expect(pauseWakeDecision(until, new Date(2026, 8, 20, 22, 0).getTime())).toBe("sleep");
+    expect(pauseWakeDecision(until, firstDrive)).toBe("resume");
+  });
+  it("clears a malformed pause rather than stranding the recorder on it", () => {
+    expect(pauseWakeDecision(Number.NaN, NOW)).toBe("resume");
   });
 });
 

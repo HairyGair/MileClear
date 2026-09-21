@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import { router } from "expo-router";
 import { Linking, Platform } from "react-native";
 import { cancelAutoRecording, clearNotDrivingCooldown, upgradeDetectionAccuracy, logDetectionEvent } from "../tracking/detection";
+import { canPlatformRunJsEngine } from "../tracking/jsEngineRule";
 
 try {
   Notifications.setNotificationHandler({
@@ -380,6 +381,21 @@ function setupSilentPushHandler(): void {
     }
 
     if (action === "set_native_engine") {
+      const enabled = (data as { enabled?: string } | null)?.enabled === "1";
+      // Android has no JS engine to fall back to: switching a phone off native
+      // there is not a rollback, it is silence, and the dashboard carries on
+      // saying tracking is on (Becky O'Neill's moto g55 5G, zero auto trips
+      // for the week after 10 Sep 2026). Refuse the disable and leave the
+      // engine exactly as it is. Switching Android ON to native still works.
+      if (!enabled && !canPlatformRunJsEngine(Platform.OS)) {
+        try {
+          await logDetectionEvent("engine_switch_refused_on_platform", {
+            platform: Platform.OS,
+            requested: enabled,
+          });
+        } catch {}
+        return;
+      }
       // Per-user remote engine switch — the rollback lever for the ClearTrack
       // rollout. Some devices never get a CoreMotion "moving" signal, so the
       // native engine silently captures nothing (Norman Boomer, 10 Jun 2026:
@@ -388,7 +404,6 @@ function setupSilentPushHandler(): void {
       // capture without user interaction. Same sequence as the diagnostics
       // screen's manual toggle.
       try {
-        const enabled = (data as { enabled?: string } | null)?.enabled === "1";
         const { setNativeLocationEngineEnabled } = await import("../tracking/nativeEngineFlag");
         const { stopNativeLocationEngine } = await import("../tracking/nativeLocation");
         const {
@@ -410,6 +425,28 @@ function setupSilentPushHandler(): void {
         await logDetectionEvent("engine_switched_by_server", { enabled });
       } catch (err) {
         console.warn("[notifications] silent set_native_engine failed:", err);
+      }
+      return;
+    }
+
+    if (action === "restart_engine") {
+      // Server saw a device that claims to be armed but has recorded nothing
+      // for 24h. The commonest causes are recoverable from here: a pause whose
+      // end has passed but which nothing has cleared yet, and an engine that
+      // was started and then quietly dropped (Android loses a median 44% of
+      // days to silence against 10% on iOS, measured 21 Sep 2026).
+      //
+      // Order matters: clear an expired pause first, or the restart re-arms an
+      // engine that the pause check stops again a moment later.
+      try {
+        const { autoResumeIfPauseExpired, restartDriveDetection } = await import(
+          "../tracking/detection"
+        );
+        await autoResumeIfPauseExpired();
+        await restartDriveDetection();
+        await logDetectionEvent("engine_restarted_by_server", { platform: Platform.OS });
+      } catch (err) {
+        console.warn("[notifications] silent restart_engine failed:", err);
       }
       return;
     }

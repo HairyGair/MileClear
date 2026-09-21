@@ -38,6 +38,7 @@ import {
   isNotDrivingCooldownActive,
   haversineMeters,
   recentBufferedFixes,
+  resolvePauseOnWake,
 } from "./detection";
 import { MOTION_MIN_CONFIDENCE } from "@mileclear/shared";
 import { decideProgressPush } from "../liveActivity/progressRule";
@@ -51,6 +52,7 @@ import {
   type RecentFix,
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
+import { decideMotionStart } from "./motionStartRule";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
@@ -667,6 +669,29 @@ export async function wakeNativeTracking(reason: string): Promise<void> {
   }
 }
 
+/**
+ * Put the recorder back to sleep on its stationary region without stopping it.
+ *
+ * The difference between this and stopNativeLocationEngine is the whole of the
+ * 21 Sep 2026 pause fix: a stopped engine hears nothing ever again and has to
+ * be restarted by hand from the app, while a sleeping one still wakes on the
+ * next drive and can find out that the pause has ended. Used when a pause
+ * starts, and on every wake that lands while one is still running.
+ */
+export async function sleepNativeEngine(reason: string, log = true): Promise<void> {
+  const BGGeo = loadNativeModule();
+  if (!BGGeo || typeof BGGeo.changePace !== "function") return;
+  try {
+    await BGGeo.changePace(false);
+    if (log) logDetectionEvent("native_slept_while_paused", { reason }).catch(() => {});
+  } catch (err) {
+    logDetectionEvent("native_sleep_failed", {
+      reason,
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
 export async function stopNativeLocationEngine(): Promise<void> {
   const BGGeo = loadNativeModule();
   if (!BGGeo || !started) return;
@@ -927,6 +952,14 @@ async function openNativeRecording(
 
 async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   try {
+    // Same pause decision as the motion handler, because a fix can arrive
+    // without a motionchange ever firing (46% of Android phones have never
+    // granted motion at all). Silent: this runs per fix, and the motion path
+    // is where the sleep is worth a line in the log.
+    if ((await resolvePauseOnWake()) === "sleep") {
+      await sleepNativeEngine("fix_while_paused", false);
+      return;
+    }
     if (!(await isDriveDetectionEnabled())) return;
     const db = await getDatabase();
     // Heartbeat: stamp every native fix (recording or not) so the diagnostics
@@ -1022,6 +1055,14 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
 
 async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void> {
   try {
+    // The pause is decided here, on the phone, before anything else: this is
+    // the wake that ends it. "sleep" parks the SDK again so a pause still
+    // saves battery; "resume" has already cleared the pause and this drive is
+    // recorded like any other (21 Sep 2026, see resolvePauseOnWake).
+    if ((await resolvePauseOnWake()) === "sleep") {
+      if (event.isMoving) await sleepNativeEngine("motion_while_paused");
+      return;
+    }
     if (!(await isDriveDetectionEnabled())) return;
     // Log every motion-state change (low volume, high diagnostic value) so a
     // dump shows whether RNBG actually fired "moving" when a drive started.
@@ -1055,12 +1096,34 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
       const act = event.location?.activity;
       const actType = typeof act?.type === "string" ? act.type : null;
       const actConf = typeof act?.confidence === "number" ? act.confidence : null;
-      if (actType && ON_FOOT_ACTIVITIES.has(actType) && (actConf === null || actConf >= MOTION_MIN_CONFIDENCE)) {
+      const motionSpeed = event.location?.coords?.speed ?? null;
+      const startCall = decideMotionStart({
+        activityType: actType,
+        confidence: actConf,
+        speedMs: motionSpeed,
+        onFoot: ON_FOOT_ACTIVITIES,
+        minConfidence: MOTION_MIN_CONFIDENCE,
+      });
+      if (startCall.skip) {
+        // Log what it was judged on, not just that it happened: 21 of these
+        // fired across the fleet in the week to 21 Sep 2026 and there was no
+        // way to tell afterwards whether any of them were real drives.
         logDetectionEvent("native_motion_start_skipped_on_foot", {
           activity: actType,
           confidence: actConf,
+          speedMph: motionSpeed === null ? null : Math.round(motionSpeed * 2.23694),
         }).catch(() => {});
         return;
+      }
+      if (actType && ON_FOOT_ACTIVITIES.has(actType)) {
+        // Kept the recording despite an on-foot verdict, because the fix was
+        // already at driving speed. Worth its own line: if this fires often,
+        // the coprocessor is wrong often, and that is worth knowing.
+        logDetectionEvent("native_on_foot_overridden_by_speed", {
+          activity: actType,
+          confidence: actConf,
+          speedMph: motionSpeed === null ? null : Math.round(motionSpeed * 2.23694),
+        }).catch(() => {});
       }
       const already = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"

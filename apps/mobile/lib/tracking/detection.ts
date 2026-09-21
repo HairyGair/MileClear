@@ -1,5 +1,5 @@
 import { AppState, Platform } from "react-native";
-import { isPauseActive } from "./pauseRule";
+import { isPauseActive, pauseWakeDecision, type PauseWake } from "./pauseRule";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
@@ -3875,9 +3875,19 @@ export async function clearSelfHealMarkers(): Promise<void> {
 }
 
 export async function startDriveDetection(): Promise<void> {
-  // Guard: don't start if disabled by user
+  // Guard: don't start if disabled by user, or while a pause is running.
+  // The two look the same here and are not: "off" is a switch in Settings with
+  // no end, while a pause has one, and a paused phone has to stay armed so the
+  // end can arrive without the driver doing anything. Telling them apart also
+  // gives the dumps a reason, so a silent phone is no longer a guess.
   const enabled = await isDriveDetectionEnabled();
   if (!enabled) {
+    const pausedUntil = await getDrivePauseUntil();
+    if (pausedUntil !== null) {
+      await armNativeEngineWhilePaused();
+      logDetectionEvent("detection_skipped", { reason: "paused", until: pausedUntil }).catch(() => {});
+      return;
+    }
     logDetectionEvent("detection_skipped", { reason: "disabled" }).catch(() => {});
     return;
   }
@@ -4409,9 +4419,16 @@ export async function isDriveDetectionEnabled(): Promise<boolean> {
   );
   if (row && row.value !== "1") return false;
   // A pause with an end (16 Sep 2026). Every path that can open a recording
-  // asks this function first, so the pause needs no other hook. Once the end
-  // has passed this reads true again on its own; the engine is restarted by
-  // the next foreground or by the reminder tap (autoResumeIfPauseExpired).
+  // asks this function first, so the pause needs no other hook, and once the
+  // end has passed this reads true again on its own.
+  //
+  // 21 Sep 2026: "on its own" was only ever true for phones that still had a
+  // running engine to ask. A pause used to stop the engine, so after the end
+  // time nothing called this function at all and the phone stayed silent for
+  // as long as the driver stayed out of the app (Samantha Birch lost a whole
+  // working day that way). The pause no longer stops anything: the engine
+  // stays armed and refuses each drive here, so the first wake after the end
+  // time records normally. See resolvePauseOnWake.
   const until = await getDrivePauseUntil();
   return !isPauseActive(until, Date.now());
 }
@@ -4431,23 +4448,46 @@ export async function getDrivePauseUntil(): Promise<number | null> {
   return isPauseActive(until, Date.now()) ? until : null;
 }
 
-/** Pause automatic recording until `until`. Stops the engine (the JS task
- *  AND the native one; the settings switch leaves the native engine running,
- *  and the whole point here is battery), schedules a local reminder for the
- *  end, and logs it. */
+/** Pause automatic recording until `until`: park the recorder, schedule a
+ *  local reminder for the end, and log it.
+ *
+ *  Parked, not stopped. Until 21 Sep 2026 this called stopNativeLocationEngine,
+ *  which was the obvious reading of "pause saves battery" and cost Samantha
+ *  Birch a full working day: a stopped engine cannot notice that the pause has
+ *  ended, so her 6am pause was still in force at half three. Now the engine
+ *  stays armed on its stationary region, isDriveDetectionEnabled refuses each
+ *  drive while the pause runs, and the first wake after the end time records
+ *  normally. The battery saving is kept by putting the SDK straight back to
+ *  sleep: an armed engine parked on a geofence costs almost nothing, and a
+ *  drive during a pause costs one wake instead of a recorded route. */
 export async function pauseDriveDetection(until: number, choice: string): Promise<void> {
   const db = await getDatabase();
+  // A pause mid-drive must not strand the route it is interrupting. Close the
+  // open recording first, so the miles up to this point are saved rather than
+  // sitting in the buffer until the next app open.
+  const open = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+  );
+  if (open?.value === "1") {
+    try {
+      await finalizeAutoTrip();
+    } catch {}
+  }
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
     [PAUSE_KEY, String(until)]
   );
   logDetectionEvent("drive_paused", { choice, until, hours: Math.round((until - Date.now()) / 36e5) }).catch(() => {});
   try {
+    // The JS task is the legacy path and holds a real GPS subscription, so it
+    // still goes. It is restored by the next foreground or by the watchdog's
+    // restart_engine push; every current binary runs the native engine, which
+    // is the one that has to survive the pause.
     await stopDriveDetection();
   } catch {}
   try {
-    const { stopNativeLocationEngine } = await import("./nativeLocation");
-    await stopNativeLocationEngine();
+    const { sleepNativeEngine } = await import("./nativeLocation");
+    await sleepNativeEngine("pause_started");
   } catch {}
   try {
     const Notifications = require("expo-notifications");
@@ -4495,6 +4535,61 @@ export async function autoResumeIfPauseExpired(): Promise<void> {
   if (!row) return;
   if (isPauseActive(Number(row.value), Date.now())) return;
   await resumeDriveDetection("expired");
+}
+
+/**
+ * The pause, decided at the moment the recorder wakes rather than at the
+ * moment the driver opens the app. Called first by both native handlers.
+ *
+ * "sleep" means stay armed and refuse this drive. "resume" means the end time
+ * has passed: the pause is cleared here, on the phone, with no app open and no
+ * network, so the drive that caused this wake is the drive that gets recorded.
+ * This is what makes a pause end on time (Samantha Birch, 21 Sep 2026).
+ *
+ * Never throws and never returns "sleep" on an error: a failed read must not
+ * be able to silence a phone, which is the same trap that fails an Android
+ * engine flag closed onto an engine that records nothing.
+ */
+export async function resolvePauseOnWake(): Promise<PauseWake> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      `SELECT value FROM tracking_state WHERE key = '${PAUSE_KEY}'`
+    );
+    if (!row) return "record";
+    const decision = pauseWakeDecision(Number(row.value), Date.now());
+    if (decision !== "resume") return decision;
+    await db.runAsync(`DELETE FROM tracking_state WHERE key = '${PAUSE_KEY}'`);
+    logDetectionEvent("drive_resumed", { reason: "expired_on_wake" }).catch(() => {});
+    try {
+      const Notifications = require("expo-notifications");
+      await Notifications.cancelScheduledNotificationAsync(PAUSE_NOTIFICATION_ID).catch(() => {});
+    } catch {}
+    return "resume";
+  } catch {
+    return "record";
+  }
+}
+
+/**
+ * A paused phone is armed, not off. Called when a foreground pass finds a
+ * pause running: the engine is started if it is not already (an OS kill or a
+ * reinstall during a week-long pause would otherwise leave nothing running at
+ * all) and put straight back to sleep on its stationary region.
+ */
+async function armNativeEngineWhilePaused(): Promise<void> {
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (!(await isNativeLocationEngineEnabled())) return;
+    const { isNativeEngineAvailable, startNativeLocationEngine, sleepNativeEngine } = await import(
+      "./nativeLocation"
+    );
+    if (!isNativeEngineAvailable()) return;
+    await startNativeLocationEngine();
+    await sleepNativeEngine("paused_arm");
+  } catch {
+    // Best effort: the pause still ends on its own the moment any wake lands.
+  }
 }
 
 /** When the permanent switch went off, for the "off since" card. */
