@@ -8,6 +8,7 @@ import { safeRedirectPath } from "../../../lib/safeRedirect";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
 import { OAuthButtons } from "../../../components/ui/OAuthButtons";
+import StoreButtons from "../../../components/StoreButtons";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -172,6 +173,18 @@ export default function RegisterPage() {
           onSuccess={() => router.push(next || "/dashboard")}
           onError={(msg) => setError(msg)}
         />
+
+        {/* Four people in ten days signed up here, added a vehicle and waited
+            for trips that could never arrive, because the tracker is the app
+            and this is the dashboard. One of them asked us to delete the
+            account. Say it before they wait. */}
+        <div className="auth-card__app">
+          <p className="auth-card__app-note">
+            The tracking happens in the app. This account is your dashboard for
+            the trips it records, so get the app on the phone you drive with.
+          </p>
+          <StoreButtons size="sm" align="center" />
+        </div>
 
         <p className="auth-card__footer">
           Already have an account?{" "}
