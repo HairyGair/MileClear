@@ -38,6 +38,7 @@ import {
   isNativeEngineAvailable,
   stopNativeLocationEngine,
 } from "../lib/tracking/nativeLocation";
+import { canPlatformRunJsEngine } from "../lib/tracking/jsEngineRule";
 import { useUser } from "../lib/user/context";
 import { colors, fonts } from "../lib/theme";
 
@@ -53,6 +54,11 @@ const TEXT_3 = colors.text3;
 const GREEN = colors.green;
 const RED = colors.red;
 const ORANGE = "#f97316";
+
+// Turning ClearTrack off drops the device onto the JS engine, which records
+// nothing on Android (21 Sep 2026, see lib/tracking/jsEngineRule.ts). Where
+// that is true the off position is not offered at all.
+const CAN_RUN_JS_ENGINE = canPlatformRunJsEngine(Platform.OS);
 
 const EVENT_COLORS: Record<string, string> = {
   detection_started: GREEN,
@@ -588,7 +594,9 @@ export default function DriveDetectionDiagnosticsScreen() {
         db.getAllAsync<RecentTripRow>(
           "SELECT id, start_address, end_address, distance_miles, started_at, ended_at, classification FROM trips ORDER BY started_at DESC LIMIT 10"
         ).catch(() => [] as RecentTripRow[]),
-        isNativeLocationEngineEnabled().catch(() => false),
+        // Same unknown-state answer the engine itself uses, so the switch
+        // never shows "off" on a phone that is in fact running native.
+        isNativeLocationEngineEnabled().catch(() => !CAN_RUN_JS_ENGINE),
       ]);
       getBatterySnapshot().then(setBattery).catch(() => {});
       setDiagnostics(diag);
@@ -610,6 +618,10 @@ export default function DriveDetectionDiagnosticsScreen() {
   // native engine (via startDriveDetection's flag check). Off→ stop native +
   // restart the JS engine. Restarting picks the right engine either way.
   const handleToggleNative = useCallback(async (next: boolean) => {
+    // The switch is already locked on where the JS engine records nothing;
+    // this is the same guard on the handler, so no future caller can put an
+    // Android phone on an engine that captures nothing.
+    if (!next && !CAN_RUN_JS_ENGINE) return;
     setBusy(true);
     try {
       await setNativeLocationEngineEnabled(next);
@@ -1139,11 +1151,17 @@ export default function DriveDetectionDiagnosticsScreen() {
             <Text style={[styles.nativeStatus, { color: nativeAvailable ? GREEN : TEXT_3 }]}>
               {nativeAvailable ? "● ClearTrack available" : "○ ClearTrack not bundled"}
             </Text>
+            {!CAN_RUN_JS_ENGINE && nativeOn ? (
+              <Text style={styles.nativeLocked}>
+                On Android this is the only thing that records your drives while the app is
+                closed, so it cannot be turned off.
+              </Text>
+            ) : null}
           </View>
           <Switch
             value={nativeOn}
             onValueChange={handleToggleNative}
-            disabled={busy}
+            disabled={busy || (!CAN_RUN_JS_ENGINE && nativeOn)}
             trackColor={{ true: AMBER, false: "#3f3f46" }}
             thumbColor="#fff"
           />
@@ -1493,6 +1511,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 11,
     marginTop: 8,
+  },
+  nativeLocked: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: TEXT_2,
+    lineHeight: 17,
+    marginTop: 6,
   },
   statusRow: {
     flexDirection: "row",
