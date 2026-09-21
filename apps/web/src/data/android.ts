@@ -1,12 +1,10 @@
 /** The Google Play listing, and the one switch that says whether it is public.
  *
- *  The public release was submitted on 19 September 2026 and auto-publishes on
- *  Google's approval. Until the listing answers, a Play link is a "not found"
- *  page for everyone, so PLAY_LIVE stays false: the Android button goes to
- *  /android and the copy says the app is waiting on Google.
- *
- *  ON APPROVAL: set PLAY_LIVE to true, rebuild, deploy. Nothing else to change. */
-export const PLAY_LIVE = false;
+ *  Submitted 19 September 2026, approved and live on 21 September. Every
+ *  Android surface reads this flag: the store buttons, the copy on the SEO
+ *  pages, the schema, and the "tell me when it lands" form on /android, which
+ *  disappears when this is true. */
+export const PLAY_LIVE = true;
 
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.mileclear.app";
 
