@@ -49,7 +49,12 @@
 // there, and the module is required lazily so Expo Go and iOS never touch it.
 
 import { Platform } from "react-native";
-import { decideHeadlessWake, readHeadlessFix } from "./headlessSpeedRule";
+import {
+  decideHeadlessWake,
+  readHeadlessFix,
+  HEADLESS_FORCE_START_ACCURACY_M,
+  HEADLESS_FORCE_START_SPEED_MS,
+} from "./headlessSpeedRule";
 import { pickHeadlessLocation, readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
@@ -59,9 +64,52 @@ type BgGeoHeadless = {
   changePace?: (isMoving: boolean) => Promise<unknown>;
 };
 
-/** Re-arm at most this often from heartbeats within one headless process. */
+/** Re-arm at most this often from heartbeats. */
 const HEARTBEAT_REARM_MS = 30 * 60 * 1000;
+
+/**
+ * 21 Sep 2026: this throttle had never once applied. It was a module variable,
+ * and Android tears the headless JavaScript context down between events, so
+ * every heartbeat started again from zero and re-armed. It shows in the fleet
+ * dumps as 663 `native_headless_rearmed` against 130 `native_motionchange`:
+ * five re-arms for every time a phone reported that anything had moved. The
+ * timestamp now lives in SQLite, which survives the teardown, and the module
+ * variable is kept only as a same-process fast path.
+ */
+const REARM_AT_KEY = "headless_rearm_at";
 let lastRearmAt = 0;
+
+async function readLastRearmAt(): Promise<number> {
+  if (lastRearmAt > 0) return lastRearmAt;
+  try {
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [REARM_AT_KEY]
+    );
+    const at = row ? Number(row.value) : 0;
+    return Number.isFinite(at) ? at : 0;
+  } catch {
+    // Unreadable means unknown, and unknown must not block a re-arm: a phone
+    // that cannot read its own throttle is better off armed than adrift.
+    return 0;
+  }
+}
+
+async function noteRearmAt(at: number): Promise<void> {
+  lastRearmAt = at;
+  try {
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
+      REARM_AT_KEY,
+      String(at),
+    ]);
+  } catch {
+    // The fast path still holds for this process.
+  }
+}
 
 async function rearmIfStationary(BGGeo: BgGeoHeadless, trigger: string): Promise<void> {
   let log: ((event: string, data?: Record<string, unknown>) => Promise<void>) | null = null;
@@ -76,7 +124,7 @@ async function rearmIfStationary(BGGeo: BgGeoHeadless, trigger: string): Promise
     if (state?.isMoving === true) return;
     if (typeof BGGeo.changePace !== "function") return;
     await BGGeo.changePace(false);
-    lastRearmAt = Date.now();
+    await noteRearmAt(Date.now());
     await log?.("native_headless_rearmed", { trigger });
   } catch (err) {
     await log?.("native_headless_rearm_failed", {
@@ -89,7 +137,39 @@ async function rearmIfStationary(BGGeo: BgGeoHeadless, trigger: string): Promise
 async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown): Promise<void> {
   const fix = readHeadlessFix(name, params);
   // Cheap pre-check before touching the SDK: most fixes are slow or absent.
-  if (!decideHeadlessWake({ fix, isMoving: null, enabled: null })) return;
+  if (!decideHeadlessWake({ fix, isMoving: null, enabled: null })) {
+    // The near miss is the interesting one: a fix travelling at driving speed
+    // that we threw away because it was not tight enough. An Android phone's
+    // first fix after a cold wake is often 40 to 100 m, and on a phone whose
+    // app the OS has ended this may be the only fix of the whole drive. We
+    // have never logged these, so the 30 m threshold has never been judged on
+    // anything (21 Sep 2026). Rare by construction, so no throttle needed.
+    if (
+      fix?.speedMs != null &&
+      fix.speedMs >= HEADLESS_FORCE_START_SPEED_MS &&
+      fix.accuracyM != null &&
+      fix.accuracyM > HEADLESS_FORCE_START_ACCURACY_M
+    ) {
+      const log = await loadLog();
+      await log?.("native_headless_wake_rejected", {
+        trigger: name,
+        reason: "accuracy",
+        speedMph: Math.round(fix.speedMs * 2.23694),
+        accuracy: Math.round(fix.accuracyM),
+      }).catch(() => {});
+    }
+    return;
+  }
+  // A pause is decided here too, so it can end while the app is closed: this
+  // is often the only code running on an Android phone for hours. "sleep"
+  // means the pause is still going, so leave the SDK parked rather than
+  // waking it for a drive we are not going to record.
+  try {
+    const { resolvePauseOnWake } = await import("./detection");
+    if ((await resolvePauseOnWake()) === "sleep") return;
+  } catch {
+    // Unreadable pause state must not block a recording.
+  }
   let log: ((event: string, data?: Record<string, unknown>) => Promise<void>) | null = null;
   try {
     log = (await import("./detection")).logDetectionEvent;
@@ -239,7 +319,7 @@ export function registerNativeHeadlessTask(): void {
       if (name === "boot" || name === "terminate") {
         await rearmIfStationary(BGGeo!, name);
       } else if (name === "heartbeat") {
-        if (Date.now() - lastRearmAt >= HEARTBEAT_REARM_MS) {
+        if (Date.now() - (await readLastRearmAt()) >= HEARTBEAT_REARM_MS) {
           await rearmIfStationary(BGGeo!, name);
         }
       } else if (name === "location" || name === "motionchange") {

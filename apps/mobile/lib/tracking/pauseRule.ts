@@ -54,6 +54,36 @@ export function isPauseActive(until: number | null | undefined, now: number): bo
   return typeof until === "number" && Number.isFinite(until) && until > now;
 }
 
+/** What a wake event should do about the stored pause.
+ *  - "record": no pause, carry on as normal.
+ *  - "sleep": still paused, refuse the drive and put the recorder back to
+ *    sleep, which is what makes a pause save any battery at all.
+ *  - "resume": the end time has passed, so clear the pause and record.
+ */
+export type PauseWake = "record" | "sleep" | "resume";
+
+/**
+ * Samantha Birch, 21 Sep 2026, verified on her phone: she chose "Until 6am
+ * tomorrow" at 20:00 on the 20th, and the pause did exactly what it was
+ * written to do, which was stop the engine. At 06:00 the pause expired and
+ * nothing started the engine again, because the only two things that could
+ * were a tap on the reminder and opening the app. She drove from 09:40, the
+ * phone recorded nothing, and she found out at half three. She typed the day
+ * in by hand and wrote "Not reliable so for now have to use 2 apps".
+ *
+ * So the pause stops being a stop command and becomes this decision, read
+ * fresh on every wake. A paused phone stays armed and refuses each drive; an
+ * expired one records the drive it just woke for. The end time is then kept
+ * by the clock rather than by the driver remembering to open the app.
+ */
+export function pauseWakeDecision(until: number | null | undefined, now: number): PauseWake {
+  if (until === null || until === undefined) return "record";
+  // A malformed value is not a pause, and must not strand the recorder: it
+  // reads as "never paused" here and gets cleared by the caller as expired.
+  if (!Number.isFinite(until)) return "resume";
+  return isPauseActive(until, now) ? "sleep" : "resume";
+}
+
 /** "Paused until 06:00 tomorrow" or "Paused until Tue 23 Sep". */
 export function describePause(until: number, now: number): string {
   const end = new Date(until);
