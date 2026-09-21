@@ -91,6 +91,33 @@ const HEARTBEAT_FRESHNESS_MS = 26 * 60 * 60 * 1000; // 26h, slightly more than t
 // lags observed on one device, 2 Aug) long before the user notices.
 const SIGNAL_STUCK_THRESHOLD_MS = 45 * 60 * 1000;
 
+// Check 3 threshold: armed-but-silent. Measured on production 21 Sep 2026 -
+// Android drivers lose a median 44% of days to silence inside their own
+// active run (10% on iOS), while activation (the phone ever getting armed in
+// the first place) is near equal. The phones are not failing to start; they
+// start, then go quiet, and the driver only finds out when they next open
+// the app. Two verified cases the same week: one driver went 8 days with
+// nothing recorded, another lost a full working day - both recovered the
+// instant they opened the app, which is the whole case for pushing instead
+// of waiting for them to notice. 24h is deliberately the same cadence as the
+// heartbeat itself: a healthy, occasionally-driving user can go a day
+// between trips for entirely normal reasons (day off, no bookings), so this
+// is a floor, not a tight window - it catches the multi-day dead-engine
+// cases this was built for without paging someone who just didn't drive
+// yesterday.
+const ARMED_SILENT_TRIP_STALE_MS = 24 * 60 * 60 * 1000;
+
+// Owner decision, 21 Sep 2026: this push is capped at once per device per
+// CALENDAR day, stricter than the shared 30-minute COOLDOWN_MS. The 30-min
+// cooldown exists to stop hammering a device that simply hasn't answered
+// yet; that's the wrong tool here. A phone that is armed, still heartbeating,
+// and has recorded nothing for 24h is not a today-only blip - if a restart
+// push doesn't wake the engine, sending five more the same day won't either,
+// it only burns iOS's ~3/hour silent-push budget that the other two checks
+// also rely on. One attempt a day is enough to measure whether the push
+// recovers anyone without turning this into background push spam.
+const ARMED_SILENT_DAILY_CAP_MS = 24 * 60 * 60 * 1000;
+
 // Pending-sync check thresholds. Discovered 4 May 2026 via James Taylor:
 // trips finalise via the native background task, get queued in SQLite,
 // but the JS runtime dies before the 60s periodicTick can drain. Users
@@ -157,9 +184,70 @@ interface PendingSyncUser {
   pushToken: string | null;
 }
 
+interface ArmedSilentUser {
+  id: string;
+  lastHeartbeatAt: Date | null;
+  lastTripAt: Date | null;
+  bgLocationPermission: string | null;
+  platformsSeen: string | null;
+  pushToken: string | null;
+}
+
+/** Fields the Check 3 selection rule reads. A subset of ArmedSilentUser so
+ *  the predicate can be unit-tested without a pushToken or platform string. */
+export interface ArmedSilentInput {
+  lastHeartbeatAt: Date | null;
+  lastTripAt: Date | null;
+  bgLocationPermission: string | null;
+}
+
+/**
+ * Check 3's selection rule, pulled out as a pure predicate so the judgement
+ * ("does this phone look armed and dead") can be unit-tested without
+ * touching Prisma. A user qualifies when all four hold:
+ *
+ *   1. Heartbeat is fresh (HEARTBEAT_FRESHNESS_MS) - the phone is reachable,
+ *      so a push has somewhere to land.
+ *   2. Background location permission reads "granted" - the phone is able
+ *      to record in the background, which is the only arming signal the
+ *      server actually holds. It deliberately does NOT test
+ *      trackingTaskActive: that column is isTaskRegisteredAsync() for the
+ *      JS detection task, and the fleet moved to the native engine, so it
+ *      reads false for every user on both platforms (400 of 400 checked on
+ *      21 Sep 2026, 37 Android and 345 iOS, not one true). Requiring it
+ *      would have made this check fire for nobody, which is exactly the
+ *      failure the check was built to catch.
+ *   3. lastTripAt is more than ARMED_SILENT_TRIP_STALE_MS old.
+ *   4. lastTripAt is not null - a user who has never recorded a trip is an
+ *      onboarding problem (see activationBlocker.ts), not a dead engine,
+ *      and must never receive this push.
+ */
+export function isArmedButSilent(u: ArmedSilentInput, now: number): boolean {
+  if (u.lastHeartbeatAt == null) return false;
+  if (now - u.lastHeartbeatAt.getTime() > HEARTBEAT_FRESHNESS_MS) return false;
+  if (u.bgLocationPermission !== "granted") return false;
+  if (u.lastTripAt == null) return false;
+  if (now - u.lastTripAt.getTime() < ARMED_SILENT_TRIP_STALE_MS) return false;
+  return true;
+}
+
+/**
+ * The one-push-per-calendar-day cap for Check 3, pulled out the same way as
+ * isArmedButSilent so it's unit-tested rather than trusted by inspection.
+ * `lastRestartPushAt` is the most recent watchdog.restart_engine_push_sent
+ * event for this user (null if there has never been one).
+ */
+export function exceedsArmedSilentDailyCap(
+  lastRestartPushAt: Date | null,
+  now: number
+): boolean {
+  if (lastRestartPushAt == null) return false;
+  return now - lastRestartPushAt.getTime() < ARMED_SILENT_DAILY_CAP_MS;
+}
+
 async function sendSilentPush(
   user: { id: string; pushToken: string | null },
-  action: "finalize_check" | "drain_sync",
+  action: "finalize_check" | "drain_sync" | "restart_engine",
   metadata: Record<string, unknown>
 ): Promise<"sent" | "cooldown" | "failed" | "gave_up"> {
   if (!user.pushToken) return "failed";
@@ -175,7 +263,11 @@ async function sendSilentPush(
   // and pending-sync) in the last RECENT_ATTEMPT_WINDOW_MS - if the
   // device wasn't going to respond to the first 4 pushes, the 5th
   // won't change anything.
-  const eventTypes = ["watchdog.silent_push_sent", "watchdog.drain_sync_push_sent"];
+  const eventTypes = [
+    "watchdog.silent_push_sent",
+    "watchdog.drain_sync_push_sent",
+    "watchdog.restart_engine_push_sent",
+  ];
   const windowStart = new Date(now - RECENT_ATTEMPT_WINDOW_MS);
   const recentAttempts = await prisma.appEvent.count({
     where: {
@@ -208,11 +300,13 @@ async function sendSilentPush(
 
   if (ticket && ticket.status === "ok") {
     lastPingedAt.set(user.id, now);
-    logEvent(
-      action === "drain_sync" ? "watchdog.drain_sync_push_sent" : "watchdog.silent_push_sent",
-      user.id,
-      metadata
-    );
+    const eventType =
+      action === "drain_sync"
+        ? "watchdog.drain_sync_push_sent"
+        : action === "restart_engine"
+          ? "watchdog.restart_engine_push_sent"
+          : "watchdog.silent_push_sent";
+    logEvent(eventType, user.id, metadata);
     return "sent";
   }
   if (ticket?.status === "error") {
@@ -624,6 +718,96 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     }
   }
 
+  // ── Check 3: armed but silent ─────────────────────────────────────
+  //
+  // Checks 1/1b/2 all go looking for a concrete fault flag: a stuck
+  // recording, a dangling signal_start, a backed-up sync queue. This check
+  // has none of that to go on - the phone reports everything is fine
+  // (background permission granted, tracker armed, heartbeating on
+  // schedule) and simply is not producing trips. Measured on production 21
+  // Sep 2026: Android drivers lose a median 44% of days to silence inside
+  // their own active run against 10% on iOS, while activation - the phone
+  // ever getting armed in the first place - is near equal. Two verified
+  // cases that week: one driver went 8 days with nothing recorded, another
+  // lost a full working day, and both recovered the instant they opened
+  // the app. This push exists to do that restart before the driver
+  // notices, instead of after.
+  //
+  // The DB query narrows to plausible candidates on cheap indexed columns;
+  // the actual decision runs through isArmedButSilent() so the one piece
+  // of judgement here lives in one tested function, not split between a
+  // WHERE clause and a loop.
+  const armedSilentTripCutoff = new Date(now - ARMED_SILENT_TRIP_STALE_MS);
+  const armedSilentCandidates = await prisma.$queryRaw<ArmedSilentUser[]>`
+    SELECT id, lastHeartbeatAt, lastTripAt, bgLocationPermission,
+           platformsSeen, pushToken
+    FROM users
+    WHERE bgLocationPermission = 'granted'
+      AND lastHeartbeatAt IS NOT NULL
+      AND lastHeartbeatAt > ${heartbeatCutoff}
+      AND lastTripAt IS NOT NULL
+      AND lastTripAt < ${armedSilentTripCutoff}
+      AND pushToken IS NOT NULL
+  `;
+  const armedSilent = armedSilentCandidates.filter((u) => isArmedButSilent(u, now));
+
+  // Daily cap (see ARMED_SILENT_DAILY_CAP_MS above) - stricter than the
+  // shared 30-min COOLDOWN_MS, so it needs its own check against app_events
+  // rather than relying on lastPingedAt. One grouped query for the whole
+  // candidate set rather than one round trip per user; the actual cap
+  // decision runs through exceedsArmedSilentDailyCap() for the same reason
+  // isArmedButSilent exists - one tested function, not inline arithmetic.
+  const lastRestartPushByUser = new Map<string, Date>();
+  if (armedSilent.length > 0) {
+    const dailyCapWindowStart = new Date(now - ARMED_SILENT_DAILY_CAP_MS);
+    const recentRestartPushes = await prisma.appEvent.groupBy({
+      by: ["userId"],
+      where: {
+        userId: { in: armedSilent.map((u) => u.id) },
+        type: "watchdog.restart_engine_push_sent",
+        createdAt: { gte: dailyCapWindowStart },
+      },
+      _max: { createdAt: true },
+    });
+    for (const row of recentRestartPushes) {
+      if (row.userId && row._max.createdAt) {
+        lastRestartPushByUser.set(row.userId, row._max.createdAt);
+      }
+    }
+  }
+
+  let armedSilentPinged = 0;
+  let armedSilentCooldown = 0;
+  let armedSilentGaveUp = 0;
+  let armedSilentDailyCapped = 0;
+  for (const user of armedSilent) {
+    // Already pushed once today for this exact condition - one attempt a
+    // day is the owner's cap, not "until the 30-min cooldown clears".
+    if (exceedsArmedSilentDailyCap(lastRestartPushByUser.get(user.id) ?? null, now)) {
+      armedSilentDailyCapped++;
+      continue;
+    }
+    const hoursSinceLastTrip = user.lastTripAt
+      ? (now - user.lastTripAt.getTime()) / 3.6e6
+      : null;
+    // sendSilentPush's own lastPingedAt cooldown also covers "Check 1 or
+    // Check 2 already pushed this user this run" - a push either of those
+    // sent moments ago sets lastPingedAt to now, so this call lands inside
+    // COOLDOWN_MS and returns "cooldown" here instead of double-pushing.
+    const result = await sendSilentPush(user, "restart_engine", {
+      hoursSinceLastTrip,
+      platform: user.platformsSeen,
+      armed: true,
+      lastTripAt: user.lastTripAt?.toISOString() ?? null,
+    });
+    if (result === "sent") armedSilentPinged++;
+    else if (result === "cooldown") armedSilentCooldown++;
+    else if (result === "gave_up") armedSilentGaveUp++;
+    // Deliberately not added to gaveUpUserIds/stuckUserIds - see the note
+    // below the summary log for why this check stays out of the founder
+    // alert's per-user dedup entirely.
+  }
+
   if (
     stuckPinged > 0 ||
     stuckCooldown > 0 ||
@@ -635,12 +819,17 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     syncPinged > 0 ||
     syncCooldown > 0 ||
     syncGaveUp > 0 ||
-    syncProvedAlive > 0
+    syncProvedAlive > 0 ||
+    armedSilentPinged > 0 ||
+    armedSilentCooldown > 0 ||
+    armedSilentGaveUp > 0 ||
+    armedSilentDailyCapped > 0
   ) {
     console.log(
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}, drained ${stuckDrained}); ` +
         `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}, nativeSkipped ${signalNativeSkipped}); ` +
-        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp}, provedAlive ${syncProvedAlive})`
+        `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp}, provedAlive ${syncProvedAlive}); ` +
+        `armedSilent=${armedSilent.length} (pinged ${armedSilentPinged}, cooldown ${armedSilentCooldown}, gave_up ${armedSilentGaveUp}, dailyCapped ${armedSilentDailyCapped})`
     );
   }
 
@@ -683,6 +872,21 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // glance. 1b keeps its pushes (they do recover trips) and stays fully
   // visible in the server log line and in watchdog.* app_events for
   // /admin/build-health - it just never pages anyone.
+  //
+  // Check 3 (armed-but-silent, added 21 Sep 2026) is excluded from this
+  // alert entirely, same call as 1b and for the same reason: it is built to
+  // match a LARGE, ongoing population (this is the check that exists
+  // because 44% of Android active-days go silent), not a handful of
+  // one-off incidents. Feeding armedSilentPinged/Cooldown/GaveUp into
+  // actualPings/cooldownHits/gaveUpHits below would make "the watchdog
+  // doing its normal job" look like a fleet-wide incident on the very first
+  // run and re-page #founder every time the churning cohort's membership
+  // changed - exactly the 1b flood this section already fixed once. Its
+  // counts stay in the server log line above and in watchdog.* app_events
+  // (measurable per /admin/build-health) without paging anyone per phone.
+  // If restart_engine ever needs paging, it should be a dedicated, rate-
+  // limited alert built the way 1b's cooldown fix was (a count threshold on
+  // its OWN clock), not folded into this per-user dedup.
   const actualPings = stuckPinged + syncPinged;
   const cooldownHits = stuckCooldown + syncCooldown;
   const gaveUpHits = stuckGaveUp + syncGaveUp;
