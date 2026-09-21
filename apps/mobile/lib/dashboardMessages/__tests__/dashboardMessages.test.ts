@@ -17,7 +17,8 @@ const base: MessageInputs = {
   locationTier: "always",
   bgRefreshOff: false,
   bgPermissionLost: false,
-  motionDenied: false,
+  motionStatus: "granted",
+  chaseUndeterminedMotion: false,
   notifPermission: "granted",
   batteryApplicable: false,
   batteryIgnoring: null,
@@ -87,7 +88,7 @@ describe("selectDashboardMessages", () => {
 
   // ── Rule 1: one thing above your mileage ────────────────────────
   it("hides the setup card entirely while a blocker is showing", () => {
-    const r = on({ locationTier: "none", motionDenied: true, notifPermission: "denied" });
+    const r = on({ locationTier: "none", motionStatus: "denied", notifPermission: "denied" });
     expect(r.blocker).toBe("no_location");
     expect(r.setup).toBeNull();
   });
@@ -186,22 +187,98 @@ describe("selectDashboardMessages", () => {
   });
 
   it("reports progress as done/total", () => {
-    const r = on({ locationTier: "foreground", motionDenied: true });
+    const r = on({ locationTier: "foreground", motionStatus: "denied" });
     expect(r.setup!.done).toBe(1); // notifications only
     expect(r.setup!.total).toBe(3);
   });
 
   it("does not chase motion until location is sorted", () => {
-    const r = on({ locationTier: "foreground", motionDenied: true });
+    const r = on({ locationTier: "foreground", motionStatus: "denied" });
     const motion = r.setup!.items.find((i) => i.id === "motion")!;
     expect(motion.done).toBe(false);
     expect(motion.actionable).toBe(false);
   });
 
   it("chases motion once Always is granted", () => {
-    const r = on({ locationTier: "always", motionDenied: true });
+    const r = on({ locationTier: "always", motionStatus: "denied" });
     const motion = r.setup!.items.find((i) => i.id === "motion")!;
     expect(motion.actionable).toBe(true);
+  });
+
+  // ── Motion (Physical activity on Android) ───────────────────────
+  // 21 Sep 2026, 41 Android dumps: granted on 22 phones, undetermined on 14,
+  // denied on 5. "Never asked" used to count as done, so 46% of Android
+  // phones were never chased and lost days of driving.
+  const motionRow = (r: ReturnType<typeof on>) =>
+    r.setup!.items.find((i) => i.id === "motion")!;
+
+  it("Android: never asked is not done, and it is chased", () => {
+    const r = on({ motionStatus: "undetermined", chaseUndeterminedMotion: true });
+    expect(r.setup).not.toBeNull();
+    const m = motionRow(r);
+    expect(m.done).toBe(false);
+    expect(m.actionable).toBe(true);
+    expect(r.setup!.done).toBe(2); // location + notifications
+  });
+
+  it("Android: granted is done and says nothing", () => {
+    const r = on({ motionStatus: "granted", chaseUndeterminedMotion: true });
+    expect(r.setup).toBeNull();
+    expect(motionRow(on({ motionStatus: "granted", chaseUndeterminedMotion: true, locationTier: "foreground" })).done).toBe(true);
+  });
+
+  it("Android: denied is not done and is chased", () => {
+    const r = on({ motionStatus: "denied", chaseUndeterminedMotion: true });
+    const m = motionRow(r);
+    expect(m.done).toBe(false);
+    expect(m.actionable).toBe(true);
+  });
+
+  it("iOS: never asked is unchanged, still done and silent", () => {
+    const r = on({ motionStatus: "undetermined", chaseUndeterminedMotion: false });
+    expect(r.setup).toBeNull();
+    const withWork = on({
+      motionStatus: "undetermined",
+      chaseUndeterminedMotion: false,
+      locationTier: "foreground",
+    });
+    const m = motionRow(withWork);
+    expect(m.done).toBe(true);
+    expect(m.actionable).toBe(false);
+  });
+
+  it("iOS: denied is still chased, exactly as before", () => {
+    const m = motionRow(on({ motionStatus: "denied", chaseUndeterminedMotion: false }));
+    expect(m.done).toBe(false);
+    expect(m.actionable).toBe(true);
+  });
+
+  it("never chases a build that has no motion module at all", () => {
+    for (const chase of [true, false]) {
+      const r = on({ motionStatus: "unavailable", chaseUndeterminedMotion: chase });
+      expect(r.setup).toBeNull();
+      const m = motionRow(on({ motionStatus: "unavailable", chaseUndeterminedMotion: chase, locationTier: "foreground" }));
+      expect(m.done).toBe(true);
+    }
+  });
+
+  it("still does not chase motion before location is sorted", () => {
+    const m = motionRow(on({
+      locationTier: "foreground",
+      motionStatus: "undetermined",
+      chaseUndeterminedMotion: true,
+    }));
+    expect(m.done).toBe(false);
+    expect(m.actionable).toBe(false);
+  });
+
+  it("still respects the 7-day motion snooze when never asked", () => {
+    const r = on({
+      motionStatus: "undetermined",
+      chaseUndeterminedMotion: true,
+      motionNudgeSilenced: true,
+    });
+    expect(r.setup).toBeNull();
   });
 
   it("hides the checklist when every outstanding item is snoozed", () => {

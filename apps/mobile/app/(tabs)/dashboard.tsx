@@ -89,6 +89,7 @@ import { SmartInsightCard } from "../../components/SmartInsightCard";
 import { usePaywall } from "../../components/paywall";
 import { usePrompt } from "../../components/prompt";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus, type LocationPermissionTier } from "../../lib/permissions/location";
+import type { MotionPermission } from "../../lib/tracking/motionPermission";
 import {
   getNotificationPermissionStatus,
   registerForPushNotifications,
@@ -219,6 +220,12 @@ export default function DashboardScreen() {
   // the thing that produced 121 undetermined permissions.
   const [showLocPrimer, setShowLocPrimer] = useState(false);
   const [locPrimerSeen, setLocPrimerSeen] = useState(true); // default true until loaded
+  // The primer has a second card on Android: Physical activity, asked once,
+  // straight after location and never before it. Until 21 Sep 2026 the only
+  // ask in the whole app sat behind starting a shift, so 14 of 41 Android
+  // phones had never been asked at all and 474 of 626 drivers never start a
+  // shift to be asked by.
+  const [primerStep, setPrimerStep] = useState<"location" | "motion">("location");
   // Timestamp the explainer was shown, to measure dwell time on dismiss.
   const explainerShownAtRef = useRef<number | null>(null);
 
@@ -242,9 +249,13 @@ export default function DashboardScreen() {
   // May audit) while still resurfacing the prompt periodically so a
   // user who genuinely benefits from auto-detection finds it again.
   const [bgLocNudgeDismissedAt, setBgLocNudgeDismissedAt] = useState<number | null>(null);
-  // Motion & Fitness denied → degraded short-trip detection. Soft, dismissable
-  // nudge (engine still works via the speed backstop), 7-day cooldown.
-  const [motionDenied, setMotionDenied] = useState(false);
+  // Motion & Fitness (Physical activity on Android) → degraded short-trip
+  // detection. Soft, dismissable nudge (engine still works via the speed
+  // backstop), 7-day cooldown. Holds the phone's real answer rather than a
+  // denied flag: 21 Sep 2026, 41 Android dumps had it undetermined on 14
+  // phones, and "never asked" was counting as done. Starts at "granted" so a
+  // cold start cannot flash the row before the real read lands.
+  const [motionStatus, setMotionStatus] = useState<MotionPermission>("granted");
   const [motionNudgeDismissedAt, setMotionNudgeDismissedAt] = useState<number | null>(null);
   // Pause with an end (16 Sep 2026): epoch ms while paused, else null. And
   // when the permanent Settings switch went off, for the "off since" card.
@@ -769,12 +780,19 @@ export default function DashboardScreen() {
     setBgLocationGranted(final.tier === "always");
   }, []);
 
+  // Undetermined still has a system prompt behind it, so ask for it here and
+  // save the driver a trip into Settings. Once it is denied the OS never
+  // prompts again, so Settings is the only route left (21 Sep 2026).
   const fixMotionFromChecklist = useCallback(async () => {
+    if (motionStatus === "denied") {
+      Linking.openSettings().catch(() => {});
+      return;
+    }
     const { requestMotionPermission } = await import("../../lib/tracking/motionPermission");
     const result = await requestMotionPermission();
-    if (result === "granted") setMotionDenied(false);
-    else Linking.openSettings().catch(() => {});
-  }, []);
+    setMotionStatus(result);
+    trackEvent("motion_permission.result", { source: "checklist", status: result });
+  }, [motionStatus]);
 
   const dashboardMessages = useMemo(
     () =>
@@ -784,7 +802,8 @@ export default function DashboardScreen() {
         locationTier,
         bgRefreshOff,
         bgPermissionLost,
-        motionDenied,
+        motionStatus,
+        chaseUndeterminedMotion: Platform.OS === "android",
         notifPermission,
         batteryApplicable: Platform.OS === "android",
         batteryIgnoring: batteryOptState?.ignoring ?? null,
@@ -803,7 +822,7 @@ export default function DashboardScreen() {
       }),
     [
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
-      motionDenied, notifPermission, batteryOptState, batteryNudgeDismissedAt,
+      motionStatus, notifPermission, batteryOptState, batteryNudgeDismissedAt,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
       notifPrimerSilenced, detectionOffSince, showFirstTripNudge, showSavedLocationsNudge,
       showReferralCard, showProNudge, amapBannerSeen,
@@ -901,14 +920,21 @@ export default function DashboardScreen() {
     }
   }, [locationTier, locPrimerSeen, loading]);
 
-  const markLocPrimerSeen = useCallback(async () => {
+  // Recording the primer as seen and closing it are two things now: the motion
+  // card keeps the modal open after the location card is finished with.
+  const persistLocPrimerSeen = useCallback(async () => {
     setLocPrimerSeen(true);
-    setShowLocPrimer(false);
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('loc_primer_seen', '1')"
     );
   }, []);
+
+  const markLocPrimerSeen = useCallback(async () => {
+    setShowLocPrimer(false);
+    setPrimerStep("location");
+    await persistLocPrimerSeen();
+  }, [persistLocPrimerSeen]);
 
   const enableLocationFromPrimer = useCallback(async () => {
     trackEvent("loc_primer.accepted", {});
@@ -916,13 +942,46 @@ export default function DashboardScreen() {
     setLocationTier(final.tier);
     setBgLocationGranted(final.tier === "always");
     trackEvent("loc_primer.result", { tier: final.tier });
+    // Motion second, and only when location got somewhere: piling a second
+    // prompt on top of a refusal asks for a second refusal. Only where the
+    // phone has never been asked, so nobody sees this twice.
+    if (Platform.OS === "android" && final.tier !== "none") {
+      const { getMotionPermission } = await import("../../lib/tracking/motionPermission");
+      const motion = await getMotionPermission();
+      setMotionStatus(motion);
+      if (motion === "undetermined") {
+        trackEvent("motion_primer.shown", { source: "loc_primer" });
+        await persistLocPrimerSeen();
+        setPrimerStep("motion");
+        return;
+      }
+    }
     await markLocPrimerSeen();
-  }, [markLocPrimerSeen]);
+  }, [markLocPrimerSeen, persistLocPrimerSeen]);
+
+  const enableMotionFromPrimer = useCallback(async () => {
+    trackEvent("motion_primer.accepted", {});
+    const { requestMotionPermission } = await import("../../lib/tracking/motionPermission");
+    const result = await requestMotionPermission();
+    setMotionStatus(result);
+    trackEvent("motion_permission.result", { source: "primer", status: result });
+    setShowLocPrimer(false);
+    setPrimerStep("location");
+  }, []);
 
   const dismissLocPrimer = useCallback(async (method: string = "not_now") => {
+    if (primerStep === "motion") {
+      trackEvent("motion_primer.dismissed", { method });
+      setShowLocPrimer(false);
+      setPrimerStep("location");
+      // Snooze the checklist row too, or the same ask reappears seconds after
+      // they said not now. Seven days, the same cooldown as every other nudge.
+      await dismissMotionNudge();
+      return;
+    }
     trackEvent("loc_primer.dismissed", { method });
     await markLocPrimerSeen();
-  }, [markLocPrimerSeen]);
+  }, [markLocPrimerSeen, primerStep, dismissMotionNudge]);
 
   const dismissWorkExplainer = useCallback(async (method: string = "got_it") => {
     const shownAt = explainerShownAtRef.current;
@@ -1163,14 +1222,14 @@ export default function DashboardScreen() {
           getBackgroundRefreshStatus().then((s) => setBgRefreshOff(isBackgroundRefreshBlocked(s)))
         )
         .catch(() => {});
-      // Motion & Fitness: when denied, ClearTrack can't detect a drive STARTING
+      // Motion & Fitness: without it, ClearTrack can't detect a drive STARTING
       // via the motion chip and leans on the slower GPS speed backstop, which
       // misses short cold-start legs (balkistomi, recurring). Softer than the
       // location blocker — the engine still works — so it's a dismissable nudge.
+      // The full status, not just "denied": on Android a phone that was never
+      // asked is in exactly the same hole as one that refused (21 Sep 2026).
       import("../../lib/tracking/motionPermission")
-        .then(({ getMotionPermission }) =>
-          getMotionPermission().then((m) => setMotionDenied(m === "denied"))
-        )
+        .then(({ getMotionPermission }) => getMotionPermission().then(setMotionStatus))
         .catch(() => {});
       refreshPauseState();
       // dashboard_focus rating trigger removed 4 May 2026 — was the
@@ -1669,12 +1728,75 @@ export default function DashboardScreen() {
     </AppModal>
   );
 
+  // Second card of the primer, Android only: Physical activity. Explained
+  // first, prompt on the tap, same as location - a cold prompt is what left 14
+  // of 41 Android phones undetermined (21 Sep 2026).
+  const motionPrimerCard = (
+    <View style={s.explainerOverlay}>
+      <View style={s.explainerCard}>
+        <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
+          <View style={s.explainerIconWrap}>
+            <Ionicons name="walk" size={28} color="#f5a623" />
+          </View>
+          <Text style={s.explainerTitle}>One more, and you are set</Text>
+          <Text style={s.explainerBody}>
+            Your phone can tell MileClear the moment you start moving. That is how a drive gets recorded from the start, instead of a mile in.
+          </Text>
+
+          <View style={s.explainerList}>
+            <ExplainerItem
+              icon="car-outline"
+              text="Short drives get picked up, not missed."
+            />
+            <ExplainerItem
+              icon="flash-outline"
+              text="It reads a sensor your phone already runs, so it is not extra GPS."
+            />
+          </View>
+
+          <View style={s.explainerDivider} />
+
+          <Text style={s.explainerSubhead}>What happens next</Text>
+          <Text style={s.explainerBody}>
+            Your phone will ask to allow <Text style={s.explainerBold}>Physical activity</Text>. You can change it any time in Settings.
+          </Text>
+        </ScrollView>
+
+        <TouchableOpacity
+          onPress={enableMotionFromPrimer}
+          activeOpacity={0.85}
+          style={s.explainerCta}
+          accessibilityRole="button"
+          accessibilityLabel="Allow physical activity"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="walk" size={20} color="#030712" />
+          <Text style={s.explainerCtaText}>Allow Physical activity</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => dismissLocPrimer("not_now")}
+          activeOpacity={0.7}
+          style={{ marginTop: 12, paddingVertical: 10, alignItems: "center" }}
+          accessibilityRole="button"
+          accessibilityLabel="Not now"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={{ color: TEXT_3, fontSize: 14, fontFamily: fonts.regular }}>
+            Not now
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   const locPrimerModal = (
     <AppModal
       visible={showLocPrimer}
       animationType="fade"
       onRequestClose={() => dismissLocPrimer("system")}
     >
+      {primerStep === "motion" ? motionPrimerCard : (
       <View style={s.explainerOverlay}>
         <View style={s.explainerCard}>
           <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false}>
@@ -1731,6 +1853,7 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      )}
     </AppModal>
   );
 

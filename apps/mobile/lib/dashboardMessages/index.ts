@@ -26,6 +26,10 @@
 
 export type LocationTier = "none" | "foreground" | "always";
 export type NotifPermission = "granted" | "denied" | "undetermined";
+/** Motion & Fitness on iOS, Physical activity (ACTIVITY_RECOGNITION) on
+ *  Android. "unavailable" is a build that does not bundle the sensor module,
+ *  which is nobody's chore to finish. */
+export type MotionStatus = "granted" | "denied" | "undetermined" | "unavailable";
 
 /** Red, non-dismissible: MileClear cannot record a single mile in this state. */
 export type BlockerId = "no_location" | "bg_refresh_off" | "permission_lost";
@@ -87,7 +91,16 @@ export interface MessageInputs {
   locationTier: LocationTier;
   bgRefreshOff: boolean;
   bgPermissionLost: boolean;
-  motionDenied: boolean;
+  /** The phone's own answer, not a boolean. Until 21 Sep 2026 this row read
+   *  `!motionDenied`, so a phone that had never been asked counted as done. */
+  motionStatus: MotionStatus;
+  /** Does "never asked" count as outstanding? Android only.
+   *  21 Sep 2026, 41 Android diagnostic dumps: motion was granted on 22
+   *  phones, undetermined on 14 and denied on 5, because the only ask lived
+   *  behind starting a shift and only 152 of 626 drivers ever start one.
+   *  Those 14 lose whole days of driving. iOS keeps today's behaviour: ~600
+   *  iPhone drivers, and this release is not adding them a new nag. */
+  chaseUndeterminedMotion: boolean;
   notifPermission: NotifPermission;
 
   /** Android only. `batteryApplicable` distinguishes "not on this platform"
@@ -171,6 +184,12 @@ function buildSetup(i: MessageInputs): SetupItem[] {
   // the answer is the one the dump would report as ignoring:true.
   const batteryApplicable = i.batteryApplicable && i.batteryIgnoring !== null;
   const batteryDone = batteryApplicable && i.batteryIgnoring === true;
+  // Denied always counts. Undetermined counts only where we chase it, which is
+  // Android (21 Sep 2026: 14 of 41 phones never asked). "unavailable" never
+  // counts: no build, no setting, no chore.
+  const motionOutstanding =
+    i.motionStatus === "denied" ||
+    (i.motionStatus === "undetermined" && i.chaseUndeterminedMotion);
   return [
     {
       id: "always_location",
@@ -182,10 +201,10 @@ function buildSetup(i: MessageInputs): SetupItem[] {
     {
       id: "motion",
       applicable: true,
-      done: !i.motionDenied,
+      done: !motionOutstanding,
       // Chasing motion before location is sorted is asking for the wrong
       // thing first; the old gate required locationTier === "always" too.
-      actionable: i.motionDenied && alwaysDone,
+      actionable: motionOutstanding && alwaysDone,
       silenced: i.motionNudgeSilenced,
     },
     {
