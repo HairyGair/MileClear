@@ -21,7 +21,9 @@ import { MapPickerModal } from "./MapPickerModal";
 import { haversineDistance } from "@mileclear/shared";
 import { getDatabase } from "../lib/db";
 import {
+  matchSavedPlaces,
   selectPickerPlaces,
+  SAVED_PLACES_LIMIT,
   type PickerPlace,
   type PickerPlaces,
   type RecentTripRow,
@@ -37,7 +39,7 @@ async function loadPickerPlaces(): Promise<PickerPlaces> {
   const db = await getDatabase();
   const [savedPlaces, trips] = await Promise.all([
     db.getAllAsync<SavedPlaceRow>(
-      `SELECT id, name, latitude, longitude FROM saved_locations
+      `SELECT id, name, latitude, longitude, location_type FROM saved_locations
        ORDER BY CASE location_type WHEN 'home' THEN 0 WHEN 'work' THEN 1 ELSE 2 END,
                 name COLLATE NOCASE ASC`
     ),
@@ -88,6 +90,9 @@ export function LocationPickerField({
   const [noResults, setNoResults] = useState(false);
   // Saved places and recent trip ends, offered while the search box is empty.
   const [pickerPlaces, setPickerPlaces] = useState<PickerPlaces>({ saved: [], recent: [] });
+  // The first SAVED_PLACES_LIMIT saved places show by default; the rest wait
+  // behind "Show all" so a long list does not bury the recent places.
+  const [showAllSaved, setShowAllSaved] = useState(false);
 
   const sessionRef = useRef<string>(newSessionToken());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -99,6 +104,7 @@ export function LocationPickerField({
   // trip added a moment ago is there.
   useEffect(() => {
     if (!showSearch) return;
+    setShowAllSaved(false);
     let cancelled = false;
     loadPickerPlaces()
       .then((places) => {
@@ -218,6 +224,11 @@ export function LocationPickerField({
 
   const showPickerPlaces =
     searchText.trim().length === 0 && (pickerPlaces.saved.length > 0 || pickerPlaces.recent.length > 0);
+  const savedShown = showAllSaved ? pickerPlaces.saved : pickerPlaces.saved.slice(0, SAVED_PLACES_LIMIT);
+  const savedHidden = pickerPlaces.saved.length - savedShown.length;
+  // Saved places are on the phone, so they match from the first letter, while
+  // the address search waits for three.
+  const savedMatches = searchText.trim().length > 0 ? matchSavedPlaces(pickerPlaces.saved, searchText) : [];
 
   const handleMapConfirm = (mapLat: number, mapLng: number, mapAddress: string | null) => {
     onLocationChange(mapLat, mapLng, mapAddress);
@@ -330,7 +341,41 @@ export function LocationPickerField({
           {showPickerPlaces && pickerPlaces.saved.length > 0 && (
             <View style={styles.suggestionList}>
               <Text style={styles.suggestionHint}>Saved places</Text>
-              {pickerPlaces.saved.map((p) => (
+              {savedShown.map((p) => (
+                <TouchableOpacity
+                  key={p.key}
+                  style={styles.suggestionRow}
+                  onPress={() => handlePickPlace(p)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Saved place, ${p.label}`}
+                >
+                  <Ionicons name="bookmark-outline" size={15} color={AMBER} accessible={false} />
+                  <Text style={styles.suggestionText} numberOfLines={1}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+              {savedHidden > 0 && (
+                <TouchableOpacity
+                  style={styles.suggestionRow}
+                  onPress={() => setShowAllSaved(true)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show all ${pickerPlaces.saved.length} saved places`}
+                >
+                  <Ionicons name="chevron-down" size={15} color={AMBER} accessible={false} />
+                  <Text style={styles.showAllText} numberOfLines={1}>
+                    Show all {pickerPlaces.saved.length} saved places
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* While typing: saved places whose name matches, above the address search */}
+          {savedMatches.length > 0 && (
+            <View style={styles.suggestionList}>
+              <Text style={styles.suggestionHint}>Saved places</Text>
+              {savedMatches.map((p) => (
                 <TouchableOpacity
                   key={p.key}
                   style={styles.suggestionRow}
@@ -590,6 +635,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.medium,
     color: TEXT_1,
+    flex: 1,
+  },
+  showAllText: {
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: AMBER,
     flex: 1,
   },
   predictionPrimary: {
