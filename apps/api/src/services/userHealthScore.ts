@@ -12,7 +12,23 @@
 
 export interface HealthScoreInput {
   bgLocationPermission: string | null;
-  trackingTaskActive: boolean | null;
+  /**
+   * @deprecated Read but no longer scored, 22 Sep 2026.
+   *
+   * It is `TaskManager.isTaskRegisteredAsync(DETECTION_TASK_NAME)` from the
+   * heartbeat: the OLD JavaScript detection task. Every current build runs
+   * the native engine instead, so it is false for the entire fleet (400 of
+   * 400 users checked, 37 Android and 345 iOS, not one true). Scoring it
+   * took a flat 15 points off everybody, which meant nobody could score
+   * above 85 and any healthy driver missing two real factors fell into
+   * "warning". Marie MOG, a paying subscriber with 173 trips in her first
+   * month, every permission granted and an empty sync queue, scored 80 and
+   * showed "Tracking task: not running" as a fault.
+   *
+   * Kept in the interface so callers need not change; ignored in the score.
+   * The same column also nearly shipped a dead watchdog check the day before.
+   */
+  trackingTaskActive?: boolean | null;
   backgroundFetchStatus: string | null;
   lastHeartbeatAt: Date | null;
   lastPendingSyncCount: number | null;
@@ -39,7 +55,6 @@ export interface HealthScoreResult {
 
 const FACTORS = {
   bgLocation: 20,        // The single biggest reliability factor.
-  trackingTask: 15,      // Background task running = recordings can fire.
   backgroundFetch: 10,   // Allows finalize-on-launch to fire reliably.
   recentHeartbeat: 15,   // Have we heard from the device recently?
   pendingSync: 10,       // Queue should be empty most of the time.
@@ -65,15 +80,9 @@ export function calculateUserHealthScore(input: HealthScoreInput): HealthScoreRe
     factors.push({ key: "bgLocation", label: `Background location: ${input.bgLocationPermission}`, points: 0, max: FACTORS.bgLocation, detail: input.bgLocationPermission });
   }
 
-  // 2. Tracking task active
-  if (input.trackingTaskActive === true) {
-    factors.push({ key: "trackingTask", label: "Tracking task: active", points: FACTORS.trackingTask, max: FACTORS.trackingTask, detail: "true" });
-    total += FACTORS.trackingTask;
-  } else if (input.trackingTaskActive === false) {
-    factors.push({ key: "trackingTask", label: "Tracking task: not running", points: 0, max: FACTORS.trackingTask, detail: "false" });
-  } else {
-    factors.push({ key: "trackingTask", label: "Tracking task: unknown", points: 0, max: FACTORS.trackingTask, detail: "no heartbeat data" });
-  }
+  // 2. Tracking task active — REMOVED 22 Sep 2026, see HealthScoreInput.
+  // It scored 0 for every user alive, so it was a flat 15-point penalty on
+  // the whole fleet and nothing else.
 
   // 3. Background fetch status
   if (input.backgroundFetchStatus === "available" || input.backgroundFetchStatus === "granted") {
@@ -174,16 +183,23 @@ export function calculateUserHealthScore(input: HealthScoreInput): HealthScoreRe
     : null;
   const heartbeatTooOld = heartbeatAgeMs !== null && heartbeatAgeMs >= 7 * DAY_MS;
 
+  // Score out of what is actually scoreable, not out of a fixed 100. The
+  // weights above keep their meaning relative to each other, and dropping a
+  // factor cannot quietly become a penalty on the whole fleet again: the
+  // denominator is whatever was really measured (22 Sep 2026).
+  const maxTotal = factors.reduce((sum, f) => sum + f.max, 0);
+  const score = maxTotal > 0 ? Math.round((total / maxTotal) * 100) : 0;
+
   let band: HealthScoreResult["band"];
   if (input.lastHeartbeatAt === null || heartbeatTooOld) {
     band = "unknown";
-  } else if (total >= 75) {
+  } else if (score >= 75) {
     band = "good";
-  } else if (total >= 50) {
+  } else if (score >= 50) {
     band = "warning";
   } else {
     band = "critical";
   }
 
-  return { score: total, factors, band };
+  return { score, factors, band };
 }

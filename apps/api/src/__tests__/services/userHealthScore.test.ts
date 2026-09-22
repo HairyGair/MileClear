@@ -57,8 +57,8 @@ describe("calculateUserHealthScore", () => {
       ...HEALTHY,
       bgLocationPermission: "denied",
     });
-    // Healthy = 100, lose 20 for bg-location → 80, still "good"
-    expect(result.score).toBe(80);
+    // Healthy = 100, lose bg-location's 20 of the 85 scoreable → 76, still "good"
+    expect(result.score).toBe(76);
     expect(result.band).toBe("good");
   });
 
@@ -66,13 +66,16 @@ describe("calculateUserHealthScore", () => {
     const result = calculateUserHealthScore({
       ...HEALTHY,
       bgLocationPermission: "denied",
-      trackingTaskActive: false,
       backgroundFetchStatus: "denied",
       lastSyncQueuePermFailed: 3,
     });
-    // -20 -15 -10 -10 = 45 left → critical
-    expect(result.score).toBe(45);
-    expect(result.band).toBe("critical");
+    // -20 -10 -10 of the 85 scoreable = 45/85 → 53.
+    // ⚠️ This case was "critical" until 22 Sep 2026, and only because the
+    // dead tracking-task factor took a further 15 off everyone. With the
+    // phantom penalty gone the honest arithmetic puts it in "warning".
+    // Worth knowing if the band thresholds are ever retuned.
+    expect(result.score).toBe(53);
+    expect(result.band).toBe("warning");
   });
 
   it("partial credit when heartbeat is mid-stale (2 days)", () => {
@@ -90,7 +93,7 @@ describe("calculateUserHealthScore", () => {
       ...HEALTHY,
       lastHeartbeatAt: ago(10 * DAY),
     });
-    expect(result.score).toBe(85); // -15 from healthy
+    expect(result.score).toBe(82); // -15 of 85 scoreable, rounded
   });
 
   it("partial credit on older builds with null telemetry", () => {
@@ -116,8 +119,20 @@ describe("calculateUserHealthScore", () => {
       ...HEALTHY,
       lastPendingSyncCount: 12, // big backlog
     });
-    expect(result.score).toBe(90); // -10 for pending
+    expect(result.score).toBe(88); // -10 of the 85 scoreable
     expect(result.band).toBe("good");
+  });
+
+  it("ignores trackingTaskActive, which is false for the entire fleet", () => {
+    // 22 Sep 2026: it was 15 of 100 points that nobody could ever earn, so
+    // every user carried a flat penalty and no one could score above 85.
+    const on = calculateUserHealthScore({ ...HEALTHY, trackingTaskActive: true });
+    const off = calculateUserHealthScore({ ...HEALTHY, trackingTaskActive: false });
+    const absent = calculateUserHealthScore({ ...HEALTHY, trackingTaskActive: null });
+    expect(on.score).toBe(100);
+    expect(off.score).toBe(100);
+    expect(absent.score).toBe(100);
+    expect(on.factors.some((f) => f.key === "trackingTask")).toBe(false);
   });
 
   it("returns the factor breakdown alongside the score", () => {
