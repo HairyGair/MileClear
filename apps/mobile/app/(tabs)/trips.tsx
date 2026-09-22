@@ -1464,10 +1464,12 @@ export default function TripsScreen() {
               </TouchableOpacity>
             )}
 
-            {/* Back in the header 22 Sep, as a single line that opens in place.
-                In the footer it could not be reached: scrolling down to it
-                loaded the next page of trips and pushed it away again. */}
+            {/* Both back in the header 22 Sep. In the footer they could not be
+                reached: scrolling down to them loaded the next page of trips
+                and pushed them away again. Journeys to check is a single line
+                that opens in place, so the pair costs two slim rows. */}
             {filter !== "unclassified" && <MissedJourneys />}
+            {filter !== "unclassified" && <MissingTripReporter />}
 
             <View style={styles.filterRow}>
               {/* The chips scroll sideways so the Filters control always
@@ -1682,9 +1684,6 @@ export default function TripsScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
-            {/* Moved out of the list header 13 Sep: it sat directly above
-                the first trip and pushed the list down the screen. */}
-            {filter !== "unclassified" && <MissingTripReporter />}
             {loadingMore && (
               <ActivityIndicator
                 color={AMBER}
