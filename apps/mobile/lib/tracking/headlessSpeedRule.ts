@@ -10,11 +10,11 @@
 // 58-mile drive she had to type in herself.
 //
 // Pure decision so it can be unit-tested; the headless task feeds it the raw
-// event and acts on the answer. Thresholds match the foreground backstop in
-// nativeLocation.ts (12 mph, fix accuracy within 30 m).
+// event and acts on the answer. The speed and accuracy test is the shared
+// speedStartRule, the same one the foreground backstop in nativeLocation.ts
+// uses, because the headless task hands the fix on to that handler.
 
-export const HEADLESS_FORCE_START_SPEED_MS = 12 * 0.44704;
-export const HEADLESS_FORCE_START_ACCURACY_M = 30;
+import { decideSpeedStart } from "./speedStartRule";
 
 export interface HeadlessFix {
   speedMs: number | null;
@@ -46,9 +46,5 @@ export function decideHeadlessWake({ fix, isMoving, enabled }: HeadlessWakeInput
   if (!fix) return false;
   if (enabled === false) return false;
   if (isMoving === true) return false;
-  const { speedMs, accuracyM } = fix;
-  if (speedMs == null || accuracyM == null) return false;
-  if (speedMs < HEADLESS_FORCE_START_SPEED_MS) return false;
-  if (accuracyM > HEADLESS_FORCE_START_ACCURACY_M) return false;
-  return true;
+  return decideSpeedStart(fix.speedMs, fix.accuracyM).start;
 }
