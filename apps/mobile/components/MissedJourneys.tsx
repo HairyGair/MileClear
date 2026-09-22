@@ -89,6 +89,10 @@ export function MissedJourneys() {
   // Rows revealed so far. Not reset on refetch: after an accept/dismiss the
   // list shrinks by one and the next hidden row moves up to fill the slot.
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // The card sits in the Trips list header, so it starts as one line and opens
+  // in place. It used to be the list footer, where scrolling down to it fired
+  // the next page load and pushed it away again (Chris Saunders, 22 Sep 2026).
+  const [expanded, setExpanded] = useState(false);
 
   const load = useCallback(() => {
     fetchMissedJourneys()
@@ -161,12 +165,42 @@ export function MissedJourneys() {
   const shown = items.slice(0, visibleCount);
   const hidden = items.length - shown.length;
 
+  if (!expanded) {
+    return (
+      <TouchableOpacity
+        style={styles.collapsed}
+        onPress={() => setExpanded(true)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${header}. Tap to review.`}
+      >
+        <View style={styles.collapsedLeft}>
+          <View style={styles.collapsedIcon}>
+            <Ionicons name="git-compare-outline" size={18} color={colors.amber} accessible={false} />
+          </View>
+          <View style={styles.collapsedTextWrap}>
+            <Text style={styles.collapsedTitle} numberOfLines={1}>{header}</Text>
+            <Text style={styles.collapsedSubtitle}>Tap to review</Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-down" size={18} color={colors.text3} accessible={false} />
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
+      <TouchableOpacity
+        style={styles.header}
+        onPress={() => setExpanded(false)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={`${header}. Tap to hide.`}
+      >
         <Ionicons name="git-compare-outline" size={16} color={colors.amber} />
-        <Text style={styles.headerText}>{header}</Text>
-      </View>
+        <Text style={[styles.headerText, styles.headerTextFill]}>{header}</Text>
+        <Ionicons name="chevron-up" size={18} color={colors.text3} accessible={false} />
+      </TouchableOpacity>
       {shown.map((p) => (
         <View key={p.id} style={styles.row}>
           <Text style={styles.route} numberOfLines={1}>
@@ -255,6 +289,48 @@ const styles = StyleSheet.create({
     color: colors.text1,
     fontFamily: fonts.bold,
     fontSize: 14,
+  },
+  headerTextFill: {
+    flex: 1,
+  },
+  collapsed: {
+    marginBottom: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    backgroundColor: colors.surface,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  collapsedLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  collapsedIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(245, 166, 35, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  collapsedTextWrap: {
+    flex: 1,
+  },
+  collapsedTitle: {
+    color: colors.text1,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+  },
+  collapsedSubtitle: {
+    color: colors.text2,
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    marginTop: 1,
   },
   recordedNote: {
     color: colors.text3,
