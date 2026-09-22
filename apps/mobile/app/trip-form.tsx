@@ -2715,7 +2715,7 @@ export default function TripFormScreen() {
     Alert.alert(
       "Discard this trip?",
       recoverable
-        ? "It will not be saved. If you change your mind, look under journeys you might have missed on your dashboard."
+        ? "It will not be saved. If you change your mind, it will be waiting at the top of your Trips list."
         : "This will discard the current trip.",
       [
         { text: "Keep it", style: "cancel" },
