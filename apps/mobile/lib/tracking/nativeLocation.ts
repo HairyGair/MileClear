@@ -53,6 +53,7 @@ import {
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
 import { decideMotionStart } from "./motionStartRule";
+import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
@@ -104,12 +105,16 @@ export interface NativeMotionEvent {
  *  not driven. Mirrors ON_FOOT in the shared walk module. */
 const ON_FOOT_ACTIVITIES: ReadonlySet<string> = new Set(["walking", "on_foot", "running"]);
 
-// Short-journey backstop thresholds. A single confident driving-speed fix
-// force-starts a recording, so the native engine doesn't depend solely on
-// CoreMotion's automotive classification (which is latent by design — 20s to
-// ~2min — and loses the start of short 1-2 mile trips).
-const FORCE_START_SPEED_MS = 12 * 0.44704; // ~12 mph — clearly automotive, above run pace
-const FORCE_START_ACCURACY_M = 30; // require a tight fix to avoid GPS-spike false starts
+// Short-journey backstop. A single confident driving-speed fix force-starts a
+// recording, so the native engine doesn't depend solely on CoreMotion's
+// automotive classification (which is latent by design — 20s to ~2min — and
+// loses the start of short 1-2 mile trips). The thresholds live in
+// speedStartRule, shared with the Android headless task.
+
+// A refused driving-speed fix is logged at most this often. This handler sees
+// every fix, and a drive with poor sky view can refuse dozens in a row.
+const SPEED_START_NEAR_MISS_LOG_MS = 5 * 60 * 1000;
+let lastSpeedStartNearMissLogAt = 0;
 
 // onHeartbeat backstop: if a recording is open but no native fix has arrived for
 // this long, the device is parked and the stationary onMotionChange didn't fire
@@ -1067,12 +1072,21 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // a recording so we don't wait on CoreMotion's slow "automotive" verdict.
     const speed = loc.coords.speed;
     const acc = loc.coords.accuracy;
-    if (
-      speed != null &&
-      speed >= FORCE_START_SPEED_MS &&
-      acc != null &&
-      acc <= FORCE_START_ACCURACY_M
-    ) {
+    const speedStart = decideSpeedStart(speed ?? null, acc ?? null);
+    if (!speedStart.start && isNearMiss(speed ?? null, acc ?? null)) {
+      // Until 22 Sep 2026 only the Android headless task recorded these, so an
+      // iPhone refusing a drive this way was invisible.
+      const nowMs = Date.now();
+      if (nowMs - lastSpeedStartNearMissLogAt >= SPEED_START_NEAR_MISS_LOG_MS) {
+        lastSpeedStartNearMissLogAt = nowMs;
+        logDetectionEvent("native_speed_start_rejected", {
+          reason: "accuracy",
+          speedMph: Math.round((speed ?? 0) * 2.23694),
+          accuracy: Math.round(acc ?? 0),
+        }).catch(() => {});
+      }
+    }
+    if (speedStart.start && speed != null && acc != null) {
       // Respect an active shift and the "not driving" cooldown (a dismissed
       // detection), so we don't re-open something the user/app turned off. Uses
       // the shared helper so an ORPHANED quick-trip lock self-heals instead of
@@ -1085,6 +1099,7 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       logDetectionEvent("native_force_start_from_speed", {
         speedMph: Math.round(speed * 2.23694),
         accuracy: Math.round(acc),
+        tier: speedStart.tier,
       }).catch(() => {});
       await openNativeRecording(loc, "speed");
     }

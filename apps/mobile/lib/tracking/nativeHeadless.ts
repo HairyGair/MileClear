@@ -49,12 +49,8 @@
 // there, and the module is required lazily so Expo Go and iOS never touch it.
 
 import { Platform } from "react-native";
-import {
-  decideHeadlessWake,
-  readHeadlessFix,
-  HEADLESS_FORCE_START_ACCURACY_M,
-  HEADLESS_FORCE_START_SPEED_MS,
-} from "./headlessSpeedRule";
+import { decideHeadlessWake, readHeadlessFix } from "./headlessSpeedRule";
+import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { pickHeadlessLocation, readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
@@ -143,19 +139,15 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
     // first fix after a cold wake is often 40 to 100 m, and on a phone whose
     // app the OS has ended this may be the only fix of the whole drive. We
     // have never logged these, so the 30 m threshold has never been judged on
-    // anything (21 Sep 2026). Rare by construction, so no throttle needed.
-    if (
-      fix?.speedMs != null &&
-      fix.speedMs >= HEADLESS_FORCE_START_SPEED_MS &&
-      fix.accuracyM != null &&
-      fix.accuracyM > HEADLESS_FORCE_START_ACCURACY_M
-    ) {
+    // anything (21 Sep 2026). Its first day of data (22 Sep) is what loosened
+    // the rule, see speedStartRule. Rare by construction, so no throttle needed.
+    if (fix && isNearMiss(fix.speedMs, fix.accuracyM)) {
       const log = await loadLog();
       await log?.("native_headless_wake_rejected", {
         trigger: name,
         reason: "accuracy",
-        speedMph: Math.round(fix.speedMs * 2.23694),
-        accuracy: Math.round(fix.accuracyM),
+        speedMph: Math.round((fix.speedMs ?? 0) * 2.23694),
+        accuracy: Math.round(fix.accuracyM ?? 0),
       }).catch(() => {});
     }
     return;
@@ -181,16 +173,18 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
     if (!decideHeadlessWake({ fix, isMoving: state?.isMoving ?? null, enabled: state?.enabled ?? null })) return;
     if (typeof BGGeo.changePace !== "function") return;
     await BGGeo.changePace(true);
+    const decision = decideSpeedStart(fix?.speedMs ?? null, fix?.accuracyM ?? null);
     await log?.("native_headless_force_start_from_speed", {
       trigger: name,
       speedMph: Math.round((fix?.speedMs ?? 0) * 2.23694),
       accuracy: Math.round(fix?.accuracyM ?? 0),
+      tier: decision.start ? decision.tier : null,
     });
     // Waking the SDK is not the same as opening a recording. Until 15 Sep
     // 2026 a trip that started while Android had ended the app was tracked
     // only by the SDK's own store and became a trip at the next app open.
     // Hand the same fix to the foreground handler: its speed backstop applies
-    // the same guards (shift lock, Not Driving cooldown, 12 mph within 30 m)
+    // the same guards (shift lock, Not Driving cooldown, the speedStartRule)
     // and opens the recording, after which headless fixes buffer and the
     // parked event finalises at the kerb.
     const loc = pickHeadlessLocation(name, params);

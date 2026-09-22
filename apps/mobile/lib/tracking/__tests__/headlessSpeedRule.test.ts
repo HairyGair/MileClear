@@ -53,6 +53,14 @@ describe("decideHeadlessWake", () => {
     expect(decideHeadlessWake({ fix: { speedMs: 12 * 0.44704 - 0.01, accuracyM: 30 }, isMoving: false, enabled: true })).toBe(
       false
     );
-    expect(decideHeadlessWake({ fix: { speedMs: 20, accuracyM: 30.1 }, isMoving: false, enabled: true })).toBe(false);
+    // Past 30 m the loose tier takes over (speedStartRule): 20 m/s is 45 mph.
+    expect(decideHeadlessWake({ fix: { speedMs: 20, accuracyM: 30.1 }, isMoving: false, enabled: true })).toBe(true);
+    expect(decideHeadlessWake({ fix: { speedMs: 20, accuracyM: 50.1 }, isMoving: false, enabled: true })).toBe(false);
+  });
+
+  it("wakes on Samantha Birch's refused fix, 22 Sep 2026 (19 mph at 33 m)", () => {
+    expect(decideHeadlessWake({ fix: { speedMs: 19 * 0.44704, accuracyM: 33 }, isMoving: false, enabled: true })).toBe(
+      true
+    );
   });
 });
