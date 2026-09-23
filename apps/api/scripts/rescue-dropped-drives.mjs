@@ -25,7 +25,9 @@ import { PrismaClient } from "@prisma/client";
 
 const APPLY = process.env.APPLY === "1";
 const MIN_MPH = 12;
-const MIN_SECONDS = 60;
+// Two minutes, not one: Anthony, 23 Sep 2026, left out the two shortest (0.5 mi in
+// 1.6 min and 0.4 mi in 1.8 min) as the least certain to be real drives.
+const MIN_SECONDS = 120;
 const SOURCES = ["dropped_walk", "dropped_phantom"];
 const EVENT_TYPE = "support.rescue_push_sent";
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
