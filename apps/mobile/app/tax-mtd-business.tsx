@@ -99,7 +99,7 @@ export default function TaxMtdBusinessScreen() {
       <BetaBanner
         label="Beta · Sandbox"
         title="HMRC integration is in beta"
-        body="MTD submissions currently go to HMRC's test system while we finish production accreditation."
+        body="MTD submissions currently go to HMRC's test system while we wait for HMRC's production credentials."
       />
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />

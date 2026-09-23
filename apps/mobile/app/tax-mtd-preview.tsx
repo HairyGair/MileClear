@@ -162,7 +162,7 @@ export default function TaxMtdPreviewScreen() {
       <BetaBanner
         label="Beta · Sandbox"
         title="This is a sandbox submission"
-        body="Your figures and HMRC's calculation are real, but while we finish production accreditation the submission goes to HMRC's test system - it does not change your real tax record yet."
+        body="Your figures and HMRC's calculation are real, but while we wait for HMRC's production credentials the submission goes to HMRC's test system - it does not change your real tax record yet."
       />
 
       <View style={styles.headerCard}>

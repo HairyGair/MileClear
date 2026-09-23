@@ -75,7 +75,7 @@ export default function TaxMtdNinoScreen() {
         <BetaBanner
           label="Beta · Sandbox"
           title="HMRC integration is in beta"
-          body="MTD submissions currently go to HMRC's test system while we finish production accreditation. Your NINO is stored encrypted either way."
+          body="MTD submissions currently go to HMRC's test system while we wait for HMRC's production credentials. Your NINO is stored encrypted either way."
         />
         <View style={styles.card}>
           <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />

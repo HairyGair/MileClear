@@ -278,7 +278,7 @@ function TaxMtdContent() {
       <BetaBanner
         label="Beta · Sandbox"
         title="HMRC integration is in beta"
-        body="The full flow works against HMRC's sandbox while we complete production accreditation (estimated 4-8 weeks). You can connect, preview, and walk through submissions — but they won't reach real HMRC yet. Your live tax data is unaffected."
+        body="The full flow works against HMRC's sandbox while we wait for HMRC's production credentials. You can connect, preview, and walk through submissions — but they won't reach real HMRC yet. Your live tax data is unaffected."
       />
 
       <Header status={state.status} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
