@@ -277,38 +277,63 @@ export default function SavedLocationsScreen() {
           />
         }
         ListHeaderComponent={
-          // The "places you visit often" CTA used to live inside
-          // ListEmptyComponent, so it vanished the moment someone saved their
-          // first place: the feature that exists to help you save the REST of
-          // them was only ever offered to people with none. Chris Saunders,
-          // 28 Aug 2026, had one pinned place, went hunting through the FAQs
-          // for the manual flow, and asked whether there was an easier way.
-          // There was, and it was hidden from him.
-          suggestionCount > 0 && !atFreeLimit ? (
-            <TouchableOpacity
-              style={styles.suggestCta}
-              onPress={() => router.push("/saved-locations-suggest" as never)}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Review ${suggestionCount} suggested ${
-                suggestionCount === 1 ? "place" : "places"
-              }`}
-            >
-              <View style={styles.suggestCtaIcon}>
-                <Ionicons name="sparkles" size={18} color={BG} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.suggestCtaTitle}>
-                  Review {suggestionCount} suggested{" "}
-                  {suggestionCount === 1 ? "place" : "places"}
+          <View style={styles.header}>
+            {/* Add sits above the list, not below it: with a dozen saved
+                places the button was a long scroll away (Chris Saunders,
+                23 Sep 2026). */}
+            {atFreeLimit ? (
+              <TouchableOpacity
+                style={styles.lockedAddBtn}
+                onPress={() => router.push("/saved-location-form")}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Add location — upgrade to Pro for unlimited saved locations"
+              >
+                <View style={styles.lockedAddBtnRow}>
+                  <Ionicons name="lock-closed" size={18} color={TEXT_2} />
+                  <Text style={styles.lockedAddBtnText}>Add Location</Text>
+                </View>
+                <Text style={styles.lockedAddBtnSubtitle}>
+                  Upgrade to Pro for unlimited saved locations
                 </Text>
-                <Text style={styles.suggestCtaSubtitle}>
-                  MileClear spotted places you visit often. Save them in seconds.
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={TEXT_2} />
-            </TouchableOpacity>
-          ) : null
+              </TouchableOpacity>
+            ) : (
+              <Button title="Add Location" icon="add" onPress={handleAdd} />
+            )}
+            {
+            // The "places you visit often" CTA used to live inside
+            // ListEmptyComponent, so it vanished the moment someone saved their
+            // first place: the feature that exists to help you save the REST of
+            // them was only ever offered to people with none. Chris Saunders,
+            // 28 Aug 2026, had one pinned place, went hunting through the FAQs
+            // for the manual flow, and asked whether there was an easier way.
+            // There was, and it was hidden from him.
+            suggestionCount > 0 && !atFreeLimit ? (
+              <TouchableOpacity
+                style={styles.suggestCta}
+                onPress={() => router.push("/saved-locations-suggest" as never)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Review ${suggestionCount} suggested ${
+                  suggestionCount === 1 ? "place" : "places"
+                }`}
+              >
+                <View style={styles.suggestCtaIcon}>
+                  <Ionicons name="sparkles" size={18} color={BG} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.suggestCtaTitle}>
+                    Review {suggestionCount} suggested{" "}
+                    {suggestionCount === 1 ? "place" : "places"}
+                  </Text>
+                  <Text style={styles.suggestCtaSubtitle}>
+                    MileClear spotted places you visit often. Save them in seconds.
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={TEXT_2} />
+              </TouchableOpacity>
+            ) : null}
+          </View>
         }
         ListEmptyComponent={
           !loading ? (
@@ -336,25 +361,6 @@ export default function SavedLocationsScreen() {
                 <Text style={styles.oftenRowText}>Places you visit often</Text>
                 <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
               </TouchableOpacity>
-            )}
-            {atFreeLimit ? (
-              <TouchableOpacity
-                style={styles.lockedAddBtn}
-                onPress={() => router.push("/saved-location-form")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Add location — upgrade to Pro for unlimited saved locations"
-              >
-                <View style={styles.lockedAddBtnRow}>
-                  <Ionicons name="lock-closed" size={18} color={TEXT_2} />
-                  <Text style={styles.lockedAddBtnText}>Add Location</Text>
-                </View>
-                <Text style={styles.lockedAddBtnSubtitle}>
-                  Upgrade to Pro for unlimited saved locations
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <Button title="Add Location" icon="add" onPress={handleAdd} />
             )}
           </View>
         }
@@ -434,6 +440,9 @@ const styles = StyleSheet.create({
     margin: -8,
   },
   // Footer
+  header: {
+    marginBottom: 12,
+  },
   footer: {
     marginTop: 8,
     paddingBottom: 20,
