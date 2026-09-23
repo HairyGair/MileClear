@@ -71,3 +71,31 @@ describe("decideMotionStart", () => {
     );
   });
 });
+
+describe("decideMotionStart - slow start with no vehicle reading (23 Sep 2026)", () => {
+  const ios = { ...base, requireVehicleWhenSlow: true };
+
+  it("refuses a walking-pace start labelled still", () => {
+    expect(decideMotionStart({ ...ios, activityType: "still", confidence: 90, speedMs: 1.4 })).toEqual({
+      skip: true,
+      reason: "slow_without_vehicle",
+    });
+  });
+
+  it("still records a slow start the phone says is a vehicle", () => {
+    expect(decideMotionStart({ ...ios, activityType: "in_vehicle", confidence: 80, speedMs: 2 }).skip).toBe(false);
+  });
+
+  it("records a slow-labelled start once it is at driving speed", () => {
+    expect(decideMotionStart({ ...ios, activityType: "still", confidence: 90, speedMs: mph(15) }).skip).toBe(false);
+  });
+
+  it("records when the speed is unknown, including RNBG's -1", () => {
+    expect(decideMotionStart({ ...ios, activityType: "still", confidence: 90, speedMs: null }).skip).toBe(false);
+    expect(decideMotionStart({ ...ios, activityType: "still", confidence: 90, speedMs: -1 }).skip).toBe(false);
+  });
+
+  it("never applies on Android", () => {
+    expect(decideMotionStart({ ...base, activityType: null, confidence: null, speedMs: 1.4 }).skip).toBe(false);
+  });
+});
