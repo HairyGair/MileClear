@@ -41,7 +41,7 @@ const points = [
     text: "Put the phone in your pocket and drive. MileClear notices the drive, records the route, and saves it when you stop.",
   },
   {
-    title: "HMRC-ready numbers",
+    title: "Tax-ready numbers",
     text: "Business miles are priced at the approved rates for 2026-27: 55p a mile to 10,000, then 25p. Your deduction adds up as you drive.",
   },
   {

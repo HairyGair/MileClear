@@ -124,7 +124,7 @@ export default function ExportsPage() {
           <div className="premium-gate__icon">&#9888;</div>
           <h2 className="premium-gate__title">Upgrade to Pro</h2>
           <p className="premium-gate__text">
-            CSV exports, PDF trip reports, and HMRC self-assessment documents are available with a MileClear Pro subscription.
+            CSV exports, PDF trip reports, and Self Assessment documents are available with a MileClear Pro subscription.
           </p>
           <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
         </div>
@@ -136,7 +136,7 @@ export default function ExportsPage() {
     <>
       <PageHeader
         title="Tax Exports"
-        subtitle="Professional HMRC-ready reports with branded trip data, vehicle breakdowns, and tax deduction summaries."
+        subtitle="Professional tax-ready reports with branded trip data, vehicle breakdowns, and tax deduction summaries."
       />
 
       {premiumError && (
@@ -162,8 +162,7 @@ export default function ExportsPage() {
         {/* Self-Assessment - featured */}
         <div className="export-card" style={{ borderColor: "rgba(16, 185, 129, 0.3)" }}>
           <div className="export-card__title">
-            HMRC Self-Assessment
-            <Badge variant="success">HMRC READY</Badge>
+            Self Assessment
           </div>
           <p className="export-card__desc">
             Complete tax report with vehicle breakdown, monthly summary, HMRC rate explanation, and unique report reference. Ready for your accountant.

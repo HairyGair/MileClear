@@ -76,7 +76,7 @@ Grid or card layout. Each feature gets an icon, a short headline, and one senten
 | Fuel pump | **Cheapest fuel nearby** | Find the best fuel prices near you, filtered by your preferred brand. |
 | Trophy | **Milestones & streaks** | Hit milestones, keep streaks alive, and get a daily scorecard after every shift. |
 | Phone | **Works offline** | No signal? No problem. Your trips are saved on your phone and sync when you're back online. |
-| Shield | **HMRC ready** | Export your mileage log for Self Assessment. Classified, timestamped, audit-friendly. |
+| Shield | **Tax-ready exports** | Export your mileage log for Self Assessment. Classified, timestamped, audit-friendly. |
 | Chart | **Know your real earnings** | Optionally track what you earn across platforms. See your actual hourly rate after costs. |
 
 ---
@@ -114,7 +114,7 @@ Two-column layout:
 
 **Premium — £4.99/month**
 - Everything in Free, plus:
-- HMRC-compliant exports (Self Assessment ready)
+- Self Assessment exports
 - Xero, FreeAgent & QuickBooks integration
 - Earnings tracking & real hourly rate
 - Fuel price finder with brand preference

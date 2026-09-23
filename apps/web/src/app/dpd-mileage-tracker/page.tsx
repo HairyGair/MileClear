@@ -6,7 +6,7 @@ import StoreButtons from "@/components/StoreButtons";
 export const metadata: Metadata = {
   title: "DPD Mileage Tracker UK - Free & Automatic for ODFs",
   description:
-    "Free mileage tracker for UK DPD owner drivers. Your scanner logs parcels, not miles - MileClear GPS-logs every route and exports an HMRC-ready Self Assessment PDF.",
+    "Free mileage tracker for UK DPD owner drivers. Your scanner logs parcels, not miles - MileClear GPS-logs every route and exports a tax-ready Self Assessment PDF.",
   keywords: [
     "dpd mileage tracker",
     "dpd owner driver franchisee tax",
@@ -833,7 +833,7 @@ export default function DpdMileageTracker() {
               },
               {
                 q: "What format should a mileage log be in for DPD Self Assessment?",
-                a: "HMRC requires a contemporaneous record - made at or around the time of each journey, not reconstructed at year end. Each entry needs the date, start point, end point, purpose, and distance. MileClear's Pro export produces a PDF mileage log in an HMRC-accepted format, suitable for attaching to your return or sharing with your accountant.",
+                a: "HMRC requires a contemporaneous record - made at or around the time of each journey, not reconstructed at year end. Each entry needs the date, start point, end point, purpose, and distance. MileClear's Pro export produces a PDF mileage log with all of that for every trip, suitable for attaching to your return or sharing with your accountant.",
               },
             ].map(({ q, a }, i, arr) => (
               <div

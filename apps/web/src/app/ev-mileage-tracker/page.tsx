@@ -235,7 +235,7 @@ export default function EvMileageTracker() {
                 {
                   title: "Self Assessment Export",
                   body:
-                    "With Pro, export a PDF mileage log and HMRC self-assessment summary - every trip dated, classified, and with the deduction calculated. Ready for your tax return or your accountant.",
+                    "With Pro, export a PDF mileage log and Self Assessment summary - every trip dated, classified, and with the deduction calculated. Ready for your tax return or your accountant.",
                 },
               ].map(({ title, body }) => (
                 <div

@@ -153,7 +153,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "sa-wizard",
         q: "How does the Self Assessment wizard work? (Pro)",
-        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet HMRC inspectors recognise.\n\nFree wizard view; PDF export is Pro.",
+        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet.\n\nFree wizard view; PDF export is Pro.",
         goTo: "/self-assessment",
       },
       {
@@ -251,7 +251,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "pro-features",
         q: "What's in Pro?",
-        a: "Quarterly HMRC submissions, HMRC self-assessment PDF, CSV earnings import, Open Banking auto-import, the Bank-feed Inbox, receipt scanning, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
+        a: "Quarterly HMRC submissions, Self Assessment PDF, CSV earnings import, Open Banking auto-import, the Bank-feed Inbox, receipt scanning, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
       },
       {
         id: "expenses",

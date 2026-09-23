@@ -65,11 +65,11 @@ function calcDataCompleteness(trips: ExportTripRow[]): number {
   return Math.round((complete / trips.length) * 100);
 }
 
-// ── HMRC attestation cover page (Self Assessment PDF page 1) ───────
+// ── Attestation cover page (Self Assessment PDF page 1) ───────
 //
 // Drawn before the analytical content so the user has a single page they
 // can sign and present to HMRC if a return is queried. The phrasing borrows
-// from how Driversnote frames their export - HMRC inspectors recognise the
+// from how Driversnote frames their export, using HMRC's own
 // language ("contemporaneous record", "wholly and exclusively"). UTR is
 // left blank because we don't store it; user writes it in by hand before
 // signing or printing.
@@ -273,8 +273,8 @@ function drawHeader(
   doc.fillColor(GREY_400).fontSize(9).font("Helvetica");
   doc.text(subtitle, margin, 40, { width: contentWidth, align: "center" });
 
-  // HMRC Compliant badge — top right
-  const badgeText = "HMRC COMPLIANT";
+  // Report type badge — top right
+  const badgeText = "MILEAGE RECORD";
   doc.font("Helvetica-Bold").fontSize(7);
   const badgeW = doc.widthOfString(badgeText) + 14;
   const badgeH = 18;
@@ -675,7 +675,7 @@ export async function generateSelfAssessmentPdf(
 
   const reportRef = generateReportRef(userId, taxYear);
 
-  // ── Page 1: HMRC attestation cover sheet ──
+  // ── Page 1: Attestation cover sheet ──
   // A signed declaration page makes the export look like a formal HMRC
   // submission rather than a generic data export. Accountants notice.
 
@@ -694,7 +694,7 @@ export async function generateSelfAssessmentPdf(
 
   drawHeader(
     doc,
-    "HMRC Mileage Expense Report",
+    "Mileage Expense Report",
     `Tax Year ${taxYear}`,
     reportRef,
     pageWidth,
@@ -858,7 +858,7 @@ export async function generateSelfAssessmentPdf(
       doc.addPage();
       drawHeader(
         doc,
-        "HMRC Mileage Expense Report",
+        "Mileage Expense Report",
         `Tax Year ${taxYear}`,
         reportRef,
         pageWidth,
@@ -947,7 +947,7 @@ export async function generateSelfAssessmentPdf(
     doc.addPage();
     drawHeader(
       doc,
-      "HMRC Mileage Expense Report",
+      "Mileage Expense Report",
       `Tax Year ${taxYear}`,
       reportRef,
       pageWidth,
@@ -1000,7 +1000,7 @@ export async function generateSelfAssessmentPdf(
       doc.addPage();
       drawHeader(
         doc,
-        "HMRC Mileage Expense Report",
+        "Mileage Expense Report",
         `Tax Year ${taxYear}`,
         reportRef,
         pageWidth,
@@ -1039,7 +1039,7 @@ export async function generateSelfAssessmentPdf(
     doc.addPage();
     drawHeader(
       doc,
-      "HMRC Mileage Expense Report",
+      "Mileage Expense Report",
       `Tax Year ${taxYear}`,
       reportRef,
       pageWidth,

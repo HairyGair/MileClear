@@ -75,7 +75,7 @@ const faqSchema = {
       name: "How does a self-employed mileage tracker work for Self Assessment?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "It tracks every drive automatically using GPS, lets you classify each trip as business or personal, applies the HMRC 55p/25p rates in real time (rate rose from 45p to 55p on 6 April 2026), and produces a Self Assessment-ready summary at tax-year end. The total goes onto your SA103 self-employed page; the per-trip detail backs it up if HMRC ever query. MileClear's Pro tier produces a printable PDF with HMRC attestation cover sheet you can attach to your return or hand to your accountant.",
+        text: "It tracks every drive automatically using GPS, lets you classify each trip as business or personal, applies the HMRC 55p/25p rates in real time (rate rose from 45p to 55p on 6 April 2026), and produces a Self Assessment-ready summary at tax-year end. The total goes onto your SA103 self-employed page; the per-trip detail backs it up if HMRC ever query. MileClear's Pro tier produces a printable PDF with attestation cover sheet you can attach to your return or hand to your accountant.",
       },
     },
     {

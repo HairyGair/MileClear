@@ -94,7 +94,7 @@ const faqSchema = {
       name: "Is MileClear really a free mileage tracker?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes - and unlike the big-name competition, the tracker is unlimited. MileIQ caps free users at 40 drives a month, Driversnote caps at 15; once you hit the cap you stop tracking or you pay. MileClear has no monthly drive cap at all - track as many trips as you like, forever, without paying. Pro (£4.99/month) unlocks HMRC-ready PDF exports, business insights, CSV imports, and open-banking earnings sync - but the tracking, classification, HMRC rate calculation and vehicle records stay free forever.",
+        text: "Yes - and unlike the big-name competition, the tracker is unlimited. MileIQ caps free users at 40 drives a month, Driversnote caps at 15; once you hit the cap you stop tracking or you pay. MileClear has no monthly drive cap at all - track as many trips as you like, forever, without paying. Pro (£4.99/month) unlocks tax-ready PDF exports, business insights, CSV imports, and open-banking earnings sync - but the tracking, classification, HMRC rate calculation and vehicle records stay free forever.",
       },
     },
     {

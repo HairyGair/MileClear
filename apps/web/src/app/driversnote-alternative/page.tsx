@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "What is the best Driversnote alternative in the UK?",
-    a: "MileClear is a strong Driversnote alternative for gig and self-employed drivers who want unlimited tracking without paying. Both apps are UK-native and apply HMRC's AMAP rates, but MileClear tracks unlimited drives on its free tier and needs no beacon or hardware - it uses your phone's GPS and motion sensor (ClearTrack) to detect drives automatically. Pro is £4.99/month only for HMRC-ready exports and Self Assessment tooling.",
+    a: "MileClear is a strong Driversnote alternative for gig and self-employed drivers who want unlimited tracking without paying. Both apps are UK-native and apply HMRC's AMAP rates, but MileClear tracks unlimited drives on its free tier and needs no beacon or hardware - it uses your phone's GPS and motion sensor (ClearTrack) to detect drives automatically. Pro is £4.99/month only for tax-ready exports and Self Assessment tooling.",
   },
   {
     q: "Is MileClear cheaper than Driversnote?",
@@ -203,7 +203,7 @@ export default function DriversnoteAlternative() {
             <h2 style={{ ...h2Style, marginBottom: "0.75rem" }}>Try the free alternative</h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.7, marginBottom: "1.5rem" }}>
               Install MileClear, grant location access, and it tracks your business miles automatically - free,
-              unlimited, no hardware, HMRC-ready.
+              unlimited, no hardware, tax-ready.
             </p>
             <StoreButtons align="center" />
           </section>

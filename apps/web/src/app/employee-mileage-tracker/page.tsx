@@ -652,7 +652,7 @@ export default function EmployeeMileageTracker() {
                 margin: "0 auto 1.75rem",
               }}
             >
-              Free to download. Automatic GPS tracking, employer-rate calculator, and HMRC-ready
+              Free to download. Automatic GPS tracking, employer-rate calculator, and tax-ready
               records built in.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>

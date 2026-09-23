@@ -709,7 +709,7 @@ export default function JustEatMileageTracker() {
               },
               {
                 q: "What format does HMRC need a Just Eat mileage log in?",
-                a: "Contemporaneous - made at or around the time of each shift. Each entry needs date, start point, end point, purpose, and distance. MileClear's Pro export produces a PDF mileage log in an HMRC-accepted format you can attach to your return or share with an accountant.",
+                a: "Contemporaneous - made at or around the time of each shift. Each entry needs date, start point, end point, purpose, and distance. MileClear's Pro export produces a PDF mileage log with all of that for every trip, which you can attach to your return or share with an accountant.",
               },
             ].map(({ q, a }, i, arr) => (
               <div

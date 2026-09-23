@@ -74,9 +74,9 @@ WHAT IT DOES
 - Activity Heatmap. 7 by 24 grid of when you actually drive and earn most across the last 12 weeks.
 - Pickup wait timer. Tap "Wait at pickup" when you arrive at a restaurant or depot. The stopwatch survives app suspension.
 - MOT and tax expiry reminders. Add a vehicle by registration plate and MileClear refreshes DVLA data weekly. Push notification 14 days before expiry, plus full DVSA MOT history.
-- Self Assessment-ready exports. CSV and PDF mileage logs in HMRC-accepted formats, per tax year, per vehicle, per platform.
+- Self Assessment-ready exports. CSV and PDF mileage logs per tax year, per vehicle, per platform.
 - Self Assessment wizard (Pro). Step-by-step guide mapping your data to the actual HMRC SA103 form boxes, with full income tax + NI breakdown.
-- HMRC attestation cover sheet (Pro). One-page signed declaration with the contemporaneous-record language HMRC inspectors recognise.
+- Attestation cover sheet (Pro). One-page signed declaration with contemporaneous-record language.
 - Accountant Portal (Pro). Invite your accountant by email to a read-only dashboard.
 - Receipt scanning (Pro). Camera at parking, fuel and toll receipts. On-device only.
 - Real-time fuel prices. 8,300+ UK stations from the government-mandated reporting database.
@@ -87,7 +87,7 @@ PRICING
 
 Free, with no drive cap: full mileage tracking, HMRC rate calculation, manual earnings, fuel prices, gamification, Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, MOT history, Activity Heatmap, two saved locations.
 
-Pro at £4.99 per month: all exports (CSV, PDF, Self Assessment), Self Assessment wizard, HMRC attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, unlimited saved locations, pickup-wait community insights. Pro never gates the tracker itself.
+Pro at £4.99 per month: all exports (CSV, PDF, Self Assessment), Self Assessment wizard, attestation cover sheet, Accountant Portal, receipt scanning, CSV earnings import, unlimited saved locations, pickup-wait community insights. Pro never gates the tracker itself.
 
 PRIVACY
 

@@ -140,7 +140,7 @@ export default function ExportsScreen() {
           >
             <Text style={styles.paywallTitle}>Pro Feature</Text>
             <Text style={styles.paywallText}>
-              Tax exports require MileClear Pro. Upgrade to download HMRC-ready reports.
+              Tax exports require MileClear Pro. Upgrade to download tax-ready reports.
             </Text>
             <Text style={styles.paywallCta}>Upgrade Now</Text>
             <Text style={styles.paywallLegal}>
@@ -155,7 +155,7 @@ export default function ExportsScreen() {
         )}
 
         <Text style={styles.subtitle}>
-          Professional HMRC-ready reports with your mileage data, vehicle breakdown, and tax deduction summary.
+          Professional tax-ready reports with your mileage data, vehicle breakdown, and tax deduction summary.
         </Text>
 
         {/* Period mode toggle: tax year or a custom date range */}
@@ -230,7 +230,7 @@ export default function ExportsScreen() {
           disabled={loadingKey !== null}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Download HMRC Self-Assessment PDF for tax year"
+          accessibilityLabel="Download Self Assessment PDF for tax year"
           accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
@@ -238,10 +238,7 @@ export default function ExportsScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.rowTitleRow}>
-              <Text style={styles.rowTitle}>HMRC Self-Assessment</Text>
-              <View style={styles.hmrcBadge}>
-                <Text style={styles.hmrcBadgeText}>HMRC READY</Text>
-              </View>
+              <Text style={styles.rowTitle}>Self Assessment</Text>
             </View>
             <Text style={styles.rowDesc}>
               Complete tax report with vehicle breakdown, monthly summary, and HMRC rate explanation. Ready for your accountant.
@@ -423,20 +420,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_3,
     lineHeight: 18,
-  },
-  hmrcBadge: {
-    backgroundColor: "rgba(16, 185, 129, 0.12)",
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.3)",
-  },
-  hmrcBadgeText: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    color: GREEN,
-    letterSpacing: 0.5,
   },
   comingSoonRow: {
     flexDirection: "row",

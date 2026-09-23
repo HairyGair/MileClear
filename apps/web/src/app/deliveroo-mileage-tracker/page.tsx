@@ -416,7 +416,7 @@ export default function DeliverooMileageTracker() {
                 {
                   title: "Self Assessment Export",
                   body:
-                    "Pro users can download a PDF mileage log and HMRC self-assessment summary. Every journey is dated, timestamped, and distance-verified. Send it directly to your accountant or attach it to your tax return.",
+                    "Pro users can download a PDF mileage log and Self Assessment summary. Every journey is dated, timestamped, and distance-verified. Send it directly to your accountant or attach it to your tax return.",
                 },
                 {
                   title: "Rider Community Benchmarks",

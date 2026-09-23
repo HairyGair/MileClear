@@ -77,7 +77,7 @@ const productSchema = {
       name: "Pro",
       price: "4.99",
       priceCurrency: "GBP",
-      description: "Self Assessment wizard, HMRC-ready PDF exports with attestation cover sheet, Accountant Portal, receipt OCR, business insights, pickup-wait community insights, unlimited saved locations.",
+      description: "Self Assessment wizard, tax-ready PDF exports with attestation cover sheet, Accountant Portal, receipt OCR, business insights, pickup-wait community insights, unlimited saved locations.",
     },
   ],
 };
@@ -285,7 +285,7 @@ export default function MileClearVsMileIQ() {
                     },
                     {
                       feature: "Tax Export",
-                      mileclear: "PDF mileage log with signed HMRC attestation cover sheet (Pro)",
+                      mileclear: "PDF mileage log with signed attestation cover sheet (Pro)",
                       mileiq: "PDF and Excel reports available",
                       highlight: false,
                     },
@@ -460,7 +460,7 @@ export default function MileClearVsMileIQ() {
               </p>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
                 Pro is £4.99 per month - well under half of what MileIQ charges since its 2026 price rise - and
-                adds the Self Assessment wizard, HMRC-ready PDF and CSV exports with a signed attestation cover sheet, the Accountant
+                adds the Self Assessment wizard, tax-ready PDF and CSV exports with a signed attestation cover sheet, the Accountant
                 Portal, on-device receipt scanning, CSV earnings import from gig platforms, business insights,
                 and unlimited saved locations. If you only need the Tax Readiness card, Anonymous Benchmarking,
                 MOT reminders, and trip tracking, MileClear is free forever.

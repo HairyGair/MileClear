@@ -88,7 +88,7 @@ any edit. VERIFY: the exact Google Play base plan prices (£4.99 / £44.99)
 match what is configured in Play Console > Monetise > Subscriptions.
 
 Deliberately left out of the Android copy: Live Activities, Siri Shortcuts,
-CarPlay, home screen widgets, Apple Sign-In, the HMRC attestation cover sheet
+CarPlay, home screen widgets, Apple Sign-In, the attestation cover sheet
 and Dynamic Island. All are iOS-only per `docs/android-parity.md` section 4.
 VERIFY: the attestation cover sheet is generated server-side and may work on
 Android; add it back if the export route is platform-agnostic.

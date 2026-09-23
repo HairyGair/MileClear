@@ -569,7 +569,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Trip tracking in MileClear is free. Not free-for-40-trips, not free-until-we-change-our-minds. Automatic drive detection, unlimited trips, shift tracking, your full history - free, because a mileage log you can't afford to keep isn't a mileage log.</p>
 
-<p>Pro exists for the people who want the extras - HMRC-ready exports, earnings imports, business insights - and the people who buy it keep the lights on for everyone else. To the Pro subscribers among the 500: thank you, genuinely.</p>
+<p>Pro exists for the people who want the extras - tax-ready exports, earnings imports, business insights - and the people who buy it keep the lights on for everyone else. To the Pro subscribers among the 500: thank you, genuinely.</p>
 
 <h2>What's next</h2>
 
@@ -853,7 +853,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li><strong>Background GPS tracking</strong> - no taps per trip, no remembering to open the app</li>
 <li><strong>HMRC AMAP rates built in</strong> with the UK tax year (6 April to 5 April) and the 10,000-mile threshold applied automatically</li>
 <li><strong>Per-trip classification</strong> with the option to auto-classify based on saved locations or work schedule</li>
-<li><strong>Self Assessment export</strong> in a format HMRC accepts (per-trip detail + summary + attestation)</li>
+<li><strong>Self Assessment export</strong> with per-trip detail, a summary and an attestation</li>
 <li><strong>Offline-first</strong> tracking so tunnels, basements and rural blackspots don't lose data</li>
 <li><strong>Built for the UK</strong> - American apps use IRS rates and the 1-Jan tax year, which is the wrong answer for you</li>
 </ul>
@@ -967,7 +967,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>HMRC AMAP rates with the 10,000-mile threshold applied automatically</li>
 <li>UK tax year (6 April to 5 April) baked in</li>
 <li>Self Assessment-ready PDF with the per-trip detail HMRC requires</li>
-<li>HMRC attestation cover sheet on the export</li>
+<li>Attestation cover sheet on the export</li>
 <li>Offline-first GPS so you don't lose data in tunnels or rural areas</li>
 <li>Free for the tracking - paying to record your own miles makes no sense</li>
 </ul>
@@ -1475,7 +1475,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p><strong>Free tier:</strong> automatic GPS tracking, manual classification, HMRC rate calculation, fuel-price lookup, all your historical trips. The tracking is what you actually need, and it is permanent and free.</p>
 
-<p><strong>Pro at £4.99/month:</strong> CSV and PDF Self Assessment exports, the HMRC attestation cover sheet, CSV import from Amazon Flex earnings statements, the Self Assessment wizard that walks you through which numbers go in which boxes on your SA103. You only need Pro at tax time - daily tracking stays free year-round.</p>
+<p><strong>Pro at £4.99/month:</strong> CSV and PDF Self Assessment exports, the attestation cover sheet, CSV import from Amazon Flex earnings statements, the Self Assessment wizard that walks you through which numbers go in which boxes on your SA103. You only need Pro at tax time - daily tracking stays free year-round.</p>
 
 <h2>Bottom line</h2>
 
@@ -1618,7 +1618,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <h2>Plus</h2>
 
 <ul>
-<li><strong>HMRC attestation cover sheet on the Self Assessment PDF</strong> - one-page signed declaration page with your name, UTR, tax year period, and the contemporaneous-record attestation language HMRC inspectors recognise. Pro feature. Accountants will share it.</li>
+<li><strong>Attestation cover sheet on the Self Assessment PDF</strong> - one-page signed declaration page with your name, UTR, tax year period, and contemporaneous-record attestation language. Pro feature. Accountants will share it.</li>
 <li><strong>Earnings adoption nudge</strong> - if you are tracking trips but have not logged earnings recently, the Tax Readiness card shows a one-tap shortcut to the earnings form. Without earnings, the tax estimate cannot work.</li>
 <li><strong>Sparse-GPS-trace reliability fix</strong> - solved the bug where iOS could suspend the JS runtime mid-trip and leave recording stuck in low-power detection mode. The recording-mode upgrade now verifies it took effect and retries automatically.</li>
 </ul>

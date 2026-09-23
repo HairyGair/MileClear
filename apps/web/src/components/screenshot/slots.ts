@@ -73,7 +73,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "hero",
     eyebrow: "Mileage tracker for the UK",
     headline: "Drive.\nWe do the tax.",
-    subline: "MileClear turns every mile into HMRC-ready numbers. Built for UK self-employed drivers and PAYE employees.",
+    subline: "MileClear turns every mile into tax-ready numbers. Built for UK self-employed drivers and PAYE employees.",
     iphoneSrc: "/screenshot-source/iphone/01-dashboard.png",
     ipadSrc: "/screenshot-source/ipad/01-dashboard.png",
     accent: "amber",

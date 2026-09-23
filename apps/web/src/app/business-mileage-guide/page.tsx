@@ -366,7 +366,7 @@ export default function BusinessMileageGuidePage() {
               <p style={{ marginBottom: "1rem" }}>
                 The alternative is a phone app that tracks automatically
                 using GPS, tags each trip with a classification and
-                platform, and produces a HMRC-ready export when you need it.
+                platform, and produces a tax-ready export when you need it.
                 MileClear is built for this specifically, for UK drivers -
                 the free tier covers the tracking and the calculation with
                 no monthly drive cap (MileIQ caps its free tier at 40 drives

@@ -145,7 +145,7 @@ Available to **all users (free tier).**
 **Audit shield:**
 - Dashboard shows which trips were auto-captured vs manually entered.
 - Platform tagging: which gig app was active during the trip (if driver has enabled this).
-- Evidence export: full HMRC-compliant report with trip-level detail, ready for Self Assessment.
+- Evidence export: full report with trip-level detail, ready for Self Assessment.
 - Data is tamper-evident — logged trips cannot be retroactively edited without a visible audit trail.
 
 **Anti-abuse measures:**
@@ -191,7 +191,7 @@ Available to **all users (free tier).**
 - Reminders and nudges
 
 ### Premium Tier (Subscription)
-- HMRC-compliant export (Self Assessment-ready PDF/CSV)
+- Self Assessment export (PDF/CSV)
 - Xero / FreeAgent / QuickBooks integration
 - MTD compatibility
 - Earnings tracking (CSV upload, Open Banking, Screenshot OCR)

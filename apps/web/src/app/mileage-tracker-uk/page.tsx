@@ -7,7 +7,7 @@ import StoreButtons from "@/components/StoreButtons";
 export const metadata: Metadata = {
   title: {
     absolute:
-      "Mileage Tracker UK - Free HMRC-Ready App for Self-Employed Drivers | MileClear",
+      "Mileage Tracker UK - Free App for Self-Employed Drivers | MileClear",
   },
   description:
     "The UK mileage tracker built for HMRC Self Assessment. Auto-track every business mile, generate a tax-year PDF, claim 55p/25p per mile (raised from 45p on 6 April 2026). Free to use, designed for UK drivers.",
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/mileage-tracker-uk",
   },
   openGraph: {
-    title: "Mileage Tracker UK - Free HMRC-Ready App",
+    title: "Mileage Tracker UK - Free App for Self-Employed Drivers",
     description:
       "Auto-track every business mile. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026). Self Assessment-ready PDF. Free.",
     url: "https://mileclear.com/mileage-tracker-uk",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mileage Tracker UK - Free HMRC-Ready App",
+    title: "Mileage Tracker UK - Free App for Self-Employed Drivers",
     description:
       "Auto-track every business mile. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026). Self Assessment-ready PDF. Free.",
     images: ["/branding/og-image.png"],
@@ -285,7 +285,7 @@ export default function MileageTrackerUk() {
                 {
                   title: "Self Assessment PDF export",
                   body:
-                    "One tax year, one PDF. Per-trip detail, totals, HMRC attestation cover sheet. Drop straight onto your SA103 or hand to your accountant.",
+                    "One tax year, one PDF. Per-trip detail, totals, attestation cover sheet. Drop straight onto your SA103 or hand to your accountant.",
                 },
                 {
                   title: "Business or personal classification",
@@ -518,7 +518,7 @@ export default function MileageTrackerUk() {
                 margin: "0 auto 1.75rem",
               }}
             >
-              Free on the App Store. No card. HMRC-ready records from your first trip.
+              Free on the App Store. No card. Tax-ready records from your first trip.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
               <StoreButtons align="center" />

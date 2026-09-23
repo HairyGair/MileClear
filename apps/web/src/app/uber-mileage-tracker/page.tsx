@@ -238,7 +238,7 @@ export default function UberMileageTracker() {
                 {
                   title: "Self Assessment Export",
                   body:
-                    "With Pro, export a PDF mileage log and HMRC self-assessment summary - every trip dated, timestamped, classified, and with the deduction calculated. Ready to attach to your tax return or share with your accountant.",
+                    "With Pro, export a PDF mileage log and Self Assessment summary - every trip dated, timestamped, classified, and with the deduction calculated. Ready to attach to your tax return or share with your accountant.",
                 },
                 {
                   title: "Driver Community Benchmarks",

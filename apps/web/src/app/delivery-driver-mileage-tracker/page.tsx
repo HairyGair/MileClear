@@ -405,7 +405,7 @@ export default function DeliveryDriverMileageTracker() {
                 {
                   title: "Self Assessment Exports",
                   body:
-                    "Pro tier exports a CSV and PDF mileage log per tax year, plus the HMRC attestation cover sheet that satisfies the contemporaneous-record requirement. Drop it straight onto your SA103.",
+                    "Pro tier exports a CSV and PDF mileage log per tax year, plus an attestation cover sheet declaring it a contemporaneous record. Drop it straight onto your SA103.",
                 },
               ].map(({ title, body }) => (
                 <div
@@ -544,7 +544,7 @@ export default function DeliveryDriverMileageTracker() {
               },
               {
                 q: "What format does the export use?",
-                a: "Pro tier produces a CSV and PDF mileage log per tax year (6 April to 5 April), with the HMRC attestation cover sheet. Drop it straight onto your SA103 or hand it to your accountant.",
+                a: "Pro tier produces a CSV and PDF mileage log per tax year (6 April to 5 April), with the attestation cover sheet. Drop it straight onto your SA103 or hand it to your accountant.",
               },
             ].map(({ q, a }, i, arr) => (
               <div
@@ -639,7 +639,7 @@ export default function DeliveryDriverMileageTracker() {
                 margin: "0 auto 1.75rem",
               }}
             >
-              One mileage tracker, every UK gig platform, HMRC-ready records. Free to download.
+              One mileage tracker, every UK gig platform, tax-ready records. Free to download.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
               <StoreButtons align="center" />

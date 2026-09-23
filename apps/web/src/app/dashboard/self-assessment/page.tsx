@@ -467,7 +467,7 @@ function StepSa103Guide({ summary, onDownload, downloading }: StepProps) {
           {downloading ? "Generating..." : "Download PDF Summary"}
         </button>
         <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-          Downloads your HMRC Self-Assessment PDF report for {summary.taxYear}.
+          Downloads your Self Assessment PDF report for {summary.taxYear}.
         </p>
       </div>
     </div>

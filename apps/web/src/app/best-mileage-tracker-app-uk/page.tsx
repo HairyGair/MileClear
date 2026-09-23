@@ -112,7 +112,7 @@ const faqSchema = {
       name: "How much does MileClear cost?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "MileClear's tracking is free forever with no monthly cap, and the HMRC calculator, Tax Readiness card, Anonymous Benchmarking and MOT reminders are free too. Pro is £4.99 per month (or £44.99 a year) and adds HMRC-ready PDF and CSV exports, the Self Assessment wizard, receipt scanning and business insights. You only need Pro when you want to export a formal claim.",
+        text: "MileClear's tracking is free forever with no monthly cap, and the HMRC calculator, Tax Readiness card, Anonymous Benchmarking and MOT reminders are free too. Pro is £4.99 per month (or £44.99 a year) and adds tax-ready PDF and CSV exports, the Self Assessment wizard, receipt scanning and business insights. You only need Pro when you want to export a formal claim.",
       },
     },
   ],

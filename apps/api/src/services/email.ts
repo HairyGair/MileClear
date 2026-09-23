@@ -541,7 +541,7 @@ export async function sendWelcomeEmail(
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
                       <table role="presentation" cellpadding="0" cellspacing="0"><tr>
                         <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC-ready exports</strong> - CSV, PDF mileage log, and Self Assessment PDF with a signed attestation cover sheet HMRC inspectors recognise.</td>
+                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax-ready exports</strong> - CSV, PDF mileage log, and Self Assessment PDF with a signed attestation cover sheet.</td>
                       </tr></table>
                     </td></tr>
                     <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
@@ -1651,7 +1651,7 @@ ${statGrid([
     { value: data.trips.toLocaleString("en-GB"), label: "Trips" },
     { value: gbp(data.deductionPence), label: "Deduction" },
   ])}
-${para("When you're ready to file, your full HMRC self-assessment breakdown - box by box - is one tap away. No spreadsheets, no guesswork.")}
+${para("When you're ready to file, your full Self Assessment breakdown - box by box - is one tap away. No spreadsheets, no guesswork.")}
 ${ctaButton("View your tax summary", "https://mileclear.com/dashboard/tax")}
 ${SIGN_OFF}`;
   const html = emailShell({
@@ -1689,7 +1689,7 @@ export async function sendSelfAssessmentDeadlineEmail(
 ${para(greeting)}
 ${warningCard(`<strong style="color:#fca5a5;">${escapeHtml(data.dateLabel)}</strong> is the deadline to ${escapeHtml(data.actionLine)} - that's ${data.daysLeft} day${data.daysLeft !== 1 ? "s" : ""} away.`)}
 ${data.deductionPence ? para(`Good news: your mileage has already added up to <strong style="color:#f5a623;">${gbp(data.deductionPence)}</strong> in deductions this year. That's money off your bill, ready to claim.`) : ""}
-${para("Your numbers are ready in MileClear. Export your HMRC self-assessment breakdown and the mileage section of your return is done.")}
+${para("Your numbers are ready in MileClear. Export your Self Assessment breakdown and the mileage section of your return is done.")}
 ${ctaButton("Get your numbers ready", "https://mileclear.com/dashboard/exports")}
 ${para("Questions about what counts? Just reply - happy to help.", 8)}
 ${SIGN_OFF}`;
@@ -1837,7 +1837,7 @@ ${para(greeting)}
 ${para(`Your MileClear Pro subscription is cancelled. You'll keep full access until <strong style="color:#f0f2f5;">${escapeHtml(data.accessUntilLabel)}</strong>, then your account moves to the free plan.`)}
 ${para("Here's what goes quiet when it does:")}
 ${bulletList([
-    "HMRC self-assessment <strong style=\"color:#f0f2f5;\">PDF export</strong>",
+    "Self Assessment <strong style=\"color:#f0f2f5;\">PDF export</strong>",
     "CSV earnings import &amp; Open Banking sync",
     "Business Insights &amp; Driving Analytics",
     "Unlimited vehicles &amp; saved locations",

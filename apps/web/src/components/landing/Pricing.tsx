@@ -25,7 +25,7 @@ const free = [
 const pro = [
   "Everything in Free, plus:",
   "Print-ready Self Assessment PDF: the wizard's figures, ready to file",
-  "PDF mileage log with signed HMRC attestation cover sheet, CSV exports",
+  "PDF mileage log with signed attestation cover sheet, CSV exports",
   "Accountant Portal (read-only dashboard you can invite by email)",
   "Open Banking earnings import and bank-transaction inbox",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",

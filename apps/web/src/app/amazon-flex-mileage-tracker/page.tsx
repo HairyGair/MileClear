@@ -6,7 +6,7 @@ import StoreButtons from "@/components/StoreButtons";
 export const metadata: Metadata = {
   title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
   description:
-    "Free mileage tracker for UK Amazon Flex drivers. Auto-logs every block and return-to-depot mile, then exports an HMRC-ready Self Assessment PDF. Unlimited trips, free.",
+    "Free mileage tracker for UK Amazon Flex drivers. Auto-logs every block and return-to-depot mile, then exports a tax-ready Self Assessment PDF. Unlimited trips, free.",
   keywords: [
     "amazon flex mileage tracker",
     "amazon flex tax deduction uk",
@@ -63,7 +63,7 @@ const faqSchema = {
       name: "Does Amazon Flex track mileage automatically?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "No. The Amazon Flex app shows the route to each delivery, your block earnings, and package counts, but it does not record your driving distance for tax purposes. To claim HMRC mileage relief on Self Assessment you need a separate tracker that keeps a contemporaneous log of every block. MileClear records each block automatically using GPS - depot to last drop, plus the return trip - and produces an HMRC-ready mileage log for your tax return.",
+        text: "No. The Amazon Flex app shows the route to each delivery, your block earnings, and package counts, but it does not record your driving distance for tax purposes. To claim HMRC mileage relief on Self Assessment you need a separate tracker that keeps a contemporaneous log of every block. MileClear records each block automatically using GPS - depot to last drop, plus the return trip - and produces a tax-ready mileage log for your tax return.",
       },
     },
     {
@@ -384,7 +384,7 @@ export default function AmazonFlexMileageTracker() {
                     "Enter your block earnings when you end the shift. MileClear calculates your effective earnings per mile and per hour for each block, so you can compare which block types are most profitable for the fuel you use.",
                 },
                 {
-                  title: "HMRC-Ready Exports",
+                  title: "Tax-Ready Exports",
                   body:
                     "Pro users get a PDF mileage log and self-assessment summary. Every trip is dated, timestamped, and distance-verified. Share it with your accountant or attach it directly to your HMRC online return.",
                 },
@@ -617,7 +617,7 @@ export default function AmazonFlexMileageTracker() {
             {[
               {
                 q: "Does Amazon Flex track mileage automatically?",
-                a: "No. The Amazon Flex app shows the route to each delivery, your block earnings, and package counts, but it does not record your driving distance for tax purposes. To claim HMRC mileage relief on Self Assessment you need a separate tracker that keeps a contemporaneous log of every block. MileClear records each block automatically using GPS - depot to last drop, plus the return trip - and produces an HMRC-ready mileage log.",
+                a: "No. The Amazon Flex app shows the route to each delivery, your block earnings, and package counts, but it does not record your driving distance for tax purposes. To claim HMRC mileage relief on Self Assessment you need a separate tracker that keeps a contemporaneous log of every block. MileClear records each block automatically using GPS - depot to last drop, plus the return trip - and produces a tax-ready mileage log.",
               },
               {
                 q: "Can Amazon Flex drivers claim mileage on their UK tax return?",

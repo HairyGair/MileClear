@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Pricing | MileClear',
     description:
-      'Track every mile for free. Upgrade to Pro at £4.99/month for HMRC-ready exports, earnings tracking, and business intelligence.',
+      'Track every mile for free. Upgrade to Pro at £4.99/month for tax-ready exports, earnings tracking, and business intelligence.',
     url: 'https://mileclear.com/pricing',
     images: [{ url: '/branding/og-image.png', width: 1200, height: 628 }],
   },
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Pricing | MileClear',
     description:
-      'Track every mile for free. Upgrade to Pro at £4.99/month for HMRC-ready exports, earnings tracking, and business intelligence.',
+      'Track every mile for free. Upgrade to Pro at £4.99/month for tax-ready exports, earnings tracking, and business intelligence.',
     images: ['/branding/og-image.png'],
   },
 };
@@ -110,7 +110,7 @@ const proFeatures: FeatureGroup[] = [
     title: 'Exports and filing',
     items: [
       'Print-ready Self Assessment PDF - the wizard\'s SA103 figures as a filing-ready document',
-      'PDF mileage log with signed HMRC attestation cover sheet',
+      'PDF mileage log with signed attestation cover sheet',
       'CSV export of trips, earnings and expenses',
       'Accountant Portal - read-only dashboard you invite your accountant to by email',
     ],
@@ -173,7 +173,7 @@ const faqs = [
   },
   {
     q: 'Do I need Pro to file my Self Assessment?',
-    a: 'You do not need Pro to track your mileage, see your HMRC deduction build up, log expenses, or use the Self Assessment wizard that maps your numbers to specific SA103 form boxes - all of that is on the free plan. Pro is for the export workflow: the wizard\'s figures as a print-ready PDF, a mileage log with a signed cover sheet that HMRC inspectors recognise, and the Accountant Portal that lets you share read-only access by email. If you do your own return manually using just the numbers, free is enough.',
+    a: 'You do not need Pro to track your mileage, see your HMRC deduction build up, log expenses, or use the Self Assessment wizard that maps your numbers to specific SA103 form boxes - all of that is on the free plan. Pro is for the export workflow: the wizard\'s figures as a print-ready PDF, a mileage log with a signed cover sheet, and the Accountant Portal that lets you share read-only access by email. If you do your own return manually using just the numbers, free is enough.',
   },
   {
     q: 'Does MileClear connect to Xero, QuickBooks or FreeAgent?',
@@ -223,7 +223,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Print-ready Self Assessment PDF, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, pickup-wait community insights, unlimited vehicles, saved locations and invoices.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, pickup-wait community insights, unlimited vehicles, saved locations and invoices.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '4.99',
@@ -241,7 +241,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Print-ready Self Assessment PDF, PDF and CSV exports with HMRC attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, pickup-wait community insights, unlimited vehicles, saved locations and invoices. Billed yearly.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, pickup-wait community insights, unlimited vehicles, saved locations and invoices. Billed yearly.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '44.99',

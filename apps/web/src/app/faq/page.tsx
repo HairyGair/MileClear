@@ -209,7 +209,7 @@ const faqSchema = {
       name: 'What does MileClear Pro include?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear Pro (£4.99 per month or £44.99 per year) adds: the PDF Self Assessment export with a signed HMRC attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, pickup-wait community insights, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
+        text: 'MileClear Pro (£4.99 per month or £44.99 per year) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, pickup-wait community insights, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
       },
     },
     {
@@ -562,7 +562,7 @@ export default function FaqPage() {
                 <h3 className="faq__question">What does MileClear Pro include?</h3>
                 <p className="legal__text">
                   MileClear Pro (£4.99/month or £44.99/year) adds the PDF Self Assessment export
-                  with a signed HMRC attestation cover sheet, CSV and PDF trip exports, CSV
+                  with a signed attestation cover sheet, CSV and PDF trip exports, CSV
                   earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open
                   Banking auto-import via TrueLayer, auto-classify rules driven by your Work
                   Schedule, the Accountant Portal (read-only dashboard you can invite your
