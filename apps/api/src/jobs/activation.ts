@@ -29,10 +29,23 @@ import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
 import { postFounderAlert } from "../services/discord.js";
-import { sendActivationNudgeEmail } from "../services/email.js";
+import { sendActivationNudgeEmail, sendBgLocationNudgeEmail } from "../services/email.js";
 import { resolvePremiumStatus } from "../services/referral.js";
 import { classifyProSource, loadSandboxTxnIds } from "../services/subscriptionTruth.js";
 import { classifyActivationBlocker, type ActivationBlocker } from "./activationBlocker.js";
+import {
+  BG_NUDGE_EMAIL_EVENT,
+  BG_NUDGE_MAX_AGE_DAYS,
+  BG_NUDGE_MIN_AGE_HOURS,
+  BG_NUDGE_PUSH_EVENT,
+  BG_NUDGE_QUIET_HOURS,
+  bgLocationPushCopy,
+  decideBgLocationNudge,
+  devicePlatformOf,
+  openSettingsLocationSteps,
+  type BgNudgeDecision,
+  type DevicePlatform,
+} from "./activationBgLocation.js";
 
 export { classifyActivationBlocker, type ActivationBlocker } from "./activationBlocker.js";
 
@@ -63,6 +76,8 @@ export interface ActivationNudgeCandidate {
   blocker: Exclude<ActivationBlocker, "none">;
   channel: ActivationNudgeChannel;
   pushToken: string | null;
+  /** Which phone the permission steps should describe. */
+  platform: DevicePlatform;
 }
 
 // Account-age windows in hours. Wider than the 30-minute tick so a missed
@@ -162,6 +177,7 @@ export async function previewActivationEarlyNudges(day: ActivationNudgeDay): Pro
       blocker,
       channel,
       pushToken: u.pushToken,
+      platform: devicePlatformOf(u.platformsSeen, u.signupPlatform),
     });
   }
   return out;
@@ -170,17 +186,21 @@ export async function previewActivationEarlyNudges(day: ActivationNudgeDay): Pro
 function pushForBlocker(
   day: ActivationNudgeDay,
   blocker: Exclude<ActivationBlocker, "none">,
-  to: string
+  to: string,
+  platform: DevicePlatform
 ): ExpoPushMessage {
   const type = `activation_d${day}`;
   if (blocker === "no_permission") {
     return {
       to,
       title: "One switch and MileClear starts working",
-      body: "MileClear can't record your drives yet because it can't see your location in the background. Tap to open Settings, then Location, and choose Always. After that it runs by itself.",
+      // Until 23 Sep 2026 every phone got the iPhone path ("Location, then
+      // Always"), which Android does not have: there it is Permissions,
+      // Location, "Allow all the time". The iPhone sentence is unchanged.
+      body: `MileClear can't record your drives yet because it can't see your location in the background. ${openSettingsLocationSteps(platform)} After that it runs by itself.`,
       sound: "default",
-      // open_settings lands on MileClear's own iOS settings page, where the
-      // Location row lives.
+      // open_settings calls Linking.openSettings(): MileClear's own page in
+      // iPhone Settings, or its App info page on Android.
       data: { type, action: "open_settings" },
     };
   }
@@ -229,11 +249,11 @@ async function runActivationNudge(day: ActivationNudgeDay): Promise<void> {
     if (c.channel === "push") {
       if (!c.pushToken) continue;
       logEvent(pushEvent(day), c.userId, { blocker: c.blocker });
-      messages.push(pushForBlocker(day, c.blocker, c.pushToken));
+      messages.push(pushForBlocker(day, c.blocker, c.pushToken, c.platform));
       continue;
     }
     try {
-      await sendActivationNudgeEmail(c.email, c.displayName, { reason: c.blocker }, c.userId);
+      await sendActivationNudgeEmail(c.email, c.displayName, { reason: c.blocker, platform: c.platform }, c.userId);
       logEvent(emailEvent(day), c.userId, { blocker: c.blocker });
       emailed += 1;
       // Small delay between emails, as the check-in job does.
@@ -323,6 +343,8 @@ export async function runCaptureLapsedJob(): Promise<void> {
       pushToken: true,
       lastHeartbeatAt: true,
       bgLocationPermission: true,
+      platformsSeen: true,
+      signupPlatform: true,
       _count: { select: { trips: true } },
     },
     take: 300,
@@ -413,9 +435,10 @@ export async function runCaptureLapsedJob(): Promise<void> {
     // Two populations, two truths. Someone who has recorded before knows what
     // they are missing; someone who never has needs telling what it is for.
     const everCaptured = user._count.trips > 0;
+    const steps = openSettingsLocationSteps(devicePlatformOf(user.platformsSeen, user.signupPlatform));
     const body = everCaptured
-      ? "MileClear hasn't recorded a drive in a fortnight because it can't see your location in the background. Tap to open Settings, then Location, and choose Always."
-      : "MileClear can't record your drives yet because it can't see your location in the background. Tap to open Settings, then Location, and choose Always. It takes a moment and then it runs by itself.";
+      ? `MileClear hasn't recorded a drive in a fortnight because it can't see your location in the background. ${steps}`
+      : `MileClear can't record your drives yet because it can't see your location in the background. ${steps} It takes a moment and then it runs by itself.`;
 
     if (dryRun) {
       console.log(
@@ -432,8 +455,8 @@ export async function runCaptureLapsedJob(): Promise<void> {
       title: everCaptured ? "Your drives aren't being recorded" : "One switch and MileClear starts working",
       body,
       sound: "default",
-      // open_settings routes to Linking.openSettings(), which lands them on
-      // MileClear's own iOS settings page where the Location row lives.
+      // open_settings routes to Linking.openSettings(): MileClear's own page
+      // in iPhone Settings, or its App info page on Android.
       data: { type: "capture_lapsed", action: "open_settings" },
     });
   }
@@ -445,6 +468,180 @@ export async function runCaptureLapsedJob(): Promise<void> {
   if (messages.length > 0) {
     await sendPushNotifications(messages);
     console.log(`[jobs/activation] Capture-lapsed nudge: sent ${messages.length} push(es)`);
+  }
+}
+
+// ── Background-location nudge (23 Sep 2026) ──────────────────────────────
+//
+// Selection and copy live in activationBgLocation.ts (pure, unit-tested).
+// Nothing sends unless ACTIVATION_BG_LOCATION_NUDGE=1; the text is waiting
+// on Anthony's approval. ACTIVATION_BG_LOCATION_DRY_RUN=1 prints who would
+// get what, sends nothing, and ignores the send window.
+
+/** Other setup and permission messages. One of these in the last
+ *  BG_NUDGE_QUIET_HOURS holds this nudge back, so nobody gets two in a day. */
+const SETUP_MESSAGE_EVENTS = [
+  "notification.activation_d1",
+  "notification.activation_d3",
+  "notification.activation_d7",
+  "email.activation_d1",
+  "email.activation_d3",
+  "email.activation_d7",
+  "notification.welcome_nudge",
+  "notification.capture_lapsed",
+  "alert.heartbeat_bg_location_lost",
+];
+
+export interface BgLocationNudgeCandidate {
+  userId: string;
+  email: string;
+  displayName: string | null;
+  pushToken: string | null;
+  decision: BgNudgeDecision;
+}
+
+/** Every account in the nudge's age range with the decision for each. Reads only. */
+export async function previewBgLocationNudges(now: Date = new Date()): Promise<BgLocationNudgeCandidate[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      createdAt: {
+        gte: new Date(now.getTime() - BG_NUDGE_MAX_AGE_DAYS * 86_400_000),
+        lte: new Date(now.getTime() - BG_NUDGE_MIN_AGE_HOURS * 3_600_000),
+      },
+    },
+    select: {
+      id: true,
+      email: true,
+      displayName: true,
+      createdAt: true,
+      pushToken: true,
+      emailVerified: true,
+      marketingEmailsEnabled: true,
+      signupPlatform: true,
+      platformsSeen: true,
+      lastHeartbeatAt: true,
+      bgLocationPermission: true,
+    },
+    take: 1000,
+  });
+  if (users.length === 0) return [];
+  const ids = users.map((u) => u.id);
+  const quietCutoff = new Date(now.getTime() - BG_NUDGE_QUIET_HOURS * 3_600_000);
+
+  const [autoTrips, dumps, sent, recentSetup] = await Promise.all([
+    prisma.trip.groupBy({
+      by: ["userId"],
+      where: { userId: { in: ids }, isManualEntry: false, isPhantomTrip: false },
+      _count: { _all: true },
+    }),
+    // No orderBy: sorting while selecting statusJson throws MySQL 1038 on prod.
+    prisma.diagnosticDump.findMany({
+      where: { userId: { in: ids } },
+      select: { userId: true, capturedAt: true, statusJson: true },
+    }),
+    prisma.appEvent.findMany({
+      where: { userId: { in: ids }, type: { in: [BG_NUDGE_PUSH_EVENT, BG_NUDGE_EMAIL_EVENT] } },
+      select: { userId: true },
+    }),
+    prisma.appEvent.groupBy({
+      by: ["userId"],
+      where: { userId: { in: ids }, type: { in: SETUP_MESSAGE_EVENTS }, createdAt: { gte: quietCutoff } },
+      _max: { createdAt: true },
+    }),
+  ]);
+  const autoBy = new Map(autoTrips.map((t) => [t.userId, t._count._all]));
+  const dumpBy = new Map<string, { capturedAt: Date; backgroundPermission: unknown }>();
+  for (const d of dumps) {
+    const prev = dumpBy.get(d.userId);
+    if (prev && prev.capturedAt >= d.capturedAt) continue;
+    dumpBy.set(d.userId, {
+      capturedAt: d.capturedAt,
+      backgroundPermission: (d.statusJson as { backgroundPermission?: unknown } | null)?.backgroundPermission,
+    });
+  }
+  const sentTo = new Set(sent.map((e) => e.userId));
+  const lastSetupBy = new Map(recentSetup.map((e) => [e.userId, e._max.createdAt]));
+
+  return users.map((u) => ({
+    userId: u.id,
+    email: u.email,
+    displayName: u.displayName,
+    pushToken: u.pushToken,
+    decision: decideBgLocationNudge(
+      {
+        createdAt: u.createdAt,
+        lastHeartbeatAt: u.lastHeartbeatAt,
+        bgLocationPermission: u.bgLocationPermission,
+        dump: dumpBy.get(u.id) ?? null,
+        platformsSeen: u.platformsSeen,
+        signupPlatform: u.signupPlatform,
+        pushToken: u.pushToken,
+        emailVerified: u.emailVerified,
+        marketingEmailsEnabled: u.marketingEmailsEnabled,
+        autoTripCount: autoBy.get(u.id) ?? 0,
+        alreadySent: sentTo.has(u.id),
+        lastSetupMessageAt: lastSetupBy.get(u.id) ?? null,
+      },
+      now
+    ),
+  }));
+}
+
+export async function runActivationBgLocationNudgeJob(): Promise<void> {
+  const now = new Date();
+  const dryRun = process.env.ACTIVATION_BG_LOCATION_DRY_RUN === "1";
+  const enabled = process.env.ACTIVATION_BG_LOCATION_NUDGE === "1";
+  if (!dryRun && !enabled) return;
+  if (!dryRun && !inNudgeWindow(now)) return;
+
+  const candidates = (await previewBgLocationNudges(now)).filter((c) => c.decision.send);
+  if (candidates.length === 0) return;
+
+  const messages: ExpoPushMessage[] = [];
+  let emailed = 0;
+  for (const c of candidates) {
+    const d = c.decision;
+    if (!d.send) continue;
+    if (dryRun) {
+      console.log(
+        `[jobs/activation] DRY RUN bg-location would ${d.channel} ${c.userId} (platform=${d.platform}, permission=${d.permission})`
+      );
+      continue;
+    }
+    const meta = { platform: d.platform, permission: d.permission };
+    if (d.channel === "push" && c.pushToken) {
+      // Logged before the send, as the day 1/3/7 nudges do: a failed send
+      // stays failed rather than repeating every 30 minutes.
+      logEvent(BG_NUDGE_PUSH_EVENT, c.userId, meta);
+      const copy = bgLocationPushCopy(d.platform);
+      messages.push({
+        to: c.pushToken,
+        title: copy.title,
+        body: copy.body,
+        sound: "default",
+        // open_settings calls Linking.openSettings(): MileClear's own page
+        // in iPhone Settings, or its App info page on Android.
+        data: { type: "activation_bg_location", action: "open_settings" },
+      });
+      continue;
+    }
+    try {
+      await sendBgLocationNudgeEmail(c.email, c.displayName, { platform: d.platform }, c.userId);
+      logEvent(BG_NUDGE_EMAIL_EVENT, c.userId, meta);
+      emailed += 1;
+      await new Promise((r) => setTimeout(r, 300));
+    } catch (err) {
+      console.error(`[jobs/activation] bg-location email failed for ${c.userId}:`, err);
+    }
+  }
+
+  if (dryRun) {
+    console.log(`[jobs/activation] DRY RUN bg-location complete: ${candidates.length} would be sent, 0 sent`);
+    return;
+  }
+  if (messages.length > 0) await sendPushNotifications(messages);
+  if (messages.length > 0 || emailed > 0) {
+    console.log(`[jobs/activation] bg-location nudge: sent ${messages.length} push(es), ${emailed} email(s)`);
   }
 }
 

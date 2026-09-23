@@ -19,6 +19,7 @@ import { runJob } from "../services/jobRun.js";
 import { getNearbyStations, prewarmStationCache } from "../services/fuel.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import {
+  runActivationBgLocationNudgeJob,
   runActivationDay7Job,
   runActivationEarlyNudgeJob,
   runCaptureLapsedJob,
@@ -1585,6 +1586,8 @@ export function startNotificationJobs(): void {
     void runJob("activation_d3", () => runActivationEarlyNudgeJob(3));
     void runJob("activation_d7", runActivationDay7Job);
     void runJob("capture_lapsed", runCaptureLapsedJob);
+    // Sends nothing unless ACTIVATION_BG_LOCATION_NUDGE=1 (23 Sep 2026).
+    void runJob("activation_bg_location", runActivationBgLocationNudgeJob);
     void runJob("pro_inactive_alarm", runPayingInactiveAlarmJob);
     void runJob("short_hop_saved_locations", runShortHopSavedLocationsJob);
     // Teams "last month is ready to approve". Windowed rather than on the 6h

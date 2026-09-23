@@ -4,6 +4,7 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../lib/prisma.js";
 import { signUnsubscribeToken } from "../lib/unsubscribeToken.js";
+import { bgLocationSettingsPath, type DevicePlatform } from "../jobs/activationBgLocation.js";
 import {
   getLatestRelease,
   blogUrlForRelease,
@@ -2463,10 +2464,11 @@ export type ActivationNudgeReason = "web_only" | "no_permission" | "no_drive_yet
 export async function sendActivationNudgeEmail(
   email: string,
   displayName: string | null | undefined,
-  opts: { reason: ActivationNudgeReason },
+  opts: { reason: ActivationNudgeReason; platform?: DevicePlatform },
   userId: string
 ): Promise<void> {
   if (!(await isMarketingAllowed(userId))) return;
+  const isAndroid = opts.platform === "android";
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const p = (text: string) =>
     `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
@@ -2497,9 +2499,14 @@ ${signoff}`;
     preheader = "The app cannot see your location in the background yet, so nothing records by itself.";
     bodyHtml = `${p(greeting)}
 ${p("MileClear is installed but it cannot see your location in the background, so it cannot record a drive unless the app is open. One setting fixes that:")}
-${steps("Settings, then MileClear, then Location, then Always.")}
+${steps(
+  // Android has no "Always": the path and the wording differ (23 Sep 2026).
+  isAndroid
+    ? "Settings, then Apps, then MileClear, then Permissions, then Location, then Allow all the time."
+    : "Settings, then MileClear, then Location, then Always."
+)}
 ${p("After that, just drive with your phone in the car. You do not need to open the app.")}
-${ctaButton("Open MileClear", APP_STORE_URL)}
+${isAndroid ? "" : ctaButton("Open MileClear", APP_STORE_URL)}
 ${signoff}`;
   } else {
     subject = "Add a drive you have already done";
@@ -2508,7 +2515,7 @@ ${signoff}`;
     bodyHtml = `${p(greeting)}
 ${p("MileClear is set up and nothing has been recorded yet. Your next drive records by itself, but you do not have to wait for it.")}
 ${p("Add a drive you have already done from the dashboard: tap Add trip, put in where it started and ended, and MileClear works out the distance. Every business mile counts at 55p towards your tax deduction.")}
-${ctaButton("Open MileClear", APP_STORE_URL)}
+${isAndroid ? "" : ctaButton("Open MileClear", APP_STORE_URL)}
 ${signoff}`;
   }
 
@@ -2525,6 +2532,56 @@ ${signoff}`;
     html,
     userId,
     label: `Activation nudge (${opts.reason})`,
+    gated: true,
+  });
+}
+
+/**
+ * Background-location nudge (jobs/activation.ts, 23 Sep 2026): an account in
+ * its first month with no automatic trip, whose phone says background
+ * location is "undetermined" or "denied", and no push token to reach it by.
+ * Gives the settings path for the phone they have. No button: the fix is in
+ * the phone's Settings, and the App Store link means nothing on Android.
+ */
+export async function sendBgLocationNudgeEmail(
+  email: string,
+  displayName: string | null | undefined,
+  opts: { platform: DevicePlatform },
+  userId: string
+): Promise<void> {
+  if (!(await isMarketingAllowed(userId))) return;
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const p = (text: string) =>
+    `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
+  const steps = (text: string) =>
+    `        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
+  const path = bgLocationSettingsPath(opts.platform)
+    .map((line) => escapeHtml(line))
+    .join("<br />");
+
+  const subject = "MileClear can't record your drives yet";
+  const bodyHtml = `${p(greeting)}
+${p("MileClear is on your phone, but it isn't allowed to use your location in the background. That means it only records a drive if the app is open when you set off.")}
+${p("One setting fixes it:")}
+${steps(path)}
+${p("After that, keep your phone with you in the car and each drive records by itself. You don't need to open the app.")}
+${p("Reply to this email if anything is in the way. I read every message.")}
+        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+
+  const html = emailShell({
+    preheader: "One setting on your phone lets MileClear record drives by itself.",
+    title: "One setting and your drives record themselves",
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+
+  await deliver({
+    email,
+    subject,
+    html,
+    userId,
+    label: `Background location nudge (${opts.platform})`,
     gated: true,
   });
 }
