@@ -11,6 +11,8 @@ import { describe, it, expect } from "vitest";
 import {
   isArmedButSilent,
   exceedsArmedSilentDailyCap,
+  inArmedSilentHoldout,
+  ARMED_SILENT_HOLDOUT_UNTIL,
   type ArmedSilentInput,
 } from "../../jobs/recordingWatchdog.js";
 
@@ -83,5 +85,27 @@ describe("exceedsArmedSilentDailyCap", () => {
 
   it("allows a user pushed more than 24h ago", () => {
     expect(exceedsArmedSilentDailyCap(new Date(NOW - 25 * HOUR), NOW)).toBe(false);
+  });
+});
+
+describe("inArmedSilentHoldout", () => {
+  const ids = Array.from({ length: 2000 }, (_, i) =>
+    `00000000-0000-4000-8000-${i.toString(16).padStart(12, "0")}`,
+  );
+
+  it("puts the same user in the same half on every run", () => {
+    for (const id of ids.slice(0, 50)) {
+      expect(inArmedSilentHoldout(id, NOW)).toBe(inArmedSilentHoldout(id, NOW + 3 * 24 * HOUR));
+    }
+  });
+
+  it("splits users roughly in half", () => {
+    const held = ids.filter((id) => inArmedSilentHoldout(id, NOW)).length;
+    expect(held).toBeGreaterThan(900);
+    expect(held).toBeLessThan(1100);
+  });
+
+  it("holds nobody out once the holdout week ends", () => {
+    expect(ids.some((id) => inArmedSilentHoldout(id, ARMED_SILENT_HOLDOUT_UNTIL))).toBe(false);
   });
 });

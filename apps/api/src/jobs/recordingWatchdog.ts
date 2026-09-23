@@ -25,6 +25,7 @@
 //     within HEARTBEAT_FRESHNESS_MS will be checked, otherwise we don't
 //     have reliable data on whether the recording is genuinely stuck.
 
+import { createHash } from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotification } from "../lib/push.js";
 import { deviceProvedAliveSince } from "../services/adminObservability.js";
@@ -117,6 +118,16 @@ const ARMED_SILENT_TRIP_STALE_MS = 24 * 60 * 60 * 1000;
 // also rely on. One attempt a day is enough to measure whether the push
 // recovers anyone without turning this into background push spam.
 const ARMED_SILENT_DAILY_CAP_MS = 24 * 60 * 60 * 1000;
+
+// Holdout for Check 3 (Anthony, 23 Sep 2026). Without a control group
+// "did the nudge help" is unanswerable however long we wait: a silent phone
+// often drives again on its own. Until ARMED_SILENT_HOLDOUT_UNTIL, half the
+// qualifying users (a fixed half, from a hash of their id) get no push; the
+// run logs watchdog.restart_engine_holdout for them instead, on the same
+// one-a-day cadence, so the two groups can be compared on "drove within N
+// hours of the event". After the date every qualifying user is pushed again.
+export const ARMED_SILENT_HOLDOUT_UNTIL = Date.parse("2026-09-30T23:00:00Z");
+const ARMED_SILENT_HOLDOUT_SALT = "armed-silent-holdout-2026-09-23";
 
 // Pending-sync check thresholds. Discovered 4 May 2026 via James Taylor:
 // trips finalise via the native background task, get queued in SQLite,
@@ -237,6 +248,13 @@ export function isArmedButSilent(u: ArmedSilentInput, now: number): boolean {
  * `lastRestartPushAt` is the most recent watchdog.restart_engine_push_sent
  * event for this user (null if there has never been one).
  */
+/** True when this user is in the no-push half of the Check 3 holdout. */
+export function inArmedSilentHoldout(userId: string, now: number): boolean {
+  if (now >= ARMED_SILENT_HOLDOUT_UNTIL) return false;
+  const first = createHash("sha256").update(ARMED_SILENT_HOLDOUT_SALT + userId).digest()[0];
+  return first % 2 === 0;
+}
+
 export function exceedsArmedSilentDailyCap(
   lastRestartPushAt: Date | null,
   now: number
@@ -764,7 +782,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       by: ["userId"],
       where: {
         userId: { in: armedSilent.map((u) => u.id) },
-        type: "watchdog.restart_engine_push_sent",
+        type: { in: ["watchdog.restart_engine_push_sent", "watchdog.restart_engine_holdout"] },
         createdAt: { gte: dailyCapWindowStart },
       },
       _max: { createdAt: true },
@@ -780,6 +798,7 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   let armedSilentCooldown = 0;
   let armedSilentGaveUp = 0;
   let armedSilentDailyCapped = 0;
+  let armedSilentHeldOut = 0;
   for (const user of armedSilent) {
     // Already pushed once today for this exact condition - one attempt a
     // day is the owner's cap, not "until the 30-min cooldown clears".
@@ -790,6 +809,15 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     const hoursSinceLastTrip = user.lastTripAt
       ? (now - user.lastTripAt.getTime()) / 3.6e6
       : null;
+    if (inArmedSilentHoldout(user.id, now)) {
+      await logEvent("watchdog.restart_engine_holdout", user.id, {
+        hoursSinceLastTrip,
+        platform: user.platformsSeen,
+        lastTripAt: user.lastTripAt?.toISOString() ?? null,
+      });
+      armedSilentHeldOut++;
+      continue;
+    }
     // sendSilentPush's own lastPingedAt cooldown also covers "Check 1 or
     // Check 2 already pushed this user this run" - a push either of those
     // sent moments ago sets lastPingedAt to now, so this call lands inside
@@ -823,13 +851,14 @@ export async function runRecordingWatchdogJob(): Promise<void> {
     armedSilentPinged > 0 ||
     armedSilentCooldown > 0 ||
     armedSilentGaveUp > 0 ||
-    armedSilentDailyCapped > 0
+    armedSilentDailyCapped > 0 ||
+    armedSilentHeldOut > 0
   ) {
     console.log(
       `[watchdog] stuck=${stuck.length} (pinged ${stuckPinged}, cooldown ${stuckCooldown}, gave_up ${stuckGaveUp}, reaped ${stuckReaped}, nativeSkipped ${stuckNativeSkipped}, drained ${stuckDrained}); ` +
         `signalStuck=${signalStuck.length} (pinged ${signalPinged}, cooldown ${signalCooldown}, gave_up ${signalGaveUp}, nativeSkipped ${signalNativeSkipped}); ` +
         `pendingSync=${pendingSync.length} (pinged ${syncPinged}, cooldown ${syncCooldown}, gave_up ${syncGaveUp}, provedAlive ${syncProvedAlive}); ` +
-        `armedSilent=${armedSilent.length} (pinged ${armedSilentPinged}, cooldown ${armedSilentCooldown}, gave_up ${armedSilentGaveUp}, dailyCapped ${armedSilentDailyCapped})`
+        `armedSilent=${armedSilent.length} (pinged ${armedSilentPinged}, cooldown ${armedSilentCooldown}, gave_up ${armedSilentGaveUp}, dailyCapped ${armedSilentDailyCapped}, heldOut ${armedSilentHeldOut})`
     );
   }
 
