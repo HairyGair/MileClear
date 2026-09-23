@@ -715,6 +715,22 @@ export async function shiftSuppressesAutoDetection(
           true;
     }
 
+    // A shift left running with no driving ends itself (3h open, 3h without
+    // driving; see staleShiftRule.ts). Runs before the quiet 18h clear below
+    // because it ends the shift properly - trips, server, scorecard - and
+    // tells the driver. "ended" means the lock is already released, so this
+    // very event (often the first fix of a drive) may go on and record.
+    if (shiftRow && !alreadyEnded) {
+      let verdict: "ended" | "kept" | "busy" = "kept";
+      try {
+        const { autoEndShiftIfStale } = await import("./shiftEnd");
+        verdict = await autoEndShiftIfStale(activeShift.value, "engine");
+      } catch {
+        // best-effort: fall through to the existing handling
+      }
+      if (verdict === "ended") return false;
+    }
+
     if (!alreadyEnded && !staleActive) {
       logDetectionEvent("detection_skipped", { reason: "active_shift" }).catch(() => {});
       return true;

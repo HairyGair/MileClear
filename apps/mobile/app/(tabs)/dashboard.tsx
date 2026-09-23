@@ -34,7 +34,13 @@ import {
   fetchActiveShift,
   ShiftWithVehicle,
 } from "../../lib/api/shifts";
-import { syncStartShift, syncEndShift, syncCreateEarning } from "../../lib/sync/actions";
+import { syncStartShift, syncCreateEarning } from "../../lib/sync/actions";
+import {
+  finishShift,
+  checkActiveShiftForAutoEnd,
+  wasShiftAutoEnded,
+  onShiftAutoEnded,
+} from "../../lib/tracking/shiftEnd";
 import { getDatabase } from "../../lib/db/index";
 import {
   fetchGamificationStats,
@@ -43,8 +49,6 @@ import {
 import {
   requestLocationPermissions,
   startShiftTracking,
-  stopShiftTracking,
-  processShiftTrips,
   isTrackingActive,
   peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
@@ -76,7 +80,7 @@ import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTr
 import { useUser } from "../../lib/user/context";
 import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
-import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, recoverLiveActivity } from "../../lib/liveActivity";
+import { startLiveActivity, updateLiveActivity, recoverLiveActivity } from "../../lib/liveActivity";
 import { getLiveActivityContext } from "../../lib/liveActivity/context";
 import { useLayoutPrefs } from "../../lib/layout/index";
 import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
@@ -1043,6 +1047,11 @@ export default function DashboardScreen() {
 
   const loadData = useCallback(async () => {
     try {
+      // A shift left running with no driving ends itself (see
+      // lib/tracking/shiftEnd.ts). The engine usually does this in the
+      // background; checking here too covers a phone whose engine hasn't
+      // woken since, so the dashboard never shows a shift that should be over.
+      await checkActiveShiftForAutoEnd("dashboard").catch(() => "kept");
       const [shiftRes, vehicleRes, statsRes] = await Promise.all([
         fetchActiveShift().catch(async () => {
           // Offline fallback: check local SQLite for active shift
@@ -1073,7 +1082,11 @@ export default function DashboardScreen() {
         fetchGamificationStats().catch(() => null),
       ]);
 
-      const active = shiftRes.data.length > 0 ? shiftRes.data[0] : null;
+      let active = shiftRes.data.length > 0 ? shiftRes.data[0] : null;
+      // Ended on its own here, but the server hasn't heard yet (sync still
+      // running or queued offline). Don't re-attach GPS to it below, which
+      // would switch automatic tracking off again.
+      if (active && (await wasShiftAutoEnded(active.id))) active = null;
       setActiveShift(active);
       setVehicles(vehicleRes.data);
       if (statsRes) setStats(statsRes.data);
@@ -1113,6 +1126,15 @@ export default function DashboardScreen() {
       setRefreshing(false);
     }
   }, [isWork]);
+
+  // A shift that ends on its own while the dashboard is open: drop the timer
+  // straight away and reload once the trips and server end have gone through.
+  useEffect(() => {
+    return onShiftAutoEnded((shiftId) => {
+      setActiveShift((cur) => (cur?.id === shiftId ? null : cur));
+      loadData();
+    });
+  }, [loadData]);
 
   // Auto-trip Live Activity catch-up. iOS blocks STARTING a Live Activity while
   // the app is backgrounded, so the native engine's start is rejected when a
@@ -1418,18 +1440,14 @@ export default function DashboardScreen() {
         onPress: async () => {
           setEnding(true);
           try {
-            // 1. Stop GPS tracking + Live Activity
-            await stopShiftTracking();
-            endLiveActivityWithSummary({ distanceMiles: liveDistRef.current, tripCount: 0 });
-
-            // 2. Process GPS coordinates into trips (before ending shift so scorecard counts them)
-            await processShiftTrips(
-              activeShift.id,
-              activeShift.vehicleId ?? undefined
-            );
-
-            // 3. End shift (offline-aware — syncs when online)
-            const res = await syncEndShift(activeShift.id);
+            // Stop GPS + Live Activity, turn breadcrumbs into trips, end the
+            // shift offline-aware. Shared with the automatic end so both
+            // behave the same (lib/tracking/shiftEnd.ts).
+            const res = await finishShift({
+              shiftId: activeShift.id,
+              vehicleId: activeShift.vehicleId,
+              liveDistanceMiles: liveDistRef.current,
+            });
             setActiveShift(null);
             haptic("success");
             if (res) {
