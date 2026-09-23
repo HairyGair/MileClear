@@ -39,6 +39,7 @@ import {
   isMovingAtFirstFix,
   isRecordedDiscardWorthOffering,
   discardedRecordingSource,
+  isDroppedWalkWorthOffering,
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
@@ -1461,6 +1462,16 @@ export async function tripRoutes(app: FastifyInstance) {
         seconds: Math.round((d.arrivedAt.getTime() - d.departedAt.getTime()) / 1000),
       });
       return reply.send({ ok: true, skipped: worth.reason });
+    }
+    if (d.reason === "walk" && !isDroppedWalkWorthOffering(d.walkReason)) {
+      logEvent("trip.discarded_recording_skipped", userId, {
+        reason: "confident_walk",
+        discardReason: d.reason,
+        source,
+        walkReason: d.walkReason ?? null,
+        recordedMiles: d.recordedMiles,
+      });
+      return reply.send({ ok: true, skipped: "confident_walk" });
     }
 
     // Keyed on the departure instant so a retry from the sync queue updates the

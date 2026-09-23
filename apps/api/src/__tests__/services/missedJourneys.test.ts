@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  isDroppedWalkWorthOffering,
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
   isRecordedDiscardWorthOffering,
@@ -285,5 +286,21 @@ describe("discardedRecordingSource - which guard dropped it (15 Sep 2026)", () =
     // it away, so the card says something different and it is offered at full
     // priority rather than filed with the engine's own drops.
     expect(discardedRecordingSource("start_trip_discarded")).toBe("dropped_start_trip");
+  });
+});
+
+describe("isDroppedWalkWorthOffering", () => {
+  it("does not offer back a walk the motion sensor or step counter vouched for", () => {
+    expect(isDroppedWalkWorthOffering("motion_on_foot")).toBe(false);
+    expect(isDroppedWalkWorthOffering("step_cadence")).toBe(false);
+  });
+
+  it("still offers a walking-pace call, the one that has been wrong", () => {
+    expect(isDroppedWalkWorthOffering("walk_pace")).toBe(true);
+  });
+
+  it("offers when an older client sent no reason", () => {
+    expect(isDroppedWalkWorthOffering(undefined)).toBe(true);
+    expect(isDroppedWalkWorthOffering(null)).toBe(true);
   });
 });

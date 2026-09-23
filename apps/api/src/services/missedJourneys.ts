@@ -104,6 +104,21 @@ export function discardedRecordingSource(reason: DiscardedRecordingReason): Disc
   }
 }
 
+/**
+ * Walk verdicts backed by the phone's own sensors are not offered back.
+ * Offering a dropped walk is insurance against the walking-pace rule calling a
+ * slow crawl a walk, and that is the only verdict it has ever paid out on:
+ * of 340 dropped-walk offers (13-23 Sep 2026), 1 was accepted and it was a
+ * walk_pace call; 161 motion_on_foot and 22 step_cadence offers were accepted
+ * 0 times. For runners and golfers they were a daily list of their own runs
+ * and rounds to swipe away (Jack, 23 Sep 2026).
+ */
+export const CONFIDENT_WALK_REASONS: ReadonlySet<string> = new Set(["motion_on_foot", "step_cadence"]);
+
+export function isDroppedWalkWorthOffering(walkReason: string | null | undefined): boolean {
+  return !(walkReason != null && CONFIDENT_WALK_REASONS.has(walkReason));
+}
+
 export interface RecordedDiscardInput {
   fromLat: number;
   fromLng: number;
