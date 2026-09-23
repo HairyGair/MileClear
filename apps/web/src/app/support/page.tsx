@@ -15,7 +15,7 @@ const faqSections = [
     faqs: [
       {
         q: 'What does MileClear actually do for me?',
-        a: 'MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC (Pro), or hand the numbers to your accountant. For UK tax year 2026-27 onwards the AMAP rate is 55p per mile for the first 10,000 business miles and 25p after (the first-tier rate rose from 45p to 55p on 6 April 2026; for 2025-26 and earlier it was 45p) - MileClear tracks both tiers automatically across every tax year.',
+        a: 'MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. At year-end you can export a PDF Self Assessment, try quarterly Making Tax Digital updates (in beta on HMRC\'s test service), or hand the numbers to your accountant. For UK tax year 2026-27 onwards the AMAP rate is 55p per mile for the first 10,000 business miles and 25p after (the first-tier rate rose from 45p to 55p on 6 April 2026; for 2025-26 and earlier it was 45p) - MileClear tracks both tiers automatically across every tax year.',
       },
       {
         q: 'How does MileClear know when I’m driving?',

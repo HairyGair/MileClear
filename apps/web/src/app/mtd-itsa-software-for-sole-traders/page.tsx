@@ -47,7 +47,7 @@ const faqs = [
   },
   {
     q: "Why don't most mileage trackers do MTD ITSA submissions?",
-    a: "Mileage tracking is a different problem from tax submission. Most apps in this category - including the well-known international ones - focus on producing a CSV or PDF of your business mileage and stopping there. Submitting that data to HMRC requires an entirely separate workstream: HMRC Developer Hub registration, OAuth implementation, fraud-prevention header generation, sandbox testing, and a 3-8 week production accreditation review. Few mileage trackers have built this infrastructure because their core product is the tracker, not the filer.",
+    a: "Mileage tracking is a different problem from tax submission. Most apps in this category - including the well-known international ones - focus on producing a CSV or PDF of your business mileage and stopping there. Submitting that data to HMRC requires an entirely separate workstream: HMRC Developer Hub registration, OAuth implementation, fraud-prevention header generation, sandbox testing, and a 3-8 week production review by HMRC. Few mileage trackers have built this infrastructure because their core product is the tracker, not the filer.",
   },
   {
     q: "Can I keep using my existing mileage tracker and submit elsewhere?",
@@ -63,7 +63,7 @@ const faqs = [
   },
   {
     q: "When will MileClear's MTD ITSA submission feature be available?",
-    a: "MTD ITSA submission is in development now and targeted for the 1.2.0 release, on TestFlight by mid-July 2026, well ahead of the 7 August quarterly deadline. The OAuth flow, fraud-prevention headers, Obligations API and Self Employment Business read APIs are already live in production sandbox. The Create Period Summary submission flow and mobile UI are next. Production accreditation has been requested from HMRC and is in their review queue.",
+    a: "The full MTD journey is built into MileClear and labelled beta: connect your HMRC account, see your obligations, preview your figures and walk through a submission. Until HMRC grants production credentials, submissions go to HMRC's test service and do not change your real tax record. Our request for production credentials is under HMRC's review.",
   },
 ];
 
@@ -374,7 +374,7 @@ export default function MtdItsaSoftwarePage() {
                 figures, with personal liability if HMRC investigates.
               </li>
               <li style={{ marginBottom: "0.75rem" }}>
-                <strong style={{ color: "var(--text-white)" }}>HMRC production accreditation.</strong>{" "}
+                <strong style={{ color: "var(--text-white)" }}>HMRC production credentials.</strong>{" "}
                 Sandbox access is open to anyone. Production access requires
                 a security review by HMRC that takes 3–8 weeks: terms of
                 use, fraud-prevention header evidence, security policy,
@@ -385,7 +385,7 @@ export default function MtdItsaSoftwarePage() {
 
             <p style={{ color: "var(--text-secondary)", marginBottom: 0 }}>
               That last one is why most mileage trackers don&apos;t bother.
-              The accreditation review is a real piece of work, and the
+              HMRC&apos;s production review is a real piece of work, and the
               ongoing maintenance to keep up with HMRC schema changes is
               non-trivial.
             </p>
@@ -498,33 +498,16 @@ export default function MtdItsaSoftwarePage() {
                 }}
               >
                 <li style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "var(--text-white)" }}>Phase 1 shipped:</strong>{" "}
-                  HMRC OAuth connection, fraud-prevention header builder,
-                  validated 0-error against HMRC&apos;s Test Fraud
-                  Prevention Headers API.
+                  <strong style={{ color: "var(--text-white)" }}>Built:</strong>{" "}
+                  Connect your HMRC account, see your quarterly obligations, preview every figure and walk through a submission. It is in the app now, labelled beta.
                 </li>
                 <li style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "var(--text-white)" }}>Phase 2 in progress:</strong>{" "}
-                  Obligations API, Business Details API, Self Employment
-                  Period read APIs all live in production. Create Period
-                  Summary submission flow is the next build.
-                </li>
-                <li style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "var(--text-white)" }}>Phase 3 starting:</strong>{" "}
-                  Mobile UI for Connect HMRC, NINO entry, obligations
-                  countdown, submission preview, submission confirmation.
-                </li>
-                <li style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "var(--text-white)" }}>Phase 4 in HMRC&apos;s queue:</strong>{" "}
-                  Production accreditation request submitted 8 May 2026.
-                  HMRC review is in their MTD IT backlog; expecting 4-8
-                  week turnaround.
+                  <strong style={{ color: "var(--text-white)" }}>Running against HMRC&apos;s test service:</strong>{" "}
+                  until HMRC grants production credentials, submissions go to HMRC&apos;s sandbox and do not change your real tax record.
                 </li>
                 <li style={{ marginBottom: 0 }}>
-                  <strong style={{ color: "var(--text-white)" }}>Target release:</strong>{" "}
-                  MileClear 1.2.0 to TestFlight by mid-July 2026, App
-                  Store-public ahead of the 7 August 2026 first
-                  quarterly window.
+                  <strong style={{ color: "var(--text-white)" }}>With HMRC now:</strong>{" "}
+                  our request for production credentials is under HMRC&apos;s review.
                 </li>
               </ul>
             </div>
@@ -553,9 +536,9 @@ export default function MtdItsaSoftwarePage() {
             <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
               The whole point of MTD-compliant software is that you stop
               copying numbers between spreadsheets. Here&apos;s what the MTD
-              ITSA feature, in development now and targeted for the 1.2.0
-              release, is being built to handle automatically once your
-              quarterly window opens:
+              ITSA feature (built, in beta on HMRC&apos;s test service until
+              production credentials are granted) handles automatically once
+              your quarterly window opens:
             </p>
 
             <div
@@ -699,8 +682,9 @@ export default function MtdItsaSoftwarePage() {
               Start tracking your mileage and platform earnings now so
               your first MTD ITSA submission is one tap, not one
               panicked weekend in late July. MileClear is free for
-              tracking, classification, and tax-readiness tooling. The
-              MTD ITSA quarterly submission lands in 1.2.0.
+              tracking, classification, and tax-readiness tooling. MTD ITSA
+              quarterly submission is in the app in beta and goes live once
+              HMRC grants production credentials.
             </p>
             <StoreButtons align="center" />
             <div style={{ marginTop: "0.5rem" }}>

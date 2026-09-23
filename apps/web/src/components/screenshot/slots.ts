@@ -100,8 +100,8 @@ export const SLOTS: ScreenshotSlot[] = [
     slot: 3,
     slug: "mtd-itsa",
     eyebrow: "Making Tax Digital",
-    headline: "Quarterly updates,\nsent to HMRC.",
-    subline: "Sign in with HMRC once. File your quarterly updates from MileClear in seconds.",
+    headline: "Quarterly updates,\nbuilt in.",
+    subline: "Connect HMRC, see your deadlines, preview every figure. In beta on HMRC's test service until production credentials are granted.",
     iphoneSrc: "/screenshot-source/iphone/02-hmrc.png",
     ipadSrc: "/screenshot-source/ipad/02-hmrc.png",
     accent: "emerald",
@@ -109,7 +109,7 @@ export const SLOTS: ScreenshotSlot[] = [
     layout: "centered",
     needsRecapture: true,
     recaptureNote:
-      "Current capture shows the Connect step with a beta strip - replace with a capture of a SUBMITTED quarter (status pill: Submitted ✓) once production accreditation is granted. Beta language risks an App Store reviewer flag.",
+      "Current capture shows the Connect step with a beta strip - replace with a capture of a SUBMITTED quarter (status pill: Submitted ✓) once production credentials are granted. Beta language risks an App Store reviewer flag.",
   },
   {
     slot: 4,
@@ -196,7 +196,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "pro",
     eyebrow: "MileClear Pro",
     headline: "Pro.\nThe whole\ntax engine.",
-    subline: "HMRC submissions, business insights, accountant sharing, Open Banking, auto-classify. All of it, one upgrade.",
+    subline: "Every export, business insights, accountant sharing, Open Banking, auto-classify. All of it, one upgrade.",
     iphoneSrc: "/screenshot-source/iphone/10-pro.png",
     ipadSrc: "/screenshot-source/ipad/10-pro.png",
     accent: "emerald",

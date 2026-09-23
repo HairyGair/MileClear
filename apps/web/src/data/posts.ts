@@ -490,7 +490,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>We will be straight with you, because there is a lot of marketing about MTD readiness that does not survive contact with the detail.</p>
 
-<p>MileClear has the full Making Tax Digital journey built. You can connect a HMRC account, see your obligations, preview the figures and walk through a submission. It currently runs against HMRC's test service, and it is labelled as beta on every screen inside the app, because we are still going through HMRC's production accreditation. Until that finishes, submissions do not reach your real tax record, and your live tax position is unaffected.</p>
+<p>MileClear has the full Making Tax Digital journey built. You can connect a HMRC account, see your obligations, preview the figures and walk through a submission. It currently runs against HMRC's test service, and it is labelled as beta on every screen inside the app, because we are still waiting for HMRC's production credentials. Until they are granted, submissions do not reach your real tax record, and your live tax position is unaffected.</p>
 
 <p>Two limits worth knowing even once it is live. MileClear submits <strong>self-employment income only</strong>, so if you also have UK or foreign property income you will need MTD-compatible software for that as well. And it handles your in-year quarterly updates, not the year-end Final Declaration, which you will finish with HMRC or other compatible software.</p>
 
@@ -533,7 +533,7 @@ export const BLOG_POSTS: BlogPost[] = [
       {
         question: "Is MileClear MTD compatible?",
         answer:
-          "The full Making Tax Digital journey is built into MileClear, but it currently runs against HMRC's test service while we complete HMRC's production accreditation, and it is labelled as beta on every screen in the app. Until that finishes, submissions do not reach your real tax record. MileClear covers self-employment income only, so property income needs separate MTD-compatible software, and it handles in-year quarterly updates rather than the year-end Final Declaration. Mileage and expense tracking are free and available today, so your records will be ready whichever software you eventually file with.",
+          "The full Making Tax Digital journey is built into MileClear, but it currently runs against HMRC's test service while we wait for HMRC's production credentials, and it is labelled as beta on every screen in the app. Until that finishes, submissions do not reach your real tax record. MileClear covers self-employment income only, so property income needs separate MTD-compatible software, and it handles in-year quarterly updates rather than the year-end Final Declaration. Mileage and expense tracking are free and available today, so your records will be ready whichever software you eventually file with.",
       },
     ],
   },
@@ -701,7 +701,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Still not perfect</h2>
 
-<p>Some things still need work. The very short one and two mile trips remain the hardest to catch. A small number of people on much older versions of the app still need to update before the latest fixes reach them. And the HMRC (Making Tax Digital) submissions are still in beta against HMRC's test system while we finish accreditation - the app now says so clearly on every screen, so nobody mistakes a test submission for a real filing.</p>
+<p>Some things still need work. The very short one and two mile trips remain the hardest to catch. A small number of people on much older versions of the app still need to update before the latest fixes reach them. And the HMRC (Making Tax Digital) submissions are still in beta against HMRC's test system while we wait for HMRC's production credentials - the app now says so clearly on every screen, so nobody mistakes a test submission for a real filing.</p>
 
 <h2>What's next</h2>
 
@@ -1225,7 +1225,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>I am going to walk you through the big stuff. Some of it is a brand-new feature that did not exist last week. Some of it is foundational work you will never see because it is the kind of bug that vanishes once it is fixed. All of it ships in the same install.</p>
 
-<h2>Quarterly Self Assessment direct to HMRC</h2>
+<h2>Quarterly Self Assessment updates (beta)</h2>
 
 <p>From April 2026, sole traders earning over GBP 50,000 a year have to submit four quarterly returns to HMRC plus a year-end statement. No more single January 31 Self Assessment for that group - it is now five touchpoints with HMRC a year, every year, with deadlines in August, November, February, and May, and a final declaration the following January. It is called MTD ITSA (Making Tax Digital for Income Tax Self Assessment) and for a lot of drivers it is going to be the difference between knowing what they owe and getting an unwelcome surprise.</p>
 
@@ -1233,7 +1233,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Avatar menu, Work and Tax, MTD ITSA. Connect your HMRC account once. Enter your National Insurance Number. Confirm your trade. From that moment on, every open obligation HMRC has for you shows up in MileClear, populated with the figures the app has been building all quarter from your trips, earnings, mileage, and expenses. The preview screen shows exactly what is about to be sent before you tap Submit, broken down per platform, with the AMAP tier crossover called out, and expenses bucketed so there are no surprises. After submission, MileClear asks HMRC's own calculation engine for the tax due and shows you their number alongside ours so you can sanity-check the marginal-rate breakdown before it is locked in.</p>
 
-<p>This is the feature that took the longest. Sandbox integration with HMRC required 18 separate API services, fraud-prevention header compliance, encrypted token storage, replay-detection on every request, and three rounds of spec-conformance fixes before the validator returned zero errors. Production accreditation is still in HMRC's review queue (reference 2026-IBW598). Until they sign off, every submission goes to HMRC's sandbox environment - a banner inside the app makes that explicit so nobody accidentally relies on a sandbox return for their real tax. The moment accreditation lands, the same flow flips to production and your submissions count.</p>
+<p>This is the feature that took the longest. Sandbox integration with HMRC required 18 separate API services, fraud-prevention header compliance, encrypted token storage, replay-detection on every request, and three rounds of spec-conformance fixes before the validator returned zero errors. Our request for production credentials is still in HMRC's review queue (reference 2026-IBW598). Until they sign off, every submission goes to HMRC's sandbox environment - a banner inside the app makes that explicit so nobody accidentally relies on a sandbox return for their real tax. The moment HMRC grants production credentials, the same flow flips to production and your submissions count.</p>
 
 <h2>Trip distances that are actually accurate</h2>
 
@@ -1301,7 +1301,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Two notes for transparency.</p>
 
-<p>MTD ITSA submissions still go to HMRC's sandbox because our production accreditation is in their review queue. The Sandbox banner inside the app makes that explicit. The moment HMRC sign off (reference 2026-IBW598), submissions flip to production with no further work needed from you.</p>
+<p>MTD ITSA submissions still go to HMRC's sandbox because our request for production credentials is in their review queue. The Sandbox banner inside the app makes that explicit. The moment HMRC sign off (reference 2026-IBW598), submissions flip to production with no further work needed from you.</p>
 
 <p>Open Banking auto-import (Pro) is currently on TrueLayer's sandbox credentials. Same pattern - banner inside the app makes it clear, the flow itself is fully wired, the flip to production happens server-side when we promote the keys.</p>
 
@@ -1402,7 +1402,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Two streams of work resume now that 1.1.4 is on the public side of the door.</p>
 
-<p>The first is <strong>MTD ITSA</strong> for the 7 August 2026 first quarterly submission deadline. Phase 1 (OAuth and fraud-prevention scaffolding) is complete. Phase 2 (Self Employment Business API submission, Individual Calculations, BSAS) is the next ten days of work. Phase 3 (mobile UI), Phase 4 (HMRC production accreditation, runs in parallel), and Phase 5 (TestFlight beta with high-earner drivers) follow. Target: TestFlight by 19 July, public by 7 August. This will ship as 1.2.0.</p>
+<p>The first is <strong>MTD ITSA</strong> for the 7 August 2026 first quarterly submission deadline. Phase 1 (OAuth and fraud-prevention scaffolding) is complete. Phase 2 (Self Employment Business API submission, Individual Calculations, BSAS) is the next ten days of work. Phase 3 (mobile UI), Phase 4 (HMRC's production credentials review, runs in parallel), and Phase 5 (TestFlight beta with high-earner drivers) follow. Target: TestFlight by 19 July, public by 7 August. This will ship as 1.2.0.</p>
 
 <p>The second is <strong>Other Expenses</strong> - food, accommodation, equipment, phone bills, working-from-home costs - which a Pro tester (thank you, Laura) requested earlier today. This will ship alongside MTD ITSA in 1.2.0 because the expense payload is part of the quarterly submission. Five phases, two to three weeks of work, seven HMRC-aligned categories that map directly to SA103S boxes 17, 18, and 19. Free tier will allow 5 manual expenses; Pro unlocks unlimited entries plus receipt OCR (reusing the Apple Vision pipeline already built for earnings) and categorised exports.</p>
 
@@ -1663,7 +1663,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li><strong>Phase 1 (week of 5 May):</strong> OAuth flow against HMRC sandbox + the 9-15 mandatory fraud-prevention headers HMRC requires on every call.</li>
 <li><strong>Phase 2 (10 May - 14 June):</strong> Submission flow against the Self Employment Business API. Mapping MileClear earnings, mileage, and expenses to HMRC's schema; wiring the Obligations and Individual Calculations APIs so drivers see their period status and tax estimate directly.</li>
 <li><strong>Phase 3 (parallel):</strong> Mobile UI - connect HMRC, see your obligations, preview the figures, submit, confirm. Pro feature.</li>
-<li><strong>Phase 4 (parallel, weeks of 19 May - 21 June):</strong> HMRC production accreditation - 3-4 weeks of HMRC review, submitted early so it runs alongside development.</li>
+<li><strong>Phase 4 (parallel, weeks of 19 May - 21 June):</strong> HMRC production credentials review - 3-4 weeks of HMRC review, submitted early so it runs alongside development.</li>
 <li><strong>Phase 5 (21 June - 5 July):</strong> Closed beta with high-earner drivers running real submissions against production HMRC.</li>
 <li><strong>By 19 July:</strong> Public TestFlight or App Store availability for &gt;£50k drivers.</li>
 <li><strong>7 August 2026:</strong> First real Q1 quarterly submissions land at HMRC via MileClear.</li>
