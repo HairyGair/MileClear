@@ -864,6 +864,22 @@ async function openNativeRecording(
 ): Promise<void> {
   const db = await getDatabase();
   const BGGeo = loadNativeModule();
+  // Measures the cost of the foot-stop: a drive that resumes within minutes
+  // of a walk closing the recording was probably one stop (a delivery drop)
+  // split in two. Read on 26 Sep 2026 to decide whether two minutes is right.
+  try {
+    const fs = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'foot_stop_at'"
+    );
+    const at = fs ? Number(fs.value) : 0;
+    if (at && Date.now() - at <= 10 * 60 * 1000) {
+      logDetectionEvent("foot_stop_resumed_quickly", {
+        minutesAfter: Math.round((Date.now() - at) / 6000) / 10,
+        reason,
+      }).catch(() => {});
+    }
+    if (fs) await db.runAsync("DELETE FROM tracking_state WHERE key = 'foot_stop_at'");
+  } catch {}
   // An ARMED buffer is not stale garbage - it is a deferred multileg payload
   // still waiting to be turned into trips (finalize_multileg_deferred re-arms
   // auto_recording_active around exactly this state). The unconditional clear
@@ -1060,6 +1076,10 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
             onFootFixes: foot.onFootFixes,
             walkStartedAt: new Date(foot.walkStartedAtMs).toISOString(),
           }).catch(() => {});
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('foot_stop_at', ?)",
+            [Date.now().toString()]
+          );
           await finalizeAutoTrip();
           try {
             await loadNativeModule()?.destroyLocations();
