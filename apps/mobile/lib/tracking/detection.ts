@@ -5,6 +5,7 @@ import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
+import { isLifecycleEvent, LIFECYCLE_EVENT_CAP, LIFECYCLE_EVENT_WINDOW_MS } from "./lifecycleEvents";
 import { getAppMode } from "../mode/index";
 import {
   sendDrivingDetectedNotification,
@@ -464,16 +465,66 @@ function detectDrivingSpeed(locations: Location.LocationObject[]): DetectionResu
 export async function logDetectionEvent(event: string, data?: Record<string, unknown>): Promise<void> {
   try {
     const db = await getDatabase();
+    const recordedAt = new Date().toISOString();
+    const payload = data ? JSON.stringify(data) : null;
     await db.runAsync(
       "INSERT INTO detection_events (recorded_at, event, data) VALUES (?, ?, ?)",
-      [new Date().toISOString(), event, data ? JSON.stringify(data) : null]
+      [recordedAt, event, payload]
     );
     await db.runAsync(
       "DELETE FROM detection_events WHERE id NOT IN (SELECT id FROM detection_events ORDER BY id DESC LIMIT ?)",
       [DETECTION_EVENT_LOG_LIMIT]
     );
+    if (isLifecycleEvent(event)) {
+      await logLifecycleEvent(db, recordedAt, event, payload);
+    }
   } catch {
     // Logging failures must never break detection
+  }
+}
+
+/**
+ * Second copy of a recording-lifecycle event, in its own table so routine
+ * traffic cannot roll it out of the 500-row log before a dump uploads.
+ * Kept for LIFECYCLE_EVENT_WINDOW_MS (48 h) and capped at
+ * LIFECYCLE_EVENT_CAP rows. A separate table rather than a smarter prune of
+ * detection_events so nothing that reads detection_events (self-heal
+ * evidence, the 24 h activity summary, routing stats) sees older rows than it
+ * did before. Same timestamp and payload as the main row, so the dump merge
+ * can de-duplicate the two copies.
+ */
+async function logLifecycleEvent(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  recordedAt: string,
+  event: string,
+  payload: string | null
+): Promise<void> {
+  try {
+    await db.runAsync(
+      "INSERT INTO detection_lifecycle_events (recorded_at, event, data) VALUES (?, ?, ?)",
+      [recordedAt, event, payload]
+    );
+    const cutoff = new Date(Date.now() - LIFECYCLE_EVENT_WINDOW_MS).toISOString();
+    await db.runAsync(
+      "DELETE FROM detection_lifecycle_events WHERE recorded_at < ? OR id NOT IN (SELECT id FROM detection_lifecycle_events ORDER BY id DESC LIMIT ?)",
+      [cutoff, LIFECYCLE_EVENT_CAP]
+    );
+  } catch {
+    // Best-effort, like the main log
+  }
+}
+
+/** Lifecycle events from the last 48 h, newest first, at most LIFECYCLE_EVENT_CAP. */
+export async function getRecentLifecycleEvents(): Promise<Array<{ recorded_at: string; event: string; data: string | null }>> {
+  try {
+    const db = await getDatabase();
+    const cutoff = new Date(Date.now() - LIFECYCLE_EVENT_WINDOW_MS).toISOString();
+    return await db.getAllAsync<{ recorded_at: string; event: string; data: string | null }>(
+      "SELECT recorded_at, event, data FROM detection_lifecycle_events WHERE recorded_at >= ? ORDER BY id DESC LIMIT ?",
+      [cutoff, LIFECYCLE_EVENT_CAP]
+    );
+  } catch {
+    return [];
   }
 }
 
@@ -887,6 +938,9 @@ export async function clearDetectionEvents(): Promise<void> {
   try {
     const db = await getDatabase();
     await db.runAsync("DELETE FROM detection_events");
+    // The lifecycle copy too, or a "clear before repro" dump would still
+    // carry the last 48 h of recordings.
+    await db.runAsync("DELETE FROM detection_lifecycle_events");
   } catch {}
 }
 
