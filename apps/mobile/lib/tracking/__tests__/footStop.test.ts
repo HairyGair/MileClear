@@ -1,6 +1,6 @@
 /**
  * Foot-stop: a recording closes once the phone has been carried on foot for
- * five minutes. Anthony's golf round, 23 Sep 2026: the drive there stayed open
+ * two minutes. Anthony's golf round, 23 Sep 2026: the drive there stayed open
  * for three hours because walking never looks like stopping.
  */
 import { describe, it, expect } from "vitest";
@@ -21,8 +21,8 @@ function run(kind: string, n: number, endMs: number, stepMs = 30 * 1000, speed =
 }
 
 describe("footStopDecision", () => {
-  it("closes the drive after five minutes of walking away from the car", () => {
-    const walk = run("walking", 12, T0 + 6 * MIN); // 5.5 min of walking
+  it("closes the drive after two minutes of walking away from the car", () => {
+    const walk = run("walking", 6, T0 + 3 * MIN); // 2.5 min of walking
     const drive = run("in_vehicle", 20, T0 + 30 * 1000, 10 * 1000, 15);
     const d = footStopDecision([...walk, ...drive]);
     expect(d.finalize).toBe(true);
@@ -30,26 +30,26 @@ describe("footStopDecision", () => {
     expect(d.onFootMs).toBeGreaterThanOrEqual(FOOT_STOP_MS);
   });
 
-  it("does not close for a two-minute walk to a customer's door", () => {
-    const walk = run("walking", 5, T0 + 2 * MIN);
+  it("does not close for a ninety-second walk to a customer's door", () => {
+    const walk = run("walking", 4, T0 + 90 * 1000);
     const drive = run("in_vehicle", 20, T0, 10 * 1000, 15);
     expect(footStopDecision([...walk, ...drive]).finalize).toBe(false);
   });
 
   it("standing still on a tee neither counts nor breaks the walk", () => {
     const fixes: ActivityFix[] = [
-      ...run("walking", 4, T0 + 7 * MIN),
-      ...run("still", 4, T0 + 5 * MIN, 30 * 1000, 0),
-      ...run("walking", 4, T0 + 2 * MIN),
+      ...run("walking", 2, T0 + 3 * MIN),
+      ...run("still", 4, T0 + 2.5 * MIN, 20 * 1000, 0),
+      ...run("walking", 2, T0 + 30 * 1000),
     ];
     expect(footStopDecision(fixes).finalize).toBe(true);
   });
 
   it("an in-vehicle reading inside the window ends the stretch", () => {
     const fixes: ActivityFix[] = [
-      ...run("walking", 6, T0 + 6 * MIN),
-      ...run("in_vehicle", 1, T0 + 3 * MIN),
-      ...run("walking", 6, T0 + 2 * MIN),
+      ...run("walking", 3, T0 + 3 * MIN),
+      ...run("in_vehicle", 1, T0 + 1.5 * MIN),
+      ...run("walking", 3, T0 + 1 * MIN),
     ];
     expect(footStopDecision(fixes).finalize).toBe(false);
   });
