@@ -124,6 +124,16 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.11",
+    emailTagline:
+      "1.3.11 stops walks turning into trips, ends a drive when you walk away from the car, and makes the lock-screen buttons work straight away.",
+    emailHighlights: [
+      "**Walks stay out of your mileage** - a walk no longer starts a recording, and runs your phone's sensors confirmed are no longer offered back to you.",
+      "**Park and walk away, and the drive ends** - two minutes later, instead of the lock-screen counter running until you next drive.",
+      "**Lock-screen buttons work at once** - Business, Personal and Not Driving apply straight away, without opening the app.",
+      "**Pause with an end** - until 6am tomorrow or for a week, and recording switches itself back on.",
+      "**Fix a trip's times** - move a start earlier or an end pin further on to add the stretch the phone missed.",
+    ],
   },
   {
     // Build 88, cut 3 Sep 2026 (evening), the first binary since 87. Its one
