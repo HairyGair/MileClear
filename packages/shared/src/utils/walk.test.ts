@@ -308,12 +308,45 @@ describe("decideWalk - positive on-foot evidence", () => {
 
   it("stays quiet when the phone moved faster than a runner but proved nothing", () => {
     const d = decideWalk({
-      distanceMiles: 3,
+      distanceMiles: 2.9,
       durationSec: 900,
       sustainedSpeedMph: 14,
       motion: null,
     });
     expect(d.verdict).toBe("unknown");
     expect(d.reason).toBe("too_fast_for_walk");
+  });
+});
+
+describe("decideWalk - average speed guard (23 Sep 2026)", () => {
+  it("never calls a 21 mph average a walk, even when the sensor says on foot and the trace is too sparse for a sustained speed", () => {
+    const r = decideWalk({
+      distanceMiles: 7.6,
+      durationSec: 22 * 60,
+      sustainedSpeedMph: null,
+      motion: summariseMotion(motionFixes("walking", 10)),
+    });
+    expect(r.verdict).not.toBe("walk");
+    expect(r.reason).toBe("too_fast_on_average");
+  });
+
+  it("still calls a run a walk: 2.4 mi in 30 min with the sensor saying running", () => {
+    const r = decideWalk({
+      distanceMiles: 2.43,
+      durationSec: 30 * 60,
+      sustainedSpeedMph: 5.5,
+      motion: summariseMotion(motionFixes("running", 30)),
+    });
+    expect(r.verdict).toBe("walk");
+  });
+
+  it("ignores a high average over a few seconds of GPS jitter", () => {
+    const r = decideWalk({
+      distanceMiles: 0.2,
+      durationSec: 30,
+      sustainedSpeedMph: null,
+      motion: summariseMotion(motionFixes("walking", 10)),
+    });
+    expect(r.reason).not.toBe("too_fast_on_average");
   });
 });
