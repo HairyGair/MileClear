@@ -687,6 +687,23 @@ export function driverKeptGoing(gpsQuality: unknown): boolean {
   );
 }
 
+/**
+ * Is the trip still the one the split was planned from? False when another
+ * split already cut it (its end moved in and its breadcrumbs left), when an
+ * append added breadcrumbs, or when the trip is gone. Going ahead on a stale
+ * plan is how the same leg came to be created twice.
+ */
+export function splitPlanStillCurrent(
+  planned: { endedAt: Date | null; coordCount: number },
+  now: { endedAt: Date | null; coordCount: number; exists: boolean }
+): boolean {
+  if (!now.exists) return false;
+  if (now.coordCount !== planned.coordCount) return false;
+  const a = planned.endedAt ? new Date(planned.endedAt).getTime() : null;
+  const b = now.endedAt ? new Date(now.endedAt).getTime() : null;
+  return a === b;
+}
+
 export async function autoSplitVisitWelds(args: {
   userId: string;
   tripId: string;
@@ -730,6 +747,28 @@ export async function autoSplitVisitWelds(args: {
   const boundary = await nameInteriorBoundaries(legs, { saved: savedLocations });
 
   const created = await prisma.$transaction(async (tx) => {
+    // Only one split of this trip at a time, and only on the shape it was
+    // planned from. Two coordinate appends a few milliseconds apart each start
+    // a split; both used to read the same breadcrumbs and both created legs
+    // two onward, so the driver saw the same drive twice (31 duplicate legs
+    // across 28 drivers, 28 Aug to 23 Sep 2026, 8 of them with no route
+    // because the first split had already taken the breadcrumbs). Lock the
+    // parent row, then check nothing moved while we were planning. An append
+    // updates this row too, so it waits on the same lock; if one landed
+    // first, its own split re-runs on the fuller trip.
+    const locked = await tx.$queryRaw<Array<{ endedAt: Date | null }>>`
+      SELECT endedAt FROM trips WHERE id = ${parent.id} FOR UPDATE`;
+    const onParent = await tx.$queryRaw<Array<{ n: bigint | number }>>`
+      SELECT COUNT(*) AS n FROM trip_coordinates WHERE tripId = ${parent.id} FOR SHARE`;
+    if (
+      !splitPlanStillCurrent(
+        { endedAt: parent.endedAt, coordCount: coords.length },
+        { endedAt: locked[0]?.endedAt ?? null, coordCount: Number(onParent[0]?.n ?? 0), exists: locked.length > 0 }
+      )
+    ) {
+      return null;
+    }
+
     const madeIds: string[] = [];
 
     // Legs two onward become new trips, taking their breadcrumbs with them.
@@ -810,6 +849,11 @@ export async function autoSplitVisitWelds(args: {
 
     return madeIds;
   });
+
+  if (created === null) {
+    logEvent("trip.visit_auto_split_superseded", userId, { tripId: parent.id });
+    return null;
+  }
 
   result.newTripIds = created;
 

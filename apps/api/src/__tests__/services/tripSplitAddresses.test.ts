@@ -16,6 +16,7 @@ const tx = {
     findMany: vi.fn(),
   },
   tripCoordinate: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+  $queryRaw: vi.fn(),
 };
 
 vi.mock("../../lib/prisma.js", () => ({
@@ -94,6 +95,10 @@ function setUp() {
   let n = 0;
   tx.trip.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: `leg-${++n}`, ...data }));
   tx.trip.findMany.mockResolvedValue([]);
+  // The split's lock-and-recheck sees the trip exactly as it was planned.
+  tx.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+    strings.join("?").includes("FOR UPDATE") ? [{ endedAt: parent.endedAt }] : [{ n: route().length }]
+  );
 }
 
 describe("autoSplitVisitWelds names the stop", () => {
