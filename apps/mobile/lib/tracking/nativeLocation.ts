@@ -54,6 +54,32 @@ import {
 import { orphanRouteDecision } from "./orphanRoute";
 import { decideMotionStart } from "./motionStartRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
+import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
+
+/** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
+ *  newest first, with the motion label the engine attached to each. */
+async function recentActivityFixes(
+  db: Awaited<ReturnType<typeof getDatabase>>
+): Promise<ActivityFix[]> {
+  const rows = await db.getAllAsync<{
+    speed: number | null;
+    activity: string | null;
+    activity_confidence: number | null;
+    recorded_at: string;
+  }>(
+    "SELECT speed, activity, activity_confidence, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 120"
+  );
+  const out: ActivityFix[] = [];
+  let newest: number | null = null;
+  for (const r of rows) {
+    const atMs = recordedAtMs(r.recorded_at);
+    if (!atMs) continue;
+    newest ??= atMs;
+    if (newest - atMs > FOOT_STOP_MS + 3 * 60 * 1000) break;
+    out.push({ atMs, speed: r.speed, activity: r.activity, confidence: r.activity_confidence });
+  }
+  return out;
+}
 
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
@@ -1017,6 +1043,29 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
         }
       }
       await bufferCoord(db, loc, lastFix);
+
+      // Parked and walked away: see footStop.ts. Closes the recording the
+      // same way a gap-stop does. The walk is NOT removed from the buffer:
+      // finalize reconciles from the native store first (which would put it
+      // back) and already trims a walking tail - 23 Sep 2026, three hours of
+      // golf fixes were in the buffer and the drive still ended at the car.
+      if (loc.activity?.type) {
+        const foot = footStopDecision(await recentActivityFixes(db));
+        if (foot.finalize && foot.walkStartedAtMs != null) {
+          logDetectionEvent("foot_stop_finalize", {
+            onFootMs: foot.onFootMs,
+            onFootFixes: foot.onFootFixes,
+            walkStartedAt: new Date(foot.walkStartedAtMs).toISOString(),
+          }).catch(() => {});
+          await finalizeAutoTrip();
+          try {
+            await loadNativeModule()?.destroyLocations();
+          } catch {}
+          await enterPostTripKeepAlive(db);
+          return;
+        }
+      }
+
       // Feed the Live Activity from this stream. Until 8 Sep 2026 nothing on
       // the native path did, so the widget's miles and speed stayed at zero
       // for the whole drive while its clock ran.
