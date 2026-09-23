@@ -4,7 +4,6 @@ import {
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
   calculateMileageDeduction,
-  resolveMileageRates,
   EXPENSE_CATEGORIES,
 } from "@mileclear/shared";
 import type {
@@ -164,9 +163,6 @@ export async function fetchExportSummary(
         fullName: true,
         displayName: true,
         email: true,
-        workType: true,
-        employerMileageRatePence: true,
-        employerMileageRatePenceAfter10k: true,
       },
     }),
     // Fetch primary vehicle (or first vehicle) for trips without a vehicleId
@@ -222,7 +218,13 @@ export async function fetchExportSummary(
     }
   }
 
-  const rateOpts = user ? resolveMileageRates(user) : {};
+  // Exports price business miles at HMRC's rates, never an employer's rate.
+  // The Self Assessment PDF declares the miles were driven "for my
+  // self-employed trade" and prints the 55p/25p table beside the total, and
+  // the trip report prices each row at those rates. Using the employer rate
+  // here made the headline disagree with both (Anthony, 23 Sep 2026).
+  // Employer rates stay in the in-app employee views.
+  const rateOpts = {};
 
   const vehicleBreakdown: ExportVehicleBreakdown[] = [];
   let totalDeductionPence = 0;

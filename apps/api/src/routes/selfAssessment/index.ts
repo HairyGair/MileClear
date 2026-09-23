@@ -9,7 +9,6 @@ import {
 import {
   estimateUkTax,
   calculateMileageDeduction,
-  resolveMileageRates,
   parseTaxYear,
   UK_TAX_2025_26,
   type VehicleType,
@@ -71,7 +70,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
       const validatedTaxYear = parsed.data;
       const { start, end } = parseTaxYear(validatedTaxYear);
 
-      const [summary, expenseSummary, trips, earnings, primaryVehicle, user] =
+      const [summary, expenseSummary, trips, earnings, primaryVehicle] =
         await Promise.all([
           fetchExportSummary(userId, validatedTaxYear),
           fetchExpenseSummary(userId, validatedTaxYear),
@@ -100,14 +99,6 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
             where: { userId },
             orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
             select: { id: true, make: true, model: true, vehicleType: true },
-          }),
-          prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-              workType: true,
-              employerMileageRatePence: true,
-              employerMileageRatePenceAfter10k: true,
-            },
           }),
         ]);
 
@@ -172,7 +163,9 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         }
       }
 
-      const rateOpts = user ? resolveMileageRates(user) : {};
+      // SA103 is the self-employment form: HMRC rates, not an employer's
+      // rate, and the same figure the Self Assessment PDF prints.
+      const rateOpts = {};
       for (const row of vehicleMap.values()) {
         row.businessMiles = Math.round(row.businessMiles * 100) / 100;
         row.personalMiles = Math.round(row.personalMiles * 100) / 100;
