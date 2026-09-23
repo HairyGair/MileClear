@@ -328,12 +328,20 @@ async function markDuplicates(userId: string, rows: CsvTripRow[]): Promise<void>
     byDate.get(k)!.push(t.distanceMiles);
   }
 
+  // Each saved trip covers ONE row. A day out and back is two rows of the
+  // same length on the same date (there is rarely a time column to tell them
+  // apart), so a file whose outbound leg is already saved must still bring
+  // in the return. Matching every row against every trip skipped both legs
+  // and lost the return without a word.
   for (const row of rows) {
     const sameDay = byDate.get(row.date);
     if (!sameDay) continue;
-    row.isDuplicate = sameDay.some(
+    const i = sameDay.findIndex(
       (miles) => Math.abs(miles - row.distanceMiles) <= DUPLICATE_MILES_TOLERANCE
     );
+    if (i === -1) continue;
+    row.isDuplicate = true;
+    sameDay.splice(i, 1);
   }
 }
 

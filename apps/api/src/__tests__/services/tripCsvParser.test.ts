@@ -104,6 +104,28 @@ describe("parseTripCsvPreview", () => {
     expect(p.duplicateCount).toBe(1);
   });
 
+  it("still brings in the return leg when only the outbound is saved", async () => {
+    // Sonny's file, 20 Sep 2026: a day out and back is two rows of the same
+    // miles on the same date with no time column.
+    (prisma.trip.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { startedAt: new Date(2026, 7, 21, 12, 0), distanceMiles: 34.7 },
+    ]);
+    const csv = "Date,From,To,Distance\n21/08/2026,Home,Office,34.7\n21/08/2026,Office,Home,34.7";
+    const p = await parseTripCsvPreview(USER, csv);
+    expect(p.rows.map((r) => r.isDuplicate)).toEqual([true, false]);
+    expect(p.duplicateCount).toBe(1);
+  });
+
+  it("skips both legs when both are already saved, so a re-import adds nothing", async () => {
+    (prisma.trip.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { startedAt: new Date(2026, 7, 21, 12, 0), distanceMiles: 34.7 },
+      { startedAt: new Date(2026, 7, 21, 12, 0), distanceMiles: 34.7 },
+    ]);
+    const csv = "Date,From,To,Distance\n21/08/2026,Home,Office,34.7\n21/08/2026,Office,Home,34.7";
+    const p = await parseTripCsvPreview(USER, csv);
+    expect(p.rows.map((r) => r.isDuplicate)).toEqual([true, true]);
+  });
+
   it("neutralises spreadsheet formula injection in free-text cells", async () => {
     const csv = "Date,From,Distance\n08/08/2026,=cmd|'/c calc',5";
     const p = await parseTripCsvPreview(USER, csv);
