@@ -161,3 +161,37 @@ describe("executeTripSplit names the stop", () => {
     expect(reverseGeocodeDetailed).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("executeTripSplit counts each leg's breadcrumbs", () => {
+  beforeEach(setUp);
+
+  it("gives every leg the number of breadcrumbs it holds, not the default 0", async () => {
+    vi.mocked(reverseGeocodeDetailed).mockResolvedValue({ address: null, outcome: "unavailable", cached: false });
+    // The rows moved match the legs exactly: 71 up to the cut, 69 after.
+    tx.tripCoordinate.updateMany.mockResolvedValueOnce({ count: 71 }).mockResolvedValueOnce({ count: 69 });
+    const cut = route()[70].recordedAt;
+
+    await executeTripSplit({ userId: "u1", tripId: "parent-1", cutTimestamps: [cut] });
+
+    const counts = tx.trip.create.mock.calls.map((c) => c[0].data.coordinateCount);
+    expect(counts).toEqual([71, 69]);
+    // Nothing to correct, so no extra write.
+    expect(tx.trip.update).not.toHaveBeenCalled();
+  });
+
+  it("corrects a leg's count to the rows actually moved when they differ", async () => {
+    vi.mocked(reverseGeocodeDetailed).mockResolvedValue({ address: null, outcome: "unavailable", cached: false });
+    // Two breadcrumbs sharing the cut's timestamp: the time-based move puts
+    // one more row on the second leg than the index partition did.
+    tx.tripCoordinate.updateMany.mockResolvedValueOnce({ count: 71 }).mockResolvedValueOnce({ count: 70 });
+    const cut = route()[70].recordedAt;
+
+    await executeTripSplit({ userId: "u1", tripId: "parent-1", cutTimestamps: [cut] });
+
+    expect(tx.trip.update).toHaveBeenCalledTimes(1);
+    expect(tx.trip.update).toHaveBeenCalledWith({
+      where: { id: "leg-2" },
+      data: { coordinateCount: 70 },
+    });
+  });
+});

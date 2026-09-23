@@ -517,6 +517,12 @@ export async function executeTripSplit(args: {
           notes: k === 0 ? parent.notes : null,
           classificationAutoAccepted: null,
           routePolyline: encodePolyline(leg),
+          // The breadcrumbs move to this leg just below. Without this the
+          // column stayed at its default 0 while the rows were there, so
+          // every leg a driver split by hand read "No GPS samples captured"
+          // and low confidence in the trip list (Tamara, 23 Sep 2026: 13
+          // legs, 950 breadcrumbs, all counted as 0).
+          coordinateCount: leg.length,
           gpsQuality: {
             rawCoords: leg.length,
             keptCoords: leg.length,
@@ -533,7 +539,7 @@ export async function executeTripSplit(args: {
       // Half-open time intervals partition cleanly even with duplicate
       // recordedAt values.
       const nextLegStart = k < legs.length - 1 ? legs[k + 1][0].recordedAt : null;
-      await tx.tripCoordinate.updateMany({
+      const moved = await tx.tripCoordinate.updateMany({
         where: {
           tripId: parent.id,
           recordedAt: {
@@ -543,6 +549,15 @@ export async function executeTripSplit(args: {
         },
         data: { tripId: legTrip.id },
       });
+      // Breadcrumbs sharing a timestamp across a cut move by time, not by
+      // index, so the rows can differ from the leg by one or two. The count
+      // must match what the leg actually holds.
+      if (moved.count !== leg.length) {
+        await tx.trip.update({
+          where: { id: legTrip.id },
+          data: { coordinateCount: moved.count },
+        });
+      }
     }
 
     await tx.trip.delete({ where: { id: parent.id } });
