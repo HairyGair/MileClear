@@ -137,6 +137,17 @@ export const WALK_MIN_STEPS_PER_MIN = 50;
  *  something. Two minutes. */
 export const WALK_MIN_STEPS_DURATION_SEC = 120;
 
+/** Average speed (distance over elapsed time) at or above which a recording
+ *  is never called a walk. The average was set aside as a walk signal because
+ *  a broken end time drags it DOWN; nothing drags it UP, and nobody on foot
+ *  averages 12 mph. Needed because the sustained speed is null on a sparse
+ *  trace, and then a motion "on foot" reading used to win: 7.6 mi in 22 min
+ *  and 1.9 mi in 2.5 min were both dropped as walks (23 Sep 2026). */
+export const WALK_MAX_AVERAGE_MPH = 12;
+/** Shortest recording the average-speed guard trusts; a few seconds of GPS
+ *  jitter can fake a high average. */
+export const WALK_AVERAGE_MIN_DURATION_SEC = 60;
+
 /** Window over which speed must be held to count as sustained. Long enough to
  *  survive a single bad fix, short enough that a genuine short hop still
  *  produces one. */
@@ -306,10 +317,18 @@ export function decideWalk(input: WalkDecisionInput): WalkDecision {
     return { verdict: "drive", reason: "sustained_driving_speed" };
   }
 
+  // Too fast on average to have been on foot. Not proof of driving (a GPS
+  // jump can inflate distance), so it only ever blocks the two walk
+  // verdicts below; every other check answers as it always did.
+  const tooFastOnAverage =
+    durationSec >= WALK_AVERAGE_MIN_DURATION_SEC &&
+    input.distanceMiles / (durationSec / 3600) >= WALK_MAX_AVERAGE_MPH;
+
   // Positive evidence #3, checked before the coprocessor's in-vehicle call
   // because that call is exactly what a phone on a golf trolley gets wrong.
   // Every condition must hold; any missing input refuses the verdict.
   if (
+    !tooFastOnAverage &&
     sustainedSpeedMph !== null &&
     sustainedSpeedMph <= WALK_PACE_MAX_SUSTAINED_MPH &&
     typeof sustainedSpeedP95Mph === "number" &&
@@ -334,6 +353,10 @@ export function decideWalk(input: WalkDecisionInput): WalkDecision {
   // driving evidence it is not provably a drive either. Say so.
   if (sustainedSpeedMph !== null && sustainedSpeedMph >= WALK_MAX_SUSTAINED_MPH) {
     return { verdict: "unknown", reason: "too_fast_for_walk" };
+  }
+
+  if (tooFastOnAverage) {
+    return { verdict: "unknown", reason: "too_fast_on_average" };
   }
 
   const mixed =
