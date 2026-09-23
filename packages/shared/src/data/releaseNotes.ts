@@ -99,7 +99,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // changed, never "update to get this", because most readers already have it.
     version: "1.3.11",
     date: "September 2026",
-    label: "In Testing",
+    label: "Pending Review",
     items: [
       "Tapping Business or Personal on the lock-screen card after a trip now applies at once and the card clears, instead of waiting until the next time you open the app",
       "Tapping Not Driving on the lock-screen card during a detected drive now stops the recording there and then; before, the card went away but the drive was still saved",
