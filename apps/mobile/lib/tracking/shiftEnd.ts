@@ -42,6 +42,11 @@ export async function finishShift(params: {
   liveDistanceMiles?: number;
 }): Promise<Awaited<ReturnType<typeof syncEndShift>>> {
   await releaseShiftTracking();
+  // stopShiftTracking arms the 20-minute "Not driving" cooldown, so a drive
+  // straight after tapping End Shift was never recorded automatically. The
+  // automatic end already lifted it; the button now does too (Anthony,
+  // 23 Sep 2026).
+  await clearNotDrivingCooldown().catch(() => {});
   return closeShift(params);
 }
 
