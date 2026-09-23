@@ -1,4 +1,5 @@
 import { runTeamMonthReadyJob } from "./teamApprovals.js";
+import { devicePlatformOf, openSettingsLocationSteps } from "./activationBgLocation.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
@@ -332,7 +333,7 @@ async function runWelcomeNudgeJob(): Promise<void> {
         createdAt: { gte: threeDaysAgo, lte: oneDayAgo },
         pushToken: { not: null },
       },
-      select: { id: true, pushToken: true, displayName: true },
+      select: { id: true, pushToken: true, displayName: true, platformsSeen: true, signupPlatform: true },
     });
 
     if (candidates.length === 0) return;
@@ -369,11 +370,14 @@ async function runWelcomeNudgeJob(): Promise<void> {
       messages.push({
         to: user.pushToken!,
         title: hasAlways ? "Your first trip is the hardest" : "Turn on automatic tracking",
+        // Android was told to choose "Always", which is iPhone wording, and the
+        // tap opened the dashboard rather than the setting it asked for
+        // (23 Sep 2026).
         body: hasAlways
           ? `Welcome${name}. Tap Start Trip, or just drive: MileClear records automatically once you're moving.`
-          : `Welcome${name}. MileClear records trips by itself once you allow "Always" location — tap to switch it on, then just drive.`,
+          : `Welcome${name}. MileClear records trips by itself once it can use your location in the background. ${openSettingsLocationSteps(devicePlatformOf(user.platformsSeen, user.signupPlatform))}`,
         sound: "default",
-        data: { type: "welcome_nudge", action: "open_dashboard" },
+        data: { type: "welcome_nudge", action: hasAlways ? "open_dashboard" : "open_settings" },
       });
     }
 
@@ -1357,6 +1361,8 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
     },
     select: {
       id: true,
+      platformsSeen: true,
+      signupPlatform: true,
       bgLocationPermission: true,
       backgroundFetchStatus: true,
       lastSyncQueuePermFailed: true,
@@ -1450,7 +1456,7 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
         condition: true,
         alertType: "alert.heartbeat_bg_location_lost",
         title: "Trips aren't being tracked",
-        body: "Background location was turned off. Open Settings → MileClear → Location → Always to keep tracking, or add trips by hand instead.",
+        body: `Background location was turned off, so drives aren't recording. ${openSettingsLocationSteps(devicePlatformOf(user.platformsSeen, user.signupPlatform))}`,
         data: { action: "open_settings" },
         cooldownMs: 24 * 60 * 60 * 1000,
         maxSendsPerWindow: 3,
