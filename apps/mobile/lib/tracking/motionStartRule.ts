@@ -34,13 +34,27 @@ export interface MotionStartInput {
   onFoot: ReadonlySet<string>;
   /** Minimum confidence before the classification is believed. */
   minConfidence: number;
+  /** Refuse a slow start that no vehicle reading backs. iOS only: Android
+   *  reports no activity, and its captures are too fragile to hold back. */
+  requireVehicleWhenSlow?: boolean;
 }
 
 export type MotionStartDecision =
   /** Open a recording as normal. */
   | { skip: false; reason: null }
   /** Refuse: the phone is being carried, not driven. */
-  | { skip: true; reason: "on_foot" };
+  | { skip: true; reason: "on_foot" }
+  /** Refuse: moving at walking pace with nothing saying it is a vehicle. */
+  | { skip: true; reason: "slow_without_vehicle" };
+
+/** Below this (m/s, 10 mph) a motion start needs the phone to say it is in a
+ *  vehicle. A scan of 98 walks dropped at finalize (23 Sep 2026) found about
+ *  half opened by a motion event at 1.2-3.5 m/s that carried no on-foot label,
+ *  so the on-foot check never saw them. A real drive loses nothing: the speed
+ *  backstop opens it at 12 mph and the wake-lag extension restores the start. */
+export const SLOW_MOTION_START_MAX_MS = 10 * 0.44704;
+
+const IN_VEHICLE: ReadonlySet<string> = new Set(["in_vehicle", "automotive"]);
 
 export function decideMotionStart({
   activityType,
@@ -48,8 +62,22 @@ export function decideMotionStart({
   speedMs,
   onFoot,
   minConfidence,
+  requireVehicleWhenSlow = false,
 }: MotionStartInput): MotionStartDecision {
-  if (!activityType || !onFoot.has(activityType)) return { skip: false, reason: null };
+  if (!activityType || !onFoot.has(activityType)) {
+    const inVehicle = activityType != null && IN_VEHICLE.has(activityType);
+    if (
+      requireVehicleWhenSlow &&
+      !inVehicle &&
+      speedMs !== null &&
+      Number.isFinite(speedMs) &&
+      speedMs >= 0 &&
+      speedMs < SLOW_MOTION_START_MAX_MS
+    ) {
+      return { skip: true, reason: "slow_without_vehicle" };
+    }
+    return { skip: false, reason: null };
+  }
   if (confidence !== null && confidence < minConfidence) return { skip: false, reason: null };
   // The override: a fix at driving speed outranks any on-foot verdict.
   if (speedMs !== null && Number.isFinite(speedMs) && speedMs >= ON_FOOT_OVERRIDE_SPEED_MS) {

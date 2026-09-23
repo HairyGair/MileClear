@@ -141,6 +141,9 @@ const ON_FOOT_ACTIVITIES: ReadonlySet<string> = new Set(["walking", "on_foot", "
 // every fix, and a drive with poor sky view can refuse dozens in a row.
 const SPEED_START_NEAR_MISS_LOG_MS = 5 * 60 * 1000;
 let lastSpeedStartNearMissLogAt = 0;
+// When a fast fix last arrived while the phone said it was on foot; a second
+// within a minute confirms it is a drive rather than a GPS spike.
+let lastOnFootSpeedQualifierAt: number | null = null;
 
 // onHeartbeat backstop: if a recording is open but no native fix has arrived for
 // this long, the device is parked and the stationary onMotionChange didn't fire
@@ -1095,7 +1098,27 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
         }).catch(() => {});
       }
     }
-    if (speedStart.start && speed != null && acc != null) {
+    // A phone that says it is being carried needs two fast fixes within a
+    // minute, not one: about half the walks dropped at finalize (23 Sep 2026)
+    // were opened by a single 12-20 mph GPS spike mid-walk. Never applies on
+    // Android, which reports no activity.
+    let confirmedSpeedStart = speedStart.start;
+    const fixAct = loc.activity?.type ?? null;
+    const fixConf = typeof loc.activity?.confidence === "number" ? loc.activity.confidence : null;
+    if (speedStart.start && fixAct && ON_FOOT_ACTIVITIES.has(fixAct) && (fixConf ?? 0) >= MOTION_MIN_CONFIDENCE) {
+      const nowMs = Date.now();
+      confirmedSpeedStart =
+        lastOnFootSpeedQualifierAt != null && nowMs - lastOnFootSpeedQualifierAt <= 60 * 1000;
+      lastOnFootSpeedQualifierAt = nowMs;
+      if (!confirmedSpeedStart) {
+        logDetectionEvent("native_speed_start_awaiting_confirmation", {
+          speedMph: Math.round((speed ?? 0) * 2.23694),
+          accuracy: Math.round(acc ?? 0),
+          activity: fixAct,
+        }).catch(() => {});
+      }
+    }
+    if (confirmedSpeedStart && speed != null && acc != null) {
       // Respect an active shift and the "not driving" cooldown (a dismissed
       // detection), so we don't re-open something the user/app turned off. Uses
       // the shared helper so an ORPHANED quick-trip lock self-heals instead of
@@ -1108,7 +1131,7 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       logDetectionEvent("native_force_start_from_speed", {
         speedMph: Math.round(speed * 2.23694),
         accuracy: Math.round(acc),
-        tier: speedStart.tier,
+        tier: speedStart.start ? speedStart.tier : null,
       }).catch(() => {});
       await openNativeRecording(loc, "speed");
     }
@@ -1167,16 +1190,22 @@ async function handleNativeMotionChange(event: NativeMotionEvent): Promise<void>
         speedMs: motionSpeed,
         onFoot: ON_FOOT_ACTIVITIES,
         minConfidence: MOTION_MIN_CONFIDENCE,
+        requireVehicleWhenSlow: Platform.OS === "ios",
       });
       if (startCall.skip) {
         // Log what it was judged on, not just that it happened: 21 of these
         // fired across the fleet in the week to 21 Sep 2026 and there was no
         // way to tell afterwards whether any of them were real drives.
-        logDetectionEvent("native_motion_start_skipped_on_foot", {
-          activity: actType,
-          confidence: actConf,
-          speedMph: motionSpeed === null ? null : Math.round(motionSpeed * 2.23694),
-        }).catch(() => {});
+        logDetectionEvent(
+          startCall.reason === "on_foot"
+            ? "native_motion_start_skipped_on_foot"
+            : "native_motion_start_skipped_slow",
+          {
+            activity: actType,
+            confidence: actConf,
+            speedMph: motionSpeed === null ? null : Math.round(motionSpeed * 2.23694),
+          }
+        ).catch(() => {});
         return;
       }
       if (actType && ON_FOOT_ACTIVITIES.has(actType)) {
