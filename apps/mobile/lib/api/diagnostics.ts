@@ -10,7 +10,9 @@ import { apiRequest } from "./index";
 import {
   getDriveDetectionDiagnostics,
   getRecentDetectionEvents,
+  getRecentLifecycleEvents,
 } from "../tracking/detection";
+import { mergeDumpEvents } from "../tracking/lifecycleEvents";
 import { getDatabase } from "../db";
 import { getAppStateInfo } from "../appState";
 import { getRoutingStats } from "../tracking/routingStats";
@@ -169,6 +171,11 @@ async function getActivitySummary() {
  * still a small JSON column.
  */
 const DUMP_EVENT_COUNT = 200;
+// On top of those 200, every recording-lifecycle event from the last 48 h
+// (capped at 400), de-duplicated against the 200. Routine traffic can fill
+// 200 rows in a few hours; the lifecycle rows are what explain a drive
+// (23 Sep 2026: a three-hour golf-round recording had scrolled out of the
+// dump by the time it uploaded). See lib/tracking/lifecycleEvents.ts.
 
 /**
  * Upload the current diagnostics dump to the server. Called once per app
@@ -178,7 +185,8 @@ export async function uploadDiagnosticDump(): Promise<void> {
   try {
     const [
       diagnostics,
-      events,
+      recentEvents,
+      lifecycleEvents,
       recentTrips,
       savedLocations,
       activitySummary,
@@ -186,6 +194,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
     ] = await Promise.all([
       getDriveDetectionDiagnostics(),
       getRecentDetectionEvents(DUMP_EVENT_COUNT),
+      getRecentLifecycleEvents(),
       getRecentLocalTrips(10),
       getSavedLocations(),
       getActivitySummary(),
@@ -224,6 +233,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
     // anchors / geofence centres / coordinate buffers to `data`. Scrub every
     // event before upload so the dump never carries a fix. The server runs
     // the same scrub on receipt as a second line of defence.
+    const events = mergeDumpEvents(recentEvents, lifecycleEvents, Date.now());
     const safeEvents = events.map((e) => ({
       ...e,
       data: scrubDiagnosticEventData(e.data),
