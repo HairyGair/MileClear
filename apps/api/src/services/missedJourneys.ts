@@ -115,8 +115,21 @@ export function discardedRecordingSource(reason: DiscardedRecordingReason): Disc
  */
 export const CONFIDENT_WALK_REASONS: ReadonlySet<string> = new Set(["motion_on_foot", "step_cadence"]);
 
-export function isDroppedWalkWorthOffering(walkReason: string | null | undefined): boolean {
-  return !(walkReason != null && CONFIDENT_WALK_REASONS.has(walkReason));
+/** Average speed at or above which a sensor-backed "walk" is offered anyway.
+ *  A dry run of the open offers (23 Sep 2026) found motion_on_foot "walks" at
+ *  15-46 mph: real drives the walk rule got wrong on a sparse trace. Those
+ *  offers are the only way back for that mileage, so they stay. */
+export const CONFIDENT_WALK_MAX_OFFER_SKIP_MPH = 9;
+
+export function isDroppedWalkWorthOffering(
+  walkReason: string | null | undefined,
+  recordedMiles: number,
+  seconds: number,
+): boolean {
+  if (walkReason == null || !CONFIDENT_WALK_REASONS.has(walkReason)) return true;
+  if (seconds <= 0) return true;
+  const avgMph = recordedMiles / (seconds / 3600);
+  return avgMph >= CONFIDENT_WALK_MAX_OFFER_SKIP_MPH;
 }
 
 export interface RecordedDiscardInput {

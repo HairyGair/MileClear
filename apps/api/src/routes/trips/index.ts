@@ -1463,7 +1463,14 @@ export async function tripRoutes(app: FastifyInstance) {
       });
       return reply.send({ ok: true, skipped: worth.reason });
     }
-    if (d.reason === "walk" && !isDroppedWalkWorthOffering(d.walkReason)) {
+    if (
+      d.reason === "walk" &&
+      !isDroppedWalkWorthOffering(
+        d.walkReason,
+        d.recordedMiles,
+        (d.arrivedAt.getTime() - d.departedAt.getTime()) / 1000,
+      )
+    ) {
       logEvent("trip.discarded_recording_skipped", userId, {
         reason: "confident_walk",
         discardReason: d.reason,

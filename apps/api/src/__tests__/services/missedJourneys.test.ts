@@ -290,17 +290,24 @@ describe("discardedRecordingSource - which guard dropped it (15 Sep 2026)", () =
 });
 
 describe("isDroppedWalkWorthOffering", () => {
-  it("does not offer back a walk the motion sensor or step counter vouched for", () => {
-    expect(isDroppedWalkWorthOffering("motion_on_foot")).toBe(false);
-    expect(isDroppedWalkWorthOffering("step_cadence")).toBe(false);
+  const RUN = [2.43, 30 * 60] as const; // Jack's run: 4.9 mph
+
+  it("does not offer back a run the motion sensor or step counter vouched for", () => {
+    expect(isDroppedWalkWorthOffering("motion_on_foot", ...RUN)).toBe(false);
+    expect(isDroppedWalkWorthOffering("step_cadence", ...RUN)).toBe(false);
+  });
+
+  it("still offers a sensor-backed 'walk' that averaged driving speed", () => {
+    // 7.6 mi in 22 min, dropped as motion_on_foot on 21 Sep 2026.
+    expect(isDroppedWalkWorthOffering("motion_on_foot", 7.6, 22 * 60)).toBe(true);
   });
 
   it("still offers a walking-pace call, the one that has been wrong", () => {
-    expect(isDroppedWalkWorthOffering("walk_pace")).toBe(true);
+    expect(isDroppedWalkWorthOffering("walk_pace", ...RUN)).toBe(true);
   });
 
   it("offers when an older client sent no reason", () => {
-    expect(isDroppedWalkWorthOffering(undefined)).toBe(true);
-    expect(isDroppedWalkWorthOffering(null)).toBe(true);
+    expect(isDroppedWalkWorthOffering(undefined, ...RUN)).toBe(true);
+    expect(isDroppedWalkWorthOffering(null, ...RUN)).toBe(true);
   });
 });
