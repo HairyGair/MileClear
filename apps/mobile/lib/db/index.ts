@@ -139,6 +139,17 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       data TEXT
     );
 
+    -- Recording-lifecycle events only, kept 48 h (capped at 400 rows) so a
+    -- dump can still explain a drive after routine traffic has rolled it out
+    -- of detection_events. Written alongside detection_events by
+    -- logDetectionEvent(); see lib/tracking/lifecycleEvents.ts (23 Sep 2026).
+    CREATE TABLE IF NOT EXISTS detection_lifecycle_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at TEXT NOT NULL,
+      event TEXT NOT NULL,
+      data TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS saved_locations (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -363,6 +374,7 @@ const USER_DATA_TABLES = [
   "shift_coordinates",
   "detection_coordinates",
   "detection_events",
+  "detection_lifecycle_events",
   "trips",
   "shifts",
   "fuel_logs",

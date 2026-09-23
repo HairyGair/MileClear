@@ -60,6 +60,8 @@ function droppedNote(source: MissedJourneyProposal["source"]): string | null {
       return "We recorded this one but it was too short to save on its own";
     case "dropped_walk":
       return "The app thought this was a walk. If you were driving, add it.";
+    case "dropped_drive":
+      return "This looked like a walk, but it moved at driving speed. Add it if you drove.";
     case "dropped_phantom":
       return "This looked like the phone drifting rather than a drive. Add it if it was real.";
     case "dropped_start_trip":
