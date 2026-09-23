@@ -4,11 +4,21 @@ import { inflateSync, crc32 as zlibCrc32 } from "zlib";
 import {
   formatPence,
   formatInvoiceNumber,
+  GIG_PLATFORMS,
   HMRC_RATES,
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
 } from "@mileclear/shared";
 import type { ExportTripRow } from "@mileclear/shared";
+
+// PDFs are read by accountants, so show "Just Eat", not the stored code
+// "just_eat". Short form ("Uber", "Freelance") so it fits a table column.
+// The CSV keeps the raw codes: spreadsheets and imports may rely on them.
+function platformLabel(code: string | null | undefined): string {
+  if (!code) return "—";
+  const p = GIG_PLATFORMS.find((g) => g.value === code);
+  return p ? p.label.split(" / ")[0] : code;
+}
 import { fetchExportTrips, fetchExportSummary } from "./export-data.js";
 import { prisma } from "../lib/prisma.js";
 import { decryptIfEncrypted } from "../lib/encryption.js";
@@ -89,7 +99,9 @@ function drawAttestationCoverPage(
       day: "numeric",
       month: "long",
       year: "numeric",
-      timeZone: "UTC",
+      // parseTaxYear builds midnight UK time; in summer that is 23:00 the day
+      // before in UTC, which printed the tax year as starting on 5 April.
+      timeZone: "Europe/London",
     });
   const periodText = `${fmtDate(start)} to ${fmtDate(end)}`;
 
@@ -621,7 +633,7 @@ export async function generateTripsPdf(
         : trip.classification === "personal"
           ? "Personal"
           : "Unclass.",
-      trip.platform || "—",
+      platformLabel(trip.platform),
       trip.businessPurpose || "—",
       trip.vehicleName || "—",
       trip.hmrcRatePence ? `${trip.hmrcRatePence}p` : "—",
@@ -1017,7 +1029,7 @@ export async function generateSelfAssessmentPdf(
     doc.font("Helvetica").fontSize(10).fillColor(NAVY);
 
     for (const e of summary.earningsByPlatform) {
-      doc.text(`${e.platform}: `, { continued: true });
+      doc.text(`${platformLabel(e.platform)}: `, { continued: true });
       doc.font("Helvetica-Bold").text(formatPence(e.totalPence));
       doc.font("Helvetica");
     }
