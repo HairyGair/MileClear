@@ -4,7 +4,7 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../lib/prisma.js";
 import { signUnsubscribeToken } from "../lib/unsubscribeToken.js";
-import { bgLocationSettingsPath, type DevicePlatform } from "../jobs/activationBgLocation.js";
+import { ANDROID_NEW_NOTE, bgLocationSettingsPath, type DevicePlatform } from "../jobs/activationBgLocation.js";
 import {
   getLatestRelease,
   blogUrlForRelease,
@@ -206,6 +206,7 @@ const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear/id6759671005";
 // The Play listing is a closed test and returns "not found" to anyone not on
 // the tester list, so Android goes via the page that collects the email.
 const ANDROID_PAGE_URL = `${WEB_BASE_URL}/android`;
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.mileclear.app";
 
 function escapeHtml(str: string): string {
   return str
@@ -2491,7 +2492,7 @@ export async function sendActivationNudgeEmail(
 ${p("You signed up on the website, and the website only shows what the app on your phone has recorded. Without the app there is nothing to show yet.")}
 ${p("Install it, sign in with the same email, and your next drive records by itself.")}
 ${ctaButton("Get the app", APP_STORE_URL)}
-${p(`On Android? The app is in closed testing. Leave your email at <a href="${ANDROID_PAGE_URL}" style="color: #f5a623; text-decoration: underline;">mileclear.com/android</a> and you get the link.`)}
+${p(`On Android? MileClear is on <a href="${PLAY_STORE_URL}" style="color: #f5a623; text-decoration: underline;">Google Play</a>. It is brand new there, and we're still working on making it as reliable as the iPhone app.`)}
 ${signoff}`;
   } else if (opts.reason === "no_permission") {
     subject = "One setting and MileClear starts recording";
@@ -2506,7 +2507,7 @@ ${steps(
     : "Settings, then MileClear, then Location, then Always."
 )}
 ${p("After that, just drive with your phone in the car. You do not need to open the app.")}
-${isAndroid ? "" : ctaButton("Open MileClear", APP_STORE_URL)}
+${isAndroid ? p(ANDROID_NEW_NOTE) : ctaButton("Open MileClear", APP_STORE_URL)}
 ${signoff}`;
   } else {
     subject = "Add a drive you have already done";
@@ -2515,7 +2516,7 @@ ${signoff}`;
     bodyHtml = `${p(greeting)}
 ${p("MileClear is set up and nothing has been recorded yet. Your next drive records by itself, but you do not have to wait for it.")}
 ${p("Add a drive you have already done from the dashboard: tap Add trip, put in where it started and ended, and MileClear works out the distance. Every business mile counts at 55p towards your tax deduction.")}
-${isAndroid ? "" : ctaButton("Open MileClear", APP_STORE_URL)}
+${isAndroid ? p(ANDROID_NEW_NOTE) : ctaButton("Open MileClear", APP_STORE_URL)}
 ${signoff}`;
   }
 
@@ -2565,6 +2566,7 @@ ${p("MileClear is on your phone, but it isn't allowed to use your location in th
 ${p("One setting fixes it:")}
 ${steps(path)}
 ${p("After that, keep your phone with you in the car and each drive records by itself. You don't need to open the app.")}
+${opts.platform === "android" ? p(ANDROID_NEW_NOTE) : ""}
 ${p("Reply to this email if anything is in the way. I read every message.")}
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
         <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;

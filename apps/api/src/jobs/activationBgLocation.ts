@@ -138,6 +138,11 @@ export function decideBgLocationNudge(u: BgNudgeInput, now: Date): BgNudgeDecisi
 // ── Copy ────────────────────────────────────────────────────────────────
 
 /** The full settings path, for email and anywhere the path is spelled out. */
+/** Anthony, 23 Sep 2026: Android drivers are told plainly that the Android
+ *  app is new and still being made reliable, and how to report a gap. */
+export const ANDROID_NEW_NOTE =
+  "MileClear on Android is brand new, and we're still working on making it as reliable as the iPhone app. If a drive goes missing, reply and tell me, and I'll look into it.";
+
 export function bgLocationSettingsPath(platform: DevicePlatform): string[] {
   const android = "Settings > Apps > MileClear > Permissions > Location > Allow all the time";
   const iphone = "Settings > MileClear > Location > Always";
@@ -157,7 +162,7 @@ export function bgLocationPushCopy(platform: DevicePlatform): { title: string; b
   if (platform === "android") {
     return {
       title,
-      body: "It needs your location all the time to record drives by itself. Tap here, then Permissions, then Location, and choose Allow all the time.",
+      body: "It needs your location all the time to record drives by itself. Tap here, then Permissions, then Location, and choose Allow all the time. MileClear on Android is new, and we're still improving its reliability.",
     };
   }
   if (platform === "ios") {
