@@ -193,6 +193,12 @@ export function calculateUserHealthScore(input: HealthScoreInput): HealthScoreRe
   let band: HealthScoreResult["band"];
   if (input.lastHeartbeatAt === null || heartbeatTooOld) {
     band = "unknown";
+  } else if (input.bgLocationPermission === "denied") {
+    // A phone that has refused background location cannot record a drive
+    // the driver does not start by hand, whatever else is healthy. Without
+    // this, denied + fetch denied + failed syncs scored 53 and read
+    // "warning" (Anthony, 23 Sep 2026: that case is critical).
+    band = "critical";
   } else if (score >= 75) {
     band = "good";
   } else if (score >= 50) {

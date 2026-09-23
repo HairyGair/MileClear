@@ -52,14 +52,15 @@ describe("calculateUserHealthScore", () => {
     expect(result.band).toBe("unknown");
   });
 
-  it("drops to warning band when bg-location is denied", () => {
+  it("is critical when bg-location is denied, however the rest scores", () => {
     const result = calculateUserHealthScore({
       ...HEALTHY,
       bgLocationPermission: "denied",
     });
-    // Healthy = 100, lose bg-location's 20 of the 85 scoreable → 76, still "good"
+    // Healthy = 100, lose bg-location's 20 of the 85 scoreable → 76. The
+    // points alone read "good", but the phone cannot record on its own.
     expect(result.score).toBe(76);
-    expect(result.band).toBe("good");
+    expect(result.band).toBe("critical");
   });
 
   it("drops to critical when multiple core factors fail", () => {
@@ -69,13 +70,10 @@ describe("calculateUserHealthScore", () => {
       backgroundFetchStatus: "denied",
       lastSyncQueuePermFailed: 3,
     });
-    // -20 -10 -10 of the 85 scoreable = 45/85 → 53.
-    // ⚠️ This case was "critical" until 22 Sep 2026, and only because the
-    // dead tracking-task factor took a further 15 off everyone. With the
-    // phantom penalty gone the honest arithmetic puts it in "warning".
-    // Worth knowing if the band thresholds are ever retuned.
+    // -20 -10 -10 of the 85 scoreable = 45/85 → 53. The score alone would
+    // read "warning"; denied background location makes it critical.
     expect(result.score).toBe(53);
-    expect(result.band).toBe("warning");
+    expect(result.band).toBe("critical");
   });
 
   it("partial credit when heartbeat is mid-stale (2 days)", () => {
