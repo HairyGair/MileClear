@@ -39,7 +39,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "what-it-does",
         q: "What does MileClear do for me?",
-        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, submit quarterly returns direct to HMRC, or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
+        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, try quarterly Making Tax Digital updates (in beta on HMRC's test service), or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
       },
       {
         id: "trip-detection",
@@ -88,7 +88,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "mtd-itsa",
         q: "What is MTD ITSA?",
-        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement — no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. Avatar → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our production accreditation.",
+        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement — no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. Avatar → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
         goTo: "/tax-mtd",
       },
       {
@@ -153,7 +153,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "sa-wizard",
         q: "How does the Self Assessment wizard work? (Pro)",
-        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet HMRC inspectors recognise.\n\nFree wizard view; PDF export is Pro.",
+        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet.\n\nFree wizard view; PDF export is Pro.",
         goTo: "/self-assessment",
       },
       {
@@ -251,7 +251,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "pro-features",
         q: "What's in Pro?",
-        a: "Quarterly HMRC submissions, HMRC self-assessment PDF, CSV earnings import, Open Banking auto-import, the Bank-feed Inbox, receipt scanning, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
+        a: "Quarterly HMRC submissions, Self Assessment PDF, CSV earnings import, Open Banking auto-import, the Bank-feed Inbox, receipt scanning, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
       },
       {
         id: "expenses",

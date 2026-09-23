@@ -81,7 +81,7 @@ export default function TaxMtdSubmittedScreen() {
       <BetaBanner
         label="Beta · Sandbox"
         title="Sent to HMRC's sandbox"
-        body="You've completed the full submission flow against HMRC's test system. This does not change your real tax record yet - we're finishing production accreditation. There's nothing more you need to do."
+        body="You've completed the full submission flow against HMRC's test system. This does not change your real tax record yet - we're waiting for HMRC's production credentials. There's nothing more you need to do."
       />
 
       <View style={styles.successCard}>

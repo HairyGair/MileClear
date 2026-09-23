@@ -86,7 +86,7 @@ export default function DataExportsSettings() {
         <SettingsRow
           icon="receipt-outline"
           label="Tax exports"
-          hint="HMRC self-assessment, CSV, PDF trip log"
+          hint="Self Assessment, CSV, PDF trip log"
           badge="Pro"
           onPress={() => router.push("/exports")}
         />

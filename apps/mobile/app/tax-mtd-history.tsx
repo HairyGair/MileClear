@@ -107,7 +107,7 @@ export default function TaxMtdHistoryScreen() {
       <BetaBanner
         label="Beta · Sandbox"
         title="Sandbox submissions"
-        body="These submissions were sent to HMRC's test system while we finish production accreditation. They don't yet appear on your real HMRC tax record."
+        body="These submissions were sent to HMRC's test system while we wait for HMRC's production credentials. They don't yet appear on your real HMRC tax record."
       />
 
       <View style={styles.tabs}>

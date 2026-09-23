@@ -462,7 +462,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
 }
 
 const FEATURES = [
-  { icon: "document-text-outline", label: "HMRC Self-Assessment PDF", desc: "Print-ready SA103 form for your tax return" },
+  { icon: "document-text-outline", label: "Self Assessment PDF", desc: "Print-ready SA103 form for your tax return" },
   { icon: "receipt-outline", label: "Unlimited Invoices", desc: "Track every freelance invoice (free plan: 3/month)" },
   { icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
   { icon: "card-outline", label: "Open Banking", desc: "Auto-import earnings from your bank" },

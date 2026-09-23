@@ -20,7 +20,7 @@ interface BetaBannerProps {
  * connected to production yet (sandbox-only) OR not yet wired at all.
  * Sets honest expectations so testers don't think they've found a bug
  * when their HMRC submission "doesn't reach HMRC" — that's the design,
- * because we're sandbox-mode until production accreditation lands.
+ * because we're sandbox-mode until HMRC grants production credentials.
  *
  * Two visual variants:
  *   - beta: amber, "functional but limited" tone
