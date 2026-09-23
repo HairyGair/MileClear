@@ -88,7 +88,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "mtd-itsa",
         q: "What is MTD ITSA?",
-        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement — no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. Avatar → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our production accreditation.",
+        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement — no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. Avatar → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
         goTo: "/tax-mtd",
       },
       {

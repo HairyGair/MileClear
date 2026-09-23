@@ -44,7 +44,7 @@ const faqSections = [
       },
       {
         q: 'What is MTD ITSA - do I need to worry about it?',
-        a: 'Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50,000 a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment. MileClear Pro handles all four quarters automatically. Avatar menu → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our production accreditation.',
+        a: 'Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50,000 a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment. MileClear Pro handles all four quarters automatically. Avatar menu → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.',
       },
       {
         q: 'I have a salaried job alongside my gig work - does MileClear handle that?',
@@ -60,7 +60,7 @@ const faqSections = [
       },
       {
         q: 'How do I export my mileage for my tax return?',
-        a: 'Avatar menu → Tax Exports (Pro feature). You can export your mileage log as a PDF Self Assessment SA103, a CSV, or as a preview compatible with Xero / FreeAgent / QuickBooks (full accounting integrations are coming after MTD accreditation lands).',
+        a: 'Avatar menu → Tax Exports (Pro feature). You can export your mileage log as a PDF Self Assessment SA103, a CSV, or as a preview compatible with Xero / FreeAgent / QuickBooks (full accounting integrations are coming after HMRC grants our MTD production credentials).',
       },
     ],
   },

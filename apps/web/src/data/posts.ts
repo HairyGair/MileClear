@@ -1689,7 +1689,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h3>HMRC reconciliation auto-fill</h3>
 
-<p>Right now you type in HMRC's reported figure manually. The Self Assessment Accounts API would let MileClear fetch this directly with consent - which becomes natural once the OAuth and accreditation work for MTD ITSA is in place.</p>
+<p>Right now you type in HMRC's reported figure manually. The Self Assessment Accounts API would let MileClear fetch this directly with consent - which becomes natural once MTD ITSA has HMRC's production credentials.</p>
 
 <h2>1.4+ (later in 2026)</h2>
 
