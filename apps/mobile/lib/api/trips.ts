@@ -472,6 +472,8 @@ export interface MissedJourneyProposal {
    *  "trip_start" = the next trip was already moving when it began recording,
    *  so this is its opening stretch: "extend" it rather than add a trip.
    *  "dropped_walk" = recorded, then judged a walk and dropped.
+   *  "dropped_drive" = a dropped walk that averaged driving speed; the server
+   *  sends these first and under this name (23 Sep 2026).
    *  "dropped_phantom" = recorded, then judged phone drift and dropped.
    *  "dropped_start_trip" = recorded with Start Trip, then discarded (or left
    *  unsaved on the summary screen until it went stale). */
@@ -480,6 +482,7 @@ export interface MissedJourneyProposal {
     | "recorded"
     | "trip_start"
     | "dropped_walk"
+    | "dropped_drive"
     | "dropped_phantom"
     | "dropped_start_trip";
   /** What the engine captured before discarding it, for "recorded" rows. */

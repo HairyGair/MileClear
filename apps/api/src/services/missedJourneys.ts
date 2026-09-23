@@ -132,6 +132,19 @@ export function isDroppedWalkWorthOffering(
   return avgMph >= CONFIDENT_WALK_MAX_OFFER_SKIP_MPH;
 }
 
+/** A dropped walk that averaged driving speed over at least a minute: the
+ *  walk rule was wrong about it, so it is offered as a drive, first. */
+export const DRIVING_PACE_WALK_MIN_MPH = 12;
+export function isDroppedWalkAtDrivingPace(
+  recordedMiles: number | null,
+  departedAt: Date,
+  arrivedAt: Date,
+): boolean {
+  const seconds = (arrivedAt.getTime() - departedAt.getTime()) / 1000;
+  if (recordedMiles == null || seconds < 60) return false;
+  return recordedMiles / (seconds / 3600) >= DRIVING_PACE_WALK_MIN_MPH;
+}
+
 export interface RecordedDiscardInput {
   fromLat: number;
   fromLng: number;

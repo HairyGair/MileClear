@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  isDroppedWalkAtDrivingPace,
   isDroppedWalkWorthOffering,
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
@@ -309,5 +310,19 @@ describe("isDroppedWalkWorthOffering", () => {
   it("offers when an older client sent no reason", () => {
     expect(isDroppedWalkWorthOffering(undefined, ...RUN)).toBe(true);
     expect(isDroppedWalkWorthOffering(null, ...RUN)).toBe(true);
+  });
+});
+
+describe("isDroppedWalkAtDrivingPace", () => {
+  const at = (min: number) => new Date(Date.parse("2026-09-21T12:30:00Z") + min * 60000);
+  it("calls 7.6 mi in 22 min a drive", () => {
+    expect(isDroppedWalkAtDrivingPace(7.6, at(0), at(22))).toBe(true);
+  });
+  it("leaves a 2.4 mi, 30 min run alone", () => {
+    expect(isDroppedWalkAtDrivingPace(2.43, at(0), at(30))).toBe(false);
+  });
+  it("ignores anything under a minute, and a missing distance", () => {
+    expect(isDroppedWalkAtDrivingPace(0.4, at(0), at(0.5))).toBe(false);
+    expect(isDroppedWalkAtDrivingPace(null, at(0), at(10))).toBe(false);
   });
 });

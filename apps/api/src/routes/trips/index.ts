@@ -40,6 +40,7 @@ import {
   isRecordedDiscardWorthOffering,
   discardedRecordingSource,
   isDroppedWalkWorthOffering,
+  isDroppedWalkAtDrivingPace,
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
@@ -1379,11 +1380,22 @@ export async function tripRoutes(app: FastifyInstance) {
       },
     });
 
-    const open = await prisma.missedJourneyProposal.findMany({
+    // A "walk" that moved at driving speed is almost certainly a drive the old
+    // walk rule threw away (23 Sep 2026: 15 open offers averaged 12-46 mph).
+    // Those go first, before the cap, and are sent as "dropped_drive": the app
+    // files walk drops last behind "show more", where nobody looks, and an
+    // older app that does not know the new source keeps it at the top too.
+    const openAll = await prisma.missedJourneyProposal.findMany({
       where: { userId, status: "proposed" },
       orderBy: { arrivedAt: "desc" },
-      take: MISSED_MAX_RESULTS,
+      take: 200,
     });
+    const isDrivingPaceWalk = (p: (typeof openAll)[number]) =>
+      p.source === "dropped_walk" && isDroppedWalkAtDrivingPace(p.recordedMiles, p.departedAt, p.arrivedAt);
+    const open = [
+      ...openAll.filter(isDrivingPaceWalk),
+      ...openAll.filter((p) => !isDrivingPaceWalk(p)),
+    ].slice(0, MISSED_MAX_RESULTS);
     return reply.send({
       proposals: open.map((p) => ({
         id: p.id,
@@ -1393,7 +1405,7 @@ export async function tripRoutes(app: FastifyInstance) {
         departedAt: p.departedAt.toISOString(),
         arrivedAt: p.arrivedAt.toISOString(),
         estimatedMiles: p.estimatedMiles,
-        source: p.source,
+        source: isDrivingPaceWalk(p) ? "dropped_drive" : p.source,
         recordedMiles: p.recordedMiles,
       })),
     });
