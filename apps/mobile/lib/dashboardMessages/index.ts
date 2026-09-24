@@ -37,6 +37,15 @@ export type BlockerId = "no_location" | "bg_refresh_off" | "permission_lost";
 /** Amber, snoozeable: recording works, but not as well as it should. */
 export type SetupId = "always_location" | "motion" | "notifications" | "battery";
 
+/** Amber, above your mileage, not dismissible, and gone the moment the
+ *  condition clears. For a phone state that costs drives while it lasts but
+ *  that the driver chose, so it is neither a blocker nor a chore: Low Power
+ *  Mode (iPhone) / Battery Saver (Android), where iOS cuts background
+ *  location and drives go unrecorded without a word (24 Sep 2026: on in 57
+ *  of 569 recent dumps). Suggestions sit at the bottom of the dashboard,
+ *  where a driver in that state would never see it. */
+export type NoticeId = "low_power_mode";
+
 /** Optional. Never above the fold. */
 export type SuggestionId =
   | "detection_off"
@@ -129,6 +138,10 @@ export interface MessageInputs {
    *  timed pause is not this: it shows its own row and ends by itself. */
   detectionOffSince: number | null;
 
+  /** Low Power Mode (iPhone) or Battery Saver (Android) is on right now.
+   *  Optional: a caller that cannot tell leaves it out and nothing shows. */
+  lowPowerMode?: boolean;
+
   // Suggestion eligibility, computed by the caller from its own state.
   firstTripEligible: boolean;
   savedPlacesEligible: boolean;
@@ -161,6 +174,9 @@ export interface DashboardMessages {
   setup: SetupSummary | null;
   /** Below your mileage, capped at MAX_SUGGESTIONS. */
   suggestions: SuggestionId[];
+  /** Above your mileage, under the blocker/setup slot. Null while a blocker
+   *  shows (it outranks everything) or recording is switched off. */
+  notice: NoticeId | null;
 }
 
 function pickBlocker(i: MessageInputs): BlockerId | null {
@@ -273,7 +289,7 @@ export function batteryChecklistCopy(
 }
 
 export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
-  const empty: DashboardMessages = { blocker: null, setup: null, suggestions: [] };
+  const empty: DashboardMessages = { blocker: null, setup: null, suggestions: [], notice: null };
   if (i.activeShift) return empty;
 
   const blocker = pickBlocker(i);
@@ -307,5 +323,8 @@ export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
     MAX_SUGGESTIONS
   );
 
-  return { blocker, setup, suggestions };
+  const notice: NoticeId | null =
+    !blocker && i.lowPowerMode === true && i.detectionOffSince === null ? "low_power_mode" : null;
+
+  return { blocker, setup, suggestions, notice };
 }

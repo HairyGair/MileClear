@@ -52,6 +52,7 @@ import {
   isTrackingActive,
   peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
+import { watchLowPowerMode } from "../../lib/tracking/batteryAware";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { fetchDataQualityImprovement } from "../../lib/api/user";
 import { apiRequest } from "../../lib/api/index";
@@ -265,6 +266,10 @@ export default function DashboardScreen() {
   // when the permanent Settings switch went off, for the "off since" card.
   const [pausedUntil, setPausedUntil] = useState<number | null>(null);
   const [detectionOffSince, setDetectionOffSince] = useState<number | null>(null);
+  // Low Power Mode (iPhone) / Battery Saver (Android), live. iOS cuts
+  // background location in it, so drives go unrecorded without a word.
+  const [lowPowerMode, setLowPowerMode] = useState(false);
+  useEffect(() => watchLowPowerMode(setLowPowerMode), []);
   const refreshPauseState = useCallback(() => {
     import("../../lib/tracking/detection")
       .then(async (m) => {
@@ -798,6 +803,7 @@ export default function DashboardScreen() {
     trackEvent("motion_permission.result", { source: "checklist", status: result });
   }, [motionStatus]);
 
+  const lowPowerLogged = useRef(false);
   const dashboardMessages = useMemo(
     () =>
       selectDashboardMessages({
@@ -818,6 +824,7 @@ export default function DashboardScreen() {
         notifDeniedNudgeSilenced,
         notifPrimerSilenced,
         detectionOffSince,
+        lowPowerMode,
         firstTripEligible: showFirstTripNudge,
         savedPlacesEligible: showSavedLocationsNudge,
         referralEligible: showReferralCard,
@@ -828,10 +835,18 @@ export default function DashboardScreen() {
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
       motionStatus, notifPermission, batteryOptState, batteryNudgeDismissedAt,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
-      notifPrimerSilenced, detectionOffSince, showFirstTripNudge, showSavedLocationsNudge,
+      notifPrimerSilenced, detectionOffSince, lowPowerMode, showFirstTripNudge, showSavedLocationsNudge,
       showReferralCard, showProNudge, amapBannerSeen,
     ]
   );
+  // How often Low Power Mode is on when a driver looks: once per dashboard
+  // mount, so it can be set against missed drives.
+  useEffect(() => {
+    if (dashboardMessages.notice === "low_power_mode" && !lowPowerLogged.current) {
+      lowPowerLogged.current = true;
+      trackEvent("low_power_mode.shown", { platform: Platform.OS });
+    }
+  }, [dashboardMessages]);
 
   const snoozeSetupChecklist = useCallback(async () => {
     // Snoozes every outstanding row for 7 days using the flags that already
@@ -2063,6 +2078,31 @@ export default function DashboardScreen() {
           total={dashboardMessages.setup.total}
           onSnooze={snoozeSetupChecklist}
         />
+      )}
+      {/* Low Power Mode / Battery Saver: above the mileage, where a driver in
+          that state will actually see it (lib/dashboardMessages NoticeId). */}
+      {dashboardMessages.notice === "low_power_mode" && (
+        <View
+          style={s.offSinceCard}
+          accessible
+          accessibilityLabel={
+            Platform.OS === "ios"
+              ? "Low Power Mode is on. Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you are driving."
+              : "Battery Saver is on. It can stop MileClear recording drives in the background. Turn it off while you are driving."
+          }
+        >
+          <Ionicons name="battery-dead-outline" size={20} color={AMBER} accessible={false} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.offSinceTitle}>
+              {Platform.OS === "ios" ? "Low Power Mode is on" : "Battery Saver is on"}
+            </Text>
+            <Text style={s.offSinceBody}>
+              {Platform.OS === "ios"
+                ? "Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you're driving."
+                : "Battery Saver can stop MileClear recording drives in the background. Turn it off while you're driving."}
+            </Text>
+          </View>
+        </View>
       )}
 
 

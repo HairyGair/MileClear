@@ -15,6 +15,9 @@ interface BatteryModule {
   getBatteryLevelAsync: () => Promise<number>; // 0..1, -1 if unknown
   getBatteryStateAsync: () => Promise<number>; // 0 unknown,1 unplugged,2 charging,3 full
   isLowPowerModeEnabledAsync: () => Promise<boolean>;
+  addLowPowerModeListener?: (
+    cb: (e: { lowPowerMode: boolean }) => void
+  ) => { remove: () => void };
 }
 
 let battery: BatteryModule | null = null;
@@ -90,4 +93,35 @@ export async function isBatterySaverActive(): Promise<boolean> {
   const snap = await getBatterySnapshot();
   if (snap.level == null || snap.charging == null) return false;
   return snap.level <= BATTERY_SAVER_LEVEL && snap.charging === false;
+}
+
+/**
+ * Low Power Mode (iPhone) / Battery Saver (Android), live. Calls back now and
+ * on every change; returns an unsubscribe. iOS cuts background location in
+ * Low Power Mode, so drives go unrecorded and the driver has no way to know
+ * (Rowena, 24 Sep 2026; 57 of 569 recent dumps had it on). Never throws.
+ */
+export function watchLowPowerMode(cb: (on: boolean) => void): () => void {
+  const b = getBattery();
+  if (!b) return () => {};
+  let active = true;
+  b.isLowPowerModeEnabledAsync()
+    .then((on) => {
+      if (active) cb(!!on);
+    })
+    .catch(() => {});
+  let sub: { remove: () => void } | null = null;
+  try {
+    sub = b.addLowPowerModeListener?.((e) => {
+      if (active) cb(!!e?.lowPowerMode);
+    }) ?? null;
+  } catch {
+    sub = null;
+  }
+  return () => {
+    active = false;
+    try {
+      sub?.remove();
+    } catch {}
+  };
 }

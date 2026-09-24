@@ -51,7 +51,7 @@ describe("recording switched off in Settings", () => {
 describe("selectDashboardMessages", () => {
   it("says nothing to a healthy driver", () => {
     const r = on({});
-    expect(r).toEqual({ blocker: null, setup: null, suggestions: [] });
+    expect(r).toEqual({ blocker: null, setup: null, suggestions: [], notice: null });
   });
 
   it("says nothing at all during an active shift", () => {
@@ -61,7 +61,7 @@ describe("selectDashboardMessages", () => {
       firstTripEligible: true,
       proEligible: true,
     });
-    expect(r).toEqual({ blocker: null, setup: null, suggestions: [] });
+    expect(r).toEqual({ blocker: null, setup: null, suggestions: [], notice: null });
   });
 
   // ── Blockers ────────────────────────────────────────────────────
@@ -364,5 +364,24 @@ describe("batteryChecklistCopy", () => {
       const c = batteryChecklistCopy(m);
       expect(c.label + c.hint).not.toMatch(/\u2014/);
     }
+  });
+});
+
+describe("Low Power Mode / Battery Saver notice (24 Sep 2026)", () => {
+  it("shows above the mileage while it is on, and takes no suggestion slot", () => {
+    const r = on({ lowPowerMode: true, firstTripEligible: true, referralEligible: true });
+    expect(r.notice).toBe("low_power_mode");
+    expect(r.suggestions).toEqual(["first_trip", "referral"]);
+  });
+  it("gives way to a blocker, which says more", () => {
+    expect(on({ lowPowerMode: true, locationTier: "none" }).notice).toBeNull();
+  });
+  it("gives way to recording being switched off", () => {
+    expect(on({ lowPowerMode: true, detectionOffSince: NOW - DAY }).notice).toBeNull();
+  });
+  it("says nothing when it is off, or when the phone cannot tell, or during a shift", () => {
+    expect(on({ lowPowerMode: false }).notice).toBeNull();
+    expect(on({}).notice).toBeNull();
+    expect(on({ lowPowerMode: true, activeShift: true }).notice).toBeNull();
   });
 });
