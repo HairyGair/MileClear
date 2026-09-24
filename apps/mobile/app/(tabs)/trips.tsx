@@ -27,6 +27,7 @@ import { isNetworkError } from "../../lib/sync/errors";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
+import { mergeTripPage, uniqueById } from "../../lib/trips/pageMerge";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
@@ -405,8 +406,17 @@ export default function TripsScreen() {
   // far the user has scrolled.
   const PAGE_SIZE = 20;
 
+  // One next-page load at a time. `loadingMore` state is read from the last
+  // render, so two scroll events before a re-render could each start a load
+  // of the same page. A fresh page-1 load bumps the generation, so a
+  // next-page load that was already in flight for the old list is dropped
+  // instead of being appended to the new one.
+  const loadingMoreRef = useRef(false);
+  const listGenerationRef = useRef(0);
+
   const loadTrips = useCallback(
     async (pageNum: number, append = false) => {
+      const generation = append ? listGenerationRef.current : ++listGenerationRef.current;
       try {
         const classification = filterRef.current === "all" ? undefined : filterRef.current;
         const platformTag =
@@ -423,16 +433,19 @@ export default function TripsScreen() {
           page: pageNum,
           pageSize: PAGE_SIZE,
         });
+        if (generation !== listGenerationRef.current) return;
         setIsOffline(false);
 
         if (append) {
-          setTrips((prev) => [...prev, ...res.data]);
+          // Never append a trip that is already on screen: a trip that synced
+          // since page 1 loaded slides the last trip of page 1 onto page 2.
+          setTrips((prev) => mergeTripPage(prev, res.data));
         } else {
           // Merge unsynced local items on first page
           const unsynced = await getLocalUnsyncedTrips({ classification, platformTag });
           const apiIds = new Set(res.data.map((t) => t.id));
           const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
-          const allTrips = [...uniqueLocal, ...res.data];
+          const allTrips = uniqueById([...uniqueLocal, ...res.data]);
           // Animate the data swap-in. Pairs with the configureNext call in
           // handleFilterChange / handlePlatformChange so the chip → list
           // transition flows as one motion instead of two snaps.
@@ -449,7 +462,7 @@ export default function TripsScreen() {
         // for a genuine network error - a token hiccup or a one-off 500 must not
         // claim you're offline (Anthony, 4 Jun: a transient blip latched the
         // banner until a manual refresh).
-        if (!append) {
+        if (!append && generation === listGenerationRef.current) {
           const classification = filterRef.current === "all" ? undefined : filterRef.current;
           const platformTag =
             platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
@@ -459,6 +472,7 @@ export default function TripsScreen() {
           setTotalPages(1);
         }
       } finally {
+        if (append) loadingMoreRef.current = false;
         setLoading(false);
         setRefreshing(false);
         setLoadingMore(false);
@@ -515,7 +529,8 @@ export default function TripsScreen() {
   }, [loadTrips, loadSummary, loadUnclassifiedCount]);
 
   const onEndReached = useCallback(() => {
-    if (loadingMore || page >= totalPages) return;
+    if (loadingMoreRef.current || loadingMore || page >= totalPages) return;
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     loadTrips(page + 1, true);
   }, [loadingMore, page, totalPages, loadTrips]);
