@@ -346,6 +346,12 @@ export interface Vehicle {
    *  for cost-per-mile on electric vehicles. */
   milesPerKwh: number | null;
   isPrimary: boolean;
+  /** Set when the DVLA cannot answer for the plate, so MOT and tax reminders
+   *  are off: "not_found" (no record) or "invalid" (not a plate it accepts).
+   *  Optional because older API responses do not carry it. */
+  dvlaPlateProblem?: "not_found" | "invalid" | null;
+  /** A look-alike correction the DVLA confirmed it knows, e.g. "DL74ONT". */
+  dvlaPlateSuggestion?: string | null;
 }
 
 export interface VehicleLookupResult {

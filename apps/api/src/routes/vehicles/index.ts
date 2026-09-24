@@ -291,9 +291,27 @@ export async function vehicleRoutes(app: FastifyInstance) {
       });
     }
 
+    // A new plate is a different lookup: drop the old plate's DVLA dates and
+    // any "check your plate" warning, and let the next reminders run (every
+    // 6 h) look the new one up.
+    const plateChanged =
+      data.registrationPlate !== undefined &&
+      (data.registrationPlate || null) !== (existing.registrationPlate || null);
+
     const vehicle = await prisma.vehicle.update({
       where: { id },
-      data,
+      data: plateChanged
+        ? {
+            ...data,
+            lastDvlaCheckAt: null,
+            motExpiryDate: null,
+            taxDueDate: null,
+            motReminderSentAt: null,
+            taxReminderSentAt: null,
+            dvlaPlateProblem: null,
+            dvlaPlateSuggestion: null,
+          }
+        : data,
     });
 
     return reply.send({ data: withCleanAirZones(vehicle) });

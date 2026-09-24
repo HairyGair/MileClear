@@ -19,14 +19,34 @@ export interface DvlaVehicleInfo {
   monthOfFirstRegistration: string | null; // "YYYY-MM"
 }
 
+/**
+ * Why a lookup failed. "not_found" and "invalid" are about the plate and will
+ * not change until the driver edits it. The rest are about the DVLA or us and
+ * are worth retrying soon: "rate_limited" means we asked too fast.
+ */
+export type DvlaFailure =
+  | "not_found"
+  | "invalid"
+  | "rate_limited"
+  | "auth"
+  | "upstream"
+  | "network"
+  | "config";
+
 export class DvlaError extends Error {
   constructor(
     message: string,
     public readonly status: number,
-    public readonly cause?: unknown
+    public readonly cause?: unknown,
+    public readonly kind: DvlaFailure = "upstream"
   ) {
     super(message);
     this.name = "DvlaError";
+  }
+
+  /** True when the plate itself is the problem, not the DVLA. */
+  get isPlateProblem(): boolean {
+    return this.kind === "not_found" || this.kind === "invalid";
   }
 }
 
@@ -43,7 +63,7 @@ export async function fetchDvlaVehicleInfo(
 ): Promise<DvlaVehicleInfo> {
   const apiKey = process.env.DVLA_API_KEY;
   if (!apiKey) {
-    throw new DvlaError("DVLA_API_KEY not configured", 503);
+    throw new DvlaError("DVLA_API_KEY not configured", 503, undefined, "config");
   }
 
   let response: Response;
@@ -60,14 +80,22 @@ export async function fetchDvlaVehicleInfo(
       }
     );
   } catch (err) {
-    throw new DvlaError("DVLA network error", 502, err);
+    throw new DvlaError("DVLA network error", 502, err, "network");
   }
 
   if (response.status === 404) {
-    throw new DvlaError("Vehicle not found at DVLA", 404);
+    throw new DvlaError("Vehicle not found at DVLA", 404, undefined, "not_found");
+  }
+  // The DVLA answers 400 for a registration it will not accept at all (wrong
+  // shape, a foreign plate).
+  if (response.status === 400) {
+    throw new DvlaError("DVLA rejected the registration", 400, undefined, "invalid");
+  }
+  if (response.status === 429) {
+    throw new DvlaError("DVLA rate limit reached", 429, undefined, "rate_limited");
   }
   if (response.status === 403) {
-    throw new DvlaError("DVLA authentication failed", 502);
+    throw new DvlaError("DVLA authentication failed", 502, undefined, "auth");
   }
   if (!response.ok) {
     throw new DvlaError(

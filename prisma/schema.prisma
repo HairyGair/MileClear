@@ -424,6 +424,12 @@ model Vehicle {
   lastDvlaCheckAt   DateTime?
   motReminderSentAt DateTime?
   taxReminderSentAt DateTime?
+  // Set by the refresh when the DVLA cannot answer for the plate:
+  // "not_found" or "invalid". dvlaPlateSuggestion is a look-alike correction
+  // ("DL740NT" -> "DL74ONT") the DVLA confirmed it knows. Both clear on a
+  // successful lookup or when the driver edits the plate.
+  dvlaPlateProblem    String?  @db.VarChar(20)
+  dvlaPlateSuggestion String?  @db.VarChar(10)
 
   // DVLA emissions data for Clean Air Zone / ULEZ compliance (assessed via
   // shared/assessCleanAirZones). euroStatus is the primary signal;

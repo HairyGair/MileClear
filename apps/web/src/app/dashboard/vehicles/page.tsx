@@ -283,6 +283,9 @@ export default function VehiclesPage() {
                   <span className="vehicle-card__reg-text">{v.registrationPlate}</span>
                 </div>
               )}
+              {v.registrationPlate && v.dvlaPlateProblem && (
+                <PlateProblemNote problem={v.dvlaPlateProblem} suggestion={v.dvlaPlateSuggestion ?? null} />
+              )}
 
               <div className="vehicle-card__specs">
                 <div className="vehicle-card__spec">
@@ -434,13 +437,24 @@ export default function VehiclesPage() {
             onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
             placeholder="e.g. 2020"
           />
-          <Input
-            id="regPlate"
-            label="Registration plate"
-            value={form.registrationPlate}
-            onChange={(e) => setForm((f) => ({ ...f, registrationPlate: e.target.value }))}
-            placeholder="e.g. AB12 CDE"
-          />
+          <div>
+            <Input
+              id="regPlate"
+              label="Registration plate"
+              value={form.registrationPlate}
+              onChange={(e) => setForm((f) => ({ ...f, registrationPlate: e.target.value }))}
+              placeholder="e.g. AB12 CDE"
+            />
+            {editVehicle?.dvlaPlateProblem &&
+              editVehicle.registrationPlate &&
+              form.registrationPlate.replace(/\s+/g, "").toUpperCase() === editVehicle.registrationPlate && (
+                <PlateProblemNote
+                  problem={editVehicle.dvlaPlateProblem}
+                  suggestion={editVehicle.dvlaPlateSuggestion ?? null}
+                  onUseSuggestion={(plate) => setForm((f) => ({ ...f, registrationPlate: plate }))}
+                />
+              )}
+          </div>
         </div>
         <div className="form-row">
           <Select
@@ -491,5 +505,68 @@ export default function VehiclesPage() {
         loading={deleteLoading}
       />
     </>
+  );
+}
+
+/** "DL74ONT" -> "DL74 ONT" for a current-format plate; others as stored. */
+function formatPlate(plate: string): string {
+  return /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(plate) ? `${plate.slice(0, 4)} ${plate.slice(4)}` : plate;
+}
+
+/**
+ * The weekly DVLA check could not find this plate, so MOT and tax reminders
+ * are off. With a suggestion (a look-alike the DVLA does know, such as DL74 ONT
+ * for DL740NT) the edit form offers it in one click.
+ */
+function PlateProblemNote({
+  problem,
+  suggestion,
+  onUseSuggestion,
+}: {
+  problem: "not_found" | "invalid";
+  suggestion: string | null;
+  onUseSuggestion?: (plate: string) => void;
+}) {
+  return (
+    <div
+      role="alert"
+      style={{
+        marginTop: "0.5rem",
+        padding: "0.625rem 0.75rem",
+        borderRadius: 10,
+        border: "1px solid #f59e0b33",
+        background: "#f59e0b14",
+        color: "#fcd34d",
+        fontSize: "0.8125rem",
+        lineHeight: 1.5,
+      }}
+    >
+      {problem === "not_found"
+        ? "The DVLA has no record of this plate, so we can't remind you about MOT and tax. Check it matches your logbook."
+        : "The DVLA doesn't recognise this as a UK number plate, so we can't remind you about MOT and tax."}
+      {suggestion &&
+        (onUseSuggestion ? (
+          <button
+            type="button"
+            onClick={() => onUseSuggestion(suggestion)}
+            style={{
+              display: "block",
+              marginTop: 6,
+              padding: "4px 10px",
+              borderRadius: 8,
+              border: "none",
+              background: "var(--amber-400)",
+              color: "#030712",
+              fontWeight: 600,
+              fontSize: "0.8125rem",
+              cursor: "pointer",
+            }}
+          >
+            Use {formatPlate(suggestion)} instead
+          </button>
+        ) : (
+          <div style={{ marginTop: 4, fontWeight: 600 }}>Did you mean {formatPlate(suggestion)}? Edit the vehicle to change it.</div>
+        ))}
+    </div>
   );
 }
