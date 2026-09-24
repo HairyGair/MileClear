@@ -55,6 +55,7 @@ import { orphanRouteDecision } from "./orphanRoute";
 import { decideMotionStart } from "./motionStartRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
+import { recordBatterySample } from "./batterySamples";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -1049,6 +1050,9 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_native_location_at', ?)",
       [Date.now().toString()]
     );
+    // Battery over time (batterySamples.ts): at most one sample per ten
+    // minutes, fire and forget, never in the way of the fix.
+    void recordBatterySample();
 
     // A tap on the Live Activity ("Not Driving", or Business / Personal at
     // the kerb) is waiting in the App Group store. This callback is the one
@@ -1383,6 +1387,7 @@ async function enterPostTripKeepAlive(
  */
 async function handleNativeHeartbeat(): Promise<void> {
   try {
+    void recordBatterySample();
     if (!(await isDriveDetectionEnabled())) {
       // Detection was switched off while preventSuspend held the app alive
       // (e.g. mid keep-alive window). The settings toggle doesn't stop RNBG on

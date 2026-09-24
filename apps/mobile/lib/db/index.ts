@@ -150,6 +150,17 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       data TEXT
     );
 
+    -- Battery over time while the tracking engine is awake, shipped in the
+    -- diagnostic dump; see lib/tracking/batterySamples.ts (24 Sep 2026).
+    CREATE TABLE IF NOT EXISTS battery_samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at INTEGER NOT NULL,
+      level REAL,
+      charging INTEGER,
+      low_power INTEGER,
+      context TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS saved_locations (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -375,6 +386,7 @@ const USER_DATA_TABLES = [
   "detection_coordinates",
   "detection_events",
   "detection_lifecycle_events",
+  "battery_samples",
   "trips",
   "shifts",
   "fuel_logs",
