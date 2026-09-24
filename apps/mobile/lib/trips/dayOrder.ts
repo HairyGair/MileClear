@@ -12,6 +12,8 @@
 
 export interface DayOrderable {
   startedAt: string;
+  /** When present, a trip id that appears twice is shown once (see below). */
+  id?: string;
 }
 
 export type DayHeaderRow = {
@@ -57,11 +59,21 @@ export function dayLabel(d: Date, now: Date = new Date()): string {
  * oldest first, a header row before each day. Trips with the same start
  * time keep their incoming relative order. Trips whose startedAt does not
  * parse are dropped rather than sorted to a random place.
+ *
+ * A trip id that appears more than once is shown once (the first copy).
+ * The list keys rows by trip id, and two rows with one key make React leave
+ * stale copies of the card mounted on every re-render: one drive showed 13
+ * times for Chris Saunders on 24 Sep 2026. See pageMerge.ts.
  */
 export function groupTripsByDay<T extends DayOrderable>(trips: readonly T[], now: Date = new Date()): DayRow<T>[] {
   const byDay = new Map<string, { date: Date; trips: { trip: T; ms: number; idx: number }[] }>();
 
+  const seenIds = new Set<string>();
   trips.forEach((trip, idx) => {
+    if (trip.id !== undefined) {
+      if (seenIds.has(trip.id)) return;
+      seenIds.add(trip.id);
+    }
     const date = new Date(trip.startedAt);
     const ms = date.getTime();
     if (Number.isNaN(ms)) return;
