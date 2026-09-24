@@ -47,6 +47,11 @@ const FUEL_TYPE_OPTIONS: { value: FuelType; label: string }[] = [
   { value: "hybrid", label: "Hybrid" },
 ];
 
+/** "DL74ONT" -> "DL74 ONT" for a current-format plate; others as stored. */
+function formatPlate(plate: string): string {
+  return /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(plate) ? `${plate.slice(0, 4)} ${plate.slice(4)}` : plate;
+}
+
 export default function VehicleFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -62,6 +67,14 @@ export default function VehicleFormScreen() {
   const [firstRegistration, setFirstRegistration] = useState<string | null>(null);
   // Server-computed Clean Air Zone assessment for an existing vehicle.
   const [cleanAirZones, setCleanAirZones] = useState<CazAssessment | null>(null);
+  // Set by the server's weekly DVLA check when it cannot find the saved
+  // plate, so MOT and tax reminders are off. Shown only while the plate in
+  // the box is still the one that failed.
+  const [plateProblem, setPlateProblem] = useState<{
+    plate: string;
+    problem: "not_found" | "invalid";
+    suggestion: string | null;
+  } | null>(null);
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
@@ -94,6 +107,13 @@ export default function VehicleFormScreen() {
           setIsPrimary(vehicle.isPrimary);
           setRegistrationPlate(vehicle.registrationPlate || "");
           setCleanAirZones(vehicle.cleanAirZones ?? null);
+          if (vehicle.dvlaPlateProblem && vehicle.registrationPlate) {
+            setPlateProblem({
+              plate: vehicle.registrationPlate,
+              problem: vehicle.dvlaPlateProblem,
+              suggestion: vehicle.dvlaPlateSuggestion ?? null,
+            });
+          }
         }
       })
       .finally(() => setLoadingExisting(false));
@@ -266,6 +286,31 @@ export default function VehicleFormScreen() {
             Details filled from DVLA. Please add the model and verify.
           </Text>
         )}
+        {plateProblem &&
+          registrationPlate.replace(/\s+/g, "").toUpperCase() === plateProblem.plate && (
+            <View style={styles.plateWarning} accessibilityRole="alert">
+              <Text style={styles.plateWarningText}>
+                {plateProblem.problem === "not_found"
+                  ? "The DVLA has no record of this plate, so we can't remind you about MOT and tax. Check it matches your logbook."
+                  : "The DVLA doesn't recognise this as a UK number plate, so we can't remind you about MOT and tax."}
+              </Text>
+              {plateProblem.suggestion && (
+                <TouchableOpacity
+                  style={styles.plateSuggestionBtn}
+                  onPress={() => {
+                    setRegistrationPlate(plateProblem.suggestion as string);
+                    setLookupDone(false);
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use ${formatPlate(plateProblem.suggestion)} instead`}
+                >
+                  <Text style={styles.plateSuggestionText}>
+                    Did you mean {formatPlate(plateProblem.suggestion)}? Tap to use it, then save.
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
         {/* Make */}
         <Text style={styles.label}>Make *</Text>
@@ -499,6 +544,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     textTransform: "uppercase",
+  },
+  plateWarning: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.3)",
+    gap: 8,
+  },
+  plateWarningText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: fonts.regular,
+    color: "#fcd34d",
+  },
+  plateSuggestionBtn: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: AMBER,
+  },
+  plateSuggestionText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: BG,
   },
   lookupHint: {
     fontSize: 13,
