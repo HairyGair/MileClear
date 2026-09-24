@@ -55,6 +55,9 @@ import { orphanRouteDecision } from "./orphanRoute";
 import { decideMotionStart } from "./motionStartRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
+import { recordBatterySample } from "./batterySamples";
+import { engineTriggerActivities } from "./engineTriggers";
+import { getMotionPermission } from "./motionPermission";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -312,7 +315,7 @@ export async function getNativeEngineDiagnostics(): Promise<NativeEngineDiagnost
 }
 
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
-function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
+function buildConfig(BGGeo: BgGeo, motionPermission: string): Record<string, unknown> {
   return {
     // ANDROID ONLY. Ignored on iOS, which takes this copy from the Info.plist
     // usage descriptions instead.
@@ -337,6 +340,12 @@ function buildConfig(BGGeo: BgGeo): Record<string, unknown> {
     // Motion detection — the native engine decides moving/stationary from the
     // motion coprocessor, which is what makes wake reliable.
     stopTimeout: 5, // minutes of stillness before it declares the trip stopped
+    // iPhone: only driving (or cycling, which is what a motorbike often reads
+    // as) wakes the engine, so a walk costs no GPS and no battery. See
+    // engineTriggers.ts. Omitted on Android.
+    ...(engineTriggerActivities(Platform.OS, motionPermission)
+      ? { triggerActivities: engineTriggerActivities(Platform.OS, motionPermission) }
+      : {}),
     stationaryRadius: 25,
     // ANDROID: no ACTIVITY_RECOGNITION permission. Google Play treats that
     // permission as a health feature and forces a Health-apps declaration the
@@ -621,7 +630,9 @@ export async function startNativeLocationEngine(): Promise<boolean> {
         void handleNativeHeartbeat();
       });
 
-      await BGGeo.ready(buildConfig(BGGeo));
+      // Read before ready(): the iPhone trigger list depends on it (engineTriggers.ts).
+      const motionPermission = await getMotionPermission().catch(() => "unavailable");
+      await BGGeo.ready(buildConfig(BGGeo, motionPermission));
       try {
         await BGGeo.start();
       } catch (err) {
@@ -1019,6 +1030,9 @@ async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_native_location_at', ?)",
       [Date.now().toString()]
     );
+    // Battery over time (batterySamples.ts): at most one sample per ten
+    // minutes, fire and forget, never in the way of the fix.
+    void recordBatterySample();
 
     const recording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
@@ -1338,6 +1352,7 @@ async function enterPostTripKeepAlive(
  */
 async function handleNativeHeartbeat(): Promise<void> {
   try {
+    void recordBatterySample();
     if (!(await isDriveDetectionEnabled())) {
       // Detection was switched off while preventSuspend held the app alive
       // (e.g. mid keep-alive window). The settings toggle doesn't stop RNBG on
