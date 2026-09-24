@@ -853,6 +853,10 @@ export interface ExportTripRow {
   endTime: string | null;
   startAddress: string | null;
   endAddress: string | null;
+  /** Filled for the CSV export only (services/postcodeLookup.ts); null when
+   *  the point has no UK postcode or the lookup failed. */
+  startPostcode?: string | null;
+  endPostcode?: string | null;
   distanceMiles: number;
   classification: TripClassification;
   platform: string | null;

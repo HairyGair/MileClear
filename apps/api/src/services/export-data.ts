@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { postcodesFor } from "./postcodeLookup.js";
 import {
   HMRC_RATES,
   HMRC_THRESHOLD_MILES,
@@ -21,6 +22,8 @@ interface FetchTripsOpts {
   from?: Date;
   to?: Date;
   classification?: "business" | "personal";
+  /** Look up each trip's start and end postcode (CSV export). */
+  withPostcodes?: boolean;
 }
 
 export async function fetchExportTrips(
@@ -66,7 +69,7 @@ export async function fetchExportTrips(
   // Running tally of business miles per vehicle type for HMRC rate tiers
   const businessMilesByType: Record<string, number> = {};
 
-  return trips.map((trip) => {
+  const rows: ExportTripRow[] = trips.map((trip) => {
     const vehicle = trip.vehicle ?? primaryVehicle;
     const vType = (vehicle?.vehicleType || "car") as VehicleType;
     const prevBusinessMiles = businessMilesByType[vType] || 0;
@@ -133,6 +136,20 @@ export async function fetchExportTrips(
       deductionPence,
     };
   });
+
+  if (opts.withPostcodes && trips.length > 0) {
+    const codes = await postcodesFor(
+      trips.flatMap((t) => [
+        { lat: t.startLat, lng: t.startLng },
+        { lat: t.endLat, lng: t.endLng },
+      ])
+    );
+    rows.forEach((r, i) => {
+      r.startPostcode = codes[2 * i];
+      r.endPostcode = codes[2 * i + 1];
+    });
+  }
+  return rows;
 }
 
 export async function fetchExportSummary(

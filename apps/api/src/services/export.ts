@@ -424,6 +424,8 @@ function tripsToCsv(trips: ExportTripRow[]): string {
     "End Time",
     "From",
     "To",
+    "From Postcode",
+    "To Postcode",
     "Distance (miles)",
     "Classification",
     "Platform",
@@ -441,6 +443,8 @@ function tripsToCsv(trips: ExportTripRow[]): string {
       t.endTime,
       t.startAddress,
       t.endAddress,
+      t.startPostcode ?? "",
+      t.endPostcode ?? "",
       t.distanceMiles,
       t.classification,
       t.platform,
@@ -467,6 +471,7 @@ export async function generateTripsCsv(
     from: opts.from,
     to: opts.to,
     classification: opts.classification,
+    withPostcodes: true,
   });
   return tripsToCsv(trips);
 }
