@@ -56,7 +56,7 @@ function VehicleCard({
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${item.make} ${item.model}${item.isPrimary ? ", primary vehicle" : ""}, ${typeLabel}, ${fuelLabel}${item.year ? `, ${item.year}` : ""}. Tap to edit.`}
+      accessibilityLabel={`${item.make} ${item.model}${item.isPrimary ? ", primary vehicle" : ""}, ${typeLabel}, ${fuelLabel}${item.year ? `, ${item.year}` : ""}${item.dvlaPlateProblem ? ", number plate needs checking" : ""}. Tap to edit.`}
     >
       <View style={styles.cardIconWrap}>
         <Ionicons name="car-outline" size={22} color={AMBER} />
@@ -79,6 +79,12 @@ function VehicleCard({
           </View>
           <Text style={styles.metaText}>{fuelLabel}</Text>
           {item.year && <Text style={styles.metaText}>{item.year}</Text>}
+          {item.dvlaPlateProblem && (
+            <View style={[styles.cazChip, styles.cazChipWarn]}>
+              <Ionicons name="alert-circle" size={10} color="#f59e0b" accessible={false} />
+              <Text style={[styles.cazChipText, { color: "#f59e0b" }]}>Check plate</Text>
+            </View>
+          )}
           {item.cleanAirZones && item.cleanAirZones.verdict !== "unknown" && (
             <View
               style={[
