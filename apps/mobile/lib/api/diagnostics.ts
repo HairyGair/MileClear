@@ -17,6 +17,7 @@ import { getDatabase } from "../db";
 import { getAppStateInfo } from "../appState";
 import { getRoutingStats } from "../tracking/routingStats";
 import { getBatterySnapshot } from "../tracking/batteryAware";
+import { recordBatterySample, getBatterySeriesForDump } from "../tracking/batterySamples";
 import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
 import { getNativeEngineDiagnostics } from "../tracking/nativeLocation";
 import { getLiveActivityState } from "../liveActivity/presence";
@@ -192,6 +193,8 @@ export async function uploadDiagnosticDump(): Promise<void> {
     ]);
 
     const appState = getAppStateInfo();
+    await recordBatterySample("foreground").catch(() => {});
+    const batterySeries = await getBatterySeriesForDump().catch(() => []);
     const battery = await getBatterySnapshot().catch(() => ({
       level: null,
       charging: null,
@@ -321,6 +324,10 @@ export async function uploadDiagnosticDump(): Promise<void> {
             batteryLevel: battery.level,
             batteryCharging: battery.charging,
             lowPowerMode: battery.lowPowerMode,
+            // Last 72 h of [epochSec, percent, charging, lowPower, context]
+            // (1 recording, 2 keep-alive, 3 awake, 4 foreground); see
+            // lib/tracking/batterySamples.ts.
+            batterySeries,
             isPad: Platform.OS === "ios" && Platform.isPad,
             isTV: Platform.isTV,
             constants: {
