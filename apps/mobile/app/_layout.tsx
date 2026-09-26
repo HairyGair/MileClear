@@ -150,6 +150,7 @@ import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFin
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import { onOnboardingComplete } from "../lib/onboardingGate";
+import { applyFreshUpdateOnFirstOpen } from "../lib/updates/firstOpenUpdate";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
@@ -784,6 +785,12 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  // First open after an App Store update: move to the latest update now
+  // rather than on the next open (lib/updates/firstOpenUpdate.ts).
+  useEffect(() => {
+    void applyFreshUpdateOnFirstOpen();
+  }, []);
+
   // Load fonts in background - never block the navigator
   useEffect(() => {
     Font.loadAsync({
