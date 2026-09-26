@@ -57,6 +57,7 @@ import {
   clearPendingArrivedTrip,
   reportPendingArrivedDiscard,
 } from "../lib/tracking";
+import { askAboutPauseBeforeStart } from "../lib/tracking/pausePrompt";
 import {
   pendingArrivedAction,
   qualifiesForDiscardReport,
@@ -1731,6 +1732,10 @@ export default function TripFormScreen() {
         // best-effort guard — never block a legitimate start on a read error
       }
     }
+
+    // A running pause is offered back once; the trip starts either way. The
+    // dashboard re-reads the pause when it regains focus.
+    if ((await askAboutPauseBeforeStart("trip")) === "busy") return;
 
     setLoading(true);
     try {

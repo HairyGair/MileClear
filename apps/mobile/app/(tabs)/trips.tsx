@@ -1484,7 +1484,7 @@ export default function TripsScreen() {
                 and pushed them away again. Journeys to check is a single line
                 that opens in place, so the pair costs two slim rows. */}
             {filter !== "unclassified" && <MissedJourneys />}
-            {filter !== "unclassified" && <MissingTripReporter />}
+            {filter !== "unclassified" && <MissingTripReporter onTripAdded={onRefresh} />}
 
             <View style={styles.filterRow}>
               {/* The chips scroll sideways so the Filters control always

@@ -81,6 +81,7 @@ import { useLayoutPrefs } from "../../lib/layout/index";
 import { selectDashboardMessages } from "../../lib/dashboardMessages";
 import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
 import { PauseRecordingRow } from "../../components/PauseRecordingRow";
+import { askAboutPauseBeforeStart } from "../../lib/tracking/pausePrompt";
 import { describeOffSince, type PauseChoice } from "../../lib/tracking/pauseRule";
 import { SetupChecklistCard, type SetupChecklistRow } from "../../components/SetupChecklistCard";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
@@ -1285,6 +1286,9 @@ export default function DashboardScreen() {
   const handleStartShift = useCallback(async () => {
     setStarting(true);
     try {
+      // A running pause is offered back once; the shift starts either way.
+      const pause = await askAboutPauseBeforeStart("shift");
+      if (pause === "resumed") refreshPauseState();
       const res = await syncStartShift(
         selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
       );
@@ -1315,7 +1319,7 @@ export default function DashboardScreen() {
     } finally {
       setStarting(false);
     }
-  }, [selectedVehicleId, isWork, selectedVehicle]);
+  }, [selectedVehicleId, isWork, selectedVehicle, refreshPauseState]);
 
   const handleEndShift = useCallback(() => {
     if (!activeShift) return;
@@ -1832,7 +1836,7 @@ export default function DashboardScreen() {
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
       {/* Safety: warn if auto-detection is switched off, with one-tap re-enable. */}
-      <TrackingOffBanner />
+      <TrackingOffBanner hidePause />
       <SyncStatusBanner />
       {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
           Hides itself while recording (banner above owns that state) and when
