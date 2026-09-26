@@ -99,7 +99,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // changed, never "update to get this", because most readers already have it.
     version: "1.3.11",
     date: "September 2026",
-    label: "Pending Review",
+    label: "Latest",
     items: [
       "Tapping Business or Personal on the lock-screen card after a trip now applies at once and the card clears, instead of waiting until the next time you open the app",
       "Tapping Not Driving on the lock-screen card during a detected drive now stops the recording there and then; before, the card went away but the drive was still saved",
@@ -121,6 +121,14 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "The trips list reads down through each day, in the order you drove",
       "The Self Assessment PDF shows the tax year starting on 6 April, platforms by name, and prices your business miles at HMRC's rates throughout",
       "Set aside this week counts from Monday, not the last seven days",
+      "On iPhone, walking no longer wakes the tracking, so a walk costs no GPS or battery",
+      "The dashboard tells you when Low Power Mode or Battery Saver is on, because drives may not record",
+      "The trips list no longer shows the same trip over and over when a new one arrives while you scroll",
+      "The spreadsheet export gives every trip's start and end postcode",
+      "A number plate the DVLA can't find is flagged with a Check plate tag, with the likely correction when the DVLA confirms it",
+      "Start a trip or a shift while recording is paused and the app asks whether to turn it back on",
+      "\"Missing a trip you made?\" can add the trip there and then, at the road distance, and tells you if a pause was why it wasn't recorded",
+      "A drive you've already got in your trips is no longer offered as a journey to check",
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
@@ -151,7 +159,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // approval in the same edit that drops 1.3.9 to "App Store".
     version: "1.3.10",
     date: "September 2026",
-    label: "Latest",
+    label: "App Store",
     items: [
       "The trip counter on a CarPlay dashboard no longer draws each new reading over the last one; it now shows the MileClear mark, the distance so far and what the app is doing",
       "Every trip card in the list carries a map of the route, not only the trips you have just finished",
