@@ -49,8 +49,8 @@
 // there, and the module is required lazily so Expo Go and iOS never touch it.
 
 import { Platform } from "react-native";
-import { decideHeadlessWake, readHeadlessFix } from "./headlessSpeedRule";
-import { decideSpeedStart, isNearMiss } from "./speedStartRule";
+import { canStartConfirm, decideHeadlessWake, isConfirming, readHeadlessFix } from "./headlessSpeedRule";
+import { decideSpeedStart, isNearMiss, shouldConfirmCoarseFix } from "./speedStartRule";
 import { pickHeadlessLocation, readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
@@ -149,6 +149,8 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
         speedMph: Math.round((fix.speedMs ?? 0) * 2.23694),
         accuracy: Math.round(fix.accuracyM ?? 0),
       }).catch(() => {});
+      // Too coarse to record on, good enough to look again (26 Sep 2026).
+      if (shouldConfirmCoarseFix(fix.speedMs, fix.accuracyM)) await startConfirm(BGGeo, name, fix, log);
     }
     return;
   }
@@ -170,7 +172,17 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
   }
   try {
     const state = typeof BGGeo.getState === "function" ? await BGGeo.getState() : null;
-    if (!decideHeadlessWake({ fix, isMoving: state?.isMoving ?? null, enabled: state?.enabled ?? null })) return;
+    const confirming = isConfirming(await readConfirmAt(), Date.now());
+    if (
+      !decideHeadlessWake({
+        fix,
+        isMoving: state?.isMoving ?? null,
+        enabled: state?.enabled ?? null,
+        confirming,
+      })
+    ) {
+      return;
+    }
     if (typeof BGGeo.changePace !== "function") return;
     await BGGeo.changePace(true);
     const decision = decideSpeedStart(fix?.speedMs ?? null, fix?.accuracyM ?? null);
@@ -179,6 +191,7 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
       speedMph: Math.round((fix?.speedMs ?? 0) * 2.23694),
       accuracy: Math.round(fix?.accuracyM ?? 0),
       tier: decision.start ? decision.tier : null,
+      confirmed: confirming,
     });
     // Waking the SDK is not the same as opening a recording. Until 15 Sep
     // 2026 a trip that started while Android had ended the app was tracked
@@ -212,6 +225,69 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
 }
 
 type DetectionLog = (event: string, data?: Record<string, unknown>) => Promise<void>;
+
+/**
+ * When the last confirm started. SQLite, like the re-arm throttle above,
+ * because Android tears the headless JS context down between events.
+ */
+const CONFIRM_AT_KEY = "headless_confirm_at";
+
+async function readConfirmAt(): Promise<number> {
+  try {
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [CONFIRM_AT_KEY]
+    );
+    const at = row ? Number(row.value) : 0;
+    return Number.isFinite(at) ? at : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * A coarse fix at driving speed: wake the SDK into moving mode so its next
+ * fixes are fast and tight, WITHOUT opening a recording. Those fixes come
+ * back through wakeIfDriving and open one through the normal tiers while the
+ * confirm window runs. If none qualifies, the SDK's own stop timer parks it
+ * again. Samantha Birch, 26 Sep 2026: one 40 mph fix at 200 m as she set off,
+ * refused, and nothing looked again, so two drives were lost.
+ */
+async function startConfirm(
+  BGGeo: BgGeoHeadless,
+  trigger: string,
+  fix: { speedMs: number | null; accuracyM: number | null },
+  log: DetectionLog | null
+): Promise<void> {
+  try {
+    const now = Date.now();
+    if (!canStartConfirm(await readConfirmAt(), now)) return;
+    const { resolvePauseOnWake } = await import("./detection");
+    if ((await resolvePauseOnWake()) === "sleep") return;
+    const state = typeof BGGeo.getState === "function" ? await BGGeo.getState() : null;
+    if (state?.enabled === false || state?.isMoving === true) return;
+    if (typeof BGGeo.changePace !== "function") return;
+    const { getDatabase } = await import("../db/index");
+    const db = await getDatabase();
+    await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
+      CONFIRM_AT_KEY,
+      String(now),
+    ]);
+    await BGGeo.changePace(true);
+    await log?.("native_headless_confirming", {
+      trigger,
+      speedMph: Math.round((fix.speedMs ?? 0) * 2.23694),
+      accuracy: Math.round(fix.accuracyM ?? 0),
+    });
+  } catch (err) {
+    await log?.("native_headless_confirm_failed", {
+      trigger,
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
 
 async function loadLog(): Promise<DetectionLog | null> {
   try {

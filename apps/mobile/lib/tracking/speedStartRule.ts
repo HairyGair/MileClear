@@ -56,3 +56,31 @@ export function isNearMiss(speedMs: number | null, accuracyM: number | null): bo
   const d = decideSpeedStart(speedMs, accuracyM);
   return !d.start && d.reason === "accuracy";
 }
+
+/**
+ * The confirm tier (Samantha Birch, 26 Sep 2026). Her Android phone woke as
+ * she set off at 08:21 with one fix at 40 mph, but 200 m accuracy. Both tiers
+ * refused it, nothing asked for a better fix, and the morning's two drives
+ * were lost. A fix like that is not good enough to open a recording on, but it
+ * is good enough to look again: the caller wakes the SDK into moving mode, its
+ * next fixes come in fast and tight, and those decide through the normal
+ * tiers. A parked phone's junk reading costs a few minutes of GPS until the
+ * SDK's own stop timer parks it again; a refused drive costs the trip.
+ *
+ * Bounded both ways: the speed must still be clearly faster than a bike and
+ * not absurd (a 101 mph fix at 496 m was seen on 23 Sep and is junk), and the
+ * accuracy no worse than 500 m. The caller also rate-limits it.
+ */
+export const SPEED_CONFIRM_MIN_MS = 15 * MPH;
+export const SPEED_CONFIRM_MAX_MS = 100 * MPH;
+export const SPEED_CONFIRM_MAX_ACCURACY_M = 500;
+
+export function shouldConfirmCoarseFix(speedMs: number | null, accuracyM: number | null): boolean {
+  if (!isNearMiss(speedMs, accuracyM)) return false;
+  // isNearMiss has already checked both are finite numbers.
+  return (
+    (speedMs as number) >= SPEED_CONFIRM_MIN_MS &&
+    (speedMs as number) <= SPEED_CONFIRM_MAX_MS &&
+    (accuracyM as number) <= SPEED_CONFIRM_MAX_ACCURACY_M
+  );
+}

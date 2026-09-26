@@ -36,15 +36,33 @@ export interface HeadlessWakeInput {
   /** SDK state at the time; null when getState is unavailable. */
   isMoving: boolean | null;
   enabled: boolean | null;
+  /** A coarse driving-speed fix woke the SDK to look again, within the
+   *  confirm window. The SDK then reads moving, and that must not turn the
+   *  better fix it was woken for away (see shouldConfirmCoarseFix). */
+  confirming?: boolean;
 }
 
 /**
  * True when the fix is a confident driving-speed fix and the SDK is not
  * already tracking. A disabled SDK is never woken.
  */
-export function decideHeadlessWake({ fix, isMoving, enabled }: HeadlessWakeInput): boolean {
+export function decideHeadlessWake({ fix, isMoving, enabled, confirming = false }: HeadlessWakeInput): boolean {
   if (!fix) return false;
   if (enabled === false) return false;
-  if (isMoving === true) return false;
+  if (isMoving === true && !confirming) return false;
   return decideSpeedStart(fix.speedMs, fix.accuracyM).start;
+}
+
+/** How long a confirm lasts, and the least time between two of them. */
+export const HEADLESS_CONFIRM_WINDOW_MS = 10 * 60 * 1000;
+
+/** A confirm started at `startedAt` (epoch ms, 0 = never) is still running. */
+export function isConfirming(startedAt: number, now: number): boolean {
+  return startedAt > 0 && now >= startedAt && now - startedAt < HEADLESS_CONFIRM_WINDOW_MS;
+}
+
+/** A new confirm may start: none in the last window (a clock that went
+ *  backwards counts as long ago, so it cannot block for ever). */
+export function canStartConfirm(lastAt: number, now: number): boolean {
+  return lastAt <= 0 || now < lastAt || now - lastAt >= HEADLESS_CONFIRM_WINDOW_MS;
 }
