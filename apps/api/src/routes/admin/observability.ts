@@ -20,6 +20,8 @@ import {
   liveActivityRollup,
   handledReportIds,
   missingTripAnswered,
+  reportPauseDiagnosis,
+  reportSelfAdded,
   tripQualityRollup,
   STUB_COORD_MAX,
 } from "../../services/adminObservability.js";
@@ -79,12 +81,22 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       ? await prisma.appEvent.findMany({
           where: {
             userId: { in: reportUserIds },
-            type: { in: ["support.reply_sent", "admin.trip_created"] },
+            type: { in: ["support.reply_sent", "admin.trip_created", "trip.report_missing_self_added"] },
             createdAt: { gte: since },
           },
           select: { userId: true, type: true, createdAt: true },
         })
       : [];
+    // Latest dump per reporter, for the pause check. One row per user (the
+    // table is unique on userId), and no orderBy: sorting while selecting
+    // statusJson throws MySQL 1038 on prod.
+    const reportDumps = reportUserIds.length
+      ? await prisma.diagnosticDump.findMany({
+          where: { userId: { in: reportUserIds } },
+          select: { userId: true, capturedAt: true, statusJson: true, eventsJson: true },
+        })
+      : [];
+    const reportDumpBy = new Map(reportDumps.map((d) => [d.userId, d]));
     // Reports an admin has explicitly cleared. Keyed on the report's own event
     // id so an orphaned report (account deleted) can still leave the queue.
     const handledEvents = await prisma.appEvent.findMany({
@@ -114,6 +126,14 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       /** Missing-trip reports only: the calendar day the user said they
        *  drove, "YYYY-MM-DD" local to them. Null before the picker existed. */
       reportedDate: string | null;
+      /** Missing-trip reports only: "paused" when a pause the driver set
+       *  covered the reported drive (26 Sep 2026), else null. */
+      diagnosis: "paused" | null;
+      diagnosisEvidence: string | null;
+      /** Missing-trip reports only: the driver added the trip themselves
+       *  from the report sheet. The report stays in the queue, because why
+       *  the drive was missed is still worth a look. */
+      selfAdded: boolean;
       status: string | null;
       replies: number;
       lastReplyBy: "admin" | "user" | null;
@@ -137,6 +157,9 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         ageHours: ageHours(now, f.createdAt),
         summary: `${f.category}: ${f.title}`,
         reportedDate: null,
+        diagnosis: null,
+        diagnosisEvidence: null,
+        selfAdded: false,
         status: f.status,
         replies: replies.length,
         lastReplyBy: last,
@@ -147,6 +170,11 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       const ups = r.userId ? (followBy.get(r.userId) ?? []) : [];
       if (missingTripAnswered(r.createdAt, ups)) continue;
       const meta = (r.metadata ?? {}) as { note?: string; reportedDate?: string };
+      const paused = reportPauseDiagnosis({
+        reportedAt: r.createdAt,
+        metadata: r.metadata,
+        dump: r.userId ? (reportDumpBy.get(r.userId) ?? null) : null,
+      });
       items.push({
         kind: "missing_trip",
         id: r.id,
@@ -158,6 +186,9 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         ageHours: ageHours(now, r.createdAt),
         summary: meta.note?.slice(0, 160) ?? "(no note)",
         reportedDate: parseReportedDate(meta.reportedDate),
+        diagnosis: paused ? "paused" : null,
+        diagnosisEvidence: paused?.evidence ?? null,
+        selfAdded: reportSelfAdded(r.createdAt, ups),
         status: null,
         replies: 0,
         lastReplyBy: null,

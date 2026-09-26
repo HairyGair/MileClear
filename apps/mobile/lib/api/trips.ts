@@ -447,11 +447,33 @@ export function splitTrip(tripId: string, cutTimestamps: string[]) {
  * local calendar (16 Sep 2026). Optional on the wire so the API keeps
  * accepting reports from builds without the picker.
  */
-export function reportMissingTrip(note: string, reportedDate?: string) {
+export function reportMissingTrip(note: string, reportedDate?: string, details?: MissingTripReportDetails) {
   return apiRequest<{ ok: boolean }>("/trips/report-missing", {
     method: "POST",
-    body: JSON.stringify(reportedDate ? { note, reportedDate } : { note }),
+    body: JSON.stringify({
+      note,
+      ...(reportedDate ? { reportedDate } : {}),
+      ...(details ?? {}),
+    }),
   });
+}
+
+/**
+ * The structured half of a missing-trip report (26 Sep 2026). Places are sent
+ * as the address the driver picked, never coordinates. An API without these
+ * keys drops them and keeps the note, so a build can ship ahead of the API.
+ */
+export interface MissingTripReportDetails {
+  from?: string;
+  to?: string;
+  /** When the driver says they set off, ISO 8601 (UTC). */
+  departAt?: string;
+  /** The optional "anything else?" text on its own. */
+  extraNote?: string;
+  /** Epoch ms: the end of a pause that is running or covered departAt. */
+  pausedUntil?: number;
+  /** Epoch ms: when that pause began, when the phone still knows. */
+  pauseStartedAt?: number;
 }
 
 // A journey the scanner thinks we missed: a spatial gap between two captured

@@ -260,3 +260,196 @@ export function tripQualityRollup(rows: TripQualityRow[]): TripQualityRollup {
       .sort((a, b) => b.autoTrips - a.autoTrips),
   };
 }
+
+// ── Missing-trip reports: was recording paused? ───────────────────────────
+//
+// 26 Sep 2026. A driver who pauses recording ("until 6am tomorrow", "for a
+// week") and then reports a missed drive has already been answered by the
+// pause, but support had to find that by reading the dump by hand. Three
+// independent sources, strongest first:
+//   1. the report itself: the app sends `pausedUntil` (and `pauseStartedAt`
+//      when the phone still knows it) from builds after 26 Sep 2026;
+//   2. the latest dump's events: `drive_paused {until}` spans, closed early by
+//      `drive_resumed`, and `detection_skipped {reason:"paused"}`, which is a
+//      drive the phone actually refused;
+//   3. the latest dump's tracking_state `drive_pause_until`, which proves a
+//      pause was running at the dump's capture time until that end.
+// Ranked above `needs_look` in the missing-trip triage: it is the one answer
+// that needs no investigation.
+
+/** The longest pause the app offers is a week; one day of slack. A pause whose
+ *  start is unknown is taken to have begun no earlier than this before its end. */
+export const MAX_PAUSE_MS = 8 * DAY_MS;
+
+/** A refused drive this close to the reported departure counts as that drive. */
+const SKIP_NEAR_MS = 3 * HOUR_MS;
+
+export interface ReportPauseFacts {
+  reportedAt: Date;
+  /** The report event's metadata as stored. */
+  metadata: unknown;
+  dump?: { capturedAt: Date; statusJson: unknown; eventsJson: unknown } | null;
+}
+
+export interface ReportPauseDiagnosis {
+  /** When the covering pause ended (or ends), epoch ms. */
+  until: number;
+  source: "report" | "dump_events" | "dump_skip" | "dump_state";
+  evidence: string;
+}
+
+function finiteNumber(v: unknown): number | null {
+  const n = typeof v === "string" && v.trim() !== "" ? Number(v) : v;
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * The span of time the report is about, epoch ms [from, to]. The departure
+ * time when the app sent one (a point), else the reported calendar day
+ * widened by an hour each side (it is the driver's local day, and the UK is an
+ * hour off UTC half the year), else the moment of the report.
+ */
+export function reportTimeWindow(reportedAt: Date, metadata: unknown): { from: number; to: number; exact: boolean } {
+  const meta = (metadata ?? {}) as { departAt?: unknown; reportedDate?: unknown };
+  if (typeof meta.departAt === "string") {
+    const t = Date.parse(meta.departAt);
+    if (Number.isFinite(t)) return { from: t, to: t, exact: true };
+  }
+  if (typeof meta.reportedDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(meta.reportedDate)) {
+    const dayStart = Date.parse(`${meta.reportedDate}T00:00:00Z`);
+    if (Number.isFinite(dayStart)) {
+      return { from: dayStart - HOUR_MS, to: dayStart + DAY_MS + HOUR_MS, exact: false };
+    }
+  }
+  const t = reportedAt.getTime();
+  return { from: t, to: t, exact: true };
+}
+
+function overlaps(start: number, end: number, w: { from: number; to: number }): boolean {
+  return start <= w.to && end > w.from;
+}
+
+interface DumpEventLike {
+  recorded_at?: unknown;
+  event?: unknown;
+  data?: unknown;
+}
+
+function eventData(data: unknown): Record<string, unknown> {
+  if (data && typeof data === "object") return data as Record<string, unknown>;
+  if (typeof data !== "string") return {};
+  try {
+    const parsed = JSON.parse(data);
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+const iso = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace("T", " ") + "Z";
+
+/** Null when nothing shows a pause over the reported time. Pure. */
+export function reportPauseDiagnosis(f: ReportPauseFacts): ReportPauseDiagnosis | null {
+  const w = reportTimeWindow(f.reportedAt, f.metadata);
+  const meta = (f.metadata ?? {}) as { pausedUntil?: unknown; pauseStartedAt?: unknown };
+
+  // 1. The report says so.
+  const reportedUntil = finiteNumber(meta.pausedUntil);
+  if (reportedUntil !== null) {
+    const start = finiteNumber(meta.pauseStartedAt) ?? reportedUntil - MAX_PAUSE_MS;
+    if (overlaps(start, reportedUntil, w)) {
+      return {
+        until: reportedUntil,
+        source: "report",
+        evidence: `the app reported recording paused until ${iso(reportedUntil)}${
+          finiteNumber(meta.pauseStartedAt) !== null ? ` (paused at ${iso(start)})` : ""
+        }, covering the reported drive.`,
+      };
+    }
+  }
+
+  const dump = f.dump;
+  if (!dump) return null;
+
+  // 2. The dump's event log.
+  const events = (Array.isArray(dump.eventsJson) ? (dump.eventsJson as DumpEventLike[]) : [])
+    .map((e) => ({
+      t: typeof e.recorded_at === "string" ? Date.parse(e.recorded_at) : Number.NaN,
+      event: typeof e.event === "string" ? e.event : "",
+      data: eventData(e.data),
+    }))
+    .filter((e) => Number.isFinite(e.t))
+    .sort((a, b) => a.t - b.t);
+
+  // A drive the phone refused because of the pause is the strongest tell.
+  const nearFrom = w.exact ? w.from - SKIP_NEAR_MS : w.from;
+  const nearTo = w.exact ? w.to + SKIP_NEAR_MS : w.to;
+  const skip = events.find(
+    (e) => e.event === "detection_skipped" && e.data.reason === "paused" && e.t >= nearFrom && e.t <= nearTo
+  );
+  if (skip) {
+    const until = finiteNumber(skip.data.until) ?? skip.t;
+    return {
+      until,
+      source: "dump_skip",
+      evidence: `the phone refused a drive at ${iso(skip.t)} because recording was paused${
+        finiteNumber(skip.data.until) !== null ? ` until ${iso(until)}` : ""
+      }.`,
+    };
+  }
+
+  let open: { start: number; end: number } | null = null;
+  const spans: Array<{ start: number; end: number }> = [];
+  for (const e of events) {
+    if (e.event === "drive_paused") {
+      const until = finiteNumber(e.data.until);
+      if (until === null) continue;
+      if (open) open.end = Math.min(open.end, e.t);
+      open = { start: e.t, end: until };
+      spans.push(open);
+    } else if (e.event === "drive_resumed" && open) {
+      open.end = Math.min(open.end, e.t);
+      open = null;
+    }
+  }
+  const span = spans.find((s) => overlaps(s.start, s.end, w));
+  if (span) {
+    return {
+      until: span.end,
+      source: "dump_events",
+      evidence: `recording was paused from ${iso(span.start)} to ${iso(span.end)}, covering the reported drive.`,
+    };
+  }
+
+  // 3. The dump's tracking_state: a pause running when the dump was taken.
+  const status = (dump.statusJson ?? {}) as { trackingState?: unknown };
+  const rows = Array.isArray(status.trackingState)
+    ? (status.trackingState as Array<{ key?: unknown; value?: unknown }>)
+    : [];
+  const stateUntil = finiteNumber(rows.find((r) => r.key === "drive_pause_until")?.value);
+  const captured = dump.capturedAt.getTime();
+  if (stateUntil !== null && stateUntil > captured && overlaps(captured, stateUntil, w)) {
+    return {
+      until: stateUntil,
+      source: "dump_state",
+      evidence: `the dump at ${iso(captured)} shows recording paused until ${iso(stateUntil)}, covering the reported drive.`,
+    };
+  }
+
+  return null;
+}
+
+/** A report the driver answered themselves by adding the trip from the
+ *  report sheet (`trip.report_missing_self_added`) within a day of it. */
+export function reportSelfAdded(
+  reportedAt: Date,
+  events: Array<{ type: string; createdAt: Date }>
+): boolean {
+  const at = reportedAt.getTime();
+  return events.some(
+    (e) =>
+      e.type === "trip.report_missing_self_added" &&
+      e.createdAt.getTime() >= at &&
+      e.createdAt.getTime() <= at + DAY_MS
+  );
+}

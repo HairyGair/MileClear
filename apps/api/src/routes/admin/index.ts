@@ -40,6 +40,7 @@ import {
 import { resolveRouteDistance } from "../../services/routing.js";
 import { resolveAdminTripDistance } from "../../services/adminTripDistance.js";
 import { adminObservabilityRoutes } from "./observability.js";
+import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
@@ -3131,7 +3132,7 @@ export async function adminRoutes(app: FastifyInstance) {
       ? await Promise.all([
           prisma.diagnosticDump.findMany({
             where: { userId: { in: ids } },
-            select: { userId: true, verdict: true, capturedAt: true, statusJson: true },
+            select: { userId: true, verdict: true, capturedAt: true, statusJson: true, eventsJson: true },
           }),
           prisma.trip.groupBy({
             by: ["userId"],
@@ -3216,6 +3217,7 @@ export async function adminRoutes(app: FastifyInstance) {
       | "open_recording"
       | "no_addresses"
       | "head_gap"
+      | "paused"
       | "permission_gap"
       | "silent_non_capture"
       | "needs_look";
@@ -3320,6 +3322,16 @@ export async function adminRoutes(app: FastifyInstance) {
             evidence = `trip ${t.id.slice(0, 8)} starts at ${t.startedAt.toISOString().slice(11, 16)}Z but its first coordinate is ${gapMin} min later - the leading leg has no trail and its miles are missing from ${t.distanceMiles?.toFixed(2) ?? "?"} mi.`;
             break;
           }
+        }
+      }
+
+      // The driver paused recording over the reported time (Peter Hazelgrove,
+      // 26 Sep 2026: "For a week" set on the Wednesday, two days lost).
+      if (diagnosis === "needs_look") {
+        const p = reportPauseDiagnosis({ reportedAt: e.createdAt, metadata: e.metadata, dump: dump ?? null });
+        if (p) {
+          diagnosis = "paused";
+          evidence = p.evidence;
         }
       }
 
