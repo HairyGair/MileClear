@@ -11,26 +11,57 @@
 //     that tells a deliberate manual user their choice is wrong.
 // The acknowledgement clears itself whenever detection comes back on, so the
 // NEXT time it's turned off the loud banner shows again.
+//
+// A PAUSE is not "off" (26 Sep 2026). isDriveDetectionEnabled() reads false
+// during a pause too, so a paused phone used to get "Auto-tracking is off"
+// with a Turn on that flipped the permanent switch and left the pause
+// running: the banner vanished and recording stayed off until the pause
+// ended. The switch and the pause are now read apart. Paused shows the
+// paused line with Resume (hidden where the screen already shows it), and
+// Turn on also clears any pause.
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
-import { isDriveDetectionEnabled, setDriveDetectionEnabled } from "../lib/tracking/detection";
+import {
+  getDrivePauseUntil,
+  resumeDriveDetection,
+  setDriveDetectionEnabled,
+} from "../lib/tracking/detection";
+import { isPauseActive } from "../lib/tracking/pauseRule";
 import { getDatabase } from "../lib/db";
+import { PauseRecordingRow } from "./PauseRecordingRow";
 
 const AMBER = colors.amber;
 const ACK_KEY = "manual_mode_ack";
 
-export function TrackingOffBanner() {
+/** The permanent switch in Settings, ignoring any pause. */
+async function readDetectionSwitch(): Promise<boolean> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
+  );
+  return !row || row.value === "1";
+}
+
+async function readActivePause(): Promise<number | null> {
+  const until = await getDrivePauseUntil();
+  return isPauseActive(until, Date.now()) ? until : null;
+}
+
+/** hidePause: the screen already shows the paused line (the dashboard). */
+export function TrackingOffBanner({ hidePause = false }: { hidePause?: boolean } = {}) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [pausedUntil, setPausedUntil] = useState<number | null>(null);
   const [acked, setAcked] = useState<boolean>(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
-    isDriveDetectionEnabled()
-      .then(async (on) => {
+    Promise.all([readDetectionSwitch(), readActivePause()])
+      .then(async ([on, paused]) => {
         setEnabled(on);
+        setPausedUntil(on ? paused : null);
         const db = await getDatabase();
         if (on) {
           // Detection is back on: reset the acknowledgement so a future
@@ -54,7 +85,10 @@ export function TrackingOffBanner() {
     setBusy(true);
     try {
       await setDriveDetectionEnabled(true); // also restarts detection
+      // "Turn on" means recording, so it ends any pause as well.
+      if ((await readActivePause()) !== null) await resumeDriveDetection("manual");
       setEnabled(true);
+      setPausedUntil(null);
       const db = await getDatabase();
       await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [ACK_KEY]);
       setAcked(false);
@@ -77,6 +111,22 @@ export function TrackingOffBanner() {
       /* stays loud — safe default */
     }
   }, []);
+
+  const resume = useCallback(async () => {
+    try {
+      await resumeDriveDetection("manual");
+    } catch {
+      // best-effort: the dashboard Resume is the fallback
+    }
+    refresh();
+  }, [refresh]);
+
+  if (enabled === true && pausedUntil !== null) {
+    if (hidePause) return null;
+    return (
+      <PauseRecordingRow pausedUntil={pausedUntil} now={Date.now()} onPause={() => {}} onResume={resume} />
+    );
+  }
 
   if (enabled !== false) return null;
 

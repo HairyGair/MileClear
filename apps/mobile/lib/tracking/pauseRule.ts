@@ -102,3 +102,39 @@ export function describePause(until: number, now: number): string {
 export function describeOffSince(offAt: number): string {
   return `Recording has been off since ${shortDay(new Date(offAt))}.`;
 }
+
+/** The end of a pause on its own: "06:00 today", "06:00 tomorrow" or
+ *  "Thu 1 Oct". The same wording describePause uses, for sentences that are
+ *  not "Paused until ...". */
+export function pauseEndPhrase(until: number, now: number): string {
+  return describePause(until, now).replace(/^Paused until /, "");
+}
+
+/** The dashboard's paused line (26 Sep 2026). Peter chose "For a week" on a
+ *  Wednesday evening and drove two working days without noticing, because
+ *  "Paused until ..." reads like a status, not a warning. This names what is
+ *  off. */
+export function pausedRowText(until: number, now: number): string {
+  return `Recording paused until ${pauseEndPhrase(until, now)}`;
+}
+
+export interface PausePromptCopy {
+  title: string;
+  message: string;
+  resumeLabel: string;
+  keepLabel: string;
+}
+
+/** The question asked when a driver taps Start Shift or Start Trip while a
+ *  pause is running, or null when there is nothing to ask. Starting a shift
+ *  is the clearest sign someone is working again, so it is the moment to
+ *  offer the pause back, once, without ever blocking the start. */
+export function pausePromptCopy(until: number | null | undefined, now: number): PausePromptCopy | null {
+  if (!isPauseActive(until, now)) return null;
+  return {
+    title: "Recording is paused",
+    message: `Automatic recording is paused until ${pauseEndPhrase(until as number, now)}. Turn it back on?`,
+    resumeLabel: "Resume recording",
+    keepLabel: "Keep paused",
+  };
+}
