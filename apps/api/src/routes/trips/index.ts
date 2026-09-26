@@ -43,6 +43,7 @@ import {
   isDroppedWalkAtDrivingPace,
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
+import { findCoveringTrip, INFERRED_PROPOSAL_SOURCES } from "../../services/missedJourneyCoverRule.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
@@ -312,12 +313,26 @@ export async function tripRoutes(app: FastifyInstance) {
   // picker keep filing; a report without it is shown as "no date". A shape
   // that passes the regex but is not a real day (2026-02-30) is dropped, not
   // rejected: the note is still worth having.
+  //
+  // Structured fields (26 Sep 2026): the sheet now asks for from / to / when
+  // and can add the trip itself. They ride along in the event metadata so the
+  // admin views can read them; `note` is still the human-readable line built
+  // from them, so nothing that reads the note changes. Places are addresses,
+  // never coordinates. pausedUntil / pauseStartedAt (epoch ms) are sent when a
+  // pause the driver set is running or covered the drive, for the "paused"
+  // diagnosis.
   const reportMissingSchema = z.object({
     note: z.string().trim().max(1000).optional(),
     reportedDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
+    from: z.string().trim().max(300).optional(),
+    to: z.string().trim().max(300).optional(),
+    departAt: z.string().datetime().optional(),
+    extraNote: z.string().trim().max(1000).optional(),
+    pausedUntil: z.number().int().positive().optional(),
+    pauseStartedAt: z.number().int().positive().optional(),
   });
   app.post("/report-missing", async (request, reply) => {
     const userId = request.userId!;
@@ -345,12 +360,21 @@ export async function tripRoutes(app: FastifyInstance) {
     // inbox can show it without cross-referencing Discord. reportedDate is
     // only written when the app sent a valid one, so older rows and older
     // builds look the same: no key.
+    const { from, to, departAt, extraNote, pausedUntil, pauseStartedAt } = parsed.data;
     logEvent("trip.report_missing", userId, {
       hasNote: note !== "(no details given)",
       note: note.slice(0, 500),
       ...(reportedDate ? { reportedDate } : {}),
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+      ...(departAt ? { departAt } : {}),
+      ...(extraNote ? { extraNote: extraNote.slice(0, 500) } : {}),
+      ...(pausedUntil ? { pausedUntil } : {}),
+      ...(pauseStartedAt ? { pauseStartedAt } : {}),
     });
-    const driveLine = `Drive: ${formatReportedDate(reportedDate)}`;
+    const driveLine =
+      `Drive: ${formatReportedDate(reportedDate)}` +
+      (pausedUntil ? `\nRecording was PAUSED until ${new Date(pausedUntil).toISOString()}` : "");
 
     // Best-effort Discord post — import locally to avoid widening the route's
     // import surface, and never let a Discord failure fail the user's report.
@@ -1379,6 +1403,93 @@ export async function tripRoutes(app: FastifyInstance) {
         key: { notIn: candidateKeys.length ? candidateKeys : ["__none__"] },
       },
     });
+
+    // Never offer a drive that is already a trip (26 Sep 2026). Sunny's own
+    // Start Trip drive and a drive support added for Jenkins both still had an
+    // offer waiting: the prune above only clears a gap row when the new trip
+    // happens to sort between the two trips that made it, and nothing ever
+    // re-checked the recorded / dropped_* rows after they arrived. Accepting
+    // either would have counted the miles twice. So every open row is checked
+    // against the driver's trips by TIME, whoever made the trip (auto, Start
+    // Trip, typed in, CSV, support); the rule and its thresholds are in
+    // services/missedJourneyCoverRule.
+    //
+    // A covered row moves to status "covered", not "dismissed": the driver
+    // decided nothing, so decidedAt stays null and dismissal counts stay
+    // honest. It is logged with the trip that covers it, and it is put back
+    // if that trip goes (deleted or shortened). A gap row is put back only
+    // while the scan still sees its gap; otherwise the scan owns it.
+    const reviewable = await prisma.missedJourneyProposal.findMany({
+      where: { userId, status: { in: ["proposed", "covered"] } },
+      orderBy: { arrivedAt: "desc" },
+      take: 400,
+      select: {
+        id: true, key: true, source: true, status: true,
+        departedAt: true, arrivedAt: true, estimatedMiles: true,
+        toLat: true, toLng: true,
+      },
+    });
+    if (reviewable.length > 0) {
+      let minDeparted = reviewable[0].departedAt;
+      let maxArrived = reviewable[0].arrivedAt;
+      for (const p of reviewable) {
+        if (p.departedAt < minDeparted) minDeparted = p.departedAt;
+        if (p.arrivedAt > maxArrived) maxArrived = p.arrivedAt;
+      }
+      const coverTrips = await prisma.trip.findMany({
+        where: {
+          userId,
+          isPhantomTrip: false,
+          startedAt: { lte: maxArrived },
+          endedAt: { gte: minDeparted },
+        },
+        select: {
+          id: true, startedAt: true, endedAt: true, isManualEntry: true,
+          endLat: true, endLng: true,
+        },
+      });
+      const tripById = new Map(coverTrips.map((t) => [t.id, t]));
+      const liveKeys = new Set(candidateKeys);
+      for (const p of reviewable) {
+        const cover = findCoveringTrip(p, coverTrips);
+        if (p.status === "proposed" && cover) {
+          const moved = await prisma.missedJourneyProposal.updateMany({
+            where: { id: p.id, userId, status: "proposed" },
+            data: { status: "covered" },
+          });
+          if (moved.count > 0) {
+            const t = tripById.get(cover.tripId);
+            logEvent("trip.missed_proposal_covered", userId, {
+              proposalId: p.id,
+              source: p.source,
+              departedAt: p.departedAt.toISOString(),
+              arrivedAt: p.arrivedAt.toISOString(),
+              estimatedMiles: p.estimatedMiles,
+              coveringTripId: cover.tripId,
+              coveringTripManual: t?.isManualEntry ?? null,
+              coveringTripStartedAt: t?.startedAt.toISOString() ?? null,
+              coveringTripEndedAt: t?.endedAt?.toISOString() ?? null,
+              rule: cover.rule,
+              windowCoveredFraction: cover.windowCoveredFraction,
+              tripInsideFraction: cover.tripInsideFraction,
+              destinationKm: cover.destinationKm,
+            });
+          }
+        } else if (
+          p.status === "covered" &&
+          !cover &&
+          (!INFERRED_PROPOSAL_SOURCES.has(p.source) || liveKeys.has(p.key))
+        ) {
+          const moved = await prisma.missedJourneyProposal.updateMany({
+            where: { id: p.id, userId, status: "covered" },
+            data: { status: "proposed" },
+          });
+          if (moved.count > 0) {
+            logEvent("trip.missed_proposal_uncovered", userId, { proposalId: p.id, source: p.source });
+          }
+        }
+      }
+    }
 
     // A "walk" that moved at driving speed is almost certainly a drive the old
     // walk rule threw away (23 Sep 2026: 15 open offers averaged 12-46 mph).
