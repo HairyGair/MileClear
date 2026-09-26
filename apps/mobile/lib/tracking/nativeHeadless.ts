@@ -107,6 +107,35 @@ async function noteRearmAt(at: number): Promise<void> {
   }
 }
 
+/**
+ * True while the engine is in low power (a pause, a shift or a Start Trip,
+ * see enginePowerRule.ts). Nothing in this task may put the SDK into moving
+ * mode then: that is what turns continuous GPS back on. Unreadable reads as
+ * normal, so a failure here can only ever cost battery, never a drive.
+ */
+async function isLowPower(): Promise<boolean> {
+  try {
+    const { readEnginePower } = await import("./nativeLocation");
+    return (await readEnginePower()).mode === "low";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Low power, and a wake just landed: settle whatever may have ended while
+ * the app was closed (an expired pause, with `checkLock` an abandoned shift
+ * or Start Trip lock) and re-apply. True if the engine is still low.
+ */
+async function stillLowAfterRefresh(source: string, checkLock: boolean): Promise<boolean> {
+  try {
+    const { refreshEnginePowerOnWake } = await import("./nativeLocation");
+    return (await refreshEnginePowerOnWake(source, checkLock)) === "low";
+  } catch {
+    return false;
+  }
+}
+
 async function rearmIfStationary(BGGeo: BgGeoHeadless, trigger: string): Promise<void> {
   let log: ((event: string, data?: Record<string, unknown>) => Promise<void>) | null = null;
   try {
@@ -184,6 +213,10 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
       return;
     }
     if (typeof BGGeo.changePace !== "function") return;
+    // Belt and braces for low power: the task routes around this function
+    // while low, but a fast fix must never switch navigation GPS back on
+    // under a shift or a pause.
+    if (await isLowPower()) return;
     await BGGeo.changePace(true);
     const decision = decideSpeedStart(fix?.speedMs ?? null, fix?.accuracyM ?? null);
     await log?.("native_headless_force_start_from_speed", {
@@ -269,6 +302,8 @@ async function startConfirm(
     const state = typeof BGGeo.getState === "function" ? await BGGeo.getState() : null;
     if (state?.enabled === false || state?.isMoving === true) return;
     if (typeof BGGeo.changePace !== "function") return;
+    // A confirm is a changePace(true): never in low power (see isLowPower).
+    if (await isLowPower()) return;
     const { getDatabase } = await import("../db/index");
     const db = await getDatabase();
     await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
@@ -389,6 +424,10 @@ export function registerNativeHeadlessTask(): void {
       if (name === "boot" || name === "terminate") {
         await rearmIfStationary(BGGeo!, name);
       } else if (name === "heartbeat") {
+        // In low power a heartbeat is the clock that ends a pause while the
+        // phone sits still (26 Sep 2026). Pause only: the lock self-heal would
+        // log a detection_skipped every minute of a shift.
+        if (await isLowPower()) await stillLowAfterRefresh("headless_heartbeat", false);
         if (Date.now() - (await readLastRearmAt()) >= HEARTBEAT_REARM_MS) {
           await rearmIfStationary(BGGeo!, name);
         }
@@ -404,6 +443,11 @@ export function registerNativeHeadlessTask(): void {
         } else if (route === "buffer") {
           await bufferHeadless(event?.params);
         } else if (route === "wake") {
+          // Low power: a coarse fix is only good for noticing that the pause
+          // or lock has ended. If it has, the engine is back on normal power
+          // and this event wakes it as it always did; if not, do nothing
+          // that could turn GPS on (26 Sep 2026, enginePowerRule.ts).
+          if ((await isLowPower()) && (await stillLowAfterRefresh(`headless_${name}`, true))) return;
           await wakeIfDriving(BGGeo!, name, event?.params);
         }
       }

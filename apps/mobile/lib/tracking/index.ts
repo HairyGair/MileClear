@@ -57,6 +57,22 @@ async function discardNativeStore(): Promise<void> {
   }
 }
 
+/**
+ * Re-apply the native engine's power mode after the shift lock changes. A
+ * shift or a Start Trip records with its own GPS task, so the automatic
+ * engine drops to low power for its duration and comes back after
+ * (enginePowerRule.ts, 26 Sep 2026: 9,390 navigation fixes taken and skipped
+ * in 48 h because both ran at once). Never throws.
+ */
+async function applyNativeEnginePower(source: string): Promise<void> {
+  try {
+    const { applyEnginePower } = await import("./nativeLocation");
+    await applyEnginePower(source);
+  } catch {
+    // best effort: the next wake or foreground re-applies it
+  }
+}
+
 export async function requestLocationPermissions(): Promise<boolean> {
   // Foreground permission is sufficient - background is best-effort
   // (Expo Go can't grant background permission at all)
@@ -116,6 +132,10 @@ export async function stopQuickTripLocationTask(): Promise<void> {
   } catch {
     // best-effort: the caller has already released the lock
   }
+  // Every caller has just released the __quick_trip__ lock (the self-heals in
+  // detection.ts, the trip form's save), so the automatic engine can leave
+  // low power. Reads the lock fresh, so a lock still held keeps it low.
+  await applyNativeEnginePower("quick_trip_lock_released");
 }
 
 export async function startShiftTracking(shiftId: string): Promise<void> {
@@ -139,6 +159,7 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('active_shift_started_at', ?)",
     [String(Date.now())]
   );
+  await applyNativeEnginePower("shift_started");
 
   try {
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
@@ -171,6 +192,7 @@ export async function stopShiftTracking(): Promise<void> {
 
   const db = await getDatabase();
   await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
+  await applyNativeEnginePower("shift_ended");
 
   // Clear any leftover detection coordinates and auto-recording state so the
   // detection system cannot finalize a duplicate trip for the same journey.
@@ -214,6 +236,10 @@ export async function startQuickTripTracking(): Promise<void> {
   // stopQuickTripTracking(). Freja Bounds, 27 Jul 2026. Once the lock is set
   // the suppression check holds, so this second cancel closes the window.
   await cancelAutoRecording();
+  // After the cancel, so the pace-down that comes with low power never lands
+  // on an open recording. Before the early return below, so a resumed Start
+  // Trip is covered too.
+  await applyNativeEnginePower("quick_trip_started");
 
   const isRunning = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
   if (isRunning) return; // Already running (e.g. resumed after background)
@@ -263,6 +289,7 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
   // Clean up
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
   await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
+  await applyNativeEnginePower("quick_trip_ended");
 
   // Clear detection coordinates to prevent duplicate trip finalization
   await cancelAutoRecording(true);

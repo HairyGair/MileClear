@@ -746,6 +746,7 @@ export async function shiftSuppressesAutoDetection(
     await db.runAsync(
       "DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')"
     );
+    await applyNativeEnginePower("stale_shift_cleared");
     logDetectionEvent("stale_active_shift_cleared", {
       shiftId: activeShift.value,
       reason: alreadyEnded ? "already_ended" : !shiftRow ? "no_local_row" : "active_too_long",
@@ -3662,7 +3663,18 @@ export async function bootNativeEngineOnLaunch(): Promise<void> {
     const loggedOut = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'logged_out'"
     );
-    if (loggedOut?.value === "1") return;
+    if (loggedOut?.value === "1") {
+      // ...and a logged-out phone whose SDK is still running natively gets
+      // it stopped here. Sign-out used to be a no-op in any launch that had
+      // not started the engine itself, so phones signed out before 26 Sep
+      // 2026 can still be recording (Peter Hazelgrove: signed out, force
+      // quit, still ~50% battery). A no-op when the SDK is already off.
+      try {
+        const { isNativeEngineAvailable, stopNativeLocationEngine } = await import("./nativeLocation");
+        if (isNativeEngineAvailable()) await stopNativeLocationEngine({ force: true });
+      } catch {}
+      return;
+    }
     const onboarded = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
     );
@@ -4026,6 +4038,9 @@ export async function startDriveDetection(): Promise<void> {
           } catch {}
           const nativeStarted = await startNativeLocationEngine();
           if (nativeStarted) {
+            // Every foreground pass re-checks the power mode: an engine
+            // started earlier in this process skipped the engine_ready apply.
+            await applyNativeEnginePower("foreground");
             logDetectionEvent("detection_using_native_engine", {}).catch(() => {});
             return;
           }
@@ -4570,6 +4585,9 @@ export async function pauseDriveDetection(until: number, choice: string): Promis
     [PAUSE_KEY, String(until)]
   );
   logDetectionEvent("drive_paused", { choice, until, hours: Math.round((until - Date.now()) / 36e5) }).catch(() => {});
+  // Low power: armed, able to wake, no continuous GPS (enginePowerRule.ts).
+  // Stored in the SDK's own config, so it holds with the app closed.
+  await applyNativeEnginePower("pause_started");
   try {
     // The JS task is the legacy path and holds a real GPS subscription, so it
     // still goes. It is restored by the next foreground or by the watchdog's
@@ -4610,6 +4628,7 @@ export async function resumeDriveDetection(reason: "manual" | "notification" | "
   if (!row) return;
   await db.runAsync(`DELETE FROM tracking_state WHERE key = '${PAUSE_KEY}'`);
   logDetectionEvent("drive_resumed", { reason, early: reason === "manual" && isPauseActive(Number(row.value), Date.now()) }).catch(() => {});
+  await applyNativeEnginePower(`pause_resumed_${reason}`);
   try {
     const Notifications = require("expo-notifications");
     await Notifications.cancelScheduledNotificationAsync(PAUSE_NOTIFICATION_ID).catch(() => {});
@@ -4627,6 +4646,20 @@ export async function autoResumeIfPauseExpired(): Promise<void> {
   if (!row) return;
   if (isPauseActive(Number(row.value), Date.now())) return;
   await resumeDriveDetection("expired");
+}
+
+/**
+ * Re-apply the native engine's power mode (enginePowerRule.ts) after a pause
+ * or a shift lock changes. Lazy import, like every other nativeLocation use
+ * here, and never throws: a failed switch must not break the caller.
+ */
+async function applyNativeEnginePower(source: string): Promise<void> {
+  try {
+    const { applyEnginePower } = await import("./nativeLocation");
+    await applyEnginePower(source);
+  } catch {
+    // best effort: the next wake or foreground re-applies it
+  }
 }
 
 /**
@@ -4653,6 +4686,10 @@ export async function resolvePauseOnWake(): Promise<PauseWake> {
     if (decision !== "resume") return decision;
     await db.runAsync(`DELETE FROM tracking_state WHERE key = '${PAUSE_KEY}'`);
     logDetectionEvent("drive_resumed", { reason: "expired_on_wake" }).catch(() => {});
+    // Back to normal power BEFORE the caller judges the fix that woke us, so
+    // the drive this wake belongs to records at full accuracy (26 Sep 2026).
+    // Here rather than in each caller so the headless paths get it too.
+    await applyNativeEnginePower("pause_expired_on_wake");
     try {
       const Notifications = require("expo-notifications");
       await Notifications.cancelScheduledNotificationAsync(PAUSE_NOTIFICATION_ID).catch(() => {});
@@ -4678,6 +4715,9 @@ async function armNativeEngineWhilePaused(): Promise<void> {
     );
     if (!isNativeEngineAvailable()) return;
     await startNativeLocationEngine();
+    // Normally already low (engine_ready or pause_started did it); this
+    // covers a pause set by a build that predates low power.
+    await applyNativeEnginePower("paused_arm");
     await sleepNativeEngine("paused_arm");
   } catch {
     // Best effort: the pause still ends on its own the moment any wake lands.

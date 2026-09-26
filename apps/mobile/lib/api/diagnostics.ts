@@ -19,7 +19,7 @@ import { getRoutingStats } from "../tracking/routingStats";
 import { getBatterySnapshot } from "../tracking/batteryAware";
 import { recordBatterySample, getBatterySeriesForDump } from "../tracking/batterySamples";
 import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
-import { getNativeEngineDiagnostics } from "../tracking/nativeLocation";
+import { getNativeEngineDiagnostics, readEnginePower } from "../tracking/nativeLocation";
 import { getLiveActivityState } from "../liveActivity/presence";
 import { summariseDetectionEvents } from "./activitySummaryRule";
 
@@ -221,6 +221,11 @@ export async function uploadDiagnosticDump(): Promise<void> {
     // (SteveG, 2 Sep 2026 - three missed drives with every setting correct
     // and nothing in our event log). See getNativeEngineDiagnostics().
     const nativeEngine = await getNativeEngineDiagnostics().catch(() => null);
+    // The automatic engine's power mode, "low" while a pause, a shift or a
+    // Start Trip makes its fixes unusable (enginePowerRule.ts, 26 Sep 2026).
+    // What this device last told the SDK, so a phone draining battery while
+    // paused can be checked from its dump.
+    const enginePower = await readEnginePower().catch(() => null);
     // iOS: is the Live Activity switch on, is one showing now, do we hold a
     // push-to-start token, and what did we last do about it. Anthony's own
     // phone had the switch off for months and nothing reported it (3 Sep
@@ -315,6 +320,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
           motionPermission: diagnostics.motionPermission,
           batteryOptimisation,
           nativeEngine,
+          enginePower,
           liveActivity,
           // True native-binary identity + which OTA is running on top of it,
           // so the reported appVersion/buildNumber (OTA label) can be

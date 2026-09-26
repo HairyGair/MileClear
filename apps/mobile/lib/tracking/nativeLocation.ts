@@ -58,6 +58,18 @@ import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
 import { recordBatterySample } from "./batterySamples";
 import { engineTriggerActivities } from "./engineTriggers";
 import { getMotionPermission } from "./motionPermission";
+import {
+  decideEnginePower,
+  enginePowerConfig,
+  parseEnginePower,
+  serializeEnginePower,
+  shouldPaceDownOnEnter,
+  shouldRearmOnExit,
+  type EngineAccuracyConstants,
+  type EnginePowerMode,
+  type StoredEnginePower,
+} from "./enginePowerRule";
+import { shouldStopNativeEngine } from "./nativeStopRule";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -110,6 +122,7 @@ type BgGeo = {
   changePace?: (isMoving: boolean) => Promise<unknown>;
   DESIRED_ACCURACY_NAVIGATION: number;
   DESIRED_ACCURACY_HIGH: number;
+  DESIRED_ACCURACY_MEDIUM?: number;
   PERSIST_MODE_LOCATION: number;
   [key: string]: unknown;
 };
@@ -315,6 +328,15 @@ export async function getNativeEngineDiagnostics(): Promise<NativeEngineDiagnost
 }
 
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
+/** The SDK's accuracy constants. MEDIUM falls back to the SDK's documented
+ *  value (10) on a module that does not expose it. */
+function engineAccuracy(BGGeo: BgGeo): EngineAccuracyConstants {
+  return {
+    navigation: BGGeo.DESIRED_ACCURACY_NAVIGATION,
+    medium: typeof BGGeo.DESIRED_ACCURACY_MEDIUM === "number" ? BGGeo.DESIRED_ACCURACY_MEDIUM : 10,
+  };
+}
+
 function buildConfig(BGGeo: BgGeo, motionPermission: string): Record<string, unknown> {
   return {
     // ANDROID ONLY. Ignored on iOS, which takes this copy from the Info.plist
@@ -334,9 +356,10 @@ function buildConfig(BGGeo: BgGeo, motionPermission: string): Record<string, unk
       positiveAction: 'Change to "Allow all the time"',
       negativeAction: "Cancel",
     },
-    // Capture
-    desiredAccuracy: BGGeo.DESIRED_ACCURACY_NAVIGATION,
-    distanceFilter: 20, // metres between recorded fixes while moving
+    // Capture: navigation accuracy, 20 m between recorded fixes while moving.
+    // One source of truth with the low-power restore (enginePowerRule.ts), so
+    // leaving low power can never land on different values from a launch.
+    ...enginePowerConfig("normal", Platform.OS, engineAccuracy(BGGeo)),
     // Motion detection — the native engine decides moving/stationary from the
     // motion coprocessor, which is what makes wake reliable.
     stopTimeout: 5, // minutes of stillness before it declares the trip stopped
@@ -637,6 +660,8 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       // Read before ready(): the iPhone trigger list depends on it (engineTriggers.ts).
       const motionPermission = await getMotionPermission().catch(() => "unavailable");
       await BGGeo.ready(buildConfig(BGGeo, motionPermission));
+      // ready() just reset the SDK to the launch (normal power) config.
+      await noteEngineConfigReset();
       try {
         await BGGeo.start();
       } catch (err) {
@@ -662,6 +687,10 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       // thing that wakes the engine, and a start that never acquired its
       // "motionchange" position leaves the engine started but deaf.
       if (Platform.OS === "android") void armStationaryRegionOnStart(BGGeo);
+      // ready() dropped any low-power config: a paused phone, or one with a
+      // shift or Start Trip running, goes straight back to low power, the
+      // same way the trigger list is re-read on every launch.
+      await applyEnginePower("engine_ready");
       // Arm the car-audio + CLVisit triggers (dynamic import avoids a cycle).
       import("./carDetection")
         .then((m) => m.startCarAndVisitTriggers())
@@ -741,20 +770,218 @@ export async function sleepNativeEngine(reason: string, log = true): Promise<voi
   }
 }
 
-export async function stopNativeLocationEngine(): Promise<void> {
+// ─── Power mode (26 Sep 2026) ───────────────────────────────────────────────
+//
+// Low power while a pause, a shift or a Start Trip makes the engine's fixes
+// unusable; normal otherwise. The rule, the config values and the reasons
+// (Peter Hazelgrove's 46% battery while paused, and 9,390 skipped navigation
+// fixes during shifts and Start Trips in 48 h) are in enginePowerRule.ts.
+//
+// The mode the SDK is configured in is stored in tracking_state, not in a
+// module variable: the Android headless task runs in a fresh JS context for
+// every event, and the SDK keeps its config natively across launches. Every
+// ready() resets the SDK to the launch config, so startNativeLocationEngine
+// marks it normal right after ready() and then applies the rule.
+
+const ENGINE_POWER_KEY = "engine_power_mode";
+
+// Serialises mode changes within one JS context: a shift start and an
+// engine-ready pass landing together must not interleave read and write.
+let powerChain: Promise<unknown> = Promise.resolve();
+
+function enqueuePower<T>(job: () => Promise<T>): Promise<T> {
+  const run = powerChain.then(job, job);
+  powerChain = run.catch(() => {});
+  return run;
+}
+
+/** The mode the SDK was last configured in. Unreadable reads as normal. */
+export async function readEnginePower(): Promise<StoredEnginePower> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [ENGINE_POWER_KEY]
+    );
+    return parseEnginePower(row?.value);
+  } catch {
+    return parseEnginePower(null);
+  }
+}
+
+async function writeEnginePower(state: StoredEnginePower): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
+    ENGINE_POWER_KEY,
+    serializeEnginePower(state),
+  ]);
+}
+
+/** ready() has just put the SDK back on the launch config. Record that before
+ *  anything compares against the stored mode. */
+function noteEngineConfigReset(): Promise<void> {
+  return enqueuePower(async () => {
+    try {
+      await writeEnginePower({ mode: "normal", reason: null });
+    } catch {
+      // The next apply compares against a stale "low" and re-sends normal
+      // values the SDK already has: harmless.
+    }
+  });
+}
+
+/**
+ * Put the SDK in the power mode the current state calls for. Reads the pause
+ * and the shift lock, and calls setConfig only when the mode actually changes.
+ * Never throws. Returns the mode now in force, or null when the native engine
+ * is not this device's engine (JS engine, Expo Go, unlicensed Android build).
+ *
+ * `source` is only for the log line: which call site made the change.
+ */
+export function applyEnginePower(source: string): Promise<EnginePowerMode | null> {
+  return enqueuePower(async () => {
+    const BGGeo = loadNativeModule();
+    if (!BGGeo || typeof BGGeo.setConfig !== "function") return null;
+    try {
+      if (licenceFailed || !androidLicenceKeyConfigured()) return null;
+      const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+      if (!(await isNativeLocationEngineEnabled())) return null;
+      const db = await getDatabase();
+      const rows = await db.getAllAsync<{ key: string; value: string }>(
+        "SELECT key, value FROM tracking_state WHERE key IN ('drive_pause_until', 'active_shift_id', 'auto_recording_active', ?)",
+        [ENGINE_POWER_KEY]
+      );
+      const map: Record<string, string> = {};
+      for (const r of rows) map[r.key] = r.value;
+      const pausedRaw = map["drive_pause_until"];
+      const decision = decideEnginePower({
+        pausedUntil: pausedRaw !== undefined ? Number(pausedRaw) : null,
+        now: Date.now(),
+        activeShiftId: map["active_shift_id"] ?? null,
+      });
+      const current = parseEnginePower(map[ENGINE_POWER_KEY]);
+      if (decision.mode === current.mode) {
+        // Same mode, maybe a new reason (a pause that ended into a running
+        // shift). Keep the dump honest without touching the SDK.
+        if (decision.reason !== current.reason) await writeEnginePower(decision);
+        return decision.mode;
+      }
+      await BGGeo.setConfig(enginePowerConfig(decision.mode, Platform.OS, engineAccuracy(BGGeo)));
+      await writeEnginePower(decision);
+      logDetectionEvent("native_power_mode", {
+        mode: decision.mode,
+        reason: decision.reason,
+        source,
+      }).catch(() => {});
+      // Entering low mid-drive (Start Trip tapped while moving, a pause set
+      // from the car): drop the moving session now rather than waiting for
+      // the SDK to notice, so the navigation GPS stops with this call.
+      if (
+        shouldPaceDownOnEnter(current.mode, decision.mode, map["auto_recording_active"] === "1") &&
+        typeof BGGeo.changePace === "function"
+      ) {
+        try {
+          await BGGeo.changePace(false);
+        } catch {}
+      }
+      // Leaving low while parked: re-arm the stationary region at full
+      // accuracy so the next drive is noticed from the kerb (shouldRearmOnExit).
+      if (current.mode === "low" && decision.mode === "normal" && typeof BGGeo.changePace === "function") {
+        try {
+          const st = typeof BGGeo.getState === "function" ? await BGGeo.getState() : null;
+          if (shouldRearmOnExit(current.mode, decision.mode, map["auto_recording_active"] === "1", st?.isMoving ?? null)) {
+            await BGGeo.changePace(false);
+            logDetectionEvent("native_power_rearmed", { source }).catch(() => {});
+          }
+        } catch {}
+      }
+      return decision.mode;
+    } catch (err) {
+      logDetectionEvent("native_power_mode_failed", {
+        source,
+        error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      }).catch(() => {});
+      return null;
+    }
+  });
+}
+
+/**
+ * A wake that found the SDK in low power: settle anything that may have
+ * ended while nobody was looking, then re-apply. Clears an expired pause
+ * (resolvePauseOnWake) and, with `checkLock`, lets the shift-lock self-heal
+ * run (a ghost shift or an abandoned Start Trip would otherwise hold the
+ * engine in low power for as long as it held the lock). Returns the mode now
+ * in force; null means "unknown", which callers treat as normal so a failure
+ * here can never keep a phone quiet.
+ */
+export async function refreshEnginePowerOnWake(
+  source: string,
+  checkLock: boolean
+): Promise<EnginePowerMode | null> {
+  try {
+    await resolvePauseOnWake();
+    if (checkLock) {
+      const db = await getDatabase();
+      await shiftSuppressesAutoDetection(db);
+    }
+  } catch {
+    // fall through to the apply, which reads state fresh
+  }
+  return applyEnginePower(source);
+}
+
+/**
+ * Stop the SDK. By default only an engine this JS process started; with
+ * `force` (logout) whatever the SDK is doing natively, because it outlives the
+ * process that started it (see nativeStopRule.ts, 26 Sep 2026).
+ */
+export async function stopNativeLocationEngine(options?: { force?: boolean }): Promise<void> {
   const BGGeo = loadNativeModule();
-  if (!BGGeo || !started) return;
+  if (!BGGeo) return;
+  const force = options?.force === true;
+  // An unlicensed Android build never started the SDK and must not poke it
+  // (see androidLicenceKey): nothing there can be running.
+  if (!started && force && !androidLicenceKeyConfigured()) return;
+  let sdkEnabled: boolean | null = null;
+  if (!started && force) {
+    try {
+      const getState = BGGeo.getState as (() => Promise<{ enabled?: boolean }>) | undefined;
+      if (typeof getState === "function") {
+        const s = await getState();
+        sdkEnabled = typeof s?.enabled === "boolean" ? s.enabled : null;
+      }
+    } catch {
+      sdkEnabled = null;
+    }
+  }
+  if (!shouldStopNativeEngine({ startedHere: started, force, sdkEnabled })) return;
   import("./carDetection")
     .then((m) => m.stopCarAndVisitTriggers())
     .catch(() => {});
   try {
     await BGGeo.stop();
+  } catch {
+    // The SDK may refuse calls before ready() in a process that never ran
+    // it. For a forced stop, ready() with reset:false (keep its persisted
+    // config, touch nothing) and try once more.
+    if (force && !started) {
+      try {
+        await BGGeo.ready({ reset: false });
+        await BGGeo.stop();
+      } catch {
+        // best effort
+      }
+    }
+  }
+  try {
     await BGGeo.removeAllListeners();
   } catch {
     // best effort
   }
+  const startedHere = started;
   started = false;
-  logDetectionEvent("native_engine_stopped", {}).catch(() => {});
+  logDetectionEvent("native_engine_stopped", { forced: force && !startedHere }).catch(() => {});
 }
 
 // ─── Event → existing pipeline ──────────────────────────────────────────────
@@ -1047,7 +1274,12 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // without a motionchange ever firing (46% of Android phones have never
     // granted motion at all). Silent: this runs per fix, and the motion path
     // is where the sleep is worth a line in the log.
+    // A "resume" has already switched the engine back to normal power inside
+    // resolvePauseOnWake, before this fix is judged (26 Sep 2026).
     if ((await resolvePauseOnWake()) === "sleep") {
+      // Low power first (a no-op once it is), so a phone paused before this
+      // build stops taking navigation fixes on its very next one.
+      await applyEnginePower("fix_while_paused");
       await sleepNativeEngine("fix_while_paused", false);
       return;
     }
@@ -1063,6 +1295,15 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // Battery over time (batterySamples.ts): at most one sample per ten
     // minutes, fire and forget, never in the way of the fix.
     void recordBatterySample();
+
+    // Low power (a shift or Start Trip owns the GPS): this coarse fix is only
+    // good for noticing that the lock has gone. The shared helper self-heals
+    // a ghost shift or an abandoned Start Trip; if it does, the engine goes
+    // back to normal here and this fix carries on as usual.
+    if ((await readEnginePower()).mode === "low") {
+      if (await shiftSuppressesAutoDetection(db)) return;
+      await applyEnginePower("lock_gone_on_fix");
+    }
 
     // A tap on the Live Activity ("Not Driving", or Business / Personal at
     // the kerb) is waiting in the App Group store. This callback is the one
@@ -1226,6 +1467,7 @@ export async function handleNativeMotionChange(event: NativeMotionEvent): Promis
     // saves battery; "resume" has already cleared the pause and this drive is
     // recorded like any other (21 Sep 2026, see resolvePauseOnWake).
     if ((await resolvePauseOnWake()) === "sleep") {
+      await applyEnginePower("motion_while_paused");
       if (event.isMoving) await sleepNativeEngine("motion_while_paused");
       return;
     }
@@ -1241,6 +1483,9 @@ export async function handleNativeMotionChange(event: NativeMotionEvent): Promis
     // shift mode owns GPS; the shared helper self-heals an orphaned quick-trip
     // lock so it can't permanently block native motion-driven recording.
     if (await shiftSuppressesAutoDetection(db)) return;
+    // No lock (or the helper just cleared a ghost one): if the engine was
+    // left in low power, this is where it comes back.
+    if ((await readEnginePower()).mode === "low") await applyEnginePower("lock_gone_on_motion");
 
     const BGGeo = loadNativeModule();
 
@@ -1398,6 +1643,11 @@ async function enterPostTripKeepAlive(
 async function handleNativeHeartbeat(): Promise<void> {
   try {
     void recordBatterySample();
+    // In low power, a heartbeat is a clock tick: if the pause ran out while
+    // the phone sat still, go back to normal now rather than on the next
+    // drive's first coarse fix. Only the pause, not the lock self-heal, which
+    // would log a detection_skipped every minute of a shift.
+    if ((await readEnginePower()).mode === "low") await refreshEnginePowerOnWake("heartbeat", false);
     if (!(await isDriveDetectionEnabled())) {
       // Detection was switched off while preventSuspend held the app alive
       // (e.g. mid keep-alive window). The settings toggle doesn't stop RNBG on

@@ -254,7 +254,11 @@ export async function logout(): Promise<void> {
   } catch {}
   try {
     const { stopNativeLocationEngine } = await import("../tracking/nativeLocation");
-    await stopNativeLocationEngine();
+    // force: the SDK runs natively whether or not this launch started it, so
+    // a sign-out from a launch that never did (a background relaunch, a paused
+    // phone) was a no-op and the phone went on recording (Peter Hazelgrove,
+    // 25 Sep 2026).
+    await stopNativeLocationEngine({ force: true });
   } catch {}
   try {
     const { stopGeofencing } = await import("../geofencing/index");
