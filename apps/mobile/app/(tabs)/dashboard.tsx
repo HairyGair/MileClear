@@ -2024,7 +2024,7 @@ export default function DashboardScreen() {
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
       {/* Safety: warn if auto-detection is switched off, with one-tap re-enable. */}
-      <TrackingOffBanner />
+      <TrackingOffBanner hidePause />
       <SyncStatusBanner />
       {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
           Hides itself while recording (banner above owns that state) and when
