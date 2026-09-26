@@ -20,7 +20,7 @@ import {
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotification, sendPushNotifications } from "../../lib/push.js";
-import { getTaxYear, haversineDistance } from "@mileclear/shared";
+import { getTaxYear } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import {
@@ -38,6 +38,7 @@ import {
   type DiscordChannel,
 } from "../../services/discord.js";
 import { resolveRouteDistance } from "../../services/routing.js";
+import { resolveAdminTripDistance } from "../../services/adminTripDistance.js";
 import { adminObservabilityRoutes } from "./observability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
@@ -66,6 +67,8 @@ const adminCreateTripSchema = z.object({
   endLng: z.number(),
   startAddress: z.string().max(500).optional(),
   endAddress: z.string().max(500).optional(),
+  // Omit to use the road distance (same routing as GET /trips/route-distance).
+  // Never falls back to crow-flies: if routing is down the request gets a 503.
   distanceMiles: z.number().positive().optional(),
   startedAt: z.string().datetime(),
   endedAt: z.string().datetime(),
@@ -1505,9 +1508,28 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: "endedAt must be after startedAt" });
     }
 
-    const distanceMiles =
-      data.distanceMiles ??
-      haversineDistance(data.startLat, data.startLng, data.endLat, data.endLng);
+    // A typed distance is kept as given; otherwise road routing. Never
+    // crow-flies: mileage is claimed for tax (Fleetwood to Liverpool would
+    // have gone in as ~30.5 mi against a real 54.7 mi, 26 Sep 2026).
+    const resolved = await resolveAdminTripDistance({
+      distanceMiles: data.distanceMiles,
+      startLat: data.startLat,
+      startLng: data.startLng,
+      endLat: data.endLat,
+      endLng: data.endLng,
+      userId,
+    });
+    if (!resolved) {
+      return reply.status(503).send({
+        error: {
+          code: "ROUTING_UNAVAILABLE",
+          message:
+            "Couldn't work out the road distance (routing is unavailable). Type the miles in and try again.",
+          retryable: true,
+        },
+      });
+    }
+    const { distanceMiles, distanceSource, routePolyline } = resolved;
 
     const trip = await prisma.trip.create({
       data: {
@@ -1520,6 +1542,7 @@ export async function adminRoutes(app: FastifyInstance) {
         startAddress: data.startAddress ?? null,
         endAddress: data.endAddress ?? null,
         distanceMiles,
+        ...(routePolyline !== null ? { routePolyline } : {}),
         startedAt,
         endedAt,
         isManualEntry: true,
@@ -1539,6 +1562,7 @@ export async function adminRoutes(app: FastifyInstance) {
       targetUserId: userId,
       tripId: trip.id,
       distanceMiles,
+      distanceSource,
     });
 
     request.log.warn(
@@ -1551,7 +1575,7 @@ export async function adminRoutes(app: FastifyInstance) {
       `Admin created trip ${trip.id} for user ${userId}`,
     );
 
-    return reply.status(201).send({ data: trip });
+    return reply.status(201).send({ data: trip, distanceSource });
   });
 
   // GET /admin/users/:userId/deleted-trips

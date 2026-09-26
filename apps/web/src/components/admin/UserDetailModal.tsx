@@ -295,9 +295,16 @@ export function UserDetailModal({
       if (tripPlatform.trim()) body.platformTag = tripPlatform.trim();
       if (tripNotes.trim()) body.notes = tripNotes.trim();
 
-      await api.post<{ data: unknown }>(`/admin/users/${userId}/trips`, body);
-      setTripResult("Trip created");
+      const created = await api.post<{ data: { distanceMiles: number }; distanceSource?: string }>(
+        `/admin/users/${userId}/trips`,
+        body
+      );
+      const miles = created.data.distanceMiles.toFixed(1);
+      const result = created.distanceSource && created.distanceSource !== "admin"
+        ? `Trip created: ${miles} mi (road distance)`
+        : `Trip created: ${miles} mi`;
       resetTripForm();
+      setTripResult(result);
       setTripOpen(false);
       // Refresh user detail to show the new trip in Recent Trips
       const refreshed = await api.get<{ data: AdminUserDetail }>(`/admin/users/${userId}`);
@@ -869,6 +876,17 @@ export function UserDetailModal({
                 {tripOpen ? "Hide" : "Show form"}
               </Button>
             </div>
+            {!tripOpen && tripResult && (
+              <p
+                style={{
+                  fontSize: "0.8125rem",
+                  color: tripResult.startsWith("Error") ? "var(--dash-red)" : "var(--emerald-400)",
+                  margin: 0,
+                }}
+              >
+                {tripResult}
+              </p>
+            )}
             {tripOpen && (
               <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
                 {user.vehicles.length === 0 ? (
@@ -954,7 +972,7 @@ export function UserDetailModal({
                         type="number"
                         value={tripDistance}
                         onChange={(e) => setTripDistance(e.target.value)}
-                        placeholder="Distance (mi, optional)"
+                        placeholder="Distance (mi), blank = road distance"
                       />
                       <Select
                         id="trip-classification"
@@ -968,6 +986,11 @@ export function UserDetailModal({
                         ]}
                       />
                     </div>
+                    <p style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", margin: 0 }}>
+                      Leave distance blank to use the road distance between the start and end points
+                      (the same routing as the app). Only type miles if you know the real figure.
+                      If routing is unavailable you will be asked to type them in.
+                    </p>
                     <Input
                       id="trip-platform"
                       value={tripPlatform}
