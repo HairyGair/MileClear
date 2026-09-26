@@ -21,6 +21,7 @@ import { Button } from "../components/Button";
 import { registerPushToken } from "../lib/api/notifications";
 import { updateProfile } from "../lib/api/user";
 import { createVehicle } from "../lib/api/vehicles";
+import { markOnboardingComplete } from "../lib/onboardingGate";
 import { getDatabase } from "../lib/db/index";
 import { useMode } from "../lib/mode/context";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus } from "../lib/permissions/location";
@@ -242,6 +243,9 @@ export default function OnboardingScreen() {
           isPrimary: true,
         }).catch(() => {});
 
+        // Tell the root layout before navigating, or its redirect sends the
+        // dashboard straight back here (see lib/onboardingGate.ts).
+        markOnboardingComplete();
         if (destination === "trip") {
           router.replace("/trip-form" as any);
         } else {
@@ -254,7 +258,10 @@ export default function OnboardingScreen() {
           [
             {
               text: "Continue",
-              onPress: () => router.replace("/(tabs)/dashboard"),
+              onPress: () => {
+                markOnboardingComplete();
+                router.replace("/(tabs)/dashboard");
+              },
             },
           ]
         );

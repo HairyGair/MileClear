@@ -149,6 +149,7 @@ import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize, bootNativeEngineOnLaunch } from "../lib/tracking/detection";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
+import { onOnboardingComplete } from "../lib/onboardingGate";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
 import { mountAppStateTracker } from "../lib/appState";
@@ -200,7 +201,13 @@ function RootNavigator() {
   useScreenTracking(isAuthenticated && !isLoading);
 
   const [onboardingChecked, setOnboardingChecked] = useState(false);
-  const [onboardingComplete, setOnboardingComplete] = useState(false);
+  // Starts true (26 Sep 2026). Onboarding has marked itself complete for
+  // every account since 21 May, so the check below always ends true; but
+  // starting false meant a fresh sign-in, before that check had run, was
+  // redirected from (auth) to the first open sibling, which was onboarding.
+  // It now only shows when SQLite cannot be read (the .catch below).
+  const [onboardingComplete, setOnboardingComplete] = useState(true);
+  useEffect(() => onOnboardingComplete(() => setOnboardingComplete(true)), []);
   const [quickStartVisible, setQuickStartVisible] = useState(false);
 
   useEffect(() => {
