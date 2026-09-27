@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  googlePaidEventsFrom,
   inferPeriod,
   monthlyEquivalentPence,
   classifyProSource,
@@ -92,5 +93,36 @@ describe("reconstructTrend", () => {
 describe("lastNMonths", () => {
   it("ends at the current month and crosses the year boundary", () => {
     expect(lastNMonths(3, new Date("2026-01-15T00:00:00Z"))).toEqual(["2025-11", "2025-12", "2026-01"]);
+  });
+});
+
+
+describe("Google Play (27 Sep 2026: Android subscribers were counted as comp)", () => {
+  const future = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const base = { isPremium: true, premiumExpiresAt: future, stripeSubscriptionId: null, appleOriginalTransactionId: null, referralProUntil: null };
+
+  it("counts a Play subscriber as paying, not comp", () => {
+    expect(classifyProSource({ ...base, googlePlayPurchaseToken: "tok" }, new Set())).toBe("paying");
+    expect(classifyProSource({ ...base, googlePlayPurchaseToken: null }, new Set())).toBe("comp");
+  });
+
+  it("counts each Play subscriber as new once, even when a purchase is validated twice", () => {
+    const t = new Date("2026-09-27T13:54:15Z");
+    const ev = googlePaidEventsFrom([
+      { type: "billing.google_play_validated", userId: "k", createdAt: t, metadata: {} },
+      { type: "billing.google_play_validated", userId: "k", createdAt: new Date(t.getTime() + 500), metadata: {} },
+      { type: "billing.google_play_validated", userId: "r", createdAt: t, metadata: {} },
+    ]);
+    expect(ev).toEqual([{ month: "2026-09", kind: "new" }, { month: "2026-09", kind: "new" }]);
+  });
+
+  it("counts a churn only when Google says access ended", () => {
+    const t = new Date("2026-10-27T13:54:15Z");
+    const ev = googlePaidEventsFrom([
+      { type: "billing.google_play_rtdn", userId: "k", createdAt: t, metadata: { active: true } },
+      { type: "billing.google_play_rtdn", userId: "k", createdAt: t, metadata: { active: false } },
+      { type: "billing.google_play_rtdn", userId: "k", createdAt: new Date(t.getTime() + 1000), metadata: { active: false } },
+    ]);
+    expect(ev).toEqual([{ month: "2026-10", kind: "churn" }]);
   });
 });

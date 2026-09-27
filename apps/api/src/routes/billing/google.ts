@@ -86,6 +86,9 @@ export async function googleBillingRoutes(app: FastifyInstance) {
           premiumExpiresAt,
           googlePlayPurchaseToken: purchaseToken,
           googlePlayOrderId: sub.latestOrderId ?? null,
+          ...(planFromGoogleSubscription(sub)
+            ? { subscriptionProductId: `google_premium_${planFromGoogleSubscription(sub)}` }
+            : {}),
           ...(isTrialPurchase(sub) ? { trialUsedAt: new Date() } : {}),
         },
       });
@@ -239,6 +242,9 @@ export async function googleBillingRoutes(app: FastifyInstance) {
           isPremium: active,
           premiumExpiresAt: expiry,
           googlePlayOrderId: sub.latestOrderId ?? undefined,
+          ...(planFromGoogleSubscription(sub)
+            ? { subscriptionProductId: `google_premium_${planFromGoogleSubscription(sub)}` }
+            : {}),
         },
       });
 

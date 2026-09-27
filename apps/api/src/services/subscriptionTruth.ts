@@ -58,6 +58,10 @@ export interface ProUserRow {
   premiumExpiresAt: Date | null;
   stripeSubscriptionId: string | null;
   appleOriginalTransactionId: string | null;
+  /** Google Play (Android). Missing from this classifier until 27 Sep 2026,
+   *  so every Android subscriber was counted as a comp grant and none of
+   *  their money reached MRR. */
+  googlePlayPurchaseToken?: string | null;
   subscriptionProductId?: string | null;
   referralProUntil: Date | null;
   /** Active Milesheet membership (set by callers that joined it). */
@@ -81,6 +85,7 @@ export function classifyProSource(
     if (u.appleOriginalTransactionId) {
       return sandboxTxns.has(u.appleOriginalTransactionId) ? "sandbox" : "paying";
     }
+    if (u.googlePlayPurchaseToken) return "paying";
     return "comp";
   }
   if (u.referralProUntil && u.referralProUntil.getTime() > now.getTime()) return "referral";
@@ -107,6 +112,8 @@ export interface SubscriptionTruth {
     stripeAnnual: number;
     appleMonthly: number;
     appleAnnual: number;
+    googleMonthly: number;
+    googleAnnual: number;
     appleSandbox: number;
     comp: number;
     referral: number;
@@ -131,6 +138,7 @@ export async function getSubscriptionTruth(now: Date = new Date()): Promise<Subs
         premiumExpiresAt: true,
         stripeSubscriptionId: true,
         appleOriginalTransactionId: true,
+        googlePlayPurchaseToken: true,
         subscriptionProductId: true,
         referralProUntil: true,
       },
@@ -145,6 +153,8 @@ export async function getSubscriptionTruth(now: Date = new Date()): Promise<Subs
     stripeAnnual: 0,
     appleMonthly: 0,
     appleAnnual: 0,
+    googleMonthly: 0,
+    googleAnnual: 0,
     appleSandbox: 0,
     comp: 0,
     referral,
@@ -180,13 +190,18 @@ export async function getSubscriptionTruth(now: Date = new Date()): Promise<Subs
     } else {
       const { period, inferred } = inferPeriod(u.subscriptionProductId, u.premiumExpiresAt, now);
       if (inferred) inferredPeriods += 1;
-      if (period === "annual") b.appleAnnual += 1;
+      const google = !u.appleOriginalTransactionId && !!u.googlePlayPurchaseToken;
+      if (google) {
+        if (period === "annual") b.googleAnnual += 1;
+        else b.googleMonthly += 1;
+      } else if (period === "annual") b.appleAnnual += 1;
       else b.appleMonthly += 1;
       mrrPence += monthlyEquivalentPence(period);
     }
   }
 
-  const payingSubscribers = b.stripeMonthly + b.stripeAnnual + b.appleMonthly + b.appleAnnual;
+  const payingSubscribers =
+    b.stripeMonthly + b.stripeAnnual + b.appleMonthly + b.appleAnnual + b.googleMonthly + b.googleAnnual;
   return {
     mrrPence,
     payingSubscribers,
@@ -265,6 +280,7 @@ export async function loadPaidEvents(since: Date): Promise<PaidEvent[]> {
       select: { type: true, createdAt: true },
     }),
   ]);
+  const google = await loadGooglePaidEvents(since);
   const events: PaidEvent[] = [];
   for (const a of apple) {
     events.push({
@@ -278,7 +294,52 @@ export async function loadPaidEvents(since: Date): Promise<PaidEvent[]> {
       kind: s.type === "billing.subscription_activated" ? "new" : "churn",
     });
   }
+  events.push(...google);
   return events;
+}
+
+/**
+ * Google Play has no webhook log table, so its trail is the app events:
+ * `billing.google_play_validated` (a phone bound a purchase) and
+ * `billing.google_play_rtdn` with `active:false` (Google says access ended).
+ * A validate can repeat (a restore, a duplicate report), so each user counts
+ * as new at most once in the window, and churns at most once per month.
+ */
+export function googlePaidEventsFrom(
+  rows: Array<{ type: string; userId: string | null; createdAt: Date; metadata: unknown }>
+): PaidEvent[] {
+  const out: PaidEvent[] = [];
+  const seenNew = new Set<string>();
+  const seenChurn = new Set<string>();
+  const sorted = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  for (const r of sorted) {
+    const who = r.userId ?? "";
+    const month = monthKey(r.createdAt);
+    if (r.type === "billing.google_play_validated") {
+      if (seenNew.has(who)) continue;
+      seenNew.add(who);
+      out.push({ month, kind: "new" });
+    } else if (r.type === "billing.google_play_rtdn") {
+      const active = (r.metadata as { active?: unknown } | null)?.active;
+      if (active !== false) continue;
+      const key = `${who}|${month}`;
+      if (seenChurn.has(key)) continue;
+      seenChurn.add(key);
+      out.push({ month, kind: "churn" });
+    }
+  }
+  return out;
+}
+
+async function loadGooglePaidEvents(since: Date): Promise<PaidEvent[]> {
+  const rows = await prisma.appEvent.findMany({
+    where: {
+      createdAt: { gte: since },
+      type: { in: ["billing.google_play_validated", "billing.google_play_rtdn"] },
+    },
+    select: { type: true, userId: true, createdAt: true, metadata: true },
+  });
+  return googlePaidEventsFrom(rows);
 }
 
 /** First month the webhook trail exists; months before it cannot be trusted. */
@@ -317,7 +378,7 @@ export async function getPaidTrend(months = 6, now: Date = new Date()) {
 
 export async function churnLast30d(now: Date = new Date()): Promise<number> {
   const since = new Date(now.getTime() - 30 * DAY_MS);
-  const [apple, stripe] = await Promise.all([
+  const [apple, stripe, google] = await Promise.all([
     prisma.appleIapWebhookLog.count({
       where: {
         environment: "production",
@@ -328,6 +389,7 @@ export async function churnLast30d(now: Date = new Date()): Promise<number> {
     prisma.appEvent.count({
       where: { createdAt: { gte: since }, type: "billing.subscription_cancelled" },
     }),
+    loadGooglePaidEvents(since),
   ]);
-  return apple + stripe;
+  return apple + stripe + google.filter((e) => e.kind === "churn").length;
 }

@@ -76,6 +76,8 @@ export default function AdminRevenueScreen() {
     { label: "Apple annual (£3.75/mo)", count: b.appleAnnual },
     { label: "Stripe monthly", count: b.stripeMonthly },
     ...(b.stripeAnnual > 0 ? [{ label: "Stripe annual", count: b.stripeAnnual }] : []),
+    { label: "Google Play monthly", count: b.googleMonthly ?? 0 },
+    ...((b.googleAnnual ?? 0) > 0 ? [{ label: "Google Play annual", count: b.googleAnnual ?? 0 }] : []),
     { label: "Comp (not revenue)", count: b.comp },
     { label: "Referral Pro (not revenue)", count: b.referral },
     { label: "Sandbox (not revenue)", count: b.appleSandbox },

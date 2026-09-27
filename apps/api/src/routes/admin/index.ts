@@ -380,6 +380,7 @@ export async function adminRoutes(app: FastifyInstance) {
       premiumExpiresAt: true,
       stripeSubscriptionId: true,
       appleOriginalTransactionId: true,
+      googlePlayPurchaseToken: true,
       marketingEmailsEnabled: true,
       pushToken: true,
       // Heartbeat fields used to compute the per-user health score.
@@ -592,6 +593,7 @@ export async function adminRoutes(app: FastifyInstance) {
         // Monetisation
         trialUsedAt: true,
         appleOriginalTransactionId: true,
+        googlePlayPurchaseToken: true,
         referralCode: true,
         referralProUntil: true,
         referredByCode: true,
@@ -2145,6 +2147,7 @@ export async function adminRoutes(app: FastifyInstance) {
         currentPremiumCount: truth.payingSubscribers,
         stripeSubscribers: truth.breakdown.stripeMonthly + truth.breakdown.stripeAnnual,
         appleSubscribers: truth.breakdown.appleMonthly + truth.breakdown.appleAnnual,
+        googleSubscribers: truth.breakdown.googleMonthly + truth.breakdown.googleAnnual,
         adminGranted: truth.breakdown.comp,
       },
     });

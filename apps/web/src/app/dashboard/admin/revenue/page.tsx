@@ -22,6 +22,8 @@ interface RevenueData {
     stripeAnnual: number;
     appleMonthly: number;
     appleAnnual: number;
+    googleMonthly?: number;
+    googleAnnual?: number;
     appleSandbox: number;
     comp: number;
     referral: number;
@@ -139,6 +141,20 @@ function RevenueTab() {
                   <td>Stripe · annual</td>
                   <td style={cell}>{b.stripeAnnual}</td>
                   <td style={cell}>{formatPence(b.stripeAnnual * 375)}</td>
+                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>£44.99/yr counted as £3.75/mo</td>
+                </tr>
+              )}
+              <tr>
+                <td>Google Play · monthly</td>
+                <td style={cell}>{b.googleMonthly ?? 0}</td>
+                <td style={cell}>{formatPence((b.googleMonthly ?? 0) * 499)}</td>
+                <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>Android, £4.99/mo</td>
+              </tr>
+              {(b.googleAnnual ?? 0) > 0 && (
+                <tr>
+                  <td>Google Play · annual</td>
+                  <td style={cell}>{b.googleAnnual}</td>
+                  <td style={cell}>{formatPence((b.googleAnnual ?? 0) * 375)}</td>
                   <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>£44.99/yr counted as £3.75/mo</td>
                 </tr>
               )}

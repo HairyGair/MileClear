@@ -787,6 +787,7 @@ export async function runPayingInactiveAlarmJob(): Promise<void> {
       referralProUntil: true,
       stripeSubscriptionId: true,
       appleOriginalTransactionId: true,
+      googlePlayPurchaseToken: true,
       _count: { select: { trips: true, invoices: true, earnings: true } },
     },
     take: 500,

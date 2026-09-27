@@ -1513,6 +1513,8 @@ export interface AdminRevenue {
     stripeAnnual: number;
     appleMonthly: number;
     appleAnnual: number;
+    googleMonthly: number;
+    googleAnnual: number;
     appleSandbox: number;
     comp: number;
     referral: number;
@@ -1549,6 +1551,7 @@ export interface AdminRevenue {
   stripeSubscribers: number;
   /** @deprecated use breakdown.appleMonthly + appleAnnual (sandbox excluded) */
   appleSubscribers: number;
+  googleSubscribers?: number;
   /** @deprecated use breakdown.comp */
   adminGranted: number;
 }
