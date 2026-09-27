@@ -18,6 +18,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
 import { planFromGoogleSubscription } from "../../services/googlePlayBilling.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
+import { checkOrphanAfterGrace } from "../../services/googleOrphanCheck.js";
 
 /**
  * Google Play Billing routes — the Android counterpart to apple.ts.
@@ -205,13 +206,21 @@ export async function googleBillingRoutes(app: FastifyInstance) {
         // Orphan: Google says someone is paying but no account carries the
         // token. On iOS this pattern was almost always a validate that never
         // completed, and it needs a human.
+        // Google often notifies BEFORE the phone links the purchase, so give
+        // the app time to validate first (services/googleOrphanCheck.ts).
         if (RTDN_GRANTS_ACCESS.has(sn.notificationType)) {
-          notifyBillingEvent({
-            kind: "subscription.orphan",
-            tier: "act_now",
-            title: "Orphan Google Play subscription",
-            body: `RTDN type ${sn.notificationType} arrived for a purchase token no account holds. Someone may be paying without Pro.`,
-            details: { notificationType: sn.notificationType, platform: "google" },
+          const token = sn.purchaseToken;
+          checkOrphanAfterGrace(token, sn.notificationType, {
+            isBound: async (t) =>
+              !!(await prisma.user.findUnique({ where: { googlePlayPurchaseToken: t }, select: { id: true } })),
+            alert: (type) =>
+              notifyBillingEvent({
+                kind: "subscription.orphan",
+                tier: "act_now",
+                title: "Orphan Google Play subscription",
+                body: `RTDN type ${type} arrived for a purchase token that no account holds, and after 15 minutes the app still has not linked it. Someone may be paying without Pro.`,
+                details: { notificationType: type, platform: "google" },
+              }),
           });
         }
         return reply.send({ received: true });
