@@ -619,9 +619,14 @@ function RootNavigator() {
     if (!isAuthenticated || isLoading || !isIapAvailable()) return;
 
     let cleanup: (() => void) | undefined;
+    // The effect can re-run (refreshUser changes after a purchase) before
+    // initializeIap resolves; without this the earlier run still registered
+    // its listeners afterwards and nothing ever removed them, so one purchase
+    // was validated twice (27 Sep 2026).
+    let cancelled = false;
 
     initializeIap().then((ok) => {
-      if (!ok) return;
+      if (!ok || cancelled) return;
       cleanup = setupPurchaseListeners({
         onPurchaseSuccess: async (token) => {
           // token is a StoreKit transaction ID on iOS, a Play purchase token
@@ -643,6 +648,7 @@ function RootNavigator() {
     });
 
     return () => {
+      cancelled = true;
       cleanup?.();
       endIapConnection();
     };

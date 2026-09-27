@@ -4,7 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import {
   isGooglePlayConfigured,
   fetchSubscription,
-  acknowledgeSubscription,
+  acknowledgeSubscriptionTolerant,
   isSubscriptionActive,
   getExpiryDate,
   isTrialPurchase,
@@ -76,7 +76,7 @@ export async function googleBillingRoutes(app: FastifyInstance) {
       // Acknowledge BEFORE responding. Google auto-refunds anything left
       // unacknowledged for three days, so a failure here has to surface
       // rather than be swallowed.
-      await acknowledgeSubscription(purchaseToken);
+      await acknowledgeSubscriptionTolerant(purchaseToken, sub);
 
       await prisma.user.update({
         where: { id: request.userId! },

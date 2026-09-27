@@ -182,6 +182,52 @@ export async function acknowledgeSubscription(
   );
 }
 
+/** Google's answer when another request is acknowledging the same purchase. */
+export function isAcknowledgeConflict(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /:acknowledge failed \(409\)/.test(msg);
+}
+
+export const isAcknowledged = (sub: GooglePlaySubscription | null | undefined): boolean =>
+  sub?.acknowledgementState === "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED";
+
+/**
+ * Acknowledge, treating a duplicate as the success it is. Krzysztof Golas,
+ * 27 Sep 2026: his phone reported one purchase twice in the same second. The
+ * first request acknowledged and bound it; the second got Google's 409
+ * ("already in the process of being updated"), answered 400 and fired the
+ * "they paid, we didn't bind" alert for a customer who was Pro.
+ *
+ * A 409 is only accepted once a re-read shows the purchase acknowledged, so a
+ * purchase can never be left unacknowledged (Google refunds those after three
+ * days) just because another request was racing it.
+ */
+export async function acknowledgeSubscriptionTolerant(
+  purchaseToken: string,
+  sub: GooglePlaySubscription,
+  deps: {
+    acknowledge?: (token: string) => Promise<void>;
+    refetch?: (token: string) => Promise<GooglePlaySubscription>;
+    wait?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<"acknowledged" | "already"> {
+  if (isAcknowledged(sub)) return "already";
+  const acknowledge = deps.acknowledge ?? ((t: string) => acknowledgeSubscription(t));
+  const refetch = deps.refetch ?? ((t: string) => fetchSubscription(t));
+  const wait = deps.wait ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  try {
+    await acknowledge(purchaseToken);
+    return "acknowledged";
+  } catch (err) {
+    if (!isAcknowledgeConflict(err)) throw err;
+    for (const ms of [1000, 2000, 4000]) {
+      await wait(ms);
+      if (isAcknowledged(await refetch(purchaseToken))) return "already";
+    }
+    throw err;
+  }
+}
+
 export function isSubscriptionActive(sub: GooglePlaySubscription): boolean {
   if (!sub.subscriptionState || !ACTIVE_STATES.has(sub.subscriptionState)) return false;
   const expiry = getExpiryDate(sub);

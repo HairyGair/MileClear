@@ -275,6 +275,14 @@ export async function restorePurchases(): Promise<string[]> {
  * Set up global purchase listeners. Returns a cleanup function.
  * CRITICAL: finishTransaction() is only called after server validation succeeds.
  */
+/**
+ * Purchase tokens being validated right now. One Play purchase reached the
+ * server twice in the same second (Krzysztof Golas, 27 Sep 2026), most likely
+ * from a second listener left behind when the layout effect re-ran before
+ * initializeIap() resolved. Module-level so it covers every listener.
+ */
+const inFlightPurchases = new Set<string>();
+
 export function setupPurchaseListeners(callbacks: {
   onPurchaseSuccess: (transactionId: string) => Promise<void>;
   onPurchaseError: (error: { code?: string; message?: string }) => void;
@@ -289,6 +297,8 @@ export function setupPurchaseListeners(callbacks: {
       // matching validate endpoint from iapStore().
       const token = isAndroid ? purchase.purchaseToken : purchase.transactionId;
       if (!token) return;
+      if (inFlightPurchases.has(token)) return; // the first report handles and finishes it
+      inFlightPurchases.add(token);
 
       try {
         await callbacks.onPurchaseSuccess(token);
@@ -298,6 +308,8 @@ export function setupPurchaseListeners(callbacks: {
       } catch (err) {
         console.error("Purchase processing failed:", err);
         // Don't finish the transaction — StoreKit will retry
+      } finally {
+        inFlightPurchases.delete(token);
       }
     }
   );
