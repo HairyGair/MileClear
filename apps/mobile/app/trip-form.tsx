@@ -2431,8 +2431,13 @@ export default function TripFormScreen() {
         createdTripId = tripResult?.data?.id ?? null;
         // Trip came from a "missed journey" proposal — mark it accepted so the
         // scanner stops surfacing it. Best-effort; the trip is already saved.
+        // The trip's times go with it so the server can check the drive sits
+        // in the window the offer covers (lib/trips/missedJourneyWindow.ts).
         if (missedId) {
-          resolveMissedJourney(String(missedId), "accept").catch(() => {});
+          resolveMissedJourney(String(missedId), "accept", {
+            startedAt: data.startedAt,
+            endedAt: data.endedAt,
+          }).catch(() => {});
         }
         // Server returns the learned suggestion + autoApplied flag in
         // the create response when pattern-learning auto-classified the

@@ -34,6 +34,7 @@ import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
 import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
+import { findRecordedCopy } from "../../services/recordedDuplicateGuard.js";
 import {
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
@@ -44,6 +45,8 @@ import {
   type MissedJourneyTripInput,
 } from "../../services/missedJourneys.js";
 import { findCoveringTrip, INFERRED_PROPOSAL_SOURCES } from "../../services/missedJourneyCoverRule.js";
+import { isOfferExpired, OFFER_MAX_AGE_DAYS } from "../../services/missedJourneyExpiryRule.js";
+import { checkAcceptedTimes } from "../../services/missedJourneyAcceptRule.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
@@ -130,9 +133,15 @@ const coordinateInputSchema = z.object({
   recordedAt: z.coerce.date(),
 });
 
+// Any string up to 64 chars, not .uuid(): a reference that is not a UUID is
+// stripped in the handler like any other unknown reference, never a 400. The
+// app's quick-trip recovery (releaseQuickTripLock -> processShiftTrips) sent
+// the lock's pseudo id "__quick_trip__" as shiftId, which failed .uuid(), so
+// every trip that recovery rebuilt was rejected and the phone deleted its
+// copy (found 28 Sep 2026). Old builds keep sending it; the drive must land.
 const createTripSchema = z.object({
-  shiftId: z.string().uuid().optional(),
-  vehicleId: z.string().uuid().optional(),
+  shiftId: z.string().max(64).optional(),
+  vehicleId: z.string().max(64).optional(),
   startLat: z.number().min(-90).max(90),
   startLng: z.number().min(-180).max(180),
   endLat: z.number().min(-90).max(90).optional(),
@@ -555,11 +564,34 @@ export async function tripRoutes(app: FastifyInstance) {
   app.post("/", async (request, reply) => {
     const parsed = createTripSchema.safeParse(request.body);
     if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.issues[0].message });
+      // A 400 here deletes the phone's copy of the trip when it came straight
+      // from the save, or parks it as permanently_failed when it came from the
+      // sync queue. 170 of them in the ten days to 28 Sep 2026 and not one
+      // said why, so name the field and the rule (never the value).
+      const issue = parsed.error.issues[0];
+      const body = (request.body ?? {}) as { coordinates?: unknown; isManualEntry?: unknown };
+      logEvent("trip.create_rejected", request.userId ?? null, {
+        field: issue.path.join(".") || null,
+        code: issue.code,
+        message: issue.message.slice(0, 160),
+        coordinateCount: Array.isArray(body.coordinates) ? body.coordinates.length : null,
+      });
+      return reply.status(400).send({ error: issue.message });
     }
 
     const userId = request.userId!;
     const data = parsed.data;
+
+    // A reference that is not a UUID cannot be a row of ours: strip it like
+    // any unknown reference below (see createTripSchema for "__quick_trip__").
+    const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const field of ["vehicleId", "shiftId"] as const) {
+      const value = data[field];
+      if (value && !UUID_SHAPE.test(value)) {
+        logEvent("trip.dangling_ref_stripped", userId, { field, value, reason: "not_a_uuid" });
+        data[field] = undefined;
+      }
+    }
 
     // Verify vehicle/shift ownership if provided. An unknown id gets STRIPPED,
     // not rejected: offline-first clients can hold a vehicle/shift that only
@@ -627,6 +659,65 @@ export async function tripRoutes(app: FastifyInstance) {
         logEvent("trip.phantom_superseded", userId, { phantomTripId: existing.id });
       } else {
         return reply.send({ data: existing });
+      }
+    }
+
+    // Second recording of a drive already saved (28 Sep 2026). The key above
+    // only catches a retry of the SAME upload. A shift recording and the
+    // automatic engine's copy of the same fixes, or one drive finalized by two
+    // engine paths, start at different moments and dodge it: 278 overlapping
+    // pairs on 87 drivers in the 14 days to 28 Sep, about 2,100 miles counted
+    // twice. The phone no longer makes these (finalize drops fixes a shift or
+    // saved trip already owns), but old builds and any path we have not seen
+    // still can, so the server refuses the copy too. Judged on breadcrumbs:
+    // nine in ten of the new trip's fixes must sit within 2 minutes and 150 m
+    // of fixes already saved, and the stretch only it recorded must be
+    // negligible (services/recordedDuplicate.ts). A genuinely separate drive
+    // cannot share fixes with another, so it is never refused. The answer is
+    // the saved trip, exactly like the retry case, so the phone maps its row
+    // onto it instead of queueing it again.
+    if (data.coordinates && data.coordinates.length >= 2 && data.endedAt) {
+      try {
+        const copy = await findRecordedCopy({
+          userId,
+          startedAt: data.startedAt,
+          endedAt: data.endedAt,
+          fixes: data.coordinates.map((c) => ({
+            t: c.recordedAt.getTime(),
+            lat: c.lat,
+            lng: c.lng,
+          })),
+        });
+        if (copy) {
+          let keeper = await prisma.trip.findUniqueOrThrow({
+            where: { id: copy.keeperId },
+            include: { vehicle: true, shift: true },
+          });
+          // A shift's recording refused in favour of the engine's copy still
+          // belongs to the shift, so its scorecard counts the drive.
+          if (data.shiftId && !keeper.shiftId) {
+            keeper = await prisma.trip.update({
+              where: { id: keeper.id },
+              data: { shiftId: data.shiftId },
+              include: { vehicle: true, shift: true },
+            });
+          }
+          logEvent("trip.recorded_duplicate_refused", userId, {
+            keptTripId: keeper.id,
+            coveredShare: Math.round(copy.coverage.share * 1000) / 1000,
+            fixes: copy.coverage.fixes,
+            unmatchedMiles: Math.round(copy.coverage.unmatchedMiles * 100) / 100,
+            incomingMiles: data.distanceMiles ?? null,
+            keptMiles: keeper.distanceMiles,
+            incomingHadShift: Boolean(data.shiftId),
+            keptHasShift: Boolean(keeper.shiftId),
+            startGapSec: Math.round((data.startedAt.getTime() - keeper.startedAt.getTime()) / 1000),
+          });
+          return reply.send({ data: keeper, duplicateOf: keeper.id });
+        }
+      } catch (err) {
+        // The check must never cost a drive: on any failure, save as before.
+        request.log.warn({ err, userId }, "recorded-duplicate check failed");
       }
     }
 
@@ -1369,8 +1460,15 @@ export async function tripRoutes(app: FastifyInstance) {
     // gap before the first-fix check existed becomes a trip-start offer.
     // Decided rows keep the source they were decided under. Finally prune any
     // 'proposed' rows whose gap has since closed (key no longer a candidate).
+    //
+    // A candidate already past its offer window (services/missedJourneyExpiryRule)
+    // is not created at all: it would only be expired again a few lines down.
+    // Its key still counts as live for the prune, so an old row whose gap is
+    // still there is expired (kept, auditable), not deleted.
+    const nowMs = Date.now();
     const candidateKeys = candidates.map((c) => c.key);
     for (const c of candidates) {
+      if (isOfferExpired({ source: c.kind, arrivedAt: c.arrivedAt }, nowMs)) continue;
       const { kind, tripId: _tripId, ...columns } = c;
       void _tripId;
       await prisma.missedJourneyProposal.upsert({
@@ -1391,6 +1489,37 @@ export async function tripRoutes(app: FastifyInstance) {
         data: { source: kind },
       });
     }
+    // Stop offering journeys that are too old to be worth asking about (28 Sep
+    // 2026: 476 of 649 active drivers had offers open, 49% of them over 14
+    // days old, and drivers were dismissing more than they accepted). Age is
+    // the journey's, not the row's; the windows and the evidence for them are
+    // in services/missedJourneyExpiryRule. Like "covered", an expired row is
+    // not a decision: decidedAt stays null, the row is kept, and one event per
+    // scan lists the ids so it can be put back.
+    const openForExpiry = await prisma.missedJourneyProposal.findMany({
+      where: { userId, status: "proposed" },
+      select: { id: true, source: true, arrivedAt: true },
+    });
+    const expiring = openForExpiry.filter((p) => isOfferExpired(p, nowMs));
+    if (expiring.length > 0) {
+      const ids = expiring.map((p) => p.id);
+      const moved = await prisma.missedJourneyProposal.updateMany({
+        where: { id: { in: ids }, userId, status: "proposed" },
+        data: { status: "expired" },
+      });
+      if (moved.count > 0) {
+        const bySource: Record<string, number> = {};
+        for (const p of expiring) bySource[p.source] = (bySource[p.source] ?? 0) + 1;
+        logEvent("trip.missed_proposals_expired", userId, {
+          via: "scan",
+          count: moved.count,
+          maxAgeDays: OFFER_MAX_AGE_DAYS,
+          bySource,
+          proposalIds: ids,
+        });
+      }
+    }
+
     // Prune only what this scan owns. A "recorded" row is a drive the engine
     // actually captured and then discarded for being under the minimum
     // distance: it is evidence, it has no gap to close, and it would be wiped
@@ -1478,6 +1607,9 @@ export async function tripRoutes(app: FastifyInstance) {
         } else if (
           p.status === "covered" &&
           !cover &&
+          // A row past its offer window stays covered: putting it back would
+          // only show it until the next scan expires it.
+          !isOfferExpired(p, nowMs) &&
           (!INFERRED_PROPOSAL_SOURCES.has(p.source) || liveKeys.has(p.key))
         ) {
           const moved = await prisma.missedJourneyProposal.updateMany({
@@ -1679,7 +1811,17 @@ export async function tripRoutes(app: FastifyInstance) {
   // Mark a proposal handled. accept = the user added the trip (the Trip row
   // itself is created via POST /trips by the prefilled form); dismiss = not a
   // real drive, don't show again. Scoped to the owner to avoid IDOR.
-  const missedActionSchema = z.object({ action: z.enum(["accept", "dismiss", "extend"]) });
+  //
+  // accept may carry the trip's own times (28 Sep 2026). A gap offer only
+  // knows the drive happened somewhere between two trips, so the app asks
+  // the driver when and saves the trip at that time; the times come here so
+  // they can be checked against the window and logged. Older apps send none,
+  // which is accepted as before. See services/missedJourneyAcceptRule.
+  const missedActionSchema = z.object({
+    action: z.enum(["accept", "dismiss", "extend"]),
+    startedAt: z.coerce.date().optional(),
+    endedAt: z.coerce.date().optional(),
+  });
   app.post("/missed-journeys/:id/resolve", async (request, reply) => {
     const userId = request.userId!;
     const { id } = request.params as { id: string };
@@ -1762,12 +1904,62 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     const status = parsed.data.action === "accept" ? "accepted" : "dismissed";
+
+    // Accept with times: the drive must lie in the window it can have
+    // happened in (between the two trips, or the recording itself). Outside
+    // it the trip the driver saved is not this journey, so the offer stays
+    // open rather than being marked as added.
+    let acceptLog: Record<string, unknown> | null = null;
+    if (parsed.data.action === "accept") {
+      const p = await prisma.missedJourneyProposal.findFirst({
+        where: { id, userId },
+        select: { id: true, source: true, status: true, departedAt: true, arrivedAt: true, estimatedMiles: true },
+      });
+      if (!p) return reply.code(404).send({ error: "Not found" });
+      if (p.status !== "proposed") return reply.send({ ok: true, skipped: "already_handled" });
+      const times = { startedAt: parsed.data.startedAt, endedAt: parsed.data.endedAt };
+      const verdict = checkAcceptedTimes(p, times);
+      const windowMinutes = Math.round((p.arrivedAt.getTime() - p.departedAt.getTime()) / 60000);
+      if (!verdict.ok) {
+        logEvent("trip.missed_proposal_accept_refused", userId, {
+          proposalId: p.id,
+          source: p.source,
+          reason: verdict.reason,
+          departedAt: p.departedAt.toISOString(),
+          arrivedAt: p.arrivedAt.toISOString(),
+          startedAt: times.startedAt?.toISOString() ?? null,
+          endedAt: times.endedAt?.toISOString() ?? null,
+        });
+        return reply.code(400).send({
+          error: "That time is outside when this journey could have happened",
+          reason: verdict.reason,
+        });
+      }
+      acceptLog = {
+        proposalId: p.id,
+        source: p.source,
+        timesGiven: verdict.given,
+        windowMinutes,
+        // How far into the window the driver put the drive: 0 is the old
+        // behaviour (the previous trip's end), which is what went wrong.
+        startOffsetMinutes: times.startedAt
+          ? Math.round((times.startedAt.getTime() - p.departedAt.getTime()) / 60000)
+          : null,
+        durationMinutes:
+          times.startedAt && times.endedAt
+            ? Math.round((times.endedAt.getTime() - times.startedAt.getTime()) / 60000)
+            : null,
+        estimatedMiles: p.estimatedMiles,
+      };
+    }
+
     // Only a still-open row can be decided; a repeat tap must not move
     // decidedAt or flip an acceptance into a dismissal.
     const result = await prisma.missedJourneyProposal.updateMany({
       where: { id, userId, status: "proposed" },
       data: { status, decidedAt: new Date() },
     });
+    if (result.count > 0 && acceptLog) logEvent("trip.missed_proposal_accepted", userId, acceptLog);
     if (result.count === 0) {
       const exists = await prisma.missedJourneyProposal.findFirst({
         where: { id, userId },

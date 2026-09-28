@@ -543,11 +543,21 @@ export function reportDiscardedRecording(data: {
 
 // Mark a proposal handled: "accept" once the user has added the trip (the Trip
 // itself is created by the prefilled form via createTrip), "dismiss" to hide it.
-export function resolveMissedJourney(id: string, action: "accept" | "dismiss" | "extend") {
-  return apiRequest<{ ok: boolean; tripId?: string; addedMiles?: number }>(`/trips/missed-journeys/${id}/resolve`, {
-    method: "POST",
-    body: JSON.stringify({ action }),
-  });
+// An accept can carry the saved trip's times (28 Sep 2026): the server checks
+// they fall inside the window the journey could have happened in, and refuses
+// the accept (400) when they do not, leaving the offer open.
+export function resolveMissedJourney(
+  id: string,
+  action: "accept" | "dismiss" | "extend",
+  times?: { startedAt?: string; endedAt?: string }
+) {
+  return apiRequest<{ ok: boolean; tripId?: string; addedMiles?: number; skipped?: string }>(
+    `/trips/missed-journeys/${id}/resolve`,
+    {
+      method: "POST",
+      body: JSON.stringify({ action, ...(action === "accept" && times ? times : {}) }),
+    }
+  );
 }
 
 // Tell the server a background drive just started so it can push-to-start the

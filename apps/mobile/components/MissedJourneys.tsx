@@ -5,6 +5,14 @@
 // endpoints + times; saving creates the trip and marks the proposal accepted.
 // Dismiss hides it for good. Renders nothing when there are no proposals, so it
 // stays invisible for the common case.
+//
+// 28 Sep 2026: a gap offer only knows the drive happened somewhere between two
+// trips. The card now says that window in words, and "Add trip" asks when the
+// driver set off (MissedJourneyTimeSheet) instead of stamping the trip at the
+// window's start, which is the previous trip's end (Elisa Barone: saved at
+// 07:07, driven at 17:30, then typed in again and counted twice). Before the
+// form opens, a trip already saved at that time is pointed out. The server
+// stops offering journeys more than 14 days old.
 import { useCallback, useState } from "react";
 import {
   View,
@@ -12,15 +20,31 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import {
   fetchMissedJourneys,
+  fetchServerRouteDistance,
   resolveMissedJourney,
   type MissedJourneyProposal,
 } from "../lib/api/trips";
+import { apiRequest } from "../lib/api/index";
+import { getDatabase } from "../lib/db/index";
+import { clockTime } from "../lib/trips/manualTimeRule";
+import { shortDay } from "../lib/tracking/pauseRule";
+import { findOverlappingTrip, type LocalTripRow } from "../lib/trips/missingReportRule";
+import {
+  describeRecordedTimes,
+  describeWindow,
+  needsTimeChoice,
+  travelMsFor,
+  tripTimesFor,
+  type OfferWindow,
+} from "../lib/trips/missedJourneyWindow";
+import { MissedJourneyTimeSheet } from "./MissedJourneyTimeSheet";
 
 // How many rows a driver sees before they have to ask for more. 87 drivers had
 // 10+ proposals waiting (one had 70) and a wall that long gets ignored wholesale.
@@ -76,6 +100,82 @@ function shortPlace(addr: string | null, lat: number, lng: number): string {
   return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
 }
 
+// When the journey happened, in words. A gap row gives its window ("Sometime
+// between 07:07 and 17:30 on Mon 28 Sep"); a drive we recorded gives its own
+// times; a trip-start offer keeps the time its trip began.
+function whenLine(p: MissedJourneyProposal): string {
+  const w = windowOf(p);
+  if (!w) return formatWhen(p.arrivedAt);
+  if (p.source === "trip_start") return formatWhen(p.arrivedAt);
+  if (!p.source || p.source === "gap") {
+    const text = describeWindow(w);
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+  return describeRecordedTimes(w);
+}
+
+function windowOf(p: MissedJourneyProposal): OfferWindow | null {
+  const departedAt = new Date(p.departedAt);
+  const arrivedAt = new Date(p.arrivedAt);
+  if (Number.isNaN(departedAt.getTime()) || Number.isNaN(arrivedAt.getTime())) return null;
+  return { departedAt, arrivedAt };
+}
+
+/** Fire-and-forget event, so how drivers answer is measurable. */
+function trackEvent(type: string, metadata?: Record<string, unknown>): void {
+  apiRequest("/user/event", { method: "POST", body: JSON.stringify({ type, metadata }) }).catch(() => {});
+}
+
+/** Alert.alert as a promise: resolves with the index of the button pressed. */
+function ask(title: string, message: string, buttons: string[]): Promise<number> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      title,
+      message,
+      buttons.map((text, i) => ({ text, onPress: () => resolve(i) })),
+      { cancelable: false }
+    );
+  });
+}
+
+/** Trips on the phone that could overlap [start, end]. Read-only, and the
+ *  same read the "Missing a trip?" sheet does before it adds a trip. */
+async function localTripsAround(start: Date, end: Date): Promise<LocalTripRow[]> {
+  try {
+    const db = await getDatabase();
+    return await db.getAllAsync<LocalTripRow>(
+      `SELECT id, started_at, ended_at, start_address, end_address, distance_miles FROM trips
+       WHERE started_at >= ? AND started_at <= ?`,
+      [new Date(start.getTime() - 24 * 60 * 60 * 1000).toISOString(), end.toISOString()]
+    );
+  } catch {
+    return [];
+  }
+}
+
+/** The routed length of the drive, bounded so a slow network never holds the
+ *  sheet up; the offer's own miles are the fallback. */
+async function routeFor(p: MissedJourneyProposal): Promise<{ travelMs: number; routed: boolean }> {
+  const route = await Promise.race([
+    fetchServerRouteDistance({ startLat: p.fromLat, startLng: p.fromLng, endLat: p.toLat, endLng: p.toLng }),
+    new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+  ]).catch(() => null);
+  const routed = route != null && route.durationSecs > 0;
+  return {
+    travelMs: travelMsFor({
+      routedSecs: routed ? route.durationSecs : null,
+      estimatedMiles: route && route.distanceMiles > 0 ? route.distanceMiles : p.estimatedMiles,
+    }),
+    routed,
+  };
+}
+
+interface Choosing {
+  p: MissedJourneyProposal;
+  window: OfferWindow;
+  travelMs: number;
+}
+
 function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
@@ -95,6 +195,11 @@ export function MissedJourneys() {
   // in place. It used to be the list footer, where scrolling down to it fired
   // the next page load and pushed it away again (Chris Saunders, 22 Sep 2026).
   const [expanded, setExpanded] = useState(false);
+  // The gap offer whose set-off time is being asked for, if any.
+  const [choosing, setChoosing] = useState<Choosing | null>(null);
+  const [opening, setOpening] = useState(false);
+  // The offer whose Add is working out the route or checking for a clash.
+  const [addingId, setAddingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchMissedJourneys()
@@ -106,7 +211,112 @@ export function MissedJourneys() {
   // disappears when the user returns from the trip form.
   useFocusEffect(load);
 
-  const add = (p: MissedJourneyProposal) => {
+  // Open the trip form for an offer at the given times, after pointing out
+  // any trip already saved in that time. Returns false when the driver chose
+  // not to add it, so the time sheet can stay open for another pick.
+  const openForm = async (
+    p: MissedJourneyProposal,
+    times: { startedAt: Date; endedAt: Date }
+  ): Promise<boolean> => {
+    const clash = findOverlappingTrip(
+      await localTripsAround(times.startedAt, times.endedAt),
+      times.startedAt,
+      times.endedAt
+    );
+    if (clash) {
+      const clashStart = new Date(clash.started_at);
+      const where =
+        clash.start_address && clash.end_address
+          ? `${clash.start_address} to ${clash.end_address}`
+          : clash.start_address || clash.end_address || "A trip";
+      const choice = await ask(
+        "You already have a trip at that time",
+        `${where}, from ${clockTime(clashStart)} on ${shortDay(clashStart)}. Add this one as well?`,
+        ["Don't add it", "Add anyway"]
+      );
+      trackEvent("trip.missed_offer_overlap_prompt", {
+        proposalId: p.id,
+        source: p.source ?? null,
+        outcome: choice === 1 ? "added_anyway" : "declined",
+        existingTripId: clash.id,
+      });
+      if (choice === 0) return false;
+    }
+    router.push({
+      pathname: "/trip-form",
+      params: {
+        missedId: p.id,
+        prefillFromLat: String(p.fromLat),
+        prefillFromLng: String(p.fromLng),
+        prefillFromAddress: p.fromAddress ?? "",
+        prefillToLat: String(p.toLat),
+        prefillToLng: String(p.toLng),
+        prefillToAddress: p.toAddress ?? "",
+        prefillDepartedAt: times.startedAt.toISOString(),
+        prefillArrivedAt: times.endedAt.toISOString(),
+      },
+    });
+    return true;
+  };
+
+  const add = async (p: MissedJourneyProposal) => {
+    const w = windowOf(p);
+    if (!w) {
+      legacyAdd(p);
+      return;
+    }
+    // A drive we recorded keeps the times we recorded.
+    if (p.source && p.source !== "gap") {
+      setAddingId(p.id);
+      try {
+        await openForm(p, { startedAt: w.departedAt, endedAt: w.arrivedAt });
+      } finally {
+        setAddingId(null);
+      }
+      return;
+    }
+    setAddingId(p.id);
+    try {
+      const { travelMs, routed } = await routeFor(p);
+      if (needsTimeChoice(p.source ?? "gap", w, travelMs)) {
+        trackEvent("trip.missed_offer_time_asked", {
+          proposalId: p.id,
+          windowMinutes: Math.round((w.arrivedAt.getTime() - w.departedAt.getTime()) / 60000),
+          travelMinutes: Math.round(travelMs / 60000),
+          routed,
+        });
+        setChoosing({ p, window: w, travelMs });
+        return;
+      }
+      // The window is barely longer than the drive, so its start is close
+      // enough; the trip still lasts only as long as the drive.
+      await openForm(p, tripTimesFor(w.departedAt, travelMs, w));
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const confirmChosen = async (start: Date) => {
+    if (!choosing) return;
+    const { p, window: w, travelMs } = choosing;
+    const times = tripTimesFor(start, travelMs, w);
+    setOpening(true);
+    try {
+      trackEvent("trip.missed_offer_time_chosen", {
+        proposalId: p.id,
+        windowMinutes: Math.round((w.arrivedAt.getTime() - w.departedAt.getTime()) / 60000),
+        startOffsetMinutes: Math.round((times.startedAt.getTime() - w.departedAt.getTime()) / 60000),
+        travelMinutes: Math.round(travelMs / 60000),
+      });
+      const opened = await openForm(p, times);
+      if (opened) setChoosing(null);
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  // Only for an offer whose dates cannot be read: the form as it always was.
+  const legacyAdd = (p: MissedJourneyProposal) => {
     router.push({
       pathname: "/trip-form",
       params: {
@@ -211,7 +421,7 @@ export function MissedJourneys() {
             {shortPlace(p.toAddress, p.toLat, p.toLng)}
           </Text>
           <Text style={styles.meta}>
-            {formatWhen(p.arrivedAt)} · ~{p.estimatedMiles} mi
+            {whenLine(p)} · ~{p.estimatedMiles} mi
           </Text>
           {droppedNote(p.source) != null && (
             // Worth distinguishing. A gap row is us guessing from a hole in the
@@ -236,8 +446,17 @@ export function MissedJourneys() {
                 <Text style={styles.addText}>Extend trip</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.addBtn} onPress={() => add(p)} activeOpacity={0.85}>
-                <Text style={styles.addText}>Add trip</Text>
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => add(p)}
+                disabled={addingId != null || busyId === p.id}
+                activeOpacity={0.85}
+              >
+                {addingId === p.id ? (
+                  <ActivityIndicator size="small" color={colors.bg} />
+                ) : (
+                  <Text style={styles.addText}>Add trip</Text>
+                )}
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -265,6 +484,18 @@ export function MissedJourneys() {
             Show {Math.min(hidden, PAGE_SIZE)} more{hidden > PAGE_SIZE ? ` (${hidden} left)` : ""}
           </Text>
         </TouchableOpacity>
+      )}
+      {choosing && (
+        <MissedJourneyTimeSheet
+          visible
+          fromLabel={shortPlace(choosing.p.fromAddress, choosing.p.fromLat, choosing.p.fromLng)}
+          toLabel={shortPlace(choosing.p.toAddress, choosing.p.toLat, choosing.p.toLng)}
+          window={choosing.window}
+          travelMs={choosing.travelMs}
+          busy={opening}
+          onCancel={() => setChoosing(null)}
+          onConfirm={confirmChosen}
+        />
       )}
     </View>
   );
