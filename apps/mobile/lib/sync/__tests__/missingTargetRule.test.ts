@@ -9,10 +9,24 @@ describe("resolveMissingTarget", () => {
 
   it("drops an edit when the phone has no such trip either", () => {
     expect(resolveMissingTarget({ action: "update", localRowExists: false })).toBe("drop");
+    expect(resolveMissingTarget({ action: "update", localRowExists: false, localRowSynced: true })).toBe("drop");
   });
 
-  it("re-creates a trip the phone still holds rather than losing it", () => {
-    expect(resolveMissingTarget({ action: "update", localRowExists: true })).toBe("recreate");
+  it("drops the edit AND the stale copy of a trip the server removed after it synced", () => {
+    // Re-creating it would bring back a trip that was merged, split, deleted
+    // on the web or cleared as a duplicate.
+    expect(resolveMissingTarget({ action: "update", localRowExists: true, localRowSynced: true })).toBe(
+      "drop_local"
+    );
+  });
+
+  it("keeps the edit of a never-synced trip waiting for its create, never dropping the miles", () => {
+    expect(resolveMissingTarget({ action: "update", localRowExists: true, localRowSynced: false })).toBe(
+      "await_create"
+    );
+    // Unknown sync state is treated as never synced: deferring is safe,
+    // deleting is not.
+    expect(resolveMissingTarget({ action: "update", localRowExists: true })).toBe("await_create");
   });
 
   it("leaves creates to the existing paths", () => {

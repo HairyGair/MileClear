@@ -6,8 +6,10 @@ import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 import { isOnline, onConnectivityChange } from "../network";
 import { getPendingCount, MAX_RETRIES } from "./queue";
-import { backfillGhostTrips } from "./backfill";
+import { backfillGhostTrips, loadTripCreateBody } from "./backfill";
 import { resolveMissingTarget } from "./missingTargetRule";
+import { enqueueSync } from "./queue";
+import { HELD_STATUS, isAlreadyApplied, parkedItemAction } from "./queueRules";
 import {
   isNetworkError,
   isLocalSystemError,
@@ -17,7 +19,9 @@ import {
   isServerUnavailable,
   isDefiniteClientRejection,
   isTargetMissing,
+  isItemForbidden,
 } from "./errors";
+import { ApiError } from "../api/apiError";
 
 export type SyncState = "idle" | "syncing" | "error";
 
@@ -114,8 +118,45 @@ export async function processSyncQueue(): Promise<void> {
       return;
     }
 
+    // Entities whose create has not landed yet. An edit or delete for one of
+    // them can only 404 (the server has never seen the id), so it waits
+    // behind the create instead of being sent. Before 28 Sep 2026 it was sent,
+    // 404'd, and the missing-target rule turned it into a broken create that
+    // parked as permanently_failed.
+    const unfinishedCreates = new Set(
+      (
+        (await db.getAllAsync<{ entity_id: string }>(
+          "SELECT entity_id FROM sync_queue WHERE action = 'create' AND status != 'synced'"
+        )) ?? []
+      ).map((r) => r.entity_id)
+    );
+    // Local id -> server id for creates that land during THIS pass. The
+    // cascade below rewrites the queue rows in SQLite, but `items` was read
+    // before it ran, so an edit later in the same batch still carried the dead
+    // local id and 404'd (an offline trip, classified offline, then synced).
+    const remapped = new Map<string, string>();
+
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      const serverIdForEntity = remapped.get(item.entity_id);
+      if (serverIdForEntity) {
+        const localId = item.entity_id;
+        item.entity_id = serverIdForEntity;
+        if (item.payload) {
+          try {
+            const body = JSON.parse(item.payload);
+            if (body && typeof body === "object" && body.id === localId) {
+              body.id = serverIdForEntity;
+              item.payload = JSON.stringify(body);
+            }
+          } catch {
+            // unreadable body: the entity_id swap above is what matters
+          }
+        }
+      }
+      if (item.action !== "create" && unfinishedCreates.has(item.entity_id)) {
+        continue;
+      }
       // Emit per-item progress so the UI can show "Syncing 3 of 12..."
       // instead of an opaque spinner that looks frozen on long batches.
       setState("syncing", pending, { current: i + 1, total: items.length });
@@ -145,6 +186,8 @@ export async function processSyncQueue(): Promise<void> {
           // if so, delete the local duplicate instead of updating.
           const serverId = response.data.id;
           const localId = item.entity_id;
+          remapped.set(localId, serverId);
+          unfinishedCreates.delete(localId);
           const existingServer = await db.getFirstAsync<{ id: string }>(
             `SELECT id FROM ${table} WHERE id = ?`, [serverId]
           );
@@ -215,6 +258,18 @@ export async function processSyncQueue(): Promise<void> {
           `);
         }
       } catch (err) {
+        // One item refused (a free account's third saved place). Hold it and
+        // carry on: it says nothing about the token or the network, and the
+        // queue runs oldest first, so stopping here held back every trip
+        // queued after it. See isItemForbidden and HELD_STATUS.
+        if (isItemForbidden(err)) {
+          await db.runAsync(
+            "UPDATE sync_queue SET status = ?, last_error = ?, updated_at = ? WHERE id = ?",
+            [HELD_STATUS, err instanceof Error ? err.message : "Refused", new Date().toISOString(), item.id]
+          );
+          continue;
+        }
+
         // PRESERVE-AND-STOP: the network was unreachable (including the
         // token-refresh-network-failure that apiRequest throws as "Network
         // error"), a local system error (SecureStore in background), the
@@ -253,30 +308,66 @@ export async function processSyncQueue(): Promise<void> {
           };
           const localTable = tableForItem[item.entity_type];
           let localRowExists = false;
+          let localRowSynced = false;
           if (localTable) {
-            const row = await db.getFirstAsync<{ id: string }>(
-              `SELECT id FROM ${localTable} WHERE id = ?`,
+            const row = await db.getFirstAsync<{ id: string; synced_at: string | null }>(
+              `SELECT id, synced_at FROM ${localTable} WHERE id = ?`,
               [item.entity_id]
             );
             localRowExists = !!row;
+            localRowSynced = !!row?.synced_at;
           }
           const resolution = resolveMissingTarget({
             action: item.action as "create" | "update" | "delete",
             localRowExists,
+            localRowSynced,
           });
           if (resolution === "drop") {
             await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [item.id]);
             continue;
           }
-          if (resolution === "recreate") {
-            // The phone is the only place this record still exists. Upload it
-            // again rather than discarding the miles.
-            await db.runAsync(
-              "UPDATE sync_queue SET action = 'create', status = 'pending', retry_count = 0, last_error = ?, updated_at = ? WHERE id = ?",
-              ["re-created: the server no longer had it", now2, item.id]
-            );
+          if (resolution === "drop_local" && localTable) {
+            // The server removed it after it synced (merged, split, deleted on
+            // the web, cleared as a duplicate). Converge on that instead of
+            // resurrecting it; the edit has nothing left to apply to.
+            await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [item.id]);
+            await db.runAsync(`DELETE FROM ${localTable} WHERE id = ?`, [item.entity_id]);
             continue;
           }
+          if (resolution === "await_create") {
+            // Never reached the server and nothing queued to put it there: a
+            // trip gets a create built from its own row, and this edit waits
+            // behind it. Other records have no such builder; their edit is
+            // dropped and the row stays on the phone as it is.
+            const body =
+              item.entity_type === "trip" ? await loadTripCreateBody(item.entity_id) : null;
+            if (body) {
+              await enqueueSync("trip", item.entity_id, "create", body);
+              unfinishedCreates.add(item.entity_id);
+              await db.runAsync(
+                "UPDATE sync_queue SET status = 'pending', last_error = ?, updated_at = ? WHERE id = ?",
+                ["waiting for its trip to upload", now2, item.id]
+              );
+            } else {
+              await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [item.id]);
+            }
+            continue;
+          }
+        }
+
+        if (
+          isAlreadyApplied(
+            item.entity_type,
+            item.action,
+            err instanceof ApiError ? err.statusCode : null,
+            errMsg
+          )
+        ) {
+          await db.runAsync(
+            "UPDATE sync_queue SET status = 'synced', last_error = ?, updated_at = ? WHERE id = ?",
+            [errMsg, now2, item.id]
+          );
+          continue;
         }
 
         if (isDefiniteClientRejection(err)) {
@@ -380,6 +471,110 @@ async function reviveNetworkParkedItems(): Promise<void> {
   );
 }
 
+/** Held items (see HELD_STATUS) get one more try per app start, so a place
+ *  refused on the free plan uploads by itself once the driver is Pro. */
+async function reviveHeldItems(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "UPDATE sync_queue SET status = 'pending', updated_at = ? WHERE status = ?",
+    [new Date().toISOString(), HELD_STATUS]
+  );
+}
+
+/**
+ * Bump when a fix lands that could let parked (permanently_failed) rows
+ * through, so every phone looks at its parked rows once more. 2026-09-28: the
+ * server stopped rejecting trips for a shift id that is not a UUID, the queue
+ * stopped turning 404'd edits into broken creates, and edits now wait behind
+ * their create instead of 404ing.
+ */
+export const PARKED_REVIVAL_REVISION = "2026-09-28";
+const PARKED_REVIVAL_KEY = "sync_parked_revival";
+
+const LOCAL_TABLE: Record<string, string> = {
+  trip: "trips",
+  earning: "earnings",
+  fuel_log: "fuel_logs",
+  shift: "shifts",
+  saved_location: "saved_locations",
+};
+
+/**
+ * One pass per PARKED_REVIVAL_REVISION over rows parked as permanently_failed:
+ * drop the ones with nothing left to send, rebuild the ones whose body was
+ * never a trip, hold refused saved places, and give the rest one more try.
+ * See parkedItemAction for the rules and why the pass exists.
+ */
+async function reviewParkedItemsOnce(): Promise<void> {
+  const db = await getDatabase();
+  const done = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = ?",
+    [PARKED_REVIVAL_KEY]
+  );
+  if (done?.value === PARKED_REVIVAL_REVISION) return;
+
+  const parked = await db.getAllAsync<QueueItem & { last_error: string | null }>(
+    "SELECT * FROM sync_queue WHERE status = 'permanently_failed'"
+  );
+  const now = new Date().toISOString();
+  for (const item of parked) {
+    const table = LOCAL_TABLE[item.entity_type];
+    let localRowExists = false;
+    let localRowSynced = false;
+    if (table) {
+      const row = await db.getFirstAsync<{ id: string; synced_at: string | null }>(
+        `SELECT id, synced_at FROM ${table} WHERE id = ?`,
+        [item.entity_id]
+      );
+      localRowExists = !!row;
+      localRowSynced = !!row?.synced_at;
+    }
+    let payload: Record<string, unknown> | null = null;
+    try {
+      const parsed = item.payload ? JSON.parse(item.payload) : null;
+      payload = parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      payload = null;
+    }
+    const decision = parkedItemAction({
+      entityType: item.entity_type,
+      action: item.action,
+      localRowExists,
+      localRowSynced,
+      lastError: item.last_error ?? null,
+      payload,
+    });
+    if (decision === "drop") {
+      await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [item.id]);
+    } else if (decision === "hold") {
+      await db.runAsync("UPDATE sync_queue SET status = ?, updated_at = ? WHERE id = ?", [
+        HELD_STATUS,
+        now,
+        item.id,
+      ]);
+    } else if (decision === "rebuild") {
+      const body = await loadTripCreateBody(item.entity_id);
+      if (body) {
+        await db.runAsync(
+          "UPDATE sync_queue SET payload = ?, status = 'pending', retry_count = 0, updated_at = ? WHERE id = ?",
+          [JSON.stringify(body), now, item.id]
+        );
+      } else {
+        await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [item.id]);
+      }
+    } else {
+      await db.runAsync(
+        "UPDATE sync_queue SET status = 'pending', retry_count = 0, updated_at = ? WHERE id = ?",
+        [now, item.id]
+      );
+    }
+  }
+  await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
+    PARKED_REVIVAL_KEY,
+    PARKED_REVIVAL_REVISION,
+  ]);
+}
+
 async function periodicTick() {
   try {
     const pending = await getPendingCount();
@@ -409,6 +604,16 @@ export function startAutoSync(): () => void {
       await reviveNetworkParkedItems();
     } catch {
       // Recovery is best-effort; the next cold start retries.
+    }
+    try {
+      await reviewParkedItemsOnce();
+    } catch {
+      // Best-effort; the revision marker is only written after a full pass.
+    }
+    try {
+      await reviveHeldItems();
+    } catch {
+      // Best-effort; the next cold start retries.
     }
     try {
       await backfillGhostTrips();

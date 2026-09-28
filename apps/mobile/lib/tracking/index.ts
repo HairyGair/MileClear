@@ -6,11 +6,20 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
 import { syncCreateTrip } from "../sync/actions";
-import { startDriveDetection, stopDriveDetection, cancelAutoRecording, clearNotDrivingCooldown } from "./detection";
+import {
+  startDriveDetection,
+  stopDriveDetection,
+  cancelAutoRecording,
+  clearNotDrivingCooldown,
+  getJourneyEndMinutes,
+  logDetectionEvent,
+} from "./detection";
 import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
+import { segmentTrips } from "./shiftSegments";
+import { journeyBoundaryMs } from "./journeyBoundary";
 import {
   ARRIVED_PENDING_SHIFT_ID,
   PENDING_ARRIVED_KEY,
@@ -24,8 +33,6 @@ import {
 const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
-const STOP_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes - prevents traffic lights / brief stops from splitting trips
-const STOP_SPEED_MS = 1.5; // m/s (~3.4 mph)
 
 export interface StoredCoordinate {
   lat: number;
@@ -555,7 +562,66 @@ export async function promoteDetectionToQuickTrip(): Promise<{
  * Segments coordinates based on stop detection (>2 min stationary = trip boundary).
  * Creates each trip via the API. Returns the number of trips created.
  */
-export async function processShiftTrips(
+// One run per shift at a time. The shift can be closed by the End Shift
+// button, the automatic end, the 18-hour ghost-shift release and the app-open
+// sweep of leftover breadcrumbs, and two of those can meet on one app open
+// (f02756e7, 27 Sep 2026: the automatic end and the orphan sweep in the same
+// second). A second caller joins the run already going instead of saving the
+// same breadcrumbs again.
+const shiftRunsInFlight = new Map<string, Promise<number>>();
+
+export function processShiftTrips(shiftId: string, vehicleId?: string): Promise<number> {
+  const running = shiftRunsInFlight.get(shiftId);
+  if (running) return running;
+  const run = processShiftTripsOnce(shiftId, vehicleId).finally(() => {
+    shiftRunsInFlight.delete(shiftId);
+  });
+  shiftRunsInFlight.set(shiftId, run);
+  return run;
+}
+
+/**
+ * Turn the breadcrumbs of shifts that are no longer running into trips.
+ *
+ * A shift's breadcrumbs used to be processed only when that shift was closed,
+ * and kept "for retry" if any trip failed, with nothing ever retrying them.
+ * The 18-hour ghost-shift release (shiftSuppressesAutoDetection) cleared the
+ * lock and left them untouched too. Now that the automatic engine drops fixes
+ * a shift's breadcrumbs already cover (ownedFixes.ts), breadcrumbs that are
+ * never processed would mean a drive saved by neither, so every app open and
+ * every lock release sweeps them. Re-processing is safe: a trip already saved
+ * from the same breadcrumbs matches the phone's two-minute dedup and the
+ * server's start-time key and comes back as the same trip.
+ */
+export async function processLeftoverShiftBreadcrumbs(reason: string): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const active = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+    );
+    const rows = await db.getAllAsync<{ shift_id: string; n: number }>(
+      "SELECT shift_id, COUNT(*) AS n FROM shift_coordinates WHERE shift_id NOT IN (?, ?) GROUP BY shift_id",
+      [QUICK_TRIP_SHIFT_ID, ARRIVED_PENDING_SHIFT_ID]
+    );
+    for (const row of rows) {
+      if (row.shift_id === active?.value) continue;
+      const shift = await db.getFirstAsync<{ vehicle_id: string | null }>(
+        "SELECT vehicle_id FROM shifts WHERE id = ?",
+        [row.shift_id]
+      );
+      const created = await processShiftTrips(row.shift_id, shift?.vehicle_id ?? undefined);
+      logDetectionEvent("shift_breadcrumbs_processed", {
+        reason,
+        fixes: row.n,
+        tripsCreated: created,
+      }).catch(() => {});
+    }
+  } catch {
+    // Best effort: the breadcrumbs stay and the next app open tries again.
+  }
+}
+
+async function processShiftTripsOnce(
   shiftId: string,
   vehicleId?: string
 ): Promise<number> {
@@ -566,8 +632,17 @@ export async function processShiftTrips(
     [shiftId]
   );
 
+  // Delete only what this run read. The shift can be re-attached while the
+  // run is out on the network (the dashboard re-attaches a shift the server
+  // still calls active), and fixes recorded after the read are not ours.
+  const lastRead = coords.length > 0 ? coords[coords.length - 1].recorded_at : null;
+  const consumeRead = () =>
+    lastRead == null
+      ? Promise.resolve()
+      : db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ? AND recorded_at <= ?", [shiftId, lastRead]);
+
   if (coords.length < 2) {
-    await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
+    await consumeRead();
     return 0;
   }
 
@@ -576,7 +651,12 @@ export async function processShiftTrips(
   // any failure (API error, crash, memory pressure on long shifts) permanently
   // lost all GPS data with no way to recover.
 
-  const segments = segmentTrips(coords);
+  const segments = segmentTrips(coords, journeyBoundaryMs(await getJourneyEndMinutes()).splitMs);
+  // The lock ids are not shifts the server knows. Sending "__quick_trip__"
+  // as shiftId failed validation, so every trip the quick-trip recovery
+  // rebuilt was rejected and deleted (28 Sep 2026).
+  const serverShiftId =
+    shiftId === QUICK_TRIP_SHIFT_ID || shiftId === ARRIVED_PENDING_SHIFT_ID ? undefined : shiftId;
   let created = 0;
   let allSucceeded = true;
 
@@ -645,7 +725,7 @@ export async function processShiftTrips(
       }
 
       await syncCreateTrip({
-        shiftId,
+        shiftId: serverShiftId,
         vehicleId,
         startLat: first.lat,
         startLng: first.lng,
@@ -677,7 +757,7 @@ export async function processShiftTrips(
   // If any trip creation failed, keep the coordinates so they can
   // be reprocessed on the next shift end or app restart.
   if (allSucceeded) {
-    await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [shiftId]);
+    await consumeRead();
   } else {
     console.warn(`[processShiftTrips] ${created} trips created but some failed - keeping ${coords.length} coordinates for retry`);
   }
@@ -685,57 +765,8 @@ export async function processShiftTrips(
   return created;
 }
 
-export function segmentTrips(coords: StoredCoordinate[]): StoredCoordinate[][] {
-  if (coords.length < 2) return [];
-
-  const trips: StoredCoordinate[][] = [];
-  let current: StoredCoordinate[] = [coords[0]];
-  let stoppedSince: number | null = null;
-
-  for (let i = 1; i < coords.length; i++) {
-    const prev = coords[i - 1];
-    const curr = coords[i];
-    const currTime = new Date(curr.recorded_at).getTime();
-    const prevTime = new Date(prev.recorded_at).getTime();
-
-    let stopped = false;
-    if (curr.speed != null && curr.speed >= 0) {
-      stopped = curr.speed < STOP_SPEED_MS;
-    } else {
-      const dt = (currTime - prevTime) / 1000;
-      if (dt > 0) {
-        const distMeters = haversine(prev.lat, prev.lng, curr.lat, curr.lng) * 1609.34;
-        stopped = (distMeters / dt) < STOP_SPEED_MS;
-      } else {
-        stopped = true;
-      }
-    }
-
-    if (stopped) {
-      if (stoppedSince === null) stoppedSince = currTime;
-
-      if (currTime - stoppedSince >= STOP_THRESHOLD_MS) {
-        // Stopped for >2 minutes - end current trip, start fresh
-        if (current.length >= 2) {
-          trips.push(current);
-        }
-        current = [];
-        stoppedSince = null;
-        continue;
-      }
-    } else {
-      stoppedSince = null;
-    }
-
-    current.push(curr);
-  }
-
-  if (current.length >= 2) {
-    trips.push(current);
-  }
-
-  return trips;
-}
+// Pure, in its own module so it can be tested; re-exported for the live map.
+export { segmentTrips } from "./shiftSegments";
 
 // Background task - runs when app is backgrounded, stores coords in SQLite
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {

@@ -7,7 +7,7 @@
 import { randomUUID } from "expo-crypto";
 import type { SQLiteBindValue } from "expo-sqlite";
 import { getDatabase } from "../db/index";
-import { isNetworkError, isLocalSystemError, isDefiniteClientRejection, isServerUnavailable } from "./errors";
+import { isNetworkError, isLocalSystemError, isDefiniteClientRejection, isServerUnavailable, isItemForbidden } from "./errors";
 import { enqueueSync } from "./queue";
 import {
   createTrip as apiCreateTrip,
@@ -624,7 +624,13 @@ export async function syncCreateSavedLocation(data: CreateSavedLocationData) {
     // 503 from a proxy - including the few seconds our own deploy produces -
     // destroyed it outright. The trip path was fixed after the golf-club loss;
     // its siblings were left behind (found 13 Aug 2026).
-    if (isDefiniteClientRejection(err)) {
+    //
+    // A 403 here is the free plan's saved-place limit, a definite answer for
+    // this place. It used to be kept and queued like an outage, so the form's
+    // "Upgrade to Pro" prompt never showed, the place lived only on the phone,
+    // and its queued create blocked every trip behind it (28 Sep 2026: 13
+    // free drivers, up to 46 items stuck). Throw it to the form instead.
+    if (isDefiniteClientRejection(err) || isItemForbidden(err)) {
       await db.runAsync("DELETE FROM saved_locations WHERE id = ?", [localId]);
       throw err;
     }

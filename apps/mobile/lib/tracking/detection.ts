@@ -751,6 +751,16 @@ export async function shiftSuppressesAutoDetection(
       shiftId: activeShift.value,
       reason: alreadyEnded ? "already_ended" : !shiftRow ? "no_local_row" : "active_too_long",
     }).catch(() => {});
+    // The released shift's breadcrumbs used to be left where they were, and
+    // the native engine's copy of the same fixes was then saved by the next
+    // app open's orphan sweep, while the shift saved its own copy whenever it
+    // was finally closed (4cc04bac, 27 Sep 2026: 52.0 and 55.1 mi for one
+    // afternoon). Turn them into the shift's trips now; the engine's copy is
+    // dropped at finalize because these breadcrumbs cover it. Detached: this
+    // runs inside engine callbacks and must not wait on the network.
+    import("./index")
+      .then((m) => m.processLeftoverShiftBreadcrumbs("stale_shift_cleared"))
+      .catch(() => {});
     return false;
   }
   // __quick_trip__: live, stale, or orphan? Ground truth is GPS capture
@@ -1250,6 +1260,10 @@ export async function finalizeAutoTrip(): Promise<void> {
     const { reconcileNativeBufferBeforeFinalize } = await import("./nativeLocation");
     await reconcileNativeBufferBeforeFinalize();
   } catch {}
+  // With the native store drained in, drop the fixes a shift's breadcrumbs
+  // or a trip already saved from them cover, so the same drive is never saved
+  // twice. See ownedFixes.ts.
+  await dropFixesAlreadyRecorded();
   try {
     // Drain loop: a multileg buffer defers its remaining real legs and sets
     // deferredFinalizePending; each pass consumes the oldest leg, so the loop
@@ -1279,6 +1293,85 @@ export async function finalizeAutoTrip(): Promise<void> {
       if (isNativeEngineAvailable()) await destroyNativeLocations();
     } catch {}
     await releaseStrandedQuickTripLock();
+  }
+}
+
+/**
+ * Delete buffered fixes that another recording already owns: a real shift's
+ * breadcrumbs (plus a minute either side) or a trip already saved from them.
+ * Everything else stays for finalize to judge. Never throws: a
+ * failure here leaves the buffer as it was, which is the old behaviour.
+ */
+async function dropFixesAlreadyRecorded(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const span = await db.getFirstAsync<{ n: number; oldest: string | null; newest: string | null }>(
+      "SELECT COUNT(*) AS n, MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
+    );
+    if (!span || span.n === 0 || !span.oldest || !span.newest) return;
+    const oldestMs = Date.parse(span.oldest);
+    const newestMs = Date.parse(span.newest);
+    if (!Number.isFinite(oldestMs) || !Number.isFinite(newestMs)) return;
+
+    const { ownedWindows, partitionOwnedFixes, SHIFT_RUN_GAP_MS } = await import("./ownedFixes");
+    const { ARRIVED_PENDING_SHIFT_ID } = await import("./arrivedRecovery");
+    const margin = SHIFT_RUN_GAP_MS;
+    const crumbs = await db.getAllAsync<{ shift_id: string; recorded_at: string }>(
+      `SELECT shift_id, recorded_at FROM shift_coordinates
+       WHERE shift_id NOT IN (?, ?) AND recorded_at >= ? AND recorded_at <= ?`,
+      [
+        QUICK_TRIP_SHIFT_ID,
+        ARRIVED_PENDING_SHIFT_ID,
+        new Date(oldestMs - margin).toISOString(),
+        new Date(newestMs + margin).toISOString(),
+      ]
+    );
+    const saved = await db.getAllAsync<{ started_at: string; ended_at: string; is_manual_entry: number }>(
+      `SELECT started_at, ended_at, is_manual_entry FROM trips
+       WHERE is_manual_entry = 0 AND shift_id IS NOT NULL AND shift_id NOT IN (?, ?)
+         AND ended_at IS NOT NULL AND ended_at >= ? AND started_at <= ?`,
+      [QUICK_TRIP_SHIFT_ID, ARRIVED_PENDING_SHIFT_ID, span.oldest, span.newest]
+    );
+    const byShift = new Map<string, number[]>();
+    for (const c of crumbs) {
+      const t = Date.parse(c.recorded_at);
+      if (!Number.isFinite(t)) continue;
+      const list = byShift.get(c.shift_id) ?? [];
+      list.push(t);
+      byShift.set(c.shift_id, list);
+    }
+    const windows = ownedWindows(
+      byShift,
+      saved.map((t) => ({
+        startedMs: Date.parse(t.started_at),
+        endedMs: Date.parse(t.ended_at),
+        isManualEntry: t.is_manual_entry === 1,
+      }))
+    );
+    if (windows.length === 0) return;
+
+    const rows = await db.getAllAsync<{ id: number; recorded_at: string }>(
+      "SELECT id, recorded_at FROM detection_coordinates"
+    );
+    const { owned, kept } = partitionOwnedFixes(rows, windows);
+    if (owned.length === 0) return;
+    for (let i = 0; i < owned.length; i += 400) {
+      const chunk = owned.slice(i, i + 400).map((r) => r.id);
+      await db.runAsync(
+        `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
+        chunk
+      );
+    }
+    logDetectionEvent("finalize_owned_fixes_dropped", {
+      dropped: owned.length,
+      kept: kept.length,
+      shifts: byShift.size,
+      savedTrips: saved.length,
+    }).catch(() => {});
+  } catch (err) {
+    logDetectionEvent("finalize_owned_fixes_error", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
   }
 }
 
@@ -2548,6 +2641,11 @@ export async function finalizeStaleAutoRecordings(): Promise<void> {
         }
       }
     }
+    // Breadcrumbs of shifts no longer running that were never turned into
+    // trips (see processLeftoverShiftBreadcrumbs). Detached: network-bound.
+    import("./index")
+      .then((m) => m.processLeftoverShiftBreadcrumbs("app_open"))
+      .catch(() => {});
     await checkStaleAutoRecording();
     // checkStaleAutoRecording only ever looks at the armed flag. Sweep for a
     // route whose flag is gone but whose fixes are still there — see

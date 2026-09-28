@@ -53,6 +53,7 @@ beforeEach(() => {
   mocks.db.runAsync.mockResolvedValue(undefined);
   mocks.db.getFirstAsync.mockResolvedValue(null);
   mocks.db.execAsync.mockResolvedValue(undefined);
+  mocks.db.getAllAsync.mockResolvedValue([]);
   mocks.getPendingCount.mockResolvedValue(0);
 });
 
@@ -80,6 +81,9 @@ describe("processSyncQueue cascade after a create syncs", () => {
           created_at: "2026-04-30T17:00:00.000Z",
         },
       ])
+      // Creates still unfinished at the start of the pass (none besides this
+      // one matter to the assertions below).
+      .mockResolvedValueOnce([{ entity_id: localId }])
       .mockResolvedValueOnce([
         {
           id: "queue-row-2",

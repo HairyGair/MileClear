@@ -231,6 +231,11 @@ export async function uploadDiagnosticDump(): Promise<void> {
     // phone had the switch off for months and nothing reported it (3 Sep
     // 2026). See lib/liveActivity/presence.ts.
     const liveActivity = await getLiveActivityState().catch(() => null);
+    // Queue rows not yet synced: kind, status and error only, never bodies.
+    // See getSyncQueueSummary (28 Sep 2026).
+    const syncQueue = await import("../sync/queue")
+      .then((m) => m.getSyncQueueSummary())
+      .catch(() => null);
 
     // Strip GDPR-sensitive tracking state entries
     const safeTrackingState = diagnostics.trackingState.filter(
@@ -322,6 +327,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
           nativeEngine,
           enginePower,
           liveActivity,
+          syncQueue,
           // True native-binary identity + which OTA is running on top of it,
           // so the reported appVersion/buildNumber (OTA label) can be
           // reconciled against the real binary. See getUpdatesInfo().

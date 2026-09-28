@@ -122,6 +122,19 @@ export function isTargetMissing(err: unknown): boolean {
   return err instanceof ApiError && err.statusCode === 404;
 }
 
+/** The server refused THIS item (HTTP 403), which on the queued endpoints
+ *  means a plan limit: a free account's third saved place. Unlike a 401 it
+ *  says nothing about the token, so it must not stop the rest of the queue.
+ *  Until 28 Sep 2026 it did (isAuthError covers 403 and the engine broke out
+ *  of the batch), and because the queue runs oldest first, one refused place
+ *  held back every trip queued after it: 13 free drivers at the limit had 1
+ *  to 46 items stuck behind one, including trips of 113 and 36 miles, and the
+ *  server logged 15,301 refused POST /saved-locations in ten days as the
+ *  phones retried it every minute. */
+export function isItemForbidden(err: unknown): boolean {
+  return err instanceof ApiError && err.statusCode === 403;
+}
+
 export function isDefiniteClientRejection(err: unknown): boolean {
   if (err instanceof ApiError) {
     if (err.statusCode === 401 || err.statusCode === 403) return false;

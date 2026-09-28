@@ -8,39 +8,12 @@
 
 import { getDatabase } from "../db/index";
 import { enqueueSync } from "./queue";
-
-interface OrphanTripRow {
-  id: string;
-  shift_id: string | null;
-  vehicle_id: string | null;
-  start_lat: number;
-  start_lng: number;
-  end_lat: number | null;
-  end_lng: number | null;
-  start_address: string | null;
-  end_address: string | null;
-  distance_miles: number;
-  started_at: string;
-  ended_at: string | null;
-  classification: string;
-  platform_tag: string | null;
-  category: string | null;
-  business_purpose: string | null;
-  notes: string | null;
-}
-
-interface CoordRow {
-  lat: number;
-  lng: number;
-  speed: number | null;
-  accuracy: number | null;
-  recorded_at: string;
-}
+import { tripCreateBodyFromRow, type LocalTripRow, type LocalCoordRow } from "./tripPayload";
 
 export async function backfillGhostTrips(): Promise<number> {
   const db = await getDatabase();
 
-  const orphans = await db.getAllAsync<OrphanTripRow>(
+  const orphans = await db.getAllAsync<LocalTripRow>(
     `SELECT t.id, t.shift_id, t.vehicle_id, t.start_lat, t.start_lng,
             t.end_lat, t.end_lng, t.start_address, t.end_address,
             t.distance_miles, t.started_at, t.ended_at, t.classification,
@@ -58,20 +31,11 @@ export async function backfillGhostTrips(): Promise<number> {
   const now = new Date().toISOString();
 
   for (const trip of orphans) {
-    const coords = await db.getAllAsync<CoordRow>(
+    const coords = await db.getAllAsync<LocalCoordRow>(
       `SELECT lat, lng, speed, accuracy, recorded_at
        FROM coordinates WHERE trip_id = ? ORDER BY recorded_at ASC`,
       [trip.id]
     );
-
-    // Strip the local-only `__unconfirmed__|...` / `__shaded__|...` markers
-    // before sending to the server - they're UI state, not data.
-    const cleanNotes =
-      trip.notes &&
-      !trip.notes.startsWith("__unconfirmed__") &&
-      !trip.notes.startsWith("__shaded__")
-        ? trip.notes
-        : undefined;
 
     // Revive any update/delete rows that hit permanently_failed because the
     // server didn't have the trip yet. Once the CREATE we're about to enqueue
@@ -86,32 +50,31 @@ export async function backfillGhostTrips(): Promise<number> {
       [now, trip.id]
     );
 
-    await enqueueSync("trip", trip.id, "create", {
-      shiftId: trip.shift_id ?? undefined,
-      vehicleId: trip.vehicle_id ?? undefined,
-      startLat: trip.start_lat,
-      startLng: trip.start_lng,
-      endLat: trip.end_lat ?? undefined,
-      endLng: trip.end_lng ?? undefined,
-      startAddress: trip.start_address ?? undefined,
-      endAddress: trip.end_address ?? undefined,
-      distanceMiles: trip.distance_miles,
-      startedAt: trip.started_at,
-      endedAt: trip.ended_at ?? undefined,
-      classification: trip.classification,
-      platformTag: trip.platform_tag ?? undefined,
-      category: trip.category ?? undefined,
-      businessPurpose: trip.business_purpose ?? undefined,
-      notes: cleanNotes,
-      coordinates: coords.map((c) => ({
-        lat: c.lat,
-        lng: c.lng,
-        speed: c.speed,
-        accuracy: c.accuracy,
-        recordedAt: c.recorded_at,
-      })),
-    });
+    await enqueueSync("trip", trip.id, "create", tripCreateBodyFromRow(trip, coords));
   }
 
   return orphans.length;
+}
+
+/**
+ * The POST /trips body for one trip the phone holds, from its own row and any
+ * breadcrumbs stored with it, or null when the row is gone. For the queue
+ * paths that hold no usable create body (see tripPayload.ts).
+ */
+export async function loadTripCreateBody(tripId: string): Promise<Record<string, unknown> | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<LocalTripRow>(
+    `SELECT id, shift_id, vehicle_id, start_lat, start_lng, end_lat, end_lng,
+            start_address, end_address, distance_miles, started_at, ended_at,
+            classification, platform_tag, category, business_purpose, notes
+     FROM trips WHERE id = ?`,
+    [tripId]
+  );
+  if (!row) return null;
+  const coords = await db.getAllAsync<LocalCoordRow>(
+    `SELECT lat, lng, speed, accuracy, recorded_at
+     FROM coordinates WHERE trip_id = ? ORDER BY recorded_at ASC`,
+    [tripId]
+  );
+  return tripCreateBodyFromRow(row, coords);
 }
