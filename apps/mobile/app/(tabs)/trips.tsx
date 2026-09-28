@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import {
   View,
@@ -15,7 +15,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
@@ -306,8 +306,14 @@ function shortAddress(addr: string): string {
 
 export default function TripsScreen() {
   const router = useRouter();
+  // "?filter=unclassified" is how the classify reminders (evening digest,
+  // weekly nudge, the app's own reminder) open the Inbox. Until 28 Sep 2026
+  // nothing read it, so every one of those taps landed on All instead.
+  const params = useLocalSearchParams<{ filter?: string }>();
   const [trips, setTrips] = useState<TripItem[]>([]);
-  const [filter, setFilter] = useState<TripClassification | "all">("all");
+  const [filter, setFilter] = useState<TripClassification | "all">(() =>
+    params.filter === "unclassified" ? "unclassified" : "all"
+  );
   // Platform filter is orthogonal to classification — both can be active at
   // once. Stored as PlatformTag value or "all" sentinel.
   const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
@@ -565,6 +571,15 @@ export default function TripsScreen() {
     },
     [loadTrips, loadSummary, loadUnclassifiedCount]
   );
+
+  // A reminder tapped while Trips is already mounted: switch to the Inbox,
+  // then clear the param so the next tap (after the driver has moved back
+  // to All) is seen as a change too.
+  useEffect(() => {
+    if (params.filter !== "unclassified") return;
+    if (filterRef.current !== "unclassified") handleFilterChange("unclassified");
+    router.setParams({ filter: undefined });
+  }, [params.filter, handleFilterChange, router]);
 
   const handlePlatformChange = useCallback(
     (value: PlatformTag | "all") => {

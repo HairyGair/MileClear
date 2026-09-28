@@ -25,6 +25,7 @@ import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { logEvent } from "../services/appEvents.js";
+import { CLASSIFY_NUDGE_EVENT } from "./classifyNudge.js";
 
 export const EVENING_DIGEST_EVENT = "notification.evening_digest";
 export const EVENING_DIGEST_TZ = "Europe/London";
@@ -245,7 +246,9 @@ export async function runEveningDigestJob(now: Date = new Date()): Promise<Eveni
     }),
     prisma.appEvent.findMany({
       where: {
-        type: EVENING_DIGEST_EVENT,
+        // A driver who had the weekly classify nudge this evening gets that
+        // one push, not a second one an hour later.
+        type: { in: [EVENING_DIGEST_EVENT, CLASSIFY_NUDGE_EVENT] },
         userId: { in: userIds },
         createdAt: { gte: bounds.start, lt: bounds.end },
       },

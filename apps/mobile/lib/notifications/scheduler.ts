@@ -126,6 +126,20 @@ const UNCLASSIFIED_COOLDOWN_KEY = "last_unclassified_nudge";
 // weekly tidy-up rather than a daily nag.
 const UNCLASSIFIED_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/**
+ * Record that the driver has just been taken to the Inbox by a tapped
+ * reminder (the evening digest or the weekly classify push). Starts this
+ * reminder's weekly cooldown so opening the app from that tap cannot fire a
+ * second "Trips to classify" on top of the one they just answered.
+ */
+export async function markUnclassifiedNudgeSeen(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+    [UNCLASSIFIED_COOLDOWN_KEY, String(Date.now())]
+  );
+}
+
 export async function checkUnclassifiedTripsNudge(): Promise<void> {
   if (isQuietHours()) return;
   const prefs = await getNotificationPreferences();

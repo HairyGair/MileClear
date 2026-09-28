@@ -624,8 +624,23 @@ export function setupNotificationResponseHandler(): void {
         break;
 
       case "open_unclassified_trips":
-        // Trips list filtered to unclassified - the dashboard nudge
-        // notification when there are trips waiting for review.
+        // Trips Inbox (unclassified, repeat routes grouped for one-tap
+        // sorting). Used by the evening digest, the weekly classify nudge
+        // (jobs/classifyNudge.ts) and the app's own reminder.
+        import("./scheduler")
+          .then((m) => m.markUnclassifiedNudgeSeen())
+          .catch(() => {});
+        if (data?.nudge === "classify_weekly") {
+          // The server logs the send; the tap is only knowable here.
+          import("../api/index")
+            .then(({ apiRequest }) =>
+              apiRequest("/user/event", {
+                method: "POST",
+                body: JSON.stringify({ type: "notification.classify_nudge_opened" }),
+              })
+            )
+            .catch(() => {});
+        }
         router.navigate("/(tabs)/trips?filter=unclassified" as any);
         break;
 

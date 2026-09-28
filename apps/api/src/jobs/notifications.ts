@@ -33,6 +33,7 @@ import { runVisitSplitJob } from "./visitSplit.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runEveningDigestJob } from "./eveningDigest.js";
+import { runClassifyNudgeJob } from "./classifyNudge.js";
 import {
   runUnclassifiedNudgeEmailJob,
   runWeeklyRecapEmailJob,
@@ -1615,6 +1616,8 @@ export function startNotificationJobs(): void {
     void runJob("email_tax_milestone", runTaxMilestoneEmailJob);
     void runJob("email_tax_year_end", runTaxYearEndEmailJob);
     void runJob("email_sa_deadline", runSaDeadlineEmailJob);
+    // Weekly classify nudge, Sunday 19:00 UK. Dry run unless CLASSIFY_NUDGE=1.
+    void runJob("classify_nudge", runClassifyNudgeJob);
   };
 
   setTimeout(() => {
