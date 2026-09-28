@@ -42,6 +42,7 @@ import {
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert } from "../services/discord.js";
+import { CLEARTRACK_QUIET_DAYS, planClearTrackAlert } from "../services/clearTrackAlertRule.js";
 import {
   runFirstTripCelebrationJob,
   runMileageMilestoneCelebrationJob,
@@ -950,10 +951,6 @@ async function runDiagnosticScanJob(): Promise<void> {
   }
 }
 
-// Founder-facing dedup state for the native-engine health monitor.
-let lastNativeHealthSig = "";
-let lastNativeHealthAt = 0;
-const NATIVE_HEALTH_REPOST_MS = 6 * 60 * 60 * 1000; // re-surface an unchanged problem at most every 6h
 
 /**
  * Founder-facing health monitor for the native-engine rollout (build 73, on by
@@ -1238,39 +1235,44 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
 
-  if (
-    unhealthy.length === 0 &&
-    silent.length === 0 &&
-    stranded.length === 0 &&
-    stuckLock.length === 0
-  ) {
-    lastNativeHealthSig = ""; // reset so a fresh problem alerts immediately
-    return;
-  }
-
-  const now = Date.now();
-  const sig = [
-    ...unhealthy.map((u) => `e:${u.userId}`),
-    ...silent.map((u) => `s:${u.userId}`),
-    ...stranded.map((u) => `o:${u.userId}`),
-    ...stuckLock.map((u) => `q:${u.userId}`),
-  ]
-    .sort()
-    .join(",");
-  const shouldPost =
-    sig !== lastNativeHealthSig || now - lastNativeHealthAt >= NATIVE_HEALTH_REPOST_MS;
-  if (!shouldPost) {
+  // Quiet rules (clearTrackAlertRule.ts, 28 Sep 2026): drivers support has
+  // emailed in the last week are being handled, and #founder only hears about
+  // a driver once a week. Both read from app_events so a restart forgets
+  // nothing.
+  const flaggedIds = [...unhealthy, ...silent, ...stranded, ...stuckLock].map((u) => u.userId);
+  if (flaggedIds.length === 0) return;
+  const quietSince = new Date(Date.now() - CLEARTRACK_QUIET_DAYS * 24 * 60 * 60 * 1000);
+  const [handledRows, alertedRows] = await Promise.all([
+    prisma.appEvent.findMany({
+      where: { userId: { in: flaggedIds }, type: "support.reply_sent", createdAt: { gte: quietSince } },
+      select: { userId: true },
+    }),
+    prisma.appEvent.findMany({
+      where: { userId: { in: flaggedIds }, type: "alert.cleartrack_flagged", createdAt: { gte: quietSince } },
+      select: { userId: true },
+    }),
+  ]);
+  const plan = planClearTrackAlert(
+    flaggedIds,
+    new Set(handledRows.map((r) => r.userId!).filter(Boolean)),
+    new Set(alertedRows.map((r) => r.userId!).filter(Boolean))
+  );
+  if (!plan.shouldPost) {
     console.log(
-      `[native-health] alert suppressed - unchanged (${unhealthy.length} error / ${silent.length} silent / ${stranded.length} stranded of ${nativeTotal} native devices)`
+      `[native-health] nothing new to post (${plan.showIds.size} already reported this week, ${plan.handledCount} being handled by support)`
     );
     return;
   }
-  lastNativeHealthSig = sig;
-  lastNativeHealthAt = now;
+  const keep = <T extends { userId: string }>(list: T[]) => list.filter((u) => plan.showIds.has(u.userId));
+  unhealthy.splice(0, unhealthy.length, ...keep(unhealthy));
+  silent.splice(0, silent.length, ...keep(silent));
+  stranded.splice(0, stranded.length, ...keep(stranded));
+  stuckLock.splice(0, stuckLock.length, ...keep(stuckLock));
+  const isNew = (id: string) => (plan.newIds.has(id) ? " (new)" : "");
 
   const sections: string[] = [];
   if (unhealthy.length > 0) {
-    const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}`).join("\n");
+    const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}${isNew(u.userId)}`).join("\n");
     sections.push(
       `Verdict "error" in the last 12h (background permission granted):\n${list}` +
         (unhealthy.length > 15 ? `\n…and ${unhealthy.length - 15} more` : "")
@@ -1279,7 +1281,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   if (silent.length > 0) {
     const list = silent
       .slice(0, 15)
-      .map((u) => `• ${u.email}${u.staleShift ? " — stuck active shift (mutes the engine)" : ""}`)
+      .map((u) => `• ${u.email}${isNew(u.userId)}${u.staleShift ? " — stuck active shift (mutes the engine)" : ""}`)
       .join("\n");
     sections.push(
       `SILENT non-capture — previously-active drivers (≥${BASELINE_MIN_AUTO_TRIPS} auto trips in the prior 14d), app alive, ` +
@@ -1289,7 +1291,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
   if (stranded.length > 0) {
-    const list = stranded.slice(0, 15).map((u) => `• ${u.email} — ${u.detail}`).join("\n");
+    const list = stranded.slice(0, 15).map((u) => `• ${u.email}${isNew(u.userId)} — ${u.detail}`).join("\n");
     sections.push(
       `STRANDED + IMPAIRED — on a pre-update-aware bundle AND showing trouble (silent non-capture ` +
         `or error verdict), so no OTA we ship reaches them. These need a binary update ` +
@@ -1301,7 +1303,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   if (stuckLock.length > 0) {
     const list = stuckLock
       .slice(0, 15)
-      .map((u) => `• ${u.email} — lock held ${u.heldHours}h`)
+      .map((u) => `• ${u.email}${isNew(u.userId)} — lock held ${u.heldHours}h`)
       .join("\n");
     sections.push(
       `STUCK QUICK-TRIP LOCK — a Start Trip that was never finished AND nothing captured ` +
@@ -1314,7 +1316,13 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
 
+  if (plan.handledCount > 0) {
+    sections.push(`${plan.handledCount} more flagged driver(s) already contacted by support this week, not listed.`);
+  }
   const total = unhealthy.length + silent.length + stranded.length + stuckLock.length;
+  for (const id of plan.newIds) {
+    logEvent("alert.cleartrack_flagged", id, {});
+  }
   await postFounderAlert({
     severity: unhealthy.length + silent.length >= 3 ? "critical" : "warning",
     title: `ClearTrack: ${total}/${nativeTotal} device(s) need attention (${unhealthy.length} error, ${silent.length} silent, ${stranded.length} stranded, ${stuckLock.length} stuck-lock)`,
