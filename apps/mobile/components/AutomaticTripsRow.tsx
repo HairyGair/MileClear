@@ -12,11 +12,22 @@
 // on focus, so flipping it in one place shows in the other.
 
 import { useCallback, useState } from "react";
-import { View, Text, Switch, StyleSheet } from "react-native";
+import { View, Text, Switch, StyleSheet, Linking } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
 import { readAutomaticTrips, setAutomaticTrips } from "../lib/tracking/automaticTrips";
+
+// "Not working? Tell us" (Anthony, 28 Sep 2026): the switch went out untested
+// on a real drive, so a driver who finds it misbehaving has one tap to say so.
+// Straight to support@ with the state in the subject, no form to fill in.
+function tellUs(on: boolean) {
+  const subject = `Automatic trips (${on ? "on" : "off"}) not working`;
+  const body = "Hi,\n\nWhat happened:\n\n";
+  Linking.openURL(
+    `mailto:support@mileclear.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  ).catch(() => {});
+}
 
 interface Props {
   /** Told after each change, so the dashboard can refresh what depends on it. */
@@ -78,6 +89,14 @@ export function AutomaticTripsRow({ onChange }: Props) {
       <View style={s.body}>
         <Text style={s.label}>Automatic trips</Text>
         <Text style={s.hint}>{on ? "Drives record by themselves." : "Only shifts and Start Trip record."}</Text>
+        <Text
+          style={[s.hint, s.link]}
+          onPress={() => tellUs(on)}
+          accessibilityRole="link"
+          accessibilityLabel="Not working? Email us"
+        >
+          Not working? Tell us
+        </Text>
       </View>
       <Switch
         value={on}
@@ -112,4 +131,5 @@ const s = StyleSheet.create({
   body: { flex: 1 },
   label: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1 },
   hint: { fontSize: 12, fontFamily: fonts.medium, color: colors.text3, marginTop: 1 },
+  link: { color: colors.amber, fontFamily: fonts.semibold },
 });
