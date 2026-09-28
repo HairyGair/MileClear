@@ -25,6 +25,9 @@ export type HeadlessRoute =
   | "finalize"
   /** A fix while a recording is open: buffer it as the foreground does. */
   | "buffer"
+  /** No recording open and the SDK itself says the phone started moving:
+   *  run the foreground motion handler, which opens the recording. */
+  | "start"
   /** No recording open: the existing speed-wake rule decides. */
   | "wake"
   | "ignore";
@@ -66,7 +69,13 @@ export function pickHeadlessLocation(name: string, params: unknown): Record<stri
 export function routeHeadlessEvent({ platform, name, isMoving, recordingOpen }: HeadlessRouteInput): HeadlessRoute {
   if (platform !== "android") return "ignore";
   if (name !== "location" && name !== "motionchange") return "ignore";
-  if (!recordingOpen) return "wake";
+  // 28 Sep 2026: a motion start with nothing open used to go to the speed
+  // wake, which refused it because the SDK already read moving, so on a phone
+  // whose app Android had ended no recording ever opened (Jenny Hyett-Bell's
+  // Galaxy: nine Friday trips and a 77-mile Sunday drive recorded only in the
+  // SDK's store, finished at the next app open 14 h to 3 days later). Fleet:
+  // 9 headless opens against 55 app-open rescues on 95 Android phones.
+  if (!recordingOpen) return name === "motionchange" && isMoving === true ? "start" : "wake";
   if (name === "location") return "buffer";
   // motionchange with a recording open: only the stop matters. A "moving"
   // while already recording is what the foreground handler treats as a

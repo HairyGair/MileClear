@@ -217,7 +217,8 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
     // while low, but a fast fix must never switch navigation GPS back on
     // under a shift or a pause.
     if (await isLowPower()) return;
-    await BGGeo.changePace(true);
+    const sdkAlreadyMoving = state?.isMoving === true;
+    if (!sdkAlreadyMoving) await BGGeo.changePace(true);
     const decision = decideSpeedStart(fix?.speedMs ?? null, fix?.accuracyM ?? null);
     await log?.("native_headless_force_start_from_speed", {
       trigger: name,
@@ -225,6 +226,7 @@ async function wakeIfDriving(BGGeo: BgGeoHeadless, name: string, params: unknown
       accuracy: Math.round(fix?.accuracyM ?? 0),
       tier: decision.start ? decision.tier : null,
       confirmed: confirming,
+      sdkAlreadyMoving,
     });
     // Waking the SDK is not the same as opening a recording. Until 15 Sep
     // 2026 a trip that started while Android had ended the app was tracked
@@ -397,6 +399,26 @@ async function finalizeHeadless(params: unknown): Promise<void> {
   }
 }
 
+/**
+ * The SDK woke itself for a drive (motion start) while the app is closed and
+ * nothing is recording: open the recording through the same foreground motion
+ * handler the live app uses (pause, shift lock, on-foot and walk gates all
+ * apply there), so the drive is recorded in JS, buffered, and finalised at
+ * the kerb instead of at the next app open (28 Sep 2026, Jenny Hyett-Bell).
+ */
+async function startHeadless(params: unknown): Promise<void> {
+  const log = await loadLog();
+  try {
+    const { handleNativeMotionChange } = await import("./nativeLocation");
+    await handleNativeMotionChange(params as Parameters<typeof handleNativeMotionChange>[0]);
+    await log?.("native_headless_motion_start", { opened: await isRecordingOpen() });
+  } catch (err) {
+    await log?.("native_headless_motion_start_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
 /** A headless fix while a recording is open: buffer it as the live listener would. */
 async function bufferHeadless(params: unknown): Promise<void> {
   try {
@@ -442,6 +464,11 @@ export function registerNativeHeadlessTask(): void {
           await finalizeHeadless(event?.params);
         } else if (route === "buffer") {
           await bufferHeadless(event?.params);
+        } else if (route === "start") {
+          // Same low-power rule as the wake below: a pause or shift keeps the
+          // SDK quiet, and a motion start then opens nothing.
+          if ((await isLowPower()) && (await stillLowAfterRefresh(`headless_${name}`, true))) return;
+          await startHeadless(event?.params);
         } else if (route === "wake") {
           // Low power: a coarse fix is only good for noticing that the pause
           // or lock has ended. If it has, the engine is back on normal power
