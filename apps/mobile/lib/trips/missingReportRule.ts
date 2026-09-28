@@ -59,14 +59,27 @@ export function placeLabel(address: string | null | undefined): string {
   return a ? a : "a point picked on the map";
 }
 
-/** Enough to send: a time, and either both places or a note. */
+/**
+ * A set-off time this recent is the moment of reporting, not the drive. Adam
+ * Zitouni, 28 Sep 2026, added two missed trips from the field's "Now" button:
+ * both were saved as starting at the minute he filled the form in, on top of
+ * each other. The reporter no longer offers "Now", and holds Send for this.
+ */
+export const REPORT_TOO_RECENT_MS = 5 * MINUTE_MS;
+
+export function isTooRecent(departAt: Date | null, now: number): boolean {
+  return departAt != null && departAt.getTime() > now - REPORT_TOO_RECENT_MS;
+}
+
+/** Enough to send: a time that isn't just now, and either both places or a note. */
 export function canSendReport(args: {
   hasFrom: boolean;
   hasTo: boolean;
   departAt: Date | null;
   extra: string;
+  now: number;
 }): boolean {
-  if (!args.departAt) return false;
+  if (!args.departAt || isTooRecent(args.departAt, args.now)) return false;
   return (args.hasFrom && args.hasTo) || args.extra.trim().length > 0;
 }
 

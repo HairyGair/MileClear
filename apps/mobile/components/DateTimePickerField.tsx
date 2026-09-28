@@ -37,6 +37,9 @@ interface DateTimePickerFieldProps {
   /** "date" asks for a calendar day only (no time step on Android, no time
    *  wheel on iOS, DD/MM/YYYY in the Expo Go fallback). Default "datetime". */
   mode?: PickerMode;
+  /** Hide the "Now" shortcut, for a time that is always in the past (when a
+   *  missed drive set off). */
+  hideNow?: boolean;
 }
 
 /** Coerce any value into a real Date instance (handles strings from JSON). */
@@ -113,6 +116,7 @@ export function DateTimePickerField({
   disabled,
   maximumDate,
   mode = "datetime",
+  hideNow,
 }: DateTimePickerFieldProps) {
   const [showModal, setShowModal] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(() => toDate(value));
@@ -140,14 +144,16 @@ export function DateTimePickerField({
       <View style={styles.container}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>{label}</Text>
-          <TouchableOpacity
-            onPress={handleSetNow}
-            disabled={disabled}
-            accessibilityRole="button"
-            accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
-          >
-            <Text style={styles.nowBtn}>{nowLabel}</Text>
-          </TouchableOpacity>
+          {!hideNow && (
+            <TouchableOpacity
+              onPress={handleSetNow}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
+            >
+              <Text style={styles.nowBtn}>{nowLabel}</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <View style={styles.fieldRow}>
           <TextInput
@@ -185,14 +191,16 @@ export function DateTimePickerField({
       <View style={styles.container}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>{label}</Text>
-          <TouchableOpacity
-            onPress={handleSetNow}
-            disabled={disabled}
-            accessibilityRole="button"
-            accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
-          >
-            <Text style={styles.nowBtn}>{nowLabel}</Text>
-          </TouchableOpacity>
+          {!hideNow && (
+            <TouchableOpacity
+              onPress={handleSetNow}
+              disabled={disabled}
+              accessibilityRole="button"
+              accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
+            >
+              <Text style={styles.nowBtn}>{nowLabel}</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.field, disabled && styles.inputDisabled]}
@@ -273,14 +281,16 @@ export function DateTimePickerField({
     <View style={styles.container}>
       <View style={styles.labelRow}>
         <Text style={styles.label}>{label}</Text>
-        <TouchableOpacity
-          onPress={handleSetNow}
-          disabled={disabled}
-          accessibilityRole="button"
-          accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
-        >
-          <Text style={styles.nowBtn}>{nowLabel}</Text>
-        </TouchableOpacity>
+        {!hideNow && (
+          <TouchableOpacity
+            onPress={handleSetNow}
+            disabled={disabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Set ${label} to ${nowLabel.toLowerCase()}`}
+          >
+            <Text style={styles.nowBtn}>{nowLabel}</Text>
+          </TouchableOpacity>
+        )}
       </View>
       <TouchableOpacity
         style={[styles.field, disabled && styles.inputDisabled]}

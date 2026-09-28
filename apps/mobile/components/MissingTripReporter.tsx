@@ -43,6 +43,7 @@ import { describePause, shortDay } from "../lib/tracking/pauseRule";
 import { clockTime } from "../lib/trips/manualTimeRule";
 import {
   canSendReport,
+  isTooRecent,
   describeReportNote,
   endTimeFor,
   findOverlappingTrip,
@@ -550,7 +551,8 @@ export function MissingTripReporter({ onTripAdded }: { onTripAdded?: () => void 
       </View>
     ) : null;
 
-  const canSend = canSendReport({ hasFrom: from !== null, hasTo: to !== null, departAt, extra: note });
+  const tooRecent = isTooRecent(departAt, Date.now());
+  const canSend = canSendReport({ hasFrom: from !== null, hasTo: to !== null, departAt, extra: note, now: Date.now() });
   const typedMiles = parseMilesInput(milesText);
 
   return (
@@ -618,7 +620,13 @@ export function MissingTripReporter({ onTripAdded }: { onTripAdded?: () => void 
                     onChange={setDepartAt}
                     maximumDate={new Date()}
                     disabled={sending}
+                    hideNow
                   />
+                  {tooRecent && (
+                    <Text style={styles.timeHint}>
+                      That&apos;s the time now. Pick roughly when you set off on this drive.
+                    </Text>
+                  )}
                   <TextInput
                     style={styles.input}
                     placeholder="Anything else? (optional)"
@@ -758,6 +766,13 @@ export function MissingTripReporter({ onTripAdded }: { onTripAdded?: () => void 
 }
 
 const styles = StyleSheet.create({
+  timeHint: {
+    color: colors.amber,
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    marginTop: -6,
+    marginBottom: 10,
+  },
   link: {
     flexDirection: "row",
     alignItems: "center",

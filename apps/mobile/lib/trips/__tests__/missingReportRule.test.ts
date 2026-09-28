@@ -3,6 +3,7 @@ import {
   describeReportNote,
   placeLabel,
   canSendReport,
+  isTooRecent,
   endTimeFor,
   parseMilesInput,
   findOverlappingTrip,
@@ -48,11 +49,21 @@ describe("placeLabel / canSendReport", () => {
   });
 
   it("needs a time and either both places or a note", () => {
-    const t = new Date();
-    expect(canSendReport({ hasFrom: true, hasTo: true, departAt: null, extra: "" })).toBe(false);
-    expect(canSendReport({ hasFrom: true, hasTo: true, departAt: t, extra: "" })).toBe(true);
-    expect(canSendReport({ hasFrom: true, hasTo: false, departAt: t, extra: "" })).toBe(false);
-    expect(canSendReport({ hasFrom: false, hasTo: false, departAt: t, extra: "home to work" })).toBe(true);
+    const now = at(2026, 9, 28, 18, 41).getTime();
+    const t = at(2026, 9, 28, 17, 0);
+    expect(canSendReport({ hasFrom: true, hasTo: true, departAt: null, extra: "", now })).toBe(false);
+    expect(canSendReport({ hasFrom: true, hasTo: true, departAt: t, extra: "", now })).toBe(true);
+    expect(canSendReport({ hasFrom: true, hasTo: false, departAt: t, extra: "", now })).toBe(false);
+    expect(canSendReport({ hasFrom: false, hasTo: false, departAt: t, extra: "home to work", now })).toBe(true);
+  });
+
+  it("holds a set-off time of just now (Adam, 28 Sep: both trips saved at the minute he reported)", () => {
+    const now = at(2026, 9, 28, 18, 41).getTime();
+    expect(isTooRecent(new Date(now), now)).toBe(true);
+    expect(isTooRecent(at(2026, 9, 28, 18, 37), now)).toBe(true);
+    expect(isTooRecent(at(2026, 9, 28, 18, 35), now)).toBe(false);
+    expect(isTooRecent(null, now)).toBe(false);
+    expect(canSendReport({ hasFrom: true, hasTo: true, departAt: new Date(now), extra: "", now })).toBe(false);
   });
 });
 
