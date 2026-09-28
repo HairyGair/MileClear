@@ -43,6 +43,16 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
     if (!isFree) return;
     setSource(src);
     setVisible(true);
+    // Demand before the season (28 Sep 2026): which Pro feature a free user
+    // reached for, read weekly by apps/api/scripts/growth-indicators.mjs.
+    import("../../lib/api/index")
+      .then(({ apiRequest }) =>
+        apiRequest("/user/event", {
+          method: "POST",
+          body: JSON.stringify({ type: "paywall.shown", metadata: { source: src ?? null } }),
+        })
+      )
+      .catch(() => {});
   }, [isFree]);
 
   const handleClose = useCallback(() => {
