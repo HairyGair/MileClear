@@ -22,6 +22,12 @@ vi.mock("../../lib/push.js", () => ({
   sendPushToUser: vi.fn().mockResolvedValue({ id: "ticket" }),
 }));
 
+// The job skips quiet hours (21:00-08:00 UK); pin it to daytime so the
+// suite does not depend on when it runs.
+vi.mock("../../services/pushQuietHoursRule.js", () => ({
+  isPushQuietHours: () => false,
+}));
+
 vi.mock("../../services/appEvents.js", () => ({
   logEvent: vi.fn(),
 }));

@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
+import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { fetchDvlaVehicleInfo, DvlaError } from "../services/dvla.js";
 import { logEvent } from "../services/appEvents.js";
 import { suggestPlateCorrection, displayPlate } from "../services/plateSuggestion.js";
@@ -55,6 +56,9 @@ function isStale(date: Date | null, maxAgeDays: number): boolean {
  */
 export async function runVehicleRemindersJob(): Promise<void> {
   if (!process.env.DVLA_API_KEY) return;
+  // Quiet hours (lib/push.ts). The number-plate push is sent once ever, so a
+  // held one would be lost; skip the whole tick and let a daytime one run.
+  if (isPushQuietHours()) return;
 
   const vehicles = await prisma.vehicle.findMany({
     where: {

@@ -78,13 +78,13 @@ describe("digestAction", () => {
 });
 
 describe("inDigestWindow", () => {
-  it("is 20:30 to 21:29 inclusive", () => {
-    expect(inDigestWindow({ hour: 20, minute: 29 })).toBe(false);
+  it("is 20:00 to 20:59 inclusive, clear of the 21:00 quiet hours", () => {
+    expect(inDigestWindow({ hour: 19, minute: 59 })).toBe(false);
+    expect(inDigestWindow({ hour: 20, minute: 0 })).toBe(true);
     expect(inDigestWindow({ hour: 20, minute: 30 })).toBe(true);
     expect(inDigestWindow({ hour: 20, minute: 59 })).toBe(true);
-    expect(inDigestWindow({ hour: 21, minute: 0 })).toBe(true);
-    expect(inDigestWindow({ hour: 21, minute: 29 })).toBe(true);
-    expect(inDigestWindow({ hour: 21, minute: 30 })).toBe(false);
+    expect(inDigestWindow({ hour: 21, minute: 0 })).toBe(false);
+    expect(inDigestWindow({ hour: 21, minute: 29 })).toBe(false);
     expect(inDigestWindow({ hour: 8, minute: 45 })).toBe(false);
     expect(inDigestWindow({ hour: 0, minute: 0 })).toBe(false);
   });

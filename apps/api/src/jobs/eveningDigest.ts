@@ -11,7 +11,7 @@
 // email to admins and unrelated.
 //
 // Scheduling: hourly tick from startNotificationJobs, self-gated to the
-// 20:30-21:29 Europe/London window (every user is treated as UK for now).
+// 20:00-20:59 Europe/London window (every user is treated as UK for now).
 // One tick lands in that window per day; the AppEvent
 // `notification.evening_digest` dedups within the local day so a restart
 // inside the window cannot send twice.
@@ -26,6 +26,7 @@ import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { logEvent } from "../services/appEvents.js";
 import { CLASSIFY_NUDGE_EVENT } from "./classifyNudge.js";
+import { digestCountsFor } from "../services/autoTripsOffRule.js";
 
 export const EVENING_DIGEST_EVENT = "notification.evening_digest";
 export const EVENING_DIGEST_TZ = "Europe/London";
@@ -69,12 +70,13 @@ export function localClock(now: Date, tz: string = EVENING_DIGEST_TZ): LocalCloc
   };
 }
 
-/** The send window: 20:30 to 21:29 inclusive, local time. Hourly ticks hit it
- *  exactly once a day whatever minute of the hour the daemon booted on. */
+/** The send window: 20:00 to 20:59 inclusive, local time. Hourly ticks hit it
+ *  exactly once a day whatever minute of the hour the daemon booted on. It was
+ *  20:30-21:29 until 28 Sep 2026, when pushes got quiet hours from 21:00
+ *  (lib/push.ts): a tick landing after 21:00 would have been held and the day's
+ *  digest lost, so the whole window now sits before quiet hours begin. */
 export function inDigestWindow(clock: Pick<LocalClock, "hour" | "minute">): boolean {
-  if (clock.hour === 20) return clock.minute >= 30;
-  if (clock.hour === 21) return clock.minute < 30;
-  return false;
+  return clock.hour === 20;
 }
 
 /** UTC instant of local midnight on the given local calendar day. */
@@ -242,7 +244,7 @@ export async function runEveningDigestJob(now: Date = new Date()): Promise<Eveni
   const [users, alreadySent] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: userIds } },
-      select: { id: true, pushToken: true, pushPrefs: true },
+      select: { id: true, pushToken: true, pushPrefs: true, driveDetectionEnabled: true },
     }),
     prisma.appEvent.findMany({
       where: {
@@ -260,7 +262,11 @@ export async function runEveningDigestJob(now: Date = new Date()): Promise<Eveni
   const messages: ExpoPushMessage[] = [];
   const samples: string[] = [];
   for (const user of users) {
-    const c = counts.get(user.id)!;
+    // A driver with automatic trips off is not told about walks the engine
+    // ignored, and a day whose only news was walks sends nothing (28 Sep 2026,
+    // a shift-only driver got "2 walks ignored").
+    const c = digestCountsFor(counts.get(user.id)!, user.driveDetectionEnabled);
+    if (!c) continue;
     if (!user.pushToken) {
       result.skippedNoToken++;
       continue;

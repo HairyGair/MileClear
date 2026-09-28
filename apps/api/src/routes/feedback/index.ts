@@ -124,7 +124,9 @@ export async function feedbackRoutes(app: FastifyInstance) {
               a.id,
               "New feedback",
               `${sanitizeText(title)} - from ${who}`,
-              { action: "open_feedback" }
+              { action: "open_feedback" },
+              // Admin alert, not a driver reminder: goes at any hour.
+              { ignoreQuietHours: true }
             ).catch(() => {});
           }
         } catch (err) {

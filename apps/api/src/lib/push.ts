@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js";
+import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -19,6 +20,27 @@ export interface ExpoPushMessage {
   _contentAvailable?: boolean;
 }
 
+export interface PushSendOptions {
+  /** Send even between 21:00 and 08:00 UK time. Only for a push answering
+   *  something a person just did (a support reply, their own shift ending),
+   *  an admin tool, or an alert to admins. Reminders never set this. */
+  ignoreQuietHours?: boolean;
+}
+
+/**
+ * Quiet hours (28 Sep 2026: a shift-only driver was sent a streak reminder at
+ * about 04:18 UK time). A visible push is held back between 21:00 and 08:00 UK
+ * time unless the caller opts out; a silent content-available push shows the
+ * driver nothing, so it always goes. A held push is simply not sent: a job that
+ * dedups on "already sent today" must check isPushQuietHours() BEFORE it
+ * records the send, so the driver still gets it later in the day.
+ */
+function heldForQuietHours(message: ExpoPushMessage, options?: PushSendOptions): boolean {
+  if (options?.ignoreQuietHours) return false;
+  if (message._contentAvailable) return false;
+  return isPushQuietHours();
+}
+
 export interface ExpoPushTicket {
   status: "ok" | "error";
   id?: string;
@@ -32,8 +54,10 @@ export interface ExpoPushTicket {
  * callers are never blocked by notification failures.
  */
 export async function sendPushNotification(
-  message: ExpoPushMessage
+  message: ExpoPushMessage,
+  options?: PushSendOptions
 ): Promise<ExpoPushTicket | null> {
+  if (heldForQuietHours(message, options)) return null;
   try {
     const res = await fetch(EXPO_PUSH_URL, {
       method: "POST",
@@ -63,11 +87,27 @@ export async function sendPushNotification(
  * Returns all tickets in order.
  */
 export async function sendPushNotifications(
-  messages: ExpoPushMessage[]
+  messages: ExpoPushMessage[],
+  options?: PushSendOptions
 ): Promise<ExpoPushTicket[]> {
   if (messages.length === 0) return [];
   if (process.env.NODE_ENV === "test") return []; // never page a real device from a test
 
+  // Held pushes get an error ticket in place so callers that line tickets up
+  // with their messages by index still can.
+  const held = messages.map((m) => heldForQuietHours(m, options));
+  const toSend = messages.filter((_, i) => !held[i]);
+  const sentTickets = await sendPushBatches(toSend);
+  let next = 0;
+  return messages.map((_, i) =>
+    held[i]
+      ? { status: "error" as const, message: "quiet_hours" }
+      : sentTickets[next++] ?? { status: "error" as const, message: "no_ticket" }
+  );
+}
+
+async function sendPushBatches(messages: ExpoPushMessage[]): Promise<ExpoPushTicket[]> {
+  if (messages.length === 0) return [];
   const CHUNK_SIZE = 100;
   const tickets: ExpoPushTicket[] = [];
 
@@ -107,14 +147,17 @@ export async function sendPushNotifications(
  * Convenience helper: look up the user's push token from the database
  * and send a notification if they have one registered.
  *
- * Returns null if the user has no push token or on any error.
+ * Returns null if the user has no push token, the push was held for quiet
+ * hours, or on any error.
  */
 export async function sendPushToUser(
   userId: string,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  options?: PushSendOptions
 ): Promise<ExpoPushTicket | null> {
+  if (!options?.ignoreQuietHours && isPushQuietHours()) return null;
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { pushToken: true },
@@ -128,5 +171,5 @@ export async function sendPushToUser(
     body,
     sound: "default",
     data,
-  });
+  }, options);
 }

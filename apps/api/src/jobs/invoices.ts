@@ -23,6 +23,7 @@
 import { prisma } from "../lib/prisma.js";
 import { runJob } from "../services/jobRun.js";
 import { sendPushToUser } from "../lib/push.js";
+import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { logEvent } from "../services/appEvents.js";
 import { sendInvoiceEmail, type InvoiceEmailKind } from "../services/email.js";
 import { generateInvoicePdf } from "../services/export.js";
@@ -86,7 +87,10 @@ export async function runInvoiceChaseJob(): Promise<{
 
   // ── WARN pass (any hour — the warning itself can go out whenever the
   //    24h-lookahead first sees the chase; pushes at sane times only).
-  const warnWindowOk = now.getUTCHours() >= 8 && now.getUTCHours() < 20;
+  // 20:xx UTC is 21:xx UK time in summer, inside quiet hours (lib/push.ts):
+  // the push would be held but chaseWarnedAt still set, so never re-sent.
+  const warnWindowOk =
+    now.getUTCHours() >= 8 && now.getUTCHours() < 20 && !isPushQuietHours(now);
   if (warnWindowOk) {
     const upcoming = await prisma.invoice.findMany({
       where: {

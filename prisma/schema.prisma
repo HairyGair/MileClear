@@ -182,6 +182,13 @@ model User {
   recordingStartedAt    DateTime?
   lastDrivingSpeedAt    DateTime?
 
+  // The phone's "Drive detection" (automatic trips) switch, reported on the
+  // heartbeat. null = unknown (an app too old to send it) and is treated as on.
+  // 28 Sep 2026: a shift-only driver with it switched off was still offered
+  // "journeys to check" and told about ignored walks, because only the phone
+  // knew the setting.
+  driveDetectionEnabled Boolean?
+
   // Referral program (28 May 2026). Each user gets a unique code to share;
   // when an invited friend signs up AND records their first trip, the
   // referrer earns a free month of Pro (capped at 3). referralProUntil banks

@@ -47,6 +47,11 @@ import {
 import { findCoveringTrip, INFERRED_PROPOSAL_SOURCES } from "../../services/missedJourneyCoverRule.js";
 import { isOfferExpired, OFFER_MAX_AGE_DAYS } from "../../services/missedJourneyExpiryRule.js";
 import { checkAcceptedTimes } from "../../services/missedJourneyAcceptRule.js";
+import {
+  autoTripsOff,
+  missedJourneySourceAllowed,
+  SOURCES_KEPT_WHEN_AUTO_TRIPS_OFF,
+} from "../../services/autoTripsOffRule.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
@@ -1406,6 +1411,59 @@ export async function tripRoutes(app: FastifyInstance) {
 
   app.get("/missed-journeys", async (request, reply) => {
     const userId = request.userId!;
+
+    // Automatic trips switched off on the phone (reported on the heartbeat):
+    // no scan. A gap between two shifts is the driver's own time, and every
+    // other source bar a discarded Start Trip came from the engine they turned
+    // off (28 Sep 2026, a shift-only driver was offered private drives between
+    // shifts). Open rows are left as they are, just not shown, so turning
+    // detection back on brings the list back through the normal scan.
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { driveDetectionEnabled: true },
+    });
+    if (autoTripsOff(owner?.driveDetectionEnabled)) {
+      const nowOff = Date.now();
+      const kept = await prisma.missedJourneyProposal.findMany({
+        where: { userId, status: "proposed", source: { in: [...SOURCES_KEPT_WHEN_AUTO_TRIPS_OFF] } },
+        orderBy: { arrivedAt: "desc" },
+        take: 200,
+      });
+      const live = kept.filter((p) => !isOfferExpired(p, nowOff));
+      // Still never offer a drive that is already a trip (the 26 Sep check
+      // below); read-only here, since this branch does not own the rows.
+      let coverTrips: { id: string; startedAt: Date; endedAt: Date | null; endLat: number | null; endLng: number | null }[] = [];
+      if (live.length > 0) {
+        const minDeparted = new Date(Math.min(...live.map((p) => p.departedAt.getTime())));
+        const maxArrived = new Date(Math.max(...live.map((p) => p.arrivedAt.getTime())));
+        coverTrips = await prisma.trip.findMany({
+          where: {
+            userId,
+            isPhantomTrip: false,
+            startedAt: { lte: maxArrived },
+            endedAt: { gte: minDeparted },
+          },
+          select: { id: true, startedAt: true, endedAt: true, endLat: true, endLng: true },
+        });
+      }
+      return reply.send({
+        proposals: live
+          .filter((p) => !findCoveringTrip(p, coverTrips))
+          .slice(0, MISSED_MAX_RESULTS)
+          .map((p) => ({
+            id: p.id,
+            fromLat: p.fromLat, fromLng: p.fromLng,
+            toLat: p.toLat, toLng: p.toLng,
+            fromAddress: p.fromAddress, toAddress: p.toAddress,
+            departedAt: p.departedAt.toISOString(),
+            arrivedAt: p.arrivedAt.toISOString(),
+            estimatedMiles: p.estimatedMiles,
+            source: p.source,
+            recordedMiles: p.recordedMiles,
+          })),
+      });
+    }
+
     const since = new Date(Date.now() - MISSED_SCAN_DAYS * 24 * 60 * 60 * 1000);
     const trips: MissedJourneyTripInput[] = await prisma.trip.findMany({
       where: { userId, isPhantomTrip: false, startedAt: { gte: since } },
@@ -1708,6 +1766,24 @@ export async function tripRoutes(app: FastifyInstance) {
     // dropped here; the rest are offered and the driver decides.
     const worth = isRecordedDiscardWorthOffering(d);
     const source = discardedRecordingSource(d.reason);
+
+    // Automatic trips switched off on the phone: only a discarded Start Trip
+    // (the driver's own recording) is kept. Answered 200 with a reason, like
+    // every other skip here, so the phone's queue does not retry it (28 Sep
+    // 2026, a shift-only driver was told about walks the engine ignored).
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { driveDetectionEnabled: true },
+    });
+    if (!missedJourneySourceAllowed(source, owner?.driveDetectionEnabled)) {
+      logEvent("trip.discarded_recording_skipped", userId, {
+        reason: "auto_trips_off",
+        discardReason: d.reason,
+        source,
+        recordedMiles: d.recordedMiles,
+      });
+      return reply.send({ ok: true, skipped: "auto_trips_off" });
+    }
     if (!worth.ok) {
       logEvent("trip.discarded_recording_skipped", userId, {
         reason: worth.reason,

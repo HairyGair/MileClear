@@ -32,7 +32,8 @@ import { runGeocodeMissingAddressesJob } from "./geocodeMissingAddresses.js";
 import { runVisitSplitJob } from "./visitSplit.js";
 import { runTaxTipOfTheDayJob } from "./taxTipOfTheDay.js";
 import { runWeeklyDigestJob } from "./weeklyDigest.js";
-import { runEveningDigestJob } from "./eveningDigest.js";
+import { runEveningDigestJob, localDayBounds } from "./eveningDigest.js";
+import { inStreakReminderWindow, isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { runClassifyNudgeJob } from "./classifyNudge.js";
 import {
   runUnclassifiedNudgeEmailJob,
@@ -51,9 +52,11 @@ import {
 
 // Persistent dedup via AppEvent table — survives PM2 restarts.
 // Checks if a notification event was already logged for a user today.
+// "Today" is the UK day. It was the server's (UTC) day until 28 Sep 2026: the
+// streak reminder's first tick after UTC midnight landed at about 04:18 UK
+// time for a shift-only driver, and the dedup then blocked the daytime ones.
 async function wasNotifiedToday(userId: string, eventType: string): Promise<boolean> {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = localDayBounds(new Date()).start;
 
   const existing = await prisma.appEvent.findFirst({
     where: {
@@ -83,6 +86,9 @@ async function wasEverNotified(userId: string, eventType: string): Promise<boole
 async function runStreakAtRiskJob(): Promise<void> {
   try {
     const now = new Date();
+    // Daytime only (28 Sep 2026: a shift-only driver got this at ~04:18 UK
+    // time). Runs on the 30-minute windowed runner so the window is always hit.
+    if (!inStreakReminderWindow(now) || isPushQuietHours(now)) return;
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const fiveDaysAgo = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
 
@@ -155,6 +161,9 @@ async function runStreakAtRiskJob(): Promise<void> {
 async function runSubExpiringJob(): Promise<void> {
   try {
     const now = new Date();
+    // Quiet hours (lib/push.ts): return before anyone is marked as told today,
+    // so the next daytime tick sends it.
+    if (isPushQuietHours(now)) return;
     const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
     const expiring = await prisma.user.findMany({
@@ -204,6 +213,7 @@ async function runSubExpiringJob(): Promise<void> {
 async function runWeeklyRecapJob(): Promise<void> {
   try {
     const now = new Date();
+    if (isPushQuietHours(now)) return; // before any dedup is written
     // Only send on Mondays (day 1)
     if (now.getDay() !== 1) return;
     // Only send between 8am–10am to target morning delivery
@@ -264,6 +274,7 @@ async function runWeeklyRecapJob(): Promise<void> {
 async function runMonthlyRecapJob(): Promise<void> {
   try {
     const now = new Date();
+    if (isPushQuietHours(now)) return; // before any dedup is written
     // Only send on the 1st of the month
     if (now.getDate() !== 1) return;
     // Only send between 9am–11am
@@ -326,6 +337,9 @@ async function runMonthlyRecapJob(): Promise<void> {
 async function runWelcomeNudgeJob(): Promise<void> {
   try {
     const now = new Date();
+    // One-time push: during quiet hours (lib/push.ts) it would be held but
+    // still recorded as sent, so it would never go. Wait for daytime.
+    if (isPushQuietHours(now)) return;
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
@@ -557,11 +571,13 @@ export async function sendShiftSummaryPush(
       body += `. ${formatPence(stats.deductionPence)} added to this year's deduction.`;
     }
 
+    // Answers the driver ending their own shift, so it goes at any hour.
     await sendPushToUser(
       userId,
       "Shift wrapped",
       body,
-      { type: "shift_summary", action: "open_dashboard" }
+      { type: "shift_summary", action: "open_dashboard" },
+      { ignoreQuietHours: true }
     );
   } catch (err) {
     console.error("[notifications] Shift summary push failed:", err);
@@ -577,6 +593,9 @@ async function runMorningBriefingJob(): Promise<void> {
   const now = new Date();
   // Send between 7-9 UTC (covers 8am BST and 8am GMT)
   if (now.getUTCHours() < 7 || now.getUTCHours() >= 9) return;
+  // In GMT 07:xx UTC is 07:xx UK time, inside quiet hours (lib/push.ts): wait
+  // for the 08:00 ticks rather than log a briefing that was never delivered.
+  if (isPushQuietHours(now)) return;
 
   const todayStart = new Date(now);
   todayStart.setUTCHours(0, 0, 0, 0);
@@ -732,6 +751,7 @@ async function runFuelPriceAlertJob(): Promise<void> {
   // received a ~3am push every night for weeks before cancelling.
   const now = new Date();
   if (now.getUTCHours() < 7 || now.getUTCHours() >= 9) return;
+  if (isPushQuietHours(now)) return; // 07:xx UK time in GMT; see the briefing
 
   // Get users with push tokens + saved locations
   const users = await prisma.user.findMany({
@@ -813,6 +833,10 @@ async function runDiagnosticScanJob(): Promise<void> {
   // made stuck recordings invisible mid-week. 24h lets us re-alert daily
   // until the user resolves the underlying problem.
   const ALERT_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+  // Quiet hours (lib/push.ts): skip the whole tick so no alert is logged as
+  // sent while it was held; the next daytime tick sends it.
+  if (isPushQuietHours()) return;
 
   // Only scan dumps from the last 48 hours. Older dumps are stale -
   // the user may have fixed the issue since uploading. This prevents
@@ -1349,6 +1373,10 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
   // the setting (e.g. iOS prompts gone, MDM-locked).
   const ALERT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
+  // Quiet hours (lib/push.ts): skip the whole tick so no alert is logged as
+  // sent while it was held; the next daytime tick sends it.
+  if (isPushQuietHours()) return;
+
   // Only act on users who heartbeat-reported in the last 7 days. Anyone
   // older has either uninstalled or stopped using the app — pushing them
   // is just churn.
@@ -1573,7 +1601,6 @@ export function startNotificationJobs(): void {
   const BRIEFING_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes (checks time window internally)
 
   const runAll = () => {
-    void runJob("streak_at_risk", runStreakAtRiskJob);
     void runJob("sub_expiring", runSubExpiringJob);
     void runJob("weekly_recap", runWeeklyRecapJob);
     void runJob("monthly_recap", runMonthlyRecapJob);
@@ -1592,6 +1619,9 @@ export function startNotificationJobs(): void {
   // return immediately outside their window and are per-user deduped inside
   // it, so the 30-min cadence is cheap.
   const runWindowed = () => {
+    // Moved off the 6h loop 28 Sep 2026: the restart phase-locked it to
+    // ~03:18 UTC, so drivers got it at ~04:18 UK time. Self-gates to 10-12 UK.
+    void runJob("streak_at_risk", runStreakAtRiskJob);
     void runJob("morning_briefing", runMorningBriefingJob);
     void runJob("fuel_price_alert", runFuelPriceAlertJob);
     // Day 1 and day 3 sit alongside the welcome nudge and check-in email
@@ -1729,7 +1759,7 @@ export function startNotificationJobs(): void {
       WEEKLY_DIGEST_INTERVAL_MS
     );
 
-    // Evening digest: hourly tick, internal 20:30-21:29 UK gate, per-user
+    // Evening digest: hourly tick, internal 20:00-20:59 UK gate, per-user
     // per-day dedup. "Today: 4 trips, 21 miles. 2 walks ignored." Dry run
     // unless EVENING_DIGEST_DRY_RUN=0.
     const EVENING_DIGEST_INTERVAL_MS = 60 * 60 * 1000;

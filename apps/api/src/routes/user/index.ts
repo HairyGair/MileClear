@@ -5,6 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { stripe } from "../../lib/stripe.js";
 import { verifyPassword } from "../../services/auth.js";
 import { sendPushToUser } from "../../lib/push.js";
+import { isPushQuietHours } from "../../services/pushQuietHoursRule.js";
 import { logEvent } from "../../services/appEvents.js";
 import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
@@ -184,6 +185,11 @@ async function analyzeDiagnosticAndAlert(
     metadata?: Record<string, unknown>,
   ) {
     if (await wasAlertedRecently(alertUserId, alertType)) return;
+    // Quiet hours (lib/push.ts). A dump can upload from a background
+    // relaunch at any hour, and logging the alert below while the push is
+    // held would start its 7-day cooldown unsent. Leave it to the daytime
+    // diagnostic scan, which reads the same dump.
+    if (isPushQuietHours()) return;
 
     // Alert the user
     await sendPushToUser(alertUserId, title, body, data);
@@ -1311,6 +1317,10 @@ export async function userRoutes(app: FastifyInstance) {
     autoRecordingActive: z.boolean().optional(),
     recordingStartedAt: z.string().datetime().optional(),
     lastDrivingSpeedAt: z.string().datetime().optional(),
+    // The phone's Drive detection (automatic trips) switch. Only the phone
+    // knew it, so a shift-only driver with it off was still offered journeys
+    // to check and told about ignored walks (28 Sep 2026).
+    driveDetectionEnabled: z.boolean().optional(),
   });
 
   app.post("/heartbeat", async (request, reply) => {
@@ -1339,6 +1349,11 @@ export async function userRoutes(app: FastifyInstance) {
         autoRecordingActive: d.autoRecordingActive ?? null,
         recordingStartedAt: d.recordingStartedAt ? new Date(d.recordingStartedAt) : null,
         lastDrivingSpeedAt: d.lastDrivingSpeedAt ? new Date(d.lastDrivingSpeedAt) : null,
+        // Written only when sent: an app too old to report the switch leaves
+        // the last known value (or null, treated as on) alone.
+        ...(d.driveDetectionEnabled !== undefined
+          ? { driveDetectionEnabled: d.driveDetectionEnabled }
+          : {}),
         // Only ever set from the heartbeat, never cleared by it: a client that
         // cannot read its token (older build, iOS < 17.2) must not wipe a good
         // one.

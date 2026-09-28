@@ -72,7 +72,7 @@ async function notifyAdminsByPush(input: BillingAlertInput): Promise<number> {
         kind: input.kind,
         originalTransactionId: input.originalTransactionId ?? null,
         userId: input.userId ?? null,
-      });
+      }, { ignoreQuietHours: true }); // admin alert: any hour
       if (ticket) sent += 1;
     } catch {
       // Swallow per-admin failures so one bad token doesn't block others.

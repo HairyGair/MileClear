@@ -434,10 +434,15 @@ export async function teamRoutes(app: FastifyInstance) {
       const body = note!.length > 300 ? `${note!.slice(0, 297)}...` : note!;
       // Skips silently if the driver has no push token - a user with no
       // token cannot be pinged, and that is not this endpoint's problem.
-      await sendPushToUser(userId, "Your manager queried this month's mileage", body, {
-        type: "team_month_queried",
-        action: "open_trips",
-      });
+      // A person's message sent just now, and never re-sent, so it is not
+      // held for quiet hours (lib/push.ts).
+      await sendPushToUser(
+        userId,
+        "Your manager queried this month's mileage",
+        body,
+        { type: "team_month_queried", action: "open_trips" },
+        { ignoreQuietHours: true }
+      );
     }
 
     return reply.status(201).send({ data: approval });

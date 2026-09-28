@@ -586,7 +586,9 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                 body: "Your MileClear Pro payment didn't go through. Update your payment method in App Store settings.",
                 sound: "default",
                 data: { type: "payment_failed", action: "open_billing" },
-              });
+                // One-shot webhook, never re-sent: holding it for quiet hours
+                // (lib/push.ts) would lose it, and the driver's Pro with it.
+              }, { ignoreQuietHours: true });
             } catch (err) {
               app.log.error(
                 { err },
