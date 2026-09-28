@@ -1411,6 +1411,7 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
       lastDrivingSpeedAt: true,
       lastHeartbeatAt: true,
       createdAt: true,
+      driveDetectionEnabled: true,
     },
   });
 
@@ -1511,10 +1512,16 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
     //     Deliberately gentle and rare: disabling detection is a legitimate
     //     choice (battery, privacy, a shift-only workflow), so this is worded
     //     as information rather than a fault and repeats only every 30 days.
+    //
+    //     Not sent at all once the phone reports the setting itself
+    //     (driveDetectionEnabled false, app versions with the "Automatic
+    //     trips" switch on the home screen): the choice is on screen every
+    //     time the app opens, and a 3-star review on 24 Sep 2026 from a
+    //     shift-only driver was about exactly this kind of nag.
     const detectionDump = dumpByUser.get(user.id);
     const detectionOff =
       (detectionDump?.statusJson as { enabled?: boolean } | null)?.enabled === false;
-    if (detectionOff) {
+    if (detectionOff && user.driveDetectionEnabled !== false) {
       checks.push({
         condition: true,
         alertType: "alert.detection_disabled",
