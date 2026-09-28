@@ -31,6 +31,8 @@ import {
   finalizeAutoTrip,
   isFinalizeInFlight,
   isDriveDetectionEnabled,
+  isDriveDetectionSwitchOn,
+  enforceDriveDetectionOff,
   startNativeAutoTripLiveActivity,
   pushAutoTripLiveActivityProgress,
   shiftSuppressesAutoDetection,
@@ -70,6 +72,7 @@ import {
   type StoredEnginePower,
 } from "./enginePowerRule";
 import { shouldStopNativeEngine } from "./nativeStopRule";
+import { readDetectionSwitch } from "./detectionOffRule";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -848,7 +851,7 @@ export function applyEnginePower(source: string): Promise<EnginePowerMode | null
       if (!(await isNativeLocationEngineEnabled())) return null;
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('drive_pause_until', 'active_shift_id', 'auto_recording_active', ?)",
+        "SELECT key, value FROM tracking_state WHERE key IN ('drive_pause_until', 'active_shift_id', 'auto_recording_active', 'drive_detection_enabled', ?)",
         [ENGINE_POWER_KEY]
       );
       const map: Record<string, string> = {};
@@ -858,6 +861,7 @@ export function applyEnginePower(source: string): Promise<EnginePowerMode | null
         pausedUntil: pausedRaw !== undefined ? Number(pausedRaw) : null,
         now: Date.now(),
         activeShiftId: map["active_shift_id"] ?? null,
+        detectionOff: !readDetectionSwitch(map["drive_detection_enabled"]),
       });
       const current = parseEnginePower(map[ENGINE_POWER_KEY]);
       if (decision.mode === current.mode) {
@@ -1268,6 +1272,22 @@ async function applyKerbsideDecision(): Promise<{ kind: string } | null> {
 // is buffered exactly as it is when the app is alive. Not for any other
 // caller: the SDK routes each event to either the live listeners or the
 // headless task, never both.
+/**
+ * An event reached a handler with Automatic trips switched off (not paused).
+ * The engine should not be running at all (28 Sep 2026, detectionOffRule.ts),
+ * so stop it here, from whichever event proves it still is: an engine a build
+ * before this one left running, or one the OS relaunched. A shift or Start
+ * Trip in progress keeps it; enforceDriveDetectionOff decides.
+ */
+async function stopIfSwitchedOff(source: string): Promise<void> {
+  try {
+    if (await isDriveDetectionSwitchOn()) return; // paused, not off
+    await enforceDriveDetectionOff(source, false);
+  } catch {
+    // best effort: the next app open enforces it again
+  }
+}
+
 export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
   try {
     // Same pause decision as the motion handler, because a fix can arrive
@@ -1283,7 +1303,10 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       await sleepNativeEngine("fix_while_paused", false);
       return;
     }
-    if (!(await isDriveDetectionEnabled())) return;
+    if (!(await isDriveDetectionEnabled())) {
+      await stopIfSwitchedOff("fix_while_off");
+      return;
+    }
     const db = await getDatabase();
     // Heartbeat: stamp every native fix (recording or not) so the diagnostics
     // screen can positively confirm the native engine is alive and delivering
@@ -1471,7 +1494,10 @@ export async function handleNativeMotionChange(event: NativeMotionEvent): Promis
       if (event.isMoving) await sleepNativeEngine("motion_while_paused");
       return;
     }
-    if (!(await isDriveDetectionEnabled())) return;
+    if (!(await isDriveDetectionEnabled())) {
+      await stopIfSwitchedOff("motion_while_off");
+      return;
+    }
     // Log every motion-state change (low volume, high diagnostic value) so a
     // dump shows whether RNBG actually fired "moving" when a drive started.
     logDetectionEvent("native_motionchange", {
@@ -1650,13 +1676,14 @@ async function handleNativeHeartbeat(): Promise<void> {
     if ((await readEnginePower()).mode === "low") await refreshEnginePowerOnWake("heartbeat", false);
     if (!(await isDriveDetectionEnabled())) {
       // Detection was switched off while preventSuspend held the app alive
-      // (e.g. mid keep-alive window). The settings toggle doesn't stop RNBG on
-      // native-engine devices, so without this release the heartbeat would keep
-      // firing forever with the wake lock pinned ON — the opposite of what
-      // "turn off auto-tracking" means. Release and let iOS suspend normally.
+      // (e.g. mid keep-alive window). Until 28 Sep 2026 the switch did not
+      // stop RNBG on native-engine devices, and without this release the
+      // heartbeat would keep firing forever with the wake lock pinned ON.
+      // Release, and (switched off rather than paused) stop the engine.
       const db = await getDatabase();
       await db.runAsync("DELETE FROM tracking_state WHERE key = 'keepalive_until'");
       await setNativePreventSuspend(false);
+      await stopIfSwitchedOff("heartbeat_while_off");
       return;
     }
     const db = await getDatabase();

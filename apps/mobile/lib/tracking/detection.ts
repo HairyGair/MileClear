@@ -1,5 +1,6 @@
 import { AppState, Platform } from "react-native";
 import { isPauseActive, pauseWakeDecision, type PauseWake } from "./pauseRule";
+import { detectionOffAction, readDetectionSwitch, shouldDiscardAutoRoute, type DetectionOffAction } from "./detectionOffRule";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import * as BackgroundFetch from "expo-background-fetch";
@@ -1240,6 +1241,15 @@ async function isStillDrivingViaLocation(source: string): Promise<boolean> {
  */
 export async function finalizeAutoTrip(): Promise<void> {
   if (finalizingTrip) return;
+  // Automatic trips switched off: whatever the recorder buffered is not
+  // wanted, so it becomes neither a trip, nor a journey to check, nor a
+  // "we ignored 2 walks" notice (28 Sep 2026, a shift-only driver whose
+  // off-shift drives and walks kept turning up after she had switched it off).
+  if (shouldDiscardAutoRoute(await isDriveDetectionSwitchOn())) {
+    await discardAutoRecordingWhileOff("finalize");
+    await releaseStrandedQuickTripLock();
+    return;
+  }
   finalizingTrip = true;
   // Surface "Saving trip…" on the dashboard status strip while finalize runs.
   // Best-effort both ways; the strip ignores a stale flag after 2 minutes.
@@ -2729,9 +2739,14 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
       nativeCount: native?.count ?? null,
       nativeNewestMs: native?.newestMs ?? null,
       shiftActive: await shiftSuppressesAutoDetection(db),
+      detectionOff: !(await isDriveDetectionSwitchOn()),
       savedOverlap,
       now: Date.now(),
     });
+    if (decision.discard && decision.reason === "detection_off") {
+      await discardAutoRecordingWhileOff(`sweep_${source}`, native?.count ?? null);
+      return;
+    }
     if (decision.discard) {
       logDetectionEvent("orphan_route_skipped_duplicate", {
         source,
@@ -3777,6 +3792,14 @@ export async function bootNativeEngineOnLaunch(): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
     );
     if (onboarded?.value !== "true") return;
+    // Automatic trips off: the SDK may still be running natively from before
+    // (startOnBoot, stopOnTerminate:false, or a build that never stopped it),
+    // so stop it here rather than only declining to start it (28 Sep 2026).
+    // No lock self-heal this early: it can end a shift, which needs auth.
+    if (!(await isDriveDetectionSwitchOn())) {
+      await enforceDriveDetectionOff("boot", false);
+      return;
+    }
     if (!(await isDriveDetectionEnabled())) return;
 
     const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
@@ -4084,6 +4107,15 @@ export async function startDriveDetection(): Promise<void> {
   // gives the dumps a reason, so a silent phone is no longer a guess.
   const enabled = await isDriveDetectionEnabled();
   if (!enabled) {
+    // Switched off, as opposed to paused: stop the native engine and empty
+    // its store, unless a shift or Start Trip is running, in which case this
+    // runs again when it ends (both stop paths finish here). Checked before
+    // the pause, which would otherwise arm the engine (28 Sep 2026).
+    if (!(await isDriveDetectionSwitchOn())) {
+      const action = await enforceDriveDetectionOff("start_detection", true);
+      logDetectionEvent("detection_skipped", { reason: "disabled", action }).catch(() => {});
+      return;
+    }
     const pausedUntil = await getDrivePauseUntil();
     if (pausedUntil !== null) {
       await armNativeEngineWhilePaused();
@@ -4638,6 +4670,114 @@ export async function isDriveDetectionEnabled(): Promise<boolean> {
   return !isPauseActive(until, Date.now());
 }
 
+/**
+ * The permanent switch alone (Automatic trips / Drive detection), ignoring any
+ * pause. isDriveDetectionEnabled reads false during a pause too, and a paused
+ * phone must stay armed while a switched-off one must not, so the off paths
+ * ask this instead. Unreadable reads as on: a failed read must never be what
+ * stops a phone recording.
+ */
+export async function isDriveDetectionSwitchOn(): Promise<boolean> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
+    );
+    return readDetectionSwitch(row?.value);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Throw away an automatic recording because Automatic trips is off: the flags,
+ * the JS buffer and the native store, with no trip, no journey-to-check offer
+ * and no dropped-walk report. Never throws.
+ */
+async function discardAutoRecordingWhileOff(source: string, nativeCoords: number | null = null): Promise<void> {
+  try {
+    stopWatchdog();
+    const db = await getDatabase();
+    const buffered = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM detection_coordinates");
+    const wasRecording = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor', 'keepalive_until')"
+    );
+    await db.runAsync("DELETE FROM detection_coordinates");
+    await clearWatchModeFlags();
+    try {
+      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+      if (isNativeEngineAvailable()) await destroyNativeLocations();
+    } catch {}
+    if (wasRecording?.value === "1") {
+      dismissRecordingActiveNotification().catch(() => {});
+      endLiveActivity().catch(() => {});
+    }
+    const jsCoords = buffered?.n ?? 0;
+    if (jsCoords > 0 || (nativeCoords ?? 0) > 0 || wasRecording?.value === "1") {
+      logDetectionEvent("detection_off_discarded", {
+        source,
+        jsCoords,
+        nativeCoords,
+        wasRecording: wasRecording?.value === "1",
+      }).catch(() => {});
+    }
+  } catch {
+    // best effort: the next sweep asks again and discards again
+  }
+}
+
+/**
+ * Make Automatic trips: off true on this phone. When the switch is off and
+ * nothing the driver started is running, stop the native engine outright
+ * (force: it outlives the JS process that started it) and empty its store,
+ * and discard any automatic recording. With a shift or Start Trip running it
+ * does nothing and says so; the stop paths of both call startDriveDetection,
+ * which calls this again once the lock has gone.
+ *
+ * `checkLock` runs the lock self-heal (shiftSuppressesAutoDetection) so a
+ * ghost shift or abandoned Start Trip cannot keep a switched-off engine alive
+ * forever. Off where that is unsafe (before auth at boot, the headless task).
+ *
+ * Never throws; returns what it decided, "on" when it could not tell.
+ */
+export async function enforceDriveDetectionOff(source: string, checkLock: boolean): Promise<DetectionOffAction> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM tracking_state WHERE key IN ('drive_detection_enabled', 'active_shift_id')"
+    );
+    const map: Record<string, string> = {};
+    for (const r of rows) map[r.key] = r.value;
+    const switchOn = readDetectionSwitch(map["drive_detection_enabled"]);
+    let activeShiftId: string | null = map["active_shift_id"] ?? null;
+    if (!switchOn && activeShiftId && checkLock && !(await shiftSuppressesAutoDetection(db))) activeShiftId = null;
+    const action = detectionOffAction({ switchOn, activeShiftId });
+    if (action !== "stop_engine") return action;
+
+    await discardAutoRecordingWhileOff(source);
+    try {
+      await stopDriveDetection();
+    } catch {}
+    try {
+      const { isNativeEngineAvailable, stopNativeLocationEngine, destroyNativeLocations } = await import(
+        "./nativeLocation"
+      );
+      if (isNativeEngineAvailable()) {
+        await stopNativeLocationEngine({ force: true });
+        // After the stop, which readies the SDK if this process never did;
+        // a store left behind is what the next app open would have saved.
+        await destroyNativeLocations();
+      }
+    } catch {}
+    return action;
+  } catch {
+    return "on";
+  }
+}
+
 const PAUSE_KEY = "drive_pause_until";
 const OFF_AT_KEY = "drive_detection_off_at";
 const PAUSE_NOTIFICATION_ID = "drive-pause-ended";
@@ -4864,11 +5004,30 @@ export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> 
     await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [OFF_AT_KEY, String(Date.now())]);
   }
 
+  logDetectionEvent("detection_switch_set", { enabled }).catch(() => {});
+
   if (enabled) {
+    // Starts the engine, or for one left running under a shift or Start Trip
+    // re-applies its power mode, which takes it out of the "off" reason.
     await startDriveDetection();
   } else {
-    await stopDriveDetection();
+    // Off means off (28 Sep 2026): the old stopDriveDetection only stopped
+    // the legacy JS task and left the native engine recording at full GPS.
+    // enforceDriveDetectionOff stops the engine too, and a shift or Start
+    // Trip in progress keeps it until that ends. A drive being recorded
+    // right now is dropped: the driver has just said they do not want it.
+    try {
+      await stopDriveDetection();
+    } catch {}
+    const action = await enforceDriveDetectionOff("switch_off", false);
+    if (action !== "stop_engine") await applyNativeEnginePower("detection_off");
   }
+
+  // Tell the server straight away, not at the next daily heartbeat, so a
+  // support reply can see the driver's choice. Fire and forget.
+  import("../heartbeat")
+    .then((m) => m.maybeSendHeartbeat({ force: true }))
+    .catch(() => {});
 }
 
 /**

@@ -83,6 +83,38 @@ describe("decideEnginePower", () => {
   });
 });
 
+describe("decideEnginePower with Automatic trips off (28 Sep 2026)", () => {
+  it("is low when switched off and nothing is running", () => {
+    expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: null, detectionOff: true })).toEqual({
+      mode: "low",
+      reason: "off",
+    });
+  });
+
+  it("keeps the more specific reason while a pause, shift or Start Trip runs", () => {
+    expect(
+      decideEnginePower({ pausedUntil: NOW + HOUR, now: NOW, activeShiftId: null, detectionOff: true }).reason
+    ).toBe("paused");
+    expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: "s1", detectionOff: true }).reason).toBe(
+      "shift"
+    );
+    expect(
+      decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: QUICK_TRIP_LOCK_ID, detectionOff: true }).reason
+    ).toBe("quick_trip");
+  });
+
+  it("is normal when on, or when the caller does not say", () => {
+    expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: null, detectionOff: false }).mode).toBe(
+      "normal"
+    );
+    expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: null }).mode).toBe("normal");
+  });
+
+  it("round-trips the off reason through storage", () => {
+    expect(parseEnginePower(serializeEnginePower({ mode: "low", reason: "off" }))).toEqual({ mode: "low", reason: "off" });
+  });
+});
+
 describe("enginePowerConfig", () => {
   it("normal on iOS is today's launch capture config plus the explicit significant-changes default", () => {
     expect(enginePowerConfig("normal", "ios", ACC)).toEqual({

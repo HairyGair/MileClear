@@ -37,14 +37,12 @@ const base: MessageInputs = {
 };
 const on = (over: Partial<MessageInputs>) => selectDashboardMessages({ ...base, ...over });
 
-describe("recording switched off in Settings", () => {
-  it("is the first suggestion, ahead of everything else", () => {
+describe("Automatic trips switched off", () => {
+  // 28 Sep 2026: the dashboard's own switch row shows the off state, so a
+  // driver who chose shifts only is not also nagged by a suggestion.
+  it("is not a suggestion: the other suggestions keep their places", () => {
     const r = on({ detectionOffSince: NOW - 3 * 24 * 3600 * 1000, firstTripEligible: true, referralEligible: true });
-    expect(r.suggestions[0]).toBe("detection_off");
-    expect(r.suggestions).toHaveLength(2);
-  });
-  it("is absent while recording is on", () => {
-    expect(on({}).suggestions).not.toContain("detection_off");
+    expect(r.suggestions).toEqual(["first_trip", "referral"]);
   });
 });
 

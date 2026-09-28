@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
 import { ToggleRow } from "../../components/settings/ToggleRow";
 import {
-  isDriveDetectionEnabled,
-  setDriveDetectionEnabled,
   getJourneyEndMinutes,
   setJourneyEndMinutes,
 } from "../../lib/tracking/detection";
+import { readAutomaticTrips, setAutomaticTrips } from "../../lib/tracking/automaticTrips";
 import { JOURNEY_END_CHOICES } from "../../lib/tracking/journeyBoundary";
 import {
   isBatterySaverEnabled,
@@ -18,9 +17,9 @@ import {
 } from "../../lib/tracking/batteryAware";
 
 /**
- * Tracking & Locations settings: drive detection, classification rules,
+ * Tracking & Locations settings: automatic trips, classification rules,
  * saved locations, work schedule, diagnostics. Mostly chevrons that hand
- * off to existing screens; only "Drive detection" changes state inline.
+ * off to existing screens; the toggles change state inline.
  */
 export default function TrackingSettings() {
   const router = useRouter();
@@ -28,8 +27,15 @@ export default function TrackingSettings() {
   const [batterySaver, setBatterySaver] = useState(true);
   const [journeyEnd, setJourneyEnd] = useState(30);
 
+  // Automatic trips is also on the dashboard (28 Sep 2026), so re-read it
+  // every time this screen shows rather than once.
+  useFocusEffect(
+    useCallback(() => {
+      readAutomaticTrips().then(setDriveDetection).catch(() => {});
+    }, [])
+  );
+
   useEffect(() => {
-    isDriveDetectionEnabled().then(setDriveDetection).catch(() => {});
     isBatterySaverEnabled().then(setBatterySaver).catch(() => {});
     getJourneyEndMinutes().then(setJourneyEnd).catch(() => {});
   }, []);
@@ -56,12 +62,13 @@ export default function TrackingSettings() {
   }, []);
 
   const toggleDriveDetection = useCallback((next: boolean) => {
-    // Confirm before switching OFF — silently disabling capture is how drives
-    // go missing without the user realising. Turning ON is friction-free.
+    // Confirm before switching OFF: silently disabling capture is how drives
+    // go missing without the user realising. Turning ON asks for "Always"
+    // location first if it is missing (setAutomaticTrips).
     if (!next) {
       Alert.alert(
-        "Turn off auto-tracking?",
-        "New drives won't be recorded automatically while it's off. You can still add trips by hand with + on the Trips screen.",
+        "Turn off automatic trips?",
+        "Only shifts and Start Trip will record. Drives outside those won't be kept. You can still add trips by hand with + on the Trips screen.",
         [
           { text: "Keep it on", style: "cancel" },
           {
@@ -69,7 +76,7 @@ export default function TrackingSettings() {
             style: "destructive",
             onPress: () => {
               setDriveDetection(false);
-              setDriveDetectionEnabled(false);
+              setAutomaticTrips(false).catch(() => {});
             },
           },
         ]
@@ -77,7 +84,7 @@ export default function TrackingSettings() {
       return;
     }
     setDriveDetection(true);
-    setDriveDetectionEnabled(true);
+    setAutomaticTrips(true).catch(() => {});
   }, []);
 
   const toggleBatterySaver = useCallback((next: boolean) => {
@@ -90,8 +97,12 @@ export default function TrackingSettings() {
       <SettingsGroup title="DETECTION">
         <ToggleRow
           icon="navigate-outline"
-          label="Drive detection"
-          hint="Auto-detect drives outside shifts and prompt to track"
+          label="Automatic trips"
+          hint={
+            driveDetection
+              ? "Drives record by themselves."
+              : "Only shifts and Start Trip record."
+          }
           value={driveDetection}
           onToggle={toggleDriveDetection}
         />

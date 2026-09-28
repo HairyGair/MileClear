@@ -19,6 +19,7 @@ import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 import { segmentTrips } from "./shiftSegments";
+import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
 import {
   ARRIVED_PENDING_SHIFT_ID,
@@ -705,9 +706,14 @@ async function processShiftTripsOnce(
     ]);
 
     try {
-      // Check work schedule for auto-classification
+      // A real shift's trips are business: the driver started the shift to
+      // say they were working (28 Sep 2026, a shift-only driver tagging every
+      // one by hand). Anything else keeps the work schedule's answer.
       const tripTime = new Date(first.recorded_at);
-      const classification = await getScheduleClassification(tripTime);
+      const classification = shiftTripClassification(
+        serverShiftId,
+        await getScheduleClassification(tripTime)
+      );
 
       // Downsample coordinates if the filtered segment exceeds the API limit.
       // API max is 20000; we preserve start + end and evenly sample the rest

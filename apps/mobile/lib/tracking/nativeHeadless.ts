@@ -429,6 +429,29 @@ async function bufferHeadless(params: unknown): Promise<void> {
   }
 }
 
+/**
+ * Automatic trips switched off (not paused): this task must do nothing at all.
+ * The engine should not be running, and one that is (left by an older build,
+ * or brought back by a reboot, since the SDK has startOnBoot) is stopped here
+ * and its store emptied, unless a shift or Start Trip is in progress, which
+ * records with its own task. True means the event is handled: return.
+ *
+ * 28 Sep 2026, a shift-only driver: this task used to open recordings with
+ * the app closed and the switch off, and the next app open turned them into
+ * trips and "we ignored 2 walks" notices. An unreadable switch reads as on, so
+ * a failure here can only ever cost battery, never a drive.
+ */
+async function handledAsSwitchedOff(): Promise<boolean> {
+  try {
+    const { isDriveDetectionSwitchOn, enforceDriveDetectionOff } = await import("./detection");
+    if (await isDriveDetectionSwitchOn()) return false;
+    await enforceDriveDetectionOff("headless", false);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function registerNativeHeadlessTask(): void {
   if (Platform.OS !== "android") return;
   let BGGeo: BgGeoHeadless | null = null;
@@ -443,6 +466,7 @@ export function registerNativeHeadlessTask(): void {
   BGGeo.registerHeadlessTask(async (event) => {
     const name = String(event?.name ?? "");
     try {
+      if (await handledAsSwitchedOff()) return;
       if (name === "boot" || name === "terminate") {
         await rearmIfStationary(BGGeo!, name);
       } else if (name === "heartbeat") {

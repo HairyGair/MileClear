@@ -31,7 +31,7 @@ import { isPauseActive } from "./pauseRule";
 export const QUICK_TRIP_LOCK_ID = "__quick_trip__";
 
 export type EnginePowerMode = "low" | "normal";
-export type EnginePowerReason = "paused" | "shift" | "quick_trip" | null;
+export type EnginePowerReason = "paused" | "shift" | "quick_trip" | "off" | null;
 
 export interface EnginePowerDecision {
   mode: EnginePowerMode;
@@ -44,6 +44,9 @@ export interface EnginePowerInput {
   now: number;
   /** tracking_state.active_shift_id, or null when absent. */
   activeShiftId: string | null | undefined;
+  /** The driver switched Automatic trips off (not a pause). Optional so a
+   *  caller that does not know reads as on, the old behaviour. */
+  detectionOff?: boolean;
 }
 
 /**
@@ -57,11 +60,15 @@ export interface EnginePowerInput {
  * reason that ends on a clock rather than by a tap, and the one worth seeing
  * in a dump.
  */
-export function decideEnginePower({ pausedUntil, now, activeShiftId }: EnginePowerInput): EnginePowerDecision {
+export function decideEnginePower({ pausedUntil, now, activeShiftId, detectionOff }: EnginePowerInput): EnginePowerDecision {
   if (isPauseActive(pausedUntil ?? null, now)) return { mode: "low", reason: "paused" };
   const lock = typeof activeShiftId === "string" ? activeShiftId.trim() : "";
   if (lock === QUICK_TRIP_LOCK_ID) return { mode: "low", reason: "quick_trip" };
   if (lock.length > 0) return { mode: "low", reason: "shift" };
+  // Automatic trips off (28 Sep 2026): the engine should be stopped outright
+  // (detectionOffRule.ts). This is belt and braces for the moments it is not,
+  // such as a stop that failed, so a switched-off phone never runs full GPS.
+  if (detectionOff === true) return { mode: "low", reason: "off" };
   return { mode: "normal", reason: null };
 }
 
@@ -148,7 +155,7 @@ export function parseEnginePower(value: string | null | undefined): StoredEngine
   const [mode, reason] = value.split(":");
   if (mode !== "low") return { mode: "normal", reason: null };
   const r: EnginePowerReason =
-    reason === "paused" || reason === "shift" || reason === "quick_trip" ? reason : null;
+    reason === "paused" || reason === "shift" || reason === "quick_trip" || reason === "off" ? reason : null;
   return { mode: "low", reason: r };
 }
 

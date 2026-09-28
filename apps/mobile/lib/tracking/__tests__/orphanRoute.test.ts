@@ -170,3 +170,44 @@ describe("orphanRouteDecision", () => {
     expect(d.ageMs).toBe(0);
   });
 });
+
+describe("orphanRouteDecision with Automatic trips off (28 Sep 2026)", () => {
+  // A shift-only driver: off-shift drives in the native store were saved at
+  // the next app open, or offered as journeys to check, with the switch off.
+  it("discards a finished route instead of saving it", () => {
+    const d = orphanRouteDecision({
+      ...base,
+      detectionOff: true,
+      nativeCount: 2766,
+      nativeNewestMs: PARKED,
+    });
+    expect(d.finalize).toBe(false);
+    expect(d.discard).toBe(true);
+    expect(d.reason).toBe("detection_off");
+  });
+
+  it("discards even a route that still looks current or armed", () => {
+    const current = orphanRouteDecision({ ...base, detectionOff: true, jsCoordCount: 40, jsNewestMs: NOW - 60_000 });
+    expect(current.discard).toBe(true);
+    const armed = orphanRouteDecision({ ...base, detectionOff: true, armed: true, jsCoordCount: 40, jsNewestMs: PARKED });
+    expect(armed.discard).toBe(true);
+  });
+
+  it("leaves everything alone while a shift or Start Trip runs", () => {
+    const d = orphanRouteDecision({
+      ...base,
+      detectionOff: true,
+      shiftActive: true,
+      nativeCount: 2766,
+      nativeNewestMs: PARKED,
+    });
+    expect(d.discard).toBe(false);
+    expect(d.finalize).toBe(false);
+    expect(d.reason).toBe("shift_owns_gps");
+  });
+
+  it("changes nothing when on", () => {
+    const d = orphanRouteDecision({ ...base, detectionOff: false, nativeCount: 2766, nativeNewestMs: PARKED });
+    expect(d.finalize).toBe(true);
+  });
+});

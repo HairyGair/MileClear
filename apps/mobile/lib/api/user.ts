@@ -194,6 +194,10 @@ export interface HeartbeatData {
   /** ISO timestamp of the most recent driving-speed observation. Stale
    *  value (>30 min) on the server means the recording is probably stuck. */
   lastDrivingSpeedAt?: string;
+  /** The Automatic trips switch (Settings > Automatic trips / the dashboard
+   *  row). False means the driver chose shifts and Start Trip only; a pause
+   *  still reads true. Optional: older builds do not send it. */
+  driveDetectionEnabled?: boolean;
 }
 
 /**

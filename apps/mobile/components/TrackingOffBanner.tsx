@@ -19,31 +19,24 @@
 // ended. The switch and the pause are now read apart. Paused shows the
 // paused line with Resume (hidden where the screen already shows it), and
 // Turn on also clears any pause.
+//
+// Off is a choice, not a fault (28 Sep 2026). A shift-only driver switches
+// Automatic trips off on purpose, and the dashboard now carries the switch
+// itself, so the loud "Auto-tracking is off" warning and its "I'm tracking
+// manually" acknowledgement are gone. Off shows one quiet line with Turn on,
+// wherever this banner is used (the Trips list), so a missing drive is still
+// explained. Turn on goes through the same permission flow as the switch.
 import { useCallback, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
-import {
-  getDrivePauseUntil,
-  resumeDriveDetection,
-  setDriveDetectionEnabled,
-} from "../lib/tracking/detection";
+import { getDrivePauseUntil, resumeDriveDetection } from "../lib/tracking/detection";
+import { readAutomaticTrips, setAutomaticTrips } from "../lib/tracking/automaticTrips";
 import { isPauseActive } from "../lib/tracking/pauseRule";
-import { getDatabase } from "../lib/db";
 import { PauseRecordingRow } from "./PauseRecordingRow";
 
 const AMBER = colors.amber;
-const ACK_KEY = "manual_mode_ack";
-
-/** The permanent switch in Settings, ignoring any pause. */
-async function readDetectionSwitch(): Promise<boolean> {
-  const db = await getDatabase();
-  const row = await db.getFirstAsync<{ value: string }>(
-    "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
-  );
-  return !row || row.value === "1";
-}
 
 async function readActivePause(): Promise<number | null> {
   const until = await getDrivePauseUntil();
@@ -54,27 +47,13 @@ async function readActivePause(): Promise<number | null> {
 export function TrackingOffBanner({ hidePause = false }: { hidePause?: boolean } = {}) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [pausedUntil, setPausedUntil] = useState<number | null>(null);
-  const [acked, setAcked] = useState<boolean>(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
-    Promise.all([readDetectionSwitch(), readActivePause()])
-      .then(async ([on, paused]) => {
+    Promise.all([readAutomaticTrips(), readActivePause()])
+      .then(([on, paused]) => {
         setEnabled(on);
         setPausedUntil(on ? paused : null);
-        const db = await getDatabase();
-        if (on) {
-          // Detection is back on: reset the acknowledgement so a future
-          // turn-off shows the loud banner again.
-          await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [ACK_KEY]);
-          setAcked(false);
-        } else {
-          const row = await db.getFirstAsync<{ value: string }>(
-            "SELECT value FROM tracking_state WHERE key = ?",
-            [ACK_KEY]
-          );
-          setAcked(row?.value === "1");
-        }
       })
       .catch(() => {});
   }, []);
@@ -84,31 +63,15 @@ export function TrackingOffBanner({ hidePause = false }: { hidePause?: boolean }
   const turnOn = useCallback(async () => {
     setBusy(true);
     try {
-      await setDriveDetectionEnabled(true); // also restarts detection
+      await setAutomaticTrips(true); // also restarts detection
       // "Turn on" means recording, so it ends any pause as well.
       if ((await readActivePause()) !== null) await resumeDriveDetection("manual");
       setEnabled(true);
       setPausedUntil(null);
-      const db = await getDatabase();
-      await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [ACK_KEY]);
-      setAcked(false);
     } catch {
-      // best-effort — the settings toggle is the fallback
+      // best-effort: the dashboard switch is the fallback
     } finally {
       setBusy(false);
-    }
-  }, []);
-
-  const acknowledge = useCallback(async () => {
-    try {
-      const db = await getDatabase();
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, '1')",
-        [ACK_KEY]
-      );
-      setAcked(true);
-    } catch {
-      /* stays loud — safe default */
     }
   }, []);
 
@@ -130,91 +93,28 @@ export function TrackingOffBanner({ hidePause = false }: { hidePause?: boolean }
 
   if (enabled !== false) return null;
 
-  if (acked) {
-    return (
-      <View style={styles.pill} accessibilityRole="text">
-        <Ionicons name="hand-left-outline" size={13} color="#94a3b8" />
-        <Text style={styles.pillText}>Manual mode — auto-tracking off</Text>
-        <TouchableOpacity
-          onPress={turnOn}
-          disabled={busy}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Turn auto-tracking back on"
-        >
-          <Text style={styles.pillLink}>{busy ? "…" : "Turn on"}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
-    <View style={styles.banner} accessibilityRole="alert">
-      <Ionicons name="warning" size={18} color={AMBER} />
-      <View style={styles.textWrap}>
-        <Text style={styles.title}>Auto-tracking is off</Text>
-        <Text style={styles.subtitle}>New drives won&apos;t be recorded until you turn it back on.</Text>
-        <TouchableOpacity
-          onPress={acknowledge}
-          hitSlop={6}
-          accessibilityRole="button"
-          accessibilityLabel="I'm tracking manually — show a smaller reminder"
-        >
-          <Text style={styles.ackLink}>I&apos;m tracking manually — got it</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.pill} accessibilityRole="text">
+      <Ionicons name="hand-left-outline" size={13} color={colors.text3} />
+      <Text style={styles.pillText}>Automatic trips off. Only shifts and Start Trip record.</Text>
       <TouchableOpacity
-        style={styles.btn}
         onPress={turnOn}
         disabled={busy}
-        activeOpacity={0.85}
+        hitSlop={8}
         accessibilityRole="button"
-        accessibilityLabel="Turn auto-tracking back on"
+        accessibilityLabel="Turn automatic trips back on"
       >
-        {busy ? (
-          <ActivityIndicator size="small" color={colors.bg} />
-        ) : (
-          <Text style={styles.btnText}>Turn on</Text>
-        )}
+        <Text style={styles.pillLink}>{busy ? "..." : "Turn on"}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  banner: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    borderWidth: 1,
-    backgroundColor: "rgba(245,166,35,0.1)",
-    borderColor: "rgba(245,166,35,0.32)",
-    paddingVertical: 11,
-    paddingHorizontal: 14,
-    marginHorizontal: 16,
-    marginBottom: 12,
-  },
-  textWrap: { flex: 1, marginLeft: 10 },
-  title: { fontFamily: fonts.bold, fontSize: 13.5, color: AMBER },
-  subtitle: { color: "#94a3b8", fontFamily: fonts.medium, fontSize: 11.5, marginTop: 2 },
-  ackLink: {
-    color: "#94a3b8",
-    fontFamily: fonts.semibold,
-    fontSize: 11.5,
-    marginTop: 6,
-    textDecorationLine: "underline",
-  },
-  btn: {
-    marginLeft: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 9,
-    backgroundColor: AMBER,
-  },
-  btnText: { color: colors.bg, fontFamily: fonts.bold, fontSize: 13 },
   pill: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 6,
     alignSelf: "flex-start",
     marginHorizontal: 16,
@@ -224,6 +124,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.05)",
   },
-  pillText: { color: "#94a3b8", fontFamily: fonts.medium, fontSize: 11.5 },
+  pillText: { color: colors.text3, fontFamily: fonts.medium, fontSize: 11.5, flexShrink: 1 },
   pillLink: { color: AMBER, fontFamily: fonts.semibold, fontSize: 11.5, marginLeft: 4 },
 });

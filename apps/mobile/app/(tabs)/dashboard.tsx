@@ -24,7 +24,7 @@ import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
-import { TrackingOffBanner } from "../../components/TrackingOffBanner";
+import { AutomaticTripsRow } from "../../components/AutomaticTripsRow";
 import { TripStatusStrip } from "../../components/TripStatusStrip";
 import { ShiftSuggestionCard } from "../../components/ShiftSuggestionCard";
 import { describeError } from "../../lib/api/apiError";
@@ -88,7 +88,7 @@ import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboa
 import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
 import { PauseRecordingRow } from "../../components/PauseRecordingRow";
 import { askAboutPauseBeforeStart } from "../../lib/tracking/pausePrompt";
-import { describeOffSince, type PauseChoice } from "../../lib/tracking/pauseRule";
+import { type PauseChoice } from "../../lib/tracking/pauseRule";
 import { SetupChecklistCard, type SetupChecklistRow } from "../../components/SetupChecklistCard";
 import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
 import { SmartInsightCard } from "../../components/SmartInsightCard";
@@ -290,12 +290,6 @@ export default function DashboardScreen() {
   const resumeRecording = useCallback(() => {
     import("../../lib/tracking/detection")
       .then((m) => m.resumeDriveDetection("manual"))
-      .catch(() => {})
-      .finally(refreshPauseState);
-  }, [refreshPauseState]);
-  const turnDetectionBackOn = useCallback(() => {
-    import("../../lib/tracking/detection")
-      .then((m) => m.setDriveDetectionEnabled(true))
       .catch(() => {})
       .finally(refreshPauseState);
   }, [refreshPauseState]);
@@ -2023,8 +2017,13 @@ export default function DashboardScreen() {
           trip in progress, so the user always knows we're tracking even if
           the Live Activity silently failed to present. */}
       <ActiveRecordingBanner />
-      {/* Safety: warn if auto-detection is switched off, with one-tap re-enable. */}
-      <TrackingOffBanner hidePause />
+      {/* Automatic trips on or off, in both modes (28 Sep 2026: a shift-only
+          driver could not find the switch, and it did not really switch
+          anything off). A compact row, not a card: the one-card rule above
+          the mileage still holds. It shows the off state itself, so the
+          "tracking is off" banner and the "off since" suggestion stand down
+          on this screen; a pause is still shown by the Pause row. */}
+      <AutomaticTripsRow onChange={refreshPauseState} />
       <SyncStatusBanner />
       {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
           Hides itself while recording (banner above owns that state) and when
@@ -2552,22 +2551,6 @@ export default function DashboardScreen() {
       {/* First-trip nudge — in-app activation safety net. Shows when the user
           has Always location on but still zero trips. Two paths: take a live
           trip now, or backfill one they already drove. */}
-      {dashboardMessages.suggestions.includes("detection_off") && detectionOffSince !== null && (
-        <TouchableOpacity
-          style={s.offSinceCard}
-          onPress={turnDetectionBackOn}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`${describeOffSince(detectionOffSince)} Tap to turn recording back on.`}
-        >
-          <Ionicons name="power" size={20} color={AMBER} accessible={false} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.offSinceTitle}>{describeOffSince(detectionOffSince)}</Text>
-            <Text style={s.offSinceBody}>No drives are being kept. If you meant to stop for a while, use Pause instead: it comes back on by itself.</Text>
-          </View>
-          <Text style={s.offSinceCta}>Turn on</Text>
-        </TouchableOpacity>
-      )}
       {dashboardMessages.suggestions.includes("first_trip") && (
         <View style={s.ftNudge}>
           <View style={s.bgLocNudgeRow}>
@@ -3041,7 +3024,6 @@ const s = StyleSheet.create({
   },
   offSinceTitle: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1, marginBottom: 2 },
   offSinceBody: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2, lineHeight: 17 },
-  offSinceCta: { fontSize: 13, fontFamily: fonts.bold, color: AMBER },
 
   // Quick actions
   quickActions: {

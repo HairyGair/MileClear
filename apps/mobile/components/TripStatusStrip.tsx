@@ -23,6 +23,7 @@ import { getDatabase } from "../lib/db/index";
 import { readPersistedLastSavedTrip, type LastSavedTrip } from "../lib/events/lastTrip";
 import { getLocationPermissionStatus } from "../lib/permissions/location";
 import { isOnline } from "../lib/network";
+import { readDetectionSwitch } from "../lib/tracking/detectionOffRule";
 import { formatMiles } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
 
@@ -53,7 +54,9 @@ function relativeTime(ms: number): string {
 export function TripStatusStrip() {
   const router = useRouter();
   const [state, setState] = useState<StripState>({ kind: "hidden" });
-  const [detectionArmed, setDetectionArmed] = useState(false);
+  // Location tier only; the Automatic trips switch is re-read on every poll
+  // because the dashboard row can flip it without this screen remounting.
+  const [locationAlways, setLocationAlways] = useState(false);
   // Whether the native engine can actually record. Optimistic default so the
   // copy is unchanged on iOS and on any healthy build; only an Android licence
   // rejection flips it false.
@@ -79,20 +82,12 @@ export function TripStatusStrip() {
   }, []);
   const mountedRef = useRef(true);
 
-  // Permission tier + detection toggle change rarely — read once on mount,
-  // not on every poll tick.
+  // Permission tier changes rarely — read once on mount, not on every poll tick.
   useEffect(() => {
     (async () => {
       try {
-        const [{ tier }, db] = await Promise.all([
-          getLocationPermissionStatus(),
-          getDatabase(),
-        ]);
-        const row = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
-        );
-        const enabled = row ? row.value === "1" : true;
-        if (mountedRef.current) setDetectionArmed(tier === "always" && enabled);
+        const { tier } = await getLocationPermissionStatus();
+        if (mountedRef.current) setLocationAlways(tier === "always");
       } catch {
         // best-effort
       }
@@ -165,11 +160,15 @@ export function TripStatusStrip() {
 
       // 4) Idle. Quiet "armed" reassurance only when detection can actually
       // run — broken permissions are the red blockers' job, not ours.
-      if (mountedRef.current) setState({ kind: detectionArmed ? "ready" : "hidden" });
+      const switchRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
+      );
+      const armed = locationAlways && readDetectionSwitch(switchRow?.value);
+      if (mountedRef.current) setState({ kind: armed ? "ready" : "hidden" });
     } catch {
       // best-effort
     }
-  }, [detectionArmed]);
+  }, [locationAlways]);
 
   useEffect(() => {
     mountedRef.current = true;

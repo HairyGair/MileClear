@@ -8,6 +8,7 @@ import { Platform } from "react-native";
 import { getDatabase } from "../db/index";
 import { sendHeartbeat, type HeartbeatData } from "../api/user";
 import { getPendingCount } from "../sync/queue";
+import { readDetectionSwitch } from "../tracking/detectionOffRule";
 
 const DETECTION_TASK_NAME = "drive-detection";
 const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -28,7 +29,7 @@ const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
  *  - free disk bytes
  *  - iOS BackgroundFetch status (Background App Refresh)
  */
-export async function maybeSendHeartbeat(): Promise<void> {
+export async function maybeSendHeartbeat(options?: { force?: boolean }): Promise<void> {
   try {
     const db = await getDatabase();
 
@@ -50,7 +51,12 @@ export async function maybeSendHeartbeat(): Promise<void> {
     ]);
     const bgLocationPermission = mapLocationStatus(bg?.status);
     const notificationPermission = mapNotificationStatus(notif?.status);
-    const permsFingerprint = `${bgLocationPermission ?? "?"}|${notificationPermission ?? "?"}`;
+    // The Automatic trips switch, not a pause: a pause ends by itself, the
+    // switch is the driver's standing choice (28 Sep 2026). In the
+    // fingerprint too, so a flip reaches the server within one launch even
+    // when the caller did not force a send.
+    const driveDetectionEnabled = await readDriveDetectionSwitch(db);
+    const permsFingerprint = `${bgLocationPermission ?? "?"}|${notificationPermission ?? "?"}|${driveDetectionEnabled ? "on" : "off"}`;
 
     const [row, permsRow] = await Promise.all([
       db.getFirstAsync<{ value: string }>(
@@ -60,7 +66,7 @@ export async function maybeSendHeartbeat(): Promise<void> {
         "SELECT value FROM tracking_state WHERE key = 'last_heartbeat_perms'"
       ),
     ]);
-    if (row && permsRow?.value === permsFingerprint) {
+    if (!options?.force && row && permsRow?.value === permsFingerprint) {
       const last = parseInt(row.value, 10);
       if (!Number.isNaN(last) && Date.now() - last < HEARTBEAT_INTERVAL_MS) {
         return; // within 24h cooldown and permissions unchanged
@@ -114,6 +120,7 @@ export async function maybeSendHeartbeat(): Promise<void> {
       recordingStartedAt: recordingState.recordingStartedAt,
       lastDrivingSpeedAt: recordingState.lastDrivingSpeedAt,
       liveActivityPushToStartToken: liveActivityPushToStartToken ?? undefined,
+      driveDetectionEnabled,
     };
 
     await sendHeartbeat(data);
@@ -135,6 +142,20 @@ export async function maybeSendHeartbeat(): Promise<void> {
 }
 
 // ── Field collectors ─────────────────────────────────────────────────────
+
+/** tracking_state.drive_detection_enabled: absent or "1" is on. */
+async function readDriveDetectionSwitch(
+  db: Awaited<ReturnType<typeof getDatabase>>
+): Promise<boolean> {
+  try {
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'drive_detection_enabled'"
+    );
+    return readDetectionSwitch(row?.value);
+  } catch {
+    return true;
+  }
+}
 
 /** Count of sync_queue rows by terminal status, for the heartbeat payload. */
 async function collectSyncQueueBreakdown(

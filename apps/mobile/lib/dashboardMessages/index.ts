@@ -48,7 +48,6 @@ export type NoticeId = "low_power_mode";
 
 /** Optional. Never above the fold. */
 export type SuggestionId =
-  | "detection_off"
   | "first_trip"
   | "saved_places"
   | "referral"
@@ -73,9 +72,10 @@ export const SETUP_ORDER: SetupId[] = [
 
 /** first_trip outranks everything: a driver with zero trips has one job. */
 export const SUGGESTION_ORDER: SuggestionId[] = [
-  // Recording switched off in Settings outranks everything: nothing else on
-  // the screen matters while no miles are being kept (16 Sep 2026, 26 phones).
-  "detection_off",
+  // "detection_off" used to lead this list (16 Sep 2026, 26 phones had it off
+  // silently). Since 28 Sep 2026 the dashboard carries the Automatic trips
+  // switch itself, which shows off plainly, and a driver who chose shifts
+  // only should not be told every day that the choice is wrong.
   "first_trip",
   "saved_places",
   "referral",
@@ -134,8 +134,9 @@ export interface MessageInputs {
   notifDeniedNudgeSilenced: boolean;
   notifPrimerSilenced: boolean;
 
-  /** When the permanent Settings switch went off, or null when it is on. A
-   *  timed pause is not this: it shows its own row and ends by itself. */
+  /** When the permanent Automatic trips switch went off, or null when it is
+   *  on. A timed pause is not this: it shows its own row and ends by itself.
+   *  Only quiets the Low Power notice now; the switch row shows the state. */
   detectionOffSince: number | null;
 
   /** Low Power Mode (iPhone) or Battery Saver (Android) is on right now.
@@ -311,7 +312,6 @@ export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
   }
 
   const eligible: Record<SuggestionId, boolean> = {
-    detection_off: i.detectionOffSince !== null,
     first_trip: i.firstTripEligible,
     saved_places: i.savedPlacesEligible,
     referral: i.referralEligible,

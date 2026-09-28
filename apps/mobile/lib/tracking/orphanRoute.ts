@@ -53,7 +53,8 @@ export type OrphanReason =
   | "too_few_coords"
   | "still_current"
   | "shift_owns_gps"
-  | "already_saved";
+  | "already_saved"
+  | "detection_off";
 
 export interface OrphanDecision {
   finalize: boolean;
@@ -84,6 +85,9 @@ export interface OrphanInputs {
   nativeNewestMs?: number | null;
   /** A shift or live quick trip owns the GPS; its coordinates are its own. */
   shiftActive: boolean;
+  /** The driver switched Automatic trips off (not a pause). Optional: a
+   *  caller that does not say reads as on. */
+  detectionOff?: boolean;
   /** How much of the buffered route's time span is already covered by a saved
    *  trip (0..1), from savedTripOverlap. Null when the span is unknown. */
   savedOverlap?: number | null;
@@ -150,6 +154,14 @@ export function orphanRouteDecision(input: OrphanInputs): OrphanDecision {
   const newestMs = Math.max(input.jsNewestMs || 0, input.nativeNewestMs || 0);
   const ageMs = newestMs > 0 ? input.now - newestMs : 0;
 
+  // Automatic trips switched off (28 Sep 2026, detectionOffRule.ts): nothing
+  // the automatic recorder buffered is wanted, finished or not, so it is
+  // thrown away rather than saved, offered, or left for a later sweep. A
+  // running shift or Start Trip still keeps it, so this never races the
+  // route the driver did ask for; it is swept once that ends.
+  if (input.detectionOff === true && !input.shiftActive) {
+    return { finalize: false, reason: "detection_off", source, ageMs, discard: true };
+  }
   if (input.armed) return { finalize: false, reason: "recording_armed", source, ageMs, discard: false };
   if (input.shiftActive) return { finalize: false, reason: "shift_owns_gps", source, ageMs, discard: false };
 
