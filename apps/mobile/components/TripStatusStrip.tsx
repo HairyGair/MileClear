@@ -265,12 +265,10 @@ export function TripStatusStrip() {
     );
   }
 
-  return (
-    <View style={[styles.strip, styles.stripQuiet]}>
-      <View style={styles.readyDot} />
-      <Text style={styles.readyText}>ClearTrack is on — drives record automatically</Text>
-    </View>
-  );
+  // Plain ready state: nothing to add. The Automatic trips row just above
+  // already says "Drives record by themselves." (28 Sep 2026), and a second
+  // line saying the same thing read as noise.
+  return null;
 }
 
 const styles = StyleSheet.create({
