@@ -43,13 +43,19 @@ export interface HeadlessWakeInput {
 }
 
 /**
- * True when the fix is a confident driving-speed fix and the SDK is not
- * already tracking. A disabled SDK is never woken.
+ * True when the fix is a confident driving-speed fix. A disabled SDK is never
+ * woken. Whether the SDK already reads moving no longer matters (see below).
  */
 export function decideHeadlessWake({ fix, isMoving, enabled, confirming = false }: HeadlessWakeInput): boolean {
   if (!fix) return false;
   if (enabled === false) return false;
-  if (isMoving === true && !confirming) return false;
+  // An SDK that already reads moving no longer blocks the wake (28 Sep 2026):
+  // with motion recognition allowed the SDK wakes ITSELF at the start of a
+  // drive, and the headless task only runs when no recording is open, so
+  // "moving" here meant "driving with nothing recording", the very case to
+  // catch. The caller skips changePace(true) when the SDK is already moving.
+  void isMoving;
+  void confirming;
   return decideSpeedStart(fix.speedMs, fix.accuracyM).start;
 }
 

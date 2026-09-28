@@ -33,8 +33,8 @@ describe("decideHeadlessWake", () => {
     expect(decideHeadlessWake({ fix: driving, isMoving: null, enabled: null })).toBe(true);
   });
 
-  it("never wakes when the SDK is already moving or disabled", () => {
-    expect(decideHeadlessWake({ fix: driving, isMoving: true, enabled: true })).toBe(false);
+  it("wakes even when the SDK already reads moving (it woke itself, nothing recording: Jenny, 27 Sep), never when disabled", () => {
+    expect(decideHeadlessWake({ fix: driving, isMoving: true, enabled: true })).toBe(true);
     expect(decideHeadlessWake({ fix: driving, isMoving: false, enabled: false })).toBe(false);
   });
 

@@ -30,10 +30,16 @@ describe("routeHeadlessEvent", () => {
     expect(routeHeadlessEvent({ ...android, name: "location", isMoving: null, recordingOpen: true })).toBe("buffer");
   });
 
-  it("leaves the no-recording case to the existing speed-wake rule", () => {
+  it("leaves fixes and stops with nothing open to the speed-wake rule", () => {
     expect(routeHeadlessEvent({ ...android, name: "location", isMoving: null, recordingOpen: false })).toBe("wake");
     expect(routeHeadlessEvent({ ...android, name: "motionchange", isMoving: false, recordingOpen: false })).toBe("wake");
-    expect(routeHeadlessEvent({ ...android, name: "motionchange", isMoving: true, recordingOpen: false })).toBe("wake");
+  });
+
+  it("opens a recording on the SDK's own motion start when nothing is open (Jenny Hyett-Bell, 28 Sep 2026)", () => {
+    expect(routeHeadlessEvent({ ...android, name: "motionchange", isMoving: true, recordingOpen: false })).toBe("start");
+    // with a recording already open a second 'moving' stays a no-op
+    expect(routeHeadlessEvent({ ...android, name: "motionchange", isMoving: true, recordingOpen: true })).toBe("ignore");
+    expect(routeHeadlessEvent({ ...android, platform: "ios", name: "motionchange", isMoving: true, recordingOpen: false })).toBe("ignore");
   });
 
   it("hands the fix itself to the handler for a location event, the nested one for motionchange", () => {

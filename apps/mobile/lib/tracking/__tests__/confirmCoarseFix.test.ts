@@ -51,9 +51,9 @@ describe("the confirm window", () => {
     expect(canStartConfirm(T0, T0 - 60_000)).toBe(true);
   });
 
-  it("lets a good fix open a recording while the SDK reads moving, only when confirming", () => {
+  it("lets a good fix open a recording while the SDK reads moving (28 Sep: whether confirming or not)", () => {
     const good = { speedMs: mph(30), accuracyM: 10 };
-    expect(decideHeadlessWake({ fix: good, isMoving: true, enabled: true })).toBe(false);
+    expect(decideHeadlessWake({ fix: good, isMoving: true, enabled: true })).toBe(true);
     expect(decideHeadlessWake({ fix: good, isMoving: true, enabled: true, confirming: true })).toBe(true);
     // Confirming never lets a coarse fix through, and never overrides a disabled SDK.
     expect(decideHeadlessWake({ fix: { speedMs: mph(40), accuracyM: 200 }, isMoving: true, enabled: true, confirming: true })).toBe(false);
