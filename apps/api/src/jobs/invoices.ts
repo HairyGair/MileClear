@@ -27,7 +27,7 @@ import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { logEvent } from "../services/appEvents.js";
 import { sendInvoiceEmail, type InvoiceEmailKind } from "../services/email.js";
 import { generateInvoicePdf } from "../services/export.js";
-import { resolvePremiumStatus } from "../services/referral.js";
+import { isProUser } from "../services/proEntitlement.js";
 import {
   invoiceChaseStages,
   buildInvoiceChaseEmail,
@@ -158,7 +158,9 @@ export async function runInvoiceChaseJob(): Promise<{
 
   for (const inv of due) {
     // Lapsed Pro pauses chasing without destroying the config.
-    if (!resolvePremiumStatus(inv.user).active) {
+    // Shared entitlement check: team Pro counts. Costs one extra query only
+    // for non-personal-Pro users, and the batch is capped at 100.
+    if (!(await isProUser(inv.user.id, inv.user))) {
       result.skipped++;
       continue;
     }
@@ -332,7 +334,8 @@ export async function runInvoiceBankSyncJob(): Promise<{
     .split("T")[0];
 
   for (const user of users) {
-    if (!resolvePremiumStatus(user).active) continue;
+    // Shared entitlement check (team Pro counts); capped at 200 users.
+    if (!(await isProUser(user.id, user))) continue;
     for (const conn of user.plaidConnections) {
       try {
         const res = await syncTransactions(user.id, conn.id, from);

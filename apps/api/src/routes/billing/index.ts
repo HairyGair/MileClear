@@ -10,7 +10,7 @@ import { appleBillingRoutes } from "./apple.js";
 import { logEvent } from "../../services/appEvents.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
-import { resolvePremiumStatus } from "../../services/referral.js";
+import { getProEntitlement } from "../../services/proEntitlement.js";
 
 /**
  * Idempotent wrapper around sendProWelcomeEmail. Checks for an existing
@@ -316,6 +316,7 @@ export async function billingRoutes(app: FastifyInstance) {
           referralProUntil: true,
           stripeSubscriptionId: true,
           appleOriginalTransactionId: true,
+          googlePlayPurchaseToken: true,
         },
       });
 
@@ -328,23 +329,32 @@ export async function billingRoutes(app: FastifyInstance) {
       // management UI is correct; referral-only users get isPremium:true with
       // subscriptionPlatform:"none" + premiumSource:"referral" so the UI shows
       // "Pro via referral credit" rather than a subscribe CTA.
-      const premium = resolvePremiumStatus(user);
+      // Team Pro (active membership of an entitled org) counts for
+      // isPremium too, but it is not the user's subscription: the platform
+      // below stays "none" and subscriptionStatus "none" for them, and
+      // premiumSource "team" tells the UI not to offer plan management.
+      const premium = await getProEntitlement(request.userId!, user);
 
       // Determine subscription platform
-      const subscriptionPlatform: "apple" | "stripe" | "none" =
+      // Google Play was missing here, so an Android subscriber read "none"
+      // and a web or iPhone view offered them the Stripe cancel (29 Sep 2026).
+      const subscriptionPlatform: "apple" | "google" | "stripe" | "none" =
         user.appleOriginalTransactionId
           ? "apple"
-          : user.stripeSubscriptionId
-            ? "stripe"
-            : "none";
+          : user.googlePlayPurchaseToken
+            ? "google"
+            : user.stripeSubscriptionId
+              ? "stripe"
+              : "none";
 
       let subscriptionStatus: "active" | "canceled" | "past_due" | "none" =
         "none";
       let cancelAtPeriodEnd = false;
       let currentPeriodEnd: string | null = null;
 
-      if (user.appleOriginalTransactionId) {
-        // Apple-managed subscription — status comes from webhooks
+      if (user.appleOriginalTransactionId || user.googlePlayPurchaseToken) {
+        // Store-managed subscription (Apple or Google): status comes from
+        // their notifications, the expiry is the paid period's end.
         subscriptionStatus = user.isPremium ? "active" : "none";
         currentPeriodEnd = user.premiumExpiresAt?.toISOString() ?? null;
       } else if (stripe && user.stripeSubscriptionId) {
@@ -365,7 +375,7 @@ export async function billingRoutes(app: FastifyInstance) {
 
       return reply.send({
         data: {
-          isPremium: premium.active,
+          isPremium: premium.isPro,
           premiumExpiresAt: user.premiumExpiresAt?.toISOString() ?? null,
           subscriptionStatus,
           cancelAtPeriodEnd,

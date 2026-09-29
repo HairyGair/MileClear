@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { attachSoleVehicleToOrphanTrips } from "../../services/vehicleDefaults.js";
+import { isProUser } from "../../services/proEntitlement.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { cacheGet, cacheSet } from "../../lib/redis.js";
 import { FUEL_TYPES, VEHICLE_TYPES, assessCleanAirZones, getTaxYear } from "@mileclear/shared";
@@ -220,12 +221,9 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const userId = request.userId!;
     const data = parsed.data;
 
-    // Free users limited to 1 vehicle
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { isPremium: true, premiumExpiresAt: true },
-    });
-    const isPremium = user?.isPremium && (!user.premiumExpiresAt || user.premiumExpiresAt > new Date());
+    // Free users limited to 1 vehicle. Pro from any source (subscription,
+    // referral credit or an entitled team) lifts the cap.
+    const isPremium = await isProUser(userId);
     if (!isPremium) {
       const count = await prisma.vehicle.count({ where: { userId } });
       if (count >= 1) {

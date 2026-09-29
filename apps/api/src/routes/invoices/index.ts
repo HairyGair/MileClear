@@ -23,7 +23,7 @@ import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
-import { resolvePremiumStatus } from "../../services/referral.js";
+import { isProUser } from "../../services/proEntitlement.js";
 import {
   INVOICE_STATUSES,
   computeStatus,
@@ -166,18 +166,11 @@ export async function invoiceRoutes(app: FastifyInstance) {
     // dating doesn't sneak past the cap — and so a user who genuinely
     // sends 3 invoices in May can't be blocked in June just because
     // they entered them all on the same day.
-    // Canonical premium check (resolvePremiumStatus) — the previous inline
+    // Canonical premium check (isProUser) — the previous inline
     // isPremium/premiumExpiresAt test ignored referralProUntil, so users on
     // banked referral Pro months were wrongly capped (fixed Jul 2026).
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        isPremium: true,
-        premiumExpiresAt: true,
-        referralProUntil: true,
-      },
-    });
-    const premiumActive = user ? resolvePremiumStatus(user).active : false;
+    // Team Pro (entitled org membership) counts too, via the shared check.
+    const premiumActive = await isProUser(userId);
 
     if (!premiumActive) {
       const monthStart = new Date(Date.UTC(sentAt.getUTCFullYear(), sentAt.getUTCMonth(), 1));
@@ -403,11 +396,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { isPremium: true, premiumExpiresAt: true, referralProUntil: true },
-    });
-    if (!user || !resolvePremiumStatus(user).active) {
+    if (!(await isProUser(userId))) {
       return reply.status(402).send({
         error: {
           code: "PREMIUM_REQUIRED",
@@ -453,7 +442,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
         referralProUntil: true,
       },
     });
-    if (!user || !resolvePremiumStatus(user).active) {
+    if (!user || !(await isProUser(userId, user))) {
       return reply.status(402).send({
         error: {
           code: "PREMIUM_REQUIRED",
@@ -614,11 +603,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
     // reminder queued for the next send window. Disabling clears state.
     let chasePatch: Prisma.InvoiceUncheckedUpdateInput = {};
     if (updates.autoChaseEnabled === true && !existing.autoChaseEnabled) {
-      const chaseUser = await prisma.user.findUnique({
-        where: { id: request.userId! },
-        select: { isPremium: true, premiumExpiresAt: true, referralProUntil: true },
-      });
-      if (!chaseUser || !resolvePremiumStatus(chaseUser).active) {
+      if (!(await isProUser(request.userId!))) {
         return reply.status(402).send({
           error: {
             code: "PREMIUM_REQUIRED",

@@ -190,8 +190,11 @@ async function runSubExpiringJob(): Promise<void> {
 
       messages.push({
         to: user.pushToken!,
-        title: `Pro expires ${dayWord}`,
-        body: "Renew to keep HMRC exports, the Self Assessment wizard, and unlimited saved locations.",
+        // Sent to every Pro user whose paid period ends soon, including
+        // subscriptions that renew by themselves, so it must not claim Pro
+        // is ending. The Self Assessment wizard is free; its PDF is Pro.
+        title: `Your Pro period ends ${dayWord}`,
+        body: "If your subscription renews automatically, there's nothing to do. If you've cancelled, renew to keep your Self Assessment PDF, exports and unlimited saved places.",
         sound: "default",
         data: { type: "subscription_expiring", action: "billing", daysLeft },
       });

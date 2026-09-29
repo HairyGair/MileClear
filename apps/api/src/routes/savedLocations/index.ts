@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 import { getSuggestedSavedLocations } from "../../services/locationSuggestions.js";
+import { isProUser } from "../../services/proEntitlement.js";
 import { MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 
 const LOCATION_TYPES = ["home", "work", "depot", "custom"] as const;
@@ -71,15 +72,9 @@ export async function savedLocationRoutes(app: FastifyInstance) {
 
     const userId = request.userId!;
 
-    // Enforce free-tier limit
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { isPremium: true, premiumExpiresAt: true },
-    });
-
-    const isPremiumActive =
-      !!user?.isPremium &&
-      (!user.premiumExpiresAt || user.premiumExpiresAt > new Date());
+    // Enforce free-tier limit. Pro from any source (subscription, referral
+    // credit or an entitled team) lifts the cap.
+    const isPremiumActive = await isProUser(userId);
 
     if (!isPremiumActive) {
       const existingCount = await prisma.savedLocation.count({

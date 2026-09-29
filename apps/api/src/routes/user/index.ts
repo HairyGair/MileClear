@@ -8,7 +8,7 @@ import { sendPushToUser } from "../../lib/push.js";
 import { isPushQuietHours } from "../../services/pushQuietHoursRule.js";
 import { logEvent } from "../../services/appEvents.js";
 import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup.js";
-import { resolvePremiumStatus } from "../../services/referral.js";
+import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { formatInvoiceNumber, scrubCoordinates, scrubDiagnosticEventData } from "@mileclear/shared";
@@ -122,15 +122,17 @@ const USER_SELECT = {
 
 /**
  * Map a raw user row to the client shape, overriding `isPremium` with the
- * EFFECTIVE status (paid subscription OR banked referral credit). All app
+ * EFFECTIVE status (paid subscription OR banked referral credit OR team). All app
  * feature-gating reads profile.isPremium, so this makes referral-earned Pro
  * unlock everything without any client change. premiumSource lets the UI
  * label "Pro via referral" vs a real subscription. Subscription management
  * still reads /billing/status for the raw plan details.
  */
-function withEffectivePremium<T extends { isPremium: boolean; premiumExpiresAt: Date | null; referralProUntil: Date | null }>(user: T) {
-  const status = resolvePremiumStatus(user);
-  return { ...user, isPremium: status.active, premiumSource: status.source };
+async function withEffectivePremium<T extends { id: string; isPremium: boolean; premiumExpiresAt: Date | null; referralProUntil: Date | null }>(user: T) {
+  // Same rule as premiumMiddleware: subscription, referral credit, or an
+  // active membership of an entitled team (premiumSource "team").
+  const status = await getProEntitlement(user.id, user);
+  return { ...user, isPremium: status.isPro, premiumSource: status.source };
 }
 
 /** Decrypt the at-rest-encrypted bank fields for the owner's own eyes.
@@ -339,7 +341,7 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(withEffectivePremium(user))) });
+    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))) });
   });
 
   // Update profile
@@ -527,7 +529,7 @@ export async function userRoutes(app: FastifyInstance) {
       select: USER_SELECT,
     });
 
-    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(withEffectivePremium(user))) });
+    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))) });
   });
 
   // GET /user/weekly-progress

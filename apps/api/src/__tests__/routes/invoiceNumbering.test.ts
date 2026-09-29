@@ -26,8 +26,8 @@ vi.mock("../../lib/prisma.js", () => ({
 vi.mock("../../lib/stripe.js", () => ({ stripe: null }));
 vi.mock("../../lib/push.js", () => ({ sendPushToUser: vi.fn() }));
 vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
-vi.mock("../../services/referral.js", () => ({
-  resolvePremiumStatus: vi.fn((u: any) => ({ ...u, isPremium: false })),
+vi.mock("../../services/proEntitlement.js", () => ({
+  getProEntitlement: vi.fn(async () => ({ isPro: false, source: "none", until: null })),
 }));
 vi.mock("../../lib/encryption.js", () => ({
   encrypt: (v: string) => `enc:${v}`,

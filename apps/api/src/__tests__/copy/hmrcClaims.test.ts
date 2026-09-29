@@ -65,13 +65,6 @@ const BANNED: RegExp[] = [
  * file don't break it). Keep each entry commented.
  */
 const ALLOWLIST: { file: string; lineContains: string; reason: string }[] = [
-  {
-    // TrueLayer beta banner: "accreditation" refers to TrueLayer's banking
-    // partners granting production access, not to HMRC.
-    file: "apps/mobile/app/open-banking.tsx",
-    lineContains: "Real bank imports go live with our next round of accreditation",
-    reason: "bank-partner accreditation, not HMRC",
-  },
 ];
 
 function walk(dir: string, out: string[]): void {
