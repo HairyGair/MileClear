@@ -122,7 +122,7 @@ export default function TermsOfService() {
                 <ul className="legal__list">
                   <li className="legal__list-item">Track your mileage and trips for tax purposes</li>
                   <li className="legal__list-item">Export data for accountants or tax filing</li>
-                  <li className="legal__list-item">Subscribe to premium features (£4.99/month or £44.99/year)</li>
+                  <li className="legal__list-item">Subscribe to premium features (£4.99/month; a £44.99/year plan is also available in the iPhone app)</li>
                   <li className="legal__list-item">Download your data for backup or portability</li>
                   <li className="legal__list-item">View analytics and gamification features</li>
                   <li className="legal__list-item">Grant accountants read-only access via token</li>
@@ -569,11 +569,11 @@ export default function TermsOfService() {
                 <p className="legal__card-text legal__text--small">Always free. Track mileage, gamification, basic analytics, 2 saved locations.</p>
                 <p className="legal__card-text" style={{ marginTop: '0.75rem' }}><strong>Premium Tier</strong></p>
                 <p className="legal__card-text legal__text--small">
-                  <strong>Monthly:</strong> £4.99/month or <strong>Annual:</strong> £44.99/year
+                  <strong>Monthly:</strong> £4.99/month (web and app) or <strong>Annual:</strong> £44.99/year (iPhone app only)
                 </p>
                 <p className="legal__card-text legal__text--small">Includes:</p>
                 <ul className="legal__list">
-                  <li className="legal__list-item">HMRC-stamped PDF exports and self-assessment documents</li>
+                  <li className="legal__list-item">PDF exports and the Self Assessment PDF</li>
                   <li className="legal__list-item">CSV trip and earnings exports</li>
                   <li className="legal__list-item">Unlimited saved locations (free tier capped at 2)</li>
                   <li className="legal__list-item">CSV earnings import (bulk upload from platform CSVs)</li>
@@ -589,7 +589,7 @@ export default function TermsOfService() {
                 </p>
                 <ul className="legal__list">
                   <li className="legal__list-item"><strong>Monthly pricing:</strong> £4.99 per month</li>
-                  <li className="legal__list-item"><strong>Annual pricing:</strong> £44.99 per year (approximately £3.75/month)</li>
+                  <li className="legal__list-item"><strong>Annual pricing:</strong> £44.99 per year (approximately £3.75/month), available in the iPhone app only</li>
                   <li className="legal__list-item"><strong>Auto-renewal:</strong> Your subscription automatically renews each billing period unless you cancel at least 24 hours before the end of the current period</li>
                   <li className="legal__list-item"><strong>Billing cycle:</strong> Charged on the same day each cycle (e.g., if you start monthly on Feb 20, you&apos;ll be charged on Mar 20, Apr 20, etc.)</li>
                   <li className="legal__list-item"><strong>Payment processing:</strong> Payments are processed by Stripe (web) or Apple via In-App Purchase (iOS). We never store your card details</li>

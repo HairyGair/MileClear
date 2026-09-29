@@ -16,8 +16,8 @@ const free = [
   "1 vehicle with DVLA lookup, MOT history and MOT/tax reminders",
   "Fuel prices from 8,300+ UK stations, EV charging nearby",
   "Anonymous Benchmarking and Activity Heatmap",
-  "Shift mode with platform tagging, pickup wait timer",
-  "Achievements, streaks and recaps",
+  "Shift mode with platform tagging, Shift Scorecard grades, pickup wait timer",
+  "All achievements, streaks, personal records and recaps",
   "2 saved locations with geofencing",
   "Web dashboard included",
 ];
@@ -30,9 +30,8 @@ const pro = [
   "Open Banking earnings import and bank-transaction inbox",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
   "Auto-Classify Rules: business or personal from your work schedule",
-  "Business insights: earnings a mile, golden hours, weekly P&L, shift grades",
+  "Business insights: earnings a mile, platform comparison, golden hours, weekly P&L",
   "Driving Analytics and Journey Map",
-  "Pickup-wait community insights",
   "Unlimited vehicles, saved locations and invoices",
 ];
 
@@ -47,8 +46,8 @@ export default function Pricing() {
             No drive caps, no time limits, no surprise paywalls on basic features.
             MileIQ stops you at 40 drives a month on its free tier and
             Driversnote at 15. We don&apos;t limit any of it. Track as many miles as you like, on us. Pro
-            (&pound;4.99/month or &pound;44.99/year) adds the tax exports and
-            earnings analytics; it never gates the tracker itself.
+            (&pound;4.99/month) adds the tax exports and earnings analytics; it
+            never gates the tracker itself.
           </p>
         </Reveal>
 

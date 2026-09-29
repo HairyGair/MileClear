@@ -110,6 +110,7 @@ interface StepProps {
   taxYear: string;
   onDownload: () => void;
   downloading: boolean;
+  isPremium: boolean;
 }
 
 function StepIncome({ summary }: Pick<StepProps, "summary">) {
@@ -412,7 +413,7 @@ function StepTaxEstimate({ summary }: Pick<StepProps, "summary">) {
   );
 }
 
-function StepSa103Guide({ summary, onDownload, downloading }: StepProps) {
+function StepSa103Guide({ summary, onDownload, downloading, isPremium }: StepProps) {
   // Key boxes to highlight
   const keyBoxNums = new Set([9, 27, 46]);
 
@@ -457,19 +458,34 @@ function StepSa103Guide({ summary, onDownload, downloading }: StepProps) {
         )}
       </div>
 
-      <div style={{ marginTop: "2rem" }}>
-        <button
-          className="btn btn--primary"
-          onClick={onDownload}
-          disabled={downloading}
-          aria-busy={downloading}
-        >
-          {downloading ? "Generating..." : "Download PDF Summary"}
-        </button>
-        <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-          Downloads your Self Assessment PDF report for {summary.taxYear}.
-        </p>
-      </div>
+      {isPremium ? (
+        <div style={{ marginTop: "2rem" }}>
+          <button
+            className="btn btn--primary"
+            onClick={onDownload}
+            disabled={downloading}
+            aria-busy={downloading}
+          >
+            {downloading ? "Generating..." : "Download PDF Summary"}
+          </button>
+          <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+            Downloads your Self Assessment PDF report for {summary.taxYear}.
+          </p>
+        </div>
+      ) : (
+        // The wizard is free; only the print-ready PDF is Pro. No call to
+        // /exports/self-assessment is made for free users.
+        <div className="card" style={{ marginTop: "2rem", borderLeft: "3px solid var(--amber-400)" }}>
+          <h4 style={{ margin: "0 0 0.5rem", fontSize: "0.9375rem", color: "var(--text-white)" }}>
+            Want this as a PDF?
+          </h4>
+          <p style={{ margin: "0 0 0.75rem", fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+            The box values above are free to copy into your return. MileClear Pro adds a print-ready
+            Self Assessment PDF for {summary.taxYear} that you can keep or send to your accountant.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary btn--sm">Upgrade to Pro</a>
+        </div>
+      )}
     </div>
   );
 }
@@ -551,22 +567,9 @@ export default function SelfAssessmentPage() {
 
   const progressPct = step === 0 ? 0 : ((step) / (totalSteps - 1)) * 100;
 
-  // Premium gate. Kept after all hook declarations so hook count is stable.
-  if (!user?.isPremium) {
-    return (
-      <>
-        <PageHeader title="Self Assessment Guide" subtitle="Step-by-step HMRC SA103 walkthrough" />
-        <div className="premium-gate">
-          <div className="premium-gate__icon">&#128203;</div>
-          <h2 className="premium-gate__title">Upgrade to Pro</h2>
-          <p className="premium-gate__text">
-            The Self Assessment Wizard - with income breakdowns, mileage deductions, expense mapping and SA103 box values - is available with a MileClear Pro subscription.
-          </p>
-          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
-        </div>
-      </>
-    );
-  }
+  // The wizard is free (8 May 2026, same as the app). Only the PDF
+  // download in the last step is Pro.
+  const isPremium = user?.isPremium ?? false;
 
   return (
     <>
@@ -666,6 +669,7 @@ export default function SelfAssessmentPage() {
                 taxYear={selectedYear}
                 onDownload={handleDownload}
                 downloading={downloading}
+                isPremium={isPremium}
               />
             )}
           </>

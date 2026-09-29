@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
+import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
 import { Button } from "../../../components/ui/Button";
@@ -85,8 +86,16 @@ export default function InboxPage() {
   const [actionKind, setActionKind] = useState<"earning" | "expense">("expense");
   const [actionCategory, setActionCategory] = useState("");
   const [busy, setBusy] = useState(false);
+  // /inbox sits behind premiumMiddleware (Open Banking is Pro). Free users
+  // get the upgrade prompt and the endpoint is never called.
+  const { user } = useAuth();
+  const isPremium = user?.isPremium ?? false;
 
   const load = useCallback(async () => {
+    if (!isPremium) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.get<InboxListResponse>("/inbox?pageSize=100");
@@ -97,7 +106,7 @@ export default function InboxPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isPremium]);
 
   useEffect(() => {
     load();
@@ -184,6 +193,22 @@ export default function InboxPage() {
       setBusy(false);
     }
   };
+
+  if (!isPremium) {
+    return (
+      <>
+        <PageHeader title="Inbox" subtitle="Sort bank transactions into earnings or expenses" />
+        <div className="premium-gate">
+          <div className="premium-gate__icon">&#127974;</div>
+          <h2 className="premium-gate__title">Upgrade to Pro</h2>
+          <p className="premium-gate__text">
+            The Inbox sorts transactions from your connected bank into earnings or expenses. Open Banking is part of MileClear Pro. Manual earnings and expenses stay free.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Upgrade to Pro</a>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

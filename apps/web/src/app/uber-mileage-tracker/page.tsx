@@ -435,7 +435,7 @@ export default function UberMileageTracker() {
               HMRC can disallow the entire deduction.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
-              MileClear Pro costs £4.99 per month, or £44.99 per year. Against a potential saving of £1,600 or
+              MileClear Pro costs £4.99 per month. Against a potential saving of £1,600 or
               more, that is a very straightforward return on investment.
             </p>
           </section>

@@ -1189,7 +1189,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>Push notifications, profile, feedback voting</li>
 </ul>
 
-<p>Pro (£4.99/month or £44.99/year) covers:</p>
+<p>Pro (£4.99/month) covers:</p>
 <ul>
 <li>Printable Self Assessment PDF export</li>
 <li>CSV export + import</li>
@@ -1197,7 +1197,6 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>Auto-Classify Rules</li>
 <li>Business Insights (£/mile, £/hour, platform comparison)</li>
 <li>Multi-month analytics</li>
-<li>Pickup Wait community insights</li>
 <li>Accountant sharing</li>
 <li>Journey Map (full-route visualisation)</li>
 <li>Unlimited vehicles + saved locations</li>
@@ -1475,7 +1474,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p><strong>Free tier:</strong> automatic GPS tracking, manual classification, HMRC rate calculation, fuel-price lookup, all your historical trips. The tracking is what you actually need, and it is permanent and free.</p>
 
-<p><strong>Pro at £4.99/month:</strong> CSV and PDF Self Assessment exports, the attestation cover sheet, CSV import from Amazon Flex earnings statements, the Self Assessment wizard that walks you through which numbers go in which boxes on your SA103. You only need Pro at tax time - daily tracking stays free year-round.</p>
+<p><strong>Pro at £4.99/month:</strong> CSV and PDF Self Assessment exports, the attestation cover sheet, CSV import from Amazon Flex earnings statements. The Self Assessment wizard that walks you through which numbers go in which boxes on your SA103 is free; Pro turns it into a print-ready PDF. You only need Pro at tax time - daily tracking stays free year-round.</p>
 
 <h2>Bottom line</h2>
 
@@ -1537,7 +1536,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p><strong>What you get on the free tier:</strong> automatic GPS trip tracking, manual classification, HMRC rate calculation, fuel-price lookup, two saved locations (home and depot, typically), all your historical trips. Tracking is the part you actually need - and it is permanent and free.</p>
 
-<p><strong>What Pro adds for £4.99/month:</strong> the export side. CSV and PDF Self Assessment downloads, the HMRC-formatted attestation cover sheet, CSV import from platform earnings statements, unlimited saved locations, and the Self Assessment wizard that walks you through which numbers go in which boxes on your SA103 form. You only need Pro at tax time - so if you are a daily driver, you can run free for 11 months and upgrade in late January.</p>
+<p><strong>What Pro adds for £4.99/month:</strong> the export side. CSV and PDF Self Assessment downloads, the signed attestation cover sheet, CSV import from platform earnings statements and unlimited saved locations. The Self Assessment wizard that walks you through which numbers go in which boxes on your SA103 form is free. You only need Pro at tax time - so if you are a daily driver, you can run free for 11 months and upgrade in late January.</p>
 
 <h2>Quick checklist if you are dealing with Gophr inactivity right now</h2>
 
@@ -2437,7 +2436,7 @@ export const BLOG_POSTS: BlogPost[] = [
   <li>Free trip tracking  - no artificial limits on the core feature</li>
   <li>Platform tags  - Uber, Deliveroo, Amazon Flex, etc., so you can see which platforms are worth your time</li>
   <li>Shift model  - clock on, do your jobs, clock off</li>
-  <li>HMRC-native  - UK tax year (6 April boundary), pence not dollars, 45p/25p rates baked in</li>
+  <li>UK tax rules - UK tax year (6 April boundary), pence not dollars, 45p/25p rates baked in</li>
   <li>Exports behind a paywall, but a cheap one  - £4.99/month felt right</li>
   <li>Offline first  - your GPS data shouldn't need an internet connection</li>
 </ul>

@@ -110,7 +110,7 @@ const faqSchema = {
       name: "What do I need to pay for?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Pro (£4.99/month or £44.99/year) gives you: the printable HMRC Self Assessment PDF, CSV export, CSV bulk-import of platform earnings, open-banking earnings sync, Auto-Classify Rules (work-schedule-driven), Business Insights (earnings per mile/hour, platform comparison, golden hours), driving analytics with multi-month trends, unlimited saved locations, unlimited vehicles, accountant sharing, and the Journey Map.",
+        text: "Pro (£4.99/month) gives you: the printable HMRC Self Assessment PDF, CSV export, CSV bulk-import of platform earnings, open-banking earnings sync, Auto-Classify Rules (work-schedule-driven), Business Insights (earnings per mile/hour, platform comparison, golden hours), driving analytics with multi-month trends, unlimited saved locations, unlimited vehicles, accountant sharing, and the Journey Map.",
       },
     },
     {
@@ -308,7 +308,7 @@ export default function FreeMileageTrackerUk() {
                 }}
               >
                 <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, color: "#fbbf24", marginBottom: "0.875rem" }}>
-                  Pro (£4.99/mo or £44.99/yr)
+                  Pro (£4.99/mo)
                 </h3>
                 <ul style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.8, paddingLeft: "1.25rem", margin: 0 }}>
                   <li>HMRC Self Assessment PDF download</li>
@@ -319,7 +319,6 @@ export default function FreeMileageTrackerUk() {
                   <li>Auto-Classify Rules (schedule-driven)</li>
                   <li>Business Insights (£/mile, £/hour, golden hours)</li>
                   <li>Driving Analytics multi-month trends</li>
-                  <li>Pickup Wait community insights</li>
                   <li>Accountant sharing (read-only dashboard)</li>
                   <li>Journey Map (full-route visualisation)</li>
                   <li>Unlimited saved locations</li>

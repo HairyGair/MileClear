@@ -646,6 +646,29 @@ export default function SettingsPage() {
         </p>
         {billingLoading ? (
           <div className="skeleton skeleton--text" style={{ width: "40%" }} />
+        ) : billing?.isPremium && (billing.premiumSource === "team" || billing.premiumSource === "referral") ? (
+          // Team and referral Pro have no subscription to renew or cancel
+          // (the API refuses a cancel), so no Renews line and no button.
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div className="billing-card">
+              <div className="billing-card__status">
+                <div className="billing-card__dot billing-card__dot--active" />
+                <div>
+                  <div style={{ fontWeight: 600, color: "var(--text-white)" }}>
+                    MileClear Pro{" "}
+                    <Badge variant="pro">Active</Badge>
+                  </div>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+                    {billing.premiumSource === "team"
+                      ? "Pro through your team"
+                      : billing.referralProUntil
+                        ? `Pro from referrals, until ${new Date(billing.referralProUntil).toLocaleDateString("en-GB")}`
+                        : "Pro from referrals"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         ) : billing?.isPremium ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div className="billing-card">
@@ -665,23 +688,33 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
-              {!billing.cancelAtPeriodEnd && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCancel}
-                  disabled={cancelLoading}
-                  style={{ color: "var(--dash-red)" }}
-                >
-                  {cancelLoading ? "Cancelling..." : "Cancel subscription"}
-                </Button>
+              {billing.subscriptionPlatform === "apple" || billing.subscriptionPlatform === "google" ? (
+                // Store subscriptions can only be cancelled in the store; the
+                // cancel endpoint here is Stripe's and would refuse them.
+                <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                  {billing.subscriptionPlatform === "apple"
+                    ? "Managed in the App Store on your iPhone"
+                    : "Managed in Google Play on your phone"}
+                </div>
+              ) : (
+                !billing.cancelAtPeriodEnd && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancel}
+                    disabled={cancelLoading}
+                    style={{ color: "var(--dash-red)" }}
+                  >
+                    {cancelLoading ? "Cancelling..." : "Cancel subscription"}
+                  </Button>
+                )
               )}
             </div>
           </div>
         ) : (
           <div>
             <div style={{ marginBottom: "0.75rem", fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-              You&apos;re on the free plan. Upgrade to access tax exports, earnings tracking, and more.
+              You&apos;re on the free plan. Upgrade for tax exports, business insights, Open Banking and more.
             </div>
             <Button
               variant="primary"

@@ -41,7 +41,7 @@ const pageSchema = {
   name: "Best Mileage Tracker App UK (2026) - Compared",
   url: "https://mileclear.com/best-mileage-tracker-app-uk",
   description:
-    "An honest 2026 comparison of the best mileage tracker apps for UK drivers, ranked on free tracking limits, HMRC-native tax calculations, price, and gig-platform support.",
+    "An honest 2026 comparison of the best mileage tracker apps for UK drivers, ranked on free tracking limits, UK tax calculations at HMRC rates, price, and gig-platform support.",
   breadcrumb: {
     "@type": "BreadcrumbList",
     itemListElement: [
@@ -104,7 +104,7 @@ const faqSchema = {
       name: "What should a UK gig or delivery driver look for in a mileage tracker?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Three things: (1) no cap on free tracking, because a delivery or private-hire driver blows past a 15-40 drive monthly limit in days; (2) HMRC-native rates and a UK tax deduction total, not IRS rates you have to reconfigure; and (3) per-platform tagging so you can attribute trips to Uber, Deliveroo, Amazon Flex and the rest for both tax and earnings analysis. MileClear was built around all three; most US-first apps miss at least one.",
+        text: "Three things: (1) no cap on free tracking, because a delivery or private-hire driver blows past a 15-40 drive monthly limit in days; (2) HMRC mileage rates built in and a UK tax deduction total, not IRS rates you have to reconfigure; and (3) per-platform tagging so you can attribute trips to Uber, Deliveroo, Amazon Flex and the rest for both tax and earnings analysis. MileClear was built around all three; most US-first apps miss at least one.",
       },
     },
     {
@@ -112,7 +112,7 @@ const faqSchema = {
       name: "How much does MileClear cost?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "MileClear's tracking is free forever with no monthly cap, and the HMRC calculator, Tax Readiness card, Anonymous Benchmarking and MOT reminders are free too. Pro is £4.99 per month (or £44.99 a year) and adds tax-ready PDF and CSV exports, the Self Assessment wizard, receipt scanning and business insights. You only need Pro when you want to export a formal claim.",
+        text: "MileClear's tracking is free forever with no monthly cap, and the HMRC calculator, Tax Readiness card, Anonymous Benchmarking and MOT reminders are free too. The Self Assessment wizard and receipt scanning are free as well. Pro is £4.99 per month and adds PDF and CSV exports, the Self Assessment PDF and business insights. You only need Pro when you want to export a formal claim.",
       },
     },
   ],
@@ -120,7 +120,7 @@ const faqSchema = {
 
 // Comparison rows. Facts verified mid-2026. Competitor prices shown as
 // published (US pricing where UK GBP is not publicly listed); the decision
-// axes are the free-tier limits and HMRC-native support.
+// axes are the free-tier limits and HMRC mileage-rate support.
 const ROWS: Array<{ feature: string; mc: string; triplog: string; mileiq: string; driversnote: string; highlight?: boolean }> = [
   {
     feature: "Free mile tracking",
@@ -156,7 +156,7 @@ const ROWS: Array<{ feature: string; mc: string; triplog: string; mileiq: string
   },
   {
     feature: "Paid plan",
-    mc: "£4.99/mo or £44.99/yr",
+    mc: "£4.99/mo",
     triplog: "Tiered paid plans for reporting/teams",
     mileiq: "Paid-only after cap (price more than doubled in 2026)",
     driversnote: "Paid plan for 15+ trips",
@@ -183,7 +183,7 @@ const VERDICTS = [
     name: "MileClear",
     tag: "Best for UK drivers who want free tracking + HMRC done for them",
     body:
-      "The only app on this list that pairs unlimited free tracking with free HMRC tax tooling. It applies the 55p/25p AMAP rates automatically, tags gig platforms, works offline, and keeps the whole tracker free forever - Pro (£4.99/mo) is only for exports and the Self Assessment wizard. The catch: Android is still in closed beta, so it is iPhone-first for now.",
+      "The only app on this list that pairs unlimited free tracking with free HMRC tax tooling. It applies the 55p/25p AMAP rates automatically, tags gig platforms, works offline, and keeps the whole tracker free forever - Pro (£4.99/mo) is for exports, the Self Assessment PDF and business insights. The catch: Android is still in closed beta, so it is iPhone-first for now.",
     accent: "#fbbf24",
   },
   {
@@ -224,7 +224,7 @@ const FAQS = [
   },
   {
     q: "Which mileage tracker is best for Uber, Deliveroo or Amazon Flex drivers?",
-    a: "A gig driver needs uncapped free tracking (you pass a 15-40 drive limit in days), HMRC-native rates, and per-platform tagging to attribute trips and compare earnings. MileClear was built around all three - see the dedicated Uber, Deliveroo, Amazon Flex and delivery-driver guides.",
+    a: "A gig driver needs uncapped free tracking (you pass a 15-40 drive limit in days), HMRC mileage rates built in, and per-platform tagging to attribute trips and compare earnings. MileClear was built around all three - see the dedicated Uber, Deliveroo, Amazon Flex and delivery-driver guides.",
   },
   {
     q: "Does MileClear work on Android?",

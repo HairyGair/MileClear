@@ -102,7 +102,7 @@ const faqSections = [
       },
       {
         q: 'What does Pro add?',
-        a: 'MileClear Pro is £4.99 a month or £44.99 a year. You get: HMRC quarterly Self Assessment submissions (MTD ITSA), HMRC SA103 PDF + CSV exports, CSV earnings import, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, business insights (platform comparison, golden hours, P&L), Driving Analytics, accountant sharing (read-only dashboard for your accountant), Journey Map, Pickup Wait community insights, unlimited invoices, unlimited saved locations, unlimited vehicles.',
+        a: 'MileClear Pro is £4.99 a month on the website (the iPhone app also offers a yearly plan). You get: the Self Assessment (SA103) PDF, PDF trip report and CSV exports, CSV earnings import, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, business insights (platform comparison, golden hours, P&L), Driving Analytics, accountant sharing (read-only dashboard for your accountant), Journey Map, unlimited invoices, unlimited saved locations, unlimited vehicles.',
       },
       {
         q: 'Earnings vs invoices - what’s the difference?',

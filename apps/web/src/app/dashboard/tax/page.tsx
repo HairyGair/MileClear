@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../lib/api";
-import { useAuth } from "../../../lib/auth-context";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
@@ -91,7 +90,6 @@ interface MonthData {
 }
 
 export default function TaxPage() {
-  const { user } = useAuth();
   const [, setStats] = useState<GamificationStats | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -99,13 +97,9 @@ export default function TaxPage() {
   const [error, setError] = useState<string | null>(null);
   const [taxYear, setTaxYear] = useState(getTaxYearOptions()[0]?.value || "");
 
-  const isPremium = user?.isPremium ?? false;
-
+  // Free for everyone: this page only reads free endpoints (stats, trips,
+  // vehicles), and the mileage deduction is free in the app too.
   const loadData = useCallback(async () => {
-    if (!isPremium) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
@@ -129,27 +123,11 @@ export default function TaxPage() {
     } finally {
       setLoading(false);
     }
-  }, [taxYear, isPremium]);
+  }, [taxYear]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  if (!isPremium && !loading) {
-    return (
-      <>
-        <PageHeader title="Tax Summary" subtitle="HMRC mileage deduction overview" />
-        <div className="premium-gate">
-          <div className="premium-gate__icon">&#9888;</div>
-          <h2 className="premium-gate__title">Upgrade to Pro</h2>
-          <p className="premium-gate__text">
-            Tax deduction summaries, monthly HMRC breakdowns, and vehicle-by-vehicle analysis are available with a MileClear Pro subscription.
-          </p>
-          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
-        </div>
-      </>
-    );
-  }
 
   // Aggregate by month
   const startYear = parseInt(taxYear.split("-")[0]);

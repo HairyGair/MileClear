@@ -209,7 +209,7 @@ const faqSchema = {
       name: 'What does MileClear Pro include?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear Pro (£4.99 per month or £44.99 per year) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, pickup-wait community insights, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
+        text: 'MileClear Pro (£4.99 per month) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, unlimited invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
       },
     },
     {
@@ -222,10 +222,10 @@ const faqSchema = {
     },
     {
       '@type': 'Question',
-      name: 'Is there an annual plan?',
+      name: 'Is there a yearly plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. Pro is £4.99 per month or £44.99 per year. The annual plan works out cheaper than 12 monthly payments, so if you know you will be tracking mileage all year it is the better value option. You can choose either when you upgrade in the app or on the web.',
+        text: 'On the website, Pro is £4.99 a month. The iPhone app also offers a yearly plan when you subscribe there.',
       },
     },
     // Data & Privacy
@@ -561,15 +561,14 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">What does MileClear Pro include?</h3>
                 <p className="legal__text">
-                  MileClear Pro (£4.99/month or £44.99/year) adds the PDF Self Assessment export
+                  MileClear Pro (£4.99/month) adds the PDF Self Assessment export
                   with a signed attestation cover sheet, CSV and PDF trip exports, CSV
                   earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open
                   Banking auto-import via TrueLayer, auto-classify rules driven by your Work
                   Schedule, the Accountant Portal (read-only dashboard you can invite your
                   accountant to by email), business insights including earnings per mile, golden
-                  hours and weekly P&amp;L, Driving Analytics, the Journey Map, pickup-wait
-                  community insights (&quot;drivers here average 12-min waits&quot;), unlimited
-                  saved locations, and unlimited vehicles. The Self Assessment wizard itself is
+                  hours and weekly P&amp;L, Driving Analytics, the Journey Map, unlimited
+                  invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is
                   free; Pro adds the print-ready PDF. See{' '}
                   <a href="/pricing" style={{ color: 'var(--amber-400)' }}>our pricing page</a>{' '}
                   for plan details.
@@ -577,12 +576,10 @@ export default function FaqPage() {
               </div>
 
               <div className="faq__qa">
-                <h3 className="faq__question">Is there an annual plan?</h3>
+                <h3 className="faq__question">Is there a yearly plan?</h3>
                 <p className="legal__text">
-                  Yes. Pro is £4.99 per month or £44.99 per year. The annual plan works out
-                  cheaper than 12 monthly payments, so if you track mileage all year round it is
-                  the better-value option. You can choose either when you upgrade in the app or on
-                  the web.
+                  On the website, Pro is £4.99 a month. The iPhone app also offers a yearly plan
+                  when you subscribe there.
                 </p>
               </div>
 

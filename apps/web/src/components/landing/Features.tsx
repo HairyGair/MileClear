@@ -43,7 +43,7 @@ const features = [
       </svg>
     ),
     title: "Earnings and business insights",
-    desc: "Log earnings by platform for free. Upgrade to Pro for earnings per mile, per hour, platform comparison, shift grades, and weekly P&L.",
+    desc: "Log earnings by platform and see an A to F grade for every shift, free. Upgrade to Pro for earnings per mile, per hour, platform comparison, golden hours and weekly P&L.",
     alt: true,
     pro: "Full insights",
     screenshot: "10-pro.png",

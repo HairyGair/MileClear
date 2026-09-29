@@ -63,7 +63,7 @@ export default function PersonalPage() {
   const [fuelTotal, setFuelTotal] = useState(0);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recapView, setRecapView] = useState<RecapView>(isPremium ? "monthly" : "daily");
+  const [recapView, setRecapView] = useState<RecapView>("daily");
   const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
@@ -85,18 +85,15 @@ export default function PersonalPage() {
         setAchievements(achRes.data);
         setRecentTrips(tripsRes.data);
 
-        // Daily recap is free (viral sharing); weekly/monthly are premium
-        const dailyRes = await api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily").catch(() => null);
+        // Every recap period is free (8 May 2026), same as the app.
+        const [dailyRes, weeklyRes, monthlyRes] = await Promise.all([
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=daily").catch(() => null),
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
+        ]);
         if (dailyRes) setDailyRecap(dailyRes.data);
-
-        if (user?.isPremium) {
-          const [weeklyRes, monthlyRes] = await Promise.all([
-            api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
-            api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
-          ]);
-          if (weeklyRes) setWeeklyRecap(weeklyRes.data);
-          if (monthlyRes) setMonthlyRecap(monthlyRes.data);
-        }
+        if (weeklyRes) setWeeklyRecap(weeklyRes.data);
+        if (monthlyRes) setMonthlyRecap(monthlyRes.data);
         if (fuelRes) {
           setFuelLogs(fuelRes.data);
           setFuelTotal(fuelRes.total);
@@ -170,8 +167,8 @@ export default function PersonalPage() {
         );
       })()}
 
-      {/* Driving Recap - daily is free, weekly/monthly/yearly are premium */}
-      {(dailyRecap || (isPremium && (weeklyRecap || monthlyRecap || stats))) && (
+      {/* Driving Recap - every period is free */}
+      {(dailyRecap || weeklyRecap || monthlyRecap || stats) && (
         <div className="driving-recap" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="driving-recap__header">
             <div className="driving-recap__title">
@@ -185,17 +182,13 @@ export default function PersonalPage() {
             </div>
             <div className="driving-recap__toggle">
               {(["daily", "weekly", "monthly", "yearly"] as const).map((v) => {
-                const isLocked = !isPremium && v !== "daily";
                 return (
                   <button
                     key={v}
                     className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}`}
-                    onClick={() => isLocked ? undefined : setRecapView(v)}
-                    disabled={isLocked}
-                    title={isLocked ? "Upgrade to Pro" : undefined}
-                    style={isLocked ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
+                    onClick={() => setRecapView(v)}
                   >
-                    {isLocked ? "\uD83D\uDD12 " : ""}{v === "daily" ? "Day" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
+                    {v === "daily" ? "Day" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
                   </button>
                 );
               })}
@@ -404,8 +397,8 @@ export default function PersonalPage() {
         </div>
       </Card>
 
-      {/* Personal Records - premium */}
-      {isPremium && stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
+      {/* Personal Records - free */}
+      {stats && stats.personalRecords && stats.personalRecords.mostMilesInDay > 0 && (
         <Card title="Personal Records" style={{ marginBottom: "var(--dash-gap)" }}>
           <div className="stats-grid">
             {[
@@ -595,9 +588,9 @@ export default function PersonalPage() {
       {!isPremium && (
         <div className="premium-gate" style={{ marginTop: "var(--dash-gap)" }}>
           <div className="premium-gate__icon">&#9888;</div>
-          <h2 className="premium-gate__title">Unlock More Insights</h2>
+          <h2 className="premium-gate__title">Want more from your driving data?</h2>
           <p className="premium-gate__text">
-            Driving recaps, personal records, all {ACHIEVEMENT_TYPES.length} achievements, and detailed analytics are available with MileClear Pro.
+            MileClear Pro adds Driving Analytics, the Journey Map, CSV and PDF exports and the Self Assessment PDF. Recaps, personal records and all {ACHIEVEMENT_TYPES.length} achievements stay free.
           </p>
           <a href="/dashboard/settings" className="btn btn--primary">Upgrade to Pro</a>
         </div>

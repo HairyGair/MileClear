@@ -63,21 +63,21 @@ const productSchema = {
   operatingSystem: ANDROID_OS_SCHEMA,
   downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
   description:
-    "The UK mileage tracker built for gig workers. HMRC-native rates, gig platform tagging, offline-first tracking, and a generous free tier.",
+    "The UK mileage tracker built for gig workers. HMRC mileage rates built in, gig platform tagging, offline-first tracking, and a generous free tier.",
   offers: [
     {
       "@type": "Offer",
       name: "Free",
       price: "0",
       priceCurrency: "GBP",
-      description: "Unlimited trip tracking, HMRC calculator, achievements, saved locations.",
+      description: "Unlimited trip tracking, HMRC calculator, Self Assessment wizard, receipt scanning, achievements, recaps, saved locations.",
     },
     {
       "@type": "Offer",
       name: "Pro",
       price: "4.99",
       priceCurrency: "GBP",
-      description: "Self Assessment wizard, tax-ready PDF exports with attestation cover sheet, Accountant Portal, receipt OCR, business insights, pickup-wait community insights, unlimited saved locations.",
+      description: "Self Assessment PDF, PDF exports with attestation cover sheet, CSV exports, Accountant Portal, Open Banking, business insights, Driving Analytics, unlimited vehicles and saved locations.",
     },
   ],
 };
@@ -303,7 +303,7 @@ export default function MileClearVsMileIQ() {
                     },
                     {
                       feature: "Shift Mode",
-                      mileclear: "Full shift tracking with scorecard, platform P&L, golden hours (free, Pro for advanced)",
+                      mileclear: "Full shift tracking with scorecard (free); platform P&L and golden hours (Pro)",
                       mileiq: "Not included",
                       highlight: false,
                     },
@@ -460,10 +460,10 @@ export default function MileClearVsMileIQ() {
               </p>
               <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
                 Pro is £4.99 per month - well under half of what MileIQ charges since its 2026 price rise - and
-                adds the Self Assessment wizard, tax-ready PDF and CSV exports with a signed attestation cover sheet, the Accountant
-                Portal, on-device receipt scanning, CSV earnings import from gig platforms, business insights,
-                and unlimited saved locations. If you only need the Tax Readiness card, Anonymous Benchmarking,
-                MOT reminders, and trip tracking, MileClear is free forever.
+                adds the Self Assessment PDF, PDF and CSV exports with a signed attestation cover sheet, the Accountant
+                Portal, CSV earnings import from gig platforms, business insights, and unlimited saved locations.
+                The Self Assessment wizard, receipt scanning, the Tax Readiness card, Anonymous Benchmarking,
+                MOT reminders and trip tracking are free forever.
               </p>
             </section>
 
@@ -669,7 +669,7 @@ export default function MileClearVsMileIQ() {
               },
               {
                 q: "Is there a free trial for MileClear Pro?",
-                a: "MileClear's free tier is genuinely unlimited for trip tracking - there is no trial period, it is just free. The Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, and MOT reminders are all on the free tier. Pro features like the Self Assessment wizard, PDF exports, and the Accountant Portal can be unlocked at any time for £4.99 per month.",
+                a: "MileClear's free tier is genuinely unlimited for trip tracking - there is no trial period, it is just free. The Tax Readiness card, Anonymous Benchmarking, HMRC Reconciliation, and MOT reminders are all on the free tier. So is the Self Assessment wizard. Pro features like the Self Assessment PDF, PDF exports, and the Accountant Portal can be unlocked at any time for £4.99 per month.",
               },
               {
                 q: "Does MileIQ really cap the free tier at 40 drives a month?",

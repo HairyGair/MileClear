@@ -69,7 +69,7 @@ export default function StructuredData() {
         availability: "https://schema.org/InStock",
         url: "https://mileclear.com/pricing",
         description:
-          "PDF and CSV exports, Self Assessment summary, earnings tracking, Open Banking sync, business insights, platform comparison, unlimited saved locations.",
+          "PDF and CSV exports, the Self Assessment PDF, CSV earnings import, Open Banking sync, business insights, platform comparison, unlimited vehicles and saved locations.",
         priceSpecification: {
           "@type": "UnitPriceSpecification",
           price: "4.99",
@@ -77,24 +77,6 @@ export default function StructuredData() {
           unitCode: "MON",
           unitText: "month",
           billingDuration: "P1M",
-        },
-      },
-      {
-        "@type": "Offer",
-        name: "Pro Annual",
-        price: "44.99",
-        priceCurrency: "GBP",
-        availability: "https://schema.org/InStock",
-        url: "https://mileclear.com/pricing",
-        description:
-          "All Pro features billed annually. Equivalent to £3.75 per month, 25% saving versus monthly.",
-        priceSpecification: {
-          "@type": "UnitPriceSpecification",
-          price: "44.99",
-          priceCurrency: "GBP",
-          unitCode: "ANN",
-          unitText: "year",
-          billingDuration: "P1Y",
         },
       },
     ],
@@ -157,7 +139,7 @@ export default function StructuredData() {
         name: "Does it work with Uber, Deliveroo, and other platforms?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes. You can tag every trip with the platform you were driving for. MileClear then shows you earnings per mile, earnings per hour, and a platform comparison so you can see which ones are actually worth your time.",
+          text: "Yes. You can tag every trip with the platform you were driving for, free. With Pro, MileClear then shows you earnings per mile, earnings per hour, and a platform comparison so you can see which ones are actually worth your time.",
         },
       },
       {

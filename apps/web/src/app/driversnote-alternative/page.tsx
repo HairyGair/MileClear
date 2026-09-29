@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "Is MileClear cheaper than Driversnote?",
-    a: "For most drivers, yes. Driversnote is a paid-tier-focused product with a limited free allowance, while MileClear keeps unlimited automatic tracking and HMRC calculations on the free tier. You only pay MileClear's £4.99/month (or £44.99/year) if you want PDF/CSV exports, the Self Assessment wizard, or business analytics.",
+    a: "For most drivers, yes. Driversnote is a paid-tier-focused product with a limited free allowance, while MileClear keeps unlimited automatic tracking and HMRC calculations on the free tier. The Self Assessment wizard is free too. You only pay MileClear's £4.99/month if you want PDF/CSV exports, the Self Assessment PDF, or business analytics.",
   },
   {
     q: "Do I need a beacon or any hardware with MileClear?",
@@ -59,9 +59,9 @@ const faqs = [
 
 const rows: [string, string, string][] = [
   ["Free tier", "Unlimited automatic tracking", "Limited free allowance"],
-  ["Headline price", "Free · Pro £4.99/mo or £44.99/yr", "Paid-tier focused (among the priciest)"],
+  ["Headline price", "Free · Pro £4.99/mo", "Paid-tier focused (among the priciest)"],
   ["Hardware needed", "None - phone GPS + motion", "Optional iBeacon to buy/fit"],
-  ["HMRC-native (55p, 10k split)", "Yes", "Yes"],
+  ["HMRC mileage rates (55p, 10k split)", "Yes", "Yes"],
   ["Gig-platform tagging", "Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri…", "Less gig-verticalised"],
   ["Best fit", "Gig & self-employed drivers", "Employees, teams & fleets"],
 ];
@@ -128,7 +128,7 @@ export default function DriversnoteAlternative() {
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               Driversnote is a solid, UK-native mileage tracker - but it&rsquo;s built around a paid subscription
               and an optional iBeacon you have to buy and fit. MileClear gives gig and self-employed drivers the
-              same HMRC-native calculations with <strong style={{ color: "#e2e8f0" }}>unlimited free tracking</strong>,
+              same calculations at HMRC rates with <strong style={{ color: "#e2e8f0" }}>unlimited free tracking</strong>,
               <strong style={{ color: "#e2e8f0" }}> no hardware</strong>, and tagging built around how you actually
               earn - Uber, Deliveroo, Amazon Flex and the rest. You just drive; trips appear on their own.
             </p>
@@ -175,7 +175,7 @@ export default function DriversnoteAlternative() {
                 ["No beacon to buy or charge.", "ClearTrack uses your iPhone's GPS and motion coprocessor to detect drives - there's nothing to fit to your car."],
                 ["Built for gig work.", "Tag trips to Uber, Deliveroo, Just Eat, Amazon Flex, DPD or Evri, with per-platform earnings - not just a generic business/personal toggle."],
                 ["Same HMRC compliance.", "55p first-10,000-mile rate, 25p after, 24p motorbikes - applied per trip by date, ready for Self Assessment."],
-                ["Pay only for exports.", "Tracking and HMRC totals are free. Pro (£4.99/mo) adds PDF/CSV exports, the Self Assessment wizard and analytics - if and when you need them."],
+                ["Pay only for exports.", "Tracking and HMRC totals are free. Pro (£4.99/mo) adds PDF/CSV exports, the Self Assessment PDF and analytics - if and when you need them."],
               ].map(([t, d]) => (
                 <li key={t}>
                   <span style={{ color: "#f9fafb", fontWeight: 700, fontFamily: "var(--font-display)" }}>{t}</span>{" "}

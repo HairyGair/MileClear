@@ -159,7 +159,7 @@ export default function QuickBooksLanding() {
               <summary className="qb-faq__q">Will it be Pro-only?</summary>
               <p className="qb-faq__a">
                 Yes. The QuickBooks integration will be part of MileClear Pro
-                (£4.99/month or £44.99/year). All free features stay free.
+                (£4.99/month). All free features stay free.
               </p>
             </details>
             <details className="qb-faq">

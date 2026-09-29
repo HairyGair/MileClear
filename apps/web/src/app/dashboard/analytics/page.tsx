@@ -1437,6 +1437,9 @@ export default function DrivingAnalyticsPage() {
   const { user } = useAuth();
   const mode = user?.dashboardMode ?? "both";
   const isWorkMode = mode === "work" || mode === "both";
+  // /analytics sits behind premiumMiddleware. Free users get the upgrade
+  // prompt below and the endpoint is never called, so no 403 error shows.
+  const isPremium = user?.isPremium ?? false;
 
   const [analytics, setAnalytics] = useState<DrivingAnalytics | null>(null);
   const [weeklyReport, setWeeklyReport] = useState<WeeklyReport | null>(null);
@@ -1447,6 +1450,10 @@ export default function DrivingAnalyticsPage() {
 
   // Load main analytics data on mount
   useEffect(() => {
+    if (!isPremium) {
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const res = await api.get<{ data: DrivingAnalytics }>("/analytics");
@@ -1460,7 +1467,7 @@ export default function DrivingAnalyticsPage() {
       }
     }
     load();
-  }, []);
+  }, [isPremium]);
 
   // Load weekly report when week navigation changes
   const loadWeeklyReport = useCallback(
@@ -1492,6 +1499,22 @@ export default function DrivingAnalyticsPage() {
     setWeeksBack(next);
     loadWeeklyReport(next);
   }, [weeksBack, loadWeeklyReport]);
+
+  if (!isPremium) {
+    return (
+      <>
+        <PageHeader title="Driving Analytics" subtitle="Patterns, routes, and performance insights" />
+        <div className="premium-gate">
+          <div className="premium-gate__icon">&#128200;</div>
+          <h2 className="premium-gate__title">Upgrade to Pro</h2>
+          <p className="premium-gate__text">
+            Driving Analytics shows your weekly report, multi-month trends, busiest routes and times with MileClear Pro. Your recaps and personal records stay free on the dashboard.
+          </p>
+          <a href="/dashboard/settings" className="btn btn--primary">Upgrade to Pro</a>
+        </div>
+      </>
+    );
+  }
 
   if (loading) {
     return (

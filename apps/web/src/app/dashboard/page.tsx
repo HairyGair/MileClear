@@ -212,15 +212,13 @@ export default function DashboardPage() {
         const allInsights = generateWebInsights(statsRes.data, ucCount, vehiclesRes.data, isPremium);
         setInsights(allInsights.filter((i) => !dismissed.has(i.id)).slice(0, 3));
 
-        // Weekly/monthly recaps require premium
-        if (isPremium) {
-          const [weeklyRes, monthlyRes] = await Promise.all([
-            api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
-            api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
-          ]);
-          if (weeklyRes) setWeeklyRecap(weeklyRes.data);
-          if (monthlyRes) setMonthlyRecap(monthlyRes.data);
-        }
+        // Every recap period is free (8 May 2026), same as the app.
+        const [weeklyRes, monthlyRes] = await Promise.all([
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=weekly").catch(() => null),
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
+        ]);
+        if (weeklyRes) setWeeklyRecap(weeklyRes.data);
+        if (monthlyRes) setMonthlyRecap(monthlyRes.data);
       } catch (err: any) {
         setError(err.message || "Failed to load dashboard");
       } finally {
@@ -379,17 +377,13 @@ export default function DashboardPage() {
             </div>
             <div className="driving-recap__toggle">
               {(["daily", "weekly", "monthly", "yearly"] as const).map((v) => {
-                const locked = !isPremium && (v === "weekly" || v === "monthly" || v === "yearly");
                 return (
                   <button
                     key={v}
-                    className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}${locked ? " driving-recap__toggle-btn--locked" : ""}`}
-                    onClick={() => !locked && setRecapView(v)}
-                    disabled={locked}
-                    title={locked ? "Upgrade to Pro" : undefined}
+                    className={`driving-recap__toggle-btn${recapView === v ? " driving-recap__toggle-btn--active" : ""}`}
+                    onClick={() => setRecapView(v)}
                   >
                     {v === "daily" ? "Today" : v === "weekly" ? "Week" : v === "monthly" ? "Month" : "Year"}
-                    {locked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginLeft: 3 }}><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
                   </button>
                 );
               })}

@@ -35,7 +35,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Does it work with Uber, Deliveroo, and other platforms?",
-    a: "Yes. You can tag every trip with the platform you were driving for. MileClear then shows you earnings per mile, earnings per hour, and a platform comparison so you can see which ones are actually worth your time.",
+    a: "Yes. You can tag every trip with the platform you were driving for, free. With Pro, MileClear then shows you earnings per mile, earnings per hour, and a platform comparison so you can see which ones are actually worth your time.",
   },
   {
     q: "Is it available on Android?",

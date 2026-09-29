@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "Why are people switching from MileIQ?",
-    a: "MileIQ raised its price in 2026 (its monthly plan moved to roughly $8.99), and its free tier stops at 40 drives a month. It is also US-first, so it does not natively understand HMRC's two-tier 10,000-mile split or UK gig platforms. UK drivers switch to get unlimited free tracking and HMRC-native calculations without paying a US-priced subscription.",
+    a: "MileIQ raised its price in 2026 (its monthly plan moved to roughly $8.99), and its free tier stops at 40 drives a month. It is also US-first, so it does not natively understand HMRC's two-tier 10,000-mile split or UK gig platforms. UK drivers switch to get unlimited free tracking and calculations at HMRC rates without paying a US-priced subscription.",
   },
   {
     q: "Does MileClear calculate HMRC mileage for me?",
@@ -59,8 +59,8 @@ const faqs = [
 
 const rows: [string, string, string][] = [
   ["Free tier", "Unlimited drives, forever", "40 drives / month, then paid"],
-  ["Headline price", "Free · Pro £4.99/mo or £44.99/yr", "~$8.99/mo (raised in 2026)"],
-  ["HMRC-native (55p, 10k split)", "Yes - built in, tax-year aware", "No - US flat-rate logic"],
+  ["Headline price", "Free · Pro £4.99/mo", "~$8.99/mo (raised in 2026)"],
+  ["HMRC mileage rates (55p, 10k split)", "Yes - built in, tax-year aware", "No - US flat-rate logic"],
   ["Gig-platform tagging", "Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri…", "No"],
   ["Works offline", "Yes - offline-first", "Limited"],
   ["Self Assessment export", "PDF + CSV (SA103 wizard)", "Reports (US-oriented)"],
@@ -177,7 +177,7 @@ export default function MileIqAlternativeUk() {
                 ["HMRC rates, done for you.", "The 55p first-10,000-mile rate, the 25p tier, the 24p motorbike rate - applied per trip by date, with a running deduction total for Self Assessment."],
                 ["Knows your platforms.", "Tag trips to Uber, Deliveroo, Just Eat, Amazon Flex, DPD or Evri so your business mileage maps to how you actually earn."],
                 ["Records offline.", "Trips save to your phone first, so a dead spot or a closed app never loses a journey - then they sync when you&rsquo;re back online."],
-                ["UK-priced.", "Free to track. Pro is £4.99/month (or £44.99/year) only if you want tax-ready PDF exports and the Self Assessment wizard - not a US subscription to do the basics."],
+                ["UK-priced.", "Free to track. The Self Assessment wizard is free. Pro is £4.99/month only if you want PDF exports and the Self Assessment PDF - not a US subscription to do the basics."],
               ].map(([t, d]) => (
                 <li key={t}>
                   <span style={{ color: "#f9fafb", fontWeight: 700, fontFamily: "var(--font-display)" }}>{t}</span>{" "}

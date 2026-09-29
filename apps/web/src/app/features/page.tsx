@@ -83,11 +83,11 @@ const featuresItemList = {
       "Business insights with earnings per mile, per hour, weekly P&L (Pro)",
       "UK fuel prices from 8,300+ government-mandated stations",
       "Saved locations with geofencing for auto-classification",
-      "Self Assessment wizard with HMRC SA103 box mapping (Pro)",
+      "Self Assessment wizard with SA103 box mapping (print-ready PDF with Pro)",
       "PDF mileage log with signed attestation cover sheet (Pro)",
       "Accountant Portal - read-only dashboard sharing (Pro)",
-      "On-device receipt OCR (Pro)",
-      "Pickup wait timer with community insights (Pro)",
+      "On-device receipt OCR",
+      "Pickup wait timer",
       "Live Activities on lock screen and Dynamic Island",
       "Offline-first with background tracking",
     ].map((name, i) => ({
@@ -1167,8 +1167,9 @@ export default function FeaturesPage() {
                   margin: "0 auto",
                 }}
               >
-                Most features are free. Pro adds the Self Assessment wizard,
-                tax exports, the Accountant Portal, and receipt OCR for{" "}
+                Most features are free, including the Self Assessment wizard and
+                receipt scanning. Pro adds the Self Assessment PDF, tax exports,
+                the Accountant Portal and business insights for{" "}
                 <a
                   href="/pricing"
                   style={{ color: "var(--amber-400)", textDecoration: "underline" }}
@@ -1254,26 +1255,27 @@ export default function FeaturesPage() {
                 { feature: "UK fuel prices (8,300+ stations)", free: true, pro: true },
                 { feature: "Fuel fill-up logging", free: true, pro: true },
                 { feature: "Pickup wait timer (personal)", free: true, pro: true },
-                { feature: "Achievements, streaks, recaps", free: true, pro: true },
+                { feature: "All achievements, streaks, recaps, personal records", free: true, pro: true },
+                { feature: "Self Assessment wizard (SA103 mapping)", free: true, pro: true },
+                { feature: "Receipt scanning (on-device OCR)", free: true, pro: true },
                 { feature: "Vehicle CRUD with DVLA lookup", free: true, pro: true },
                 { feature: "First-time Self Assessment guide", free: true, pro: true },
                 { feature: "Web dashboard", free: true, pro: true },
                 { feature: "Saved locations (home, work, depot)", free: "2 max", pro: "Unlimited" },
-                { feature: "Self Assessment wizard (SA103 mapping)", free: false, pro: true },
+                { feature: "Self Assessment PDF (print-ready)", free: false, pro: true },
                 { feature: "PDF mileage log with attestation cover sheet", free: false, pro: true },
                 { feature: "CSV trip export", free: false, pro: true },
                 { feature: "Accountant Portal (read-only sharing)", free: false, pro: true },
-                { feature: "Receipt scanning (on-device OCR)", free: false, pro: true },
                 { feature: "CSV earnings import (gig platforms)", free: false, pro: true },
                 { feature: "Business insights (golden hours, P&L)", free: false, pro: true },
-                { feature: "Pickup wait community insights", free: false, pro: true },
-              ].map((row, i) => (
+                { feature: "Driving Analytics and Journey Map", free: false, pro: true },
+              ].map((row, i, rows) => (
                 <div
                   key={row.feature}
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 120px 120px",
-                    borderBottom: i < 17 ? "1px solid var(--border-subtle)" : "none",
+                    borderBottom: i < rows.length - 1 ? "1px solid var(--border-subtle)" : "none",
                     background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)",
                   }}
                 >
@@ -1341,7 +1343,7 @@ export default function FeaturesPage() {
                 color: "var(--text-muted)",
               }}
             >
-              Pro is £4.99/month or £44.99/year. Cancel any time. Available via the App Store
+              Pro is £4.99/month. Cancel any time. Available via the App Store
               on iOS or{" "}
               <a
                 href="/pricing"

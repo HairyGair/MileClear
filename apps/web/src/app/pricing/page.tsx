@@ -98,7 +98,8 @@ const freeFeatures: FeatureGroup[] = [
       'Anonymous Benchmarking - your weekly miles and trips vs other UK drivers',
       'Activity Heatmap - when you drive and earn most, by hour and platform',
       'Community road insights near your start point',
-      'Achievements, streaks, daily, weekly, monthly and yearly recaps',
+      'All achievements, streaks, personal records, and daily, weekly, monthly and yearly recaps',
+      'Shift Scorecard - an A to F grade for every shift, with costs and wear counted',
       'Work Schedule editor - set your working days and hours',
       'Refer a driver: you both get a month of Pro (up to three referrals)',
     ],
@@ -126,10 +127,9 @@ const proFeatures: FeatureGroup[] = [
   {
     title: 'Insight',
     items: [
-      'Business insights - earnings per mile and per hour, golden hours, weekly P&L, shift grades',
+      'Business insights - earnings per mile and per hour, platform comparison, golden hours, weekly P&L',
       'Driving Analytics - weekly and multi-month trends',
       'Journey Map - every route on one map',
-      'Pickup-wait community insights - "drivers here average 12-minute waits"',
     ],
   },
   {
@@ -157,7 +157,7 @@ const faqs = [
   },
   {
     q: 'What happens when I upgrade to Pro?',
-    a: 'You unlock the print-ready Self Assessment PDF, PDF and CSV exports, the Accountant Portal, Open Banking earnings import, CSV earnings import, Auto-Classify Rules, business insights (golden hours, P&L, shift grades), Driving Analytics, the Journey Map, pickup-wait community insights, and unlimited vehicles, saved locations and invoices. Everything switches on the moment your payment goes through.',
+    a: 'You unlock the print-ready Self Assessment PDF, PDF and CSV exports, the Accountant Portal, Open Banking earnings import, CSV earnings import, Auto-Classify Rules, business insights (golden hours, platform comparison, P&L), Driving Analytics, the Journey Map, and unlimited vehicles, saved locations and invoices. Everything switches on the moment your payment goes through.',
   },
   {
     q: 'Where does MileClear run?',
@@ -184,8 +184,8 @@ const faqs = [
     a: 'On iPhone, Pro is sold through Apple In-App Purchase; on Android, through Google Play Billing; on the web, through Stripe. Your card details stay with Apple, Google or Stripe - we never see them. Manage or cancel from your App Store or Google Play subscriptions, or from MileClear Profile.',
   },
   {
-    q: 'Do you offer an annual plan?',
-    a: 'Yes. Pro is £4.99/month or £44.99/year - the annual plan works out at under £3.75 a month, so you save £14.89, about three months. You can pick either when you upgrade.',
+    q: 'Is there a yearly plan?',
+    a: 'On the website, Pro is £4.99 a month. The iPhone app also offers a yearly plan when you subscribe there.',
   },
 ];
 
@@ -223,7 +223,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, pickup-wait community insights, unlimited vehicles, saved locations and invoices.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, unlimited vehicles, saved locations and invoices.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '4.99',
@@ -231,24 +231,6 @@ export default function PricingPage() {
           unitCode: 'MON',
           unitText: 'month',
           billingDuration: 'P1M',
-        },
-      },
-      {
-        '@type': 'Offer',
-        name: 'Pro Annual',
-        price: '44.99',
-        priceCurrency: 'GBP',
-        availability: 'https://schema.org/InStock',
-        url: 'https://mileclear.com/pricing',
-        description:
-          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, pickup-wait community insights, unlimited vehicles, saved locations and invoices. Billed yearly.',
-        priceSpecification: {
-          '@type': 'UnitPriceSpecification',
-          price: '44.99',
-          priceCurrency: 'GBP',
-          unitCode: 'ANN',
-          unitText: 'year',
-          billingDuration: 'P1Y',
         },
       },
     ],
@@ -334,9 +316,6 @@ export default function PricingPage() {
                 <p className="p-card__name">Pro</p>
                 <p className="p-card__price">
                   &pound;4.99<span className="p-card__period"> /month</span>
-                </p>
-                <p className="p-card__period" style={{ marginTop: '-0.5rem', marginBottom: '0.75rem' }}>
-                  or &pound;44.99/year (save &pound;14.89 - about three months free)
                 </p>
                 <p className="p-card__desc">
                   Filing-ready exports, Accountant Portal, Open Banking, auto-classification and the full business-insights toolkit for self-employed drivers.

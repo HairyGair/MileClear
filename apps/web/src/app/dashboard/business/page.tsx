@@ -114,6 +114,21 @@ function WorkModeInfo({ dismissed, onDismiss }: { dismissed: boolean; onDismiss:
   );
 }
 
+// Shown in place of a Pro-only card for free users. It never calls the
+// Pro endpoint, so a free user sees this prompt rather than a 403.
+function ProCard({ title, text }: { title: string; text: string }) {
+  return (
+    <Card title={title} action={<Badge variant="pro">Pro</Badge>} style={{ marginBottom: "var(--dash-gap)" }}>
+      <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.6, margin: "0 0 0.75rem" }}>
+        {text}
+      </p>
+      <Link href="/dashboard/settings" className="btn btn--ghost btn--sm">
+        Upgrade to Pro
+      </Link>
+    </Card>
+  );
+}
+
 export default function BusinessPage() {
   const { user } = useAuth();
   const isPremium = user?.isPremium ?? false;
@@ -160,33 +175,37 @@ export default function BusinessPage() {
   };
 
   useEffect(() => {
-    if (!isPremium) {
-      setLoading(false);
-      return;
-    }
     async function load() {
       try {
-        const [statsRes, insightsRes, pnlRes, recapRes, tripsRes, wpRes, platformPnlRes] = await Promise.all([
-          api.get<{ data: GamificationStats }>("/gamification/stats"),
-          api.get<{ data: BusinessInsights }>("/business-insights"),
-          api.get<{ data: WeeklyPnL }>("/business-insights/pnl"),
-          api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly"),
-          api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=business"),
-          api.get<{ data: WeeklyProgress }>("/user/weekly-progress"),
-          api
-            .get<{ data: typeof platformPnL }>("/business-insights/platform-pnl?days=30")
-            .catch(() => ({ data: [] as typeof platformPnL })),
+        // Free endpoints: every driver gets these cards.
+        const [statsRes, recapRes, tripsRes, wpRes] = await Promise.all([
+          api.get<{ data: GamificationStats }>("/gamification/stats").catch(() => null),
+          api.get<{ data: PeriodRecap }>("/gamification/recap?period=monthly").catch(() => null),
+          api.get<PaginatedResponse<Trip>>("/trips/?pageSize=5&classification=business").catch(() => null),
+          api.get<{ data: WeeklyProgress }>("/user/weekly-progress").catch(() => null),
         ]);
-        setStats(statsRes.data);
-        setInsights(insightsRes.data);
-        setPnl(pnlRes.data);
-        setMonthlyRecap(recapRes.data);
-        setRecentTrips(tripsRes.data);
-        setWeeklyProgress(wpRes.data);
-        setPlatformPnL(platformPnlRes.data ?? []);
-        if (wpRes.data.goalPence) setGoalInput(String(wpRes.data.goalPence / 100));
-      } catch {
-        // Handled by empty state
+        if (statsRes) setStats(statsRes.data);
+        if (recapRes) setMonthlyRecap(recapRes.data);
+        if (tripsRes) setRecentTrips(tripsRes.data);
+        if (wpRes) {
+          setWeeklyProgress(wpRes.data);
+          if (wpRes.data.goalPence) setGoalInput(String(wpRes.data.goalPence / 100));
+        }
+
+        // Pro endpoints (premiumMiddleware): only called for Pro users, so a
+        // free user never hits a 403. Free users see ProCard prompts instead.
+        if (isPremium) {
+          const [insightsRes, pnlRes, platformPnlRes] = await Promise.all([
+            api.get<{ data: BusinessInsights }>("/business-insights").catch(() => null),
+            api.get<{ data: WeeklyPnL }>("/business-insights/pnl").catch(() => null),
+            api
+              .get<{ data: typeof platformPnL }>("/business-insights/platform-pnl?days=30")
+              .catch(() => ({ data: [] as typeof platformPnL })),
+          ]);
+          if (insightsRes) setInsights(insightsRes.data);
+          if (pnlRes) setPnl(pnlRes.data);
+          setPlatformPnL(platformPnlRes.data ?? []);
+        }
       } finally {
         setLoading(false);
       }
@@ -194,14 +213,13 @@ export default function BusinessPage() {
     load();
   }, [isPremium]);
 
-  // Fetch calendar for selected month
+  // Fetch calendar for selected month (free endpoint)
   useEffect(() => {
-    if (!isPremium) return;
     api
       .get<{ data: CalendarDay[] }>(`/user/calendar?year=${calYear}&month=${calMonth}`)
       .then((res) => setCalDays(res.data))
       .catch(() => setCalDays([]));
-  }, [isPremium, calYear, calMonth]);
+  }, [calYear, calMonth]);
 
   const saveGoal = async () => {
     const pence = goalInput.trim() ? Math.round(parseFloat(goalInput) * 100) : null;
@@ -218,28 +236,12 @@ export default function BusinessPage() {
 
   // Fetch P&L for different weeks
   useEffect(() => {
-    if (pnlWeek === 0) return; // already loaded in initial fetch
+    if (pnlWeek === 0 || !isPremium) return; // already loaded in initial fetch; Pro only
     api
       .get<{ data: WeeklyPnL }>(`/business-insights/pnl?weeksBack=${pnlWeek}`)
       .then((res) => setPnl(res.data))
       .catch(() => {});
-  }, [pnlWeek]);
-
-  if (!isPremium && !loading) {
-    return (
-      <>
-        <PageHeader title="Business" subtitle="Tax deductions, efficiency, and business intelligence" />
-        <div className="premium-gate">
-          <div className="premium-gate__icon">&#9888;</div>
-          <h2 className="premium-gate__title">Upgrade to Pro</h2>
-          <p className="premium-gate__text">
-            Business intelligence, tax deductions, platform comparison, shift grades, and weekly P&amp;L are available with a MileClear Pro subscription.
-          </p>
-          <a href="/dashboard/settings" className="btn btn--primary">Manage Subscription</a>
-        </div>
-      </>
-    );
-  }
+  }, [pnlWeek, isPremium]);
 
   if (loading) return <DashboardSkeleton />;
 
@@ -410,6 +412,13 @@ export default function BusinessPage() {
         </div>
       )}
 
+      {!isPremium && (
+        <ProCard
+          title="Efficiency"
+          text="Earnings per mile and per hour, shift hours and trips per shift, with the trend against last week."
+        />
+      )}
+
       {/* Platform Comparison */}
       {insights && insights.platformPerformance.length > 0 && (
         <div className="biz-insights-section" style={{ marginBottom: "var(--dash-gap)" }}>
@@ -516,6 +525,13 @@ export default function BusinessPage() {
         </div>
       )}
 
+      {!isPremium && (
+        <ProCard
+          title="Platform comparison and profit"
+          text="See which platform pays best per mile and per hour, and what each one netted after fuel and expenses."
+        />
+      )}
+
       {/* Recent Shifts with Grades */}
       {insights && insights.recentShifts.length > 0 && (
         <div className="biz-insights-section" style={{ marginBottom: "var(--dash-gap)" }}>
@@ -567,6 +583,13 @@ export default function BusinessPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {!isPremium && (
+        <ProCard
+          title="Shift performance, golden hours and fuel economy"
+          text="Your recent shifts side by side, your most profitable time slots, and real MPG from your fuel logs."
+        />
       )}
 
       {/* Peak Performance - Golden Hours */}
@@ -680,6 +703,13 @@ export default function BusinessPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {!isPremium && (
+        <ProCard
+          title="Weekly P&L"
+          text="Earnings minus fuel and wear for any of the last 12 weeks, next to your mileage deduction."
+        />
       )}
 
       {/* Monthly Summary */}

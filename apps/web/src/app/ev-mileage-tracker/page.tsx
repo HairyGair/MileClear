@@ -412,7 +412,7 @@ export default function EvMileageTracker() {
               The one condition is records: without a mileage log, HMRC can disallow the claim entirely.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
-              MileClear Pro is £4.99 per month or £44.99 per year. Against a saving of £1,600 or more, it pays
+              MileClear Pro is £4.99 per month. Against a saving of £1,600 or more, it pays
               for itself many times over - and the tracker that produces the log is free forever, with no
               monthly drive cap.
             </p>
