@@ -294,14 +294,20 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
     [QUICK_TRIP_SHIFT_ID]
   );
 
+  // Clear the automatic engine's copy of this drive BEFORE the lock goes. The
+  // lock is what keeps every other path off these fixes; dropped first, the
+  // next fix can open a native recording whose app-open rescue saves the
+  // leftovers as trips while this Start Trip is still being saved. Kada
+  // (46996a27), 29 Sep 2026: lock released 10:52:27, rescue saved 1.2 + 16.2
+  // mi from the buffer the same second, his 34.1 mi Start Trip landed 16 s
+  // later, so the drive counted twice.
+  await cancelAutoRecording(true);
+  await discardNativeStore();
+
   // Clean up
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
   await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
   await applyNativeEnginePower("quick_trip_ended");
-
-  // Clear detection coordinates to prevent duplicate trip finalization
-  await cancelAutoRecording(true);
-  await discardNativeStore();
 
   // Restart drive detection for the next trip
   await startDriveDetection();
