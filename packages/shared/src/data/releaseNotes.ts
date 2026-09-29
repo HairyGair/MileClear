@@ -78,6 +78,45 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 93, cut 29 Sep 2026 from main @ af13e88a. Native reason: the
+    // first-open update switch (570b9940) only works from inside a binary, so
+    // App Store updaters stop running a fortnight-old bundle for one session.
+    // Most of the rest reached 1.3.11 phones by OTA on 28 Sep (low-power pause,
+    // Automatic trips switch, duplicate and upload fixes); listed because 1.3.12
+    // is the open version. Android-only work is left out: this list feeds the
+    // App Store copy. Label flow as before: "Pending Review" with Apple,
+    // "Latest" on approval in the same edit that drops 1.3.11 to "App Store".
+    version: "1.3.12",
+    date: "September 2026",
+    label: "Pending Review",
+    items: [
+      "An Automatic trips switch on the home screen. Turn it off and the app stops recording drives on its own; shifts and Start Trip still record",
+      "Trips recorded during a shift are saved as Business",
+      "Less battery: automatic tracking sleeps while recording is paused and while a shift or Start Trip is running, and signing out always stops it",
+      "A drive is no longer saved twice when a shift or Start Trip recorded it too",
+      "One trip or place that can't be uploaded no longer holds up every trip behind it",
+      "Journeys to check older than 14 days drop off the list, and adding one asks when you really set off",
+      "\"Missing a trip you made?\" asks for your real set-off time rather than offering Now",
+      "Trip reminders open your Inbox, where the trips to sort are",
+      "A Start Trip that got stuck after the app closed now recovers",
+      "After an App Store update, the app moves straight to the latest version the first time you open it",
+      "Saving while offline says \"No connection, try again\" instead of asking you to contact support",
+      "Signing in again no longer takes you back through the setup screens",
+    ],
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.12",
+    emailTagline:
+      "1.3.12 adds an Automatic trips switch to the home screen, saves battery while you're paused, and stops the same drive being saved twice.",
+    emailHighlights: [
+      "**Automatic trips switch** - on the home screen. Off means the app stops recording drives on its own; shifts and Start Trip still record.",
+      "**Less battery** - tracking sleeps while you're paused or on a shift, and signing out stops it.",
+      "**No double drives** - a drive recorded by a shift or Start Trip is no longer saved a second time.",
+      "**Shift trips are Business** - no sorting needed for drives made on a shift.",
+      "**Journeys to check stay current** - old offers drop off, and adding one asks when you set off.",
+    ],
+  },
+  {
     // Build 90, cut 11 Sep 2026. One native reason: the Live Activity's own
     // buttons. Business / Personal after a trip, and Not Driving during one,
     // each ran in the widget process and could only write to the activity
