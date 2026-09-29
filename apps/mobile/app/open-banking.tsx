@@ -20,14 +20,7 @@ import type { PlaidConnection } from "@mileclear/shared";
 import { Button } from "../components/Button";
 import { BetaBanner } from "../components/BetaBanner";
 import { useUser } from "../lib/user/context";
-import {
-  isIapAvailable,
-  purchaseSubscription,
-  externalCheckoutAllowed,
-  EXTERNAL_CHECKOUT_BLOCKED_TITLE,
-  EXTERNAL_CHECKOUT_BLOCKED_MESSAGE,
-} from "../lib/iap/index";
-import { createCheckoutSession } from "../lib/api/billing";
+import { usePaywall } from "../components/paywall";
 import * as SecureStore from "expo-secure-store";
 import { ACCESS_TOKEN_KEY } from "../lib/api/index";
 import { colors, fonts } from "../lib/theme";
@@ -62,11 +55,11 @@ const STATUS_COLORS: Record<string, string> = {
 export default function OpenBankingScreen() {
   const router = useRouter();
   const { user } = useUser();
+  const { showPaywall } = usePaywall();
   const [connections, setConnections] = useState<PlaidConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
-  const [upgrading, setUpgrading] = useState(false);
 
   const loadConnections = useCallback(async () => {
     try {
@@ -221,28 +214,6 @@ export default function OpenBankingScreen() {
     </View>
   );
 
-  const handleUpgrade = async () => {
-    setUpgrading(true);
-    try {
-      if (isIapAvailable()) {
-        await purchaseSubscription("monthly", user?.id);
-      } else if (!externalCheckoutAllowed()) {
-        Alert.alert(EXTERNAL_CHECKOUT_BLOCKED_TITLE, EXTERNAL_CHECKOUT_BLOCKED_MESSAGE);
-      } else {
-        const res = await createCheckoutSession();
-        if (res.data?.url) {
-          await WebBrowser.openBrowserAsync(res.data.url);
-        }
-      }
-    } catch (err: any) {
-      if (!err.message?.includes("cancel")) {
-        Alert.alert("Couldn't start the upgrade", err.message || "Try again in a moment.");
-      }
-    } finally {
-      setUpgrading(false);
-    }
-  };
-
   if (!user?.isPremium) {
     return (
       <View style={styles.container}>
@@ -255,20 +226,15 @@ export default function OpenBankingScreen() {
             <Text style={styles.proBadgeText}>PRO</Text>
           </View>
           <Text style={styles.gateDesc}>
-            Automatically import earnings from your bank account. Connect Uber, Deliveroo, Amazon Flex, and more — no manual entry needed.
+            Automatically import earnings from your bank account. Connect Uber, Deliveroo, Amazon Flex, and more, with no manual entry needed.
           </Text>
+          {/* The paywall carries the price, plan choice, terms and
+              platform-specific cancellation wording. */}
           <Button
-            title={upgrading ? "Loading..." : "Upgrade to Pro"}
-            onPress={handleUpgrade}
-            loading={upgrading}
+            title="Upgrade to Pro"
+            onPress={() => showPaywall("open_banking")}
             style={{ marginTop: 20, width: "100%" }}
           />
-          <Text style={styles.gatePrice}>Auto-renews, cancel anytime</Text>
-          <View style={styles.gateLegalLinks}>
-            <Text style={styles.gateLegalLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
-            <Text style={styles.gateLegalSep}>|</Text>
-            <Text style={styles.gateLegalLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>Privacy Policy</Text>
-          </View>
         </View>
       </View>
     );
@@ -292,9 +258,9 @@ export default function OpenBankingScreen() {
         ListHeaderComponent={
           <View style={styles.header}>
             <BetaBanner
-              label="Beta · Sandbox"
-              title="Test banks only for now"
-              body="We're connected to TrueLayer's sandbox while we finalise production access with their banking partners. You can run through the link flow and see how it works, but only test-bank data will pull through. Real bank imports go live with our next round of accreditation."
+              label="Beta"
+              title="Works with real UK banks"
+              body="Bank imports are live and still in beta. Your bank's consent screen may show a testing-mode note while our banking partner, TrueLayer, completes its final approval. Your real transactions still come through."
             />
             <View style={styles.titleRow}>
               <Text style={styles.heading}>Open Banking</Text>
@@ -487,26 +453,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
     marginTop: 12,
-  },
-  gatePrice: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    marginTop: 10,
-  },
-  gateLegalLinks: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 6,
-  },
-  gateLegalLink: {
-    fontSize: 11,
-    fontFamily: fonts.medium,
-    color: "#3b82f6",
-  },
-  gateLegalSep: {
-    fontSize: 11,
-    color: TEXT_3,
   },
 });

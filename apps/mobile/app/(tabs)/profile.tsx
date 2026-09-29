@@ -24,7 +24,7 @@ import {
   cancelSubscription,
   validateApplePurchase,
 } from "../../lib/api/billing";
-import type { Vehicle, User, BillingStatus } from "@mileclear/shared";
+import type { User, BillingStatus } from "@mileclear/shared";
 import { formatPence, calculateHmrcDeduction } from "@mileclear/shared";
 import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
@@ -35,6 +35,7 @@ import {
   PLAY_SUBSCRIPTIONS_URL,
 } from "../../lib/iap/index";
 import { validateGooglePurchase } from "../../lib/api/billingGoogle";
+import { billingCopyFor, billingChannelFor } from "../../lib/paywall/lead";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
 import { usePaywall } from "../../components/paywall";
@@ -195,6 +196,12 @@ export default function ProfileScreen() {
       },
     ]);
   }, [loadData]);
+
+  // Where this user's Pro comes from. A team or referral Pro user has no
+  // subscription of their own, so the card must not offer renew/cancel/manage.
+  // Billing status is fresher; the profile carries the same fields.
+  const premiumSource = billing?.premiumSource ?? user?.premiumSource;
+  const referralProUntil = billing?.referralProUntil ?? user?.referralProUntil ?? null;
 
   // ── Account actions ──────────────────────────────────────────────
   const handleLogout = useCallback(() => {
@@ -442,7 +449,7 @@ export default function ProfileScreen() {
                 <View style={styles.featureList}>
                   <View style={styles.featureRow}>
                     <Ionicons name="checkmark-circle" size={18} color={colors.green} />
-                    <Text style={styles.featureText}>HMRC tax exports (PDF, CSV)</Text>
+                    <Text style={styles.featureText}>Self Assessment PDF & mileage exports</Text>
                   </View>
                   <View style={styles.featureRow}>
                     <Ionicons name="checkmark-circle" size={18} color={colors.green} />
@@ -473,7 +480,7 @@ export default function ProfileScreen() {
                 </TouchableOpacity>
               )}
               <Text style={styles.subLegalText}>
-                MileClear Pro auto-renews monthly. Cancel anytime in Settings.
+                {billingCopyFor(billingChannelFor(iapStore(), Platform.OS)).smallPrint}
               </Text>
               <View style={styles.subLegalLinks}>
                 <TouchableOpacity onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>
@@ -494,7 +501,31 @@ export default function ProfileScreen() {
                     <Text style={styles.activeBadgeText}>ACTIVE</Text>
                   </View>
                 </View>
-                {billing?.subscriptionPlatform === "apple" ? (
+                {premiumSource === "team" ? (
+                  // Team Pro is the organisation's plan, not this user's:
+                  // nothing here to renew, cancel or manage.
+                  <Text style={styles.subDetail}>Pro through your team</Text>
+                ) : premiumSource === "referral" ? (
+                  // Banked referral credit: no subscription behind it, so no
+                  // cancel button (the Stripe cancel would have nothing to cancel).
+                  <Text style={styles.subDetail}>
+                    {referralProUntil
+                      ? `Pro from referrals, until ${new Date(referralProUntil).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}`
+                      : "Pro from referrals"}
+                  </Text>
+                ) : premiumSource !== undefined &&
+                  premiumSource !== "subscription" &&
+                  billing?.subscriptionPlatform === "none" ? (
+                  // Pro from anything else the server knows about (e.g. a
+                  // complimentary grant): still no subscription to manage.
+                  <Text style={styles.subDetail}>
+                    Pro is on for your account. There's no subscription to renew or cancel.
+                  </Text>
+                ) : billing?.subscriptionPlatform === "apple" ? (
                   <>
                     <Text style={styles.subDetail}>Managed by App Store</Text>
                     <TouchableOpacity

@@ -58,7 +58,7 @@ export function PremiumTeaser({
       >
         <Ionicons name="diamond-outline" size={16} color={AMBER} />
         <Text style={styles.compactText}>
-          {feature ? `${feature} — ` : ""}Upgrade to Pro
+          {feature ? `${feature}: ` : ""}Upgrade to Pro
         </Text>
         <Ionicons name="chevron-forward" size={14} color={TEXT_3} />
       </TouchableOpacity>

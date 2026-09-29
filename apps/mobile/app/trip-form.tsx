@@ -2626,8 +2626,11 @@ export default function TripFormScreen() {
                 setTimeout(() => {
                   Alert.alert(
                     "Challenge Complete!",
-                    "You tracked 3 days in a row. Here's your special Pro offer.",
-                    [{ text: "See offer", onPress: () => showPaywall("challenge_complete") }]
+                    "You tracked 3 days in a row. Want to see what Pro adds?",
+                    [
+                      { text: "Not now", style: "cancel" },
+                      { text: "See Pro", onPress: () => showPaywall("challenge_complete") },
+                    ]
                   );
                 }, 2000);
               }

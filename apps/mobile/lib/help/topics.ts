@@ -117,7 +117,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "accountant-sharing",
         q: "Can my accountant log in to see my numbers? (Pro)",
-        a: "Yes — Settings → Work & Tax → Accountant Sharing. Generate a read-only link, send it to your accountant. They get a clean dashboard with all your trips, earnings, invoices, and HMRC figures. No password handover, no email forwarding. Pro feature.",
+        a: "Yes, with Pro, set up from the website. Sign in at mileclear.com and open Accountant Access in the dashboard, then enter your accountant's email. They get a read-only view of your mileage and tax figures, with no password handover, and you can revoke it at any time.\n\nThe invite is on the website only for now. The My Accountant screen in the app just stores their name and fee for your weekly set-aside.",
       },
       {
         id: "hmrc-rates",
@@ -148,12 +148,12 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "activity-heatmap",
         q: "What does the Activity Heatmap show?",
-        a: "7-by-24 grid of when you actually drive and earn most across the last 12 weeks. Brighter cells = more activity. Switch between trips and earnings views; filter by platform (Pro) to see, for example, whether Just Eat Friday-night peaks beat Saturday-lunch.\n\nGreat for spotting your real \"golden hours\" so you can stop guessing when to start a shift. Tap any cell for the trip count, total earnings and average pence per mile in that slot.",
+        a: "7-by-24 grid of when you actually drive and earn most across the last 12 weeks. Brighter cells = more activity. Switch between trips and earnings views; filter by platform to see, for example, whether Just Eat Friday-night peaks beat Saturday-lunch.\n\nGreat for spotting your real \"golden hours\" so you can stop guessing when to start a shift. Tap any cell for the trip count, total earnings and average pence per mile in that slot.",
       },
       {
         id: "sa-wizard",
-        q: "How does the Self Assessment wizard work? (Pro)",
-        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet.\n\nFree wizard view; PDF export is Pro.",
+        q: "How does the Self Assessment wizard work?",
+        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
         goTo: "/self-assessment",
       },
       {
@@ -218,7 +218,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "pickup-wait-timer",
         q: "What's the Pickup Wait timer?",
-        a: "When you arrive at a restaurant or depot to collect an order, tap \"Wait at pickup\" - a stopwatch starts. Survives app suspension and locks. Tap again when the food/parcel is in the car to log how long you waited.\n\nFree: see your own wait times in the shift recap. Pro: community insights light up - \"Wagamama Aldgate averages 12 min, Pret Holborn 4 min\" - so you know which restaurants to avoid stacking and which are quick.",
+        a: "When you arrive at a restaurant or depot to collect an order, tap \"Wait at pickup\" - a stopwatch starts. Survives app suspension and locks. Tap again when the food/parcel is in the car to log how long you waited.\n\nYour wait times show in the shift recap, so you can see which pickups keep you waiting.",
       },
       {
         id: "trip-merge",
@@ -251,7 +251,10 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "pro-features",
         q: "What's in Pro?",
-        a: "Quarterly HMRC submissions, Self Assessment PDF, CSV earnings import, Open Banking auto-import, the Bank-feed Inbox, receipt scanning, auto-classify rules, business insights, journey map, accountant sharing, unlimited invoices, unlimited saved locations and vehicles.\n\n£4.99/month or £44.99/year. Cancel anytime from your Apple ID settings.",
+        a: "Self Assessment PDF, CSV and PDF mileage exports, CSV earnings import, Open Banking import, the Bank-feed Inbox, auto-classify rules, business insights, driving analytics, journey map, accountant access (set up on mileclear.com), unlimited invoices, and unlimited saved locations and vehicles.\n\nThe Self Assessment wizard, receipt scanning, shift scorecards, achievements and recaps are all free.\n\n£4.99/month or £44.99/year. " +
+          (Platform.OS === "android"
+            ? "Cancel any time in Google Play > Payments & subscriptions."
+            : "Cancel any time in your Apple ID settings, or from Profile if you subscribed on the website."),
       },
       {
         id: "expenses",
@@ -263,8 +266,8 @@ export const HELP_SECTIONS: HelpSection[] = [
         id: "receipt-scanning",
         q: "How does receipt scanning work?",
         a: Platform.OS === "android"
-          ? "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Google's on-device ML Kit OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR model runs locally on your device, so receipts for sensitive stuff (medical, hotel) stay private. ML Kit is the same text-recognition engine behind Google Lens, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nWorks on Pro. The earnings receipt scanner uses the same pipeline."
-          : "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nWorks on Pro. The earnings receipt scanner uses the same pipeline.",
+          ? "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Google's on-device ML Kit OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR model runs locally on your device, so receipts for sensitive stuff (medical, hotel) stay private. ML Kit is the same text-recognition engine behind Google Lens, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nFree for everyone. The earnings receipt scanner uses the same pipeline."
+          : "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nFree for everyone. The earnings receipt scanner uses the same pipeline.",
       },
       {
         id: "inbox",

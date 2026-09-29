@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Platform,
 } from "react-native";
 import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,11 +23,20 @@ import {
   purchaseSubscription,
   getSubscriptionProducts,
   restorePurchases,
+  iapStore,
   externalCheckoutAllowed,
   EXTERNAL_CHECKOUT_BLOCKED_TITLE,
   EXTERNAL_CHECKOUT_BLOCKED_MESSAGE,
 } from "../../lib/iap/index";
 import { validateApplePurchase } from "../../lib/api/billing";
+import { validateGooglePurchase } from "../../lib/api/billingGoogle";
+import {
+  PAYWALL_CHECKLIST,
+  billingChannelFor,
+  billingCopyFor,
+  orderedFeatures,
+  paywallLeadFor,
+} from "../../lib/paywall/lead";
 import { useUser } from "../../lib/user/context";
 import type { GamificationStats } from "@mileclear/shared";
 import { colors, fonts } from "../../lib/theme";
@@ -53,7 +63,7 @@ interface PaywallModalProps {
   source?: string;
 }
 
-export function PaywallModal({ visible, onClose, source: _source }: PaywallModalProps) {
+export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
   const router = useRouter();
   const { user, refreshUser } = useUser();
@@ -66,6 +76,13 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
   const [restoring, setRestoring] = useState(false);
 
   const price = selectedPlan === "annual" && annualPrice ? annualPrice : monthlyPrice;
+
+  // Lead with what the person tapped (null = the generic mileage pitch).
+  const lead = useMemo(() => paywallLeadFor(source), [source]);
+  const features = useMemo(() => orderedFeatures(lead?.highlightFeature), [lead]);
+  // Where they would pay decides where they cancel: App Store, Google Play,
+  // or a card through Stripe Checkout when no in-app purchase is available.
+  const billingCopy = billingCopyFor(billingChannelFor(iapStore(), Platform.OS));
 
   // Load stats + prices when modal opens
   useEffect(() => {
@@ -132,13 +149,20 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
   const handleRestore = useCallback(async () => {
     setRestoring(true);
     try {
-      const txIds = await restorePurchases();
-      if (txIds.length === 0) {
-        Alert.alert("No Purchases Found", "No previous subscriptions found for this Apple ID.");
+      const tokens = await restorePurchases();
+      if (tokens.length === 0) {
+        Alert.alert("Nothing to restore", billingCopy.restoreNotFound);
         return;
       }
-      for (const txId of txIds) {
-        await validateApplePurchase(txId);
+      // Transaction IDs on iOS, purchase tokens on Android: each store has
+      // its own validate endpoint (same as the profile screen's restore).
+      const isGoogle = iapStore() === "google";
+      for (const token of tokens) {
+        if (isGoogle) {
+          await validateGooglePurchase(token);
+        } else {
+          await validateApplePurchase(token);
+        }
       }
       await refreshUser();
       Alert.alert("Restored", "Your subscription has been restored.");
@@ -148,7 +172,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
     } finally {
       setRestoring(false);
     }
-  }, [onClose, refreshUser]);
+  }, [billingCopy.restoreNotFound, onClose, refreshUser]);
 
   // Personalised deduction value — server-authoritative (handles 10k tier + vehicle type)
   const businessMiles = stats?.businessMiles ?? 0;
@@ -191,17 +215,26 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
             <View style={[s.page, { width: SCREEN_WIDTH }]}>
               <ScrollView contentContainerStyle={s.pageContent} showsVerticalScrollIndicator={false}>
                 <View style={s.valueIconWrap}>
-                  <Ionicons name="trending-up" size={36} color={AMBER} />
+                  <Ionicons name={(lead?.icon ?? "trending-up") as any} size={36} color={AMBER} />
                 </View>
 
-                <Text style={s.valueHeading}>
-                  You've tracked {milesFormatted} miles
-                </Text>
-                <Text style={s.valueSubheading}>
-                  That's worth up to{" "}
-                  <Text style={s.valueHighlight}>{deductionFormatted}</Text>
-                  {" "}in HMRC deductions
-                </Text>
+                {lead ? (
+                  <>
+                    <Text style={s.valueHeading}>{lead.headline}</Text>
+                    <Text style={s.valueSubheading}>{lead.subline}</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={s.valueHeading}>
+                      You've tracked {milesFormatted} miles
+                    </Text>
+                    <Text style={s.valueSubheading}>
+                      That's worth up to{" "}
+                      <Text style={s.valueHighlight}>{deductionFormatted}</Text>
+                      {" "}in HMRC deductions
+                    </Text>
+                  </>
+                )}
 
                 <View style={s.valueCard}>
                   <View style={s.valueRow}>
@@ -221,7 +254,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                 </View>
 
                 <Text style={s.valueFooter}>
-                  HMRC lets you claim every business mile. Pro turns this into a print-ready submission.
+                  HMRC lets you claim every business mile. Pro turns your figures into a Self Assessment PDF you can file from.
                 </Text>
 
                 <TouchableOpacity
@@ -244,10 +277,8 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   <Ionicons name="shield-checkmark" size={36} color={SUCCESS} />
                 </View>
 
-                <Text style={s.trustHeading}>Try risk-free</Text>
-                <Text style={s.trustSubheading}>
-                  Cancel anytime from your Apple ID settings. No hidden fees, no lock-in.
-                </Text>
+                <Text style={s.trustHeading}>No lock-in</Text>
+                <Text style={s.trustSubheading}>{billingCopy.cancelLine}</Text>
 
                 <View style={s.trustCards}>
                   <View style={s.trustCard}>
@@ -255,7 +286,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                     <View style={s.trustCardBody}>
                       <Text style={s.trustCardTitle}>Renewal reminder</Text>
                       <Text style={s.trustCardText}>
-                        We'll notify you 2 days before your next billing date.
+                        With notifications on, we'll remind you in the days before your next billing date.
                       </Text>
                     </View>
                   </View>
@@ -264,7 +295,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                     <View style={s.trustCardBody}>
                       <Text style={s.trustCardTitle}>Your data stays yours</Text>
                       <Text style={s.trustCardText}>
-                        All trips and data remain even if you downgrade.
+                        All your trips and data stay, even if you cancel.
                       </Text>
                     </View>
                   </View>
@@ -273,7 +304,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                     <View style={s.trustCardBody}>
                       <Text style={s.trustCardTitle}>Simple pricing</Text>
                       <Text style={s.trustCardText}>
-                        From {monthlyPrice}/month{annualPrice ? `, or ${annualPrice}/year` : ""}. Cancel anytime.
+                        From {monthlyPrice}/month{annualPrice ? `, or ${annualPrice}/year` : ""}. No hidden fees.
                       </Text>
                     </View>
                   </View>
@@ -302,8 +333,11 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                 <Text style={s.featuresHeading}>Everything in Pro</Text>
 
                 <View style={s.featureGrid}>
-                  {FEATURES.map((f) => (
-                    <View key={f.label} style={s.featureItem}>
+                  {features.map((f) => (
+                    <View
+                      key={f.id}
+                      style={[s.featureItem, f.id === lead?.highlightFeature && s.featureItemHighlight]}
+                    >
                       <View style={s.featureIconWrap}>
                         <Ionicons name={f.icon as any} size={20} color={AMBER} />
                       </View>
@@ -376,7 +410,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                 )}
 
                 <View style={s.purchaseChecks}>
-                  {["HMRC tax exports (PDF & CSV)", "Unlimited invoice tracking", "CSV earnings import", "Business insights & shift grades", "Advanced analytics & journey map", "Unlimited saved locations", "Open Banking auto-import"].map((item) => (
+                  {PAYWALL_CHECKLIST.map((item) => (
                     <View key={item} style={s.purchaseCheck}>
                       <Ionicons name="checkmark-circle" size={18} color={SUCCESS} />
                       <Text style={s.purchaseCheckText}>{item}</Text>
@@ -447,11 +481,7 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
                   </TouchableOpacity>
                 </View>
 
-                <Text style={s.legalSmall}>
-                  Payment will be charged to your Apple ID account at confirmation of purchase.
-                  Subscription automatically renews unless cancelled at least 24 hours before the
-                  end of the current period. You can manage or cancel in your Apple ID settings.
-                </Text>
+                <Text style={s.legalSmall}>{billingCopy.smallPrint}</Text>
               </ScrollView>
             </View>
           </ScrollView>
@@ -460,21 +490,6 @@ export function PaywallModal({ visible, onClose, source: _source }: PaywallModal
     </AppModal>
   );
 }
-
-const FEATURES = [
-  { icon: "document-text-outline", label: "Self Assessment PDF", desc: "Print-ready SA103 form for your tax return" },
-  { icon: "receipt-outline", label: "Unlimited Invoices", desc: "Track every freelance invoice (free plan: 3/month)" },
-  { icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
-  { icon: "card-outline", label: "Open Banking", desc: "Auto-import earnings from your bank" },
-  { icon: "people-outline", label: "Accountant Sharing", desc: "Read-only dashboard for your accountant" },
-  { icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L & golden hours" },
-  { icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends & deep efficiency metrics" },
-  { icon: "time-outline", label: "Pickup Wait Insights", desc: "Community-aggregated wait times near you" },
-  { icon: "calendar-outline", label: "Auto-Classify Rules", desc: "Set work-pattern rules for automatic classification" },
-  { icon: "map-outline", label: "Journey Map", desc: "Visualise all your routes on one map" },
-  { icon: "location-outline", label: "Unlimited Locations", desc: "Save as many depots as you need" },
-  { icon: "car-outline", label: "Unlimited Vehicles", desc: "Add every car, van or motorbike you drive" },
-];
 
 const s = StyleSheet.create({
   overlay: {
@@ -662,6 +677,14 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
+  },
+  featureItemHighlight: {
+    backgroundColor: AMBER_DIM,
+    borderWidth: 1,
+    borderColor: AMBER_BORDER,
+    borderRadius: 14,
+    padding: 10,
+    marginHorizontal: -10,
   },
   featureIconWrap: {
     width: 40,

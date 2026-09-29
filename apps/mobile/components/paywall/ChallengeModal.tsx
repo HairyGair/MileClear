@@ -83,7 +83,7 @@ export function ChallengeModal({ visible, onClose }: ChallengeModalProps) {
 
           <Text style={s.heading}>3-Day Challenge</Text>
           <Text style={s.subtitle}>
-            Track 3 days in a row and unlock a special Pro offer.
+            Track 3 days in a row to build the habit. Automatic tracking does the rest.
           </Text>
 
           {/* Progress dots */}

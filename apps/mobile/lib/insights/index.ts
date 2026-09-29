@@ -235,7 +235,7 @@ function generateInsights(input: InsightInput): Insight[] {
       id: "upgrade_prompt",
       icon: "diamond-outline",
       iconColor: "#f5a623",
-      title: "Unlock HMRC tax exports",
+      title: "Unlock your tax exports",
       body: "You've logged enough miles to make premium pay for itself. Export CSV and PDF reports for self-assessment.",
       priority: "nudge",
     });

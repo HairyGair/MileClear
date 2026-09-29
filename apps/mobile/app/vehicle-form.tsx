@@ -24,6 +24,7 @@ import type { FuelType, VehicleType, CazAssessment } from "@mileclear/shared";
 import { Button } from "../components/Button";
 import { CleanAirZoneCard } from "../components/CleanAirZoneCard";
 import { useUser } from "../lib/user/context";
+import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -56,6 +57,7 @@ export default function VehicleFormScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { user } = useUser();
+  const { showPaywall } = usePaywall();
   const isEditing = !!id;
 
   const [registrationPlate, setRegistrationPlate] = useState("");
@@ -169,7 +171,7 @@ export default function VehicleFormScreen() {
             "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.",
             [
               { text: "OK", style: "cancel" },
-              { text: "Upgrade", onPress: () => router.push("/(tabs)/profile" as any) },
+              { text: "See Pro", onPress: () => showPaywall("vehicle_limit") },
             ]
           );
           return;
@@ -210,7 +212,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, registrationPlate, euroStatus, firstRegistration, isEditing, id, router, user?.isPremium]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, registrationPlate, euroStatus, firstRegistration, isEditing, id, router, user?.isPremium, showPaywall]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(

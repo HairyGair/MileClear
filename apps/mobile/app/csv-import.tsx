@@ -11,15 +11,7 @@ import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { uploadCsvPreview, confirmCsvImport } from "../lib/api/earnings";
 import { useUser } from "../lib/user/context";
-import {
-  isIapAvailable,
-  purchaseSubscription,
-  externalCheckoutAllowed,
-  EXTERNAL_CHECKOUT_BLOCKED_TITLE,
-  EXTERNAL_CHECKOUT_BLOCKED_MESSAGE,
-} from "../lib/iap/index";
-import { createCheckoutSession } from "../lib/api/billing";
-import * as WebBrowser from "expo-web-browser";
+import { usePaywall } from "../components/paywall";
 
 // expo-document-picker native module may not be available in Expo Go
 let DocumentPicker: typeof import("expo-document-picker") | null = null;
@@ -53,6 +45,7 @@ const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
 export default function CsvImportScreen() {
   const router = useRouter();
   const { user } = useUser();
+  const { showPaywall } = usePaywall();
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [preview, setPreview] = useState<CsvParsePreview | null>(null);
   const [filename, setFilename] = useState<string | null>(null);
@@ -208,23 +201,6 @@ export default function CsvImportScreen() {
 
   // Premium gate
   if (!user?.isPremium) {
-    const handleUpgrade = async () => {
-      try {
-        if (isIapAvailable()) {
-          await purchaseSubscription("monthly", user?.id);
-        } else if (!externalCheckoutAllowed()) {
-          Alert.alert(EXTERNAL_CHECKOUT_BLOCKED_TITLE, EXTERNAL_CHECKOUT_BLOCKED_MESSAGE);
-        } else {
-          const res = await createCheckoutSession();
-          if (res.data?.url) await WebBrowser.openBrowserAsync(res.data.url);
-        }
-      } catch (err: any) {
-        if (!err.message?.includes("cancel")) {
-          Alert.alert("Upgrade didn't go through", err.message || "Try again in a moment.");
-        }
-      }
-    };
-
     return (
       <View style={styles.container}>
         <View style={styles.content}>
@@ -232,15 +208,9 @@ export default function CsvImportScreen() {
           <Text style={styles.description}>
             CSV import is a Pro feature. Upgrade to bulk-import earnings from Uber, Deliveroo, Amazon Flex, and more.
           </Text>
-          <Button title="Upgrade to Pro" onPress={handleUpgrade} />
-          <Text style={{ fontSize: 11, fontFamily: fonts.regular, color: TEXT_3, textAlign: "center", marginTop: 10 }}>
-            Auto-renews monthly. Cancel anytime.
-          </Text>
-          <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 4 }}>
-            <Text style={{ fontSize: 11, fontFamily: fonts.medium, color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms")}>Terms of Use</Text>
-            <Text style={{ fontSize: 11, color: TEXT_3 }}>|</Text>
-            <Text style={{ fontSize: 11, fontFamily: fonts.medium, color: "#3b82f6" }} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy")}>Privacy Policy</Text>
-          </View>
+          {/* The paywall carries the price, plan choice, terms and
+              platform-specific cancellation wording. */}
+          <Button title="Upgrade to Pro" onPress={() => showPaywall("csv_import")} />
           <Button
             variant="ghost"
             title="Go Back"

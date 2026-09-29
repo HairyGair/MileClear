@@ -26,6 +26,7 @@ import { BusinessInsightsCard } from "../components/business/BusinessInsightsCar
 import { BusinessRecapCard } from "../components/business/BusinessRecapCard";
 import { PlatformPnLCard } from "../components/business/PlatformPnLCard";
 import { PremiumGate, useIsPremium } from "../components/PremiumGate";
+import { usePaywall } from "../components/paywall";
 import { MilestoneTracker } from "../components/personal/MilestoneTracker";
 import { WeeklyActivity, buildWeekDays } from "../components/personal/WeeklyActivity";
 import { DrivingGoals } from "../components/personal/DrivingGoals";
@@ -48,6 +49,7 @@ export default function InsightsScreen() {
   const router = useRouter();
   const { isWork, isPersonal } = useMode();
   const isPremium = useIsPremium();
+  const { showPaywall } = usePaywall();
 
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
@@ -268,7 +270,7 @@ export default function InsightsScreen() {
             alignItems: "center",
             gap: 12,
           }}
-          onPress={() => isPremium ? router.push("/analytics") : router.push("/(tabs)/profile" as any)}
+          onPress={() => isPremium ? router.push("/analytics") : showPaywall("Driving Analytics")}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={isPremium ? "Go to Driving Analytics" : "Driving Analytics, Pro feature. Tap to upgrade"}

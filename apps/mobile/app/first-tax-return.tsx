@@ -237,21 +237,21 @@ export default function FirstTaxReturnScreen() {
           </Text>
         </View>
         <View style={s.bullet}>
-          <Ionicons name="checkmark-circle" size={14} color={AMBER} />
+          <Ionicons name="checkmark-circle" size={14} color={GREEN} />
           <Text style={s.bulletText}>
-            Self Assessment wizard mapping your numbers to SA103 boxes (Pro)
+            Self Assessment wizard mapping your numbers to SA103 boxes (free; the PDF is Pro)
           </Text>
         </View>
         <View style={s.bullet}>
           <Ionicons name="checkmark-circle" size={14} color={AMBER} />
           <Text style={s.bulletText}>
-            HMRC-shaped PDF mileage log with attestation cover sheet (Pro)
+            PDF mileage log with attestation cover sheet (Pro)
           </Text>
         </View>
         <View style={s.bullet}>
           <Ionicons name="checkmark-circle" size={14} color={AMBER} />
           <Text style={s.bulletText}>
-            Accountant Portal - share read-only access by email (Pro)
+            Accountant Access on mileclear.com - share read-only access by email (Pro)
           </Text>
         </View>
       </Section>
