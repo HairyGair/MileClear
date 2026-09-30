@@ -222,7 +222,7 @@ function generateInsights(input: InsightInput): Insight[] {
       icon: "download-outline",
       iconColor: "#6366f1",
       title: "Export your trips for tax",
-      body: "You've got enough data for a proper HMRC report. Download CSV or PDF now.",
+      body: "You have enough trips for a full mileage log. Download it as CSV or PDF.",
       priority: "nudge",
       actionLabel: "View exports",
       actionRoute: "/exports",

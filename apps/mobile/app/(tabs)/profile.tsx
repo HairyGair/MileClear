@@ -517,11 +517,13 @@ export default function ProfileScreen() {
                         })}`
                       : "Pro from referrals"}
                   </Text>
-                ) : premiumSource !== undefined &&
-                  premiumSource !== "subscription" &&
-                  billing?.subscriptionPlatform === "none" ? (
-                  // Pro from anything else the server knows about (e.g. a
-                  // complimentary grant): still no subscription to manage.
+                ) : billing?.subscriptionPlatform === "none" ? (
+                  // Pro with no Apple, Google or Stripe subscription behind it:
+                  // a complimentary grant (the server reports these with source
+                  // "subscription", so the platform is the only reliable tell).
+                  // Nothing to renew or cancel. Found on the demo account in
+                  // the simulator, 30 Sep 2026: it showed "Renews -" and a
+                  // Cancel button that could never work.
                   <Text style={styles.subDetail}>
                     Pro is on for your account. There's no subscription to renew or cancel.
                   </Text>

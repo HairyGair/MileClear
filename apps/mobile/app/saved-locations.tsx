@@ -17,6 +17,7 @@ import {
 import { syncDeleteSavedLocation } from "../lib/sync/actions";
 import { getDatabase } from "../lib/db/index";
 import { useUser } from "../lib/user/context";
+import { usePaywall } from "../components/paywall";
 import { registerGeofences } from "../lib/geofencing/index";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
@@ -114,6 +115,7 @@ function LocationCard({
 
 export default function SavedLocationsScreen() {
   const router = useRouter();
+  const { showPaywall } = usePaywall();
   const { user } = useUser();
   const [locations, setLocations] = useState<SavedLocation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -284,10 +286,12 @@ export default function SavedLocationsScreen() {
             {atFreeLimit ? (
               <TouchableOpacity
                 style={styles.lockedAddBtn}
-                onPress={() => router.push("/saved-location-form")}
+                // At the free limit: the Pro screen, not a form the server
+                // will refuse on save.
+                onPress={() => showPaywall("saved_locations_suggest")}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel="Add location — upgrade to Pro for unlimited saved locations"
+                accessibilityLabel="Add location: Pro adds unlimited saved places"
               >
                 <View style={styles.lockedAddBtnRow}>
                   <Ionicons name="lock-closed" size={18} color={TEXT_2} />

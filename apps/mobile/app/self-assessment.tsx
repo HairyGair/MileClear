@@ -480,6 +480,12 @@ export default function SelfAssessmentScreen() {
   }, [taxYears]);
 
   const handleDownload = useCallback(async () => {
+    // Known free: open the Pro screen straight away rather than asking the
+    // server for a PDF it will refuse (it still refuses, as the backstop).
+    if (isPremium === false) {
+      showPaywall("self-assessment");
+      return;
+    }
     setDownloading(true);
     try {
       const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
@@ -499,7 +505,7 @@ export default function SelfAssessmentScreen() {
     } finally {
       setDownloading(false);
     }
-  }, [selectedYear, showPaywall]);
+  }, [selectedYear, showPaywall, isPremium]);
 
   // Wizard is free as of 8 May 2026; the PDF download (handleDownload
   // above) gates Pro inline by surfacing the paywall on 403. The

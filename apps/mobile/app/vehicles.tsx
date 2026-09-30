@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect, Stack } from "expo-router";
 import { fetchVehicles, type VehicleWithCaz } from "../lib/api/vehicles";
 import { useUser } from "../lib/user/context";
+import { usePaywall } from "../components/paywall";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
 import { colors, fonts, radii, spacing } from "../lib/theme";
@@ -149,9 +150,15 @@ export default function VehiclesScreen() {
     loadVehicles();
   }, [loadVehicles]);
 
+  const { showPaywall } = usePaywall();
   const handleAdd = useCallback(() => {
     router.push("/vehicle-form");
   }, [router]);
+  // At the free limit the locked row opens the Pro screen, instead of a
+  // full form that can only be refused on save (simulator, 30 Sep 2026).
+  const handleLockedAdd = useCallback(() => {
+    showPaywall("vehicle_limit");
+  }, [showPaywall]);
 
   const isPremium = user?.isPremium ?? false;
   const atFreeLimit = !isPremium && vehicles.length >= MAX_FREE_VEHICLES;
@@ -187,10 +194,10 @@ export default function VehiclesScreen() {
               {atFreeLimit ? (
                 <TouchableOpacity
                   style={styles.lockedAddBtn}
-                  onPress={handleAdd}
+                  onPress={handleLockedAdd}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel="Add vehicle — upgrade to Pro for unlimited vehicles"
+                  accessibilityLabel="Add vehicle: Pro adds unlimited vehicles"
                 >
                   <View style={styles.lockedAddBtnRow}>
                     <Ionicons name="lock-closed" size={18} color={TEXT_2} />

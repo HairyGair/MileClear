@@ -226,7 +226,7 @@ export default function OpenBankingScreen() {
             <Text style={styles.proBadgeText}>PRO</Text>
           </View>
           <Text style={styles.gateDesc}>
-            Automatically import earnings from your bank account. Connect Uber, Deliveroo, Amazon Flex, and more, with no manual entry needed.
+            Link your bank and your Uber, Deliveroo, Amazon Flex and other platform payouts come in as earnings, without typing each one.
           </Text>
           {/* The paywall carries the price, plan choice, terms and
               platform-specific cancellation wording. */}

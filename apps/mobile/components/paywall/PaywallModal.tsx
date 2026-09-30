@@ -103,6 +103,16 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
     }
   }, [visible]);
 
+  // Every open, and every change of what opened it, starts on page 1. A
+  // second showPaywall while the modal is still up (a different source)
+  // otherwise kept the old page: the dots said page 4 over page 1's content
+  // (seen in the simulator, 30 Sep 2026).
+  useEffect(() => {
+    if (!visible) return;
+    setPage(0);
+    scrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, [visible, source]);
+
   const handleScroll = useCallback((event: any) => {
     const x = event.nativeEvent.contentOffset.x;
     setPage(Math.round(x / SCREEN_WIDTH));
@@ -243,7 +253,7 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
                   </View>
                   <View style={s.valueDivider} />
                   <View style={s.valueRow}>
-                    <Text style={s.valueLabel}>HMRC rate (55p/mi)</Text>
+                    <Text style={s.valueLabel}>Worth at HMRC rates</Text>
                     <Text style={s.valueAmount}>{deductionFormatted}</Text>
                   </View>
                   <View style={s.valueDivider} />
@@ -444,7 +454,7 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
                   accessibilityLabel="Get Pro free by inviting friends"
                 >
                   <Ionicons name="gift-outline" size={15} color={AMBER} />
-                  <Text style={s.referLinkText}>Or get Pro free - invite 3 friends</Text>
+                  <Text style={s.referLinkText}>Or earn free months by inviting friends</Text>
                 </TouchableOpacity>
 
                 {isIapAvailable() && (
