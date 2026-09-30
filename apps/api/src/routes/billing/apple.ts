@@ -54,6 +54,22 @@ async function recordAppleWebhook(data: {
   }
 }
 
+/** The validate body's transactionId, whether Fastify parsed it as JSON or
+ *  handed over the raw buffer/string (see the note in /validate). */
+export function readTransactionId(body: unknown): string | undefined {
+  let value: unknown = body;
+  if (Buffer.isBuffer(value)) value = value.toString("utf8");
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return undefined;
+    }
+  }
+  const id = (value as { transactionId?: unknown } | null)?.transactionId;
+  return typeof id === "string" && id.length > 0 ? id : undefined;
+}
+
 export async function appleBillingRoutes(app: FastifyInstance) {
   // --- Validate purchase (auth required) ---
 
@@ -67,7 +83,14 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         return reply.status(503).send({ error: "Apple IAP not configured" });
       }
 
-      const { transactionId } = request.body as { transactionId?: string };
+      // This plugin swaps the JSON parser for a raw-buffer one so the
+      // webhook can verify its signature, and Fastify applies that parser to
+      // every route in the plugin, this one included. So the body arrives as
+      // a Buffer and `body.transactionId` was always undefined: every in-app
+      // validation since 3 Mar 2026 got a 400 in a millisecond, and payers
+      // only became Pro when Apple's webhook landed minutes later (Sarah
+      // Webb, 30 Sep 2026). Read the id from whichever shape arrives.
+      const transactionId = readTransactionId(request.body);
       if (!transactionId) {
         return reply.status(400).send({ error: "transactionId is required" });
       }
@@ -199,7 +222,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           userId: request.userId ?? null,
           details: {
             error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
-            transactionId: (request.body as { transactionId?: string })?.transactionId ?? null,
+            transactionId: readTransactionId(request.body) ?? null,
           },
         });
         return reply.status(400).send({ error: "Failed to validate purchase" });
