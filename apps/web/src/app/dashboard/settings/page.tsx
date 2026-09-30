@@ -696,6 +696,11 @@ export default function SettingsPage() {
                     ? "Managed in the App Store on your iPhone"
                     : "Managed in Google Play on your phone"}
                 </div>
+              ) : billing.subscriptionPlatform !== "stripe" ? (
+                // Complimentary Pro: no subscription behind it to cancel.
+                <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+                  No subscription to renew or cancel
+                </div>
               ) : (
                 !billing.cancelAtPeriodEnd && (
                   <Button
