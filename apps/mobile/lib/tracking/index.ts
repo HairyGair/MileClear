@@ -304,6 +304,13 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
   // later, so the drive counted twice.
   await cancelAutoRecording(true);
   await discardNativeStore();
+  // cancelAutoRecording(true) arms the 20-minute "Not driving" cooldown, which
+  // is for "that drive wasn't mine". Nobody said that at Arrive, and it stopped
+  // the next drives recording: Samantha Birch tapped Arrive at 17:47 BST on
+  // 30 Sep and drove at 17:50, 17:56 and 18:04, none recorded, so she typed
+  // them in (Kada's log shows the cooldown set the same second his Start Trip
+  // ended). End Shift had the same bug, fixed 23 Sep (shiftEnd.finishShift).
+  await clearNotDrivingCooldown().catch(() => {});
 
   // Clean up
   await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [QUICK_TRIP_SHIFT_ID]);
