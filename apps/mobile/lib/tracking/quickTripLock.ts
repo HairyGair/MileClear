@@ -36,13 +36,32 @@ export const QUICK_TRIP_MAX_SPAN_MS = 18 * 60 * 60 * 1000;
 /** Tighter cap with no quick_trip_start row: no trip-form session owns it. */
 export const QUICK_TRIP_NO_START_MAX_SPAN_MS = 3 * 60 * 60 * 1000;
 
+/**
+ * A Start Trip that has driven and then gone this long without a driving-
+ * speed fix is parked: finish it as if Arrive had been tapped when the
+ * driving stopped.
+ *
+ * Samantha Birch, 30 Sep 2026: tapped Start Trip at 08:54 and never tapped
+ * Arrive. She is a mobile foot-care practitioner, so she walks between
+ * clients, and every walking fix renewed QUICK_TRIP_LIVE_COORD_MS above: the
+ * lock stayed "live" until 17:47, the phone ran navigation-grade GPS all day
+ * (76% to 29% with a charge in between), and the whole day saved as one
+ * 14-mile trip. Liveness has to mean DRIVING, not any fix.
+ */
+export const QUICK_TRIP_PARKED_MS = 15 * 60 * 1000;
+
+/** A Start Trip that has recorded no driving at all is let go after this. */
+export const QUICK_TRIP_NEVER_DROVE_MS = 60 * 60 * 1000;
+
 export type QuickTripLockAction =
   /** A real recording owns the GPS. Yield; change nothing. */
   | "suppress"
   /** Drop the lock AND turn its breadcrumbs into trips. */
   | "recover"
   /** Drop the lock, LEAVE the breadcrumbs. */
-  | "release_lock_only";
+  | "release_lock_only"
+  /** Parked: trim the trail to the last driving fix, then recover it. */
+  | "finish";
 
 export type QuickTripLockReason =
   | "live_breadcrumb"
@@ -50,7 +69,9 @@ export type QuickTripLockReason =
   | "foreground_form"
   | "span_cap"
   | "foreground_stale"
-  | "orphan";
+  | "orphan"
+  | "parked"
+  | "never_drove";
 
 export interface QuickTripLockDecision {
   action: QuickTripLockAction;
@@ -74,6 +95,9 @@ export function quickTripLockDecision(args: {
   quickTripStartMs: number | null;
   lockStartedAtMs: number | null;
   appActive: boolean;
+  /** Latest breadcrumb that shows driving (staleShiftRule.lastDrivingFixMs);
+   *  null = none recorded. Omitted by callers that predate the parked rule. */
+  lastDrivingMs?: number | null;
 }): QuickTripLockDecision {
   const { nowMs, firstCoordMs, lastCoordMs, quickTripStartMs, lockStartedAtMs, appActive } = args;
 
@@ -86,6 +110,19 @@ export function quickTripLockDecision(args: {
     quickTripStartMs != null ? QUICK_TRIP_MAX_SPAN_MS : QUICK_TRIP_NO_START_MAX_SPAN_MS;
   if (anchorMs != null && nowMs - anchorMs > spanCapMs) {
     return { action: "recover", reason: "span_cap" };
+  }
+
+  // A real Start Trip, with the app off screen (the open form owns its own
+  // Arrive, so never finish from under it): judge it by DRIVING, not by any
+  // fix, because walking fixes keep the breadcrumb test below forever live.
+  if (quickTripStartMs != null && !appActive && args.lastDrivingMs !== undefined) {
+    const drove = args.lastDrivingMs;
+    if (drove != null && Number.isFinite(drove) && drove >= quickTripStartMs) {
+      if (nowMs - drove >= QUICK_TRIP_PARKED_MS) return { action: "finish", reason: "parked" };
+    } else if (nowMs - quickTripStartMs >= QUICK_TRIP_NEVER_DROVE_MS) {
+      // Nothing driven: "finish" trims every fix, so no walk is saved as a trip.
+      return { action: "finish", reason: "never_drove" };
+    }
   }
 
   if (lastCoordMs != null && nowMs - lastCoordMs < QUICK_TRIP_LIVE_COORD_MS) {

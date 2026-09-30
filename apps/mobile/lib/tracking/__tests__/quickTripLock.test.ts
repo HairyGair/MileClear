@@ -13,6 +13,8 @@ import {
   QUICK_TRIP_STALE_MS,
   QUICK_TRIP_MAX_SPAN_MS,
   QUICK_TRIP_NO_START_MAX_SPAN_MS,
+  QUICK_TRIP_PARKED_MS,
+  QUICK_TRIP_NEVER_DROVE_MS,
 } from "../quickTripLock";
 
 const NOW = Date.parse("2026-09-14T11:56:54Z");
@@ -167,5 +169,120 @@ describe("an abandoned lock with nothing in it", () => {
       appActive: false,
     });
     expect(d.action).toBe("recover");
+  });
+});
+
+describe("a Start Trip left running after parking finishes itself (Samantha Birch, 30 Sep 2026)", () => {
+  // Start Trip tapped 07:54Z; she walked between clients all day, so a
+  // breadcrumb landed every few minutes and the old rule called it live.
+  const START = Date.parse("2026-09-30T07:54:00Z");
+  const base = {
+    firstCoordMs: START + mins(1),
+    quickTripStartMs: START,
+    lockStartedAtMs: START,
+  };
+
+  it("finishes once there has been no driving for 15 minutes, despite walking fixes", () => {
+    const now = START + mins(45);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1), // she is walking: fresh fixes
+        appActive: false,
+        lastDrivingMs: START + mins(16), // parked at 08:10
+      })
+    ).toEqual({ action: "finish", reason: "parked" });
+  });
+
+  it("keeps it while the last driving was under 15 minutes ago", () => {
+    const now = START + mins(30);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        appActive: false,
+        lastDrivingMs: now - mins(QUICK_TRIP_PARKED_MS / 60_000 - 1),
+      })
+    ).toEqual({ action: "suppress", reason: "live_breadcrumb" });
+  });
+
+  it("never finishes while the app is on screen: the open form owns Arrive", () => {
+    const now = START + hours(9);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        appActive: true,
+        lastDrivingMs: START + mins(16),
+      }).action
+    ).not.toBe("finish");
+  });
+
+  it("lets go of a Start Trip that never drove after an hour, saving nothing", () => {
+    const now = START + QUICK_TRIP_NEVER_DROVE_MS + mins(1);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(2),
+        appActive: false,
+        lastDrivingMs: null,
+      })
+    ).toEqual({ action: "finish", reason: "never_drove" });
+  });
+
+  it("gives a Start Trip that has not driven yet its first hour", () => {
+    const now = START + mins(40);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(2),
+        appActive: false,
+        lastDrivingMs: null,
+      })
+    ).toEqual({ action: "suppress", reason: "live_breadcrumb" });
+  });
+
+  it("ignores driving from before this Start Trip began", () => {
+    const now = START + mins(40);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(2),
+        appActive: false,
+        lastDrivingMs: START - mins(30),
+      }).action
+    ).toBe("suppress");
+  });
+
+  it("leaves the old rules alone when the caller did not judge driving", () => {
+    const now = START + mins(45);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        appActive: false,
+      })
+    ).toEqual({ action: "suppress", reason: "live_breadcrumb" });
+  });
+
+  it("does not apply without a Start Trip row (no trip-form session)", () => {
+    const now = START + mins(45);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        quickTripStartMs: null,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        appActive: false,
+        lastDrivingMs: START + mins(16),
+      }).action
+    ).not.toBe("finish");
   });
 });

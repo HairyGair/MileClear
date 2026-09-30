@@ -1627,6 +1627,33 @@ export default function TripFormScreen() {
     const handleAppState = async (nextState: string) => {
       if (nextState !== "active") return;
       try {
+        // Parked with the app away for 15 minutes, the Start Trip finishes and
+        // saves itself (QUICK_TRIP_PARKED_MS) and deletes this row. This screen
+        // must then let go of its own copy of the route: an Arrive from here
+        // would save the same drive a second time.
+        const db = await getDatabase();
+        const finished = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'quick_trip_auto_finished_at'"
+        );
+        const finishedAtMs = finished ? Number(finished.value) : NaN;
+        const startedAtMs = startedAt ? new Date(startedAt).getTime() : NaN;
+        if (
+          Number.isFinite(finishedAtMs) &&
+          Number.isFinite(startedAtMs) &&
+          finishedAtMs > startedAtMs
+        ) {
+          await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_auto_finished_at'");
+          breadcrumbsRef.current = [];
+          runningDistanceRef.current = 0;
+          setLiveDistance(0);
+          setDrivingTrail([]);
+          setMode("ready");
+          Alert.alert(
+            "Trip saved",
+            "You'd parked, so your trip was finished and saved while the app was closed. You'll find it in Trips."
+          );
+          return;
+        }
         const bgCoords = await peekBackgroundCoordinates();
         if (bgCoords.length < 2) return;
 
@@ -1679,7 +1706,7 @@ export default function TripFormScreen() {
     };
     const sub = AppState.addEventListener("change", handleAppState);
     return () => sub.remove();
-  }, [mode]);
+  }, [mode, startedAt]);
 
   // Pulsing live dot
   useEffect(() => {

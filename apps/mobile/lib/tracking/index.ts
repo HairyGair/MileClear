@@ -11,6 +11,7 @@ import {
   stopDriveDetection,
   cancelAutoRecording,
   clearNotDrivingCooldown,
+  shiftSuppressesAutoDetection,
   getJourneyEndMinutes,
   logDetectionEvent,
 } from "./detection";
@@ -812,7 +813,17 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         ]
       );
     }
+    // A Start Trip left running after parking finishes itself (see
+    // QUICK_TRIP_PARKED_MS). The fixes that arrive while the driver walks
+    // about are the wakes this check needs; throttled so a stream of them
+    // costs one look a minute.
+    if (shiftId === QUICK_TRIP_SHIFT_ID && Date.now() - lastQuickTripParkCheckMs > 60_000) {
+      lastQuickTripParkCheckMs = Date.now();
+      await shiftSuppressesAutoDetection(db).catch(() => true);
+    }
   } catch (err) {
     console.error("Failed to store location:", err);
   }
 });
+
+let lastQuickTripParkCheckMs = 0;

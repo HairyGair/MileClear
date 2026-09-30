@@ -205,6 +205,7 @@ import {
   QUICK_TRIP_LIVE_COORD_MS as QUICK_TRIP_LIVE_COORD_MS_RULE,
 } from "./quickTripLock";
 import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
+import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
 const BACKGROUND_FINALIZE_TASK = "mileclear-background-finalize";
@@ -651,6 +652,131 @@ async function releaseQuickTripLock(
   return true;
 }
 
+/** Enough breadcrumbs for a full day of Start Trip at 50 m spacing. */
+const QUICK_TRIP_TRAIL_MAX_FIXES = 20000;
+
+/** When the current Start Trip last drove, from its own breadcrumbs. */
+async function quickTripLastDrivingMs(
+  db: Awaited<ReturnType<typeof getDatabase>>
+): Promise<number | null> {
+  try {
+    const rows = await db.getAllAsync<{
+      lat: number;
+      lng: number;
+      speed: number | null;
+      accuracy: number | null;
+      recorded_at: string;
+    }>(
+      `SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates
+       WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT ${QUICK_TRIP_TRAIL_MAX_FIXES}`,
+      [QUICK_TRIP_SHIFT_ID]
+    );
+    const fixes: ShiftFix[] = rows.map((r) => ({
+      lat: r.lat,
+      lng: r.lng,
+      speed: r.speed,
+      accuracy: r.accuracy,
+      recordedAtMs: new Date(r.recorded_at).getTime(),
+    }));
+    return lastDrivingFixMs(fixes);
+  } catch {
+    // Unreadable trail: treat as "not judged" so the old liveness rules decide.
+    return Number.NaN;
+  }
+}
+
+/**
+ * Finish a Start Trip the driver left running after parking (see
+ * QUICK_TRIP_PARKED_MS in quickTripLock.ts): save what was driven, as if
+ * Arrive had been tapped when the driving stopped, then hand the phone back
+ * to automatic trips. Runs inside engine callbacks, so it never throws.
+ */
+async function finishParkedQuickTrip(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  reason: string,
+  lastDrivingMs: number | null
+): Promise<void> {
+  // 1. Claim the lock first: once it is gone the Start Trip's location task
+  //    stops writing breadcrumbs, so nothing lands after the trim below.
+  const claimed = await db.runAsync(
+    "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+    [QUICK_TRIP_SHIFT_ID]
+  );
+  if (claimed.changes === 0) return; // another caller won the claim
+  let tripsSaved = 0;
+  let trimmed = 0;
+  try {
+    // 2. The engine's own copy of these hours is a second copy of the drive
+    //    (Kada, 29 Sep 2026). Clear it before anything can save it, and lift
+    //    the "Not driving" cooldown that clearing arms: nobody said that here,
+    //    and the next drive must record.
+    await cancelAutoRecording(true);
+    await clearNotDrivingCooldown();
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
+    // Tells an open Start Trip screen, when it comes back to the foreground,
+    // that its trip was finished here (trip-form checks it against its own
+    // start time; the start row alone can be missing mid-trip).
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('quick_trip_auto_finished_at', ?)",
+      [String(Date.now())]
+    );
+
+    // 3. Keep the trail up to a minute past the last driving fix. The walking
+    //    after it is not part of the trip. Never drove: nothing is kept.
+    const cutoffIso =
+      lastDrivingMs != null && Number.isFinite(lastDrivingMs)
+        ? new Date(lastDrivingMs + 60_000).toISOString()
+        : null;
+    const del = cutoffIso
+      ? await db.runAsync(
+          "DELETE FROM shift_coordinates WHERE shift_id = ? AND recorded_at > ?",
+          [QUICK_TRIP_SHIFT_ID, cutoffIso]
+        )
+      : await db.runAsync("DELETE FROM shift_coordinates WHERE shift_id = ?", [
+          QUICK_TRIP_SHIFT_ID,
+        ]);
+    trimmed = del.changes;
+
+    // 4. Save it the way every recovered Start Trip is saved, then stop its GPS.
+    const { processShiftTrips, stopQuickTripLocationTask } = await import("./index");
+    tripsSaved = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
+    await stopQuickTripLocationTask();
+    await applyNativeEnginePower("quick_trip_auto_finished");
+  } catch {
+    // The lock is already released, so automatic trips resume regardless.
+  }
+  logDetectionEvent("quick_trip_auto_finished", {
+    reason,
+    tripsSaved,
+    trimmedFixes: trimmed,
+    minutesSinceDriving:
+      lastDrivingMs != null && Number.isFinite(lastDrivingMs)
+        ? Math.round((Date.now() - lastDrivingMs) / 60_000)
+        : null,
+  }).catch(() => {});
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content:
+        tripsSaved > 0
+          ? {
+              title: "Trip saved",
+              body: "You'd parked, so your Start Trip was finished and saved. Your next drives record automatically.",
+              data: { type: "quick_trip_auto_finished", action: "open_trips" },
+              ...(Platform.OS === "android" && { channelId: "reminders" }),
+            }
+          : {
+              title: "Start Trip ended",
+              body: "Your Start Trip hadn't recorded any driving, so it was switched off to save battery. Your next drives record automatically.",
+              data: { type: "quick_trip_auto_finished", action: "open_dashboard" },
+              ...(Platform.OS === "android" && { channelId: "reminders" }),
+            },
+      trigger: null,
+    });
+  } catch {
+    // a missing notification permission must not undo the finish
+  }
+}
+
 /**
  * Decide whether an active_shift_id should suppress auto-detection — and
  * self-heal an orphaned quick trip as a side effect.
@@ -801,14 +927,29 @@ export async function shiftSuppressesAutoDetection(
   );
 
   const finite = (n: number) => (Number.isFinite(n) ? n : null);
+  const appActive = AppState.currentState === "active";
+  // The parked rule only applies to a real Start Trip with the app off screen,
+  // so only read the trail then. undefined = "not judged", null = never drove.
+  const readDriving = qts && !appActive ? await quickTripLastDrivingMs(db) : undefined;
+  // NaN = the trail could not be read: "not judged", never "never drove".
+  const lastDrivingMs =
+    readDriving !== undefined && readDriving !== null && Number.isNaN(readDriving)
+      ? undefined
+      : readDriving;
   const decision = quickTripLockDecision({
     nowMs: Date.now(),
     firstCoordMs: firstCoord ? finite(new Date(firstCoord.recorded_at).getTime()) : null,
     lastCoordMs: lastCoord ? finite(new Date(lastCoord.recorded_at).getTime()) : null,
     quickTripStartMs: finite(quickTripStartMs),
     lockStartedAtMs: finite(lockStartedAtMs),
-    appActive: AppState.currentState === "active",
+    appActive,
+    lastDrivingMs,
   });
+
+  if (decision.action === "finish") {
+    await finishParkedQuickTrip(db, decision.reason, lastDrivingMs ?? null);
+    return false;
+  }
 
   if (decision.action === "suppress") {
     logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
