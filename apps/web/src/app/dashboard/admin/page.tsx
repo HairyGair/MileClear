@@ -14,6 +14,84 @@ import { AdminUser, Analytics, FB_CATEGORY_OPTIONS, FB_STATUSES, FbItem, formatN
 // Overview Tab
 // ---------------------------------------------------------------------------
 
+interface QrScans {
+  total: number;
+  byStore: { ios: number; android: number; other: number };
+  last24h: number;
+  byDay: Array<{ date: string; total: number; ios: number; android: number; other: number }>;
+  firstAt: string | null;
+  lastAt: string | null;
+}
+
+/** Billboard QR scans (mileclear.com/app). Loads on its own so a failure here
+ *  never blanks the rest of the overview. */
+function QrScansCard() {
+  const [data, setData] = useState<QrScans | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    api
+      .get<{ data: QrScans }>("/admin/qr-scans")
+      .then((res) => setData(res.data))
+      .catch(() => setFailed(true));
+  }, []);
+
+  const heading = (
+    <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+      Billboard QR scans
+    </h3>
+  );
+  if (failed) {
+    return (
+      <div style={{ marginBottom: "1.5rem" }}>
+        {heading}
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Couldn&apos;t load the scan count.</p>
+      </div>
+    );
+  }
+  if (!data) return null;
+
+  const dayLabel = (iso: string, i: number) =>
+    i === 0 ? "Today" : i === 1 ? "Yesterday" : new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+  const recentDays = data.byDay.slice(0, 7);
+
+  return (
+    <div style={{ marginBottom: "1.5rem" }}>
+      {heading}
+      <div className="stat-grid">
+        <div className="stat-card">
+          <p className="stat-card__label">Total scans</p>
+          <p className="stat-card__value stat-card__value--amber">{formatNumber(data.total)}</p>
+          <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>
+            {data.lastAt ? `Last scan ${timeAgo(data.lastAt)}` : "No scans yet"}
+          </p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">App Store (iPhone)</p>
+          <p className="stat-card__value">{formatNumber(data.byStore.ios)}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Google Play (Android)</p>
+          <p className="stat-card__value">{formatNumber(data.byStore.android)}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Website (other)</p>
+          <p className="stat-card__value">{formatNumber(data.byStore.other)}</p>
+        </div>
+        <div className="stat-card">
+          <p className="stat-card__label">Last 24 hours</p>
+          <p className="stat-card__value stat-card__value--emerald">{formatNumber(data.last24h)}</p>
+        </div>
+      </div>
+      <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.6rem" }}>
+        {recentDays.map((d, i) => `${dayLabel(d.date, i)} ${d.total}`).join(" · ")}
+      </p>
+      <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>
+        Scans of the Tyne Tunnel billboard QR code (mileclear.com/app), counted from 1 Oct 2026, 17:04. Link previews are not counted.
+      </p>
+    </div>
+  );
+}
+
 interface RatingDiagnostics {
   totalLoveItEvents: number;
   distinctUsers: number;
@@ -136,6 +214,8 @@ function OverviewTab() {
           </div>
         )}
       </div>
+
+      <QrScansCard />
 
       {/* Referral program */}
       {analytics.referrals && (

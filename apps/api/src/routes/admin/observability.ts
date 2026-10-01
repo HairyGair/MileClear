@@ -5,6 +5,7 @@
 //   GET /admin/android-testers       every Android account with a one-word verdict
 //   GET /admin/live-activity-health  push-start / presence / progress rollup, 7 days
 //   GET /admin/trip-quality          stub-fix and phantom rates for captured trips, 7 days
+//   GET /admin/qr-scans              billboard QR scans (mileclear.com/app) by store and day
 //
 // The counting lives in services/adminObservability.ts so it is unit-tested;
 // this file only fetches rows and shapes the response.
@@ -12,6 +13,7 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
+import { qrScanRollup } from "../../services/qrScans.js";
 import {
   ageHours,
   classifyAndroidTester,
@@ -430,5 +432,15 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         generatedAt: new Date().toISOString(),
       },
     });
+  });
+
+  // ── Billboard QR scans ────────────────────────────────────────────────────
+  // Every hit on mileclear.com/app the website reported (routes/marketing).
+  app.get("/qr-scans", async (_request, reply) => {
+    const rows = await prisma.appEvent.findMany({
+      where: { type: "marketing.qr_scan" },
+      select: { createdAt: true, metadata: true },
+    });
+    return reply.send({ data: qrScanRollup(rows, new Date()) });
   });
 }
