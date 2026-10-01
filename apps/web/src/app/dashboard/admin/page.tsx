@@ -57,7 +57,7 @@ function QrScansCard() {
   return (
     <div style={{ marginBottom: "1.5rem" }}>
       {heading}
-      <div className="stat-grid">
+      <div className="stats-grid">
         <div className="stat-card">
           <p className="stat-card__label">Total scans</p>
           <p className="stat-card__value stat-card__value--amber">{formatNumber(data.total)}</p>
