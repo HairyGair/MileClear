@@ -176,7 +176,7 @@ const st = StyleSheet.create({
     borderColor: "rgba(245,166,35,0.25)",
     padding: 16,
     marginTop: 12,
-    marginBottom: 4,
+    marginBottom: 14,
   },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   title: { color: AMBER, fontFamily: fonts.semibold, fontSize: 13, letterSpacing: 0.3 },
