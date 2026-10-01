@@ -925,13 +925,33 @@ export default function DashboardScreen() {
     }
   }, [isWork, workExplainerSeen, loading, showLocPrimer, locPrimerSeen]);
 
-  // locationTier starts optimistically at "always" and only becomes "none"
-  // after a real permission read, so this cannot flash on a cold start.
+  // locationTier starts optimistically at "always" and only drops after a
+  // real permission read, so this cannot flash on a cold start.
+  //
+  // Shown to anyone without Always, not only to "none". Until 1 Oct 2026 a
+  // driver who tapped "Allow While Using" in setup counted as covered and never
+  // saw it: 34 of the 49 new users (in 14 days) whose background permission was
+  // never asked were in exactly that state, and only 29% of the never-asked
+  // group ever got an automatic trip against 81% of those with Always.
+  //
+  // A driver who switched Automatic trips off has chosen shifts and Start Trip
+  // only, which work with While Using, so "foreground" is not asked to go
+  // Always. "none" still is: nothing records at all without location.
   useEffect(() => {
-    if (locationTier === "none" && !locPrimerSeen && !loading) {
-      trackEvent("loc_primer.shown", { source: "auto" });
+    if (locationTier === "always" || locPrimerSeen || loading) return;
+    let cancelled = false;
+    (async () => {
+      if (locationTier === "foreground") {
+        const { isDriveDetectionSwitchOn } = await import("../../lib/tracking/detection");
+        if (!(await isDriveDetectionSwitchOn())) return;
+      }
+      if (cancelled) return;
+      trackEvent("loc_primer.shown", { source: "auto", tier: locationTier });
       setShowLocPrimer(true);
-    }
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [locationTier, locPrimerSeen, loading]);
 
   // Recording the primer as seen and closing it are two things now: the motion
@@ -1834,10 +1854,21 @@ export default function DashboardScreen() {
             <View style={s.explainerIconWrap}>
               <Ionicons name="location" size={28} color="#f5a623" />
             </View>
-            <Text style={s.explainerTitle}>Never miss a mile</Text>
-            <Text style={s.explainerBody}>
-              MileClear is not recording your trips yet. It needs location access to log your miles, even with your screen off. A forgotten 20-mile trip is about <Text style={s.explainerBold}>£11</Text> you cannot claim back.
-            </Text>
+            {locationTier === "foreground" ? (
+              <>
+                <Text style={s.explainerTitle}>Record drives automatically</Text>
+                <Text style={s.explainerBody}>
+                  Right now MileClear can only record while it is open on screen. Switch location to <Text style={s.explainerBold}>{Platform.OS === "android" ? "Allow all the time" : "Always"}</Text> and every drive records itself, with the phone in your pocket. A forgotten 20-mile trip is about <Text style={s.explainerBold}>£11</Text> you cannot claim back.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.explainerTitle}>Never miss a mile</Text>
+                <Text style={s.explainerBody}>
+                  MileClear is not recording your trips yet. It needs location access to log your miles, even with your screen off. A forgotten 20-mile trip is about <Text style={s.explainerBold}>£11</Text> you cannot claim back.
+                </Text>
+              </>
+            )}
 
             <View style={s.explainerList}>
               <ExplainerItem
@@ -1854,7 +1885,15 @@ export default function DashboardScreen() {
 
             <Text style={s.explainerSubhead}>What happens next</Text>
             <Text style={s.explainerBody}>
-              Tap below and your phone will ask for location access. Choose <Text style={s.explainerBold}>Always</Text> for automatic tracking. You can change it any time in Settings.
+              {locationTier === "foreground" ? (
+                Platform.OS === "android" ? (
+                  <>Tap below and choose <Text style={s.explainerBold}>Allow all the time</Text>. If your phone opens Settings instead, pick it there. You can change it any time.</>
+                ) : (
+                  <>Tap below and choose <Text style={s.explainerBold}>Change to Always Allow</Text>. If your phone opens Settings instead, pick Always there. You can change it any time.</>
+                )
+              ) : (
+                <>Tap below and your phone will ask for location access. Choose <Text style={s.explainerBold}>{Platform.OS === "android" ? "Allow all the time" : "Always"}</Text> for automatic tracking. You can change it any time in Settings.</>
+              )}
             </Text>
           </ScrollView>
 
@@ -1863,11 +1902,11 @@ export default function DashboardScreen() {
             activeOpacity={0.85}
             style={s.explainerCta}
             accessibilityRole="button"
-            accessibilityLabel="Turn on location access"
+            accessibilityLabel={locationTier === "foreground" ? "Record drives automatically" : "Turn on location access"}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="location" size={20} color="#030712" />
-            <Text style={s.explainerCtaText}>Turn on location</Text>
+            <Text style={s.explainerCtaText}>{locationTier === "foreground" ? "Record automatically" : "Turn on location"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
