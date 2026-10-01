@@ -178,6 +178,22 @@ export const PREMIUM_PRICE_MONTHLY_PENCE = 499;
 export const PREMIUM_PRICE_ANNUAL_PENCE = 4499;
 
 // Platform tags
+/** "How did you hear about MileClear?" (1 Oct 2026). The value is stored on
+ *  the user.acquisition_source event; the label is what the driver sees. */
+export const ACQUISITION_SOURCES = [
+  { value: "app_store", label: "App Store / Google Play" },
+  { value: "google", label: "Google search" },
+  { value: "facebook", label: "Facebook" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "instagram", label: "Instagram" },
+  { value: "friend", label: "A friend or another driver" },
+  { value: "driver_group", label: "WhatsApp or a driver group" },
+  { value: "advert", label: "A billboard or advert" },
+  { value: "other", label: "Other" },
+] as const;
+
+export type AcquisitionSource = (typeof ACQUISITION_SOURCES)[number]["value"];
+
 export const GIG_PLATFORMS = [
   { value: "uber", label: "Uber / Uber Eats" },
   { value: "deliveroo", label: "Deliveroo" },

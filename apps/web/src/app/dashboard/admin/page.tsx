@@ -102,6 +102,71 @@ interface RatingDiagnostics {
   generatedAt: string;
 }
 
+interface AcquisitionData {
+  answered: number;
+  skipped: number;
+  bySource: Array<{ value: string; label: string; count: number }>;
+  otherDetails: Array<{ detail: string; at: string }>;
+}
+
+/** "How did you hear about MileClear?" answers (asked in the app, 1 Oct 2026). */
+function AcquisitionCard() {
+  const [data, setData] = useState<AcquisitionData | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    api
+      .get<{ data: AcquisitionData }>("/admin/acquisition")
+      .then((res) => setData(res.data))
+      .catch(() => setFailed(true));
+  }, []);
+
+  const heading = (
+    <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
+      How new users found MileClear
+    </h3>
+  );
+  if (failed) {
+    return (
+      <div style={{ marginBottom: "1.5rem" }}>
+        {heading}
+        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Couldn&apos;t load the answers.</p>
+      </div>
+    );
+  }
+  if (!data) return null;
+  const pct = (n: number) => (data.answered ? `${Math.round((n / data.answered) * 100)}%` : "");
+
+  return (
+    <div style={{ marginBottom: "1.5rem" }}>
+      {heading}
+      <div className="stats-grid">
+        {data.bySource.map((s) => (
+          <div className="stat-card" key={s.value}>
+            <p className="stat-card__label">{s.label}</p>
+            <p className="stat-card__value">{formatNumber(s.count)}</p>
+            <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>{pct(s.count)}</p>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.6rem" }}>
+        {formatNumber(data.answered)} answered · {formatNumber(data.skipped)} skipped. Asked once in the app, of drivers who joined in the last 30 days.
+      </p>
+      {data.otherDetails.length > 0 && (
+        <div style={{ marginTop: "0.6rem" }}>
+          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 4 }}>What people wrote under Other:</p>
+          <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.8rem", color: "var(--text-white, #f1f5f9)" }}>
+            {data.otherDetails.map((o, i) => (
+              <li key={i}>
+                {o.detail} <span style={{ color: "#64748b" }}>({timeAgo(o.at)})</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OverviewTab() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [feedbackStats, setFeedbackStats] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
@@ -216,6 +281,7 @@ function OverviewTab() {
       </div>
 
       <QrScansCard />
+      <AcquisitionCard />
 
       {/* Referral program */}
       {analytics.referrals && (

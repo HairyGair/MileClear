@@ -6,6 +6,7 @@
 //   GET /admin/live-activity-health  push-start / presence / progress rollup, 7 days
 //   GET /admin/trip-quality          stub-fix and phantom rates for captured trips, 7 days
 //   GET /admin/qr-scans              billboard QR scans (mileclear.com/app) by store and day
+//   GET /admin/acquisition           "How did you hear about MileClear?" answers
 //
 // The counting lives in services/adminObservability.ts so it is unit-tested;
 // this file only fetches rows and shapes the response.
@@ -14,6 +15,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { qrScanRollup } from "../../services/qrScans.js";
+import { acquisitionRollup } from "../../services/acquisition.js";
 import {
   ageHours,
   classifyAndroidTester,
@@ -442,5 +444,14 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       select: { createdAt: true, metadata: true },
     });
     return reply.send({ data: qrScanRollup(rows, new Date()) });
+  });
+
+  // ── How new users found MileClear ─────────────────────────────────────────
+  app.get("/acquisition", async (_request, reply) => {
+    const rows = await prisma.appEvent.findMany({
+      where: { type: { in: ["user.acquisition_source", "user.acquisition_source_skipped"] } },
+      select: { userId: true, type: true, createdAt: true, metadata: true },
+    });
+    return reply.send({ data: acquisitionRollup(rows) });
   });
 }

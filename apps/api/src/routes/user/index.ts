@@ -11,7 +11,7 @@ import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup
 import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
-import { formatInvoiceNumber, scrubCoordinates, scrubDiagnosticEventData } from "@mileclear/shared";
+import { formatInvoiceNumber, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -1368,6 +1368,42 @@ export async function userRoutes(app: FastifyInstance) {
       },
     });
     void recordPlatformSeen(request.userId!, platformFromOsVersion(d.osVersion));
+    return reply.send({ success: true });
+  });
+
+  // ── How did you hear about MileClear? (1 Oct 2026) ─────────────────────
+  // One answer per driver, as an event so the admin card can count them
+  // without a schema change. Asking again replaces nothing: the admin rollup
+  // takes each driver's latest answer.
+  const acquisitionSchema = z.object({
+    source: z.enum(ACQUISITION_SOURCES.map((s) => s.value) as [AcquisitionSource, ...AcquisitionSource[]]),
+    detail: z.string().trim().max(120).optional(),
+  });
+
+  app.get("/acquisition-source", async (request, reply) => {
+    const answered = await prisma.appEvent.findFirst({
+      where: {
+        userId: request.userId!,
+        type: { in: ["user.acquisition_source", "user.acquisition_source_skipped"] },
+      },
+      select: { id: true },
+    });
+    return reply.send({ data: { answered: !!answered } });
+  });
+
+  app.post("/acquisition-source", async (request, reply) => {
+    const parsed = acquisitionSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "Invalid answer" });
+    const { source, detail } = parsed.data;
+    logEvent("user.acquisition_source", request.userId!, {
+      source,
+      ...(source === "other" && detail ? { detail } : {}),
+    });
+    return reply.send({ success: true });
+  });
+
+  app.post("/acquisition-source/skip", async (request, reply) => {
+    logEvent("user.acquisition_source_skipped", request.userId!, {});
     return reply.send({ success: true });
   });
 }

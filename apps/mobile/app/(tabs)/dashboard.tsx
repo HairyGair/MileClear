@@ -25,6 +25,7 @@ import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
 import { SyncStatusBanner } from "../../components/SyncStatusBanner";
 import { AutomaticTripsRow } from "../../components/AutomaticTripsRow";
+import { AcquisitionSourceCard } from "../../components/AcquisitionSourceCard";
 import { TripStatusStrip } from "../../components/TripStatusStrip";
 import { ShiftSuggestionCard } from "../../components/ShiftSuggestionCard";
 import { describeError } from "../../lib/api/apiError";
@@ -2510,6 +2511,9 @@ export default function DashboardScreen() {
         return card ? (
           <FadeInStagger key={key} index={index}>
             {card}
+            {/* Asked once, under the mileage, of drivers who joined in the
+                last 30 days (1 Oct 2026). Renders nothing otherwise. */}
+            {key === "work_hero" && <AcquisitionSourceCard />}
           </FadeInStagger>
         ) : null;
       })}
@@ -2557,6 +2561,7 @@ export default function DashboardScreen() {
           onResume={resumeRecording}
         />
       )}
+      {isPersonal && <AcquisitionSourceCard />}
 
       {/* Vehicle Nudge — personal mode */}
       {isPersonal && showVehicleNudge && (
