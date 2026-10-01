@@ -17,6 +17,7 @@ import { respondToConsumptionRequest } from "../../services/appleConsumption.js"
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
 import { planFromAppleProductId } from "../../services/appleIap.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
+import { validateFailureAlert } from "../../services/appleValidateFailure.js";
 
 // Notification types that imply an active payment relationship. When
 // any of these arrive without a matching user, we surface a real-time
@@ -214,14 +215,26 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         });
       } catch (err) {
         app.log.error({ err }, "Apple purchase validation failed");
+        // Look at who it is before raising the alarm: an existing Apple
+        // subscriber re-sending an old purchase has lost nothing.
+        const subject = request.userId
+          ? await prisma.user
+              .findUnique({
+                where: { id: request.userId },
+                select: { isPremium: true, premiumExpiresAt: true, appleOriginalTransactionId: true },
+              })
+              .catch(() => null)
+          : null;
+        const alert = validateFailureAlert(request.userId ?? null, subject, new Date());
         notifyBillingEvent({
           kind: "subscription.validate_failed",
-          tier: "act_now",
-          title: "Apple IAP validate failed",
-          body: `User ${request.userId ?? "(unknown)"} attempted to validate an Apple purchase but the server rejected it. They paid; we didn't bind. Investigate immediately.`,
+          tier: alert.tier,
+          title: alert.title,
+          body: alert.body,
           userId: request.userId ?? null,
           details: {
             error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+            httpStatus: (err as { httpStatusCode?: number } | null)?.httpStatusCode ?? null,
             transactionId: readTransactionId(request.body) ?? null,
           },
         });

@@ -9,6 +9,7 @@ import {
 } from "@apple/app-store-server-library";
 import * as fs from "fs";
 import * as path from "path";
+import { isTransientAppleError } from "./appleValidateFailure.js";
 
 const PRODUCT_ID_MONTHLY = "com.mileclear.premium.monthly";
 const PRODUCT_ID_ANNUAL = "com.mileclear.premium.annual";
@@ -170,7 +171,13 @@ export async function fetchTransactionWithEnvFallback(
     const verifier = getSignedDataVerifierForEnv(env);
     if (!client || !verifier) continue;
     try {
-      const r = await client.getTransactionInfo(originalTransactionId);
+      // One retry for a transient Apple error (a 401 that cleared within
+      // seconds, 1 Oct 2026). A 404 is not retried; it falls through below.
+      const r = await client.getTransactionInfo(originalTransactionId).catch(async (err: unknown) => {
+        if (!isTransientAppleError(err)) throw err;
+        await new Promise((res) => setTimeout(res, 2000));
+        return client.getTransactionInfo(originalTransactionId);
+      });
       if (!r.signedTransactionInfo) continue;
       const decoded = await verifier.verifyAndDecodeTransaction(
         r.signedTransactionInfo
