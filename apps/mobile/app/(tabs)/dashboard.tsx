@@ -227,6 +227,12 @@ export default function DashboardScreen() {
   // the thing that produced 121 undetermined permissions.
   const [showLocPrimer, setShowLocPrimer] = useState(false);
   const [locPrimerSeen, setLocPrimerSeen] = useState(true); // default true until loaded
+  // Its own flag for the While Using version (1 Oct 2026). Drivers who saw the
+  // first-install version had loc_primer_seen set, so the "switch back to
+  // Always" version never reached the 77 active drivers whose iPhone had
+  // dropped them to While Using. Cleared whenever the phone has Always, so a
+  // later loss shows it once more.
+  const [locPrimerForegroundSeen, setLocPrimerForegroundSeen] = useState(true); // default true until loaded
   // The primer has a second card on Android: Physical activity, asked once,
   // straight after location and never before it. Until 21 Sep 2026 the only
   // ask in the whole app sat behind starting a shift, so 14 of 41 Android
@@ -545,11 +551,12 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at', 'loc_primer_seen')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at', 'loc_primer_seen', 'loc_primer_foreground_seen')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
       setLocPrimerSeen(map["loc_primer_seen"] === "1");
+      setLocPrimerForegroundSeen(map["loc_primer_foreground_seen"] === "1");
       const dismissedAt = map["bg_loc_nudge_dismissed_at"]
         ? parseInt(map["bg_loc_nudge_dismissed_at"], 10)
         : null;
@@ -939,7 +946,9 @@ export default function DashboardScreen() {
   // only, which work with While Using, so "foreground" is not asked to go
   // Always. "none" still is: nothing records at all without location.
   useEffect(() => {
-    if (locationTier === "always" || locPrimerSeen || loading) return;
+    if (locationTier === "always" || loading) return;
+    // "none" goes by the first-install flag, "foreground" by its own.
+    if (locationTier === "none" ? locPrimerSeen : locPrimerForegroundSeen) return;
     let cancelled = false;
     (async () => {
       if (locationTier === "foreground") {
@@ -953,15 +962,21 @@ export default function DashboardScreen() {
     return () => {
       cancelled = true;
     };
-  }, [locationTier, locPrimerSeen, loading]);
+  }, [locationTier, locPrimerSeen, locPrimerForegroundSeen, loading]);
 
   // Recording the primer as seen and closing it are two things now: the motion
   // card keeps the modal open after the location card is finished with.
   const persistLocPrimerSeen = useCallback(async () => {
+    // Both flags: someone who answers the first-install version with While
+    // Using must not be asked again straight away by the While Using version.
     setLocPrimerSeen(true);
+    setLocPrimerForegroundSeen(true);
     const db = await getDatabase();
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('loc_primer_seen', '1')"
+    );
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('loc_primer_foreground_seen', '1')"
     );
   }, []);
 
@@ -1260,6 +1275,13 @@ export default function DashboardScreen() {
               "DELETE FROM tracking_state WHERE key = 'bg_permission_lost'"
             ).catch(() => {});
             setBgPermissionLost(false);
+            // Always is on, so a future drop to While Using (iOS's periodic
+            // background-location reminder, Gail Chapman 29 Sep 2026) gets
+            // the "switch back" explainer once more.
+            await db.runAsync(
+              "DELETE FROM tracking_state WHERE key = 'loc_primer_foreground_seen'"
+            ).catch(() => {});
+            setLocPrimerForegroundSeen(false);
           } else {
             const lost = await db.getFirstAsync<{ value: string }>(
               "SELECT value FROM tracking_state WHERE key = 'bg_permission_lost'"
