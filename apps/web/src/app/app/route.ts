@@ -9,8 +9,32 @@ import { storeFor } from "@/lib/storeRedirect";
 
 const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear-mileage-tracker-uk/id6759671005";
 
-export function GET(request: NextRequest) {
-  const store = storeFor(request.headers.get("user-agent") ?? "");
+// The API on this same server, called directly (not through Apache) so the
+// scan endpoint can tell it is us. See apps/api/src/routes/marketing.
+const INTERNAL_API_URL = process.env.INTERNAL_API_URL || "http://127.0.0.1:3002";
+
+/** Link previews (WhatsApp, iMessage, Slack, search crawlers) are not scans. */
+const BOT_UA = /bot|crawl|spider|preview|facebookexternalhit|whatsapp|slack|discord|telegram|curl|wget|python/i;
+
+/** Count the scan; never hold the redirect up for more than 800 ms. */
+async function reportScan(store: "ios" | "android" | "other"): Promise<void> {
+  try {
+    await fetch(`${INTERNAL_API_URL}/marketing/scan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ link: "app", store }),
+      signal: AbortSignal.timeout(800),
+      cache: "no-store",
+    });
+  } catch {
+    // A missed count never costs the driver the redirect.
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const ua = request.headers.get("user-agent") ?? "";
+  const store = storeFor(ua);
+  if (!BOT_UA.test(ua)) await reportScan(store);
   const target =
     store === "ios"
       ? APP_STORE_URL
