@@ -80,6 +80,7 @@ export default function Footer() {
                 <li><a href="/about" className="footer__link">About</a></li>
                 <li><a href="/case-study" className="footer__link">Case study</a></li>
                 <li><a href="/community" className="footer__link">Community numbers</a></li>
+                <li><a href="/press" className="footer__link">Press</a></li>
                 <li><a href="/faq" className="footer__link">FAQ</a></li>
                 <li><a href="/support" className="footer__link">Support</a></li>
                 <li>
