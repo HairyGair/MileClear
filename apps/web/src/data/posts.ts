@@ -51,6 +51,289 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "self-assessment-delivery-drivers-checklist",
+    title: "Self Assessment for delivery drivers: a 2025-26 checklist before 31 January",
+    excerpt:
+      "A Self Assessment checklist for UK delivery drivers on Deliveroo, Uber Eats, Just Eat and Amazon Flex: who has to file, the 31 January 2027 deadline, what to gather, what you can claim, and the mistakes that cost money.",
+    date: "2 October 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>If you deliver for Deliveroo, Uber Eats, Just Eat, Stuart, Amazon Flex or any of the parcel networks, you are almost certainly self-employed, and that means a Self Assessment tax return. The one due next is for the <strong>2025-26 tax year</strong>, which ran from 6 April 2025 to 5 April 2026, and the online deadline is <strong>31 January 2027</strong>.</p>
+
+<p>This is a plain checklist for getting it done without a last-week scramble. One thing to say up front: an app cannot file it for you. You file on GOV.UK yourself, or an accountant files it for you. What you can do now is make sure every figure you need is ready.</p>
+
+<h2>1. Check whether you need to file</h2>
+
+<p>GOV.UK says you must send a return if you were self-employed as a sole trader and <strong>earned more than £1,000 before taking off expenses</strong> (<a href="https://www.gov.uk/self-assessment-tax-returns/who-must-send-a-tax-return">who must send a tax return</a>). That is the total across every platform, not each one on its own. It applies even if you also have a PAYE job.</p>
+
+<p>The £1,000 figure is the <strong>trading allowance</strong>, and it works in one of two ways:</p>
+
+<ul>
+<li>If your total self-employed income was £1,000 or less, it is generally tax free and you may not need to report it at all.</li>
+<li>If it was more, you can either deduct the £1,000 allowance from your income, <strong>or</strong> deduct your actual expenses. Not both (<a href="https://www.gov.uk/guidance/tax-free-allowances-on-property-and-trading-income">GOV.UK trading allowance guidance</a>).</li>
+</ul>
+
+<p>For anyone who drives for work, expenses usually win. Just 2,500 business miles at 45p comes to £1,125 before you add parking or your phone.</p>
+
+<p>If this is your first return, you need to have told HMRC by <strong>5 October 2026</strong>. If you have not registered yet, do it now at <a href="https://www.gov.uk/register-for-self-assessment/self-employed">GOV.UK</a>, because registering late can bring a penalty.</p>
+
+<h2>2. Put the dates in your diary</h2>
+
+<ul>
+<li><strong>31 October 2026</strong>: deadline for a paper return.</li>
+<li><strong>31 January 2027</strong>: deadline for the online return, and for paying what you owe for 2025-26.</li>
+<li><strong>31 July 2027</strong>: second payment on account, if you have to make them.</li>
+</ul>
+
+<p>All three are on GOV.UK's <a href="https://www.gov.uk/self-assessment-tax-returns/deadlines">deadlines page</a>.</p>
+
+<h3>Payments on account, simply</h3>
+
+<p>If your 2025-26 bill is £1,000 or more (and less than 80% of your tax was already taken at source, through a job for example), HMRC also asks for two advance payments towards next year's bill. Each is usually half of this year's bill, due on 31 January and 31 July (<a href="https://www.gov.uk/understand-self-assessment-bill/payments-on-account">payments on account</a>).</p>
+
+<p>This catches out a lot of drivers in their first year. If your 2025-26 bill is £2,000, the 31 January payment is that £2,000 plus a first £1,000 towards 2026-27, so £3,000, then another £1,000 in July. Set money aside with that in mind.</p>
+
+<h2>3. Gather your earnings from every platform</h2>
+
+<ul>
+<li>Download the statements or annual summaries from each app you worked on during the tax year.</li>
+<li>Add up everything you were paid, <strong>including tips, bonuses and incentives</strong>. HMRC's notes for the return say turnover includes tips, fees and commissions.</li>
+<li>If a statement shows a service fee taken off before you were paid, the usual approach is to put the gross figure in turnover and claim the fee as an expense. Check with an accountant if you are not sure.</li>
+<li>Do not forget the platform you only tried for a few weeks. Platforms now report earnings to HMRC under the <a href="https://www.gov.uk/guidance/reporting-rules-for-digital-platforms">digital platform reporting rules</a>, so a missing platform is easy for HMRC to spot.</li>
+</ul>
+
+<h2>4. Total your business miles at the 2025-26 rate</h2>
+
+<p>For most drivers, mileage is the biggest deduction on the return. The flat rates for journeys between 6 April 2025 and 5 April 2026 are:</p>
+
+<ul>
+<li><strong>Cars and vans: 45p a mile</strong> for the first 10,000 business miles, then 25p</li>
+<li><strong>Motorcycles: 24p a mile</strong></li>
+</ul>
+
+<p>You may have seen <strong>55p</strong>. That rate applies to journeys from 6 April 2026, so it belongs on next year's return (2026-27, due by 31 January 2028), not this one (<a href="https://www.gov.uk/simpler-income-tax-simplified-expenses/vehicles">GOV.UK flat rates for vehicles</a>). Our <a href="/hmrc-mileage-rates">mileage rates guide</a> has both years side by side.</p>
+
+<p>As an example, 7,500 business miles by car in 2025-26 comes to £3,375 (7,500 x 45p).</p>
+
+<p>Three points worth knowing:</p>
+
+<ul>
+<li>Once you use the flat rate for a vehicle, you must keep using it for as long as you use that vehicle for your business. Our <a href="/mileage-or-actual-costs">mileage or actual costs</a> guide explains the choice.</li>
+<li>The flat rates cover cars, vans and motorcycles only. If you deliver by bicycle, you claim the actual business costs of the bike instead.</li>
+<li>Only business miles count. Driving between pick-ups and drops counts; ordinary commuting to a regular workplace does not. See <a href="/what-counts-as-business-mileage">what counts as business mileage</a>.</li>
+</ul>
+
+<h2>5. Gather your other expenses</h2>
+
+<p>On top of the mileage rate you can still claim:</p>
+
+<ul>
+<li>Parking and tolls on business journeys</li>
+<li>The business share of your phone and data</li>
+<li>Kit bought for the work, such as a delivery bag, phone mount or charging cables</li>
+</ul>
+
+<p>What you <strong>cannot</strong> add if you use the mileage rate: fuel, insurance, servicing, repairs, MOT or road tax for that vehicle, because the rate already covers them. Parking fines and penalty charges are never allowable (<a href="https://www.gov.uk/expenses-if-youre-self-employed/travel">GOV.UK travel expenses</a>).</p>
+
+<h2>6. Know where the figures go</h2>
+
+<p>Most delivery drivers use the short self-employment pages, SA103S, which are for turnover below £90,000. On the <a href="https://www.gov.uk/government/publications/self-assessment-self-employment-short-sa103s">2025-26 SA103S</a>:</p>
+
+<ul>
+<li><strong>Box 9, your turnover</strong>: total earnings from all platforms, tips included.</li>
+<li><strong>Box 10.1, trading income allowance</strong>: only if you are taking the £1,000 allowance instead of expenses. If you use it, leave the expense boxes empty.</li>
+<li><strong>Box 12, car, van and travel expenses</strong>: your mileage figure, plus parking and tolls.</li>
+<li><strong>Box 18, phone, fax, stationery and other office costs</strong>: the business share of your phone.</li>
+<li><strong>Box 19, other allowable business expenses</strong>: anything that fits nowhere else.</li>
+<li><strong>Box 20, total allowable expenses</strong>: with turnover under £90,000, HMRC's notes say you may just put your total expenses here rather than filling in each box.</li>
+</ul>
+
+<p>The online return asks the same questions under the same headings, so the boxes are a useful map even if you never see a paper form.</p>
+
+<h2>Common mistakes that cost drivers money</h2>
+
+<ul>
+<li><strong>Claiming fuel and mileage for the same car.</strong> It is one or the other. The mileage rate already includes fuel.</li>
+<li><strong>Using 55p for 2025-26 miles.</strong> This return is at 45p.</li>
+<li><strong>Counting the commute.</strong> The drive from home to a place you regularly work from is usually personal.</li>
+<li><strong>Missing a platform, or tips.</strong> Check every app you used, even briefly.</li>
+<li><strong>Taking the trading allowance and expenses together.</strong> You can only pick one.</li>
+<li><strong>Guessing the miles in January.</strong> A total with no log behind it is hard to defend. Keep records for at least five years after the 31 January deadline (<a href="/how-long-to-keep-mileage-records">how long to keep them</a>).</li>
+</ul>
+
+<h2>Where MileClear fits</h2>
+
+<p>MileClear keeps the records this checklist asks for. It records your drives automatically, and in the app a free <strong>Ready for 31 January?</strong> checklist shows what is done and what still needs doing for the tax year: trips waiting to be sorted into business or personal, earnings from each platform, and expenses. The free Self Assessment walkthrough then adds up your earnings, your mileage at the right rate for the year each journey was made, and your expenses. The print-ready PDF summary is part of Pro.</p>
+
+<p>MileClear does not file your return. You still submit it on GOV.UK, or hand the figures to your accountant. If you want the year's records kept for you from here, it is free to download at <a href="/app?from=blog-sa">mileclear.com/app</a>.</p>
+
+<p>This is general information, not financial advice. If your situation is complicated, for example several vehicles, a limited company or a large loss, a short conversation with an accountant is worth it.</p>
+`,
+    faqs: [
+      {
+        question: "Do delivery drivers need to do a Self Assessment tax return?",
+        answer:
+          "If you deliver as a self-employed sole trader, for example on Deliveroo, Uber Eats, Just Eat or Amazon Flex, and earned more than £1,000 in the tax year before expenses, GOV.UK says you must send a Self Assessment return. The £1,000 is the total across all platforms. It applies even if you also have a PAYE job.",
+      },
+      {
+        question: "When is the deadline for the 2025-26 tax return?",
+        answer:
+          "For the 2025-26 tax year (6 April 2025 to 5 April 2026), a paper return is due by 31 October 2026 and an online return by 31 January 2027. Any tax owed is also due by 31 January 2027. If you make payments on account, the second one is due by 31 July 2027.",
+      },
+      {
+        question: "What can delivery drivers claim on their tax return?",
+        answer:
+          "Most delivery drivers claim a flat rate per business mile, which for 2025-26 is 45p for the first 10,000 miles in a car or van and 25p after that, or 24p for a motorcycle. On top of that you can claim parking and tolls on business journeys, the business share of your phone, and kit bought for the work. If you use the mileage rate you cannot also claim fuel, insurance, servicing or repairs for that vehicle.",
+      },
+      {
+        question: "Is it 45p or 55p a mile on my 2025-26 return?",
+        answer:
+          "45p. The first-tier rate for cars and vans rose to 55p for journeys from 6 April 2026, so 55p applies to the 2026-27 tax year, which goes on the return due by 31 January 2028. Journeys in 2025-26 are claimed at 45p for the first 10,000 business miles and 25p after that.",
+      },
+      {
+        question: "Can I claim the £1,000 trading allowance and my expenses?",
+        answer:
+          "No. If your self-employed income was over £1,000 you either deduct the £1,000 trading allowance or deduct your actual allowable expenses, including mileage, but not both. For most drivers who use their own vehicle, expenses are worth more than £1,000.",
+      },
+    ],
+  },
+  {
+    slug: "amazon-flex-mileage-claim",
+    title: "Amazon Flex mileage: what you can claim and how to log it",
+    excerpt:
+      "Amazon Flex mileage explained for UK couriers: claim 45p a mile for 2025-26, or 55p from 6 April 2026, on your first 10,000 business miles. Which miles count, what to log, what else you can claim, and the deadlines.",
+    date: "2 October 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>Amazon Flex pays per block, not per mile, and the Flex app does not keep a mileage log you can use for tax (we covered that in <a href="/updates/does-amazon-flex-track-mileage">does Amazon Flex track mileage?</a>). So the "mileage allowance" Flex drivers search for is not a payment from Amazon. It is a deduction you claim yourself on your tax return, and for most couriers it is the biggest one there is.</p>
+
+<p>Here is what you can claim, which miles count, and how to keep a log that holds up.</p>
+
+<h2>Flex drivers are self-employed</h2>
+
+<p>Flex delivery partners work as independent contractors, so for tax you are a self-employed sole trader. That means you register for Self Assessment, report what Amazon paid you, and take off your allowable business expenses before tax is worked out. This is true even if Flex is a side job next to a PAYE one.</p>
+
+<h2>The mileage rates</h2>
+
+<p>Sole traders can use flat rates for a car, van or motorcycle instead of adding up the real running costs. The rate depends on when the journey happened, not when you file (<a href="https://www.gov.uk/simpler-income-tax-simplified-expenses/vehicles">GOV.UK flat rates for vehicles</a>):</p>
+
+<ul>
+<li><strong>Cars and vans, 2025-26</strong> (6 April 2025 to 5 April 2026): 45p a mile for the first 10,000 business miles, then 25p</li>
+<li><strong>Cars and vans, from 6 April 2026</strong> (2026-27 onwards): 55p a mile for the first 10,000 business miles, then 25p</li>
+<li><strong>Motorcycles</strong>: 24p a mile in both years</li>
+</ul>
+
+<p>The return due by 31 January 2027 covers 2025-26, so those miles go in at 45p. Miles you are driving now, since 6 April 2026, go on next year's return at 55p.</p>
+
+<p>To give a sense of scale: 9,000 business miles comes to £4,050 at 45p, or £4,950 at 55p. That is not money Amazon pays you; it comes off your taxable profit. Our <a href="/mileage-calculator">mileage calculator</a> and <a href="/hmrc-mileage-rates">mileage rates guide</a> work through other figures.</p>
+
+<h2>Mileage rate or actual costs: you choose once per vehicle</h2>
+
+<p>The alternative to the flat rate is claiming actual costs: the business share of fuel, insurance, servicing and repairs, plus capital allowances on the vehicle itself. Which is worth more depends on the vehicle and your miles.</p>
+
+<p>The rule to know before you decide: GOV.UK says once you use the flat rate for a vehicle, you must continue to do so for as long as you use that vehicle for your business. And you cannot switch to the flat rate for a vehicle you have already claimed capital allowances on. So your first return with a vehicle effectively fixes the method for it. Our <a href="/mileage-or-actual-costs">mileage or actual costs</a> guide compares the two.</p>
+
+<h2>Which Flex miles count</h2>
+
+<p><strong>Clearly business:</strong></p>
+
+<ul>
+<li>From the delivery station to your first drop</li>
+<li>Between every drop on the route</li>
+<li>Back to the station when the block requires it, for example to return undelivered parcels</li>
+</ul>
+
+<p><strong>Usually not business:</strong></p>
+
+<ul>
+<li>Home to a station you work from regularly, and home again at the end. GOV.UK lists travel between home and work as something the self-employed cannot claim (<a href="https://www.gov.uk/expenses-if-youre-self-employed/travel">travel expenses</a>), and if you collect from the same station block after block it looks like your regular place of work.</li>
+<li>Personal detours during a block, such as a shopping stop on the way home.</li>
+</ul>
+
+<p><strong>It depends:</strong> if your pick-up point genuinely changes from block to block with no regular pattern, the drive there can look more like travel to a temporary place of work than a commute. HMRC's own manual says these cases turn on the facts, including how predictable your place of work is (<a href="https://www.gov.uk/hmrc-internal-manuals/business-income-manual/bim37635">BIM37635</a>). If you are relying on that, take advice rather than guess. There is more on the general rules in <a href="/what-counts-as-business-mileage">what counts as business mileage</a>.</p>
+
+<h2>Keeping a mileage log</h2>
+
+<p>GOV.UK asks anyone using the flat rate to keep records of their business miles. For each journey, a usable log shows:</p>
+
+<ul>
+<li>The date</li>
+<li>Where you started and finished</li>
+<li>The miles driven</li>
+<li>The purpose, for example "Amazon Flex block from the station"</li>
+</ul>
+
+<p>Write it as you go rather than rebuilding it from memory in January, and keep it for at least five years after the 31 January deadline for that year (<a href="/how-long-to-keep-mileage-records">how long to keep mileage records</a>). Your block history in the Flex app is useful supporting evidence, but it is not a mileage log.</p>
+
+<h3>Logging Flex blocks with MileClear</h3>
+
+<ol>
+<li><strong>Start Shift</strong> when you set off for the block and <strong>End Shift</strong> when you finish. The drives in between are grouped under that shift.</li>
+<li>If you forget, MileClear detects drives and records them automatically, so the block is still there.</li>
+<li>Mark the trips as business and tag them <strong>Amazon Flex</strong>, so they stay separate from any Uber or Deliveroo work.</li>
+<li>Save your station as a place, so your trips show it by name.</li>
+<li>If the drive from home to the station is a commute for you, mark that trip as personal.</li>
+</ol>
+
+<p>At tax time, the free Self Assessment walkthrough adds up your mileage at the right rate for the year each journey was made, alongside your earnings and expenses. The print-ready PDF summary is part of Pro.</p>
+
+<h2>What else Flex drivers can claim</h2>
+
+<p>Alongside the mileage rate you can still claim:</p>
+
+<ul>
+<li>Parking and tolls paid on business journeys</li>
+<li>The business share of your phone and mobile data</li>
+<li>Kit bought for the work, such as a phone mount or charging cables</li>
+</ul>
+
+<p>You <strong>cannot</strong> add fuel, insurance, servicing, repairs, MOT or road tax for a vehicle you claim the mileage rate on, because the rate already covers them. Parking tickets and other fines are never allowable.</p>
+
+<p>If your costs are small, the alternative is the £1,000 trading allowance, which you take instead of expenses, not as well as them (<a href="https://www.gov.uk/guidance/tax-free-allowances-on-property-and-trading-income">trading allowance</a>). With any real mileage, expenses usually come out ahead.</p>
+
+<h2>Deadlines for Flex drivers</h2>
+
+<ul>
+<li><strong>Registering:</strong> if you started Flex in the 2025-26 tax year and have not filed before, you need to tell HMRC by <strong>5 October 2026</strong>. If that is you, <a href="https://www.gov.uk/register-for-self-assessment/self-employed">register now</a>, because registering late can bring a penalty. You need to file if you earned more than £1,000 from self-employment before expenses.</li>
+<li><strong>Paper return:</strong> 31 October 2026.</li>
+<li><strong>Online return and payment:</strong> 31 January 2027 (<a href="https://www.gov.uk/self-assessment-tax-returns/deadlines">GOV.UK deadlines</a>).</li>
+</ul>
+
+<p>Our <a href="/updates/self-assessment-delivery-drivers-checklist">Self Assessment checklist for delivery drivers</a> takes you through the return itself, and the <a href="/amazon-flex-mileage-tracker">Amazon Flex mileage tracker</a> page has more on how MileClear handles blocks. If you want your Flex miles logged from your next block, MileClear is free to download at <a href="/app?from=blog-flex">mileclear.com/app</a>.</p>
+
+<p>This is general information, not financial advice. If your situation is unusual, such as several vehicles, a limited company or a pick-up point that changes constantly, an accountant can confirm what applies to you.</p>
+`,
+    faqs: [
+      {
+        question: "How much mileage can I claim for Amazon Flex?",
+        answer:
+          "As a self-employed Flex courier using a car or van, you can claim 45p a mile for the first 10,000 business miles in the 2025-26 tax year and 25p a mile after that. For journeys from 6 April 2026 the first-tier rate is 55p, with 25p after 10,000 miles. Motorcycles are 24p a mile. The claim reduces your taxable profit; it is not a payment from Amazon.",
+      },
+      {
+        question: "Can I claim fuel as well as mileage on Amazon Flex?",
+        answer:
+          "No. If you use the flat mileage rate for a vehicle, it already covers fuel, insurance, servicing and repairs, so you cannot claim those separately. You can still claim parking and tolls on business journeys and the business share of your phone.",
+      },
+      {
+        question: "Can I claim the drive from home to the Amazon station?",
+        answer:
+          "Usually not if you work from the same station regularly, because travel between home and a regular place of work is treated as commuting. The miles from the station to your drops, between drops, and back to the station when the block requires it are business miles. If your pick-up point changes with no regular pattern the position can differ, and HMRC says it depends on the facts, so take advice if you are relying on it.",
+      },
+      {
+        question: "What records do I need for an Amazon Flex mileage claim?",
+        answer:
+          "Keep a log of business journeys showing the date, start and end points, miles driven and purpose, recorded as you go. Keep it for at least five years after the 31 January filing deadline for that tax year. Your Flex block history is useful supporting evidence but does not record your mileage.",
+      },
+      {
+        question: "Can I switch between the mileage rate and actual costs?",
+        answer:
+          "Not for the same vehicle once you have started. GOV.UK says that once you use the flat rate for a vehicle you must continue to do so as long as you use that vehicle for your business, and you cannot move to the flat rate for a vehicle you have already claimed capital allowances on.",
+      },
+    ],
+  },
+  {
     slug: "whats-new-in-version-1-3-10",
     title: "What's new in version 1.3.10",
     excerpt:
