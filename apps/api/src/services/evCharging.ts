@@ -8,6 +8,18 @@
 //
 // Charge-point locations change slowly, so we cache aggressively in-memory by
 // a coarse geographic cell, mirroring the fuel-station cache.
+//
+// Public charger PRICES (researched 2 Oct 2026, for the cheapest-fuel alert):
+// there is no free national feed to build a "cheapest charger near you" push
+// on. The Public Charge Point Regulations 2023, reg. 10, make each operator
+// publish p/kWh as open data (legislation.gov.uk/uksi/2023/1168/regulation/10),
+// but operator by operator over OCPI, and several (InstaVolt, for one) issue
+// credentials only after a signed data agreement. The National Chargepoint
+// Registry closed on 28 Nov 2024 with no free replacement; DfT's aggregated
+// feed (Zapmap, Sep 2025) is sold to industry through Zapmap Insights. Open
+// Charge Map has locations but only a free-text UsageCost, not a price. So the
+// EV side is a running-cost estimate (home tariff vs an editable public rapid
+// price, default from the Zapmap Price Index) rather than a live price alert.
 
 import type { ChargePoint, ElectricityRate } from "@mileclear/shared";
 

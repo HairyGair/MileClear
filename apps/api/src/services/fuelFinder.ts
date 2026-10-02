@@ -169,6 +169,7 @@ interface InternalStation {
     B7?: number;
     SDV?: number;
   };
+  pricesUpdatedAt?: Partial<Record<keyof InternalStation["prices"], string>>;
 }
 
 // Map Fuel Finder fuel_type values to our standard codes
@@ -358,11 +359,13 @@ export async function fetchFuelFinderStations(): Promise<{
     if (!priceData || !priceData.fuel_prices?.length) continue;
 
     const prices: InternalStation["prices"] = {};
+    const pricesUpdatedAt: NonNullable<InternalStation["pricesUpdatedAt"]> = {};
     for (const fp of priceData.fuel_prices) {
       const mapped = FUEL_TYPE_MAP[fp.fuel_type];
       if (!mapped) continue;
       if (fp.price == null || isNaN(fp.price) || fp.price <= 0) continue;
       prices[mapped] = fp.price;
+      if (fp.price_last_updated) pricesUpdatedAt[mapped] = fp.price_last_updated;
 
       // Track latest update timestamp
       if (fp.price_last_updated && fp.price_last_updated > latestUpdate) {
@@ -384,6 +387,7 @@ export async function fetchFuelFinderStations(): Promise<{
       latitude: lat,
       longitude: lng,
       prices,
+      pricesUpdatedAt,
     });
   }
 

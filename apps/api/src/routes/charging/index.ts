@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware, optionalAuthMiddleware } from "../../middleware/auth.js";
 import { getNearbyChargers, getElectricityRate } from "../../services/evCharging.js";
+import { DEFAULT_PUBLIC_RAPID_PENCE_PER_KWH } from "@mileclear/shared";
 
 // EV charging routes — the electric analogue of /fuel.
 export async function chargingRoutes(app: FastifyInstance) {
@@ -63,6 +64,37 @@ export async function chargingRoutes(app: FastifyInstance) {
       await prisma.user.update({
         where: { id: request.userId! },
         data: { electricityPencePerKwh: parsed.data.pencePerKwh },
+      });
+      return reply.send({ data: { pencePerKwh: parsed.data.pencePerKwh } });
+    });
+
+    // GET/PATCH /charging/public-rate: what the driver pays on public rapid
+    // chargers (p/kWh), for the running-cost comparison. Null = the default
+    // (Zapmap's published average; there is no free live price feed).
+    authApp.get("/public-rate", async (request, reply) => {
+      const { prisma } = await import("../../lib/prisma.js");
+      const user = await prisma.user.findUnique({
+        where: { id: request.userId! },
+        select: { publicChargePencePerKwh: true },
+      });
+      const own = user?.publicChargePencePerKwh ?? null;
+      return reply.send({
+        data: {
+          pencePerKwh: own ?? DEFAULT_PUBLIC_RAPID_PENCE_PER_KWH,
+          source: own != null ? "user" : "default",
+        },
+      });
+    });
+
+    authApp.patch("/public-rate", async (request, reply) => {
+      const parsed = bodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      const { prisma } = await import("../../lib/prisma.js");
+      await prisma.user.update({
+        where: { id: request.userId! },
+        data: { publicChargePencePerKwh: parsed.data.pencePerKwh },
       });
       return reply.send({ data: { pencePerKwh: parsed.data.pencePerKwh } });
     });

@@ -635,6 +635,15 @@ export interface FuelStation {
     B7?: number;    // diesel
     SDV?: number;   // super diesel
   };
+  /** When each price was last reported (ISO). From the Fuel Finder API per
+   *  price; from the retailer feed's own timestamp otherwise. Optional so
+   *  older cached shapes stay valid. */
+  pricesUpdatedAt?: {
+    E10?: string;
+    E5?: string;
+    B7?: string;
+    SDV?: string;
+  };
 }
 
 /** @deprecated Use FuelStation instead */
@@ -680,6 +689,50 @@ export interface ElectricityRate {
   source: "octopus_agile" | "default" | "user";
   region: string | null;
   asOf: string;
+}
+
+/** GET /fuel/cheapest-today: the line at the top of the fuel tab, built by
+ *  the same rule as the morning "cheapest fuel near you" push. */
+export interface CheapestFuelToday {
+  kind: "fuel";
+  /** "petrol" (E10) or "diesel" (B7). Hybrids use petrol. */
+  fuel: "petrol" | "diesel";
+  stationName: string;
+  pencePerLitre: number;
+  distanceMiles: number;
+  latitude: number;
+  longitude: number;
+  /** Median of the fresh prices within the search radius. */
+  localAveragePence: number;
+  nationalAveragePence: number | null;
+  /** Pence per litre under the local average (0 or more). */
+  underLocalPence: number;
+  radiusMiles: number;
+  stationCount: number;
+  /** One plain sentence, the same one the push would use. */
+  line: string;
+  /** Whether the push rule would send this today (at least 3p under). */
+  worthAlerting: boolean;
+}
+
+export interface EvRunningCostToday {
+  kind: "ev";
+  milesPerKwh: number;
+  milesPerKwhIsDefault: boolean;
+  homePencePerKwh: number;
+  homeRateSource: "user" | "octopus_agile" | "default";
+  publicPencePerKwh: number;
+  publicRateIsDefault: boolean;
+  homePencePerMile: number;
+  publicPencePerMile: number;
+  line: string;
+}
+
+export interface CheapestTodayResponse {
+  /** null when there is nothing honest to say (no vehicle, no location, too
+   *  few stations with fresh prices). */
+  data: CheapestFuelToday | EvRunningCostToday | null;
+  reason?: string;
 }
 
 export interface NearbyPricesResponse {
