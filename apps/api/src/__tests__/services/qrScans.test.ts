@@ -35,4 +35,21 @@ describe("qrScanRollup", () => {
   it("files an unknown store under other", () => {
     expect(qrScanRollup([{ createdAt: NOW, metadata: { store: "blackberry" } }], NOW).byStore.other).toBe(1);
   });
+
+  it("counts clicks per channel; old scans with no source are the billboard", () => {
+    const r = qrScanRollup(
+      [
+        { createdAt: NOW, metadata: { store: "ios" } },
+        { createdAt: NOW, metadata: { store: "android", from: "press" } },
+        { createdAt: NOW, metadata: { store: "ios", from: "press" } },
+        { createdAt: new Date(NOW.getTime() - 9 * 864e5), metadata: { store: "other", from: "press" } },
+        { createdAt: NOW, metadata: { store: "ios", from: "BAD SOURCE!" } },
+      ],
+      NOW
+    );
+    expect(r.bySource).toEqual([
+      { source: "press", total: 3, ios: 1, android: 1, other: 1, last7d: 2 },
+      { source: "billboard", total: 2, ios: 2, android: 0, other: 0, last7d: 2 },
+    ]);
+  });
 });

@@ -1,11 +1,11 @@
 "use client";
 
 import { Ago } from "../Ago";
-import { BarChart, Grid, KpiCard, LoadState, LoadingSkeleton, Panel, StatLine, formatDay, formatNumber, useAdminData } from "../ui";
+import { BarChart, DataTable, Grid, KpiCard, LoadState, LoadingSkeleton, Panel, StatLine, formatDay, formatNumber, useAdminData } from "../ui";
 import type { QrScans } from "./types";
 
 const NOTE =
-  "Scans of the Tyne Tunnel billboard QR code (mileclear.com/app), counted from 1 Oct 2026, 17:04. Link previews are not counted.";
+  "Clicks on mileclear.com/app: the Tyne Tunnel billboard QR (from 1 Oct 2026, 17:04) and every ?from= link since 2 Oct. Link previews are not counted.";
 
 /** Billboard QR scans. `summary` is the Overview tile; `full` is the
  *  Acquisition page section with a daily chart. */
@@ -83,6 +83,26 @@ export function QrScansPanel({ variant = "summary" }: { variant?: "summary" | "f
                 <KpiCard label="Google Play (Android)" value={d.byStore.android} />
                 <KpiCard label="Website (other)" value={d.byStore.other} />
               </Grid>
+              {(d.bySource?.length ?? 0) > 0 && (
+                <div>
+                  <p style={{ margin: "0 0 var(--adm-s2)", color: "var(--adm-text-2)", fontSize: "0.8125rem" }}>
+                    Clicks by channel. Share mileclear.com/app?from=NAME (letters, digits, dashes) in each place you post it; the billboard QR has no name and shows as billboard.
+                  </p>
+                  <DataTable
+                    caption="Clicks on mileclear.com/app by channel"
+                    rows={d.bySource ?? []}
+                    rowKey={(r) => r.source}
+                    columns={[
+                      { key: "source", header: "Channel", sortValue: (r) => r.source },
+                      { key: "total", header: "Clicks", numeric: true, sortValue: (r) => r.total },
+                      { key: "last7d", header: "Last 7 days", numeric: true, sortValue: (r) => r.last7d },
+                      { key: "ios", header: "iPhone", numeric: true, sortValue: (r) => r.ios },
+                      { key: "android", header: "Android", numeric: true, sortValue: (r) => r.android },
+                      { key: "other", header: "Website", numeric: true, sortValue: (r) => r.other, hideOnMobile: true },
+                    ]}
+                  />
+                </div>
+              )}
               {days.length > 1 && (
                 <BarChart
                   label="QR scans per day"

@@ -8,6 +8,8 @@ export interface QrScans {
   byDay: Array<{ date: string; total: number; ios: number; android: number; other: number }>;
   firstAt: string | null;
   lastAt: string | null;
+  /** Clicks per channel (mileclear.com/app?from=...), most first. */
+  bySource?: Array<{ source: string; total: number; ios: number; android: number; other: number; last7d: number }>;
 }
 
 export interface AcquisitionData {

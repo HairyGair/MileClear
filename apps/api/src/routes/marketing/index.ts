@@ -9,6 +9,10 @@ import { logEvent } from "../../services/appEvents.js";
 const scanSchema = z.object({
   link: z.enum(["app"]),
   store: z.enum(["ios", "android", "other"]),
+  // Which channel the link was shared in (mileclear.com/app?from=press),
+  // 2 Oct 2026. The billboard QR has no ?from, so the website sends
+  // "billboard" for it.
+  from: z.string().regex(/^[a-z0-9-]{1,32}$/).optional(),
 });
 
 /** Only the website, calling from this machine, may report a scan. Requests

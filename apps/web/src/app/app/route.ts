@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { PLAY_STORE_URL, PLAY_LIVE } from "@/data/android";
-import { storeFor } from "@/lib/storeRedirect";
+import { PLAY_LIVE } from "@/data/android";
+import { playUrlFor, sourceFrom, storeFor } from "@/lib/storeRedirect";
 
 // One link for every store: mileclear.com/app sends an iPhone or iPad to the
 // App Store, an Android phone to Google Play, and anything else to the home
@@ -17,12 +17,12 @@ const INTERNAL_API_URL = process.env.INTERNAL_API_URL || "http://127.0.0.1:3002"
 const BOT_UA = /bot|crawl|spider|preview|facebookexternalhit|whatsapp|slack|discord|telegram|curl|wget|python/i;
 
 /** Count the scan; never hold the redirect up for more than 800 ms. */
-async function reportScan(store: "ios" | "android" | "other"): Promise<void> {
+async function reportScan(store: "ios" | "android" | "other", from: string): Promise<void> {
   try {
     await fetch(`${INTERNAL_API_URL}/marketing/scan`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ link: "app", store }),
+      body: JSON.stringify({ link: "app", store, from }),
       signal: AbortSignal.timeout(800),
       cache: "no-store",
     });
@@ -34,12 +34,15 @@ async function reportScan(store: "ios" | "android" | "other"): Promise<void> {
 export async function GET(request: NextRequest) {
   const ua = request.headers.get("user-agent") ?? "";
   const store = storeFor(ua);
-  if (!BOT_UA.test(ua)) await reportScan(store);
+  // One link per channel: mileclear.com/app?from=press, ?from=flex-group...
+  // The billboard QR predates this and has no ?from.
+  const from = sourceFrom(request.nextUrl.searchParams.get("from"));
+  if (!BOT_UA.test(ua)) await reportScan(store, from);
   const target =
     store === "ios"
       ? APP_STORE_URL
       : store === "android" && PLAY_LIVE
-        ? PLAY_STORE_URL
+        ? playUrlFor(from)
         : "https://mileclear.com/"; // absolute: behind the proxy request.url is localhost
   const res = NextResponse.redirect(target, 302);
   // The answer depends on the phone, so no cache may reuse it for another.
