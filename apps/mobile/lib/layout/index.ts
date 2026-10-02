@@ -21,6 +21,10 @@ export interface SectionDef {
   // added after the device last loaded prefs) default to visible: true.
   // Set this to false to opt a section out of that default instead.
   defaultVisible?: boolean;
+  // Where a section added after a device saved its prefs lands on that
+  // device: straight after this key if the device has it, else at the end
+  // (the old behaviour). New installs use registry order regardless.
+  insertAfter?: string;
 }
 
 export interface LayoutPref {
@@ -69,6 +73,17 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Tax Readiness",
       icon: "shield-checkmark-outline",
       description: "HMRC estimate, weekly set-aside, filing deadline countdown",
+    },
+    // "Ready for 31 January?" (2 Oct 2026). Renders only from 1 December to
+    // 31 January, so for ten months of the year it takes no space. Sits
+    // straight under Tax Readiness on devices that already have saved prefs
+    // too (insertAfter), not appended at the bottom of the dashboard.
+    {
+      key: "sa_countdown",
+      label: "Ready for 31 January?",
+      icon: "calendar-outline",
+      description: "Self Assessment checklist, 1 December to 31 January",
+      insertAfter: "tax_readiness",
     },
     // Summary cards (today / year / week)
     // Default-hidden: shows three zeroes to anyone who hasn't driven yet
@@ -337,9 +352,10 @@ async function loadPrefs(screen: ScreenKey): Promise<LayoutPref[]> {
     position: r.position,
   }));
 
+  result.sort((a, b) => a.position - b.position);
   for (const section of SECTION_REGISTRY[screen]) {
     if (!dbKeys.has(section.key)) {
-      result.push({
+      const pref: LayoutPref = {
         key: section.key,
         // Same defaultVisible honouring as defaultPrefs() above - without
         // this, a device that already has other prefs saved would still
@@ -347,17 +363,23 @@ async function loadPrefs(screen: ScreenKey): Promise<LayoutPref[]> {
         // as visible: true, silently ignoring the flag.
         visible: section.defaultVisible ?? true,
         position: result.length,
-      });
+      };
+      const anchor = section.insertAfter
+        ? result.findIndex((p) => p.key === section.insertAfter)
+        : -1;
+      if (anchor >= 0) result.splice(anchor + 1, 0, pref);
+      else result.push(pref);
     }
   }
 
-  // Remove keys no longer in registry
+  // Remove keys no longer in registry, then renumber so the positions match
+  // the order (an insertAfter splice shifts everything below it).
   const registryKeys = new Set(
     SECTION_REGISTRY[screen].map((s) => s.key)
   );
   return result
     .filter((p) => registryKeys.has(p.key))
-    .sort((a, b) => a.position - b.position);
+    .map((p, i) => ({ ...p, position: i }));
 }
 
 async function savePrefs(

@@ -1,3 +1,4 @@
+import type { SaChecklist } from "@mileclear/shared";
 import { apiRequest } from "./index";
 
 export interface SelfAssessmentPlatformRow {
@@ -54,6 +55,19 @@ export interface SelfAssessmentSummary {
   effectiveRatePercent: number;
   // SA103 box values
   sa103Values: Record<string, number>;
+}
+
+/**
+ * "Ready for 31 January?" checklist for the tax year the next 31 January
+ * deadline is for. `preview` forces `inSeason` on, and the API only honours
+ * it for admins (see lib/saCountdown.ts).
+ */
+export async function fetchSaChecklist(
+  opts: { preview?: boolean } = {}
+): Promise<{ data: SaChecklist }> {
+  return apiRequest<{ data: SaChecklist }>(
+    `/self-assessment/checklist${opts.preview ? "?preview=1" : ""}`
+  );
 }
 
 export async function fetchSelfAssessmentSummary(

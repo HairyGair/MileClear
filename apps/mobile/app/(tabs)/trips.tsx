@@ -309,7 +309,9 @@ export default function TripsScreen() {
   // "?filter=unclassified" is how the classify reminders (evening digest,
   // weekly nudge, the app's own reminder) open the Inbox. Until 28 Sep 2026
   // nothing read it, so every one of those taps landed on All instead.
-  const params = useLocalSearchParams<{ filter?: string }>();
+  // "&range=lastTaxYear" narrows it to the tax year the 31 January Self
+  // Assessment deadline is for (the "Ready for 31 January?" checklist).
+  const params = useLocalSearchParams<{ filter?: string; range?: string }>();
   const [trips, setTrips] = useState<TripItem[]>([]);
   const [filter, setFilter] = useState<TripClassification | "all">(() =>
     params.filter === "unclassified" ? "unclassified" : "all"
@@ -321,7 +323,9 @@ export default function TripsScreen() {
   const [totalPages, setTotalPages] = useState(1);
   // Date range state. When dateRange !== "all" (or any other filter is active)
   // a stats summary card appears at the top of the list.
-  const [dateRange, setDateRange] = useState<DateRange>("all");
+  const [dateRange, setDateRange] = useState<DateRange>(() =>
+    params.range === "lastTaxYear" ? "lastTaxYear" : "all"
+  );
   const [customFrom, setCustomFrom] = useState<Date | null>(null);
   const [customTo, setCustomTo] = useState<Date | null>(null);
   const [showCustomPicker, setShowCustomPicker] = useState(false);
@@ -576,10 +580,30 @@ export default function TripsScreen() {
   // then clear the param so the next tap (after the driver has moved back
   // to All) is seen as a change too.
   useEffect(() => {
-    if (params.filter !== "unclassified") return;
-    if (filterRef.current !== "unclassified") handleFilterChange("unclassified");
-    router.setParams({ filter: undefined });
-  }, [params.filter, handleFilterChange, router]);
+    const wantsRange = params.range === "lastTaxYear";
+    if (params.filter !== "unclassified" && !wantsRange) return;
+    let reload = false;
+    if (wantsRange && dateRangeRef.current !== "lastTaxYear") {
+      setDateRange("lastTaxYear");
+      dateRangeRef.current = "lastTaxYear";
+      setCustomFrom(null);
+      setCustomTo(null);
+      customFromRef.current = null;
+      customToRef.current = null;
+      reload = true;
+    }
+    if (params.filter === "unclassified" && filterRef.current !== "unclassified") {
+      handleFilterChange("unclassified"); // reloads with the range set above
+      reload = false;
+    }
+    if (reload) {
+      setTrips([]);
+      setLoading(true);
+      loadTrips(1);
+      loadSummary();
+    }
+    router.setParams({ filter: undefined, range: undefined });
+  }, [params.filter, params.range, handleFilterChange, loadTrips, loadSummary, router]);
 
   const handlePlatformChange = useCallback(
     (value: PlatformTag | "all") => {
