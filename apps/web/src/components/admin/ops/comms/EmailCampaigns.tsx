@@ -52,7 +52,7 @@ const CAMPAIGNS: Campaign[] = [
     desc: "The latest changelog email (reads the release marked 'Latest' in the release notes).",
     cohort: false,
     channel: "email",
-    audience: "Every user who has not opted out of marketing email",
+    audience: "iPhone users who have not opted out of marketing email (Android-only testers are left out: the email says \"live on the App Store\")",
   },
   { id: "service-status", title: "Service status", desc: "A short 'we're back up' note to all users.", cohort: false, channel: "email", audience: "All users" },
   {
@@ -103,6 +103,9 @@ export function EmailCampaigns({ onLiveChange }: { onLiveChange: (live: boolean)
       const params = new URLSearchParams();
       if (dryRun) params.set("dryRun", "true");
       if (type === "re-engagement" && onlyInactive) params.set("onlyInactive", "true");
+      // The update email describes the App Store release, so Android-only
+      // testers are left out (dry run too, so the count matches the send).
+      if (type === "update") params.set("platform", "ios");
       const res = await api.post<{ data: CampaignResult }>(`/admin/send-${type}?${params}`, {});
       setResults((r) => ({ ...r, [type]: { ...res.data, dryRun, sig } }));
     } catch (err) {

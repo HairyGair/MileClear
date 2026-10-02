@@ -56,11 +56,16 @@ function CompProPanel({ onDone }: { onDone: () => void }) {
     setError(null);
     setResult(null);
     try {
-      const res = await api.post<{ data: { ok: boolean; premiumExpiresAt: string } }>(`/admin/users/${userId.trim()}/comp-premium`, {
+      const res = await api.post<{ data: { ok: boolean; premiumExpiresAt: string; keptLongerEnd?: boolean } }>(`/admin/users/${userId.trim()}/comp-premium`, {
         reason: reason.trim(),
         months,
       });
-      setResult(`Comped Pro until ${new Date(res.data.premiumExpiresAt).toLocaleDateString("en-GB")}.`);
+      const until = new Date(res.data.premiumExpiresAt).toLocaleDateString("en-GB");
+      setResult(
+        res.data.keptLongerEnd
+          ? `They already had Pro until ${until}, which is later, so that date was kept.`
+          : `Comped Pro until ${until}.`
+      );
       setUserId("");
       setReason("");
       onDone();
@@ -75,7 +80,7 @@ function CompProPanel({ onDone }: { onDone: () => void }) {
     <Panel
       title="Comp a Pro account"
       subtitle="Give a driver Pro for free, with a reason. Every grant is written to the audit log."
-      footer="Sets the Pro end date to today plus 30 days per month, replacing any end date the account already has."
+      footer="Sets the Pro end date to today plus 30 days per month. If the account already runs later than that, its later date is kept."
     >
       <form
         onSubmit={(e) => {

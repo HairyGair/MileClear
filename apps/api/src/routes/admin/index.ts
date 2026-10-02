@@ -3928,7 +3928,12 @@ export async function adminRoutes(app: FastifyInstance) {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) return reply.code(404).send({ error: "User not found" });
 
-      const expiresAt = new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000);
+      // Never shorten Pro: a driver who already runs past the comp's end (an
+      // annual subscriber, a longer earlier comp) keeps their later date.
+      const compEnd = new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000);
+      const existingEnd = user.premiumExpiresAt;
+      const keptLongerEnd = existingEnd != null && existingEnd.getTime() > compEnd.getTime();
+      const expiresAt = keptLongerEnd ? existingEnd : compEnd;
       await prisma.user.update({
         where: { id: userId },
         data: { isPremium: true, premiumExpiresAt: expiresAt },
@@ -3944,6 +3949,7 @@ export async function adminRoutes(app: FastifyInstance) {
             reason,
             months,
             expiresAt: expiresAt.toISOString(),
+            keptLongerEnd,
           },
         },
       });
@@ -3952,6 +3958,7 @@ export async function adminRoutes(app: FastifyInstance) {
         data: {
           ok: true,
           premiumExpiresAt: expiresAt.toISOString(),
+          keptLongerEnd,
         },
       });
     }
