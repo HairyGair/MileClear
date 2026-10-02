@@ -7,7 +7,7 @@ import StoreButtons from "@/components/StoreButtons";
 const URL = "https://mileclear.com/driversnote-alternative";
 
 export const metadata: Metadata = {
-  title: "A Free Driversnote Alternative for UK Drivers - MileClear",
+  title: "Free Driversnote Alternative for UK Drivers",
   description:
     "Looking for a Driversnote alternative? MileClear tracks unlimited business drives free with no beacon or hardware, applies HMRC's 55p rate, and tags gig-platform trips - built for UK gig and self-employed drivers.",
   keywords: [

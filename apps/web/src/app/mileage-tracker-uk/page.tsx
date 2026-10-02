@@ -6,11 +6,10 @@ import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
   title: {
-    absolute:
-      "Mileage Tracker UK - Free App for Self-Employed Drivers | MileClear",
+    absolute: "Mileage Tracker UK: Free Business Mileage App | MileClear",
   },
   description:
-    "The UK mileage tracker built for HMRC Self Assessment. Auto-track every business mile, generate a tax-year PDF, claim 55p/25p per mile (raised from 45p on 6 April 2026). Free to use, designed for UK drivers.",
+    "UK mileage tracker for self-employed and gig drivers. Logs business miles automatically on iPhone and Android and uses the right rate for each tax year.",
   keywords: [
     "mileage tracker uk",
     "mileage tracker",
@@ -25,17 +24,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/mileage-tracker-uk",
   },
   openGraph: {
-    title: "Mileage Tracker UK - Free App for Self-Employed Drivers",
+    title: "Mileage Tracker UK: Free Business Mileage App",
     description:
-      "Auto-track every business mile. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026). Self Assessment-ready PDF. Free.",
+      "UK mileage tracker for self-employed and gig drivers. Logs business miles automatically on iPhone and Android and uses the right rate for each tax year.",
     url: "https://mileclear.com/mileage-tracker-uk",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mileage Tracker UK - Free App for Self-Employed Drivers",
+    title: "Mileage Tracker UK: Free Business Mileage App",
     description:
-      "Auto-track every business mile. HMRC 55p/25p rates built in (raised from 45p on 6 April 2026). Self Assessment-ready PDF. Free.",
+      "UK mileage tracker for self-employed and gig drivers. Logs business miles automatically on iPhone and Android and uses the right rate for each tax year.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -181,7 +180,7 @@ export default function MileageTrackerUk() {
                 marginBottom: "1.25rem",
               }}
             >
-              The Free Mileage Tracker UK Drivers Trust for HMRC Self Assessment
+              Mileage Tracker UK: A Free Business Mileage App for Self Assessment
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               MileClear is a UK-built mileage tracker designed around HMRC's AMAP rates and the

@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
       // dashboard. Done here rather than with a redirect() page so it is a
       // real server redirect for bookmarks and crawlers, and so /dashboard/team
       // cannot briefly render the sole trader shell on the way past.
+      // Google Search Console shows impressions at position 1 for this URL,
+      // which has never existed. Send it to the real free-tracker page.
+      { source: "/free-mileage-tracking-uk", destination: "/free-mileage-tracker-uk", permanent: true },
       { source: "/teams", destination: "/milesheet", permanent: true },
       { source: "/dashboard/team", destination: "/milesheet/portal", permanent: true },
       { source: "/team/invite/:token", destination: "/milesheet/invite/:token", permanent: true },

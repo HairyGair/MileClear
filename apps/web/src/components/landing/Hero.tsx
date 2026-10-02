@@ -11,13 +11,17 @@ export default function Hero() {
             Unlimited tracking. Free, forever.
           </div>
           <h1 className="hero__h1">
+            <span className="hero__h1-kicker">
+              Free mileage tracker app for UK drivers
+            </span>
             Track every mile.
             <br />
             <em>Claim every penny.</em>
           </h1>
           <p className="hero__sub">
-            The UK mileage tracker for gig workers, delivery drivers, and
-            anyone who drives their own car for work. It records your trips on
+            A free mileage tracker app for iPhone and Android, built for UK
+            gig workers, delivery drivers, and anyone who drives their own car
+            for work. It records your trips on
             its own and turns them into the figures HMRC or your employer asks
             for. <strong>Every trip, every month, free.</strong>
           </p>

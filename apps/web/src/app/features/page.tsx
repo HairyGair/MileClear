@@ -5,26 +5,26 @@ import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Features",
+  title: "Mileage Tracker Features: Auto Trips, Tax, Fuel",
   description:
-    "Explore MileClear's full feature set: GPS trip tracking, HMRC mileage calculator, shift and earnings tracking, UK fuel prices, business intelligence, and more. The mileage tracker built for UK drivers.",
+    "Automatic GPS trip tracking, the right mileage rate for each tax year, shifts, earnings, expenses and UK fuel prices. Free on iPhone and Android.",
   keywords:
     "mileage tracker features UK, GPS trip tracking, HMRC mileage calculator, mileage app UK, gig worker mileage, delivery driver mileage tracker",
   alternates: {
     canonical: "https://mileclear.com/features",
   },
   openGraph: {
-    title: "Features | MileClear",
+    title: "Mileage Tracker Features: Auto Trips, Tax, Fuel | MileClear",
     description:
-      "GPS trip tracking, HMRC mileage deductions, shift and earnings tracking, UK fuel prices, and business intelligence - all in one app built for UK drivers.",
+      "Automatic GPS trip tracking, the right mileage rate for each tax year, shifts, earnings, expenses and UK fuel prices. Free on iPhone and Android.",
     url: "https://mileclear.com/features",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Features | MileClear",
+    title: "Mileage Tracker Features: Auto Trips, Tax, Fuel | MileClear",
     description:
-      "GPS trip tracking, HMRC mileage deductions, shift and earnings tracking, UK fuel prices, and business intelligence - all in one app built for UK drivers.",
+      "Automatic GPS trip tracking, the right mileage rate for each tax year, shifts, earnings, expenses and UK fuel prices. Free on iPhone and Android.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -138,7 +138,7 @@ export default function FeaturesPage() {
                 marginBottom: "1.25rem",
               }}
             >
-              Every Feature You Need to Track Mileage in the UK
+              Mileage Tracker App Features for UK Drivers
             </h1>
             <p
               style={{
@@ -149,7 +149,8 @@ export default function FeaturesPage() {
                 margin: "0 auto",
               }}
             >
-              MileClear is built from the ground up for UK drivers. Whether
+              MileClear is a free mileage tracker app for UK drivers on iPhone
+              and Android. Whether
               you drive for Uber, Deliveroo, Amazon Flex, or just want to
               track your own mileage, every feature is designed to save you
               time and money at tax time.

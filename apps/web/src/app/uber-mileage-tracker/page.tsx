@@ -4,9 +4,9 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
+  title: "Uber Mileage Tracker & Log UK: Free, Automatic",
   description:
-    "Uber only logs paid trips. HMRC lets you claim every on-shift mile - between jobs, repositioning, waiting. 20,000 miles/year = £8,000 off tax at the new 55p/25p rate. MileClear captures the full shift. See how.",
+    "Uber only logs paid trips. MileClear logs your whole shift, dead miles included, free on iPhone and Android, and works out 55p a mile from April 2026.",
   keywords: [
     "uber driver mileage tracker",
     "uber mileage log uk",
@@ -18,17 +18,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/uber-mileage-tracker",
   },
   openGraph: {
-    title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
+    title: "Uber Mileage Tracker & Log UK: Free, Automatic",
     description:
-      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 55p/25p rates (raised from 45p on 6 April 2026), and exports a Self Assessment-ready PDF in one tap.",
+      "Uber only logs paid trips. MileClear logs your whole shift, dead miles included, free on iPhone and Android, and works out 55p a mile from April 2026.",
     url: "https://mileclear.com/uber-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Uber Mileage Tracker UK - Reclaim Your Dead Miles in Tax",
+    title: "Uber Mileage Tracker & Log UK: Free, Automatic",
     description:
-      "Uber misses your dead miles - HMRC doesn't have to. MileClear records the full shift via GPS, applies 55p/25p rates (raised from 45p on 6 April 2026), and exports a Self Assessment-ready PDF in one tap.",
+      "Uber only logs paid trips. MileClear logs your whole shift, dead miles included, free on iPhone and Android, and works out 55p a mile from April 2026.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -134,11 +134,11 @@ export default function UberMileageTracker() {
                 marginBottom: "1.25rem",
               }}
             >
-              The Mileage Tracker Built for UK Uber Drivers
+              Uber Mileage Tracker and Mileage Log for UK Drivers
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              Every mile you drive for Uber is a tax deduction waiting to happen. MileClear tracks your
-              trips automatically, calculates your HMRC deduction in real time, and gives you an
+              Every mile you drive for Uber is a tax deduction waiting to happen. MileClear is a free
+              Uber mileage tracker for iPhone and Android: it tracks your trips automatically, calculates your HMRC deduction in real time, and gives you an
               export-ready mileage log whenever you need it for self-assessment. Tracking is
               unlimited and free forever - no 40-drive monthly cap like MileIQ, no 20-drive cap like
               Driversnote. A full-time Uber driver doing 100-200 pickups a week would burn through

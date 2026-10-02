@@ -4,9 +4,9 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
+  title: "Amazon Flex Mileage Tracker UK: Free, Automatic",
   description:
-    "Free mileage tracker for UK Amazon Flex drivers. Auto-logs every block and return-to-depot mile, then exports a tax-ready Self Assessment PDF. Unlimited trips, free.",
+    "Free Amazon Flex mileage tracker for iPhone and Android. Logs every block and return-to-depot mile automatically, at 55p a mile from April 2026.",
   keywords: [
     "amazon flex mileage tracker",
     "amazon flex tax deduction uk",
@@ -18,17 +18,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/amazon-flex-mileage-tracker",
   },
   openGraph: {
-    title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
+    title: "Amazon Flex Mileage Tracker UK: Free, Automatic",
     description:
-      "Track every Amazon Flex block automatically - free. Return-to-depot miles captured, HMRC 55p/25p rates built in, Self Assessment PDF export. Unlimited trips, no cap.",
+      "Free Amazon Flex mileage tracker for iPhone and Android. Logs every block and return-to-depot mile automatically, at 55p a mile from April 2026.",
     url: "https://mileclear.com/amazon-flex-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Amazon Flex Mileage Tracker UK - Free & Automatic",
+    title: "Amazon Flex Mileage Tracker UK: Free, Automatic",
     description:
-      "Track every Amazon Flex block automatically - free. Return-to-depot miles captured, HMRC 55p/25p rates built in, Self Assessment PDF export. Unlimited trips, no cap.",
+      "Free Amazon Flex mileage tracker for iPhone and Android. Logs every block and return-to-depot mile automatically, at 55p a mile from April 2026.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -145,7 +145,8 @@ export default function AmazonFlexMileageTracker() {
               Amazon Flex Mileage Tracker - Claim Every Delivery Mile
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              Amazon Flex drivers in the UK cover serious mileage. A four-hour block in a suburban area
+              MileClear is a free Amazon Flex mileage tracker for iPhone and Android. Amazon Flex
+              drivers in the UK cover serious mileage. A four-hour block in a suburban area
               can mean 40 to 80 miles of delivery routes and 40-70 individual stops. MileClear tracks
               every mile automatically, groups them into blocks that match how Flex actually works,
               and calculates your HMRC deduction in real time. Tracking is unlimited and free forever

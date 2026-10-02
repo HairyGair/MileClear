@@ -4,9 +4,9 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Evri Mileage Tracker UK - Round Mileage = £8,250 Off Tax",
+  title: "Evri Mileage Tracker UK: Free, Logs Every Round",
   description:
-    "Evri pays per parcel. HMRC pays per mile. A 25,000-mile rural round claims £8,250 in deduction - more than some couriers earn from a week of small packets. MileClear tracks your round automatically. See how.",
+    "Free Evri mileage tracker for couriers on iPhone and Android. Logs every round automatically, Self-Employed Plus or Classic, at 55p a mile from April 2026.",
   keywords: [
     "evri mileage tracker",
     "evri courier tax uk",
@@ -18,17 +18,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/evri-mileage-tracker",
   },
   openGraph: {
-    title: "Evri Mileage Tracker UK - Round Mileage = £8,250 Off Tax",
+    title: "Evri Mileage Tracker UK: Free, Logs Every Round",
     description:
-      "MileClear records every Evri round automatically, applies HMRC AMAP rates, and exports a Self Assessment-ready PDF. Self-Employed Plus or Classic, the mileage rules are the same.",
+      "Free Evri mileage tracker for couriers on iPhone and Android. Logs every round automatically, Self-Employed Plus or Classic, at 55p a mile from April 2026.",
     url: "https://mileclear.com/evri-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Evri Mileage Tracker UK - Round Mileage = £8,250 Off Tax",
+    title: "Evri Mileage Tracker UK: Free, Logs Every Round",
     description:
-      "MileClear records every Evri round automatically, applies HMRC AMAP rates, and exports a Self Assessment-ready PDF. Self-Employed Plus or Classic, the mileage rules are the same.",
+      "Free Evri mileage tracker for couriers on iPhone and Android. Logs every round automatically, Self-Employed Plus or Classic, at 55p a mile from April 2026.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -164,7 +164,7 @@ export default function EvriMileageTracker() {
               The Evri Courier Community app tracks your parcels, your scans, and your
               estimated pay. It does not track your mileage. A rural round at 25,000 business
               miles a year claims £8,250 in HMRC AMAP deduction - often more than a quiet week
-              of small-packet pay. MileClear records every round automatically, applies the
+              of small-packet pay. MileClear is a free Evri mileage tracker that records every round automatically, applies the
               right rate, and produces a Self Assessment-ready log. Tracking is unlimited and
               free forever - no monthly drive cap. An urban Evri round is 150-250 parcels a
               day; even a quiet suburban round is 100+. MileIQ caps the free tier at 40 drives

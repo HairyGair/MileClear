@@ -345,6 +345,16 @@ body::after {
   color: var(--text-white);
   margin-bottom: 1.25rem;
 }
+.hero__h1-kicker {
+  display: block;
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 1.6vw, 1.125rem);
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
 .hero__h1 em {
   font-style: normal;
   background: linear-gradient(135deg, var(--amber-300), var(--amber-500));

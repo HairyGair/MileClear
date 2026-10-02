@@ -7,24 +7,24 @@ import './about.css';
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: 'About MileClear',
+  title: { absolute: 'About MileClear: A UK-Built Mileage Tracker App' },
   description:
-    'MileClear was built by Anthony Gair, a software developer from the North East of England, to solve his own frustration with existing mileage trackers.',
+    'MileClear is a free mileage tracker app for iPhone and Android, built in the North East of England by Anthony Gair after other trackers let him down.',
   alternates: {
     canonical: 'https://mileclear.com/about',
   },
   openGraph: {
-    title: 'About MileClear',
+    title: 'About MileClear: A UK-Built Mileage Tracker App',
     description:
-      'MileClear was built by Anthony Gair, a software developer from the North East of England, to solve his own frustration with existing mileage trackers.',
+      'MileClear is a free mileage tracker app for iPhone and Android, built in the North East of England by Anthony Gair after other trackers let him down.',
     url: 'https://mileclear.com/about',
     images: [{ url: '/branding/og-image.png', width: 1200, height: 628 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'About MileClear',
+    title: 'About MileClear: A UK-Built Mileage Tracker App',
     description:
-      'MileClear was built by Anthony Gair, a software developer from the North East of England, to solve his own frustration with existing mileage trackers.',
+      'MileClear is a free mileage tracker app for iPhone and Android, built in the North East of England by Anthony Gair after other trackers let him down.',
     images: ['/branding/og-image.png'],
   },
 };
@@ -55,7 +55,7 @@ export default function AboutPage() {
             <span className="label">About</span>
             <h1 className="heading">About MileClear</h1>
             <p className="subtext">
-              Built for UK drivers, by a UK developer.
+              A free mileage tracker app for UK drivers, built by a UK developer.
             </p>
           </div>
 

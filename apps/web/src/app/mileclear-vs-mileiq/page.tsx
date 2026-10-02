@@ -5,9 +5,9 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "MileClear vs MileIQ - Best UK Mileage Tracker Comparison",
+  title: { absolute: "MileClear vs MileIQ: UK Mileage Apps Compared (2026)" },
   description:
-    "Comparing MileClear and MileIQ for UK drivers. MileClear uses HMRC rates natively, costs half the price, tags Uber and Deliveroo trips, and works offline. See the full breakdown.",
+    "MileClear vs MileIQ for UK drivers: free tier limits, price, UK mileage rates, gig platform tags and offline tracking, side by side. See which suits you.",
   keywords: [
     "mileiq alternative uk",
     "best mileage tracker uk 2026",
@@ -19,17 +19,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/mileclear-vs-mileiq",
   },
   openGraph: {
-    title: "MileClear vs MileIQ - UK Mileage Tracker Comparison",
+    title: "MileClear vs MileIQ: UK Mileage Apps Compared (2026)",
     description:
-      "MileClear is built for UK drivers from the ground up. HMRC rates, gig platform tagging, offline tracking, and half the price of MileIQ.",
+      "MileClear vs MileIQ for UK drivers: free tier limits, price, UK mileage rates, gig platform tags and offline tracking, side by side. See which suits you.",
     url: "https://mileclear.com/mileclear-vs-mileiq",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "MileClear vs MileIQ - UK Mileage Tracker Comparison",
+    title: "MileClear vs MileIQ: UK Mileage Apps Compared (2026)",
     description:
-      "MileClear is built for UK drivers from the ground up. HMRC rates, gig platform tagging, offline tracking, and half the price of MileIQ.",
+      "MileClear vs MileIQ for UK drivers: free tier limits, price, UK mileage rates, gig platform tags and offline tracking, side by side. See which suits you.",
     images: ["/branding/og-image.png"],
   },
 };
