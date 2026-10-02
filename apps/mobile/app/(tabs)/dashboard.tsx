@@ -74,6 +74,7 @@ import { CommunityInsightsCard } from "../../components/community/CommunityInsig
 import { CommunityMonthCard } from "../../components/community/CommunityMonthCard";
 import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
 import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
+import { SaCountdownCard } from "../../components/business/SaCountdownCard";
 import { MileageMonthCard } from "../../components/business/MileageMonthCard";
 import { ActivityHeatmapCard } from "../../components/business/ActivityHeatmapCard";
 import { BenchmarkCard } from "../../components/business/BenchmarkCard";
@@ -2336,6 +2337,11 @@ export default function DashboardScreen() {
             // adds nothing for a brand-new user.
             if (totalTrips === 0) return null;
             return <TaxReadinessCard key={key} />;
+          case "sa_countdown":
+            // "Ready for 31 January?" Renders nothing outside 1 December to
+            // 31 January, or for personal-mode, employee and company
+            // drivers (the card checks; see lib/saCountdown).
+            return <SaCountdownCard key={key} />;
           case "business_mileage":
             // Always render - drivers explicitly asked for business mileage
             // visibility, and "0 miles this month" is intuitive (it just

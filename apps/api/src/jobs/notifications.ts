@@ -35,6 +35,7 @@ import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runEveningDigestJob, localDayBounds } from "./eveningDigest.js";
 import { inStreakReminderWindow, isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { runClassifyNudgeJob } from "./classifyNudge.js";
+import { runSaCountdownRemindersJob } from "./saCountdownReminders.js";
 import {
   runUnclassifiedNudgeEmailJob,
   runWeeklyRecapEmailJob,
@@ -1658,6 +1659,9 @@ export function startNotificationJobs(): void {
     void runJob("email_sa_deadline", runSaDeadlineEmailJob);
     // Weekly classify nudge, Sunday 19:00 UK. Dry run unless CLASSIFY_NUDGE=1.
     void runJob("classify_nudge", runClassifyNudgeJob);
+    // "Ready for 31 January?" pushes: 1 Dec, 2 Jan, 20 Jan, 29 Jan at 18:00
+    // UK. Dry run unless SA_COUNTDOWN_PUSH=1.
+    void runJob("sa_countdown", runSaCountdownRemindersJob);
   };
 
   setTimeout(() => {

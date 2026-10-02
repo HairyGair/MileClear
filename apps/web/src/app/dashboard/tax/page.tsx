@@ -7,6 +7,7 @@ import { Card } from "../../../components/ui/Card";
 import { Badge } from "../../../components/ui/Badge";
 import { Select } from "../../../components/ui/Select";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
+import { SaChecklistPanel } from "../../../components/dashboard/SaChecklistPanel";
 import { getHmrcRatesForTaxYear } from "@mileclear/shared";
 
 interface GamificationStats {
@@ -202,6 +203,9 @@ export default function TaxPage() {
           </div>
         }
       />
+
+      {/* "Ready for 31 January?" 1 Dec to 31 Jan only; renders nothing otherwise. */}
+      <SaChecklistPanel />
 
       {error && (
         <div className="alert alert--error" style={{ marginBottom: "1rem" }}>

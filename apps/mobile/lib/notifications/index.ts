@@ -680,6 +680,24 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/self-assessment" as any);
         break;
 
+      case "open_sa_checklist":
+        // "Ready for 31 January?" reminders (jobs/saCountdownReminders.ts).
+        // Builds without this case fall through to the dashboard, which
+        // carries the same checklist card in season.
+        import("../api/index")
+          .then(({ apiRequest }) =>
+            apiRequest("/user/event", {
+              method: "POST",
+              body: JSON.stringify({
+                type: "notification.sa_countdown_opened",
+                metadata: { stage: data?.stage ?? null },
+              }),
+            })
+          )
+          .catch(() => {});
+        router.navigate("/sa-checklist" as any);
+        break;
+
       case "open_settings":
         Linking.openSettings();
         return;

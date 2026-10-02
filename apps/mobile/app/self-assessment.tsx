@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import { safeBack } from "../lib/nav";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE } from "@mileclear/shared";
@@ -414,6 +414,7 @@ const HEADER_OPTIONS = {
 };
 
 export default function SelfAssessmentScreen() {
+  const router = useRouter();
   const { showPaywall } = usePaywall();
   const taxYears = generateTaxYears(4);
 
@@ -583,6 +584,17 @@ export default function SelfAssessmentScreen() {
             <Text style={styles.yearSubtext}>
               6 April {selectedYear.split("-")[0]} to 5 April {parseInt(selectedYear.split("-")[0]) + 1}
             </Text>
+            <TouchableOpacity
+              style={styles.checklistLink}
+              onPress={() => router.push("/sa-checklist" as never)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Ready for 31 January? Open your checklist"
+            >
+              <Ionicons name="checkbox-outline" size={16} color={AMBER} />
+              <Text style={styles.checklistLinkText}>Ready for 31 January? Check your list</Text>
+              <Ionicons name="chevron-forward" size={14} color={AMBER} />
+            </TouchableOpacity>
           </>
         )}
 
@@ -684,6 +696,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: BG,
+  },
+  checklistLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.2)",
+  },
+  checklistLinkText: {
+    flex: 1,
+    color: TEXT_1,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
   },
   centered: {
     flex: 1,

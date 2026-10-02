@@ -720,6 +720,7 @@ function RootNavigator() {
         <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
         <Stack.Screen name="self-assessment" options={{ headerShown: true, title: "Self Assessment" }} />
         <Stack.Screen name="first-tax-return" options={{ headerShown: true, title: "First-Time Guide" }} />
+        <Stack.Screen name="sa-checklist" options={{ headerShown: true, title: "Ready for 31 January?" }} />
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
         <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "HMRC Reconciliation" }} />
         <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Tax (MTD)" }} />

@@ -14,6 +14,7 @@ import {
   type VehicleType,
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
+import { loadSaChecklist } from "../../services/saChecklist.js";
 
 const taxYearSchema = z
   .string()
@@ -34,6 +35,27 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
   // tax tooling per paywall_philosophy.md). The print-ready PDF stays
   // Pro because PDF generation has real per-call compute cost; that's
   // gated separately under /exports/self-assessment.
+
+  /**
+   * GET /self-assessment/checklist[?preview=1]
+   *
+   * "Ready for 31 January?" checklist for the tax year the next 31 January
+   * deadline is for (services/saChecklist.ts). Free. Scoped to the caller.
+   * `inSeason` is true from 1 December to 31 January; `preview=1` forces it
+   * on, for admins only, so the card can be checked before December.
+   */
+  app.get(
+    "/checklist",
+    async (
+      request: FastifyRequest<{ Querystring: { preview?: string } }>,
+      reply
+    ) => {
+      const forceSeason = request.query.preview === "1" && request.isAdmin === true;
+      const checklist = await loadSaChecklist(request.userId!, { forceSeason });
+      if (!checklist) return reply.status(404).send({ error: "User not found" });
+      return reply.send({ data: checklist });
+    }
+  );
 
   /**
    * GET /self-assessment/summary?taxYear=2025-26
