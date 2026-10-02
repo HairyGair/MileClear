@@ -4,9 +4,9 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Just Eat Mileage Tracker UK - Free & Automatic",
+  title: "Just Eat Mileage Tracker UK: Free, Moped or Car",
   description:
-    "Free mileage tracker for UK Just Eat couriers. GPS-logs every run log-on to log-off and applies the right HMRC rate for moped or car. Unlimited trips, tax-ready PDF.",
+    "Free Just Eat mileage tracker for couriers on iPhone and Android. Logs every run and uses the right rate: 24p a mile on a moped, 55p in a car.",
   keywords: [
     "just eat mileage tracker",
     "just eat courier tax uk",
@@ -18,17 +18,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/just-eat-mileage-tracker",
   },
   openGraph: {
-    title: "Just Eat Mileage Tracker UK - Free & Automatic",
+    title: "Just Eat Mileage Tracker UK: Free, Moped or Car",
     description:
-      "Track every Just Eat run automatically - free. GPS from log-on to log-off, the right HMRC rate for moped or car (24p/55p), Self Assessment PDF export. No trip cap.",
+      "Free Just Eat mileage tracker for couriers on iPhone and Android. Logs every run and uses the right rate: 24p a mile on a moped, 55p in a car.",
     url: "https://mileclear.com/just-eat-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Just Eat Mileage Tracker UK - Free & Automatic",
+    title: "Just Eat Mileage Tracker UK: Free, Moped or Car",
     description:
-      "Track every Just Eat run automatically - free. GPS from log-on to log-off, the right HMRC rate for moped or car (24p/55p), Self Assessment PDF export. No trip cap.",
+      "Free Just Eat mileage tracker for couriers on iPhone and Android. Logs every run and uses the right rate: 24p a mile on a moped, 55p in a car.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -164,7 +164,7 @@ export default function JustEatMileageTracker() {
               Since January 2024 Just Eat has been required to report your annual earnings
               directly to HMRC. The first reports landed on 31 January 2026. If you ride a
               moped you claim 24p per mile, not 55p - and the difference between the two on a
-              full-time year is several thousand pounds of overstated deduction. MileClear records every
+              full-time year is several thousand pounds of overstated deduction. MileClear, a free Just Eat mileage tracker, records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
               log. Tracking is unlimited and free forever - no monthly drive cap, where MileIQ
               stops at 40 drives a month and Driversnote at 15. A Just Eat courier doing two

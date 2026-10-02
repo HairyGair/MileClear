@@ -15,7 +15,7 @@ import StoreButtons from "@/components/StoreButtons";
 // gateway: deep-link into the app, or sign in on web.
 
 export const metadata: Metadata = {
-  title: "QuickBooks Online for MileClear - Push your mileage to your accountant's books",
+  title: "QuickBooks Mileage Sync for UK Drivers",
   description:
     "MileClear's QuickBooks integration pushes business mileage, gig earnings, and allowable expenses from your phone into QuickBooks Online. Pro feature. No copy-paste.",
   alternates: { canonical: "https://mileclear.com/quickbooks" },

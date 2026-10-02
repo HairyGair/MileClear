@@ -5,24 +5,24 @@ import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: 'Pricing',
+  title: 'Pricing: Free Mileage Tracking, Pro £4.99/mo',
   description:
-    'MileClear mileage tracker pricing UK. Free mileage app with unlimited GPS tracking. Upgrade to Pro for HMRC exports and business intelligence. Free mileage tracker with no trip limits.',
+    'Mileage tracking is free and unlimited on iPhone and Android, with no monthly drive cap. Pro is £4.99 a month for exports, Open Banking and insights.',
   alternates: {
     canonical: 'https://mileclear.com/pricing',
   },
   openGraph: {
-    title: 'Pricing | MileClear',
+    title: 'Pricing: Free Mileage Tracking, Pro £4.99/mo | MileClear',
     description:
-      'Track every mile for free. Upgrade to Pro at £4.99/month for tax-ready exports, earnings tracking, and business intelligence.',
+      'Mileage tracking is free and unlimited on iPhone and Android, with no monthly drive cap. Pro is £4.99 a month for exports, Open Banking and insights.',
     url: 'https://mileclear.com/pricing',
     images: [{ url: '/branding/og-image.png', width: 1200, height: 628 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pricing | MileClear',
+    title: 'Pricing: Free Mileage Tracking, Pro £4.99/mo | MileClear',
     description:
-      'Track every mile for free. Upgrade to Pro at £4.99/month for tax-ready exports, earnings tracking, and business intelligence.',
+      'Mileage tracking is free and unlimited on iPhone and Android, with no monthly drive cap. Pro is £4.99 a month for exports, Open Banking and insights.',
     images: ['/branding/og-image.png'],
   },
 };
@@ -272,7 +272,7 @@ export default function PricingPage() {
               className="heading"
               style={{ marginBottom: '1rem' }}
             >
-              Simple, Transparent Pricing
+              Free Mileage Tracking, Optional Pro
             </h1>
             <p
               className="subtext"

@@ -7,9 +7,9 @@ import StoreButtons from "@/components/StoreButtons";
 const URL = "https://mileclear.com/mileiq-alternative-uk";
 
 export const metadata: Metadata = {
-  title: "The Best MileIQ Alternative for UK Drivers (Free) - MileClear",
+  title: "Free MileIQ Alternative UK: No 40-Drive Cap",
   description:
-    "Looking for a MileIQ alternative in the UK? MileClear tracks unlimited drives free, uses HMRC's 55p rate natively, tags Uber and Deliveroo trips, and works offline - no 40-drive cap, no price hike.",
+    "Looking for a MileIQ alternative in the UK? MileClear tracks unlimited drives free on iPhone and Android, with 55p a mile from April 2026 built in.",
   keywords: [
     "mileiq alternative uk",
     "mileiq alternative",
@@ -19,17 +19,17 @@ export const metadata: Metadata = {
   ],
   alternates: { canonical: URL },
   openGraph: {
-    title: "The Best MileIQ Alternative for UK Drivers (Free)",
+    title: "Free MileIQ Alternative UK: No 40-Drive Cap",
     description:
-      "MileClear is the UK-native MileIQ alternative: unlimited free tracking, HMRC 55p rates, gig-platform tagging, offline-first.",
+      "Looking for a MileIQ alternative in the UK? MileClear tracks unlimited drives free on iPhone and Android, with 55p a mile from April 2026 built in.",
     url: URL,
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "The Best MileIQ Alternative for UK Drivers (Free)",
+    title: "Free MileIQ Alternative UK: No 40-Drive Cap",
     description:
-      "Unlimited free tracking, HMRC 55p rates, gig-platform tagging, offline-first. The UK-native MileIQ alternative.",
+      "Looking for a MileIQ alternative in the UK? MileClear tracks unlimited drives free on iPhone and Android, with 55p a mile from April 2026 built in.",
     images: ["/branding/og-image.png"],
   },
 };

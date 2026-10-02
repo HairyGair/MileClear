@@ -5,7 +5,7 @@ import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "MileClear Case Study - Reliable Mileage Tracking Built for UK Drivers",
+  title: { absolute: "MileClear Case Study: Reliable UK Mileage Tracking" },
   description:
     "How MileClear became a mileage tracker UK drivers actually trust: offline-first capture, tax-ready exports, and a relentless focus on never losing a trip. 249 drivers have tracked 82,924 miles to date.",
   alternates: { canonical: "https://mileclear.com/case-study" },

@@ -6,24 +6,24 @@ import '../legal.css';
 import './faq.css';
 
 export const metadata: Metadata = {
-  title: 'FAQ',
+  title: 'Mileage Tracker FAQ: Tracking, Tax and Pro',
   description:
-    'Frequently asked questions about MileClear, the UK mileage tracker for gig workers. HMRC rates, trip tracking, subscriptions, and more.',
+    'How MileClear tracks your mileage automatically, which rate applies (45p or 55p a mile, by tax year), what stays free and what the optional Pro adds.',
   alternates: {
     canonical: 'https://mileclear.com/faq',
   },
   openGraph: {
-    title: 'FAQ | MileClear',
+    title: 'Mileage Tracker FAQ: Tracking, Tax and Pro | MileClear',
     description:
-      'Frequently asked questions about MileClear, the UK mileage tracker for gig workers. HMRC rates, trip tracking, subscriptions, and more.',
+      'How MileClear tracks your mileage automatically, which rate applies (45p or 55p a mile, by tax year), what stays free and what the optional Pro adds.',
     url: 'https://mileclear.com/faq',
     images: [{ url: '/branding/og-image.png', width: 1200, height: 628 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FAQ | MileClear',
+    title: 'Mileage Tracker FAQ: Tracking, Tax and Pro | MileClear',
     description:
-      'Frequently asked questions about MileClear, the UK mileage tracker for gig workers. HMRC rates, trip tracking, subscriptions, and more.',
+      'How MileClear tracks your mileage automatically, which rate applies (45p or 55p a mile, by tax year), what stays free and what the optional Pro adds.',
     images: ['/branding/og-image.png'],
   },
 };
@@ -279,9 +279,9 @@ export default function FaqPage() {
 
           <div className="legal__header">
             <span className="label">Help</span>
-            <h1 className="heading">Frequently Asked Questions</h1>
+            <h1 className="heading">Mileage Tracker FAQ</h1>
             <p className="subtext">
-              Everything you need to know about MileClear. Can&apos;t find your answer?{' '}
+              Everything you need to know about MileClear, the free mileage tracker app for UK drivers. Can&apos;t find your answer?{' '}
               <a href="/support" style={{ color: 'var(--amber-400)' }}>Contact us</a>.
             </p>
           </div>

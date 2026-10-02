@@ -4,9 +4,9 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Delivery Driver Mileage Tracker UK - Free, Every Platform",
+  title: "Delivery Driver Mileage Tracker: Free, Every App",
   description:
-    "Free mileage tracker for UK delivery drivers. One app for Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri and more. HMRC rates built in, Self Assessment PDF.",
+    "One free mileage tracker for Uber Eats, Deliveroo, Just Eat, Amazon Flex, Evri and more. Logs every mile automatically on iPhone and Android.",
   keywords: [
     "delivery driver mileage tracker",
     "delivery driver mileage tracker uk",
@@ -19,17 +19,17 @@ export const metadata: Metadata = {
     canonical: "https://mileclear.com/delivery-driver-mileage-tracker",
   },
   openGraph: {
-    title: "Delivery Driver Mileage Tracker UK - Free, Every Platform",
+    title: "Delivery Driver Mileage Tracker: Free, Every App",
     description:
-      "One free mileage tracker for every UK delivery platform - Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr. HMRC rates built in, tax-ready PDF.",
+      "One free mileage tracker for Uber Eats, Deliveroo, Just Eat, Amazon Flex, Evri and more. Logs every mile automatically on iPhone and Android.",
     url: "https://mileclear.com/delivery-driver-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Delivery Driver Mileage Tracker UK - Free, Every Platform",
+    title: "Delivery Driver Mileage Tracker: Free, Every App",
     description:
-      "One free mileage tracker for every UK delivery platform - Uber Eats, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, Stuart, Gophr. HMRC rates built in, tax-ready PDF.",
+      "One free mileage tracker for Uber Eats, Deliveroo, Just Eat, Amazon Flex, Evri and more. Logs every mile automatically on iPhone and Android.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -198,7 +198,7 @@ export default function DeliveryDriverMileageTracker() {
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               UK delivery drivers cover serious mileage - and almost all of it is claimable as a Self Assessment expense.
-              MileClear tracks every business mile automatically across every UK gig platform, applies the
+              MileClear is a free delivery driver mileage tracker for iPhone and Android that tracks every business mile automatically across every UK gig platform, applies the
               HMRC 55p / 25p / 24p rates in real time (the car/van first-tier rate rose from 45p to 55p on 6 April 2026), and exports a Self Assessment-ready PDF when tax season comes.
               Tracking is unlimited and free forever - no monthly drive cap. MileIQ stops at 40
               drives a month and Driversnote at 15; a full-time gig driver burns through either of
