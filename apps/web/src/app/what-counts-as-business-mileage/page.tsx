@@ -4,9 +4,18 @@ import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 
 export const metadata: Metadata = {
-  title: "What Counts as Business Mileage?",
+  title: {
+    absolute: "What Counts as Business Mileage? Commuting vs Business Travel (UK) | MileClear",
+  },
   description:
-    "The eight edge cases UK drivers ask about most: home to first job, trips between sites, training courses, networking events, supplier runs, client lunches, charity volunteering, and the school run detour.",
+    "Which journeys count as business mileage in the UK: commuting vs business travel, the 24-month temporary workplace rule, depots and sales areas, with examples for gig drivers, employees and sales roles. Based on HMRC's manuals.",
+  keywords: [
+    "what counts as business mileage",
+    "business mileage vs commuting",
+    "is home to first job business mileage",
+    "temporary workplace 24 month rule",
+    "business mileage rules uk",
+  ],
   alternates: {
     canonical: "https://mileclear.com/what-counts-as-business-mileage",
   },
@@ -60,15 +69,75 @@ const cases: Array<{ q: string; verdict: Verdict; a: string }> = [
     a: "Business mileage if the purpose of the trip is a genuine business meeting, even if food is involved. Not business mileage if the meeting is an excuse to socialise with someone who happens to be a client. Keep notes of what was discussed - that is often the only difference between a legitimate claim and one HMRC disallows.",
   },
   {
-    q: "Driving for a registered charity",
-    verdict: "counts",
-    a: "Volunteer drivers for a registered UK charity can claim the HMRC approved rate (55p/25p, raised from 45p/25p on 6 April 2026) against the mileage the charity reimburses them, as long as the charity is genuinely repaying mileage rather than paying for services. If the charity pays less than 55p, you can claim the shortfall as Mileage Allowance Relief. If they pay you more, the excess is taxable. Personal volunteering for a group that is not a registered charity does not qualify.",
+    q: "Volunteer driving for a charity",
+    verdict: "depends",
+    a: "Volunteer driving is not business mileage in a trade or a job, but HMRC has its own rules for it. If the organisation pays you mileage, payments up to the approved rate (55p a mile for the first 10,000 miles in 2026-27, 45p before 6 April 2026) leave you with no tax to pay; above that you may have tax to pay. Mileage Allowance Relief is a relief for employees, so do not assume a volunteer can claim a shortfall. HMRC's volunteer drivers' guidance (EIM71150 onwards) sets out the detail.",
   },
   {
     q: "School run, then on to a job site",
     verdict: "doesnt",
     a: "The school run is personal. Tacking a work trip onto the end does not convert the school run into business mileage. What does count is the leg from the school (or wherever you dropped the kids off) to the actual job site. So if you drop the kids at 8:30am and then drive 12 miles to a client, only the 12 miles from the school to the client is business. The miles from home to the school are personal, always.",
   },
+];
+
+const roleExamples: Array<{ title: string; points: string[] }> = [
+  {
+    title: "Gig and delivery drivers (self-employed)",
+    points: [
+      "Driving from pickup to drop-off, between jobs, and back towards the busy area while you are logged in: business.",
+      "Home to your first pickup, when the work is itinerant and home is your base: usually business (BIM37620). Keep the log, because this is the leg HMRC asks about.",
+      "Home to the same depot or delivery station you load at every shift: often treated like travel to a fixed place of business, so the safer view is that the work miles start at the depot.",
+      "Personal errands in the middle of a shift, and the drive home after you have logged off for a night out: personal.",
+    ],
+  },
+  {
+    title: "Employees using their own car",
+    points: [
+      "Home to the office, branch or depot you attend regularly: ordinary commuting, not claimable (EIM32055).",
+      "Office to a client, between sites, or to a supplier during the day: business.",
+      "Home straight to a temporary workplace, such as a client site for a six-month project: business (EIM32075), unless the 24-month rule makes it permanent.",
+      "Home to a training course or another office you visit occasionally: usually business, because it is not your permanent workplace.",
+    ],
+  },
+  {
+    title: "Sales reps and area-based roles",
+    points: [
+      "If you have no single permanent workplace, attend an area regularly, and your job is defined by that area (a sales territory, a patch), the area can be your permanent workplace (EIM32190).",
+      "Then the drive from home to the edge of the area is ordinary commuting, and business travel within the area is claimable (EIM32200).",
+      "If your duties are not defined by an area, each customer you visit is usually a temporary workplace, so the trips to them count.",
+    ],
+  },
+];
+
+const extraFaqs: Array<{ q: string; a: string }> = [
+  {
+    q: "What is the difference between commuting and business travel?",
+    a: "Commuting is travel between home and a permanent workplace, the place you go regularly to do your job. Business travel is travel you make in the course of the work itself: between sites, to clients and suppliers, or to a temporary workplace. Commuting is never claimable; business travel is. HMRC sets this out for employees in EIM32000 onwards and for the self-employed in BIM37600 onwards.",
+  },
+  {
+    q: "What is the 24-month rule?",
+    a: "A workplace stops being temporary if you spend 40% or more of your working time there over a period that lasts, or is likely to last, more than 24 months (EIM32080). Before that, journeys from home to it are business travel. It is judged on what was reasonable to expect at the time, so a posting that gets extended past 24 months becomes permanent from the point that was likely.",
+  },
+  {
+    q: "Is driving home to my first job business mileage?",
+    a: "For a self-employed driver or tradesperson whose work is itinerant and whose base is home, usually yes (BIM37620). For an employee driving to the office or depot they attend regularly, no, that is commuting. For an employee driving straight from home to a temporary workplace, yes.",
+  },
+  {
+    q: "What rate do I claim for business miles?",
+    a: "For a car or van, 55p a mile for the first 10,000 business miles in the tax year and 25p after that, from 6 April 2026. Trips before that date are at 45p for the first 10,000. Motorcycles are 24p a mile. Self-employed drivers can use the flat rate or claim actual costs; employees claim from their employer and can claim Mileage Allowance Relief on any shortfall.",
+  },
+];
+
+const sources: Array<{ href: string; label: string }> = [
+  { href: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim32000", label: "EIM32000: travel expenses, the temporary workplace rules (employees)" },
+  { href: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim32080", label: "EIM32080: temporary workplace, the 24-month rule" },
+  { href: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim32160", label: "EIM32160: depots and similar bases" },
+  { href: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim32170", label: "EIM32170: employees who work at home" },
+  { href: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim32190", label: "EIM32190: duties defined by reference to an area" },
+  { href: "https://www.gov.uk/hmrc-internal-manuals/business-income-manual/bim37605", label: "BIM37605: travel costs, home to work (self-employed)" },
+  { href: "https://www.gov.uk/hmrc-internal-manuals/business-income-manual/bim37620", label: "BIM37620: travel costs, to and between sites (self-employed)" },
+  { href: "https://www.gov.uk/government/publications/490-employee-travel-a-tax-and-nics-guide", label: "HMRC 490: employee travel, a tax and NICs guide" },
+  { href: "https://www.gov.uk/tax-relief-for-employees/vehicles-you-use-for-work", label: "GOV.UK: tax relief for vehicles you use for work" },
 ];
 
 function verdictMeta(v: Verdict) {
@@ -98,14 +167,21 @@ export default function WhatCountsPage() {
   const faqPage = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: cases.map((c) => ({
-      "@type": "Question",
-      name: c.q,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: c.a.replace(/&ldquo;|&rdquo;/g, '"').replace(/<[^>]+>/g, ""),
-      },
-    })),
+    mainEntity: [
+      ...cases.map((c) => ({
+        "@type": "Question",
+        name: c.q,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: c.a.replace(/&ldquo;|&rdquo;/g, '"').replace(/<[^>]+>/g, ""),
+        },
+      })),
+      ...extraFaqs.map((f) => ({
+        "@type": "Question",
+        name: f.q,
+        acceptedAnswer: { "@type": "Answer", text: f.a },
+      })),
+    ],
   };
 
   return (
@@ -129,10 +205,13 @@ export default function WhatCountsPage() {
                 What Counts as Business Mileage?
               </h1>
               <p className="subtext" style={{ margin: "0 auto", maxWidth: 640 }}>
-                Eight real-world situations UK drivers ask about, with plain
-                answers on whether HMRC lets you claim. The rules are not as
-                strict as people fear, but a few specific traps catch most
-                drivers out.
+                Commuting vs business travel, explained with the situations UK
+                drivers ask about most, for the self-employed, employees and
+                sales roles. Based on HMRC&apos;s own manuals, with references
+                so you can check them.
+              </p>
+              <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "0.85rem" }}>
+                Last updated: October 2026
               </p>
             </div>
           </div>
@@ -235,33 +314,127 @@ export default function WhatCountsPage() {
             </div>
             <div style={{ fontSize: "1rem", color: "var(--text-secondary)", lineHeight: 1.8 }}>
               <p style={{ marginBottom: "1rem" }}>
-                HMRC&apos;s entire framework for commuting vs business travel
-                hinges on this phrase. A permanent workplace is somewhere you
-                attend regularly, for a substantial period of your work. The
-                travel between home and a permanent workplace is ordinary
-                commuting - never claimable.
+                For employees, HMRC&apos;s framework for commuting vs business
+                travel hinges on this phrase. A permanent workplace is somewhere
+                you attend regularly to do your job (EIM32065, EIM32070).
+                Travel between home and a permanent workplace is ordinary
+                commuting (EIM32055) and is never claimable.
               </p>
               <p style={{ marginBottom: "1rem" }}>
-                A temporary workplace is somewhere you attend to perform a
-                task of limited duration, or for a temporary purpose. Trips
-                to a temporary workplace are business mileage. HMRC generally
-                considers 24 months the threshold: if you know from the start
-                that you will be travelling to the same location for more
-                than two years, it is no longer temporary.
+                A temporary workplace is somewhere you go to do a task of
+                limited duration or for a temporary purpose (EIM32075).
+                Journeys to it are business travel. The 24-month rule
+                (EIM32080) sets the limit: a workplace stops being temporary
+                if you spend 40% or more of your working time there over a
+                period that lasts, or is likely to last, more than 24 months.
+                What counts is what was reasonable to expect at the time, so a
+                12-month posting that is extended becomes permanent from the
+                point it is likely to pass 24 months.
+              </p>
+              <p style={{ marginBottom: "1rem" }}>
+                A depot you report to regularly, to collect a vehicle or be
+                given your work, is a permanent workplace (EIM32160), so home to
+                depot is commuting and the driving after that is business.
+                Home only counts as a workplace for an employee in limited
+                cases, where the job itself requires you to work there; working
+                from home by choice does not turn the trip to the office into
+                business travel (EIM32170).
               </p>
               <p>
-                For mobile workers (gig drivers, trades contractors, mobile
-                hairdressers, district nurses, field engineers), home is
-                usually the base and every work destination is temporary.
-                For office-based employees, the office is the permanent
-                workplace and only occasional travel to clients or other
-                sites counts. The grey area is hybrid workers who split time
-                between home and an office - the HMRC guidance is that
-                whichever location you attend more is the permanent one. If
-                unsure, ask an accountant. A £50 conversation can save you
-                hundreds in incorrectly claimed or missed mileage.
+                For the self-employed the test is different but lands in a
+                similar place. Travel from home to a fixed place of business,
+                such as a shop, unit or office, is not allowable (BIM37605).
+                Where the trade is itinerant and home is the base of operations,
+                travel from home to the places you work is allowable (BIM37620,
+                following Horton v Young). If you are unsure which side you are
+                on, a short conversation with an accountant is worth more than
+                a guess.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* Examples by role */}
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
+            <div style={{ marginBottom: "1.5rem" }}>
+              <span className="label">Examples</span>
+              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)" }}>
+                Business mileage vs commuting, by type of driver
+              </h2>
+            </div>
+            <div style={{ display: "grid", gap: "1rem" }}>
+              {roleExamples.map((r) => (
+                <article
+                  key={r.title}
+                  style={{
+                    background: "var(--bg-card-solid)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: "var(--r-md)",
+                    padding: "clamp(1.25rem, 2.5vw, 1.75rem)",
+                  }}
+                >
+                  <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", fontWeight: 700, color: "var(--text-white)", marginBottom: "0.75rem" }}>
+                    {r.title}
+                  </h3>
+                  <ul style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.75, paddingLeft: "1.25rem", display: "grid", gap: "0.4rem" }}>
+                    {r.points.map((pt) => (
+                      <li key={pt}>{pt}</li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Extra questions */}
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
+            <h2 className="heading" style={{ fontSize: "clamp(1.5rem, 2.5vw, 2rem)", marginBottom: "1.25rem" }}>
+              More questions about business mileage
+            </h2>
+            <div style={{ display: "grid", gap: "1rem" }}>
+              {extraFaqs.map((f) => (
+                <article
+                  key={f.q}
+                  style={{
+                    background: "var(--bg-card-solid)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: "var(--r-md)",
+                    padding: "clamp(1.25rem, 2.5vw, 1.75rem)",
+                  }}
+                >
+                  <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.0625rem", fontWeight: 700, color: "var(--text-white)", lineHeight: 1.35, marginBottom: "0.6rem" }}>
+                    {f.q}
+                  </h3>
+                  <p style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.75 }}>{f.a}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Sources */}
+        <section className="section" style={{ paddingTop: 0 }}>
+          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
+            <h2 className="heading" style={{ fontSize: "clamp(1.5rem, 2.5vw, 2rem)", marginBottom: "1rem" }}>
+              HMRC guidance this page is based on
+            </h2>
+            <ul style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.8, paddingLeft: "1.25rem" }}>
+              {sources.map((src) => (
+                <li key={src.href}>
+                  <a href={src.href} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-400)" }}>
+                    {src.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", lineHeight: 1.7, marginTop: "1rem" }}>
+              General information, not tax advice. The rules turn on your own
+              circumstances; check GOV.UK or ask an accountant before you rely
+              on them.
+            </p>
           </div>
         </section>
 

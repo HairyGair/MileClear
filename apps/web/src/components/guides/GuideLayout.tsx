@@ -31,6 +31,13 @@ export interface GuideFaq {
   answer: string;
 }
 
+export interface GuideCta {
+  href: string;
+  label: string;
+  /** One line under the button. */
+  note?: string;
+}
+
 export interface GuideLink {
   href: string;
   label: string;
@@ -68,6 +75,9 @@ export default function GuideLayout({
   faqs,
   caution,
   links,
+  updated,
+  cta,
+  jsonLd,
 }: {
   eyebrow: string;
   title: string;
@@ -81,7 +91,39 @@ export default function GuideLayout({
   /** Amber box at the foot: the thing that catches people out. */
   caution?: { title: string; body: string };
   links?: GuideLink[];
+  /** Shown under the standfirst, e.g. "October 2026". */
+  updated?: string;
+  /** Download button in the hero and again at the foot of the page. */
+  cta?: GuideCta;
+  /** Extra structured data (SoftwareApplication and the like). */
+  jsonLd?: object[];
 }) {
+  const ctaBlock = cta ? (
+    <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+      <a
+        href={cta.href}
+        style={{
+          display: "inline-block",
+          background: "var(--amber-400)",
+          color: "var(--bg-deep)",
+          fontFamily: "var(--font-display)",
+          fontWeight: 700,
+          fontSize: "1rem",
+          padding: "0.85rem 1.75rem",
+          borderRadius: "var(--r-full)",
+          textDecoration: "none",
+        }}
+      >
+        {cta.label}
+      </a>
+      {cta.note && (
+        <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginTop: "0.75rem" }}>
+          {cta.note}
+        </p>
+      )}
+    </div>
+  ) : null;
+
   const faqPage = faqs?.length
     ? {
         "@context": "https://schema.org",
@@ -103,6 +145,13 @@ export default function GuideLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
         />
       )}
+      {jsonLd?.map((j, i) => (
+        <script
+          key={`ld${i}`}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(j) }}
+        />
+      ))}
       <Navbar />
 
       <main style={{ paddingTop: "68px" }}>
@@ -116,6 +165,12 @@ export default function GuideLayout({
               <p className="subtext" style={{ margin: "0 auto", maxWidth: 640 }}>
                 {standfirst}
               </p>
+              {updated && (
+                <p style={{ fontSize: "0.8125rem", color: "var(--text-muted)", marginTop: "0.85rem" }}>
+                  Last updated: {updated}
+                </p>
+              )}
+              {ctaBlock}
             </div>
           </div>
         </section>
@@ -295,6 +350,14 @@ export default function GuideLayout({
                   </a>
                 ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {ctaBlock && (
+          <section className="section" style={{ paddingTop: 0 }}>
+            <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
+              {ctaBlock}
             </div>
           </section>
         )}

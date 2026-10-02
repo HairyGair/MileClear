@@ -5,9 +5,9 @@ import TeamInterestForm from "@/components/landing/TeamInterestForm";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "Employee Mileage Tracker UK - Claim Every Work Mile from Your Employer",
+  title: "Employee Mileage Tracker UK: Claim Work Mileage from Your Employer",
   description:
-    "Drive your own car for work? Claim every site-to-site mile from your employer, and the gap to HMRC's 55p rate (raised from 45p on 6 April 2026) via Mileage Allowance Relief. MileClear tracks every business mile automatically and exports a payroll-ready claim.",
+    "Drive your own car for work? Track every business mile, claim it from your employer, and claim Mileage Allowance Relief if they pay less than 55p a mile (45p before 6 April 2026). How to claim online, by P87 or on Self Assessment.",
   keywords: [
     "employee mileage tracker uk",
     "mileage tracker for work car",
@@ -16,6 +16,9 @@ export const metadata: Metadata = {
     "site to site mileage uk",
     "personal car for work mileage uk",
     "work mileage claim app",
+    "employee mileage tracker",
+    "mileage allowance relief p87",
+    "claim mileage from hmrc employee",
   ],
   alternates: {
     canonical: "https://mileclear.com/employee-mileage-tracker",
@@ -63,10 +66,26 @@ const faqSchema = {
   mainEntity: [
     {
       "@type": "Question",
+      name: "How do I claim Mileage Allowance Relief?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Work out the approved amount (55p a mile for the first 10,000 business miles in 2026-27, 25p after; 45p and 25p for 2025-26 and earlier), take off what your employer paid you, and claim relief on the difference. If your total job expenses for the year are £2,500 or less and you do not file Self Assessment, use HMRC's online service or post form P87. Above £2,500, or if you already file Self Assessment, claim on your tax return. You can claim for the current tax year and the four before it.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Does my employer have to pay 55p a mile?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No. The approved rate is the most an employer can pay you tax-free, not a minimum. Your employer can pay less, and you claim relief on the shortfall. If they pay more, the extra is taxable.",
+      },
+    },
+    {
+      "@type": "Question",
       name: "I'm an employee who drives my own car for work - what can I claim?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Two things. First, you can claim mileage back from your employer at whatever rate they've agreed to pay (typically 25p-55p per mile). Second, if your employer pays less than HMRC's Approved Mileage Allowance Payment (AMAP) rate of 55p per mile (for the first 10,000 business miles in the tax year; the rate rose from 45p to 55p on 6 April 2026), you can claim the gap from HMRC directly via Mileage Allowance Relief on your Self Assessment or by writing to HMRC. MileClear records every business mile automatically and shows you both numbers.",
+        text: "Two things. First, you can claim mileage back from your employer at whatever rate they've agreed to pay (typically 25p-55p per mile). Second, if your employer pays less than HMRC's Approved Mileage Allowance Payment (AMAP) rate of 55p per mile (for the first 10,000 business miles in the tax year; the rate rose from 45p to 55p on 6 April 2026), you can claim tax relief on the gap, called Mileage Allowance Relief. If your total job expenses are £2,500 or less and you do not file Self Assessment, claim online on GOV.UK or by post on form P87; otherwise claim on your Self Assessment return. MileClear records every business mile automatically and shows you both numbers.",
       },
     },
     {
@@ -106,7 +125,7 @@ const faqSchema = {
       name: "Can I claim mileage if my employer provides a company car?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Different rules apply for company cars. The AMAP rates are for personal cars used for business. If you have a company car, you can claim Advisory Fuel Rates (AFR) for business miles where you've paid for the fuel personally. MileClear is built around the personal-car AMAP model and is best suited to employees and self-employed people who use their own vehicle for work.",
+        text: "Not at the approved mileage rates, which are for your own vehicle. With a company car, GOV.UK says you can claim tax relief on fuel or electricity you paid for yourself on business trips, if your employer has not repaid it. Employers often repay business fuel at HMRC's Advisory Fuel Rates. MileClear is built around your own vehicle used for work, which is where the mileage rates apply.",
       },
     },
     {
@@ -180,8 +199,11 @@ export default function EmployeeMileageTracker() {
                 marginBottom: "1.25rem",
               }}
             >
-              Mileage Tracker for Employees - Claim Every Work Mile
+              Employee Mileage Tracker: Claim Work Mileage from Your Employer
             </h1>
+            <p style={{ fontSize: "0.8125rem", color: "#64748b", marginBottom: "1rem" }}>
+              Last updated: October 2026
+            </p>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               If you drive your own car for work - between sites, to clients, to patient visits, to
               regional offices - MileClear tracks every business mile in the background and exports
@@ -352,6 +374,71 @@ export default function EmployeeMileageTracker() {
             </p>
           </section>
 
+          {/* How to claim MAR */}
+          <section
+            aria-labelledby="claim-mar-heading"
+            style={{ maxWidth: 760, marginBottom: "3.5rem" }}
+          >
+            <h2
+              id="claim-mar-heading"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: "#f9fafb",
+                marginBottom: "1.25rem",
+              }}
+            >
+              How to Claim Mileage Allowance Relief
+            </h2>
+            <ol style={{ color: "#94a3b8", lineHeight: 1.8, paddingLeft: "1.25rem", marginBottom: "1rem" }}>
+              <li style={{ marginBottom: "0.5rem" }}>
+                Add up your business miles for the tax year (6 April to 5 April). Ordinary
+                commuting to your normal workplace does not count; journeys to clients, other sites
+                and temporary workplaces do.
+              </li>
+              <li style={{ marginBottom: "0.5rem" }}>
+                Work out the approved amount: 55p a mile for the first 10,000 business miles and
+                25p after that, for 2026-27. For 2025-26 and earlier years the first 10,000 miles
+                are at 45p.
+              </li>
+              <li style={{ marginBottom: "0.5rem" }}>
+                Take off what your employer paid you for those miles. What is left is the amount
+                you claim tax relief on.
+              </li>
+              <li style={{ marginBottom: "0.5rem" }}>
+                If your total job expenses for the year are £2,500 or less and you do not file
+                Self Assessment, claim through HMRC&apos;s online service on GOV.UK or by post on
+                form P87. If they are more than £2,500, or you already file Self Assessment,
+                claim on your tax return instead.
+              </li>
+              <li>
+                Keep the mileage log. GOV.UK asks for the reason for every journey and the
+                postcodes of the start and end points. You can claim for the current tax year and
+                the four before it.
+              </li>
+            </ol>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              <strong style={{ color: "#e2e8f0" }}>The 55p change.</strong> The approved rate for
+              cars and vans rose from 45p to 55p a mile for the first 10,000 business miles on 6
+              April 2026. Trips before that date stay at 45p, so a claim that covers both sides of
+              the date uses both rates. Many employers still pay 45p or less, which makes the gap,
+              and the relief, bigger than it was. MileClear prices each trip at the rate for its
+              tax year.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
+              Not sure which journeys count? See{" "}
+              <a href="/what-counts-as-business-mileage" style={{ color: "#fbbf24" }}>
+                what counts as business mileage
+              </a>{" "}
+              and the full{" "}
+              <a href="/mileage-allowance-relief" style={{ color: "#fbbf24" }}>
+                Mileage Allowance Relief guide
+              </a>
+              . Check the current process on GOV.UK before you claim.
+            </p>
+          </section>
+
           {/* Personas */}
           <section
             aria-labelledby="personas-heading"
@@ -442,7 +529,7 @@ export default function EmployeeMileageTracker() {
                 {
                   title: "Set Your Employer Rate",
                   body:
-                    "Profile > Work Settings > enter the per-mile rate your employer pays (25p / 30p / 45p / 55p, whatever it is). MileClear shows you both 'owed by employer' and 'MAR claimable' figures in real time.",
+                    "Settings, Work & Tax: set your work type to employee using your own vehicle and enter the per-mile rate your employer pays (25p / 30p / 45p / 55p, whatever it is). MileClear shows you both 'owed by employer' and 'MAR claimable' figures in real time.",
                 },
                 {
                   title: "Monthly Payroll Export",
@@ -500,8 +587,16 @@ export default function EmployeeMileageTracker() {
             </h2>
             {[
               {
+                q: "How do I claim Mileage Allowance Relief?",
+                a: "Work out the approved amount (55p a mile for the first 10,000 business miles in 2026-27, 25p after; 45p and 25p for 2025-26 and earlier), take off what your employer paid, and claim relief on the difference. Job expenses of £2,500 or less and no Self Assessment: use HMRC's online service or post form P87. Above £2,500, or if you already file Self Assessment: claim on your tax return. You can go back four tax years.",
+              },
+              {
+                q: "Does my employer have to pay 55p a mile?",
+                a: "No. The approved rate is the most an employer can pay you tax-free, not a minimum. Your employer can pay less, and you claim relief on the shortfall. If they pay more, the extra is taxable.",
+              },
+              {
                 q: "I'm an employee who drives my own car for work - what can I claim?",
-                a: "Two things. First, the per-mile rate your employer agreed to pay. Second, if that rate is below HMRC's 55p/mi (for the first 10,000 business miles; the rate rose from 45p to 55p on 6 April 2026), you can claim the gap from HMRC as Mileage Allowance Relief on your Self Assessment or via writing to HMRC.",
+                a: "Two things. First, the per-mile rate your employer agreed to pay. Second, if that rate is below HMRC's 55p/mi (for the first 10,000 business miles; the rate rose from 45p to 55p on 6 April 2026), you can claim tax relief on the gap as Mileage Allowance Relief: online or on form P87 if your job expenses are £2,500 or less and you do not file Self Assessment, otherwise on your tax return.",
               },
               {
                 q: "What is Mileage Allowance Relief (MAR)?",
@@ -521,7 +616,7 @@ export default function EmployeeMileageTracker() {
               },
               {
                 q: "Can I claim mileage if my employer provides a company car?",
-                a: "Different rules. Company cars use Advisory Fuel Rates (AFR), not AMAP. MileClear is built around the personal-car-for-business model and is best suited to employees and self-employed people using their own vehicle for work miles.",
+                a: "Not at the approved mileage rates, which are for your own vehicle. With a company car, GOV.UK says you can claim tax relief on fuel or electricity you paid for yourself on business trips, if your employer has not repaid it. Employers often repay business fuel at HMRC's Advisory Fuel Rates.",
               },
               {
                 q: "What does Pro cost and what do I actually need it for?",
@@ -561,6 +656,8 @@ export default function EmployeeMileageTracker() {
               {[
                 { href: "/hmrc-mileage-rates", label: "HMRC Mileage Rates" },
                 { href: "/what-counts-as-business-mileage", label: "What Counts as Business Mileage" },
+                { href: "/mileage-allowance-relief", label: "Mileage Allowance Relief" },
+                { href: "/automatic-mileage-tracker", label: "Automatic Mileage Tracking" },
                 { href: "/mileclear-vs-mileiq", label: "MileClear vs MileIQ" },
                 { href: "/delivery-driver-mileage-tracker", label: "For Delivery Drivers" },
                 { href: "/#features", label: "All Features" },
@@ -657,6 +754,20 @@ export default function EmployeeMileageTracker() {
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
               <StoreButtons align="center" />
+              <a
+                href="/app?from=seo-employee"
+                style={{
+                  background: "var(--amber-400)",
+                  color: "#030712",
+                  fontWeight: 700,
+                  fontSize: "0.9375rem",
+                  padding: "0.75rem 1.75rem",
+                  borderRadius: 9999,
+                  display: "inline-block",
+                }}
+              >
+                Get MileClear free
+              </a>
               <a
                 href="/#pricing"
                 style={{
