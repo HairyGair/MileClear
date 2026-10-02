@@ -40,6 +40,7 @@ import {
 import { resolveRouteDistance } from "../../services/routing.js";
 import { resolveAdminTripDistance } from "../../services/adminTripDistance.js";
 import { adminObservabilityRoutes } from "./observability.js";
+import { adminCommunityRoutes } from "./community.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
@@ -225,6 +226,8 @@ export async function adminRoutes(app: FastifyInstance) {
   // Sep 2026 observability endpoints (support queue, Android testers, Live
   // Activity health, trip quality) live in their own module.
   await app.register(adminObservabilityRoutes);
+  // Community numbers + social post drafts (GET /admin/community/monthly).
+  await app.register(adminCommunityRoutes);
 
   // GET /admin/analytics
   app.get("/analytics", async (_request, reply) => {
