@@ -36,6 +36,14 @@ export function isSerious(e: RoadEvent): boolean {
   return e.severity === "closure" || e.severity === "major";
 }
 
+/** Worth a push only when we can say where: a road name, or junctions or
+ *  street names for the stretch. Live TomTom data (2 Oct 2026) had 190
+ *  closures in Tyne and Wear, many on unnamed side roads; "a road you use is
+ *  closed" gives a driver nothing to act on. Those stay on the screen. */
+export function isNamedForPush(e: RoadEvent): boolean {
+  return Boolean(e.road || e.from || e.to);
+}
+
 export function inEffectAt(e: RoadEvent, at: Date, slackMin: number = 0): boolean {
   const t = at.getTime();
   if (e.startAt && e.startAt.getTime() > t + slackMin * 60000) return false;
@@ -59,6 +67,7 @@ export function selectPushEvent(
 ): { pick: MatchedEvent; extra: number } | null {
   const eligible = matches
     .filter((m) => isSerious(m.event))
+    .filter((m) => isNamedForPush(m.event))
     .filter((m) => inEffectAt(m.event, opts.departureAt, DEPARTURE_EFFECT_SLACK_MIN))
     .filter((m) => !opts.sentEventIds.has(m.event.id))
     .sort(rank);
@@ -190,9 +199,14 @@ export interface RoadAlertCopy {
 
 export function buildRoadAlertCopy(m: MatchedEvent, extra: number, now: Date): RoadAlertCopy {
   const e = m.event;
-  const name = e.source === "street_manager" ? e.road ?? "a road you use" : e.road ?? "a road you use";
-  const title =
-    e.severity === "closure" ? `Before you set off: ${name} closed` : `Before you set off: delays on the ${name}`;
+  const name = e.road ?? (e.from && e.to && e.from !== e.to ? `${e.from} to ${e.to}` : e.from ?? e.to ?? null);
+  const title = name
+    ? e.severity === "closure"
+      ? `Before you set off: ${name} closed`
+      : `Before you set off: delays on ${/^[AMB]\d/.test(name) ? "the " : ""}${name}`
+    : e.severity === "closure"
+      ? "Before you set off: a closure on your usual route"
+      : "Before you set off: delays on your usual route";
   const more = extra > 0 ? ` ${extra} more on your usual roads in the app.` : "";
   return { title, body: `${eventSentence(e, now)} ${daysPhrase(m.days)}${more}` };
 }

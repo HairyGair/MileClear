@@ -13,6 +13,7 @@ import {
   eventHeadline,
   inEffectAt,
   isLikelyDriving,
+  isNamedForPush,
   offerEligible,
   selectPushEvent,
   sentEventIdsFrom,
@@ -101,6 +102,15 @@ describe("isLikelyDriving", () => {
 });
 
 describe("push copy", () => {
+  it("never pushes an unnamed road; names the stretch when there is no road number", () => {
+    const now = new Date("2026-10-05T06:00:00Z");
+    const base = { id: "x", source: "tomtom", severity: "closure", category: "road_closed", description: "Closed, Roadworks", directionMode: "along" } as unknown as RoadEvent;
+    expect(isNamedForPush({ ...base, road: null, from: null, to: null } as RoadEvent)).toBe(false);
+    expect(isNamedForPush({ ...base, road: null, from: "Saint Ives' Road", to: "A693" } as RoadEvent)).toBe(true);
+    const c = buildRoadAlertCopy(m({ ...base, road: null, from: "Saint Ives' Road", to: "A693" } as RoadEvent, 4), 0, now);
+    expect(c.title).toBe("Before you set off: Saint Ives' Road to A693 closed");
+  });
+
   it("closure: road, direction, junctions, time, how often they use it", () => {
     const c = buildRoadAlertCopy(m(closure, 9), 0, NOW);
     expect(c.title).toBe("Before you set off: M6 closed");
