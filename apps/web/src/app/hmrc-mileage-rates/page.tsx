@@ -2,82 +2,121 @@ import type { Metadata } from "next";
 import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
-import MileageCalculator from "@/components/MileageCalculator";
+import RateCalculator from "./RateCalculator";
+import "./rates.css";
+
+const PAGE_URL = "https://mileclear.com/hmrc-mileage-rates";
+const DATE_PUBLISHED = "2026-04-21";
+const DATE_MODIFIED = "2026-10-02";
+
+const TITLE = "HMRC Mileage Rates 2026/27: 55p a Mile";
+const DESCRIPTION =
+  "HMRC mileage rates: cars and vans 55p a mile for the first 10,000 business miles from 6 April 2026 (45p in 2025/26), then 25p. Motorcycles 24p, bikes 20p.";
 
 export const metadata: Metadata = {
-  title: "HMRC Mileage Rates 2026-27 - 55p Per Mile (Updated)",
-  description:
-    "HMRC raised the AMAP rate for cars and vans from 45p to 55p per mile for the first 10,000 business miles, effective tax year 2026-27. Worked examples for both tax years and a clear explanation of who can claim.",
-  alternates: {
-    canonical: "https://mileclear.com/hmrc-mileage-rates",
-  },
+  title: TITLE,
+  description: DESCRIPTION,
+  alternates: { canonical: PAGE_URL },
   openGraph: {
-    title: "HMRC Mileage Rates | MileClear",
-    description:
-      "The HMRC approved mileage rates for cars and vans, with a worked example showing how a typical gig worker reaches a £6,700 deduction.",
-    url: "https://mileclear.com/hmrc-mileage-rates",
+    type: "article",
+    title: `${TITLE} | MileClear`,
+    description: DESCRIPTION,
+    url: PAGE_URL,
+    siteName: "MileClear",
+    locale: "en_GB",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "HMRC Mileage Rates | MileClear",
-    description:
-      "The HMRC approved mileage rates for cars and vans, with a worked example for a driver on ~18,800 miles a year.",
+    title: `${TITLE} | MileClear`,
+    description: DESCRIPTION,
     images: ["/branding/og-image.png"],
   },
 };
 
-const faqs = [
+const SOURCES = {
+  rates:
+    "https://www.gov.uk/government/publications/rates-and-allowances-travel-mileage-and-fuel-allowances/travel-mileage-and-fuel-rates-and-allowances",
+  employerRules: "https://www.gov.uk/expenses-and-benefits-business-travel-mileage/rules-for-tax",
+  employeeRelief: "https://www.gov.uk/tax-relief-for-employees/vehicles-you-use-for-work",
+  simplified: "https://www.gov.uk/simpler-income-tax-simplified-expenses/vehicles",
+  bim75005: "https://www.gov.uk/hmrc-internal-manuals/business-income-manual/bim75005",
+  eim31240: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim31240",
+  eim31280: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim31280",
+  eim31410: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim31410",
+  sa103s: "https://www.gov.uk/government/publications/self-assessment-self-employment-short-sa103s",
+  s94f: "https://www.legislation.gov.uk/ukpga/2005/5/section/94F",
+};
+
+const faqs: { q: string; a: string }[] = [
   {
-    q: "What are the HMRC mileage rates for 2026-27?",
-    a: "From 6 April 2026 (the start of the 2026-27 tax year), HMRC raised the Approved Mileage Allowance Payment (AMAP) rate for cars and vans to 55p per mile for the first 10,000 business miles, then 25p per mile for every mile after that. Motorbikes stay at 24p per mile flat and bicycles at 20p per mile. The previous rate (45p/25p for cars and vans) had been in place since April 2011. The 10,000-mile counter resets on 6 April each year.",
+    q: "What are the HMRC mileage rates for 2026/27?",
+    a: "For the 2026/27 tax year (6 April 2026 to 5 April 2027), cars and vans are 55p a mile for the first 10,000 business miles and 25p a mile after that. Motorcycles are 24p a mile and bicycles 20p a mile. Employers can also pay 5p a mile per fellow employee carried as a passenger on a business trip, tax-free.",
   },
   {
-    q: "What rate do I use for tax year 2025-26?",
-    a: "Use the old rate. For business miles driven up to 5 April 2026, cars and vans claim 45p per mile for the first 10,000 miles, then 25p per mile after that. The 55p rate only applies from 6 April 2026 onwards. MileClear automatically uses the correct rate for each trip based on its date.",
+    q: "What are the HMRC mileage rates for 2025/26?",
+    a: "For the 2025/26 tax year (6 April 2025 to 5 April 2026), cars and vans are 45p a mile for the first 10,000 business miles and 25p a mile after that. Motorcycles are 24p and bicycles 20p. The 45p rate had applied since April 2011, so it is also the right figure for any earlier year you are still claiming for. This is the year you file by 31 January 2027.",
   },
   {
-    q: "Do the rates cover fuel as well?",
-    a: "Yes. The HMRC rate is designed to cover fuel, insurance, servicing, road tax, tyres, and general wear and tear. If you claim the mileage rate, you cannot also claim any of those costs separately. This is the single most common mistake we see drivers make.",
+    q: "When did the mileage rate go up to 55p?",
+    a: "On 6 April 2026, the first day of the 2026/27 tax year. Only the first 10,000 business miles in a car or van went up (45p to 55p). The 25p rate above 10,000 miles, the 24p motorcycle rate, the 20p bicycle rate and the 5p passenger rate did not change. Miles driven up to 5 April 2026 stay at 45p.",
   },
   {
-    q: "Do I need to keep fuel receipts if I claim the mileage rate?",
-    a: "No. HMRC does not expect fuel receipts when you are claiming the AMAP rate. What they do expect is a mileage log: date, start and end address, reason for the trip, and distance. If you drive for gig platforms, a platform tag (Uber, Deliveroo, etc.) counts as reason.",
+    q: "Is the 10,000 mile limit per car or per tax year?",
+    a: "Per tax year, across all your cars and vans together, not per vehicle. If you change car halfway through the year, the miles in both cars count towards the same 10,000. The counter starts again on 6 April. Employees with two unconnected employers get a separate 10,000 for each employment; associated employers are added together.",
   },
   {
-    q: "What happens when I cross the 10,000 mile threshold?",
-    a: "Only miles past 10,000 drop to 25p. Miles up to and including the 10,000th are still at the higher rate. So in 2026-27, if you drive 12,000 business miles, you get 10,000 × 55p + 2,000 × 25p = £6,000. In 2025-26, the same mileage would have produced 10,000 × 45p + 2,000 × 25p = £5,000.",
+    q: "Do the mileage rates cover fuel?",
+    a: "Yes. The rate is meant to cover the whole cost of running the vehicle: fuel, insurance, servicing, repairs, tyres, road tax, MOT and depreciation. You cannot claim those on top. Parking, tolls and congestion charges on a business trip are not covered by the rate, so the self-employed can claim them separately.",
   },
   {
-    q: "Can I claim actual costs instead of the mileage rate?",
-    a: "Yes, but it is usually more work. You would need to keep records of every fuel purchase, service, insurance payment, MOT, and repair, then claim the business-use percentage of each. For most drivers the AMAP rate is both simpler and more generous, especially now the cars-and-vans first-tier rate has jumped to 55p. Once you pick a method for a vehicle, you have to stick with it for as long as you own it.",
+    q: "My employer pays less than 55p a mile. What can I claim?",
+    a: "Mileage Allowance Relief. Work out the approved amount (your business miles at the HMRC rates), take away what your employer paid, and claim tax relief on the difference. Claim online through GOV.UK, or on your Self Assessment return if you file one. You can claim for the current tax year and the 4 previous tax years. You need mileage logs with the reason for each journey and the start and end postcodes.",
   },
   {
-    q: "What about tax years before 2025-26?",
-    a: "The rates were 45p/25p for cars and vans from April 2011 right through to 5 April 2026. So the same figures apply if you are doing a late Self Assessment for any year up to and including 2025-26. From 6 April 2026 onwards the rate is 55p/25p. Always check HMRC's own guidance for the exact tax year you are filing.",
+    q: "What if my employer pays more than the HMRC rate?",
+    a: "Anything above the approved amount is taxable. Your employer adds the excess to your pay and deducts tax, or reports it on a P11D. Up to the approved amount, the payments are tax-free and do not need to be reported.",
   },
+  {
+    q: "Where do I put mileage on my Self Assessment?",
+    a: "If you are self-employed and use the short self-employment pages (SA103S), your mileage claim goes in box 12, 'Car, van and travel expenses', along with other allowable travel costs such as parking. If you use the full pages (SA103F) or your turnover is above the short-form limit, follow the notes for that form.",
+  },
+  {
+    q: "Can I switch between the mileage rate and actual costs?",
+    a: "Not freely. Once a self-employed person uses the mileage rate for a vehicle, they have to keep using it for as long as that vehicle is used in the business, and cannot claim capital allowances on it. You can choose again when you replace the vehicle. If you have ever claimed capital allowances on a vehicle, you cannot use the mileage rate for it.",
+  },
+];
+
+const link = (label: string, href: string, note: string) => ({ label, href, note });
+const RELATED = [
+  link("What counts as business mileage", "/what-counts-as-business-mileage", "Commuting, temporary workplaces and mixed trips"),
+  link("Business mileage guide", "/business-mileage-guide", "How to log and claim, step by step"),
+  link("Mileage rate or actual costs?", "/mileage-or-actual-costs", "Which method gives the bigger claim"),
+  link("How long to keep mileage records", "/how-long-to-keep-mileage-records", "Record-keeping periods for each case"),
+  link("Employee mileage tracker", "/employee-mileage-tracker", "Logs for Mileage Allowance Relief claims"),
+  link("Self-employed mileage tracker", "/self-employed-mileage-tracker", "Logs for your Self Assessment"),
+  link("Amazon Flex mileage claims", "/updates/amazon-flex-mileage-claim", "What Flex drivers can claim"),
+  link("Self Assessment checklist for delivery drivers", "/updates/self-assessment-delivery-drivers-checklist", "Everything to gather before 31 January"),
 ];
 
 export default function HmrcRatesPage() {
   const article = {
     "@context": "https://schema.org",
     "@type": "Article",
-    headline: "HMRC Mileage Rates 2026-27 - Now 55p Per Mile",
-    description:
-      "HMRC raised the AMAP rate from 45p to 55p per mile for the first 10,000 business miles from 6 April 2026. Worked examples for both 2025-26 (45p) and 2026-27 (55p).",
+    headline: "HMRC mileage rates 2026/27 (and 2025/26)",
+    description: DESCRIPTION,
     author: { "@type": "Person", name: "Anthony Gair" },
     publisher: {
       "@type": "Organization",
       name: "MileClear",
-      logo: {
-        "@type": "ImageObject",
-        url: "https://mileclear.com/branding/logo-120x120.png",
-      },
+      logo: { "@type": "ImageObject", url: "https://mileclear.com/branding/logo-120x120.png" },
     },
-    datePublished: "2026-04-21",
-    dateModified: "2026-04-21",
-    mainEntityOfPage: "https://mileclear.com/hmrc-mileage-rates",
+    image: "https://mileclear.com/branding/og-image.png",
+    datePublished: DATE_PUBLISHED,
+    dateModified: DATE_MODIFIED,
+    mainEntityOfPage: { "@type": "WebPage", "@id": PAGE_URL },
     inLanguage: "en-GB",
+    citation: Object.values(SOURCES),
   };
 
   const faqPage = {
@@ -92,560 +131,364 @@ export default function HmrcRatesPage() {
 
   return (
     <>
-      <BreadcrumbsJsonLd
-        crumbs={[{ name: "HMRC Mileage Rates", path: "/hmrc-mileage-rates" }]}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(article) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
-      />
+      <BreadcrumbsJsonLd crumbs={[{ name: "HMRC Mileage Rates", path: "/hmrc-mileage-rates" }]} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(article) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }} />
       <Navbar />
 
       <main style={{ paddingTop: "68px" }}>
-        {/* Hero */}
-        <section className="section">
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div style={{ textAlign: "center", marginBottom: "2rem" }}>
-              <span className="label">HMRC Reference</span>
-              <h1 className="heading" style={{ marginBottom: "1rem" }}>
-                HMRC Mileage Rates for Cars and Vans
-              </h1>
-              <p className="subtext" style={{ margin: "0 auto", maxWidth: 620 }}>
-                The approved rates that let you claim tax relief on every
-                business mile you drive. Covers the 2025-26 and 2026-27 tax
-                years. The cars-and-vans rate rose from 45p to 55p on 6 April
-                2026, after holding at 45p since 2011.
-              </p>
-            </div>
-
-            {/* Rates at a glance */}
-            <div
-              style={{
-                background: "var(--bg-card-solid)",
-                border: "1px solid var(--border-default)",
-                borderRadius: "var(--r-lg)",
-                padding: "clamp(1.5rem, 3vw, 2rem)",
-                marginTop: "2.5rem",
-              }}
-            >
-              <h2
-                style={{
-                  fontFamily: "var(--font-display)",
-                  fontSize: "1.25rem",
-                  fontWeight: 700,
-                  color: "var(--text-white)",
-                  marginBottom: "1.25rem",
-                }}
-              >
-                The rates at a glance
-              </h2>
-              <div
-                style={{
-                  display: "grid",
-                  gap: "1rem",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                }}
-              >
-                <div
-                  style={{
-                    background: "var(--amber-glow-md)",
-                    border: "1px solid rgba(234, 179, 8, 0.25)",
-                    borderRadius: "var(--r-md)",
-                    padding: "1.25rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.8125rem",
-                      color: "var(--amber-300)",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    First 10,000 miles
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "2.25rem",
-                      fontWeight: 700,
-                      color: "var(--text-white)",
-                      lineHeight: 1,
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    55p
-                  </div>
-                  <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                    per business mile, tax year 2026-27 onwards (was 45p up to 5 April 2026)
-                  </div>
-                </div>
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.02)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "var(--r-md)",
-                    padding: "1.25rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.8125rem",
-                      color: "var(--text-muted)",
-                      fontWeight: 600,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    Every mile after 10,000
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "2.25rem",
-                      fontWeight: 700,
-                      color: "var(--text-white)",
-                      lineHeight: 1,
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    25p
-                  </div>
-                  <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                    per business mile, same tax year
-                  </div>
-                </div>
-              </div>
-              <p
-                style={{
-                  fontSize: "0.9375rem",
-                  color: "var(--text-secondary)",
-                  marginTop: "1.25rem",
-                  lineHeight: 1.65,
-                }}
-              >
-                The mileage counter resets on 6 April every year. From 6 April
-                2026, your first 10,000 miles of each new tax year are at 55p
-                from day one (it was 45p up to and including tax year 2025-26).
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Interactive calculator */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div style={{ marginBottom: "1.5rem" }}>
-              <span className="label">Calculator</span>
-              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", marginBottom: "0.75rem" }}>
-                Work out your mileage claim
-              </h2>
-              <p className="subtext" style={{ maxWidth: 620 }}>
-                Enter your business miles to see your HMRC deduction at the new 55p rate, and how much more
-                that is than the old 45p rate.
-              </p>
-            </div>
-            <MileageCalculator />
-            <p className="subtext" style={{ marginTop: "1.25rem" }}>
-              Want the fuel side too? The{" "}
-              <a href="/mileage-calculator">full mileage and fuel cost calculator</a>{" "}
-              works out what your journeys actually cost in petrol or diesel and compares
-              that with what you can claim. See also{" "}
-              <a href="/approved-mileage-allowance-payments">approved mileage allowance payments</a>{" "}
-              if your employer pays you a mileage rate, and a free{" "}
-              <a href="/mileage-claim-form-template">mileage claim form template</a>.
+        {/* Answer first: H1 + rates table */}
+        <section className="section hr-top hr-block">
+          <div className="container hr-wrap">
+            <span className="label">HMRC reference</span>
+            <h1 className="hr-h1">HMRC mileage rates 2026/27 (and 2025/26)</h1>
+            <p className="hr-lead">
+              For cars and vans, HMRC&apos;s rate is <strong>55p a mile</strong> for the first
+              10,000 business miles from 6 April 2026, then <strong>25p</strong>. For the
+              2025/26 tax year it was <strong>45p</strong>, then 25p. Motorcycles are 24p and
+              bicycles 20p in both years.
             </p>
-          </div>
-        </section>
+            <p className="hr-meta">
+              Last updated: <time dateTime={DATE_MODIFIED}>October 2026</time>. Figures checked
+              against <a href="#sources">GOV.UK</a>.
+            </p>
 
-        {/* Worked example */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div style={{ marginBottom: "2rem" }}>
-              <span className="label">Worked Example</span>
-              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", marginBottom: "1rem" }}>
-                A real gig worker on 18,800 miles a year
-              </h2>
-              <p
-                style={{
-                  fontSize: "1rem",
-                  color: "var(--text-secondary)",
-                  lineHeight: 1.75,
-                  marginBottom: "1.25rem",
-                }}
-              >
-                One of our users, working gig platforms like Uber and Deliveroo,
-                covered <strong style={{ color: "var(--text-white)" }}>723.8 miles over two weeks</strong>. Annualised,
-                that is roughly 18,800 business miles a year. Here is what HMRC
-                lets them claim.
-              </p>
-            </div>
-
-            <div
-              style={{
-                background: "var(--bg-card-solid)",
-                border: "1px solid var(--border-default)",
-                borderRadius: "var(--r-lg)",
-                padding: "clamp(1.5rem, 3vw, 2rem)",
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "0.9375rem",
-                  color: "var(--text-primary)",
-                }}
-              >
-                <tbody>
-                  <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td style={{ padding: "0.85rem 0", color: "var(--text-secondary)" }}>
-                      First 10,000 miles at 55p
-                    </td>
-                    <td style={{ padding: "0.85rem 0", textAlign: "right", fontFamily: "var(--font-display)", fontWeight: 600, color: "var(--text-white)" }}>
-                      £5,500
-                    </td>
-                  </tr>
-                  <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    <td style={{ padding: "0.85rem 0", color: "var(--text-secondary)" }}>
-                      Remaining 8,800 miles at 25p
-                    </td>
-                    <td style={{ padding: "0.85rem 0", textAlign: "right", fontFamily: "var(--font-display)", fontWeight: 600, color: "var(--text-white)" }}>
-                      £2,200
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ padding: "1rem 0 0.35rem", color: "var(--amber-400)", fontWeight: 700, textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: "0.12em" }}>
-                      Total HMRC deduction (2026-27)
-                    </td>
-                    <td style={{ padding: "1rem 0 0.35rem", textAlign: "right", fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 700, color: "var(--amber-400)" }}>
-                      £7,700
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div
-                style={{
-                  borderTop: "1px solid var(--border-subtle)",
-                  marginTop: "1.5rem",
-                  paddingTop: "1.25rem",
-                  fontSize: "0.9375rem",
-                  color: "var(--text-secondary)",
-                  lineHeight: 1.7,
-                }}
-              >
-                <p style={{ marginBottom: "0.75rem" }}>
-                  At a 20% basic rate of income tax, that deduction reduces
-                  their tax bill by <strong style={{ color: "var(--text-white)" }}>£1,540</strong>. At
-                  40% (higher rate), it is worth <strong style={{ color: "var(--text-white)" }}>£3,080</strong>.
-                  Under the old 45p rate (tax year 2025-26 and earlier), the
-                  same mileage produced a £6,700 deduction - so the rate change
-                  is worth roughly £200-£400 more in tax saved per year for a
-                  driver on this mileage.
-                </p>
-                <p>
-                  This is money HMRC expects you to claim. You do not get it
-                  unless you write the mileage down somewhere they trust.
-                </p>
+            <div className="hr-card">
+              <div className="hr-table-scroll">
+                <table className="hr-table">
+                  <caption>Approved mileage rates per business mile</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Vehicle</th>
+                      <th scope="col" className="hr-num">2025/26</th>
+                      <th scope="col" className="hr-num">2026/27</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row">Cars and vans, first 10,000 miles</th>
+                      <td className="hr-num">45p</td>
+                      <td className="hr-num hr-new">55p</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Cars and vans, over 10,000 miles</th>
+                      <td className="hr-num">25p</td>
+                      <td className="hr-num">25p</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">Motorcycles</th>
+                      <td className="hr-num">24p</td>
+                      <td className="hr-num">24p</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">
+                        Bicycles <span className="hr-tag">employees</span>
+                      </th>
+                      <td className="hr-num">20p</td>
+                      <td className="hr-num">20p</td>
+                    </tr>
+                    <tr>
+                      <th scope="row">
+                        Passengers, per passenger <span className="hr-tag">employees</span>
+                      </th>
+                      <td className="hr-num">5p</td>
+                      <td className="hr-num">5p</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
+              <p className="hr-small">
+                Tax year 2025/26 runs 6 April 2025 to 5 April 2026; 2026/27 runs 6 April 2026 to
+                5 April 2027. Employees: these are the Approved Mileage Allowance Payment (AMAP)
+                rates. Self-employed: the same car, van and motorcycle figures are the simplified
+                expenses flat rates (HMRC says &quot;cars and goods vehicles&quot;). Bicycle and
+                passenger rates apply to employees only.
+              </p>
             </div>
           </div>
         </section>
 
-        {/* Who can claim */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div style={{ marginBottom: "1.5rem" }}>
-              <span className="label">Who Qualifies</span>
-              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", marginBottom: "1rem" }}>
-                Who can use the 55p/25p rate
-              </h2>
-              <p style={{ fontSize: "1rem", color: "var(--text-secondary)", lineHeight: 1.75 }}>
-                The rate is for business mileage in a vehicle you own or lease
-                personally. Three common situations:
-              </p>
-            </div>
-
-            <div style={{ display: "grid", gap: "1rem" }}>
-              <div
-                style={{
-                  background: "var(--bg-card-solid)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--r-md)",
-                  padding: "1.5rem",
-                }}
-              >
-                <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 600, color: "var(--text-white)", marginBottom: "0.5rem" }}>
-                  Sole traders and self-employed drivers
-                </h3>
-                <p style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                  You claim the 55p/25p rate as an expense on your
-                  Self Assessment (SA103 self-employment pages). It comes off
-                  your taxable profit before tax and National Insurance are
-                  calculated. This includes Uber, Deliveroo, Amazon Flex, Just
-                  Eat, Stuart, DPD owner-drivers, mobile hairdressers, trade
-                  plumbers, and anyone else working for themselves.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  background: "var(--bg-card-solid)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--r-md)",
-                  padding: "1.5rem",
-                }}
-              >
-                <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 600, color: "var(--text-white)", marginBottom: "0.5rem" }}>
-                  Employees whose employer reimburses below the rate
-                </h3>
-                <p style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                  If your employer pays you, say, 25p a mile, you can claim the
-                  30p gap (up to HMRC&apos;s 55p) as Mileage Allowance Relief
-                  via a P87 form or through your Self Assessment if you do one.
-                  This is the bit most employees miss. If you drive 5,000 miles
-                  a year and your employer pays 25p instead of 55p, you are
-                  leaving roughly £300-£600 of tax relief on the table.
-                </p>
-              </div>
-
-              <div
-                style={{
-                  background: "var(--bg-card-solid)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--r-md)",
-                  padding: "1.5rem",
-                }}
-              >
-                <h3 style={{ fontFamily: "var(--font-display)", fontSize: "1.125rem", fontWeight: 600, color: "var(--text-white)", marginBottom: "0.5rem" }}>
-                  Limited company directors using their own car
-                </h3>
-                <p style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.7 }}>
-                  Your company pays you 55p/25p as a tax-free mileage expense
-                  and records it as a deductible business cost. No benefit-in-kind
-                  to worry about, and no P11D entry, as long as you stick to the
-                  HMRC rates. If your company provides the car, this page
-                  doesn&apos;t apply - you&apos;re into Advisory Fuel Rates territory,
-                  which is a different conversation.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Record keeping */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div style={{ marginBottom: "1.5rem" }}>
-              <span className="label">Record Keeping</span>
-              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)", marginBottom: "1rem" }}>
-                What HMRC actually expects you to keep
-              </h2>
-              <p style={{ fontSize: "1rem", color: "var(--text-secondary)", lineHeight: 1.75 }}>
-                A mileage log is not optional. HMRC can open an enquiry up to
-                six years back, and if you cannot produce a contemporaneous
-                record of your business miles, they will disallow the lot.
-                Here is the minimum they want to see per trip:
-              </p>
-            </div>
-
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                display: "grid",
-                gap: "0.75rem",
-              }}
-            >
-              {[
-                "Date of the journey",
-                "Start address or postcode",
-                "End address or postcode",
-                "Reason for the trip (client name, job reference, platform tag)",
-                "Distance in miles (odometer or GPS distance, not estimated)",
-              ].map((item) => (
-                <li
-                  key={item}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "0.75rem",
-                    background: "var(--bg-card-solid)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "var(--r-md)",
-                    padding: "0.85rem 1.25rem",
-                    fontSize: "0.9375rem",
-                    color: "var(--text-primary)",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  <span
-                    style={{
-                      color: "var(--amber-400)",
-                      fontFamily: "var(--font-display)",
-                      fontWeight: 700,
-                      flexShrink: 0,
-                      width: 16,
-                    }}
-                  >
-                    →
-                  </span>
-                  {item}
+        {/* What changed */}
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <div className="hr-change">
+              <div className="hr-change__kicker">6 April 2026</div>
+              <h2 className="hr-h2">What changed on 6 April 2026</h2>
+              <ul className="hr-list">
+                <li>
+                  The car and van rate for the first 10,000 business miles went from{" "}
+                  <strong>45p to 55p</strong>, its first change since April 2011.
                 </li>
-              ))}
-            </ul>
+                <li>
+                  It applies from the <strong>2026/27 tax year</strong> onwards. Miles driven up to
+                  5 April 2026 are still claimed at 45p, including on the 2025/26 return due by 31
+                  January 2027.
+                </li>
+                <li>
+                  Nothing else moved: 25p over 10,000 miles, 24p for motorcycles, 20p for bicycles
+                  and 5p per passenger are the same.
+                </li>
+                <li>
+                  It covers both employees (AMAP and Mileage Allowance Relief) and the
+                  self-employed (simplified expenses). For the self-employed the 55p figure is in
+                  the legislation, <a href={SOURCES.s94f}>section 94F of ITTOIA 2005</a>, for 2026/27
+                  and later years.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
 
-            <p
-              style={{
-                fontSize: "0.9375rem",
-                color: "var(--text-muted)",
-                lineHeight: 1.7,
-                marginTop: "1.25rem",
-              }}
-            >
-              &quot;Contemporaneous&quot; means written down at the time, or
-              close to it. A spreadsheet built from memory at the end of the
-              tax year is risky. An automatic GPS log on your phone is fine.
+        {/* Calculator */}
+        <section className="section hr-block" aria-labelledby="calc-h">
+          <div className="container hr-wrap">
+            <h2 id="calc-h" className="hr-h2">Work out your claim</h2>
+            <p className="hr-p">
+              Pick the tax year, enter your business miles for that year and choose the vehicle.
+              If you are an employee, add what your employer pays per mile to see the Mileage
+              Allowance Relief gap.
+            </p>
+            <RateCalculator />
+          </div>
+        </section>
+
+        {/* Worked examples */}
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <h2 className="hr-h2">Worked examples: 12,000 business miles</h2>
+            <p className="hr-p">
+              The higher rate only applies to the first 10,000 miles. Every mile after that is at
+              25p, so the same mileage gives a different claim in each tax year. HMRC&apos;s own
+              guidance uses the same figures (<a href={SOURCES.bim75005}>BIM75005</a>).
+            </p>
+            <div className="hr-examples">
+              <div className="hr-example">
+                <div className="hr-example__label">Tax year 2026/27</div>
+                <div className="hr-example__line">
+                  <span>10,000 × 55p</span>
+                  <span>£5,500</span>
+                </div>
+                <div className="hr-example__line">
+                  <span>2,000 × 25p</span>
+                  <span>£500</span>
+                </div>
+                <div className="hr-example__line hr-example__total">
+                  <span>Total</span>
+                  <span>£6,000</span>
+                </div>
+              </div>
+              <div className="hr-example">
+                <div className="hr-example__label">Tax year 2025/26</div>
+                <div className="hr-example__line">
+                  <span>10,000 × 45p</span>
+                  <span>£4,500</span>
+                </div>
+                <div className="hr-example__line">
+                  <span>2,000 × 25p</span>
+                  <span>£500</span>
+                </div>
+                <div className="hr-example__line hr-example__total">
+                  <span>Total</span>
+                  <span>£5,000</span>
+                </div>
+              </div>
+            </div>
+            <p className="hr-p" style={{ marginTop: "1.25rem" }}>
+              For a self-employed driver, that total is deducted from profit, so the tax saved
+              depends on your rate: £6,000 off profit saves £1,200 at 20% income tax, before
+              National Insurance. For an employee, see the next section.
+            </p>
+            <h3 className="hr-h3">Employee example: employer pays 30p</h3>
+            <p className="hr-p">
+              You drive 8,000 business miles in your own car in 2026/27 and your employer pays
+              30p a mile. The approved amount is 8,000 × 55p = <strong>£4,400</strong>. Your
+              employer paid 8,000 × 30p = £2,400. You can claim Mileage Allowance Relief on the{" "}
+              <strong>£2,000</strong> difference, which is worth £400 to a basic rate taxpayer
+              (20%) or £800 at 40%.
             </p>
           </div>
         </section>
 
-        {/* The fuel + mileage trap */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div
-              style={{
-                background: "rgba(239, 68, 68, 0.06)",
-                border: "1px solid rgba(239, 68, 68, 0.25)",
-                borderRadius: "var(--r-lg)",
-                padding: "clamp(1.5rem, 3vw, 2rem)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.14em",
-                  color: "#fca5a5",
-                  marginBottom: "0.85rem",
-                }}
-              >
-                Watch out
+        {/* Employees vs self-employed */}
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <h2 className="hr-h2">Employees and the self-employed claim differently</h2>
+            <div className="hr-split">
+              <div className="hr-card">
+                <h3 className="hr-h3">Employees using their own vehicle</h3>
+                <p className="hr-p">
+                  Your employer can pay you up to the AMAP rates tax-free. If they pay less, or
+                  nothing, you can claim <strong>Mileage Allowance Relief</strong> on the gap.
+                </p>
+                <ul className="hr-list">
+                  <li>Claim online on GOV.UK, or on your Self Assessment return if you file one.</li>
+                  <li>Send mileage logs with the reason for each journey and the start and end postcodes.</li>
+                  <li>You can go back 4 tax years plus the current one.</li>
+                  <li>Anything your employer pays above the AMAP rate is taxable.</li>
+                  <li>
+                    The 5p passenger rate is tax-free if your employer pays it, but there is no
+                    relief to claim if they do not.
+                  </li>
+                </ul>
               </div>
-              <h2 style={{ fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 700, color: "var(--text-white)", marginBottom: "0.85rem", lineHeight: 1.2 }}>
-                You cannot claim fuel receipts and the mileage rate
-              </h2>
-              <p style={{ fontSize: "0.9375rem", color: "var(--text-primary)", lineHeight: 1.7, marginBottom: "0.85rem" }}>
-                The AMAP rate (55p/25p for cars and vans from 2026-27 onwards,
-                45p/25p for earlier years) already includes fuel, insurance, servicing,
-                tyres, road tax, and wear and tear. If you claim the mileage
-                rate, you cannot also claim any of those costs as separate
-                expenses. It feels wrong to throw away a petrol receipt, but
-                that is exactly what the rate is designed to replace.
-              </p>
-              <p style={{ fontSize: "0.9375rem", color: "var(--text-primary)", lineHeight: 1.7 }}>
-                Double-claiming fuel is the single most common error we see in
-                user imports. If HMRC audits and spots it, they will disallow
-                the whole claim, not just the fuel portion.
-              </p>
+              <div className="hr-card">
+                <h3 className="hr-h3">Self-employed and sole traders</h3>
+                <p className="hr-p">
+                  You can use the flat rates as <strong>simplified expenses</strong> instead of
+                  working out actual vehicle costs. The total goes on your Self Assessment.
+                </p>
+                <ul className="hr-list">
+                  <li>
+                    On the short self-employment pages (SA103S) it goes in{" "}
+                    <strong>box 12, &quot;Car, van and travel expenses&quot;</strong>.
+                  </li>
+                  <li>Parking, tolls and congestion charges on business trips can be added on top.</li>
+                  <li>Once you use the rate for a vehicle, you stay on it until you replace that vehicle.</li>
+                  <li>Not available for a vehicle you have claimed capital allowances on.</li>
+                  <li>Bicycles are not covered by simplified expenses.</li>
+                </ul>
+              </div>
+            </div>
+            <p className="hr-p" style={{ marginTop: "1rem" }}>
+              Either way, only business journeys count. Ordinary commuting from home to a
+              permanent workplace does not. See{" "}
+              <a href="/what-counts-as-business-mileage">what counts as business mileage</a> and,
+              if you are weighing up methods, <a href="/mileage-or-actual-costs">mileage rate or actual costs</a>.
+            </p>
+          </div>
+        </section>
+
+        {/* Threshold + multiple employers */}
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <h2 className="hr-h2">How the 10,000 mile threshold works</h2>
+            <ul className="hr-list">
+              <li>
+                <strong>Per tax year.</strong> The count starts again on 6 April. Your first 10,000
+                business miles in 2026/27 are all at 55p.
+              </li>
+              <li>
+                <strong>All cars and vans together.</strong> HMRC adds up your business miles in
+                every car and van you use, as if they were one vehicle. Two cars do not give you
+                two lots of 10,000 (<a href={SOURCES.eim31240}>EIM31240</a>; for the
+                self-employed, <a href={SOURCES.s94f}>section 94F</a>).
+              </li>
+              <li>
+                <strong>Motorcycles and bicycles</strong> have one flat rate, so the threshold does
+                not apply to them.
+              </li>
+              <li>
+                <strong>More than one employer.</strong> Each unconnected employment has its own
+                10,000 mile limit. If your employers are associated (for example companies in the
+                same group), the miles are added together (<a href={SOURCES.eim31280}>EIM31280</a>).
+              </li>
+            </ul>
+            <p className="hr-p">
+              To claim any of this you need a record of each business trip: the date, where you
+              started and finished, why you went and how far. Keep it as you go rather than
+              rebuilding it in January. Our guide covers{" "}
+              <a href="/how-long-to-keep-mileage-records">how long to keep mileage records</a>.
+            </p>
+          </div>
+        </section>
+
+        {/* Soft CTA */}
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <div className="hr-cta">
+              <div className="hr-cta__text">
+                <h2 className="hr-h3">Keep the log without thinking about it</h2>
+                <p className="hr-p">
+                  MileClear is a free mileage tracker app. It records your drives in the
+                  background, lets you mark each one business or personal, and works out your
+                  claim at the rate for the tax year each trip falls in: 45p before 6 April 2026,
+                  55p after.
+                </p>
+              </div>
+              <a className="hr-btn" href="/app?from=seo-rates">
+                Get the app
+              </a>
             </div>
           </div>
         </section>
 
-        {/* FAQs */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 760, margin: "0 auto" }}>
-            <div style={{ marginBottom: "2rem" }}>
-              <span className="label">FAQ</span>
-              <h2 className="heading" style={{ fontSize: "clamp(1.75rem, 3vw, 2.25rem)" }}>
-                Common questions about the rates
-              </h2>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-              {faqs.map((faq) => (
-                <div key={faq.q}>
-                  <h3
-                    style={{
-                      fontFamily: "var(--font-display)",
-                      fontSize: "1.0625rem",
-                      fontWeight: 700,
-                      color: "var(--text-white)",
-                      marginBottom: "0.625rem",
-                      lineHeight: 1.35,
-                    }}
-                  >
-                    {faq.q}
-                  </h3>
-                  <p
-                    style={{
-                      fontSize: "0.9375rem",
-                      color: "var(--text-secondary)",
-                      lineHeight: 1.75,
-                    }}
-                  >
-                    {faq.a}
-                  </p>
-                </div>
+        {/* FAQ */}
+        <section className="section hr-block" aria-labelledby="faq-h">
+          <div className="container hr-wrap">
+            <h2 id="faq-h" className="hr-h2">Questions about HMRC mileage rates</h2>
+            <div className="hr-faq">
+              {faqs.map((f) => (
+                <details key={f.q}>
+                  <summary>{f.q}</summary>
+                  <p>{f.a}</p>
+                </details>
               ))}
             </div>
+            <p className="hr-small">
+              This page explains HMRC&apos;s published rates and is not tax advice. If your
+              situation is complicated (several vehicles, a company car, mixed business and
+              personal use you are unsure about), speak to an accountant.
+            </p>
           </div>
         </section>
 
         {/* Related */}
-        <section className="section" style={{ paddingTop: 0 }}>
-          <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
-            <div className="divider" style={{ marginBottom: "2.5rem" }} />
-            <h2 className="heading" style={{ fontSize: "clamp(1.5rem, 2.5vw, 2rem)", marginBottom: "1rem" }}>
-              Next, work out which miles actually count
-            </h2>
-            <p style={{ fontSize: "1rem", color: "var(--text-secondary)", lineHeight: 1.75, marginBottom: "1.5rem" }}>
-              The rate only applies to business miles. The home-to-first-job
-              trip, the school run that bleeds into a job site, the drive to
-              a training course - each has its own rule.
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem" }}>
-              <a
-                href="/what-counts-as-business-mileage"
-                style={{
-                  background: "var(--amber-400)",
-                  color: "var(--bg-deep)",
-                  fontFamily: "var(--font-display)",
-                  fontWeight: 700,
-                  fontSize: "0.9375rem",
-                  padding: "0.75rem 1.5rem",
-                  borderRadius: "var(--r-full)",
-                  textDecoration: "none",
-                }}
-              >
-                What counts as business mileage →
-              </a>
-              <a
-                href="/business-mileage-guide"
-                style={{
-                  background: "rgba(255,255,255,0.05)",
-                  color: "var(--text-primary)",
-                  fontFamily: "var(--font-display)",
-                  fontWeight: 600,
-                  fontSize: "0.9375rem",
-                  padding: "0.75rem 1.5rem",
-                  borderRadius: "var(--r-full)",
-                  border: "1px solid var(--border-default)",
-                  textDecoration: "none",
-                }}
-              >
-                The full business mileage guide
-              </a>
-            </div>
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <h2 className="hr-h2">Related guides</h2>
+            <ul className="hr-links">
+              {RELATED.map((r) => (
+                <li key={r.href}>
+                  <a href={r.href}>
+                    {r.label}
+                    <span>{r.note}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        {/* Sources */}
+        <section className="section hr-block" id="sources">
+          <div className="container hr-wrap">
+            <h2 className="hr-h2">Sources: GOV.UK</h2>
+            <ul className="hr-sources">
+              <li>
+                <a href={SOURCES.rates}>Travel: mileage and fuel rates and allowances</a> (AMAP
+                rates for both years, including bicycles and passengers)
+              </li>
+              <li>
+                <a href={SOURCES.employerRules}>Expenses and benefits: business travel mileage, rules for tax</a>{" "}
+                (payments above and below the approved amount)
+              </li>
+              <li>
+                <a href={SOURCES.employeeRelief}>Tax relief for employees: vehicles you use for work</a>{" "}
+                (Mileage Allowance Relief, how to claim, mileage logs)
+              </li>
+              <li>
+                <a href={SOURCES.simplified}>Simplified expenses: vehicles</a> (self-employed flat rates)
+              </li>
+              <li>
+                <a href={SOURCES.bim75005}>BIM75005: simplified expenses, motor vehicles</a> (rates by
+                tax year, worked examples, sticking with the method)
+              </li>
+              <li>
+                <a href={SOURCES.eim31240}>EIM31240</a> and <a href={SOURCES.eim31280}>EIM31280</a>{" "}
+                (10,000 mile threshold, multiple employments)
+              </li>
+              <li>
+                <a href={SOURCES.eim31410}>EIM31410: passenger payments</a> (exemption only, no relief)
+              </li>
+              <li>
+                <a href={SOURCES.sa103s}>Self Assessment: self-employment (short) SA103S</a> (box 12,
+                2025/26 form)
+              </li>
+              <li>
+                <a href={SOURCES.s94f}>Income Tax (Trading and Other Income) Act 2005, section 94F</a>{" "}
+                (legislation.gov.uk)
+              </li>
+            </ul>
           </div>
         </section>
       </main>
