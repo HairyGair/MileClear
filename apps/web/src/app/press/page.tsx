@@ -10,6 +10,10 @@ import { PLAY_STORE_URL } from "@/data/android";
 import { PRESS_CONTACT_EMAIL, formatPressDate, getPublishedReleases } from "@/data/press";
 import "./press.css";
 
+// Re-render every 5 minutes so a release with a publishAt embargo goes
+// live on time without a redeploy.
+export const revalidate = 300;
+
 const URL = "https://mileclear.com/press";
 const TITLE = "Press and media";
 const DESCRIPTION =

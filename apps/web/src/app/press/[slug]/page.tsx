@@ -10,6 +10,10 @@ import { PRESS_CONTACT_EMAIL, formatPressDate, getPublishedRelease, getPublished
 import { PressBlocks } from "../PressText";
 import "../press.css";
 
+// Re-render every 5 minutes so a release with a publishAt embargo goes
+// live on time without a redeploy.
+export const revalidate = 300;
+
 // Only published releases exist. Anything else, including a release that is
 // written but not yet switched on, is a 404 via notFound() below.
 // (dynamicParams = false crashed with NoFallbackError, a 500, while no

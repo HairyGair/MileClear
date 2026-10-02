@@ -26,6 +26,8 @@ export interface PressRelease {
   /** One or two sentences for the /press list and the meta description. */
   summary: string;
   published: boolean;
+  /** Optional embargo: not live until this instant (ISO), even when published. */
+  publishAt?: string;
   body: PressBlock[];
   notesToEditors: PressBlock[];
 }
@@ -38,13 +40,15 @@ export const PRESS_RELEASES: PressRelease[] = [
     title: "Delivery and gig drivers logged 572,000 miles in September, says Sunderland-made app",
     standfirst:
       "MileClear's first monthly community numbers show 785 drivers recording 255,099 business miles, worth an estimated £138,000 in mileage claims, as its Tyne Tunnel billboard goes up",
-    // Before publishing: set this to the day the release goes out, re-check
-    // the figures against mileclear.com/community, and confirm the quote.
-    date: "2026-10-05",
+    // Figures re-checked against mileclear.com/community 2 Oct 2026 ~22:30;
+    // quote approved by Anthony 2 Oct (one accuracy edit: "claimed against
+    // your tax", not "come off your tax bill").
+    date: "2026-10-03",
+    publishAt: "2026-10-03T07:15:00Z", // 08:15 BST, with the pitch emails
     dateline: "Sunderland",
     summary:
       "In September 2026, 785 drivers using MileClear recorded 572,493 miles across 55,931 trips, including 255,099 business miles worth an estimated £138,000 in mileage claims.",
-    published: false,
+    published: true,
     body: [
       {
         type: "p",
@@ -55,15 +59,14 @@ export const PRESS_RELEASES: PressRelease[] = [
         text: "MileClear is made by Anthony Gair in Sunderland for delivery riders, couriers, taxi and private hire drivers, and anyone self-employed who drives for work. This week it is on a billboard at the Tyne Tunnel, from 1 to 8 October.",
       },
       {
-        // DRAFT QUOTE: Anthony to approve or rewrite before `published` is set.
         type: "quote",
-        text: "I kept seeing drivers online saying they'd lost track of their miles, or were writing them in a notebook at the end of a long shift. Those miles are money. If you drive for work, every business mile can come off your tax bill, and from this April that's 55p a mile for the first 10,000. Most people don't claim what they're owed because keeping the record is a pain. So I built something that keeps it for you. It's made here in Sunderland, it's free, and seeing it up at the Tyne Tunnel is a proud moment.",
+        text: "I kept seeing drivers online saying they'd lost track of their miles, or were writing them in a notebook at the end of a long shift. Those miles are money. If you drive for work, every business mile can be claimed against your tax, and from this April that's 55p a mile for the first 10,000. Most people don't claim what they're owed because keeping the record is a pain. So I built something that keeps it for you. It's made here in Sunderland, it's free, and seeing it up at the Tyne Tunnel is a proud moment.",
         cite: "Anthony Gair, founder of MileClear",
       },
       { type: "h2", text: "What drivers can claim, and why the record matters" },
       {
         type: "p",
-        text: "Self-employed drivers can claim business mileage at a flat rate instead of adding up fuel, insurance and repairs. For cars and vans that rate rose on 6 April 2026 from 45p to 55p a mile for the first 10,000 business miles, the first rise in 15 years, and stays at 25p a mile after that. Claims need a record of each journey. With the 31 January 2027 Self Assessment deadline for the 2025-26 tax year approaching, a missing log can mean claiming less than drivers are entitled to.",
+        text: "Self-employed drivers can claim business mileage at a flat rate instead of adding up fuel, insurance and repairs. For cars and vans that rate rose on 6 April 2026 from 45p to 55p a mile for the first 10,000 business miles, the first change since 2011, and stays at 25p a mile after that. Claims need a record of each journey. With the 31 January 2027 Self Assessment deadline for the 2025-26 tax year approaching, a missing log can mean claiming less than drivers are entitled to.",
       },
       { type: "h2", text: "How MileClear works" },
       {
@@ -101,12 +104,17 @@ export const PRESS_RELEASES: PressRelease[] = [
 
 /** Published releases, newest first. */
 export function getPublishedReleases(): PressRelease[] {
-  return PRESS_RELEASES.filter((r) => r.published).sort((a, b) => b.date.localeCompare(a.date));
+  return PRESS_RELEASES.filter(isLive).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Published, and past its embargo time if it has one. */
+function isLive(r: PressRelease): boolean {
+  return r.published && (!r.publishAt || Date.now() >= Date.parse(r.publishAt));
 }
 
 /** A release by slug, only if it is published. */
 export function getPublishedRelease(slug: string): PressRelease | undefined {
-  return PRESS_RELEASES.find((r) => r.slug === slug && r.published);
+  return PRESS_RELEASES.find((r) => r.slug === slug && isLive(r));
 }
 
 /** "5 October 2026" from "2026-10-05". */

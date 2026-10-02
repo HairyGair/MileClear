@@ -2,6 +2,10 @@ import type { MetadataRoute } from "next";
 import { BLOG_POSTS } from "@/data/posts";
 import { getPublishedReleases } from "@/data/press";
 
+// Re-render every 5 minutes so a release with a publishAt embargo goes
+// live on time without a redeploy.
+export const revalidate = 300;
+
 const BASE_URL = "https://mileclear.com";
 
 function parsePostDate(date: string): Date {
