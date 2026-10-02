@@ -189,6 +189,73 @@ export interface ReadinessItem {
   hint?: string;                            // shown when not done
 }
 
+// "Ready for 31 January?" Self Assessment checklist (GET
+// /self-assessment/checklist). Built for the tax year the next 31 January
+// deadline is for (saReturnTaxYear). Money is pence, distances miles.
+export type SaChecklistStatus = "done" | "attention" | "optional";
+
+/** Where an item's button goes. Each client maps these to its own screens. */
+export type SaChecklistAction =
+  | "unclassified_trips"
+  | "add_trip"
+  | "earnings"
+  | "expenses"
+  | "vehicles"
+  | "profile_name"
+  | "self_assessment"
+  | "sa_pdf";
+
+export type SaChecklistItemId =
+  | "trips_sorted"
+  | "mileage_claim"
+  | "earnings"
+  | "expenses"
+  | "vehicles"
+  | "full_name"
+  | "walkthrough"
+  | "pdf";
+
+export interface SaChecklistItem {
+  id: SaChecklistItemId;
+  status: SaChecklistStatus;
+  title: string;
+  /** One plain-English line about where they stand. */
+  detail: string;
+  action: SaChecklistAction | null;
+  actionLabel: string | null;
+}
+
+export interface SaChecklist {
+  /** The tax year the return is for, e.g. "2025-26". */
+  taxYear: string;
+  /** "6 April 2025 to 5 April 2026" */
+  taxYearLabel: string;
+  /** ISO instant, 23:59:59 on 31 January. */
+  deadline: string;
+  /** Whole UK calendar days to 31 January. 0 on the day, negative after. */
+  daysToDeadline: number;
+  /** 1 December to 31 January (or forced on for an admin preview). */
+  inSeason: boolean;
+  /** False for drivers the countdown is not for (personal-only, employees). */
+  eligible: boolean;
+  ineligibleReason: "personal_only" | "employee" | null;
+  businessMiles: number;
+  businessTrips: number;
+  /** Mileage claim at HMRC's rates for that tax year (45p/25p car for 2025-26). */
+  mileageClaimPence: number;
+  unclassifiedTrips: number;
+  unclassifiedMiles: number;
+  earningsPence: number;
+  earningsCount: number;
+  /** Expenses claimable alongside the mileage rate (parking, tolls, phone...). */
+  allowableExpensesPence: number;
+  expenseCount: number;
+  items: SaChecklistItem[];
+  /** Items with status "attention". The PDF step is never counted. */
+  attentionCount: number;
+  headline: string;
+}
+
 // Cross-window comparison for a computed figure. Powers the "long-press a
 // number to see how it compares across time windows" pattern. Different
 // shape from NumberDerivation: derivation is "how was this calculated",
