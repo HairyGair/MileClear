@@ -83,6 +83,9 @@
   white-space: nowrap;
   border: 0;
 }
+/* A table ignores width: 1px and kept its full width, pushing phone pages
+   sideways (the charts' hidden data tables). As a block it obeys. */
+table.adm-sr { display: block; }
 
 .adm-num { font-variant-numeric: tabular-nums; }
 
