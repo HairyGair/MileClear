@@ -5,7 +5,7 @@
 // Leaflet is loaded on the client only, on the same OpenStreetMap basemap as
 // the density map (the CSP allows that tile host and no other).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { AdminGeoAreaRow, AdminGeoDistrictRow, AdminGeoMapPoint } from "@mileclear/shared";
@@ -89,6 +89,16 @@ export function GeoMap({ points, areas, districts, level, measure, colour, windo
     return m;
   }, [areas, districts]);
 
+  const userMovedRef = useRef(false);
+  const fittingRef = useRef(false);
+  const refit = useCallback((map: LeafletMap) => {
+    map.invalidateSize();
+    if (userMovedRef.current) return;
+    fittingRef.current = true;
+    map.fitBounds(UK_BOUNDS, { padding: [8, 8], animate: false });
+    fittingRef.current = false;
+  }, []);
+
   // Init once.
   useEffect(() => {
     let disposed = false;
@@ -98,6 +108,15 @@ export function GeoMap({ points, areas, districts, level, measure, colour, windo
       const map = L.map(elRef.current, { attributionControl: true, minZoom: 4, maxZoom: 12, zoomSnap: 0.25, scrollWheelZoom: false });
       addDarkBasemap(L, map);
       map.fitBounds(UK_BOUNDS, { padding: [8, 8] });
+      // The box can still be settling when Leaflet measures it (the map opened
+      // over Scandinavia on 2 Oct), so refit once layout has finished, and on
+      // every resize until the viewer pans or zooms themselves.
+      map.on("dragstart zoomstart", () => {
+        if (fittingRef.current) return;
+        userMovedRef.current = true;
+      });
+      requestAnimationFrame(() => refit(map));
+      setTimeout(() => refit(map), 300);
       // Scroll-wheel zoom only after a click, so the page still scrolls past it.
       map.once("focus", () => map.scrollWheelZoom.enable());
       map.on("click", () => map.scrollWheelZoom.enable());
@@ -111,16 +130,19 @@ export function GeoMap({ points, areas, districts, level, measure, colour, windo
       mapRef.current = null;
       layerRef.current = null;
     };
-  }, []);
+  }, [refit]);
 
   // Keep the map sized to its box (sidebar toggles, phone rotation).
   useEffect(() => {
     const el = elRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => mapRef.current?.invalidateSize());
+    const ro = new ResizeObserver(() => {
+      const map = mapRef.current;
+      if (map) refit(map);
+    });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [refit]);
 
   // Draw.
   useEffect(() => {
