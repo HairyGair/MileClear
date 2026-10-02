@@ -11,8 +11,9 @@ import { PressBlocks } from "../PressText";
 import "../press.css";
 
 // Only published releases exist. Anything else, including a release that is
-// written but not yet switched on, is a 404.
-export const dynamicParams = false;
+// written but not yet switched on, is a 404 via notFound() below.
+// (dynamicParams = false crashed with NoFallbackError, a 500, while no
+// release was published, 2 Oct 2026.)
 
 export function generateStaticParams() {
   return getPublishedReleases().map((r) => ({ slug: r.slug }));
