@@ -6,6 +6,7 @@ import { getBusinessInsights, getWeeklyPnL } from "../../services/businessInsigh
 import { buildTaxSnapshot } from "../../services/taxSnapshot.js";
 import { buildActivityHeatmap } from "../../services/activityHeatmap.js";
 import { buildBenchmarkSnapshot } from "../../services/benchmarks.js";
+import { buildLocalBenchmark } from "../../services/localBenchmark.js";
 import {
   getPlatformPnL,
   getProjectPnL,
@@ -63,6 +64,18 @@ export async function businessInsightRoutes(app: FastifyInstance) {
   app.get("/benchmarks", async (request, reply) => {
     const snapshot = await buildBenchmarkSnapshot(request.userId!);
     return reply.send({ data: snapshot });
+  });
+
+  // GET /business-insights/benchmarks/local?mode=work|personal — "Drivers
+  // near you": the same anonymous comparison scoped to the driver's home
+  // postcode area (free). Falls back to region, then the UK, below 5
+  // drivers. `mode` defaults to the user's dashboardMode.
+  app.get("/benchmarks/local", async (request, reply) => {
+    const { mode } = z
+      .object({ mode: z.enum(["work", "personal"]).optional() })
+      .parse(request.query);
+    const data = await buildLocalBenchmark(request.userId!, mode ?? null);
+    return reply.send({ data });
   });
 
   // ── Phase 3 of the Money Picture stack (22 May 2026) ───────────────

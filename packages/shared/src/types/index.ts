@@ -326,6 +326,61 @@ export interface BenchmarkSnapshot {
   limitedDataNote: string | null;
 }
 
+// "Drivers near you": the same anonymous benchmarking idea, scoped to the
+// driver's home postcode AREA (LS, B, GL...). Peers are drivers whose home
+// area matches and who drove in at least 2 of the last 4 complete weeks.
+// Privacy: a group under 5 drivers is never used (falls back to region, then
+// the whole UK, and `level` says which); the middle-half range is only sent
+// for 10+ drivers; no individual value, minimum or maximum is ever returned,
+// and group figures are rounded.
+export type LocalBenchmarkLevel = "area" | "region" | "national";
+export type LocalBenchmarkMode = "work" | "personal";
+
+export interface LocalBenchmarkStat {
+  /** Group median, rounded. */
+  median: number;
+  /** Middle half of the group (25th to 75th percentile), null under 10 drivers. */
+  low: number | null;
+  high: number | null;
+  /** The requesting driver's own value (null when they have no trips in the window). */
+  you: number | null;
+  /**
+   * How many in 10 of the other drivers in the group are below you (0-10),
+   * null when you have not driven in at least 2 of the 4 weeks.
+   */
+  youAheadOfPerTen: number | null;
+}
+
+export interface LocalBenchmark {
+  available: boolean;
+  /** Why it is unavailable: too few drivers anywhere, or no data at all. */
+  reason: "ok" | "not_enough_drivers";
+  /** Which peer group is used: your area, your region, or the whole UK. Null when unavailable. */
+  level: LocalBenchmarkLevel | null;
+  /** Your home postcode area, when known (shown even when the group is too small). */
+  area: { code: string; name: string; region: string } | null;
+  /** Your region, when known. */
+  region: string | null;
+  /** Human label for the group used: "Leeds (LS)", "Yorkshire and the Humber", "the UK". */
+  scopeLabel: string | null;
+  /** Drivers in the group used, always 5 or more when available, else null. */
+  peerCount: number | null;
+  /** work compares business miles; personal compares all miles. */
+  mode: LocalBenchmarkMode;
+  /** The 4 complete weeks (Monday to Monday) the figures cover. */
+  window: { start: string; end: string; weeks: number };
+  /** Weeks (0-4) in which you drove; under 2 means you are not ranked yet. */
+  youWeeksActive: number;
+  /** Miles per week: business miles in work mode, all miles in personal mode. */
+  weeklyMiles: LocalBenchmarkStat | null;
+  /** Mileage claim value per week in pence at the HMRC rate for each trip's tax year. */
+  weeklyClaimPence: LocalBenchmarkStat | null;
+  weeklyTrips: LocalBenchmarkStat | null;
+  /** Share of trips marked business or personal, 0-100. */
+  classifiedPct: LocalBenchmarkStat | null;
+  generatedAt: string;
+}
+
 // Vehicle types
 export type FuelType = "petrol" | "diesel" | "electric" | "hybrid";
 export type VehicleType = "car" | "motorbike" | "van";
