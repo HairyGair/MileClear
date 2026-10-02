@@ -66,6 +66,8 @@ export default function Footer() {
               <ul className="footer__col-list">
                 <li><a href="/best-mileage-tracker-app-uk" className="footer__link">Best mileage tracker UK</a></li>
                 <li><a href="/free-mileage-tracker-uk" className="footer__link">Free mileage tracker UK</a></li>
+                <li><a href="/automatic-mileage-tracker" className="footer__link">Automatic mileage tracker</a></li>
+                <li><a href="/android" className="footer__link">Mileage tracker for Android</a></li>
                 <li><a href="/mileage-tracker-uk" className="footer__link">Mileage tracker UK</a></li>
                 <li><a href="/self-employed-mileage-tracker" className="footer__link">Self-employed drivers</a></li>
                 <li><a href="/ev-mileage-tracker" className="footer__link">Electric car drivers</a></li>

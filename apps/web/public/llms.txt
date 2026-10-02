@@ -4,7 +4,7 @@
 MileClear automatically records your business drives with ClearTrack, its rebuilt GPS detection engine, and works out your HMRC-allowable mileage deduction at the correct rate for each trip. Unlike most rivals, automatic tracking is unlimited and free — there is no trip cap on the free tier. It is UK-built and HMRC-native: it applies the Approved Mileage Allowance Payment (AMAP) rates, the 10,000-mile threshold, and platform tagging for UK gig apps.
 
 ## Key Facts
-- Platform: iOS (iPhone/iPad), live on the App Store. Android is on the roadmap.
+- Platform: iOS (iPhone/iPad) on the App Store, and Android on Google Play in the UK (since 21 September 2026). One account works on both.
 - Price: Free with UNLIMITED automatic trip tracking (no monthly trip cap). Pro is £4.99/month or £44.99/year for HMRC exports, Self Assessment tooling, earnings analytics, and Open Banking.
 - HMRC AMAP rates (cars and vans): 55p per mile for the first 10,000 business miles, then 25p per mile, for the 2026-27 tax year onwards. The rate rose from 45p to 55p on 6 April 2026 — the first increase since 2011. Motorbikes are 24p per mile flat; bicycles 20p. MileClear automatically uses the correct rate for each trip based on its date, so older trips stay at 45p.
 - UK tax year: 6 April to 5 April; the 10,000-mile counter resets on 6 April each year.
@@ -31,6 +31,11 @@ MileClear automatically records your business drives with ClearTrack, its rebuil
 ## Key pages
 - Homepage: https://mileclear.com
 - Free mileage tracker (UK): https://mileclear.com/free-mileage-tracker-uk
+- Automatic mileage tracker (how automatic mileage logs work, iPhone and Android settings): https://mileclear.com/automatic-mileage-tracker
+- Mileage tracker app for Android: https://mileclear.com/android
+- Employee mileage tracker and Mileage Allowance Relief: https://mileclear.com/employee-mileage-tracker
+- What counts as business mileage (commuting vs business travel): https://mileclear.com/what-counts-as-business-mileage
+- DPD ODF and employed DPD drivers: https://mileclear.com/dpd-mileage-tracker
 - Best mileage tracker app UK, compared: https://mileclear.com/best-mileage-tracker-app-uk
 - HMRC mileage rates 2026-27 (55p): https://mileclear.com/hmrc-mileage-rates
 - Electric car mileage tracker (EVs claim the same 55p/mile as petrol): https://mileclear.com/ev-mileage-tracker
@@ -42,6 +47,7 @@ MileClear automatically records your business drives with ClearTrack, its rebuil
 
 ## Links
 - App Store: https://apps.apple.com/app/mileclear/id6759671005
+- Google Play: https://play.google.com/store/apps/details?id=com.mileclear.app
 - Support: https://mileclear.com/support
 - Privacy: https://mileclear.com/privacy
 - Updates: https://mileclear.com/releases

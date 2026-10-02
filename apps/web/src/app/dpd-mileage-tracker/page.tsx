@@ -4,15 +4,19 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "DPD Mileage Tracker UK - Free & Automatic for ODFs",
+  title: "DPD Mileage Tracker UK: Free and Automatic for DPD ODF Drivers",
   description:
-    "Free mileage tracker for UK DPD owner drivers. Your scanner logs parcels, not miles - MileClear GPS-logs every route and exports a tax-ready Self Assessment PDF.",
+    "Mileage tracking and tax for DPD ODF (owner driver franchise) and employed DPD drivers. What each can claim for a van, the 55p rate, and a free automatic mileage log.",
   keywords: [
     "dpd mileage tracker",
     "dpd owner driver franchisee tax",
     "dpd self assessment uk",
     "dpd hmrc mileage allowance",
     "dpd odf mileage log",
+    "dpd odf",
+    "dpd owner driver franchise",
+    "dpd owner driver mileage",
+    "dpd employed driver mileage claim",
   ],
   alternates: {
     canonical: "https://mileclear.com/dpd-mileage-tracker",
@@ -60,6 +64,30 @@ const faqSchema = {
   mainEntity: [
     {
       "@type": "Question",
+      name: "What is DPD ODF?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "ODF stands for Owner Driver Franchisee: a DPD driver who runs their round as their own business, usually in their own or a leased van, rather than as an employee. For tax, a self-employed ODF reports profits on Self Assessment and can claim van costs as a business expense. MileClear is not connected to DPD or its ODF portal.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can a DPD ODF use the 55p mileage rate for a van?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, if you choose simplified expenses. GOV.UK lists goods vehicles alongside cars: 55p a mile for the first 10,000 business miles from 6 April 2026 (45p before then), then 25p. The flat rate replaces claiming fuel, insurance, repairs and lease costs for that van. You cannot use it on a van you have already claimed capital allowances on, and once you use it for a van you keep using it for as long as that van is in the business.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can employed DPD drivers claim mileage?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Generally not for a van their employer provides, because they have not paid to own or run it. The approved mileage rates and Mileage Allowance Relief are for employees using their own vehicle for work journeys. If you pay for fuel on business trips in a company vehicle and are not repaid, GOV.UK explains how to claim relief on that fuel. Driving from home to the depot is ordinary commuting either way.",
+      },
+    },
+    {
+      "@type": "Question",
       name: "Are DPD owner driver franchisees self-employed?",
       acceptedAnswer: {
         "@type": "Answer",
@@ -87,7 +115,7 @@ const faqSchema = {
       name: "Should DPD drivers use Simplified Expenses or Actual Costs?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run the numbers both ways. A typical ODF doing 40,000 business miles a year claims £13,000 under Simplified Expenses at the new 2026-27 rates (10,000 x 55p + 30,000 x 25p; was £12,000 at the old 45p/25p). The same driver with a leased Sprinter at £18,000 a year, plus £6,000 fuel, £1,200 insurance, £2,000 servicing and tyres, can claim £27,000+ under Actual Costs. Drivers with high running costs (recent leases, heavy diesel use) almost always benefit from Actual Costs. Drivers with older owned vans and low monthly outgoings often do better on Simplified. You cannot mix and match on the same vehicle - the choice is locked for that van's life with the business.",
+        text: "Run the numbers both ways. A typical ODF doing 40,000 business miles a year claims £13,000 under Simplified Expenses at the new 2026-27 rates (10,000 x 55p + 30,000 x 25p; was £12,000 at the old 45p/25p). The same driver with a leased Sprinter at £18,000 a year, plus £6,000 fuel, £1,200 insurance, £2,000 servicing and tyres, can claim £27,000+ under Actual Costs. Drivers with high running costs (recent leases, heavy diesel use) almost always benefit from Actual Costs. Drivers with older owned vans and low monthly outgoings often do better on Simplified. Once you use the flat rate for a van you must keep using it for as long as you use that van in the business, and you cannot switch a van to the flat rate after claiming capital allowances on it. Your next van can use either method.",
       },
     },
     {
@@ -171,6 +199,136 @@ export default function DpdMileageTracker() {
               business insights.
             </p>
           </header>
+
+          {/* ODF vs employed: what each can claim */}
+          <section
+            id="dpd-odf"
+            aria-labelledby="odf-claim-heading"
+            style={{ maxWidth: 760, marginBottom: "3.5rem" }}
+          >
+            <h2
+              id="odf-claim-heading"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: "#f9fafb",
+                marginBottom: "1.25rem",
+              }}
+            >
+              DPD ODF or Employed DPD Driver: What You Can Claim
+            </h2>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Whether you call it DPD ODF, owner driver franchise or owner driver, the tax question
+              is the same: is the van yours to claim for, or your employer&apos;s? Your contract
+              with DPD decides which group you are in. The tax rules below come from GOV.UK, not
+              from DPD, and we have left out DPD&apos;s own pay, van and contract terms because
+              they change and your contract is the source. If you were looking for the DPD ODF
+              portal, MileClear is not part of DPD: log in through DPD&apos;s own links.
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: "1.25rem",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <div
+                style={{
+                  background: "rgba(16,185,129,0.06)",
+                  border: "1px solid rgba(16,185,129,0.2)",
+                  borderRadius: 14,
+                  padding: "1.5rem",
+                }}
+              >
+                <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, color: "#34d399", marginBottom: "0.75rem" }}>
+                  DPD owner driver franchisee (self-employed)
+                </h3>
+                <ul style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.75, paddingLeft: "1.25rem", margin: 0 }}>
+                  <li>
+                    You report your profits on Self Assessment, and the cost of running your van
+                    for the business is an allowable expense.
+                  </li>
+                  <li>
+                    Option one is the flat rate (simplified expenses). GOV.UK lists goods vehicles
+                    alongside cars at the same rates: 55p a mile for the first 10,000 business
+                    miles from 6 April 2026 (45p before that), then 25p. It replaces claiming fuel,
+                    insurance, repairs, servicing and lease costs for that van.
+                  </li>
+                  <li>
+                    Option two is actual costs: fuel, insurance, repairs, servicing and lease or
+                    finance costs, with capital allowances if you bought the van, less the share
+                    that was private use.
+                  </li>
+                  <li>
+                    Once you use the flat rate for a van, you keep using it for as long as that van
+                    is in the business, and you cannot use it on a van you have already claimed
+                    capital allowances on. Each van can use a different method.
+                  </li>
+                  <li>
+                    On the 2025-26 short self-employment pages (SA103S), your vehicle and travel
+                    costs go in box 12, &quot;Car, van and travel expenses&quot;. The short pages
+                    are for turnover below the VAT threshold; above it you use the full pages.
+                  </li>
+                  <li>
+                    Run your franchise through a limited company? The van belongs to the company
+                    and different rules apply: see{" "}
+                    <a href="/limited-company-mileage" style={{ color: "#fbbf24" }}>
+                      limited company mileage
+                    </a>
+                    .
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                style={{
+                  background: "rgba(15,23,42,0.6)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 14,
+                  padding: "1.5rem",
+                }}
+              >
+                <h3 style={{ fontSize: "1.0625rem", fontWeight: 700, color: "#fbbf24", marginBottom: "0.75rem" }}>
+                  Employed DPD driver
+                </h3>
+                <ul style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.75, paddingLeft: "1.25rem", margin: 0 }}>
+                  <li>
+                    If you drive a van your employer provides, there is generally no mileage to
+                    claim. You have not paid to own or run it, and the approved mileage rates are
+                    for employees using their own vehicle.
+                  </li>
+                  <li>
+                    If you pay for fuel yourself on business journeys in a company vehicle and are
+                    not repaid, GOV.UK explains how you may be able to claim tax relief on that
+                    fuel.
+                  </li>
+                  <li>
+                    Driving from home to the depot you report to is ordinary commuting, which no
+                    one can claim.
+                  </li>
+                  <li>
+                    If you use your own car for work journeys that are not your commute, such as
+                    driving between depots, you can be paid up to the approved rate tax-free, and
+                    claim Mileage Allowance Relief on any shortfall: see the{" "}
+                    <a href="/employee-mileage-tracker" style={{ color: "#fbbf24" }}>
+                      employee mileage guide
+                    </a>
+                    .
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
+              Check the current rules on GOV.UK (simplified expenses for vehicles, and tax relief
+              for employees&apos; vehicles) before you file, and ask an accountant if your
+              arrangement is unusual. MileClear keeps the mileage log either way; it does not file
+              your return for you.
+            </p>
+          </section>
 
           {/* Three-tier model */}
           <section
@@ -260,8 +418,8 @@ export default function DpdMileageTracker() {
                   Directly Employed Driver
                 </h3>
                 <p style={{ color: "#94a3b8", fontSize: "0.9rem", lineHeight: 1.7, marginBottom: "0.75rem" }}>
-                  PAYE. Holiday, sick pay, pension, employment rights. DPD provides the van -
-                  including fuel card, insurance, and servicing.
+                  PAYE. Holiday, sick pay, pension, employment rights. Usually drives a van
+                  the employer provides, so there is no van of their own to claim for.
                 </p>
                 <p style={{ color: "#ef4444", fontSize: "0.875rem", fontWeight: 600 }}>
                   Mileage claimable: No
@@ -380,9 +538,11 @@ export default function DpdMileageTracker() {
               Simplified Expenses or Actual Costs - Which Wins for Your Route?
             </h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1.5rem" }}>
-              HMRC lets self-employed van drivers choose one of two methods on each vehicle. You
-              cannot mix them on the same van - the choice is locked for that van&apos;s life
-              with the business. Most ODFs reconsider the question whenever they change vans.
+              HMRC lets self-employed van drivers choose one of two methods on each vehicle. Once
+              you use the flat rate for a van, GOV.UK says you must keep using it for as long as
+              you use that van in the business, and you cannot use the flat rate on a van you have
+              already claimed capital allowances on. Most ODFs reconsider the question whenever
+              they change vans.
               The numbers below are typical 2026 figures for a full-time route.
             </p>
 
@@ -796,6 +956,18 @@ export default function DpdMileageTracker() {
             </h2>
             {[
               {
+                q: "What is DPD ODF?",
+                a: "ODF stands for Owner Driver Franchisee: a DPD driver who runs their round as their own business, usually in their own or a leased van, rather than as an employee. For tax, a self-employed ODF reports profits on Self Assessment and can claim van costs as a business expense. MileClear is not connected to DPD or its ODF portal.",
+              },
+              {
+                q: "Can a DPD ODF use the 55p mileage rate for a van?",
+                a: "Yes, if you choose simplified expenses. GOV.UK lists goods vehicles alongside cars: 55p a mile for the first 10,000 business miles from 6 April 2026 (45p before then), then 25p. The flat rate replaces claiming fuel, insurance, repairs and lease costs for that van. You cannot use it on a van you have already claimed capital allowances on, and once you use it for a van you keep using it for as long as that van is in the business.",
+              },
+              {
+                q: "Can employed DPD drivers claim mileage?",
+                a: "Generally not for a van their employer provides, because they have not paid to own or run it. The approved mileage rates and Mileage Allowance Relief are for employees using their own vehicle for work journeys. If you pay for fuel on business trips in a company vehicle and are not repaid, GOV.UK explains how to claim relief on that fuel. Driving from home to the depot is ordinary commuting either way.",
+              },
+              {
                 q: "Are DPD owner driver franchisees self-employed?",
                 a: "Yes. The Employment Appeal Tribunal confirmed in Stojsavljevic & Turner v DPD Group UK Ltd (2021) that DPD ODFs are neither employees nor workers - they are genuinely self-employed because the franchise contract includes a real right of substitution. ODWs (the post-Don Lane hybrid tier) are also self-employed for tax purposes despite getting holiday and sick pay benefits.",
               },
@@ -809,7 +981,7 @@ export default function DpdMileageTracker() {
               },
               {
                 q: "Should DPD drivers use Simplified Expenses or Actual Costs?",
-                a: "Run both. A 40,000-mile year claims £13,000 under Simplified at the new 2026-27 rates (55p/25p, up from £12,000 at the old 45p/25p). The same year on a leased Sprinter claims £25,000 to £30,000 under Actual. Drivers with high running costs almost always benefit from Actual; drivers with older owned vans and low overheads often do better on Simplified. The choice is locked for that van's life with the business - you can switch when you change vans.",
+                a: "Run both. A 40,000-mile year claims £13,000 under Simplified at the new 2026-27 rates (55p/25p, up from £12,000 at the old 45p/25p). The same year on a leased Sprinter claims £25,000 to £30,000 under Actual. Drivers with high running costs almost always benefit from Actual; drivers with older owned vans and low overheads often do better on Simplified. Once you use the flat rate for a van you keep it for as long as that van is in the business; your next van can use either method.",
               },
               {
                 q: "How many miles a year does a typical DPD ODF cover?",
