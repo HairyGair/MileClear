@@ -1685,3 +1685,166 @@ export interface TeamSeatBilling {
   currentPeriodEnd: string | null;
   billingEmail: string | null;
 }
+
+// Admin Geography (GET /admin/geography). Where sign-ups are, by nation,
+// UK region, postcode area and district. Mirrors apps/api/src/services/
+// geography.ts (the API's own source of truth); keep the two in step.
+export type AdminGeoRegion =
+  | "North East"
+  | "North West"
+  | "Yorkshire and the Humber"
+  | "East Midlands"
+  | "West Midlands"
+  | "East of England"
+  | "London"
+  | "South East"
+  | "South West"
+  | "Wales"
+  | "Scotland"
+  | "Northern Ireland"
+  | "Crown Dependencies";
+export type AdminGeoNation = "England" | "Scotland" | "Wales" | "Northern Ireland" | "Crown Dependencies" | "Outside UK";
+/** How a user's home area was found, best first. signup_ip is low confidence. */
+export type AdminGeoConfidence = "trip_postcode" | "saved_home" | "trip_location" | "signup_ip" | "unknown";
+export type AdminGeoWindow = 7 | 30 | 90 | 365 | "all";
+export type AdminGeoPlatform = "ios" | "android" | "both" | "web";
+
+export interface AdminGeoMetrics {
+  /** Sign-ups inside the window. */
+  signups: number;
+  /** Sign-ups in the equal-length window before; null for window=all. */
+  prevSignups: number | null;
+  /** % change vs prevSignups; null when prev is 0 or window=all. */
+  growthPct: number | null;
+  allTimeUsers: number;
+  /** All-time users with an automatic trip in the last 7 days. */
+  activeDrivers: number;
+  /** Window sign-ups with at least one automatic trip. */
+  activatedSignups: number;
+  /** activatedSignups / signups, %, 1 dp; null when no sign-ups. */
+  activationRatePct: number | null;
+  /** All-time users paying today. */
+  paying: number;
+  /** All-time users with Pro from any source except App Review sandbox. */
+  pro: number;
+  /** Window sign-ups by platform. */
+  platform: { ios: number; android: number; both: number; other: number };
+  /** Top 3 "How did you hear" answers among window sign-ups. */
+  topSources: Array<{ value: string; label: string; count: number }>;
+  /** All-time users placed by saved home / trip location / signup IP rather than a trip postcode. */
+  approximateUsers: number;
+}
+
+export interface AdminGeoNationRow extends AdminGeoMetrics {
+  nation: AdminGeoNation | "Unknown";
+}
+export interface AdminGeoRegionRow extends AdminGeoMetrics {
+  region: AdminGeoRegion | "Unknown";
+  nation: AdminGeoNation | "Unknown";
+}
+export interface AdminGeoAreaRow extends AdminGeoMetrics {
+  /** Postcode area: "LN", "B", "EC". */
+  area: string;
+  /** "Lincoln", "Birmingham", "London EC". */
+  name: string;
+  region: AdminGeoRegion;
+  nation: AdminGeoNation;
+  /** Approximate static centroid. */
+  lat: number;
+  lng: number;
+  /** The area's first-ever user signed up inside the window. */
+  newInWindow: boolean;
+}
+export interface AdminGeoDistrictRow extends AdminGeoMetrics {
+  /** "LN1", "DN21", "SW1" (sub-district letters dropped). */
+  district: string;
+  area: string;
+  areaName: string;
+  region: AdminGeoRegion;
+  nation: AdminGeoNation;
+  /** Mean of the district's users' home points, 2 dp; null under 3 points. */
+  lat: number | null;
+  lng: number | null;
+}
+export interface AdminGeoMapPoint {
+  level: "area" | "district";
+  code: string;
+  label: string;
+  region: AdminGeoRegion;
+  lat: number;
+  lng: number;
+  signups: number;
+  allTimeUsers: number;
+  activeDrivers: number;
+}
+export interface AdminGeoTimelineBucket {
+  /** Bucket start YYYY-MM-DD (UTC); weeks start Monday. */
+  date: string;
+  total: number;
+  /** Region name (or "Unknown") -> sign-ups. Missing key = 0. */
+  byRegion: Record<string, number>;
+  byNation: Record<string, number>;
+}
+export interface AdminGeoNewestSignup {
+  hoursAgo: number;
+  area: string | null;
+  areaName: string | null;
+  /** Only when the district has 3+ users. */
+  district: string | null;
+  region: AdminGeoRegion | null;
+  nation: AdminGeoNation | null;
+  platform: AdminGeoPlatform | null;
+  source: string | null;
+  confidence: AdminGeoConfidence;
+  hasAutoTrip: boolean;
+}
+export interface AdminGeoIpAgreement {
+  /** Users with a trip-postcode home AND a usable signup-IP nation. */
+  compared: number;
+  sameArea: number;
+  /** Same region, different or unmappable area. */
+  sameRegion: number;
+  /** Same nation, different or unknown region. */
+  sameNation: number;
+  differentNation: number;
+  /** Trip-postcode users whose signup IP said nothing usable. */
+  ipUnknown: number;
+  /** Of compared, IP cities that mapped to an area at all. */
+  ipCityMapped: number;
+  sameAreaPct: number | null;
+  sameRegionOrBetterPct: number | null;
+  topMismatches: Array<{ ipCity: string; tripArea: string; tripAreaName: string; count: number }>;
+}
+
+export interface AdminGeography {
+  params: { window: AdminGeoWindow; platform: string; source: string; includeIp: boolean };
+  summary: {
+    signups: number;
+    prevSignups: number | null;
+    growthPct: number | null;
+    withArea: number;
+    withAreaPct: number | null;
+    withRegionPct: number | null;
+    byConfidence: Record<AdminGeoConfidence, number>;
+    allTimeUsers: number;
+    allTimeByConfidence: Record<AdminGeoConfidence, number>;
+    areasReached: number;
+    regionsReached: number;
+    newAreas: Array<{ area: string; name: string; region: AdminGeoRegion; signups: number }>;
+  };
+  byNation: AdminGeoNationRow[];
+  byRegion: AdminGeoRegionRow[];
+  byArea: AdminGeoAreaRow[];
+  /** Top 50 districts with 3+ users. */
+  topDistricts: AdminGeoDistrictRow[];
+  suppressedDistricts: { districts: number; users: number };
+  mapPoints: AdminGeoMapPoint[];
+  timeline: { bucket: "day" | "week"; regions: string[]; nations: string[]; series: AdminGeoTimelineBucket[] };
+  newestSignups: AdminGeoNewestSignup[];
+  signupIpVsTrip: AdminGeoIpAgreement;
+  /** Values accepted by ?source= (plus "all"). */
+  sources: Array<{ value: string; label: string }>;
+  privacyFloor: number;
+  generatedAt: string;
+  meta: { baseLoadedAt: string; tripsScanned: number; tripsPerUserCap: number; cacheSeconds: number };
+}

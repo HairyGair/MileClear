@@ -7,6 +7,7 @@
 //   GET /admin/trip-quality          stub-fix and phantom rates for captured trips, 7 days
 //   GET /admin/qr-scans              billboard QR scans (mileclear.com/app) by store and day
 //   GET /admin/acquisition           "How did you hear about MileClear?" answers
+//   GET /admin/geography             where sign-ups are: nation/region/postcode area/district
 //
 // The counting lives in services/adminObservability.ts so it is unit-tested;
 // this file only fetches rows and shapes the response.
@@ -16,6 +17,11 @@ import { prisma } from "../../lib/prisma.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { qrScanRollup } from "../../services/qrScans.js";
 import { acquisitionRollup } from "../../services/acquisition.js";
+import { z } from "zod";
+import { ACQUISITION_SOURCES } from "@mileclear/shared";
+import { cacheGet, cacheSet } from "../../lib/redis.js";
+import { rollupGeography, type GeoWindow } from "../../services/geography.js";
+import { loadGeographyBase, TRIPS_PER_USER_CAP } from "../../services/geographyLoader.js";
 import {
   ageHours,
   classifyAndroidTester,
@@ -453,5 +459,75 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
       select: { userId: true, type: true, createdAt: true, metadata: true },
     });
     return reply.send({ data: acquisitionRollup(rows) });
+  });
+  // ── Geography: where new sign-ups are ─────────────────────────────────────
+  //
+  // GET /admin/geography?window=7|30|90|365|all&platform=all|ios|android
+  //                     &source=all|<ACQUISITION_SOURCES value>|unanswered
+  //                     &includeIp=true|false
+  //
+  // window    sign-up window in days (default 30); growth compares the
+  //           equal-length window before it (none for "all").
+  // platform  ios/android include "both" (accounts seen on each).
+  // source    the driver's latest "How did you hear" answer.
+  // includeIp false = a location known ONLY from the signup IP (low
+  //           confidence, mobile carriers geolocate to hubs) counts as Unknown.
+  //
+  // Response { data: AdminGeography & { meta } } (services/geography.ts has
+  // the full interface, mirrored in @mileclear/shared as AdminGeography):
+  //   summary          sign-ups, previous window, growth %, share placed,
+  //                    counts by confidence (trip_postcode / saved_home /
+  //                    trip_location / signup_ip / unknown), new areas
+  //   byNation         GeoMetrics per nation (+ Outside UK / Unknown)
+  //   byRegion         GeoMetrics per UK region (all 12 always present)
+  //   byArea           GeoMetrics per postcode area, with name/region/centroid
+  //   topDistricts     top 50 districts with 3+ users (privacy floor)
+  //   mapPoints        area centroids + district means (3+ users), never a user
+  //   timeline         daily (7/30/90) or weekly (365/all) sign-ups by region/nation
+  //   newestSignups    last 20 sign-ups: area/district/region/platform/hoursAgo
+  //   signupIpVsTrip   how often the signup-IP city agrees with the trip postcode
+  //
+  // Home-area rule, privacy floor and performance: see services/geography.ts
+  // and services/geographyLoader.ts. The per-user base is memoised 5 min;
+  // each filter combination's rollup is cached 5 min.
+  app.get("/geography", async (request, reply) => {
+    const sourceValues = ACQUISITION_SOURCES.map((s) => s.value as string);
+    const q = z
+      .object({
+        window: z.enum(["7", "30", "90", "365", "all"]).default("30"),
+        platform: z.enum(["all", "ios", "android"]).default("all"),
+        source: z
+          .string()
+          .default("all")
+          .refine((v) => v === "all" || v === "unanswered" || sourceValues.includes(v), "unknown source"),
+        includeIp: z.enum(["true", "false"]).default("true"),
+      })
+      .safeParse(request.query);
+    if (!q.success) return reply.status(400).send({ error: q.error.issues[0]?.message ?? "Invalid query" });
+
+    const window: GeoWindow = q.data.window === "all" ? "all" : (Number(q.data.window) as GeoWindow);
+    const includeIp = q.data.includeIp === "true";
+    const key = `admin:geography:v1:${q.data.window}:${q.data.platform}:${q.data.source}:${includeIp}`;
+    const cached = await cacheGet(key);
+    if (cached) return reply.send({ data: JSON.parse(cached) });
+
+    const base = await loadGeographyBase();
+    const data = {
+      ...rollupGeography(base.users, {
+        window,
+        platform: q.data.platform,
+        source: q.data.source,
+        includeIp,
+        now: new Date(),
+      }),
+      meta: {
+        baseLoadedAt: base.loadedAt.toISOString(),
+        tripsScanned: base.tripsScanned,
+        tripsPerUserCap: TRIPS_PER_USER_CAP,
+        cacheSeconds: 300,
+      },
+    };
+    await cacheSet(key, JSON.stringify(data), 300);
+    return reply.send({ data });
   });
 }
