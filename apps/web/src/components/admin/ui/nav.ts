@@ -70,6 +70,13 @@ export const ADMIN_NAV: AdminNavGroup[] = [
         hint: "Daily and monthly actives, retention",
       },
       { label: "Insights", href: `${ADMIN_ROOT}/insights`, icon: "insights", hint: "Funnel, retention, live recordings" },
+      {
+        label: "Community numbers",
+        href: `${ADMIN_ROOT}/community`,
+        icon: "community",
+        hint: "Last month across the whole fleet, plus ready-made posts",
+        isNew: true,
+      },
     ],
   },
   {

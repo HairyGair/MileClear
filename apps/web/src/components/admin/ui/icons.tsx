@@ -18,6 +18,7 @@ export type AdminIconName =
   | "revenue"
   | "ops"
   | "comms"
+  | "community"
   | "search"
   | "menu"
   | "close"
@@ -72,6 +73,15 @@ const PATHS: Record<AdminIconName, ReactNode> = {
       <circle cx="9" cy="8.5" r="3.5" />
       <path d="M2.5 20c.6-3.4 3.3-5.5 6.5-5.5s5.9 2.1 6.5 5.5" />
       <path d="M16 5.2a3.4 3.4 0 0 1 0 6.6M18 14.8c1.8.7 3.1 2.5 3.5 5.2" />
+    </>
+  ),
+  community: (
+    <>
+      <circle cx="12" cy="7.5" r="3" />
+      <circle cx="5.5" cy="10" r="2.2" />
+      <circle cx="18.5" cy="10" r="2.2" />
+      <path d="M6.5 20c.4-3.3 2.6-5.5 5.5-5.5s5.1 2.2 5.5 5.5" />
+      <path d="M2 19c.3-2.2 1.6-3.7 3.5-4M22 19c-.3-2.2-1.6-3.7-3.5-4" />
     </>
   ),
   support: (
