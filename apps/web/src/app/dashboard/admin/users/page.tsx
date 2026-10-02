@@ -2,7 +2,8 @@
 
 // Users section of the admin area (Sep 2026 redesign).
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { api, fetchWithAuth } from "@/lib/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -29,9 +30,17 @@ function UsersTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
+  // Search. The admin top bar's "find a user" box lands here as ?q=, and a
+  // new ?q= replaces whatever is typed (so searching again from the top bar
+  // works while already on this page).
+  const searchParams = useSearchParams();
+  const urlQuery = searchParams?.get("q") ?? "";
+  const [searchInput, setSearchInput] = useState(urlQuery);
+  const [search, setSearch] = useState(urlQuery);
+  useEffect(() => {
+    setSearchInput(urlQuery);
+    setSearch(urlQuery);
+  }, [urlQuery]);
 
   // Sort
   const [sortBy, setSortBy] = useState<UsersSortBy>("createdAt");
@@ -462,7 +471,10 @@ function UsersTab() {
 export default function AdminUsersTabPage() {
   return (
     <AdminPage title="Users" intro="Every account, searchable and filterable. Open a row for the full detail modal.">
-      <UsersTab />
+      {/* useSearchParams needs a Suspense boundary for the static build. */}
+      <Suspense fallback={null}>
+        <UsersTab />
+      </Suspense>
     </AdminPage>
   );
 }

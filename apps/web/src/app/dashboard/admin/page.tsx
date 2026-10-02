@@ -1,440 +1,546 @@
 "use client";
 
-// Overview section of the admin area (Sep 2026 redesign).
+// Overview of the admin area (Oct 2026 rebuild). Every panel loads its own
+// data, so one slow or failing endpoint never blanks the page.
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
-import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
-import { AdminPage } from "@/components/admin";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
+import { Ago } from "@/components/admin/Ago";
 import { UserDetailModal } from "@/components/admin/UserDetailModal";
-import { AdminUser, Analytics, FB_CATEGORY_OPTIONS, FB_STATUSES, FbItem, formatNumber, formatPence, timeAgo } from "@/components/admin/legacy";
+import type { AdminUser, Analytics, FbItem } from "@/components/admin/legacy";
+import { FB_CATEGORY_OPTIONS, FB_STATUSES } from "@/components/admin/legacy";
+import { AcquisitionPanel } from "@/components/admin/panels/AcquisitionPanel";
+import { QrScansPanel } from "@/components/admin/panels/QrScansPanel";
+import type { EngagementData, RatingDiagnostics, RevenueData, SupportQueueData, TripQualityData } from "@/components/admin/panels/types";
+import { useRecentSignups, type RecentSignups } from "@/components/admin/panels/useRecentSignups";
+import {
+  AdminIcon,
+  Badge,
+  BarChart,
+  DataTable,
+  EmptyState,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  StatLine,
+  TabBar,
+  Tabs,
+  formatDay,
+  formatMonth,
+  formatNumber,
+  formatPence,
+  formatShare,
+  useAdminData,
+  type AdminData,
+  type TableColumn,
+  type Tone,
+} from "@/components/admin/ui";
 
-// Overview Tab
+const A = "/dashboard/admin";
+
+// ---------------------------------------------------------------------------
+// KPI row
 // ---------------------------------------------------------------------------
 
-interface QrScans {
-  total: number;
-  byStore: { ios: number; android: number; other: number };
-  last24h: number;
-  byDay: Array<{ date: string; total: number; ios: number; android: number; other: number }>;
-  firstAt: string | null;
-  lastAt: string | null;
-}
+type SignupsState = AdminData<RecentSignups>;
 
-/** Billboard QR scans (mileclear.com/app). Loads on its own so a failure here
- *  never blanks the rest of the overview. */
-function QrScansCard() {
-  const [data, setData] = useState<QrScans | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    api
-      .get<{ data: QrScans }>("/admin/qr-scans")
-      .then((res) => setData(res.data))
-      .catch(() => setFailed(true));
-  }, []);
+function KpiRow({ analytics, signups }: { analytics: AdminData<Analytics>; signups: SignupsState }) {
+  const revenue = useAdminData<RevenueData>("/admin/revenue");
+  const a = analytics.data;
+  const s = signups.data;
 
-  const heading = (
-    <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-      Billboard QR scans
-    </h3>
-  );
-  if (failed) {
-    return (
-      <div style={{ marginBottom: "1.5rem" }}>
-        {heading}
-        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Couldn&apos;t load the scan count.</p>
-      </div>
-    );
-  }
-  if (!data) return null;
-
-  const dayLabel = (iso: string, i: number) =>
-    i === 0 ? "Today" : i === 1 ? "Yesterday" : new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  const recentDays = data.byDay.slice(0, 7);
+  const last7 = s ? s.days.slice(-7).reduce((n, d) => n + d.count, 0) : 0;
+  const prev7 = s ? s.days.slice(-14, -7).reduce((n, d) => n + d.count, 0) : 0;
+  const nonPaying = a ? (a.compPro ?? 0) + (a.referralPro ?? 0) + (a.sandboxPro ?? 0) : 0;
 
   return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      {heading}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <p className="stat-card__label">Total scans</p>
-          <p className="stat-card__value stat-card__value--amber">{formatNumber(data.total)}</p>
-          <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>
-            {data.lastAt ? `Last scan ${timeAgo(data.lastAt)}` : "No scans yet"}
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">App Store (iPhone)</p>
-          <p className="stat-card__value">{formatNumber(data.byStore.ios)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Google Play (Android)</p>
-          <p className="stat-card__value">{formatNumber(data.byStore.android)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Website (other)</p>
-          <p className="stat-card__value">{formatNumber(data.byStore.other)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Last 24 hours</p>
-          <p className="stat-card__value stat-card__value--emerald">{formatNumber(data.last24h)}</p>
+    <Grid min={150}>
+      <KpiCard
+        label="Total users"
+        value={a?.totalUsers ?? 0}
+        loading={analytics.loading && !a}
+        error={analytics.error}
+        hint={a ? `${formatNumber(a.usersThisMonth)} joined this month` : undefined}
+        href={`${A}/users`}
+      />
+      <KpiCard
+        label="New sign-ups today"
+        value={s?.todaySoFar ?? 0}
+        tone="accent"
+        loading={signups.loading && !s}
+        error={signups.error}
+        delta={s ? { current: s.todaySoFar, previous: s.yesterdaySameTime, label: "vs this time yesterday" } : undefined}
+        href={`${A}/geography`}
+        title="Where are they? Open Sign-ups & geography"
+      />
+      <KpiCard
+        label="New sign-ups, last 7 days"
+        value={last7}
+        loading={signups.loading && !s}
+        error={signups.error}
+        delta={s ? { current: last7, previous: prev7, label: "vs the 7 days before" } : undefined}
+        sparkline={s ? s.days.slice(-14).map((d) => d.count) : undefined}
+        sparklineLabel="Sign-ups per day, last 14 days"
+        href={`${A}/geography`}
+      />
+      <KpiCard
+        label="Active drivers, 30 days"
+        value={a?.activeUsers30d ?? 0}
+        tone="good"
+        loading={analytics.loading && !a}
+        error={analytics.error}
+        hint={a ? `${formatShare(a.activeUsers30d, a.totalUsers)} of all users logged a trip` : undefined}
+        href={`${A}/growth`}
+      />
+      <KpiCard
+        label="Paying subscribers"
+        value={a ? (a.payingSubscribers ?? a.premiumUsers) : 0}
+        tone="accent"
+        loading={analytics.loading && !a}
+        error={analytics.error}
+        hint={
+          a && a.payingSubscribers !== undefined
+            ? `+${formatNumber(nonPaying)} on Pro without paying (${a.compPro ?? 0} comp, ${a.referralPro ?? 0} referral, ${a.sandboxPro ?? 0} test)`
+            : undefined
+        }
+        title="Pro users who are not paying: admin comp grants, referral credit, and App Store sandbox (TestFlight / App Review) subscriptions"
+        href={`${A}/revenue`}
+      />
+      <KpiCard
+        label="Monthly recurring revenue"
+        value={revenue.data ? formatPence(revenue.data.mrrPence) : ""}
+        loading={revenue.loading && !revenue.data}
+        error={revenue.error}
+        hint={revenue.data ? `${revenue.data.churnedLast30d} cancelled in 30 days (${revenue.data.churnRatePercent}%)` : undefined}
+        title="Monthly at £4.99, annual at £44.99 / 12. Comp, referral and sandbox Pro are never priced."
+        href={`${A}/revenue`}
+      />
+    </Grid>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sign-ups trend
+// ---------------------------------------------------------------------------
+
+function SignupsPanel({ daily }: { daily: SignupsState }) {
+  const [view, setView] = useState<"daily" | "monthly">("daily");
+  const engagement = useAdminData<EngagementData>(view === "monthly" ? "/admin/engagement" : null);
+
+  return (
+    <Panel
+      highlight
+      title="New sign-ups"
+      subtitle={view === "daily" ? "Accounts opened each day, last 30 days. Today is still filling in." : "Accounts opened each month, last 6 months."}
+      actions={
+        <TabBar
+          label="Sign-ups view"
+          size="sm"
+          value={view}
+          onChange={(v) => setView(v as "daily" | "monthly")}
+          tabs={[
+            { id: "daily", label: "Daily" },
+            { id: "monthly", label: "Monthly" },
+          ]}
+        />
+      }
+      footer={
+        <>
+          {view === "daily"
+            ? "Counted from the users list, so deleted accounts are not included. "
+            : "From the retention report. "}
+          <Link href={`${A}/geography`} className="adm-link-arrow">
+            See where they are <AdminIcon name="arrowRight" size={14} />
+          </Link>
+        </>
+      }
+    >
+      {view === "daily" ? (
+        <LoadState
+          data={daily.data}
+          loading={daily.loading}
+          error={daily.error}
+          onRetry={daily.reload}
+          errorTitle="Couldn't count the sign-ups."
+          skeleton={<LoadingSkeleton variant="chart" height={240} />}
+        >
+          {(d) => (
+            <>
+              <BarChart
+                label="New sign-ups per day, last 30 days"
+                unit="sign-ups"
+                height={240}
+                partialIndex={d.days.length - 1}
+                data={d.days.map((x) => ({
+                  label: formatDay(x.date, { day: "numeric", month: "short" }),
+                  fullLabel: formatDay(x.date),
+                  value: x.count,
+                }))}
+              />
+              {!d.complete && <p className="adm-note" style={{ marginTop: "var(--adm-s2)" }}>The earliest days may be short: the list ran out of pages before reaching them.</p>}
+            </>
+          )}
+        </LoadState>
+      ) : (
+        <LoadState
+          data={engagement.data}
+          loading={engagement.loading}
+          error={engagement.error}
+          onRetry={engagement.reload}
+          errorTitle="Couldn't load monthly sign-ups."
+          skeleton={<LoadingSkeleton variant="chart" height={240} />}
+        >
+          {(d) => (
+            <BarChart
+              label="New sign-ups per month, last 6 months"
+              unit="sign-ups"
+              height={240}
+              partialIndex={d.retentionCurve.length - 1}
+              data={d.retentionCurve.map((r) => ({ label: formatMonth(r.month, { month: "short" }), fullLabel: formatMonth(r.month, { month: "long", year: "numeric" }), value: r.signups }))}
+            />
+          )}
+        </LoadState>
+      )}
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Section hubs
+// ---------------------------------------------------------------------------
+
+function ageTone(hours: number): Tone {
+  if (hours < 24) return "good";
+  if (hours < 72) return "warn";
+  return "bad";
+}
+
+function ageText(hours: number): string {
+  if (hours < 1) return "under an hour";
+  if (hours < 48) return `${Math.round(hours)} hours`;
+  return `${Math.round(hours / 24)} days`;
+}
+
+function SupportHub() {
+  const { data, error, loading, reload } = useAdminData<SupportQueueData>("/admin/support-queue");
+  return (
+    <Panel title="Waiting on a reply" href={`${A}/support`} hrefLabel="Open support">
+      <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the support queue.">
+        {(d) => {
+          const oldest = d.items[0];
+          if (d.counts.total === 0) {
+            return <EmptyState compact title="Nobody is waiting">Every feedback thread and missing-trip report has an answer.</EmptyState>;
+          }
+          return (
+            <div className="adm-hub">
+              <div className="adm-hub__row">
+                <div className="adm-figure">
+                  <span className="adm-figure__value">{formatNumber(d.counts.total)}</span>
+                  <span className="adm-figure__label">{d.counts.total === 1 ? "person" : "people"} waiting</span>
+                </div>
+                {oldest && (
+                  <Badge tone={ageTone(oldest.ageHours)} dot size="md">
+                    Oldest: {ageText(oldest.ageHours)}
+                  </Badge>
+                )}
+              </div>
+              <div>
+                <StatLine label="Feedback threads" value={formatNumber(d.counts.feedbackOpen)} />
+                <StatLine label="Missing-trip reports" value={<Link href={`${A}/missing-trips`} className="adm-link-arrow">{formatNumber(d.counts.missingTripsOpen)}</Link>} />
+              </div>
+              {oldest && (
+                <p className="adm-note">
+                  Oldest: {oldest.displayName || oldest.email || "(anonymous)"}, {oldest.kind === "missing_trip" ? "missing trip" : "feedback"}, <Ago iso={oldest.at} />.
+                </p>
+              )}
+            </div>
+          );
+        }}
+      </LoadState>
+    </Panel>
+  );
+}
+
+function CaptureHub() {
+  const { data, error, loading, reload } = useAdminData<TripQualityData>("/admin/trip-quality");
+  return (
+    <Panel title="Capture health" href={`${A}/capture`} hrefLabel="Details">
+      <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load capture health.">
+        {(d) => {
+          const stubTone: Tone = d.stubRate === null ? "neutral" : d.stubRate < 5 ? "good" : d.stubRate < 15 ? "warn" : "bad";
+          return (
+            <div className="adm-hub">
+              <div className="adm-hub__row">
+                <div className="adm-figure">
+                  <span className="adm-figure__value">{formatNumber(d.autoTrips)}</span>
+                  <span className="adm-figure__label">trips captured in {d.days} days</span>
+                </div>
+              </div>
+              {d.stubRate !== null && (
+                <ProgressBar
+                  label="Stub trips (3 points or fewer)"
+                  value={d.stubRate}
+                  max={Math.max(20, d.stubRate)}
+                  valueLabel={`${d.stubRate}%`}
+                  tone={stubTone}
+                  size="sm"
+                />
+              )}
+              <div>
+                <StatLine label="Added by hand" value={formatNumber(d.manualTrips)} />
+                <StatLine label="Flagged as phantom" value={formatNumber(d.phantomFlagged)} />
+                <StatLine label="Missing-trip reports" value={formatNumber(d.events.missingReports)} />
+              </div>
+            </div>
+          );
+        }}
+      </LoadState>
+    </Panel>
+  );
+}
+
+function GeographyHub() {
+  return (
+    <Panel title="Where new drivers are" href={`${A}/geography`} hrefLabel="Open map">
+      <div className="adm-hub">
+        <p className="adm-text">Sign-ups by town and region, and which areas are growing. The full view lives under Growth.</p>
+        <div style={{ display: "flex", gap: "var(--adm-s2)", flexWrap: "wrap", marginTop: "auto" }}>
+          <Link href={`${A}/geography`} className="adm-btn adm-btn--primary">
+            <AdminIcon name="geography" size={16} /> Sign-ups & geography
+          </Link>
+          <Link href={`${A}/geographic-density`} className="adm-btn">Density map</Link>
         </div>
       </div>
-      <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.6rem" }}>
-        {recentDays.map((d, i) => `${dayLabel(d.date, i)} ${d.total}`).join(" · ")}
-      </p>
-      <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>
-        Scans of the Tyne Tunnel billboard QR code (mileclear.com/app), counted from 1 Oct 2026, 17:04. Link previews are not counted.
-      </p>
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Fleet numbers (tabs)
+// ---------------------------------------------------------------------------
+
+function TotalsTab({ a }: { a: Analytics }) {
+  return (
+    <Grid min={170} gap="sm">
+      <KpiCard label="Total trips" value={a.totalTrips} />
+      <KpiCard label="Total miles" value={`${formatNumber(Math.round(a.totalMiles))} mi`} />
+      <KpiCard label="Total earnings logged" value={formatPence(a.totalEarningsPence)} tone="good" />
+      <KpiCard label="New users this month" value={a.usersThisMonth} />
+      <KpiCard label="Trips this month" value={a.tripsThisMonth} />
+      {a.platformCounts && (
+        <KpiCard
+          label="Platforms"
+          value={`${formatNumber(a.platformCounts.ios)} / ${formatNumber(a.platformCounts.android)}`}
+          hint={`Apple / Android. Both ${formatNumber(a.platformCounts.both)}, web only ${formatNumber(a.platformCounts.web)}, unknown ${formatNumber(a.platformCounts.unknown)}`}
+        />
+      )}
+    </Grid>
+  );
+}
+
+function ReferralsTab({ a }: { a: Analytics }) {
+  if (!a.referrals) return <EmptyState compact title="No referral figures">The analytics response has no referral block.</EmptyState>;
+  return (
+    <Grid min={170} gap="sm">
+      <KpiCard label="Friends signed up" value={a.referrals.attached} hint="Joined with a referral code" />
+      <KpiCard label="Free months granted" value={a.referrals.qualified} tone="good" hint="The friend recorded a first trip" />
+      <KpiCard label="On referral Pro now" value={a.referrals.activeCreditUsers} tone="accent" />
+    </Grid>
+  );
+}
+
+function RatingTab({ a }: { a: Analytics }) {
+  const diag = useAdminData<RatingDiagnostics>("/admin/rating/diagnostics");
+  const f = a.ratingFunnel;
+  const buildCols: TableColumn<RatingDiagnostics["byBuild"][number]>[] = [
+    {
+      key: "build",
+      header: "Build at the time",
+      render: (b) => `${b.appVersion ? `${b.appVersion} ` : ""}(build ${b.buildNumber})`,
+      sortValue: (b) => Number(b.buildNumber) || 0,
+    },
+    { key: "count", header: "Love it! taps", numeric: true, sortValue: (b) => b.count },
+  ];
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s5)" }}>
+      {f && f.promptsShown > 0 ? (
+        <div>
+          <p className="adm-note" style={{ marginBottom: "var(--adm-s3)" }}>App Store rating prompt</p>
+          <Grid min={140} gap="sm">
+            <KpiCard label="Prompts shown" value={f.promptsShown} />
+            <KpiCard label="Love it!" value={f.loveIt} tone="good" hint={formatShare(f.loveIt, f.promptsShown)} />
+            <KpiCard label="Apple dialog asked for" value={f.nativeDialogRequested} tone="good" />
+            <KpiCard label="Could be better" value={f.couldBeBetter} tone="warn" hint={formatShare(f.couldBeBetter, f.promptsShown)} />
+            <KpiCard label="Already rated" value={f.alreadyRated} />
+            <KpiCard label="Not now" value={f.notNow} />
+          </Grid>
+        </div>
+      ) : (
+        <EmptyState compact title="No rating prompts shown yet" />
+      )}
+      <LoadState data={diag.data} loading={diag.loading} error={diag.error} onRetry={diag.reload} errorTitle="Couldn't load the rating diagnostics.">
+        {(d) =>
+          d.totalLoveItEvents === 0 ? null : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s3)" }}>
+              <p className="adm-note">Why Love it! taps don&apos;t all turn into ratings</p>
+              <Grid min={150} gap="sm">
+                <KpiCard label="Distinct users" value={d.distinctUsers} hint="Tapped Love it! at least once" />
+                <KpiCard label="Asked once" value={d.usersWithSinglePrompt} hint="One Love it! tap" />
+                <KpiCard label="Asked twice or more" value={d.usersWithRepeat} tone={d.usersWithRepeat > 0 ? "warn" : "neutral"} hint="Likely hitting Apple's 3 a year limit" />
+                <KpiCard label="Asked 3 times or more" value={d.usersAt3Plus} tone={d.usersAt3Plus > 0 ? "bad" : "neutral"} hint="Apple almost certainly showed nothing" />
+              </Grid>
+              {d.byBuild.length > 0 && (
+                <DataTable
+                  caption="Love it! taps by app build"
+                  columns={buildCols}
+                  rows={d.byBuild}
+                  rowKey={(b) => b.buildNumber}
+                  dense
+                  maxHeight={260}
+                />
+              )}
+              <p className="adm-note">Public App Store builds carry through to App Store Connect; Apple silently drops TestFlight ones.</p>
+            </div>
+          )
+        }
+      </LoadState>
     </div>
   );
 }
 
-interface RatingDiagnostics {
-  totalLoveItEvents: number;
-  distinctUsers: number;
-  usersWithSinglePrompt: number;
-  usersWithRepeat: number;
-  usersAt3Plus: number;
-  byBuild: Array<{ buildNumber: string; appVersion: string | null; count: number }>;
-  generatedAt: string;
-}
-
-interface AcquisitionData {
-  answered: number;
-  skipped: number;
-  bySource: Array<{ value: string; label: string; count: number }>;
-  otherDetails: Array<{ detail: string; at: string }>;
-}
-
-/** "How did you hear about MileClear?" answers (asked in the app, 1 Oct 2026). */
-function AcquisitionCard() {
-  const [data, setData] = useState<AcquisitionData | null>(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    api
-      .get<{ data: AcquisitionData }>("/admin/acquisition")
-      .then((res) => setData(res.data))
-      .catch(() => setFailed(true));
-  }, []);
-
-  const heading = (
-    <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-      How new users found MileClear
-    </h3>
-  );
-  if (failed) {
-    return (
-      <div style={{ marginBottom: "1.5rem" }}>
-        {heading}
-        <p style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>Couldn&apos;t load the answers.</p>
-      </div>
-    );
-  }
-  if (!data) return null;
-  const pct = (n: number) => (data.answered ? `${Math.round((n / data.answered) * 100)}%` : "");
-
+function FeedbackTab() {
+  const { data, error, loading, reload } = useAdminData<{ total: number; byStatus: Record<string, number> }>("/feedback/stats");
   return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      {heading}
-      <div className="stats-grid">
-        {data.bySource.map((s) => (
-          <div className="stat-card" key={s.value}>
-            <p className="stat-card__label">{s.label}</p>
-            <p className="stat-card__value">{formatNumber(s.count)}</p>
-            <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>{pct(s.count)}</p>
-          </div>
-        ))}
-      </div>
-      <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.6rem" }}>
-        {formatNumber(data.answered)} answered · {formatNumber(data.skipped)} skipped. Asked once in the app, of drivers who joined in the last 30 days.
-      </p>
-      {data.otherDetails.length > 0 && (
-        <div style={{ marginTop: "0.6rem" }}>
-          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginBottom: 4 }}>What people wrote under Other:</p>
-          <ul style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.8rem", color: "var(--text-white, #f1f5f9)" }}>
-            {data.otherDetails.map((o, i) => (
-              <li key={i}>
-                {o.detail} <span style={{ color: "#64748b" }}>({timeAgo(o.at)})</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+    <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the feedback counts.">
+      {(d) => (
+        <Grid min={150} gap="sm">
+          <KpiCard label="All feedback" value={d.total} href={`${A}/support`} />
+          <KpiCard label="New" value={d.byStatus["new"] || 0} tone="info" />
+          <KpiCard label="Planned" value={d.byStatus["planned"] || 0} />
+          <KpiCard label="In progress" value={d.byStatus["in_progress"] || 0} tone="accent" />
+        </Grid>
       )}
-    </div>
+    </LoadState>
   );
 }
 
-function OverviewTab() {
-  const [analytics, setAnalytics] = useState<Analytics | null>(null);
-  const [feedbackStats, setFeedbackStats] = useState<{ total: number; byStatus: Record<string, number> } | null>(null);
-  const [ratingDiag, setRatingDiag] = useState<RatingDiagnostics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([
-      api.get<{ data: Analytics }>("/admin/analytics"),
-      api.get<{ data: { total: number; byStatus: Record<string, number> } }>("/feedback/stats"),
-      api.get<{ data: RatingDiagnostics }>("/admin/rating/diagnostics"),
-    ])
-      .then(([analyticsRes, fbRes, diagRes]) => {
-        setAnalytics(analyticsRes.data);
-        setFeedbackStats(fbRes.data);
-        setRatingDiag(diagRes.data);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <>
-        <div className="stats-grid" style={{ marginBottom: "1rem" }}>
-          <LoadingSkeleton variant="card" count={4} style={{ height: 90 }} />
-        </div>
-        <div className="stats-grid">
-          <LoadingSkeleton variant="card" count={4} style={{ height: 90 }} />
-        </div>
-      </>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="alert alert--error" role="alert">
-        Failed to load analytics: {error}
-      </div>
-    );
-  }
-
-  if (!analytics) return null;
-
+function FleetPanel({ analytics }: { analytics: AdminData<Analytics> }) {
+  const a = analytics.data;
+  const body = (render: (a: Analytics) => ReactNode) => (
+    <LoadState data={a} loading={analytics.loading} error={analytics.error} onRetry={analytics.reload} errorTitle="Couldn't load the fleet figures.">
+      {render}
+    </LoadState>
+  );
   return (
-    <>
-      {/* Row 1 */}
-      <div className="stats-grid" style={{ marginBottom: "1rem" }}>
-        <div className="stat-card">
-          <p className="stat-card__label">Total Users</p>
-          <p className="stat-card__value">{formatNumber(analytics.totalUsers)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Active (30d)</p>
-          <p className="stat-card__value stat-card__value--emerald">
-            {formatNumber(analytics.activeUsers30d)}
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Paying subscribers</p>
-          <p className="stat-card__value stat-card__value--amber">
-            {formatNumber(analytics.payingSubscribers ?? analytics.premiumUsers)}
-          </p>
-          {analytics.payingSubscribers !== undefined && (
-            <p
-              style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}
-              title="Pro users who are not paying: admin comp grants, referral credit, and App Store sandbox (TestFlight / App Review) subscriptions"
-            >
-              +{(analytics.compPro ?? 0) + (analytics.referralPro ?? 0) + (analytics.sandboxPro ?? 0)} non-paying Pro
-              {" "}({analytics.compPro ?? 0} comp · {analytics.referralPro ?? 0} referral · {analytics.sandboxPro ?? 0} sandbox)
-            </p>
-          )}
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Total Trips</p>
-          <p className="stat-card__value">{formatNumber(analytics.totalTrips)}</p>
-        </div>
-      </div>
-
-      {/* Row 2 */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <p className="stat-card__label">Total Miles</p>
-          <p className="stat-card__value">{formatNumber(Math.round(analytics.totalMiles))} mi</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Total Earnings</p>
-          <p className="stat-card__value stat-card__value--emerald">
-            {formatPence(analytics.totalEarningsPence)}
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">New This Month</p>
-          <p className="stat-card__value">{formatNumber(analytics.usersThisMonth)}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Trips This Month</p>
-          <p className="stat-card__value">{formatNumber(analytics.tripsThisMonth)}</p>
-        </div>
-        {analytics.platformCounts && (
-          <div className="stat-card">
-            <p className="stat-card__label">Platforms</p>
-            <p className="stat-card__value" style={{ fontSize: "1.1rem", lineHeight: 1.5 }}>
-              Apple {formatNumber(analytics.platformCounts.ios)} · Android {formatNumber(analytics.platformCounts.android)} · Both {formatNumber(analytics.platformCounts.both)}
-            </p>
-            <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 4 }}>
-              Web only {formatNumber(analytics.platformCounts.web)} · unknown {formatNumber(analytics.platformCounts.unknown)}
-            </p>
-          </div>
-        )}
-      </div>
-
-      <QrScansCard />
-      <AcquisitionCard />
-
-      {/* Referral program */}
-      {analytics.referrals && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-            Referral Program
-          </h3>
-          <div className="stat-grid">
-            <div className="stat-card">
-              <p className="stat-card__label">Friends Signed Up</p>
-              <p className="stat-card__value">{formatNumber(analytics.referrals.attached)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Free Months Granted</p>
-              <p className="stat-card__value stat-card__value--emerald">{formatNumber(analytics.referrals.qualified)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">On Referral Pro Now</p>
-              <p className="stat-card__value stat-card__value--amber">{formatNumber(analytics.referrals.activeCreditUsers)}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rating Funnel */}
-      {analytics.ratingFunnel && analytics.ratingFunnel.promptsShown > 0 && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-            App Store Rating Funnel
-          </h3>
-          <div className="stat-grid">
-            <div className="stat-card">
-              <p className="stat-card__label">Prompts Shown</p>
-              <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.promptsShown)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Love it!</p>
-              <p className="stat-card__value stat-card__value--emerald">{formatNumber(analytics.ratingFunnel.loveIt)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Native Dialog</p>
-              <p className="stat-card__value stat-card__value--emerald">{formatNumber(analytics.ratingFunnel.nativeDialogRequested)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Could Be Better</p>
-              <p className="stat-card__value stat-card__value--amber">{formatNumber(analytics.ratingFunnel.couldBeBetter)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Already Rated</p>
-              <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.alreadyRated)}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Not Now</p>
-              <p className="stat-card__value">{formatNumber(analytics.ratingFunnel.notNow)}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Rating diagnostics - by build + per-user repeat tally. Helps
-          explain the gap between "Love it!" intent and ratings actually
-          showing up in App Store Connect. */}
-      {ratingDiag && ratingDiag.totalLoveItEvents > 0 && (
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ color: "var(--text-2, #8494a7)", fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.75rem" }}>
-            Rating Diagnostics
-          </h3>
-
-          <div className="stat-grid" style={{ marginBottom: "0.75rem" }}>
-            <div className="stat-card">
-              <p className="stat-card__label">Distinct users</p>
-              <p className="stat-card__value">{formatNumber(ratingDiag.distinctUsers)}</p>
-              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>fired Love it! at least once</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Single prompt</p>
-              <p className="stat-card__value">{formatNumber(ratingDiag.usersWithSinglePrompt)}</p>
-              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>1 Love it! event</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Repeats (≥2)</p>
-              <p className="stat-card__value" style={{ color: ratingDiag.usersWithRepeat > 0 ? "#f59e0b" : undefined }}>
-                {formatNumber(ratingDiag.usersWithRepeat)}
-              </p>
-              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>likely hitting Apple&apos;s 3/yr ceiling</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Heavy (≥3)</p>
-              <p className="stat-card__value" style={{ color: ratingDiag.usersAt3Plus > 0 ? "#ef4444" : undefined }}>
-                {formatNumber(ratingDiag.usersAt3Plus)}
-              </p>
-              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: 2 }}>almost certainly silent-no-op&apos;d</p>
-            </div>
-          </div>
-
-          {ratingDiag.byBuild.length > 0 && (
-            <div
-              style={{
-                background: "rgba(15,23,42,0.6)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderRadius: 10,
-                padding: "0.75rem 0.875rem",
-              }}
-            >
-              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary, #f9fafb)", marginBottom: "0.5rem" }}>
-                Love it! events by build at event time
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.4rem 1rem", fontSize: "0.8125rem" }}>
-                {ratingDiag.byBuild.map((b) => (
-                  <div key={b.buildNumber} style={{ display: "contents" }}>
-                    <span style={{ color: "#cbd5e1", fontFamily: "monospace" }}>
-                      {b.appVersion ? `${b.appVersion} (` : ""}build {b.buildNumber}{b.appVersion ? ")" : ""}
-                    </span>
-                    <span style={{ color: "#fcd34d", fontWeight: 600, fontFamily: "monospace" }}>{b.count}</span>
-                  </div>
-                ))}
-              </div>
-              <p style={{ fontSize: "0.7rem", color: "#64748b", marginTop: "0.5rem" }}>
-                Public App Store builds carry through to App Store Connect; TestFlight builds are silently dropped by Apple.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Row 3: Feedback */}
-      {feedbackStats && (
-        <div className="stats-grid" style={{ marginTop: "1rem" }}>
-          <div className="stat-card">
-            <p className="stat-card__label">Feedback Total</p>
-            <p className="stat-card__value">{feedbackStats.total}</p>
-          </div>
-          <div className="stat-card">
-            <p className="stat-card__label">New</p>
-            <p className="stat-card__value" style={{ color: "#8494a7" }}>{feedbackStats.byStatus["new"] || 0}</p>
-          </div>
-          <div className="stat-card">
-            <p className="stat-card__label">Planned</p>
-            <p className="stat-card__value" style={{ color: "#3b82f6" }}>{feedbackStats.byStatus["planned"] || 0}</p>
-          </div>
-          <div className="stat-card">
-            <p className="stat-card__label">In Progress</p>
-            <p className="stat-card__value stat-card__value--amber">{feedbackStats.byStatus["in_progress"] || 0}</p>
-          </div>
-        </div>
-      )}
-    </>
+    <Panel title="The fleet in numbers" subtitle="All-time totals, referrals, the App Store rating prompt and feedback.">
+      <Tabs
+        label="Fleet figures"
+        tabs={[
+          { id: "totals", label: "Totals", content: body((x) => <TotalsTab a={x} />) },
+          { id: "referrals", label: "Referrals", content: body((x) => <ReferralsTab a={x} />) },
+          { id: "rating", label: "App Store rating", content: body((x) => <RatingTab a={x} />) },
+          { id: "feedback", label: "Feedback", content: <FeedbackTab /> },
+        ]}
+      />
+    </Panel>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Activity Tab
+// Latest activity (tabs)
 // ---------------------------------------------------------------------------
+
+function DetectionDot({ u }: { u: AdminUser }) {
+  if (!u.diagnosticDump || u.diagnosticDump.verdict === "healthy") return null;
+  const v = u.diagnosticDump.verdict;
+  return <Badge tone={v === "error" ? "bad" : v === "warning" ? "warn" : "info"} dot title={`Detection: ${v}`}>{v}</Badge>;
+}
+
+const PRO_SOURCE_LABEL: Record<string, string> = { paying: "Paying", comp: "Comp", referral: "Referral", sandbox: "Test" };
+
+function userColumns(extra: "status" | "pro"): TableColumn<AdminUser>[] {
+  const cols: TableColumn<AdminUser>[] = [
+    {
+      key: "email",
+      header: "User",
+      render: (u) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+          <span>
+            {u.displayName || u.email}
+            {u.displayName && <span className="adm-cell-sub">{u.email}</span>}
+          </span>
+          <DetectionDot u={u} />
+        </span>
+      ),
+      sortValue: (u) => u.email,
+    },
+  ];
+  if (extra === "status") {
+    cols.push({
+      key: "status",
+      header: "Status",
+      render: (u) => (
+        <span style={{ display: "inline-flex", gap: "0.25rem", flexWrap: "wrap" }}>
+          {u.isPremium && <Badge tone="accent">Pro</Badge>}
+          {u.isAdmin && <Badge tone="info">Admin</Badge>}
+          {u.emailVerified ? <Badge tone="good">Verified</Badge> : <Badge tone="bad">Unverified</Badge>}
+        </span>
+      ),
+    });
+    cols.push({ key: "signupLocation", header: "Where", render: (u) => u.signupLocation || "-", hideOnMobile: true, sortValue: (u) => u.signupLocation ?? null });
+  } else {
+    cols.push({ key: "pro", header: "Pro from", render: (u) => <Badge tone={u.proSource === "paying" ? "good" : "neutral"}>{(u.proSource && PRO_SOURCE_LABEL[u.proSource]) || "Pro"}</Badge> });
+    cols.push({ key: "trips", header: "Trips", numeric: true, render: (u) => formatNumber(u._count.trips), sortValue: (u) => u._count.trips });
+  }
+  cols.push({ key: "createdAt", header: "Joined", render: (u) => <Ago iso={u.createdAt} />, sortValue: (u) => u.createdAt, align: "right" });
+  return cols;
+}
+
+function UsersListTab({ path, kind, onOpen }: { path: string; kind: "status" | "pro"; onOpen: (id: string) => void }) {
+  const { data, error, loading, reload } = useAdminData<AdminUser[]>(path);
+  return (
+    <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load users." skeleton={<LoadingSkeleton variant="table" rows={6} />}>
+      {(rows) => (
+        <DataTable
+          caption={kind === "pro" ? "Pro users, newest first" : "Newest sign-ups"}
+          columns={userColumns(kind)}
+          rows={rows}
+          rowKey={(u) => u.id}
+          onRowClick={(u) => onOpen(u.id)}
+          maxHeight={460}
+          emptyTitle="No users"
+        />
+      )}
+    </LoadState>
+  );
+}
+
+function RecentFeedbackTab() {
+  const { data, error, loading, reload } = useAdminData<FbItem[]>("/feedback/?page=1&pageSize=10&sort=newest");
+  const cols: TableColumn<FbItem>[] = [
+    { key: "title", header: "Title", render: (f) => <span style={{ fontWeight: 500 }}>{f.title}</span>, sortValue: (f) => f.title },
+    { key: "category", header: "Type", render: (f) => <Badge>{FB_CATEGORY_OPTIONS.find((c) => c.value === f.category)?.label || f.category}</Badge>, hideOnMobile: true },
+    {
+      key: "status",
+      header: "Status",
+      render: (f) => {
+        const meta = FB_STATUSES.find((s) => s.value === f.status);
+        return meta ? <Badge tone={f.status === "done" ? "good" : f.status === "declined" ? "bad" : "neutral"}>{meta.label}</Badge> : f.status;
+      },
+    },
+    { key: "votes", header: "Votes", numeric: true, render: (f) => f.upvoteCount, sortValue: (f) => f.upvoteCount, hideOnMobile: true },
+    { key: "createdAt", header: "Sent", render: (f) => <Ago iso={f.createdAt} />, sortValue: (f) => f.createdAt, align: "right" },
+  ];
+  return (
+    <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load feedback." skeleton={<LoadingSkeleton variant="table" rows={6} />}>
+      {(rows) => <DataTable caption="Newest feedback" columns={cols} rows={rows} rowKey={(f) => f.id} maxHeight={460} emptyTitle="No feedback yet" />}
+    </LoadState>
+  );
+}
 
 interface TeamInterestRow {
   id: string;
@@ -450,236 +556,131 @@ interface TeamInterestRow {
 }
 interface TeamInterestResponse {
   data: TeamInterestRow[];
-  totals: {
-    submissions: number;
-    companies: number;
-    estimatedDrivers: number;
-    tenPlusCompanies: number;
-    byDrivers: Record<string, number>;
-    byApproval: Record<string, number>;
-    byDestination: Record<string, number>;
-  };
+  totals: { submissions: number; companies: number; estimatedDrivers: number; tenPlusCompanies: number };
 }
 
-function ActivityTab() {
-  const [recentUsers, setRecentUsers] = useState<AdminUser[]>([]);
-  const [premiumUsers, setPremiumUsers] = useState<AdminUser[]>([]);
-  const [recentFeedback, setRecentFeedback] = useState<FbItem[]>([]);
-  const [teamInterest, setTeamInterest] = useState<TeamInterestResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+const APPROVAL_LABEL: Record<string, string> = {
+  monthly_signoff: "Monthly sign-off",
+  line_by_line: "Line by line",
+  view_only: "View only",
+};
 
-  useEffect(() => {
-    Promise.all([
-      api.get<{ data: AdminUser[] }>("/admin/users?page=1&pageSize=15"),
-      api.get<{ data: FbItem[] }>("/feedback/?page=1&pageSize=10&sort=newest"),
-      api.get<TeamInterestResponse>("/admin/team-interest").catch(() => null),
-    ])
-      .then(([usersRes, fbRes, teamRes]) => {
-        const allUsers = usersRes.data;
-        setRecentUsers(allUsers.slice(0, 10));
-        setPremiumUsers(allUsers.filter((u) => u.isPremium).slice(0, 10));
-        setRecentFeedback(fbRes.data);
-        setTeamInterest(teamRes);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <LoadingSkeleton variant="card" count={3} style={{ height: 120 }} />;
-  if (error) return <div className="alert alert--error">{error}</div>;
-
-  const APPROVAL_LABEL: Record<string, string> = {
-    monthly_signoff: "Monthly sign-off",
-    line_by_line: "Line by line",
-    view_only: "View only",
-  };
-
+function TeamsTab() {
+  const { data, error, loading, reload } = useAdminData<TeamInterestResponse>("/admin/team-interest", { unwrap: false });
+  const cols: TableColumn<TeamInterestRow>[] = [
+    {
+      key: "who",
+      header: "Who",
+      render: (r) => (
+        <>
+          {r.company || r.email.split("@")[1]}
+          <span className="adm-cell-sub">{r.email}{r.source ? `, via /${r.source}` : ""}</span>
+        </>
+      ),
+      sortValue: (r) => r.company ?? r.email,
+    },
+    { key: "drivers", header: "Drivers", render: (r) => r.drivers, numeric: true },
+    { key: "approval", header: "Approval", render: (r) => APPROVAL_LABEL[r.approval] ?? r.approval, hideOnMobile: true },
+    { key: "destination", header: "Figures go to", render: (r) => `${r.destination.replace("_", " ")}${r.destinationDetail ? ` (${r.destinationDetail})` : ""}`, hideOnMobile: true },
+    { key: "notes", header: "Notes", render: (r) => <span style={{ color: "var(--adm-text-2)" }}>{r.notes || "-"}</span>, hideOnMobile: true },
+    { key: "createdAt", header: "When", render: (r) => new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }), sortValue: (r) => r.createdAt, align: "right" },
+  ];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Teams interest register - the bar is 5 companies with 10+ drivers */}
-      {teamInterest && (
-        <Card title={`Teams interest (${teamInterest.totals.submissions})`}>
-          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", fontSize: "0.9375rem", marginBottom: teamInterest.data.length ? "1rem" : 0 }}>
-            <div><span style={{ color: "var(--text-secondary)" }}>Companies </span><strong>{teamInterest.totals.companies}</strong></div>
-            <div title="Band midpoints: 3 / 13 / 35 / 75. Indicative, not a count."><span style={{ color: "var(--text-secondary)" }}>Drivers (est.) </span><strong>{teamInterest.totals.estimatedDrivers}</strong></div>
-            <div title="The trigger set on 21 Aug 2026: five companies with ten or more drivers each."><span style={{ color: "var(--text-secondary)" }}>10+ driver companies </span><strong style={{ color: teamInterest.totals.tenPlusCompanies >= 5 ? "var(--emerald-400)" : undefined }}>{teamInterest.totals.tenPlusCompanies} / 5</strong></div>
-          </div>
-          {teamInterest.data.length === 0 ? (
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: 0 }}>Nobody has registered yet. The form is on /teams and /employee-mileage-tracker.</p>
-          ) : (
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Who</th>
-                    <th>Drivers</th>
-                    <th>Approval</th>
-                    <th>Figures go to</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teamInterest.data.slice(0, 25).map((r) => (
-                    <tr key={r.id}>
-                      <td style={{ whiteSpace: "nowrap", fontSize: "0.8125rem" }}>{new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</td>
-                      <td>
-                        <div>{r.company || r.email.split("@")[1]}</div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)" }}>{r.email}{r.source ? ` · via /${r.source}` : ""}</div>
-                      </td>
-                      <td style={{ fontVariantNumeric: "tabular-nums" }}>{r.drivers}</td>
-                      <td>{APPROVAL_LABEL[r.approval] ?? r.approval}</td>
-                      <td>{r.destination.replace("_", " ")}{r.destinationDetail ? ` (${r.destinationDetail})` : ""}</td>
-                      <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", maxWidth: 320 }}>{r.notes || "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load Teams interest.">
+      {(d) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s4)" }}>
+          <Grid min={200} gap="sm">
+            <KpiCard label="Companies" value={d.totals.companies} hint={`${formatNumber(d.totals.submissions)} submissions`} />
+            <KpiCard label="Drivers (estimate)" value={d.totals.estimatedDrivers} hint="Band midpoints 3 / 13 / 35 / 75. Indicative, not a count." />
+            <div className="adm-kpi">
+              <p className="adm-kpi__label">Companies with 10+ drivers</p>
+              <div style={{ marginTop: "var(--adm-s3)" }}>
+                <ProgressBar
+                  value={d.totals.tenPlusCompanies}
+                  max={5}
+                  valueLabel={`${d.totals.tenPlusCompanies} of 5`}
+                  tone={d.totals.tenPlusCompanies >= 5 ? "good" : "accent"}
+                  label="Target set 21 Aug 2026"
+                />
+              </div>
             </div>
-          )}
-        </Card>
-      )}
-      {/* Recent Signups */}
-      <Card title={`Recent Signups (${recentUsers.length})`}>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentUsers.map((u) => (
-                <tr key={u.id} onClick={() => setDetailUserId(u.id)} style={{ cursor: "pointer" }}>
-                  <td style={{ fontSize: "0.8125rem" }}>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                      {u.email}
-                      {u.diagnosticDump && u.diagnosticDump.verdict !== "healthy" && (
-                        <span
-                          title={`Detection: ${u.diagnosticDump.verdict}`}
-                          style={{
-                            display: "inline-block",
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            flexShrink: 0,
-                            background: u.diagnosticDump.verdict === "error" ? "var(--dash-red)"
-                              : u.diagnosticDump.verdict === "warning" ? "var(--amber-500)"
-                              : "var(--dash-blue, #3b82f6)",
-                          }}
-                        />
-                      )}
-                    </span>
-                  </td>
-                  <td style={{ fontSize: "0.8125rem" }}>{u.displayName || "-"}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: "0.25rem" }}>
-                      {u.isPremium && <Badge variant="pro">PRO</Badge>}
-                      {u.isAdmin && <Badge variant="primary">Admin</Badge>}
-                      {u.emailVerified ? <Badge variant="success">Verified</Badge> : <Badge variant="danger">Unverified</Badge>}
-                    </div>
-                  </td>
-                  <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                    {timeAgo(u.createdAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          </Grid>
+          <DataTable
+            caption="Teams interest register"
+            columns={cols}
+            rows={d.data.slice(0, 25)}
+            rowKey={(r) => r.id}
+            maxHeight={420}
+            emptyTitle="Nobody has registered yet"
+            empty="The form is on /teams and /employee-mileage-tracker."
+          />
         </div>
-      </Card>
-
-      {/* Premium Users */}
-      {premiumUsers.length > 0 && (
-        <Card title={`Premium Users (${premiumUsers.length})`}>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Name</th>
-                  <th>Trips</th>
-                  <th>Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {premiumUsers.map((u) => (
-                  <tr key={u.id} onClick={() => setDetailUserId(u.id)} style={{ cursor: "pointer" }}>
-                    <td style={{ fontSize: "0.8125rem" }}>{u.email}</td>
-                    <td style={{ fontSize: "0.8125rem" }}>{u.displayName || "-"}</td>
-                    <td style={{ fontSize: "0.8125rem" }}>{u._count.trips}</td>
-                    <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{timeAgo(u.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
       )}
-
-      {/* Recent Feedback */}
-      <Card title={`Recent Feedback (${recentFeedback.length})`}>
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Status</th>
-                <th>Votes</th>
-                <th>Submitted</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentFeedback.map((fb) => {
-                const statusMeta = FB_STATUSES.find((s) => s.value === fb.status);
-                return (
-                  <tr key={fb.id}>
-                    <td style={{ fontSize: "0.8125rem", fontWeight: 500, maxWidth: 250, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fb.title}</td>
-                    <td><Badge variant="source">{FB_CATEGORY_OPTIONS.find((c) => c.value === fb.category)?.label || fb.category}</Badge></td>
-                    <td>{statusMeta && <Badge variant={fb.status === "done" ? "success" : fb.status === "declined" ? "danger" : "source"}>{statusMeta.label}</Badge>}</td>
-                    <td style={{ fontSize: "0.8125rem", textAlign: "center" }}>{fb.upvoteCount}</td>
-                    <td style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{timeAgo(fb.createdAt)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <UserDetailModal userId={detailUserId} open={!!detailUserId} onClose={() => setDetailUserId(null)} />
-    </div>
+    </LoadState>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main Page
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Ops Tab - Apple IAP webhook log + Job run log
-// ---------------------------------------------------------------------------
-
-
-function Overview() {
+function ActivityPanel() {
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
   return (
-    <>
-      <OverviewTab />
-      <ActivityTab />
-    </>
+    <Panel title="Latest activity" subtitle="Click a user to open their full record.">
+      <Tabs
+        label="Latest activity"
+        tabs={[
+          { id: "signups", label: "New sign-ups", content: <UsersListTab kind="status" path="/admin/users?page=1&pageSize=15&sortBy=createdAt" onOpen={setDetailUserId} /> },
+          { id: "pro", label: "Pro users", content: <UsersListTab kind="pro" path="/admin/users?page=1&pageSize=15&sortBy=createdAt&plan=premium" onOpen={setDetailUserId} /> },
+          { id: "feedback", label: "Feedback", content: <RecentFeedbackTab /> },
+          { id: "teams", label: "Teams interest", content: <TeamsTab /> },
+        ]}
+      />
+      <UserDetailModal userId={detailUserId} open={!!detailUserId} onClose={() => setDetailUserId(null)} />
+    </Panel>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default function AdminOverviewPage() {
+  const analytics = useAdminData<Analytics>("/admin/analytics");
+  // One fetch of the daily sign-ups, shared by the KPI row and the chart.
+  const signups = useRecentSignups(30);
   return (
-    <AdminPage title="Overview" intro="The fleet at a glance: users, trips, revenue, feedback and Teams interest.">
-      <Overview />
-    </AdminPage>
+    <>
+      <PageHeader
+        title="Overview"
+        subtitle="Who is joining, who is driving, who is paying, and who is waiting on a reply."
+        actions={
+          <>
+            <Link href={`${A}/geography`} className="adm-btn adm-btn--primary">
+              <AdminIcon name="geography" size={16} /> Sign-ups & geography
+            </Link>
+            <Link href={`${A}/users`} className="adm-btn">
+              <AdminIcon name="users" size={16} /> All users
+            </Link>
+          </>
+        }
+      />
+
+      <KpiRow analytics={analytics} signups={signups} />
+
+      <div className="adm-split">
+        <SignupsPanel daily={signups} />
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s4)", minWidth: 0 }}>
+          <SupportHub />
+          <GeographyHub />
+        </div>
+      </div>
+
+      <Grid min={300}>
+        <AcquisitionPanel />
+        <QrScansPanel />
+        <CaptureHub />
+      </Grid>
+
+      <FleetPanel analytics={analytics} />
+      <ActivityPanel />
+    </>
   );
 }
