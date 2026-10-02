@@ -164,12 +164,17 @@ function StepIncome({ summary }: { summary: SelfAssessmentSummary }) {
 }
 
 function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
+  // The rate depends on the tax year being filed: the 2025-26 return (due
+  // 31 Jan 2027) is still at 45p. Same rule as the web walkthrough.
+  const isPost2026 = summary.taxYear >= "2026-27";
+  const firstTier = isPost2026 ? "55p" : "45p";
   return (
     <>
       <SectionCard>
         <Text style={styles.stepTitle}>Mileage Deduction</Text>
         <Text style={styles.stepDesc}>
-          HMRC simplified mileage - 55p per mile for the first 10,000 business miles, 25p thereafter (rate rose from 45p to 55p on 6 April 2026). It goes in box 12, car, van and travel expenses.
+          HMRC simplified mileage for {summary.taxYear}: {firstTier} per mile for the first 10,000 business miles, 25p thereafter
+          {isPost2026 ? " (the rate rose from 45p to 55p on 6 April 2026)" : " (the rate before 6 April 2026)"}. It goes in box 12, car, van and travel expenses.
         </Text>
         <HeroValue label="Mileage Deduction (part of box 12)" value={formatPence(summary.mileageDeductionPence)} />
       </SectionCard>
