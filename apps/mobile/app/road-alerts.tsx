@@ -134,7 +134,7 @@ export default function RoadAlertsScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Turn on road alerts</Text>
           <Text style={styles.body}>
-            Free during the trial. We work out your usual roads from your own recent drives; they stay private to you.
+            Free. We work out your usual roads from your own recent drives; they stay private to you.
             At most one notification a day.
           </Text>
           <TouchableOpacity
