@@ -135,6 +135,14 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "people-outline",
       description: "Anonymous benchmarks vs other UK drivers",
     },
+    // Free community card (2 Oct 2026): the same anonymous comparison as
+    // "How You Compare", scoped to the driver's postcode area.
+    {
+      key: "local_benchmark",
+      label: "Drivers Near You",
+      icon: "location-outline",
+      description: "How your weekly miles compare with drivers in your area",
+    },
     {
       key: "work_calendar",
       label: "Working Calendar",
@@ -202,6 +210,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Recent Journeys",
       icon: "map-outline",
       description: "Map of your recent trips",
+    },
+    {
+      key: "local_benchmark",
+      label: "Drivers Near You",
+      icon: "location-outline",
+      description: "How your weekly miles compare with drivers in your area",
     },
     // Default-hidden: low-signal at the bottom of the dashboard, same as
     // the work dashboard's copy of this card (13 Sep reorder). Still

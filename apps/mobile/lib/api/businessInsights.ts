@@ -5,6 +5,8 @@ import type {
   TaxSnapshot,
   ActivityHeatmap,
   BenchmarkSnapshot,
+  LocalBenchmark,
+  LocalBenchmarkMode,
 } from "@mileclear/shared";
 
 export function fetchBusinessInsights() {
@@ -40,6 +42,14 @@ export function fetchActivityHeatmap(opts?: {
 // Free for all users - anonymous benchmarking vs other UK drivers.
 export function fetchBenchmarks() {
   return apiRequest<{ data: BenchmarkSnapshot }>("/business-insights/benchmarks");
+}
+
+// Free for all users - "Drivers near you": the same anonymous comparison,
+// scoped to the driver's home postcode area (falls back to region, then UK).
+export function fetchLocalBenchmark(mode: LocalBenchmarkMode) {
+  return apiRequest<{ data: LocalBenchmark }>(
+    `/business-insights/benchmarks/local?mode=${mode}`
+  );
 }
 
 // Phase 3 of the Money Picture stack (22 May 2026). Pro-only.

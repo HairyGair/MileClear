@@ -10,6 +10,7 @@ import { PostTripCard } from "./PostTripCard";
 import { PersonalRecapCard } from "./PersonalRecapCard";
 import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
+import { LocalBenchmarkCard } from "../business/LocalBenchmarkCard";
 import { PremiumGate } from "../PremiumGate";
 import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
@@ -261,6 +262,10 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
             </PremiumGate>
           </View>
         ) : null;
+      case "local_benchmark":
+        return stats && stats.totalTrips > 0 ? (
+          <LocalBenchmarkCard key={key} mode="personal" />
+        ) : null;
       case "community":
         return (
           <View key={key}>
@@ -277,7 +282,7 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
   const sectionOrder = visibleKeys || [
     "personal_cta", "personal_summary", "daily_recap",
     "milestone", "driving_patterns",
-    "journey_map", "community",
+    "journey_map", "local_benchmark", "community",
   ];
 
   return (

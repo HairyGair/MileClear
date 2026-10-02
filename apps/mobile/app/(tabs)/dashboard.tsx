@@ -76,6 +76,7 @@ import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
 import { MileageMonthCard } from "../../components/business/MileageMonthCard";
 import { ActivityHeatmapCard } from "../../components/business/ActivityHeatmapCard";
 import { BenchmarkCard } from "../../components/business/BenchmarkCard";
+import { LocalBenchmarkCard } from "../../components/business/LocalBenchmarkCard";
 import { WorkCalendarCard } from "../../components/work/WorkCalendarCard";
 import { MapOverview } from "../../components/personal/MapOverview";
 import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
@@ -174,6 +175,7 @@ const GIG_ONLY_DASHBOARD_KEYS = new Set([
   "weekly_goal",
   "activity_heatmap",
   "benchmark",
+  "local_benchmark",
   "community",
 ]);
 
@@ -2367,6 +2369,11 @@ export default function DashboardScreen() {
             // "Need more data" which is noise for a personal-only user.
             if (!hasBusinessDeduction) return null;
             return <BenchmarkCard key={key} />;
+          case "local_benchmark":
+            // Free community card. Needs at least one trip to say anything;
+            // the card explains itself when there aren't enough drivers yet.
+            if (totalTrips === 0) return null;
+            return <LocalBenchmarkCard key={key} mode="work" />;
           case "daily_recap":
             return dailyRecap && dailyRecap.totalTrips > 0 ? (
               <TouchableOpacity
