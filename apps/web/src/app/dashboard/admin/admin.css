@@ -623,7 +623,8 @@ table.adm-sr { display: block; }
 
 .adm-panel__subtitle { margin: 0.3rem 0 0; font-size: 0.8125rem; line-height: 1.5; color: var(--adm-text-2); }
 
-.adm-panel__actions { display: flex; align-items: center; gap: var(--adm-s2); flex-wrap: wrap; }
+.adm-panel__actions { display: flex; align-items: center; gap: var(--adm-s2); flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.adm-panel__actions > * { max-width: 100%; }
 
 .adm-panel__body { padding: var(--adm-s4) var(--adm-s5) var(--adm-s5); min-width: 0; flex: 1; }
 .adm-panel--flush .adm-panel__body { padding: var(--adm-s4) 0 0; }
