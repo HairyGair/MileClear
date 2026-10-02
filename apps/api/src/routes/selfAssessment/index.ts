@@ -11,6 +11,7 @@ import {
   calculateMileageDeduction,
   parseTaxYear,
   UK_TAX_2025_26,
+  sa103sExpenseBoxTotals,
   type VehicleType,
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
@@ -227,10 +228,27 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         taxEstimate
       );
 
-      // SA103 box values - consumed by clients via box.dataKey lookup
+      // SA103S box values - consumed by clients via SA103_BOXES[i].dataKey.
+      // Box 12 is the mileage figure plus the claimable travel categories;
+      // box 20 is every claimable expense plus mileage (SA103S 2025-26).
+      const boxTotals = sa103sExpenseBoxTotals(expenseSummary.categories);
+      const totalAllowableExpensesPence =
+        mileageDeductionPence + allowableExpensesPence;
+      const netPence = totalEarningsPence - totalAllowableExpensesPence;
+      // Keys up to `taxableProfit` are read by app builds from before the
+      // 2 Oct 2026 box correction (they show boxes 9/17/18/20/25/27/29/46/
+      // 49/51); keep them until those builds are gone.
       const netProfitBeforeMileage =
         totalEarningsPence - allowableExpensesPence;
       const sa103Values: Record<string, number> = {
+        carVanTravelExpenses: mileageDeductionPence + boxTotals[12],
+        professionalFees: boxTotals[16],
+        officeCosts: boxTotals[18],
+        otherAllowableExpenses: boxTotals[19],
+        totalAllowableExpenses: totalAllowableExpensesPence,
+        netProfitTotal: Math.max(0, netPence),
+        netLossTotal: Math.max(0, -netPence),
+        netBusinessProfit: taxableProfitPence,
         totalEarnings: totalEarningsPence,
         otherIncome: 0,
         totalExpenses: allowableExpensesPence,

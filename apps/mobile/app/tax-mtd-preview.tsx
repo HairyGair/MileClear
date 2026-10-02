@@ -151,6 +151,7 @@ export default function TaxMtdPreviewScreen() {
   const turnoverPounds = (preview.periodIncome.turnover ?? 0).toFixed(2);
   const totalExpenses =
     (preview.periodExpenses.carVanTravelExpenses ?? 0) +
+    (preview.periodExpenses.professionalFees ?? 0) +
     (preview.periodExpenses.adminCosts ?? 0) +
     (preview.periodExpenses.otherExpenses ?? 0);
   const profit = (preview.periodIncome.turnover ?? 0) - totalExpenses;
@@ -256,6 +257,12 @@ export default function TaxMtdPreviewScreen() {
           <SectionRow
             label="Car/van/travel (incl. mileage)"
             value={`£${(preview.periodExpenses.carVanTravelExpenses ?? 0).toFixed(2)}`}
+          />
+        )}
+        {(preview.periodExpenses.professionalFees ?? 0) > 0 && (
+          <SectionRow
+            label="Professional fees"
+            value={`£${(preview.periodExpenses.professionalFees ?? 0).toFixed(2)}`}
           />
         )}
         {(preview.periodExpenses.adminCosts ?? 0) > 0 && (

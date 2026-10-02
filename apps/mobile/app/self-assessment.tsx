@@ -11,7 +11,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import { safeBack } from "../lib/nav";
 import { Ionicons } from "@expo/vector-icons";
-import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE } from "@mileclear/shared";
+import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
@@ -68,8 +68,13 @@ const STEP_LABELS = [
   "Mileage",
   "Expenses",
   "Tax Estimate",
-  "SA103 Guide",
+  "SA103S Guide",
 ] as const;
+
+/** SA103S box for an expense category, or null for an unknown category. */
+function expenseBox(category: string): number | null {
+  return EXPENSE_CATEGORIES.find((c) => c.value === category)?.sa103sBox ?? null;
+}
 
 const TOTAL_STEPS = STEP_LABELS.length;
 
@@ -123,9 +128,9 @@ function StepIncome({ summary }: { summary: SelfAssessmentSummary }) {
       <SectionCard>
         <Text style={styles.stepTitle}>Income Summary</Text>
         <Text style={styles.stepDesc}>
-          Your total gross income from all platforms in {summary.taxYear}. This maps to Box 9 of SA103.
+          Your total gross income from all platforms in {summary.taxYear}. This is box 9 on the short self-employment pages (SA103S).
         </Text>
-        <HeroValue label="Total Earnings (Box 9)" value={formatPence(summary.totalEarningsPence)} />
+        <HeroValue label="Total Earnings (box 9)" value={formatPence(summary.totalEarningsPence)} />
       </SectionCard>
 
       {summary.platformBreakdown.length > 0 && (
@@ -164,9 +169,9 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
       <SectionCard>
         <Text style={styles.stepTitle}>Mileage Deduction</Text>
         <Text style={styles.stepDesc}>
-          HMRC simplified mileage - 55p per mile for the first 10,000 business miles, 25p thereafter (rate rose from 45p to 55p on 6 April 2026). Goes in Box 46.
+          HMRC simplified mileage - 55p per mile for the first 10,000 business miles, 25p thereafter (rate rose from 45p to 55p on 6 April 2026). It goes in box 12, car, van and travel expenses.
         </Text>
-        <HeroValue label="Mileage Deduction (Box 46)" value={formatPence(summary.mileageDeductionPence)} />
+        <HeroValue label="Mileage Deduction (part of box 12)" value={formatPence(summary.mileageDeductionPence)} />
       </SectionCard>
 
       <SectionCard>
@@ -195,7 +200,7 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
       <View style={styles.noteBox}>
         <Ionicons name="information-circle-outline" size={16} color="#3b82f6" style={{ marginRight: 6 }} />
         <Text style={styles.noteText}>
-          You are using the simplified mileage method (Box 46). You cannot also claim actual vehicle costs in Box 25 for the same vehicle.
+          You are using the simplified mileage method. You cannot also claim the actual running costs (fuel, insurance, repairs, road tax, MOT) of the same vehicle.
         </Text>
       </View>
     </>
@@ -211,17 +216,24 @@ function StepExpenses({ summary }: { summary: SelfAssessmentSummary }) {
       <SectionCard>
         <Text style={styles.stepTitle}>Allowable Expenses</Text>
         <Text style={styles.stepDesc}>
-          Expenses claimable alongside simplified mileage (parking, tolls, phone, equipment) go in Box 27. Vehicle running costs cannot be claimed.
+          Expenses you can claim alongside simplified mileage. Each shows its SA103S box: parking, tolls and fares go in box 12 with your mileage, your phone in box 18. Vehicle running costs cannot be claimed.
         </Text>
-        <HeroValue label="Claimable Expenses (Box 27)" value={formatPence(summary.allowableExpensesPence)} />
+        <HeroValue label="Claimable Expenses" value={formatPence(summary.allowableExpensesPence)} />
       </SectionCard>
 
       {claimable.length > 0 && (
         <SectionCard>
           <Text style={styles.cardTitle}>Claimable alongside mileage</Text>
-          {claimable.map((e) => (
-            <DataRow key={e.category} label={e.label} value={formatPence(e.totalPence)} />
-          ))}
+          {claimable.map((e) => {
+            const box = expenseBox(e.category);
+            return (
+              <DataRow
+                key={e.category}
+                label={box ? `${e.label} (box ${box})` : e.label}
+                value={formatPence(e.totalPence)}
+              />
+            );
+          })}
           <View style={styles.divider} />
           <DataRow label="Subtotal" value={formatPence(summary.allowableExpensesPence)} highlight />
         </SectionCard>
@@ -266,8 +278,8 @@ function StepTaxEstimate({ summary }: { summary: SelfAssessmentSummary }) {
       <SectionCard>
         <Text style={styles.cardTitle}>Taxable Income Calculation</Text>
         <DataRow label="Total earnings" value={formatPence(summary.totalEarningsPence)} />
-        <DataRow label="Mileage deduction (Box 46)" value={`- ${formatPence(summary.mileageDeductionPence)}`} />
-        <DataRow label="Allowable expenses (Box 27)" value={`- ${formatPence(summary.allowableExpensesPence)}`} />
+        <DataRow label="Mileage deduction" value={`- ${formatPence(summary.mileageDeductionPence)}`} />
+        <DataRow label="Other allowable expenses" value={`- ${formatPence(summary.allowableExpensesPence)}`} />
         <View style={styles.divider} />
         <DataRow label="Taxable profit" value={formatPence(summary.taxableProfitPence)} highlight />
       </SectionCard>
@@ -323,8 +335,6 @@ function StepSa103Guide({
   downloading: boolean;
   isPremium: boolean | null;
 }) {
-  const keyBoxNums = new Set([9, 27, 46]);
-
   const relevantBoxes = SA103_BOXES.filter((box) => {
     const val = summary.sa103Values?.[box.dataKey];
     return val !== undefined && val > 0;
@@ -333,9 +343,9 @@ function StepSa103Guide({
   return (
     <>
       <SectionCard>
-        <Text style={styles.stepTitle}>SA103 Form Guide</Text>
+        <Text style={styles.stepTitle}>SA103S Form Guide</Text>
         <Text style={styles.stepDesc}>
-          These box values map directly to your HMRC SA103 Self-employment pages. Use them when filing at gov.uk/self-assessment or with your accountant.
+          Box numbers are for the short self-employment pages (SA103S), used when your turnover was below £90,000. With a turnover of £90,000 or more you need the full pages (SA103F), which number their boxes differently. Use these figures when filing at gov.uk/self-assessment or with your accountant.
         </Text>
       </SectionCard>
 
@@ -345,7 +355,7 @@ function StepSa103Guide({
 
       {relevantBoxes.map((box) => {
         const val = summary.sa103Values?.[box.dataKey] ?? 0;
-        const isKey = keyBoxNums.has(box.box);
+        const isKey = box.key === true;
         return (
           <View key={box.box} style={[styles.sa103Box, isKey && styles.sa103BoxKey]}>
             <View style={styles.sa103BoxHeader}>
@@ -363,7 +373,7 @@ function StepSa103Guide({
 
       {relevantBoxes.length === 0 && (
         <SectionCard>
-          <Text style={styles.emptyText}>Complete earlier steps to see your SA103 box values.</Text>
+          <Text style={styles.emptyText}>Complete earlier steps to see your SA103S box values.</Text>
         </SectionCard>
       )}
 

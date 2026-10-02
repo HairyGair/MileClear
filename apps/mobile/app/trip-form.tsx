@@ -2178,7 +2178,7 @@ export default function TripFormScreen() {
 
   /**
    * Log a Clean Air Zone / ULEZ daily charge as a deductible expense. Files it
-   * under the existing "congestion" category (SA103S box 17), dated to the
+   * under the existing "congestion" category (SA103S box 12), dated to the
    * trip, against this vehicle, so it flows into the user's tax tooling.
    */
   const handleLogCazCharge = useCallback(

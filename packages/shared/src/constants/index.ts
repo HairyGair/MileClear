@@ -79,35 +79,45 @@ export const UK_TAX_2025_26 = {
 // deductibleWithMileage: can be claimed alongside the HMRC simplified mileage allowance.
 // Vehicle costs (fuel, insurance, maintenance) CANNOT be claimed alongside mileage —
 // they're tracked for comparison with the "actual costs" method.
-// sa103sBox: HMRC Self Assessment SA103S box this category maps to for the
-// self-assessment export and MTD ITSA quarterly submission. Boxes 17 (motor),
-// 18 (admin / general), 19 (other).
+// sa103sBox: the box on the 2025-26 short self-employment pages (SA103S) this
+// category belongs in, used by the Self Assessment wizard and the MTD ITSA
+// quarterly submission: 12 "Car, van and travel expenses", 16 "Accountancy,
+// legal and other professional fees", 18 "Phone, fax, stationery and other
+// office costs", 19 "Other allowable business expenses". Box labels and
+// sources live in hmrc-sa103.ts (SA103S_FORM_BOXES); hmrc-sa103.test.ts pins
+// every category to its box.
 // allowableNote: optional warning shown at expense entry + export time. Used for
 // categories with HMRC restrictions that drivers commonly get wrong (subsistence
 // is the canonical example — HMRC SE57240 disallows most daily meal claims for
 // self-employed drivers on a normal route).
 export const EXPENSE_CATEGORIES = [
-  // SA103S box 17 — motor expenses (mutually exclusive with AMAP)
-  { value: "parking", label: "Parking", deductibleWithMileage: true, sa103sBox: 17 },
-  { value: "tolls", label: "Tolls & Bridges", deductibleWithMileage: true, sa103sBox: 17 },
-  { value: "congestion", label: "Congestion / ULEZ", deductibleWithMileage: true, sa103sBox: 17 },
+  // SA103S box 12 - car, van and travel expenses. Parking, tolls, congestion
+  // and fares are claimable on top of the mileage rate; the running costs
+  // below them are not (the rate already covers them).
+  { value: "parking", label: "Parking", deductibleWithMileage: true, sa103sBox: 12 },
+  { value: "tolls", label: "Tolls & Bridges", deductibleWithMileage: true, sa103sBox: 12 },
+  { value: "congestion", label: "Congestion / ULEZ", deductibleWithMileage: true, sa103sBox: 12 },
   // Train, bus, tube, tram fares for business journeys. Same SA103S box as
   // motoring ("car, van and travel expenses") and claimable alongside AMAP
-  // mileage — the mileage rate only covers the vehicle. Laura Joyce request
+  // mileage - the mileage rate only covers the vehicle. Laura Joyce request
   // 4 Jul 2026 (tube travel had to go in "Other Allowable").
-  { value: "public_transport", label: "Public Transport", deductibleWithMileage: true, sa103sBox: 17 },
-  { value: "maintenance", label: "Maintenance & Repairs", deductibleWithMileage: false, sa103sBox: 17 },
-  { value: "insurance", label: "Vehicle Insurance", deductibleWithMileage: false, sa103sBox: 17 },
-  { value: "road_tax", label: "Road Tax (VED)", deductibleWithMileage: false, sa103sBox: 17 },
-  { value: "mot", label: "MOT", deductibleWithMileage: false, sa103sBox: 17 },
+  { value: "public_transport", label: "Public Transport", deductibleWithMileage: true, sa103sBox: 12 },
+  { value: "maintenance", label: "Maintenance & Repairs", deductibleWithMileage: false, sa103sBox: 12 },
+  { value: "insurance", label: "Vehicle Insurance", deductibleWithMileage: false, sa103sBox: 12 },
+  { value: "road_tax", label: "Road Tax (VED)", deductibleWithMileage: false, sa103sBox: 12 },
+  { value: "mot", label: "MOT", deductibleWithMileage: false, sa103sBox: 12 },
 
-  // SA103S box 18 — admin / general business expenses
+  // SA103S box 18 - phone, fax, stationery and other office costs
+  // (small equipment and software count as office costs, SA103F notes box 23).
   { value: "phone", label: "Phone (Business %)", deductibleWithMileage: true, sa103sBox: 18 },
   { value: "equipment", label: "Equipment", deductibleWithMileage: true, sa103sBox: 18 },
-  { value: "clothing", label: "Uniform / PPE", deductibleWithMileage: true, sa103sBox: 18 },
+  // Uniform / protective clothing is not an office cost: box 19, other.
+  { value: "clothing", label: "Uniform / PPE", deductibleWithMileage: true, sa103sBox: 19 },
   { value: "subscription", label: "Subscriptions / Apps", deductibleWithMileage: true, sa103sBox: 18 },
 
-  // SA103S box 19 — other allowable.
+  // Travel costs away from the vehicle: SA103S box 12 again. HMRC's notes
+  // (SA103F box 20, the same "car, van and travel expenses" line) include
+  // "hotel room costs and meals on overnight business trips".
   // Subsistence + accommodation: requested by users (Laura Joyce 8 May 2026
   // for "food and hotels"). Subsistence carries an explicit HMRC warning —
   // most daily meal claims are disallowed under HMRC SE57240 unless on an
@@ -118,7 +128,7 @@ export const EXPENSE_CATEGORIES = [
     value: "subsistence",
     label: "Food / Subsistence",
     deductibleWithMileage: true,
-    sa103sBox: 19,
+    sa103sBox: 12,
     allowableNote:
       "HMRC restricts subsistence claims for self-employed drivers (SE57240). Generally allowed only on irregular journeys outside your normal working pattern. Daily meals on a usual route are not deductible.",
   },
@@ -126,18 +136,38 @@ export const EXPENSE_CATEGORIES = [
     value: "accommodation",
     label: "Accommodation / Hotels",
     deductibleWithMileage: true,
-    sa103sBox: 19,
+    sa103sBox: 12,
     allowableNote:
       "Allowable when overnight stay away from home is genuinely required for the work (e.g. multi-day delivery routes, out-of-region freelance bookings).",
   },
-  { value: "professional_fees", label: "Professional Fees", deductibleWithMileage: true, sa103sBox: 19 },
+  // SA103S box 16 - accountancy, legal and other professional fees
+  { value: "professional_fees", label: "Professional Fees", deductibleWithMileage: true, sa103sBox: 16 },
+  // SA103S box 19 - other allowable business expenses
   { value: "other", label: "Other Allowable", deductibleWithMileage: true, sa103sBox: 19 },
 ] as const;
 
 export type ExpenseCategory = typeof EXPENSE_CATEGORIES[number]["value"];
 
 /** SA103S box ids returned by EXPENSE_CATEGORIES[i].sa103sBox. */
-export type Sa103sBox = 17 | 18 | 19;
+export type Sa103sBox = 12 | 16 | 18 | 19;
+
+/**
+ * Totals per SA103S expense box from per-category expense totals, counting
+ * only categories claimable alongside the mileage rate (the running costs the
+ * rate replaces are left out). Unknown categories are skipped. The mileage
+ * figure itself is NOT included: add it to box 12 yourself.
+ */
+export function sa103sExpenseBoxTotals(
+  categories: ReadonlyArray<{ category: string; totalPence: number }>
+): Record<Sa103sBox, number> {
+  const totals: Record<Sa103sBox, number> = { 12: 0, 16: 0, 18: 0, 19: 0 };
+  for (const row of categories) {
+    const meta = EXPENSE_CATEGORIES.find((c) => c.value === row.category);
+    if (!meta || !meta.deductibleWithMileage) continue;
+    totals[meta.sa103sBox] += row.totalPence;
+  }
+  return totals;
+}
 
 // Auth
 export const ACCESS_TOKEN_EXPIRY = "15m";

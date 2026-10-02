@@ -5,7 +5,7 @@ import { useAuth } from "../../../lib/auth-context";
 import { api, fetchWithAuth } from "../../../lib/api";
 import { PageHeader } from "../../../components/dashboard/PageHeader";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE } from "@mileclear/shared";
+import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -77,7 +77,7 @@ const STEPS = [
   "Mileage",
   "Expenses",
   "Tax Estimate",
-  "SA103 Guide",
+  "SA103S Guide",
 ] as const;
 
 function platformLabel(tag: string): string {
@@ -118,7 +118,7 @@ function StepIncome({ summary }: Pick<StepProps, "summary">) {
     <div className="sa-step-content">
       <h2 className="sa-step-content__title">Income Summary</h2>
       <p className="sa-step-content__desc">
-        Your total gross income from all platforms in {summary.taxYear}. This is your turnover for Box 9 of SA103.
+        Your total gross income from all platforms in {summary.taxYear}. This is your turnover, box 9 on the short self-employment pages (SA103S).
       </p>
       <div className="sa-hero-value">
         <span className="sa-hero-value__label">Total Earnings</span>
@@ -173,10 +173,10 @@ function StepMileage({ summary }: Pick<StepProps, "summary">) {
         MileClear uses the HMRC simplified mileage method - {firstTier} per mile
         for the first 10,000 business miles in {summary.taxYear}, then 25p thereafter
         ({isPost2026 ? "rate rose from 45p to 55p on 6 April 2026" : "the rate before 6 April 2026"}).
-        This figure goes in Box 46 of SA103.
+        This figure goes in box 12, car, van and travel expenses, on the SA103S.
       </p>
       <div className="sa-hero-value">
-        <span className="sa-hero-value__label">Mileage Deduction (Box 46)</span>
+        <span className="sa-hero-value__label">Mileage Deduction (part of box 12)</span>
         <span className="sa-hero-value__amount">{formatPence(summary.mileageDeductionPence)}</span>
       </div>
       <div className="stats-grid" style={{ marginTop: "1.5rem", marginBottom: "1.5rem" }}>
@@ -220,7 +220,7 @@ function StepMileage({ summary }: Pick<StepProps, "summary">) {
         </div>
       )}
       <div className="sa-note">
-        You are using the simplified mileage method (Box 46). You cannot also claim actual vehicle costs in Box 25 for the same vehicle.
+        You are using the simplified mileage method. You cannot also claim the actual running costs (fuel, insurance, repairs, road tax, MOT) of the same vehicle.
       </div>
     </div>
   );
@@ -234,10 +234,10 @@ function StepExpenses({ summary }: Pick<StepProps, "summary">) {
     <div className="sa-step-content">
       <h2 className="sa-step-content__title">Allowable Expenses</h2>
       <p className="sa-step-content__desc">
-        Expenses you can claim alongside the mileage deduction. Parking, tolls, phone bills and equipment go in Box 27. Vehicle running costs (fuel, insurance) cannot be claimed when using simplified mileage.
+        Expenses you can claim alongside the mileage deduction, each with its SA103S box: parking, tolls and fares go in box 12 with your mileage, phone bills and equipment in box 18. Vehicle running costs (fuel, insurance) cannot be claimed when using simplified mileage.
       </p>
       <div className="sa-hero-value">
-        <span className="sa-hero-value__label">Claimable Expenses (Box 27)</span>
+        <span className="sa-hero-value__label">Claimable Expenses</span>
         <span className="sa-hero-value__amount">{formatPence(summary.allowableExpensesPence)}</span>
       </div>
 
@@ -249,6 +249,7 @@ function StepExpenses({ summary }: Pick<StepProps, "summary">) {
               <thead>
                 <tr>
                   <th>Category</th>
+                  <th>SA103S box</th>
                   <th style={{ textAlign: "right" }}>Amount</th>
                 </tr>
               </thead>
@@ -256,11 +257,13 @@ function StepExpenses({ summary }: Pick<StepProps, "summary">) {
                 {claimable.map((e) => (
                   <tr key={e.category}>
                     <td>{e.label}</td>
+                    <td>{EXPENSE_CATEGORIES.find((c) => c.value === e.category)?.sa103sBox ?? "-"}</td>
                     <td style={{ textAlign: "right", fontWeight: 600 }}>{formatPence(e.totalPence)}</td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: "2px solid var(--border-default)" }}>
                   <td style={{ fontWeight: 700 }}>Subtotal</td>
+                  <td />
                   <td style={{ textAlign: "right", fontWeight: 700, color: "var(--amber-400)" }}>
                     {formatPence(summary.allowableExpensesPence)}
                   </td>
@@ -325,11 +328,11 @@ function StepTaxEstimate({ summary }: Pick<StepProps, "summary">) {
           <span>{formatPence(summary.totalEarningsPence)}</span>
         </div>
         <div className="sa-calc-row sa-calc-row--deduct">
-          <span>Mileage deduction (Box 46)</span>
+          <span>Mileage deduction</span>
           <span>- {formatPence(summary.mileageDeductionPence)}</span>
         </div>
         <div className="sa-calc-row sa-calc-row--deduct">
-          <span>Allowable expenses (Box 27)</span>
+          <span>Other allowable expenses</span>
           <span>- {formatPence(summary.allowableExpensesPence)}</span>
         </div>
         <div className="sa-calc-row sa-calc-row--total">
@@ -415,7 +418,6 @@ function StepTaxEstimate({ summary }: Pick<StepProps, "summary">) {
 
 function StepSa103Guide({ summary, onDownload, downloading, isPremium }: StepProps) {
   // Key boxes to highlight
-  const keyBoxNums = new Set([9, 27, 46]);
 
   const relevantBoxes = SA103_BOXES.filter((box) => {
     const val = summary.sa103Values[box.dataKey];
@@ -424,9 +426,9 @@ function StepSa103Guide({ summary, onDownload, downloading, isPremium }: StepPro
 
   return (
     <div className="sa-step-content">
-      <h2 className="sa-step-content__title">SA103 Form Guide</h2>
+      <h2 className="sa-step-content__title">SA103S Form Guide</h2>
       <p className="sa-step-content__desc">
-        The boxes below map directly to the HMRC SA103 Self-employment supplementary pages. Use these values when completing your return online at gov.uk/self-assessment or with your accountant.
+        Box numbers below are for the short self-employment pages (SA103S), used when your turnover was below £90,000. With a turnover of £90,000 or more you need the full pages (SA103F), which number their boxes differently. Use these values when completing your return online at gov.uk/self-assessment or with your accountant.
       </p>
 
       <div className="sa-disclaimer" style={{ marginBottom: "1.5rem" }}>
@@ -436,7 +438,7 @@ function StepSa103Guide({ summary, onDownload, downloading, isPremium }: StepPro
       <div className="sa-boxes">
         {relevantBoxes.map((box) => {
           const val = summary.sa103Values[box.dataKey] ?? 0;
-          const isKey = keyBoxNums.has(box.box);
+          const isKey = box.key === true;
           return (
             <div
               key={box.box}
@@ -454,7 +456,7 @@ function StepSa103Guide({ summary, onDownload, downloading, isPremium }: StepPro
         })}
 
         {relevantBoxes.length === 0 && (
-          <p className="sa-empty">Complete the earlier steps to see your SA103 box values.</p>
+          <p className="sa-empty">Complete the earlier steps to see your SA103S box values.</p>
         )}
       </div>
 

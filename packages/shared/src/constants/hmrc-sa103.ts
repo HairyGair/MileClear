@@ -1,164 +1,249 @@
 /**
- * HMRC Self Assessment SA103 (Self-employment) form mappings, guidance text,
- * and 2025-26 UK tax band constants for use in the Self Assessment Wizard
- * and Accountant Portal.
+ * HMRC Self Assessment self-employment pages: box numbers, guidance text,
+ * and 2025-26 UK tax band constants for the Self Assessment Wizard and
+ * Accountant Portal.
+ *
+ * MileClear targets the SHORT self-employment pages, SA103S, which is the
+ * form for a business with annual turnover below £90,000 (nearly every gig
+ * driver). The full pages, SA103F, number their boxes differently, so a box
+ * number shown without a form name always means the SA103S.
+ *
+ * Source (checked 2 Oct 2026): "Self-employment (short)" SA103S 2026, tax
+ * year 6 April 2025 to 5 April 2026, HMRC 12/25, and its notes:
+ *   https://www.gov.uk/government/publications/self-assessment-self-employment-short-sa103s
+ *   https://assets.publishing.service.gov.uk/media/69c12ae013101e9908704a53/SA103S-2026.pdf
+ *   https://assets.publishing.service.gov.uk/media/69ce15395cf899414a0bc69f/SA103S_Notes_2026.pdf
+ * Labels below are the printed labels with HMRC's en dashes written as
+ * hyphens. When HMRC publishes a new year's form, re-check every label;
+ * hmrc-sa103.test.ts pins this table.
  *
  * All monetary thresholds are in pence (integers).
  * No em dashes anywhere - hyphens only.
  */
 
 // ---------------------------------------------------------------------------
-// SA103 Box Mappings
+// SA103S form: every box from "Business income" to the CIS box
+// ---------------------------------------------------------------------------
+
+/**
+ * The 2025-26 SA103S, box number to printed label. Business details
+ * (boxes 1 to 8) are left out: they hold dates and ticks, never a figure
+ * MileClear works out. Keys are strings because HMRC uses boxes like
+ * "10.1" and "25.2".
+ */
+export const SA103S_FORM_BOXES = {
+  // Business income (page SES 1)
+  "9": "Your turnover - the takings, fees, sales or money earned by your business",
+  "10": "Any other business income not included in box 9",
+  "10.1": "Trading income allowance - read the notes",
+  // Allowable business expenses (page SES 1)
+  "11": "Costs of goods bought for resale or goods used",
+  "12": "Car, van and travel expenses - after private use proportion",
+  "13": "Wages, salaries and other staff costs",
+  "14": "Rent, rates, power and insurance costs",
+  "15": "Repairs and maintenance of property and equipment",
+  "16": "Accountancy, legal and other professional fees",
+  "17": "Interest and bank and credit card financial charges",
+  "18": "Phone, fax, stationery and other office costs",
+  "19": "Other allowable business expenses - client entertaining costs are not an allowable expense",
+  "20": "Total allowable expenses - total of boxes 11 to 19",
+  // Net profit or loss (page SES 2)
+  "21": "Net profit - if your business income is more than your expenses (if box 9 + box 10 minus box 20 is positive)",
+  "22": "Or, net loss - if your expenses exceed your business income (if box 20 minus (box 9 + box 10) is positive)",
+  // Capital allowances (page SES 2)
+  "23": "Annual Investment Allowance",
+  "24": "Allowance for small balance of unrelieved expenditure",
+  "24.1": "Zero-emission car allowance",
+  "25": "Other capital allowances",
+  "25.1": "The Structures and Buildings Allowance",
+  "25.2": "Freeport and Investment Zones Structures and Buildings Allowance",
+  "26": "Total balancing charges - for example, where you have disposed of items for more than their tax value",
+  // Calculating your taxable profits (page SES 2)
+  "27": "Goods and/or services for your own use",
+  "28": "Net business profit for tax purposes (if box 21 + box 26 + box 27 minus (boxes 22 to 25.2) is positive). Or if you've completed box 10.1 (box 21 + box 26 + box 27 minus box 10.1)",
+  "29": "Loss brought forward from earlier years set off against this year's profits - up to the amount in box 28",
+  "30": "Any other business income not included in box 9 or box 10",
+  // Total taxable profits or net business loss (page SES 2)
+  "31": "Total taxable profits from this business (if box 28 + box 30 minus box 29 is positive)",
+  "32": "Net business loss for tax purposes (if boxes 22 to 25.2 minus (box 21 + box 26 + box 27) is positive)",
+  // Losses, NICs and CIS (page SES 2)
+  "33": "Loss from this tax year set off against other income for 2025-26",
+  "34": "Loss to be carried back to previous years and set off against income (or capital gains)",
+  "35": "Total loss to carry forward after all other set-offs - including unused losses brought forward",
+  "36": "If your total profits for 2025-26 are less than £6,845 and you choose to pay Class 2 NICs voluntarily, put 'X' in the box",
+  "37": "If you're exempt from paying Class 4 NICs, put 'X' in the box",
+  "38": "Total Construction Industry Scheme (CIS) deductions taken from your payments by contractors - CIS subcontractors only",
+} as const;
+
+export type Sa103sFormBox = keyof typeof SA103S_FORM_BOXES;
+
+/**
+ * The SA103S expense boxes MileClear's expense categories land in.
+ * Box 12 also holds the flat-rate mileage figure: the SA103S has no separate
+ * simplified-expenses box, and the notes put a car's business running costs
+ * in box 12 ("Simplified expenses" and the capital allowances notes, page
+ * SESN 3). The SA103F notes (box 20, page SEFN 6) list what "car, van and
+ * travel expenses" covers: insurance, repairs, servicing, fuel, parking,
+ * hire charges, vehicle licence fees, train, bus, air and taxi fares, and
+ * hotel room costs and meals on overnight business trips.
+ */
+export const SA103S_EXPENSE_BOXES = {
+  carVanTravel: 12,
+  professionalFees: 16,
+  officeCosts: 18,
+  otherExpenses: 19,
+} as const;
+
+// ---------------------------------------------------------------------------
+// Wizard box guide (the boxes a driver on the mileage rate fills in)
 // ---------------------------------------------------------------------------
 
 export type Sa103Section =
   | "income"
   | "expenses"
-  | "simplified_expenses"
-  | "tax_adjustments";
+  | "net_profit"
+  | "taxable_profit";
 
 export interface Sa103Box {
-  /** The box number printed on the HMRC SA103 form */
+  /** The SA103S box number (always a key of SA103S_FORM_BOXES) */
   box: number;
-  /** HMRC's official label for this box */
+  /** HMRC's printed label for this box, exactly as in SA103S_FORM_BOXES */
   label: string;
   /** Plain English explanation for self-employed drivers */
   description: string;
   /**
-   * Which MileClear data field maps to this box.
-   * Values: "totalEarnings" | "mileageDeduction" | "allowableExpenses" |
-   *         "netProfit" | "motorExpenses" | "otherExpenses" | "adjustedProfit" |
-   *         "taxableProfit" | "otherIncome" | "totalExpenses"
+   * Which key of the /self-assessment/summary `sa103Values` map holds the
+   * figure for this box. Values: "totalEarnings" | "otherIncome" |
+   * "carVanTravelExpenses" | "professionalFees" | "officeCosts" |
+   * "otherAllowableExpenses" | "totalAllowableExpenses" | "netProfitTotal" |
+   * "netLossTotal" | "netBusinessProfit" | "taxableProfit"
    */
   dataKey: string;
-  /** Which section of the SA103 this box belongs to */
+  /** Which part of the SA103S this box sits in */
   section: Sa103Section;
+  /** Highlighted in the wizard as a box nearly every driver fills in */
+  key?: boolean;
 }
 
 /**
- * HMRC SA103 Self-employment form box mappings relevant to gig workers
- * and self-employed drivers using the simplified mileage method.
+ * SA103S boxes for a self-employed driver claiming the HMRC mileage rate.
+ * The wizard shows the ones with a non-zero figure.
  *
- * Key rule: if you use simplified mileage (Box 46), you CANNOT also claim
- * actual motor expenses in Box 25. Other deductible expenses (parking,
- * tolls, phone) still go in Box 27.
+ * Key rule: the mileage rate replaces fuel, insurance, repairs, servicing,
+ * road tax and MOT for that vehicle, so those are not added to box 12.
+ * Parking, tolls, congestion charges, public transport fares and overnight
+ * travel costs are still claimed, and they go in box 12 alongside the
+ * mileage figure.
  */
 export const SA103_BOXES: readonly Sa103Box[] = [
-  // ------ Income section --------------------------------------------------
+  // ------ Business income ---------------------------------------------------
   {
     box: 9,
-    label: "Your turnover - the takings, fees, sales or money earned by your business",
+    label: SA103S_FORM_BOXES["9"],
     description:
-      "Your total gross income from all self-employment sources in this tax year. " +
-      "For gig workers this is the sum of all platform earnings before any expenses.",
+      "Your total income from self-employment this tax year, before any expenses. " +
+      "For gig drivers this is the total of all your platform earnings, tips included.",
     dataKey: "totalEarnings",
     section: "income",
+    key: true,
   },
   {
     box: 10,
-    label: "Any other business income not included in box 9",
+    label: SA103S_FORM_BOXES["10"],
     description:
-      "Income from secondary self-employment activities not already counted in Box 9, " +
-      "for example tips paid directly by customers or referral bonuses.",
+      "Business income that is not part of your turnover in box 9. Most drivers " +
+      "leave this empty.",
     dataKey: "otherIncome",
     section: "income",
   },
 
-  // ------ Expenses section (actual costs method) --------------------------
+  // ------ Allowable business expenses ---------------------------------------
   {
-    box: 17,
-    label: "Total allowable expenses",
+    box: 12,
+    label: SA103S_FORM_BOXES["12"],
     description:
-      "Total of all allowable business expenses claimed under the actual costs method. " +
-      "Do NOT complete this section if you are using simplified mileage (Box 46) for " +
-      "your vehicle costs - use the simplified expenses section instead.",
-    dataKey: "totalExpenses",
+      "Your mileage figure (the HMRC rate times your business miles) plus parking, " +
+      "tolls, congestion and clean air zone charges, public transport fares, and hotel " +
+      "and meal costs on overnight business trips. Because you claim the mileage " +
+      "rate, do not add fuel, insurance, repairs, servicing, road tax or MOT for the " +
+      "same vehicle: the rate already covers them.",
+    dataKey: "carVanTravelExpenses",
+    section: "expenses",
+    key: true,
+  },
+  {
+    box: 16,
+    label: SA103S_FORM_BOXES["16"],
+    description: "Fees for an accountant, solicitor or other professional for your business.",
+    dataKey: "professionalFees",
     section: "expenses",
   },
   {
     box: 18,
-    label: "Net profit - if your business income is more than your expenses",
+    label: SA103S_FORM_BOXES["18"],
     description:
-      "Your taxable profit calculated as turnover minus total allowable expenses. " +
-      "This is what HMRC uses to calculate your Income Tax and National Insurance bill.",
-    dataKey: "netProfit",
+      "The business share of your phone bill, plus small equipment, apps and " +
+      "subscriptions you use for the work.",
+    dataKey: "officeCosts",
+    section: "expenses",
+  },
+  {
+    box: 19,
+    label: SA103S_FORM_BOXES["19"],
+    description:
+      "Allowable costs that fit none of the boxes above, such as a uniform or " +
+      "protective clothing.",
+    dataKey: "otherAllowableExpenses",
     section: "expenses",
   },
   {
     box: 20,
-    label: "Total allowable expenses (short form)",
+    label: SA103S_FORM_BOXES["20"],
     description:
-      "On the short SA103S form this single box captures all allowable expenses combined. " +
-      "On the full SA103F form individual expense categories are broken out separately.",
-    dataKey: "allowableExpenses",
+      "Boxes 12, 16, 18 and 19 added up, mileage included. If your turnover was below " +
+      "£90,000, HMRC's notes say you may put just this total and leave boxes 11 to 19 empty.",
+    dataKey: "totalAllowableExpenses",
     section: "expenses",
-  },
-  {
-    box: 25,
-    label: "Motor expenses",
-    description:
-      "Actual vehicle running costs for the year (fuel, insurance, maintenance, MOT, " +
-      "road tax, servicing), apportioned for business use. " +
-      "IMPORTANT: you cannot claim Box 25 AND Box 46 (simplified mileage) in the same " +
-      "tax year for the same vehicle. Choose one method and stick to it.",
-    dataKey: "motorExpenses",
-    section: "expenses",
-  },
-  {
-    box: 27,
-    label: "Other allowable business expenses",
-    description:
-      "Expenses that are deductible even if you use simplified mileage: parking charges, " +
-      "bridge tolls, congestion / ULEZ charges, the business portion of your phone bill, " +
-      "equipment, uniform or PPE, and subscription apps used for work.",
-    dataKey: "otherExpenses",
-    section: "expenses",
-  },
-  {
-    box: 29,
-    label: "Total allowable expenses (full form)",
-    description:
-      "Sum of all individual expense boxes on the full SA103F form. " +
-      "If you use simplified mileage, this total will exclude motor expenses (Box 25) " +
-      "and instead include only your non-vehicle allowable expenses.",
-    dataKey: "totalExpenses",
-    section: "expenses",
+    key: true,
   },
 
-  // ------ Simplified expenses section -------------------------------------
+  // ------ Net profit or loss ------------------------------------------------
   {
-    box: 46,
-    label: "Flat rate expenses for vehicles (simplified expenses)",
-    description:
-      "The HMRC flat-rate mileage allowance for your business miles. For tax years " +
-      "from 2026-27 onwards, cars and vans claim 55p per mile for the first 10,000 " +
-      "miles and 25p per mile above 10,000 miles (the rate was 45p/25p up to and " +
-      "including tax year 2025-26). Motorbikes use 24p per mile flat. This is " +
-      "calculated automatically by MileClear from your classified business trips. " +
-      "Using this box means you cannot claim actual vehicle costs in Box 25.",
-    dataKey: "mileageDeduction",
-    section: "simplified_expenses",
+    box: 21,
+    label: SA103S_FORM_BOXES["21"],
+    description: "Box 9 plus box 10, minus box 20, when that leaves a profit.",
+    dataKey: "netProfitTotal",
+    section: "net_profit",
+  },
+  {
+    box: 22,
+    label: SA103S_FORM_BOXES["22"],
+    description: "Use this instead of box 21 when your expenses in box 20 were more than your income.",
+    dataKey: "netLossTotal",
+    section: "net_profit",
   },
 
-  // ------ Tax adjustments section -----------------------------------------
+  // ------ Taxable profit ----------------------------------------------------
   {
-    box: 49,
-    label: "Adjusted profit for the year",
+    box: 28,
+    label: SA103S_FORM_BOXES["28"],
     description:
-      "Your net profit after any HMRC adjustments, disallowable expenses have been " +
-      "added back, and any overlap relief or other adjustments have been applied.",
-    dataKey: "adjustedProfit",
-    section: "tax_adjustments",
+      "For most drivers on the mileage rate this is the same as box 21. It changes if " +
+      "you claim capital allowances (boxes 23 to 25.2), have balancing charges (box 26) " +
+      "or took goods for your own use (box 27).",
+    dataKey: "netBusinessProfit",
+    section: "taxable_profit",
   },
   {
-    box: 51,
-    label: "Total taxable profits from this business",
+    box: 31,
+    label: SA103S_FORM_BOXES["31"],
     description:
-      "The final profit figure that feeds into your Self Assessment tax calculation. " +
-      "This amount is added to any other income you have to determine your overall " +
-      "Income Tax and National Insurance liability.",
+      "The profit your Income Tax and National Insurance are worked out on. The same as " +
+      "box 28 unless you have losses from earlier years (box 29) or other business " +
+      "income (box 30).",
     dataKey: "taxableProfit",
-    section: "tax_adjustments",
+    section: "taxable_profit",
+    key: true,
   },
 ] as const;
 
@@ -190,16 +275,19 @@ export const SA103_GUIDANCE: Sa103Guidance = {
     "vehicle running costs. From the 2026-27 tax year onwards (6 April 2026), cars " +
     "and vans use 55p per mile for the first 10,000 business miles, then 25p per mile " +
     "above 10,000 (the rate was 45p/25p up to and including 2025-26). Motorcycles " +
-    "use a flat 24p per mile. The amount goes in Box 46 of SA103. You cannot claim " +
-    "actual running costs (Box 25) for the same vehicle in the same year. Other " +
-    "expenses such as parking, tolls, and your work phone can still be claimed " +
-    "separately in Box 27.",
+    "use a flat 24p per mile. On the short self-employment pages (SA103S) the amount " +
+    "goes in box 12, car, van and travel expenses. You cannot also claim the vehicle's " +
+    "actual running costs for the same vehicle in the same year. Parking, tolls and " +
+    "congestion charges still go in box 12 on top of the mileage figure, and the " +
+    "business share of your phone goes in box 18.",
 
   actualCosts:
     "Under the actual costs method you work out the real running costs of your vehicle " +
     "for the year - fuel, insurance, MOT, road tax, servicing and repairs - then " +
     "multiply by your business-use percentage (business miles divided by total miles). " +
-    "These go in Box 25. You can also claim capital allowances for the vehicle itself. " +
+    "On the SA103S these also go in box 12, car, van and travel expenses. You can claim " +
+    "capital allowances for the vehicle itself in boxes 24 to 25 (a car cannot get " +
+    "the Annual Investment Allowance in box 23). " +
     "This method often produces a larger deduction for high-mileage drivers with " +
     "expensive vehicles, but requires detailed records and receipts.",
 

@@ -217,7 +217,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "sa-box-9",
     title: "📝 SA box 9 — your total turnover",
     body:
-      "Box 9 on the SA103 is your gross self-employed income — everything earned BEFORE expenses or deductions. Fares + tips + bonuses + delivery fees. MileClear's earnings total goes here.",
+      "Box 9 on the short self-employment pages (SA103S) is your gross self-employed income: everything earned BEFORE expenses or deductions. Fares + tips + bonuses + delivery fees. MileClear's earnings total goes here.",
     category: "self-assessment",
   },
   {

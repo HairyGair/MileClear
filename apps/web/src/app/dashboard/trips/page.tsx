@@ -565,7 +565,7 @@ export default function TripsPage() {
   };
 
   // Log a Clean Air Zone / ULEZ daily charge as a deductible expense
-  // (category "congestion" = SA103S box 17), dated to the trip.
+  // (category "congestion" = SA103S box 12), dated to the trip.
   const logCazCharge = async (charge: { zoneId: string; name: string; chargePence: number }) => {
     if (!detailTrip || loggingCaz) return;
     setLoggingCaz(charge.zoneId);

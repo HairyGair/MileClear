@@ -692,33 +692,37 @@ describe("buildPeriodSubmission", () => {
     expect(result.breakdown.warnings.some((w) => w.includes("primary vehicle"))).toBe(true);
   });
 
-  it("buckets expenses by SA103S box and excludes non-AMAP-compatible motor costs", async () => {
+  it("buckets expenses by SA103S box (12/16/18/19) and excludes non-AMAP-compatible motor costs", async () => {
     const prisma = makeMockPrisma({
       earnings: [],
       primaryVehicle: { vehicleType: "car" },
       trips: [],
       priorTripsTotal: 0,
       expenses: [
-        // Box 17, AMAP-compatible — included
+        // SA103S box 12, AMAP-compatible: included
         { id: "x1", category: "parking", amountPence: 1500 },
         { id: "x2", category: "tolls", amountPence: 800 },
-        // Box 17, AMAP-incompatible — excluded
+        { id: "x8", category: "subsistence", amountPence: 3000 },
+        // SA103S box 12, AMAP-incompatible: excluded
         { id: "x3", category: "maintenance", amountPence: 50_000 },
         { id: "x4", category: "insurance", amountPence: 80_000 },
-        // Box 18 — admin
+        // SA103S box 18: phone, fax, stationery and other office costs
         { id: "x5", category: "phone", amountPence: 2000 },
         { id: "x6", category: "equipment", amountPence: 4000 },
-        // Box 19 — other
+        // SA103S box 16: accountancy, legal and other professional fees
         { id: "x7", category: "professional_fees", amountPence: 15_000 },
-        { id: "x8", category: "subsistence", amountPence: 3000 },
+        // SA103S box 19: other allowable business expenses
+        { id: "x9", category: "clothing", amountPence: 2500 },
       ],
     });
 
     const result = await buildPeriodSubmission({ prisma, ...baseArgs });
 
-    expect(result.periodExpenses.carVanTravelExpenses).toBe(23); // £15 + £8 parking/tolls
+    expect(result.periodExpenses.carVanTravelExpenses).toBe(53); // £15 parking + £8 tolls + £30 subsistence
     expect(result.periodExpenses.adminCosts).toBe(60); // £20 phone + £40 equipment
-    expect(result.periodExpenses.otherExpenses).toBe(180); // £150 prof fees + £30 subsistence
+    expect(result.periodExpenses.professionalFees).toBe(150);
+    expect(result.periodExpenses.otherExpenses).toBe(25); // £25 uniform
+    expect(result.breakdown.expenses.professionalFeesPence).toBe(15_000);
     expect(result.breakdown.expenses.excludedNonAmapPence).toBe(130_000);
     expect(result.breakdown.warnings.some((w) => w.includes("motor running costs"))).toBe(true);
   });

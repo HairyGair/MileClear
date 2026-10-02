@@ -161,11 +161,13 @@ export interface PeriodSubmissionBreakdown {
     tripCount: number;
   };
   expenses: {
-    /** Box 17 — carVanTravelExpenses (parking + tolls + congestion + AMAP). */
+    /** SA103S box 12 - carVanTravelExpenses (AMAP + parking, tolls, congestion, fares, subsistence, accommodation). */
     carVanTravelPence: number;
-    /** Box 18 — adminCosts (phone, equipment, clothing, subs). */
+    /** SA103S box 16 - professionalFees (accountant, legal). */
+    professionalFeesPence: number;
+    /** SA103S box 18 - adminCosts (phone, equipment, subscriptions). */
     adminCostsPence: number;
-    /** Box 19 — otherExpenses (subsistence, accommodation, professional fees, other). */
+    /** SA103S box 19 - otherExpenses (uniform / PPE, other). */
     otherExpensesPence: number;
     /** Expenses we deliberately excluded (motor running costs while on AMAP). */
     excludedNonAmapPence: number;
@@ -327,6 +329,7 @@ export async function buildPeriodSubmission(args: {
   });
 
   let carVanTravelPence = 0;
+  let professionalFeesPence = 0;
   let adminCostsPence = 0;
   let otherExpensesPence = 0;
   let excludedNonAmapPence = 0;
@@ -354,12 +357,14 @@ export async function buildPeriodSubmission(args: {
     }
 
     expenseCount += 1;
-    if (box === 17) carVanTravelPence += exp.amountPence;
+    // SA103S box -> HMRC Self Employment Business API expense field.
+    if (box === 12) carVanTravelPence += exp.amountPence;
+    else if (box === 16) professionalFeesPence += exp.amountPence;
     else if (box === 18) adminCostsPence += exp.amountPence;
     else if (box === 19) otherExpensesPence += exp.amountPence;
   }
 
-  // Mileage deduction itself goes into carVanTravelExpenses (Box 17).
+  // Mileage deduction itself goes into carVanTravelExpenses (SA103S box 12).
   // Parking/tolls/congestion sit alongside it in the same bucket.
   carVanTravelPence += mileageDeductionPence;
 
@@ -382,6 +387,9 @@ export async function buildPeriodSubmission(args: {
   const periodExpenses: HmrcPeriodExpenses = {};
   if (carVanTravelPence > 0) {
     periodExpenses.carVanTravelExpenses = penceToPounds(carVanTravelPence);
+  }
+  if (professionalFeesPence > 0) {
+    periodExpenses.professionalFees = penceToPounds(professionalFeesPence);
   }
   if (adminCostsPence > 0) {
     periodExpenses.adminCosts = penceToPounds(adminCostsPence);
@@ -416,6 +424,7 @@ export async function buildPeriodSubmission(args: {
       },
       expenses: {
         carVanTravelPence,
+        professionalFeesPence,
         adminCostsPence,
         otherExpensesPence,
         excludedNonAmapPence,

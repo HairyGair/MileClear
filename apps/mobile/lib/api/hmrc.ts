@@ -81,6 +81,8 @@ export interface PeriodSubmissionBreakdown {
   };
   expenses: {
     carVanTravelPence: number;
+    /** Absent from API builds before 2 Oct 2026. */
+    professionalFeesPence?: number;
     adminCostsPence: number;
     otherExpensesPence: number;
     excludedNonAmapPence: number;
@@ -94,6 +96,7 @@ export interface PeriodSubmissionPayload {
   periodIncome: { turnover?: number; other?: number };
   periodExpenses: {
     carVanTravelExpenses?: number;
+    professionalFees?: number;
     adminCosts?: number;
     otherExpenses?: number;
     [k: string]: number | undefined;
