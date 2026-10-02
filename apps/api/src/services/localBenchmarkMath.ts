@@ -139,7 +139,12 @@ export function weeklyValues(s: DriverWindowStats, family: ModeFamily, weeks = W
 }
 
 export function isEligiblePeer(s: DriverWindowStats, family: ModeFamily): boolean {
-  return s.weeksActive >= MIN_ACTIVE_WEEKS && s.families.includes(family);
+  if (s.weeksActive < MIN_ACTIVE_WEEKS || !s.families.includes(family)) return false;
+  // A work comparison is with drivers who do work miles. Most accounts sit
+  // on "both" and many never mark a business trip; counting them pulled the
+  // typical figure down and made the middle half start at 0 (2 Oct 2026).
+  if (family === "work" && s.businessMiles <= 0) return false;
+  return true;
 }
 
 // ── Distribution maths ───────────────────────────────────────────────────

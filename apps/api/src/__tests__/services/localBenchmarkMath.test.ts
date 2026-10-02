@@ -134,6 +134,8 @@ describe("eligibility", () => {
     expect(isEligiblePeer(driver("a", { weeksActive: 1 }), "work")).toBe(false);
     expect(isEligiblePeer(driver("a", { weeksActive: 2 }), "work")).toBe(true);
     expect(isEligiblePeer(driver("a", { families: ["personal"] }), "work")).toBe(false);
+    expect(isEligiblePeer(driver("a", { businessMiles: 0 }), "work")).toBe(false);
+    expect(isEligiblePeer(driver("a", { businessMiles: 0 }), "personal")).toBe(true);
   });
 });
 
