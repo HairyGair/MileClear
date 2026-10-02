@@ -183,6 +183,7 @@ export const PREMIUM_PRICE_ANNUAL_PENCE = 4499;
 export const ACQUISITION_SOURCES = [
   { value: "app_store", label: "App Store / Google Play" },
   { value: "google", label: "Google search" },
+  { value: "ai_assistant", label: "ChatGPT or another AI app" },
   { value: "facebook", label: "Facebook" },
   { value: "tiktok", label: "TikTok" },
   { value: "instagram", label: "Instagram" },
