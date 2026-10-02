@@ -1,40 +1,134 @@
 "use client";
 
-// Users section of the admin area (Sep 2026 redesign).
+// Users (Oct 2026 rebuild). Every account, searchable and filterable, with
+// the full detail modal one click away. The admin top bar's "find a user"
+// box lands here as ?q=, and ?user=<id> opens that account's detail straight
+// away (the Support and Android pages link here that way).
 
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api, fetchWithAuth } from "@/lib/api";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { Input } from "@/components/ui/Input";
-import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
-import { Pagination } from "@/components/ui/Pagination";
-import { Select } from "@/components/ui/Select";
-import { AdminPage } from "@/components/admin";
+import { Ago } from "@/components/admin/Ago";
 import { UserDetailModal } from "@/components/admin/UserDetailModal";
-import { AdminUser, downloadTextFile, EMPTY_USERS_FILTERS, platformLabel, timeAgo, usersFilterParams, UsersFilters, UsersResponse, UsersSortBy } from "@/components/admin/legacy";
+import {
+  downloadTextFile,
+  EMPTY_USERS_FILTERS,
+  platformLabel,
+  usersFilterParams,
+  type AdminUser,
+  type Analytics,
+  type UsersFilters,
+  type UsersResponse,
+  type UsersSortBy,
+} from "@/components/admin/legacy";
+import {
+  AdminIcon,
+  Badge,
+  DataTable,
+  FilterBar,
+  FilterChip,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Pager,
+  Panel,
+  SearchField,
+  SelectField,
+  formatNumber,
+  formatShare,
+  useAdminData,
+  type TableColumn,
+  type Tone,
+} from "@/components/admin/ui";
+import "@/components/admin/drivers/drivers.css";
 
+const SORT_OPTIONS = [
+  { value: "createdAt", label: "Newest sign-ups first" },
+  { value: "lastTripAt", label: "Most recent trip first" },
+  { value: "lastLoginAt", label: "Most recent login first" },
+];
+
+const PLAN_OPTIONS = [
+  { value: "", label: "Plan: all" },
+  { value: "free", label: "Free" },
+  { value: "paying", label: "Paying (Stripe and Apple, not test)" },
+  { value: "premium", label: "Any Pro flag" },
+  { value: "comp", label: "Comp (given by an admin)" },
+  { value: "trial", label: "Used their trial" },
+  { value: "referral", label: "Referral Pro" },
+];
+
+const PROVIDER_OPTIONS = [
+  { value: "", label: "Sign-in: all" },
+  { value: "email", label: "Email" },
+  { value: "apple", label: "Apple" },
+  { value: "google", label: "Google" },
+];
+
+const LIFECYCLE_OPTIONS = [
+  { value: "", label: "Activity: all" },
+  { value: "active", label: "Active (trip in 14 days)" },
+  { value: "dormant14", label: "Quiet 14 days or more" },
+  { value: "dormant90", label: "Quiet 90 days or more" },
+  { value: "dormant2y", label: "Quiet 2 years or more (retention review)" },
+  { value: "never", label: "Never recorded a trip" },
+];
+
+const HEALTH_OPTIONS = [
+  { value: "", label: "Health: all" },
+  { value: "good", label: "Good" },
+  { value: "warning", label: "Warning" },
+  { value: "critical", label: "Critical" },
+  { value: "unknown", label: "Unknown" },
+];
+
+const HEALTH_TONE: Record<string, Tone> = { good: "good", warning: "warn", critical: "bad", unknown: "neutral" };
 
 // ---------------------------------------------------------------------------
-// Users Tab
+// Headline numbers (from the analytics endpoint the Overview also reads)
 // ---------------------------------------------------------------------------
 
-function UsersTab() {
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function UserKpis({ matching, matchingLoading, matchingError, filtered }: { matching: number | null; matchingLoading: boolean; matchingError: string | null; filtered: boolean }) {
+  const { data: a, loading, error } = useAdminData<Analytics>("/admin/analytics");
+  return (
+    <Grid min={170}>
+      <KpiCard
+        label={filtered ? "Matching this search" : "Accounts listed"}
+        value={matching ?? 0}
+        tone="accent"
+        loading={matchingLoading && matching === null}
+        error={matchingError}
+        hint={filtered ? "With the search and filters below" : "Every account, no filters"}
+      />
+      <KpiCard label="Total users" value={a?.totalUsers ?? 0} loading={loading && !a} error={error} />
+      <KpiCard label="Joined this month" value={a?.usersThisMonth ?? 0} loading={loading && !a} error={error} />
+      <KpiCard
+        label="Active drivers, 30 days"
+        value={a?.activeUsers30d ?? 0}
+        tone="good"
+        loading={loading && !a}
+        error={error}
+        hint={a ? `${formatShare(a.activeUsers30d, a.totalUsers)} of all users logged a trip` : undefined}
+      />
+    </Grid>
+  );
+}
 
-  // Search. The admin top bar's "find a user" box lands here as ?q=, and a
-  // new ?q= replaces whatever is typed (so searching again from the top bar
-  // works while already on this page).
+// ---------------------------------------------------------------------------
+// The list
+// ---------------------------------------------------------------------------
+
+function UsersView() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlQuery = searchParams?.get("q") ?? "";
+  const urlUser = searchParams?.get("user") ?? null;
+
+  // Search. A new ?q= replaces whatever is typed (so searching again from the
+  // top bar works while already on this page).
   const [searchInput, setSearchInput] = useState(urlQuery);
   const [search, setSearch] = useState(urlQuery);
   useEffect(() => {
@@ -42,62 +136,56 @@ function UsersTab() {
     setSearch(urlQuery);
   }, [urlQuery]);
 
-  // Sort
-  const [sortBy, setSortBy] = useState<UsersSortBy>("createdAt");
-
-  // Segment filters
-  const [filters, setFilters] = useState<UsersFilters>(EMPTY_USERS_FILTERS);
-  const filtersActive =
-    filters.plan || filters.provider || filters.lifecycle || filters.healthBand ||
-    filters.unreachable || filters.syncBroken || filters.marketingOff;
-
-  // CSV export
-  const [exporting, setExporting] = useState(false);
-
-  // User detail modal
-  const [viewUserId, setViewUserId] = useState<string | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
-
-  // Toggle premium confirm
-  const [toggleTarget, setToggleTarget] = useState<AdminUser | null>(null);
-  const [toggleLoading, setToggleLoading] = useState(false);
-
-  // Debounce search input
+  // Debounce typing.
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Reset to page 1 when search, sort or filters change
+  const [sortBy, setSortBy] = useState<UsersSortBy>("createdAt");
+  const [filters, setFilters] = useState<UsersFilters>(EMPTY_USERS_FILTERS);
+  const filtersActive = Boolean(
+    filters.plan || filters.provider || filters.lifecycle || filters.healthBand || filters.unreachable || filters.syncBroken || filters.marketingOff
+  );
+  const [page, setPage] = useState(1);
+
+  // Back to page 1 whenever the search, sort or filters change.
   useEffect(() => {
     setPage(1);
   }, [search, sortBy, filters]);
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = usersFilterParams(filters);
-      params.set("page", String(page));
-      params.set("pageSize", "20");
-      params.set("sortBy", sortBy);
-      if (search.trim()) {
-        params.set("q", search.trim());
-      }
-      const res = await api.get<UsersResponse>(`/admin/users?${params}`);
-      setUsers(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, search, sortBy, filters]);
+  const listPath = useMemo(() => {
+    const params = usersFilterParams(filters);
+    params.set("page", String(page));
+    params.set("pageSize", "20");
+    params.set("sortBy", sortBy);
+    if (search.trim()) params.set("q", search.trim());
+    return `/admin/users?${params}`;
+  }, [filters, page, sortBy, search]);
 
+  const list = useAdminData<UsersResponse>(listPath, { unwrap: false });
+
+  // Detail modal. ?user=<id> opens it on arrival.
+  const [viewUserId, setViewUserId] = useState<string | null>(urlUser);
+  useEffect(() => {
+    if (urlUser) setViewUserId(urlUser);
+  }, [urlUser]);
+  const closeDetail = () => {
+    setViewUserId(null);
+    if (urlUser) {
+      const next = new URLSearchParams(searchParams?.toString() ?? "");
+      next.delete("user");
+      const qs = next.toString();
+      router.replace(`/dashboard/admin/users${qs ? `?${qs}` : ""}`, { scroll: false });
+    }
+  };
+
+  // CSV export
+  const [exporting, setExporting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const handleExportCsv = async () => {
     setExporting(true);
-    setError(null);
+    setActionError(null);
     try {
       const params = usersFilterParams(filters);
       if (search.trim()) params.set("q", search.trim());
@@ -105,376 +193,257 @@ function UsersTab() {
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
       const csv = await res.text();
       downloadTextFile(`mileclear-users-${new Date().toISOString().slice(0, 10)}.csv`, csv);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "Export failed");
     } finally {
       setExporting(false);
     }
   };
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
-
-  const openDetail = (user: AdminUser) => {
-    setViewUserId(user.id);
-    setShowDetail(true);
-  };
-
+  // Grant / remove Pro, with a confirmation.
+  const [toggleTarget, setToggleTarget] = useState<AdminUser | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
   const handleTogglePremium = async () => {
     if (!toggleTarget) return;
     setToggleLoading(true);
+    setActionError(null);
     try {
-      await api.patch(`/admin/users/${toggleTarget.id}/premium`, {
-        isPremium: !toggleTarget.isPremium,
-      });
+      await api.patch(`/admin/users/${toggleTarget.id}/premium`, { isPremium: !toggleTarget.isPremium });
       setToggleTarget(null);
-      loadUsers();
-    } catch (err: any) {
-      setError(err.message);
+      list.reload();
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : "Couldn't change Pro");
     } finally {
       setToggleLoading(false);
     }
   };
 
-  return (
-    <>
-      {/* Search + Sort + Export */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ flex: "1 1 260px", maxWidth: 400 }}>
-          <Input
-            id="user-search"
-            placeholder="Search by email or name..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            aria-label="Search users"
-          />
-        </div>
-        <div style={{ minWidth: 180 }}>
-          <Select
-            id="user-sort"
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as UsersSortBy)}
-            aria-label="Sort users by"
-            options={[
-              { value: "createdAt", label: "Newest signups" },
-              { value: "lastTripAt", label: "Last trip" },
-              { value: "lastLoginAt", label: "Last login" },
-            ]}
-          />
-        </div>
-        <Button
-          variant="secondary"
-          onClick={handleExportCsv}
-          disabled={exporting}
-          aria-label="Export the filtered user list as CSV"
-          title="Download the current filtered list as CSV (export is audit-logged)"
-        >
-          {exporting ? "Exporting…" : "Export CSV"}
-        </Button>
-      </div>
+  const setFilter = <K extends keyof UsersFilters>(key: K, value: UsersFilters[K]) => setFilters((f) => ({ ...f, [key]: value }));
 
-      {/* Segment filters */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-        <Select
-          id="filter-plan"
-          value={filters.plan}
-          onChange={(e) => setFilters((f) => ({ ...f, plan: e.target.value }))}
-          aria-label="Filter by plan"
-          options={[
-            { value: "", label: "Plan: all" },
-            { value: "free", label: "Free" },
-            { value: "paying", label: "Paying (Stripe + Apple production)" },
-            { value: "premium", label: "Any Pro flag" },
-            { value: "comp", label: "Comp (admin-granted)" },
-            { value: "trial", label: "Trial used" },
-            { value: "referral", label: "Referral Pro" },
-          ]}
-        />
-        <Select
-          id="filter-provider"
-          value={filters.provider}
-          onChange={(e) => setFilters((f) => ({ ...f, provider: e.target.value }))}
-          aria-label="Filter by sign-in provider"
-          options={[
-            { value: "", label: "Sign-in: all" },
-            { value: "email", label: "Email" },
-            { value: "apple", label: "Apple" },
-            { value: "google", label: "Google" },
-          ]}
-        />
-        <Select
-          id="filter-lifecycle"
-          value={filters.lifecycle}
-          onChange={(e) => setFilters((f) => ({ ...f, lifecycle: e.target.value }))}
-          aria-label="Filter by lifecycle"
-          options={[
-            { value: "", label: "Lifecycle: all" },
-            { value: "active", label: "Active (trip <14d)" },
-            { value: "dormant14", label: "Dormant 14d+" },
-            { value: "dormant90", label: "Dormant 90d+" },
-            { value: "dormant2y", label: "Dormant 2y+ (retention review)" },
-            { value: "never", label: "Never tripped" },
-          ]}
-        />
-        <Select
-          id="filter-health"
-          value={filters.healthBand}
-          onChange={(e) => setFilters((f) => ({ ...f, healthBand: e.target.value }))}
-          aria-label="Filter by health band"
-          options={[
-            { value: "", label: "Health: all" },
-            { value: "good", label: "Good" },
-            { value: "warning", label: "Warning" },
-            { value: "critical", label: "Critical" },
-            { value: "unknown", label: "Unknown" },
-          ]}
-        />
-        <button
-          type="button"
-          className={`filter-chip ${filters.unreachable ? "filter-chip--active" : ""}`}
-          onClick={() => setFilters((f) => ({ ...f, unreachable: !f.unreachable }))}
-          title="Placeholder Apple Sign-In email and no push token - no channel can reach these users"
-        >
-          Unreachable
-        </button>
-        <button
-          type="button"
-          className={`filter-chip ${filters.syncBroken ? "filter-chip--active" : ""}`}
-          onClick={() => setFilters((f) => ({ ...f, syncBroken: !f.syncBroken }))}
-          title="Users whose last heartbeat reported permanently-failed sync queue items"
-        >
-          Sync broken
-        </button>
-        <button
-          type="button"
-          className={`filter-chip ${filters.marketingOff ? "filter-chip--active" : ""}`}
-          onClick={() => setFilters((f) => ({ ...f, marketingOff: !f.marketingOff }))}
-          title="Users who opted out of marketing emails"
-        >
-          Marketing off
-        </button>
-        {filtersActive && (
+  const columns: TableColumn<AdminUser>[] = [
+    {
+      key: "email",
+      header: "Account",
+      render: (u) => {
+        const dump = u.diagnosticDump && u.diagnosticDump.verdict !== "healthy" ? u.diagnosticDump : null;
+        return (
+          <span className="adm-drv-nowrap">
+            <span className="adm-drv-strong">{u.email}</span>
+            <span className="adm-cell-sub">
+              {u.displayName || "No name"}
+              {dump && (
+                <>
+                  {" · "}
+                  <span
+                    className={dump.verdict === "error" ? "adm-drv-tone-bad" : dump.verdict === "warning" ? "adm-drv-tone-warn" : ""}
+                    title={`Last diagnostic: ${dump.verdict} (${new Date(dump.capturedAt).toLocaleString("en-GB")})`}
+                  >
+                    Diagnostic {dump.verdict}
+                  </span>
+                </>
+              )}
+            </span>
+          </span>
+        );
+      },
+    },
+    {
+      key: "status",
+      header: "Plan",
+      render: (u) => (
+        <span className="adm-drv-row" style={{ gap: 4, flexWrap: "nowrap" }}>
+          {u.isPremium && <Badge tone="accent">Pro</Badge>}
+          {u.proSource === "comp" && <Badge title="Given by an admin. No subscription, not counted in revenue.">Comp</Badge>}
+          {u.proSource === "sandbox" && <Badge tone="warn" title="App Store sandbox subscription (TestFlight or App Review). Not revenue.">Sandbox</Badge>}
+          {u.proSource === "referral" && <Badge title="Pro from referral credit. Not a paying subscriber.">Referral Pro</Badge>}
+          {u.isAdmin && <Badge tone="info">Admin</Badge>}
+          {!u.isPremium && !u.isAdmin && u.proSource !== "referral" && <Badge>Free</Badge>}
+          {u.unreachable && <Badge tone="bad" title="Hidden Apple email and no push token: no way to contact them">Unreachable</Badge>}
+        </span>
+      ),
+    },
+    {
+      key: "platform",
+      header: "Phone",
+      hideOnMobile: true,
+      render: (u) => (
+        <span title={u.signupLocation ? `Signed up on ${u.signupPlatform ?? "?"} from ${u.signupLocation}` : undefined}>{platformLabel(u.platforms)}</span>
+      ),
+    },
+    {
+      key: "health",
+      header: "Health",
+      hideOnMobile: true,
+      title: "Health score out of 100, from the phone's last check-in: background location, tracking, sync queue and recent driving",
+      render: (u) =>
+        u.healthScore !== undefined && u.healthBand && u.healthBand !== "unknown" ? (
+          <Badge tone={HEALTH_TONE[u.healthBand]} dot title={`${u.healthBand} (${u.healthScore}/100)`}>
+            {u.healthScore}
+          </Badge>
+        ) : (
+          <span className="adm-drv-tone-muted">-</span>
+        ),
+    },
+    { key: "trips", header: "Trips", numeric: true, render: (u) => formatNumber(u._count.trips) },
+    { key: "lastTrip", header: "Last trip", hideOnMobile: true, render: (u) => <Ago iso={u.lastTripAt} className="adm-drv-nowrap" /> },
+    { key: "lastLogin", header: "Last login", hideOnMobile: true, render: (u) => <Ago iso={u.lastLoginAt} className="adm-drv-nowrap" /> },
+    {
+      key: "joined",
+      header: "Joined",
+      hideOnMobile: true,
+      render: (u) => (
+        <span className="adm-drv-nowrap">{new Date(u.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })}</span>
+      ),
+    },
+    {
+      key: "actions",
+      header: <span className="adm-sr">Actions</span>,
+      align: "right",
+      render: (u) => (
+        // Buttons stop the click reaching the row, which opens the detail.
+        <span className="adm-drv-actions" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           <button
             type="button"
-            className="filter-chip"
-            onClick={() => setFilters(EMPTY_USERS_FILTERS)}
+            className="adm-btn adm-btn--sm"
+            onClick={() => setToggleTarget(u)}
+            aria-label={u.isPremium ? `Remove Pro from ${u.email}` : `Give Pro to ${u.email}`}
           >
-            Clear filters
+            {u.isPremium ? "Remove Pro" : "Give Pro"}
           </button>
-        )}
-      </div>
+          <button type="button" className="adm-btn adm-btn--sm" onClick={() => setViewUserId(u.id)} aria-label={`View details for ${u.email}`}>
+            View
+          </button>
+        </span>
+      ),
+    },
+  ];
 
-      {error && (
-        <div className="alert alert--error" style={{ marginBottom: "1rem" }} role="alert">
-          {error}
-        </div>
-      )}
+  const total = list.data?.total ?? null;
+  const filtered = Boolean(search.trim()) || filtersActive;
 
-      {loading ? (
-        <LoadingSkeleton variant="row" count={8} style={{ marginBottom: 8 }} />
-      ) : users.length === 0 ? (
-        <Card>
-          <p
-            style={{
-              textAlign: "center",
-              color: "var(--text-secondary)",
-              padding: "2rem",
-              fontSize: "0.9375rem",
-            }}
+  return (
+    <>
+      <PageHeader
+        title="Users"
+        subtitle="Every account, searchable and filterable. Open a row for everything about that driver: trips, phone health, billing and support history."
+        actions={
+          <button
+            type="button"
+            className="adm-btn"
+            onClick={() => void handleExportCsv()}
+            disabled={exporting}
+            title="Download the current filtered list as CSV. Every export is logged."
           >
-            {search ? `No users found for "${search}"` : "No users found."}
-          </p>
-        </Card>
-      ) : (
-        <>
-          <p
-            style={{
-              fontSize: "0.8125rem",
-              color: "var(--text-secondary)",
-              marginBottom: "0.75rem",
-            }}
-          >
-            {total} user{total !== 1 ? "s" : ""}
-            {search && ` matching "${search}"`}
-          </p>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Email</th>
-                  <th>Name</th>
-                  <th>Status</th>
-                  <th>Platform</th>
-                  <th title="Per-user health score (0-100). Composed from heartbeat fields: bg-location, tracking task, sync queue, recent driving signal.">Health</th>
-                  <th>Trips</th>
-                  <th>Last trip</th>
-                  <th>Last login</th>
-                  <th>Joined</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id}>
-                    <td style={{ fontSize: "0.875rem" }}>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
-                        {user.email}
-                        {user.diagnosticDump && user.diagnosticDump.verdict !== "healthy" && (
-                          <span
-                            title={`Detection: ${user.diagnosticDump.verdict} (${new Date(user.diagnosticDump.capturedAt).toLocaleString()})`}
-                            style={{
-                              display: "inline-block",
-                              width: 8,
-                              height: 8,
-                              borderRadius: "50%",
-                              flexShrink: 0,
-                              background: user.diagnosticDump.verdict === "error" ? "var(--dash-red)"
-                                : user.diagnosticDump.verdict === "warning" ? "var(--amber-500)"
-                                : "var(--dash-blue, #3b82f6)",
-                            }}
-                          />
-                        )}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
-                      {user.displayName || "-"}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
-                        {user.isPremium && <Badge variant="pro">PRO</Badge>}
-                        {user.proSource === "comp" && (
-                          <span title="Admin-granted Pro - no subscription, not counted in revenue"><Badge variant="source">Comp</Badge></span>
-                        )}
-                        {user.proSource === "sandbox" && (
-                          <span title="App Store sandbox subscription (TestFlight / App Review) - not revenue"><Badge variant="warning">Sandbox</Badge></span>
-                        )}
-                        {user.proSource === "referral" && (
-                          <span title="Pro via referral credit - not a paying subscriber"><Badge variant="source">Referral Pro</Badge></span>
-                        )}
-                        {user.isAdmin && <Badge variant="primary">Admin</Badge>}
-                        {!user.isPremium && !user.isAdmin && user.proSource !== "referral" && (
-                          <Badge variant="source">Free</Badge>
-                        )}
-                        {user.unreachable && (
-                          <span title="Placeholder Apple email + no push token - cannot be contacted by any channel">
-                            <Badge variant="danger">Unreachable</Badge>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }} title={user.signupLocation ? `Signed up on ${user.signupPlatform ?? "?"} from ${user.signupLocation}` : undefined}>
-                      {platformLabel(user.platforms)}
-                    </td>
-                    <td style={{ fontSize: "0.875rem", whiteSpace: "nowrap" }}>
-                      {user.healthScore !== undefined && user.healthBand ? (
-                        <span
-                          style={{
-                            color:
-                              user.healthBand === "good"
-                                ? "#10b981"
-                                : user.healthBand === "warning"
-                                  ? "#f59e0b"
-                                  : user.healthBand === "critical"
-                                    ? "#ef4444"
-                                    : "var(--text-secondary)",
-                            fontWeight: 600,
-                          }}
-                          title={`${user.healthBand} (${user.healthScore}/100)`}
-                        >
-                          {user.healthBand === "unknown" ? "-" : user.healthScore}
-                        </span>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td style={{ fontSize: "0.875rem" }}>{user._count.trips}</td>
-                    <td
-                      style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", color: "var(--text-secondary)" }}
-                      title={user.lastTripAt ? new Date(user.lastTripAt).toLocaleString() : ""}
-                    >
-                      {user.lastTripAt ? timeAgo(user.lastTripAt) : "-"}
-                    </td>
-                    <td
-                      style={{ fontSize: "0.8125rem", whiteSpace: "nowrap", color: "var(--text-secondary)" }}
-                      title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : ""}
-                    >
-                      {user.lastLoginAt ? timeAgo(user.lastLoginAt) : "-"}
-                    </td>
-                    <td style={{ fontSize: "0.875rem", whiteSpace: "nowrap" }}>
-                      {new Date(user.createdAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "2-digit",
-                      })}
-                    </td>
-                    <td>
-                      <div className="table__actions">
-                        <button
-                          className="table__action-btn"
-                          onClick={() => setToggleTarget(user)}
-                          aria-label={
-                            user.isPremium
-                              ? `Remove premium from ${user.email}`
-                              : `Grant premium to ${user.email}`
-                          }
-                        >
-                          {user.isPremium ? "Remove PRO" : "Grant PRO"}
-                        </button>
-                        <button
-                          className="table__action-btn"
-                          onClick={() => openDetail(user)}
-                          aria-label={`View details for ${user.email}`}
-                        >
-                          View
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-        </>
-      )}
-
-      {/* User Detail Modal */}
-      <UserDetailModal
-        userId={viewUserId}
-        open={showDetail}
-        onClose={() => {
-          setShowDetail(false);
-          setViewUserId(null);
-        }}
+            <AdminIcon name="arrowDown" size={14} />
+            {exporting ? "Exporting..." : "Export CSV"}
+          </button>
+        }
       />
 
-      {/* Toggle Premium Confirmation */}
+      <UserKpis matching={total} matchingLoading={list.loading} matchingError={list.error} filtered={filtered} />
+
+      <Panel
+        highlight
+        title="Accounts"
+        subtitle="Search by email or name, then narrow it down. The export uses the same search and filters."
+        footer="Sorting applies to every account, not just this page. Hover a column heading or badge for what it means."
+      >
+        <div className="adm-drv-stack adm-drv-stack--sm" style={{ marginBottom: "var(--adm-s4)" }}>
+          <FilterBar spaced={false}>
+            <SearchField id="user-search" label="Search users" placeholder="Search by email or name..." value={searchInput} onChange={setSearchInput} />
+            <SelectField id="user-sort" label="Sort users by" value={sortBy} onChange={(v) => setSortBy(v as UsersSortBy)} options={SORT_OPTIONS} minWidth={190} />
+          </FilterBar>
+          <FilterBar spaced={false}>
+            <SelectField id="filter-plan" label="Filter by plan" value={filters.plan} onChange={(v) => setFilter("plan", v)} options={PLAN_OPTIONS} />
+            <SelectField id="filter-provider" label="Filter by sign-in method" value={filters.provider} onChange={(v) => setFilter("provider", v)} options={PROVIDER_OPTIONS} />
+            <SelectField id="filter-lifecycle" label="Filter by activity" value={filters.lifecycle} onChange={(v) => setFilter("lifecycle", v)} options={LIFECYCLE_OPTIONS} />
+            <SelectField id="filter-health" label="Filter by health" value={filters.healthBand} onChange={(v) => setFilter("healthBand", v)} options={HEALTH_OPTIONS} />
+          </FilterBar>
+          <FilterBar spaced={false}>
+            <FilterChip
+              active={filters.unreachable}
+              tone="bad"
+              onClick={() => setFilter("unreachable", !filters.unreachable)}
+              title="Hidden Apple email and no push token: no way to contact them"
+            >
+              Unreachable
+            </FilterChip>
+            <FilterChip
+              active={filters.syncBroken}
+              tone="warn"
+              onClick={() => setFilter("syncBroken", !filters.syncBroken)}
+              title="The phone's last check-in reported items that failed to sync for good"
+            >
+              Sync broken
+            </FilterChip>
+            <FilterChip active={filters.marketingOff} onClick={() => setFilter("marketingOff", !filters.marketingOff)} title="Opted out of marketing emails">
+              Marketing off
+            </FilterChip>
+            {filtersActive && (
+              <button type="button" className="adm-btn adm-btn--sm" onClick={() => setFilters(EMPTY_USERS_FILTERS)}>
+                Clear filters
+              </button>
+            )}
+          </FilterBar>
+        </div>
+
+        {actionError && <p className="adm-drv-alert" role="alert">{actionError}</p>}
+
+        <LoadState
+          data={list.data}
+          loading={list.loading}
+          error={list.error}
+          onRetry={list.reload}
+          errorTitle="Couldn't load the user list."
+          skeleton={<LoadingSkeleton variant="table" rows={8} />}
+        >
+          {(d) => (
+            <div className={list.loading ? "adm-drv-dim" : undefined} aria-busy={list.loading || undefined}>
+              {list.error && <p className="adm-drv-alert" role="alert">Couldn&apos;t refresh the list: {list.error}</p>}
+              <DataTable
+                caption="User accounts"
+                columns={columns}
+                rows={d.data}
+                rowKey={(u) => u.id}
+                onRowClick={(u) => setViewUserId(u.id)}
+                emptyTitle={search.trim() ? `No users found for "${search.trim()}"` : "No users match these filters"}
+                empty={filtersActive ? "Try clearing the filters." : undefined}
+              />
+              <Pager
+                page={page}
+                totalPages={d.totalPages}
+                onChange={setPage}
+                info={`${formatNumber(d.total)} account${d.total === 1 ? "" : "s"}${search.trim() ? ` matching "${search.trim()}"` : ""}`}
+              />
+            </div>
+          )}
+        </LoadState>
+      </Panel>
+
+      <UserDetailModal userId={viewUserId} open={!!viewUserId} onClose={closeDetail} />
+
       <ConfirmModal
         open={!!toggleTarget}
         onClose={() => setToggleTarget(null)}
         onConfirm={handleTogglePremium}
-        title={toggleTarget?.isPremium ? "Remove Premium" : "Grant Premium"}
+        title={toggleTarget?.isPremium ? "Remove Pro" : "Give Pro"}
         message={
           toggleTarget?.isPremium
-            ? `Remove premium access from ${toggleTarget?.email}? Their subscription data will remain but premium features will be disabled.`
-            : `Grant premium access to ${toggleTarget?.email}? This will enable all premium features without a Stripe subscription.`
+            ? `Remove Pro from ${toggleTarget?.email}? Their subscription data stays, but Pro features will be turned off.`
+            : `Give Pro to ${toggleTarget?.email}? This turns on every Pro feature without a subscription.`
         }
-        confirmLabel={toggleTarget?.isPremium ? "Remove PRO" : "Grant PRO"}
+        confirmLabel={toggleTarget?.isPremium ? "Remove Pro" : "Give Pro"}
         loading={toggleLoading}
       />
     </>
   );
 }
 
-
-export default function AdminUsersTabPage() {
+export default function AdminUsersPage() {
   return (
-    <AdminPage title="Users" intro="Every account, searchable and filterable. Open a row for the full detail modal.">
-      {/* useSearchParams needs a Suspense boundary for the static build. */}
-      <Suspense fallback={null}>
-        <UsersTab />
-      </Suspense>
-    </AdminPage>
+    // useSearchParams needs a Suspense boundary for the static build.
+    <Suspense fallback={<LoadingSkeleton variant="table" rows={8} />}>
+      <UsersView />
+    </Suspense>
   );
 }

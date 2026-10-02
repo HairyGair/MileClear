@@ -1,13 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { api } from "../../../../lib/api";
-import { formatReportedDate } from "../../../../lib/reportedDate";
-
-// Triage inbox for "Missing a trip?" reports (the Trips-screen affordance,
-// live since 9 Jun 2026). Each report arrives pre-diagnosed using the
-// support-playbook rules, so most answer themselves before being opened:
+// Missing trips (Oct 2026 rebuild). Triage for "Missing a trip?" reports from
+// the Trips screen (live since 9 Jun 2026). Each report arrives pre-diagnosed
+// using the support-playbook rules, so most answer themselves before being
+// opened:
 //   landed_after_report → Class 11: the trip arrived after the report.
 //   open_recording      → Class 15: signal_start with no trip.created since;
 //                         the route is on the phone until their next drive.
@@ -21,6 +17,42 @@ import { formatReportedDate } from "../../../../lib/reportedDate";
 //                         device (the Norman Boomer class). Fix = engine
 //                         switch on the user detail panel.
 //   needs_look          → no rule matched; read the dump.
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { formatReportedDate } from "@/lib/reportedDate";
+import { Ago } from "@/components/admin/Ago";
+import {
+  AdminIcon,
+  Badge,
+  BarChart,
+  BarList,
+  DataTable,
+  EmptyState,
+  FilterBar,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Panel,
+  SelectField,
+  dayKey,
+  formatDay,
+  useAdminData,
+  type TableColumn,
+  type Tone,
+} from "@/components/admin/ui";
+import "@/components/admin/drivers/drivers.css";
+
+type Diagnosis =
+  | "landed_after_report"
+  | "open_recording"
+  | "no_addresses"
+  | "head_gap"
+  | "permission_gap"
+  | "silent_non_capture"
+  | "needs_look";
 
 interface Report {
   id: string;
@@ -38,56 +70,52 @@ interface Report {
   motionPermission: string | null;
   nativeEngine: boolean;
   recentAutoTrips: number;
-  diagnosis:
-    | "landed_after_report"
-    | "open_recording"
-    | "no_addresses"
-    | "head_gap"
-    | "permission_gap"
-    | "silent_non_capture"
-    | "needs_look";
+  diagnosis: Diagnosis;
   evidence: string | null;
   tripId: string | null;
   selfAdded: boolean;
 }
 
-const DIAGNOSIS_META: Record<Report["diagnosis"], { label: string; color: string; hint: string }> = {
+const DIAGNOSIS: Record<Diagnosis, { label: string; tone: Tone; hint: string }> = {
   landed_after_report: {
-    label: "Not missing - landed after report",
-    color: "#10b981",
-    hint: "The trip was created shortly after the report (finalize or sync lag). Nothing to recover; a push pointing at Trips closes it.",
+    label: "Not missing, arrived after the report",
+    tone: "good",
+    hint: "The trip was created shortly after the report (finishing or syncing late). Nothing to recover; a push pointing at Trips closes it.",
   },
   open_recording: {
-    label: "Open recording on phone",
-    color: "#ef4444",
-    hint: "The engine opened a recording and never closed it. The route is in detection_coordinates on the phone and their NEXT DRIVE prunes it. Ask them to open the app now; if the heartbeat is frozen at the signal, no push will arrive.",
+    label: "Recording still open on the phone",
+    tone: "bad",
+    hint: "The engine opened a recording and never closed it. The route is on the phone (detection_coordinates) and their next drive overwrites it. Ask them to open the app now; if the heartbeat is frozen at the signal, no push will arrive.",
   },
   no_addresses: {
-    label: "Trip exists, no addresses",
-    color: "#f59e0b",
-    hint: "Both addresses are null so the trips list draws no route line and the drive reads as missing. Point them at the trip; consider a reverse-geocode backfill.",
+    label: "Trip there, no addresses",
+    tone: "warn",
+    hint: "Both addresses are empty, so the trips list draws no route line and the drive reads as missing. Point them at the trip; consider a reverse-geocode backfill.",
   },
   head_gap: {
-    label: "Trip exists, head missing",
-    color: "#ef4444",
-    hint: "Start Trip path: startedAt is from the tap but the trail begins later, so the leading leg's miles are absent. Route the gap and add it (f7ecbb4 does this for new trips).",
+    label: "Trip there, start missing",
+    tone: "bad",
+    hint: "Start Trip path: the start time is from the tap but the trail begins later, so the first part's miles are absent. Route the gap and add it (f7ecbb4 does this for new trips).",
   },
   permission_gap: {
-    label: "Permission gap",
-    color: "#f59e0b",
-    hint: "Background location / Motion not granted - the engine can't run with the app closed. Advise Always-location + Motion & Fitness, and manual entry for the missed trip.",
+    label: "Permission missing",
+    tone: "warn",
+    hint: "Background location or Motion not granted, so the engine can't run with the app closed. Advise Always location plus Motion & Fitness, and manual entry for the missed trip.",
   },
   silent_non_capture: {
-    label: "Silent non-capture",
-    color: "#ef4444",
+    label: "Engine never records",
+    tone: "bad",
     hint: "Native engine on, permissions fine, but no recording ever opens (RNBG never reports motion). Switch the device to the JS engine from the user detail panel.",
   },
   needs_look: {
     label: "Needs a look",
-    color: "#94a3b8",
-    hint: "Neither playbook rule matched - open the user's diagnostics and read the event timeline.",
+    tone: "neutral",
+    hint: "No playbook rule matched. Open the user's diagnostics and read the event timeline.",
   },
 };
+
+const ORDER: Diagnosis[] = ["open_recording", "head_gap", "silent_non_capture", "permission_gap", "no_addresses", "needs_look", "landed_after_report"];
+const NEEDS_FIX: Diagnosis[] = ["open_recording", "head_gap", "silent_non_capture"];
 
 function ago(iso: string | null): string {
   if (!iso) return "-";
@@ -98,130 +126,235 @@ function ago(iso: string | null): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export default function MissingTripReportsPage() {
-  const [reports, setReports] = useState<Report[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function last30Days(reports: Report[]) {
+  const counts = new Map<string, number>();
+  for (const r of reports) {
+    const k = dayKey(new Date(r.reportedAt));
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  const out: Array<{ date: string; count: number }> = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const k = dayKey(d);
+    out.push({ date: k, count: counts.get(k) ?? 0 });
+  }
+  return out;
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ data: { reports: Report[] } }>("/admin/missing-trip-reports")
-      .then((res) => {
-        if (!cancelled) setReports(res.data.reports);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+export default function MissingTripReportsPage() {
+  const { data, error, loading, reload } = useAdminData<{ reports: Report[] }>("/admin/missing-trip-reports");
+  const [filter, setFilter] = useState<string>("");
+
+  const reports = data?.reports ?? null;
+  const counts = useMemo(() => {
+    const c = Object.fromEntries(ORDER.map((d) => [d, 0])) as Record<Diagnosis, number>;
+    for (const r of reports ?? []) c[r.diagnosis] = (c[r.diagnosis] ?? 0) + 1;
+    return c;
+  }, [reports]);
+  const needFix = NEEDS_FIX.reduce((n, d) => n + counts[d], 0);
+  const selfAdded = reports?.filter((r) => r.selfAdded).length ?? 0;
+  const shown = useMemo(() => (reports ?? []).filter((r) => !filter || r.diagnosis === filter), [reports, filter]);
+  const kLoading = loading && !data;
+
+  const columns: TableColumn<Report>[] = [
+    {
+      key: "who",
+      header: "Driver",
+      sortValue: (r) => (r.displayName || r.email || r.userId || "").toLowerCase(),
+      render: (r) => (
+        <span className="adm-drv-nowrap">
+          {r.userId ? (
+            <Link className="adm-drv-link" href={`/dashboard/admin/users?user=${r.userId}`}>
+              {r.displayName || r.email || r.userId}
+            </Link>
+          ) : (
+            <span className="adm-drv-strong">{r.displayName || r.email || "(deleted account)"}</span>
+          )}
+          {r.displayName && r.email && <span className="adm-cell-sub">{r.email}</span>}
+          {r.selfAdded && (
+            <span className="adm-cell-sub adm-drv-tone-warn" title="They entered a manual trip after reporting. Un-hiding or re-adding the captured one would duplicate it.">
+              Added a manual trip themselves afterwards
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "diagnosis",
+      header: "Diagnosis",
+      sortValue: (r) => ORDER.indexOf(r.diagnosis),
+      render: (r) => {
+        const meta = DIAGNOSIS[r.diagnosis];
+        return (
+          <div className="adm-drv-wrap">
+            <Badge tone={meta.tone} dot title={meta.hint}>{meta.label}</Badge>
+            {r.evidence && (
+              <span className="adm-cell-sub" style={{ whiteSpace: "normal" }}>
+                {r.evidence}
+                {r.tripId && <> · trip <code className="adm-drv-mono">{r.tripId.slice(0, 8)}</code></>}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: "drove",
+      header: "Drove",
+      title: "The day they said they drove. Picked in the app since 16 Sep 2026; older reports have no date.",
+      sortValue: (r) => r.reportedDate,
+      render: (r) => (
+        <span className={`adm-drv-nowrap${r.reportedDate ? "" : " adm-drv-tone-muted"}`}>{formatReportedDate(r.reportedDate)}</span>
+      ),
+    },
+    {
+      key: "note",
+      header: "Their note",
+      hideOnMobile: true,
+      render: (r) => (r.note ? <div className="adm-drv-wrap adm-drv-quote">&ldquo;{r.note}&rdquo;</div> : <span className="adm-drv-tone-muted">-</span>),
+    },
+    {
+      key: "reported",
+      header: "Reported",
+      sortValue: (r) => new Date(r.reportedAt).getTime(),
+      render: (r) => <Ago iso={r.reportedAt} className="adm-drv-nowrap" />,
+    },
+    {
+      key: "phone",
+      header: "Phone",
+      hideOnMobile: true,
+      title: "From the phone's latest diagnostic and the last 4 days of trips",
+      render: (r) => (
+        <span className="adm-drv-nowrap" style={{ fontSize: "0.78rem" }}>
+          Diagnostic {r.dumpVerdict ?? "none"} ({ago(r.dumpAt)})
+          <span className="adm-cell-sub">
+            Background{" "}
+            <span className={r.backgroundPermission && r.backgroundPermission !== "granted" ? "adm-drv-tone-bad" : undefined}>
+              {r.backgroundPermission ?? "?"}
+            </span>
+            {" · "}Motion{" "}
+            <span className={r.motionPermission && r.motionPermission !== "granted" ? "adm-drv-tone-bad" : undefined}>{r.motionPermission ?? "?"}</span>
+          </span>
+          <span className="adm-cell-sub">
+            {r.nativeEngine ? "ClearTrack engine" : "JS engine"} · {r.recentAutoTrips} auto trip{r.recentAutoTrips === 1 ? "" : "s"} in 4 days
+          </span>
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div style={{ padding: "1.5rem 0", maxWidth: 1100 }}>
-      <div style={{ marginBottom: "1rem" }}>
-        <Link href="/dashboard/admin" style={{ color: "#94a3b8", fontSize: "0.875rem", textDecoration: "none" }}>
-          ← Admin
-        </Link>
+    <>
+      <PageHeader
+        title="Missing trips"
+        subtitle="Drivers who tapped “Missing a trip?” in the last 30 days, each checked against their phone's latest diagnostic so the likely cause is already named."
+        actions={
+          <Link href="/dashboard/admin/support" className="adm-btn">
+            <AdminIcon name="arrowLeft" size={14} /> Support queue
+          </Link>
+        }
+      />
+
+      <Grid min={170}>
+        <KpiCard label="Reports, last 30 days" value={reports?.length ?? 0} tone="accent" loading={kLoading} error={error} />
+        <KpiCard
+          label="Need a fix from us"
+          value={needFix}
+          tone={reports ? (needFix > 0 ? "bad" : "good") : "neutral"}
+          loading={kLoading}
+          error={error}
+          hint="Open recording, start missing or engine never records"
+        />
+        <KpiCard
+          label="Not actually missing"
+          value={counts.landed_after_report}
+          tone="good"
+          loading={kLoading}
+          error={error}
+          hint="The trip arrived after they reported it"
+        />
+        <KpiCard label="Added it themselves" value={selfAdded} loading={kLoading} error={error} hint="Entered a manual trip after reporting" />
+      </Grid>
+
+      <div className="adm-split">
+        <Panel title="Reports per day" subtitle="When drivers tapped “Missing a trip?”, last 30 days.">
+          <LoadState data={reports} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the reports." skeleton={<LoadingSkeleton variant="chart" height={200} />}>
+            {(rs) => (
+              <BarChart
+                label="Missing-trip reports per day, last 30 days"
+                unit="reports"
+                height={200}
+                partialIndex={29}
+                data={last30Days(rs).map((d) => ({
+                  label: formatDay(d.date, { day: "numeric", month: "short" }),
+                  fullLabel: formatDay(d.date),
+                  value: d.count,
+                }))}
+              />
+            )}
+          </LoadState>
+        </Panel>
+        <Panel title="By diagnosis" subtitle="Last 30 days. Use the filter on the reports list to see one kind.">
+          <LoadState data={reports} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the reports." skeleton={<LoadingSkeleton rows={6} />}>
+            {(rs) =>
+              rs.length === 0 ? (
+                <EmptyState compact title="No reports">Nobody has reported a missing trip in 30 days.</EmptyState>
+              ) : (
+                <BarList
+                  label="Reports by diagnosis"
+                  items={ORDER.filter((d) => counts[d] > 0).map((d) => ({ key: d, label: DIAGNOSIS[d].label, value: counts[d] }))}
+                />
+              )
+            }
+          </LoadState>
+        </Panel>
       </div>
 
-      <h1
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "1.75rem",
-          fontWeight: 700,
-          color: "#f9fafb",
-          marginBottom: "0.5rem",
-        }}
+      <Panel
+        highlight
+        title="Reports"
+        subtitle="Newest first. Hover a diagnosis for the recommended fix, or read the guide at the bottom. Click a name to open that driver."
       >
-        Missing-Trip Reports
-      </h1>
-      <p style={{ color: "#94a3b8", marginBottom: "2rem", lineHeight: 1.6, maxWidth: 800 }}>
-        &quot;Missing a trip?&quot; taps from the Trips screen, last 30 days, newest first. Each
-        report is auto-diagnosed from the user&apos;s latest diagnostic dump and recent capture
-        stats - hover a diagnosis chip for the recommended fix.
-      </p>
+        <FilterBar>
+          <SelectField
+            id="mt-diagnosis"
+            label="Show diagnosis"
+            value={filter}
+            onChange={setFilter}
+            minWidth={240}
+            options={[
+              { value: "", label: `Every diagnosis${reports ? ` (${reports.length})` : ""}` },
+              ...ORDER.map((d) => ({ value: d, label: `${DIAGNOSIS[d].label}${reports ? ` (${counts[d]})` : ""}` })),
+            ]}
+          />
+        </FilterBar>
+        <LoadState data={reports} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the reports." skeleton={<LoadingSkeleton variant="table" rows={6} />}>
+          {() => (
+            <DataTable
+              caption="Missing-trip reports, newest first"
+              columns={columns}
+              rows={shown}
+              rowKey={(r) => r.id}
+              rowTone={(r) => (NEEDS_FIX.includes(r.diagnosis) ? "bad" : undefined)}
+              maxHeight={720}
+              emptyTitle={filter ? "No reports with this diagnosis" : "No reports in the last 30 days"}
+              empty={filter ? undefined : "A quiet inbox means drivers are finding their trips."}
+            />
+          )}
+        </LoadState>
+      </Panel>
 
-      {loading && <p style={{ color: "#94a3b8" }}>Loading…</p>}
-      {error && <p style={{ color: "#ef4444" }}>Error: {error}</p>}
-
-      {reports && reports.length === 0 && (
-        <p style={{ color: "#10b981" }}>No reports in the last 30 days. Quiet inbox = healthy fleet.</p>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {reports?.map((r) => {
-          const meta = DIAGNOSIS_META[r.diagnosis];
-          return (
-            <div
-              key={r.id}
-              style={{
-                border: "1px solid rgba(255,255,255,0.07)",
-                borderRadius: 12,
-                background: "rgba(15,23,42,0.6)",
-                padding: "0.875rem 1rem",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "baseline", gap: "0.75rem", flexWrap: "wrap" }}>
-                <strong style={{ color: "#e2e8f0" }}>{r.displayName || r.email || r.userId}</strong>
-                <span
-                  title={meta.hint}
-                  style={{
-                    color: meta.color,
-                    border: `1px solid ${meta.color}`,
-                    borderRadius: 999,
-                    padding: "0.0625rem 0.5rem",
-                    fontSize: "0.75rem",
-                    fontWeight: 600,
-                    cursor: "help",
-                  }}
-                >
-                  {meta.label}
-                </span>
-                <span style={{ color: "#64748b", fontSize: "0.8125rem" }}>{ago(r.reportedAt)}</span>
-              </div>
-
-              {r.evidence && (
-                <div style={{ color: "#cbd5e1", fontSize: "0.8125rem", margin: "0.35rem 0", lineHeight: 1.5 }}>
-                  {r.evidence}
-                  {r.tripId && (
-                    <span style={{ color: "#64748b" }}> · trip <code>{r.tripId.slice(0, 8)}</code></span>
-                  )}
-                </div>
-              )}
-              {r.selfAdded && (
-                <div style={{ color: "#fbbf24", fontSize: "0.75rem", marginBottom: "0.25rem" }} title="They entered a manual trip after reporting. Un-hiding or re-adding the captured one would duplicate it.">
-                  Added a manual trip themselves afterwards
-                </div>
-              )}
-              <p style={{ color: "#cbd5e1", margin: "0.5rem 0 0" }}>
-                <span
-                  title="The day the user said they drove. Filed on the picker since 16 Sep 2026; older reports have no date."
-                  style={{
-                    color: r.reportedDate ? "#fbbf24" : "#64748b",
-                    fontSize: "0.8125rem",
-                    fontWeight: 600,
-                    marginRight: "0.5rem",
-                  }}
-                >
-                  Drove {formatReportedDate(r.reportedDate)}
-                </span>
-                {r.note && <span style={{ fontStyle: "italic" }}>&ldquo;{r.note}&rdquo;</span>}
-              </p>
-
-              <p style={{ color: "#94a3b8", fontSize: "0.8125rem", margin: "0.5rem 0 0" }}>
-                Dump: {r.dumpVerdict ?? "none"} ({ago(r.dumpAt)}) · bg-location:{" "}
-                {r.backgroundPermission ?? "?"} · motion: {r.motionPermission ?? "?"} · engine:{" "}
-                {r.nativeEngine ? "ClearTrack" : "JS"} · auto trips last 4d: {r.recentAutoTrips}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+      <Panel title="What each diagnosis means" subtitle="The playbook rule behind each label, and what to do about it.">
+        <ul className="adm-drv-guide">
+          {ORDER.map((d) => (
+            <li key={d}>
+              <span><Badge tone={DIAGNOSIS[d].tone} dot>{DIAGNOSIS[d].label}</Badge></span>
+              <p className="adm-text">{DIAGNOSIS[d].hint}</p>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </>
   );
 }

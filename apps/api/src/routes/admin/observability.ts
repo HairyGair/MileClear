@@ -8,6 +8,7 @@
 //   GET /admin/qr-scans              billboard QR scans (mileclear.com/app) by store and day
 //   GET /admin/acquisition           "How did you hear about MileClear?" answers
 //   GET /admin/geography             where sign-ups are: nation/region/postcode area/district
+//   GET /admin/signups/daily         sign-ups per UK calendar day, last N days
 //
 // The counting lives in services/adminObservability.ts so it is unit-tested;
 // this file only fetches rows and shapes the response.
@@ -22,6 +23,7 @@ import { ACQUISITION_SOURCES } from "@mileclear/shared";
 import { cacheGet, cacheSet } from "../../lib/redis.js";
 import { rollupGeography, type GeoWindow } from "../../services/geography.js";
 import { loadGeographyBase, TRIPS_PER_USER_CAP } from "../../services/geographyLoader.js";
+import { bucketSignupsDaily, signupsDailyRangeStart } from "../../services/signupsDaily.js";
 import {
   ageHours,
   classifyAndroidTester,
@@ -529,5 +531,28 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
     };
     await cacheSet(key, JSON.stringify(data), 300);
     return reply.send({ data });
+  });
+  // ── Sign-ups per day ──────────────────────────────────────────────────────
+  //
+  // GET /admin/signups/daily?days=N   (N 1..400, default 30)
+  // Response { data: { days: [{ date: "YYYY-MM-DD", count }], total } }
+  // Days are UK calendar days (Europe/London), oldest first, ending today,
+  // with empty days filled as 0. Only id + createdAt are selected and the
+  // bucketing is done in services/signupsDaily.ts (unit-tested across the
+  // BST/GMT change) rather than with CONVERT_TZ, which needs MySQL's time
+  // zone tables. Deleted accounts are not counted.
+  app.get("/signups/daily", async (request, reply) => {
+    const q = z
+      .object({ days: z.coerce.number().int().min(1).max(400).default(30) })
+      .safeParse(request.query);
+    if (!q.success) return reply.status(400).send({ error: q.error.issues[0]?.message ?? "Invalid query" });
+
+    const now = new Date();
+    const since = signupsDailyRangeStart(q.data.days, now);
+    const rows = await prisma.user.findMany({
+      where: { createdAt: { gte: since } },
+      select: { id: true, createdAt: true },
+    });
+    return reply.send({ data: bucketSignupsDaily(rows.map((r) => r.createdAt), q.data.days, now) });
   });
 }

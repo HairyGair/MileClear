@@ -1,16 +1,35 @@
 "use client";
 
-// Capture section of the admin area (Sep 2026 redesign).
+// Capture health (Oct 2026 rebuild): is the fleet recording drives? Captured
+// versus manual trips, how the detection engines are doing, who has gone
+// quiet, and the trip-quality and Live Activity checks.
 
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import { Card } from "@/components/ui/Card";
-import { LoadingSkeleton } from "@/components/ui/LoadingSkeleton";
 import Link from "next/link";
-import { AdminPage } from "@/components/admin";
-import { LiveActivityHealth } from "@/components/admin/sections/LiveActivityHealth";
-import { TripQuality } from "@/components/admin/sections/TripQuality";
+import { LiveActivityTab, TripQualityTab } from "@/components/admin/drivers/CaptureTabs";
+import {
+  AdminIcon,
+  Badge,
+  BarChart,
+  DataTable,
+  EmptyState,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Panel,
+  ProgressBar,
+  StatLine,
+  Tabs,
+  formatDay,
+  formatNumber,
+  useAdminData,
+  type TableColumn,
+  type Tone,
+} from "@/components/admin/ui";
+import "@/components/admin/drivers/drivers.css";
 
+const A = "/dashboard/admin";
 
 interface AutoTripData {
   autoTripsTotal: number;
@@ -34,7 +53,7 @@ interface DetectionFleetData {
     nativeStale: number;
     nativeNever: number;
     dumpsTotal: number;
-      dumpWindowDays?: number;
+    dumpWindowDays?: number;
     staleDumpsExcluded?: number;
   };
   quietDrivers: Array<{
@@ -55,184 +74,285 @@ interface DetectionFleetData {
   };
 }
 
-function AutoTripsTab() {
-  const [data, setData] = useState<AutoTripData | null>(null);
-  const [fleet, setFleet] = useState<DetectionFleetData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type DayRow = AutoTripData["dailyAutoTrips"][number];
+type QuietRow = DetectionFleetData["quietDrivers"][number];
 
-  useEffect(() => {
-    Promise.all([
-      api
-        .get<{ data: AutoTripData }>("/admin/auto-trip-health")
-        .then((res) => setData(res.data)),
-      api
-        .get<{ data: DetectionFleetData }>("/admin/detection-fleet")
-        .then((res) => setFleet(res.data))
-        .catch(() => {}), // fleet view is non-fatal context
-    ])
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const dayLabel = (d: string, opts?: Intl.DateTimeFormatOptions) => (ISO_DAY.test(d) ? formatDay(d, opts) : d);
 
-  if (loading) return <LoadingSkeleton variant="card" count={2} style={{ height: 90 }} />;
-  if (error) return <div className="alert alert--error">{error}</div>;
-  if (!data) return null;
+function band(v: number, good: number, ok: number): Tone {
+  if (v >= good) return "good";
+  if (v >= ok) return "warn";
+  return "bad";
+}
 
+// ---------------------------------------------------------------------------
+// Daily captured trips
+// ---------------------------------------------------------------------------
+
+function DailyPanel({ auto }: { auto: ReturnType<typeof useAutoTrips> }) {
+  const columns: TableColumn<DayRow>[] = [
+    { key: "date", header: "Day", sortValue: (r) => r.date, render: (r) => dayLabel(r.date) },
+    { key: "auto", header: "Captured", numeric: true, sortValue: (r) => r.autoCount, render: (r) => formatNumber(r.autoCount) },
+    { key: "manual", header: "Manual", numeric: true, sortValue: (r) => r.manualCount, render: (r) => formatNumber(r.manualCount) },
+    { key: "total", header: "Total", numeric: true, sortValue: (r) => r.autoCount + r.manualCount, render: (r) => formatNumber(r.autoCount + r.manualCount) },
+    {
+      key: "share",
+      header: "Captured share",
+      numeric: true,
+      hideOnMobile: true,
+      sortValue: (r) => (r.autoCount + r.manualCount ? r.autoCount / (r.autoCount + r.manualCount) : null),
+      render: (r) => (r.autoCount + r.manualCount ? `${Math.round((r.autoCount / (r.autoCount + r.manualCount)) * 100)}%` : "-"),
+    },
+  ];
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <div className="stats-grid">
-        <div className="stat-card">
-          <p className="stat-card__label">Auto Trips (30d)</p>
-          <p className="stat-card__value stat-card__value--amber">{data.autoTripsTotal}</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Classification Rate</p>
-          <p className="stat-card__value" style={{
-            color: data.classificationRatePercent >= 70 ? "var(--emerald-400)" : data.classificationRatePercent >= 40 ? "var(--amber-400)" : "var(--dash-red)",
-          }}>
-            {data.classificationRatePercent}%
-          </p>
-          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
-            {data.autoTripsClassified} classified / {data.autoTripsUnclassified} pending
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Detection Adoption</p>
-          <p className="stat-card__value">{data.detectionAdoptionPercent}%</p>
-          <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>
-            {data.usersWithAutoTrips7d} of {data.usersWithPushToken} with app
-          </p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Manual Trips (30d)</p>
-          <p className="stat-card__value">{data.manualTripsTotal}</p>
-        </div>
-      </div>
-
-      <div className="stats-grid" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <div className="stat-card">
-          <p className="stat-card__label">Avg Duration</p>
-          <p className="stat-card__value">{data.avgTripDurationMinutes} min</p>
-        </div>
-        <div className="stat-card">
-          <p className="stat-card__label">Avg Distance</p>
-          <p className="stat-card__value">{data.avgAutoTripDistanceMiles} mi</p>
-        </div>
-      </div>
-
-      {fleet && (
-        <>
-          <h3 style={{ fontSize: "0.8125rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-secondary)", margin: "1rem 0 -0.25rem" }}>
-            Fleet detection health
-          </h3>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <p className="stat-card__label">Active Drivers (7d)</p>
-              <p className="stat-card__value stat-card__value--amber">{fleet.kpis.activeDrivers7d}</p>
+    <Panel
+      highlight
+      title="Trips captured each day"
+      subtitle="Trips the phone recorded on its own, last 7 days. The table underneath adds the ones drivers typed in."
+    >
+      <LoadState
+        data={auto.data}
+        loading={auto.loading}
+        error={auto.error}
+        onRetry={auto.reload}
+        errorTitle="Couldn't load the daily trip counts."
+        skeleton={<LoadingSkeleton variant="chart" height={200} />}
+      >
+        {(d) =>
+          d.dailyAutoTrips.length === 0 ? (
+            <EmptyState compact title="No trips in the last 7 days" />
+          ) : (
+            <div className="adm-drv-stack">
+              <BarChart
+                label="Captured trips per day, last 7 days"
+                unit="captured trips"
+                height={200}
+                data={d.dailyAutoTrips.map((r) => ({ label: dayLabel(r.date, { weekday: "short", day: "numeric" }), fullLabel: dayLabel(r.date), value: r.autoCount }))}
+              />
+              <DataTable caption="Captured and manual trips per day, last 7 days" columns={columns} rows={d.dailyAutoTrips} rowKey={(r) => r.date} dense />
             </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Auto Share (7d)</p>
-              <p className="stat-card__value" style={{ color: fleet.kpis.autoSharePercent >= 60 ? "var(--emerald-400)" : "var(--amber-400)" }}>{fleet.kpis.autoSharePercent}%</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>{fleet.kpis.autoTrips7d} auto / {fleet.kpis.manualTrips7d} manual</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Native Engine</p>
-              <p className="stat-card__value">{fleet.engineSplit.nativeOn}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>vs {fleet.engineSplit.jsEngine} JS · {fleet.engineSplit.dumpsTotal} dumps in {fleet.engineSplit.dumpWindowDays ?? 14}d{fleet.engineSplit.staleDumpsExcluded ? ` (${fleet.engineSplit.staleDumpsExcluded} older excluded)` : ""}</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Native Healthy</p>
-              <p className="stat-card__value" style={{ color: fleet.engineSplit.nativeStale + fleet.engineSplit.nativeNever === 0 ? "var(--emerald-400)" : "var(--amber-400)" }}>{fleet.engineSplit.nativeFresh}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>{fleet.engineSplit.nativeStale} stale / {fleet.engineSplit.nativeNever} no fix</p>
-            </div>
-            <div className="stat-card">
-              <p className="stat-card__label">Short-trip Auto-share (7d)</p>
-              <p className="stat-card__value" style={{ color: fleet.kpis.shortAutoSharePercent >= 70 ? "var(--emerald-400)" : fleet.kpis.shortAutoSharePercent >= 50 ? "var(--amber-400)" : "var(--dash-red)" }}>{fleet.kpis.shortAutoSharePercent}%</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: 2 }}>&lt;2mi · {fleet.kpis.shortAutoTrips7d} auto / {fleet.kpis.shortManualTrips7d} manual</p>
-            </div>
-          </div>
-
-          <Card title={`Drivers gone quiet (${fleet.quietDrivers.length})`}>
-            <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginBottom: "0.75rem" }}>
-              Were capturing (≥3 auto-trips in the prior 30→7 days) but have recorded nothing in the last 7 days - the silent-capture-failure / churn signal.
-            </p>
-            {fleet.quietDrivers.length === 0 ? (
-              <p style={{ fontSize: "0.875rem", color: "var(--emerald-400)" }}>None - every recently-active driver is still capturing.</p>
-            ) : (
-              <div className="table-wrap">
-                <table className="table">
-                  <thead><tr><th>Driver</th><th style={{ textAlign: "right" }}>Prior trips</th><th style={{ textAlign: "right" }}>Last trip</th><th style={{ textAlign: "right" }}>Quiet for</th></tr></thead>
-                  <tbody>
-                    {fleet.quietDrivers.map((q) => (
-                      <tr key={q.email}>
-                        <td>{q.displayName || q.email}</td>
-                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{q.priorTrips}</td>
-                        <td style={{ textAlign: "right" }}>{new Date(q.lastTripAt).toLocaleDateString("en-GB")}</td>
-                        <td style={{ textAlign: "right", fontWeight: 600, color: q.daysSinceLastTrip >= 10 ? "var(--dash-red)" : "var(--amber-400)" }}>{q.daysSinceLastTrip}d</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-
-          {/* The old "native engine needs attention" panel (stale
-              lastNativeLocationAt) was removed 10 Jun 2026 - it false-flagged
-              parked devices and missed real silent non-capture (the metric
-              refreshes on every app open). Capture-outcome health lives on
-              the dedicated page: */}
-          <Card title="Per-device capture health">
-            <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: 0 }}>
-              Capture counts, trigger signatures and silent non-capture flags for every
-              native-engine device are on{" "}
-              <a href="/dashboard/admin/cleartrack" style={{ color: "var(--amber-400)" }}>
-                ClearTrack Capture Health →
-              </a>
-            </p>
-          </Card>
-        </>
-      )}
-
-      {data.dailyAutoTrips.length > 0 && (
-        <Card title="Daily Breakdown (7d)">
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th style={{ textAlign: "right" }}>Auto</th>
-                  <th style={{ textAlign: "right" }}>Manual</th>
-                  <th style={{ textAlign: "right" }}>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.dailyAutoTrips.map((row) => (
-                  <tr key={row.date}>
-                    <td>{row.date}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--amber-400)" }}>{row.autoCount}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{row.manualCount}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>{row.autoCount + row.manualCount}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-    </div>
+          )
+        }
+      </LoadState>
+    </Panel>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Engines
+// ---------------------------------------------------------------------------
 
-export default function AdminAutoTripsTabPage() {
+function EnginePanel({ fleet }: { fleet: ReturnType<typeof useFleet> }) {
   return (
-    <AdminPage title="Capture" intro="Is the fleet recording drives? Engine health, activation and ClearTrack.">
-      <p className="admin-page__intro">Also in this section: <Link href="/dashboard/admin/activation" className="admin-nav__item">Activation</Link> <Link href="/dashboard/admin/cleartrack" className="admin-nav__item">ClearTrack</Link></p>
-      <TripQuality />
-      <LiveActivityHealth />
-      <AutoTripsTab />
-    </AdminPage>
+    <Panel
+      title="Detection engines"
+      subtitle="Which engine phones run, from their diagnostics, and how much of last week's driving was caught without a tap."
+      href={`${A}/cleartrack`}
+      hrefLabel="Per device"
+    >
+      <LoadState
+        data={fleet.data}
+        loading={fleet.loading}
+        error={fleet.error}
+        onRetry={fleet.reload}
+        errorTitle="Couldn't load the engine figures."
+        skeleton={<LoadingSkeleton rows={6} />}
+      >
+        {(f) => {
+          const e = f.engineSplit;
+          const k = f.kpis;
+          return (
+            <div className="adm-drv-stack">
+              <ProgressBar
+                label="Trips captured automatically, 7 days"
+                value={k.autoSharePercent}
+                tone={k.autoSharePercent >= 60 ? "good" : "warn"}
+                valueLabel={`${k.autoSharePercent}%`}
+              />
+              <p className="adm-note" style={{ marginTop: "calc(-1 * var(--adm-s2))" }}>
+                {formatNumber(k.autoTrips7d)} captured, {formatNumber(k.manualTrips7d)} typed in. Healthy is 60% or more.
+              </p>
+              <ProgressBar
+                label="Short trips (under 2 miles) captured"
+                value={k.shortAutoSharePercent}
+                tone={band(k.shortAutoSharePercent, 70, 50)}
+                valueLabel={`${k.shortAutoSharePercent}%`}
+              />
+              <p className="adm-note" style={{ marginTop: "calc(-1 * var(--adm-s2))" }}>
+                {formatNumber(k.shortAutoTrips7d)} captured, {formatNumber(k.shortManualTrips7d)} typed in. Healthy is 70% or more.
+              </p>
+              <div>
+                <StatLine label="Active drivers, 7 days" value={formatNumber(k.activeDrivers7d)} />
+                <StatLine label="On the ClearTrack engine" value={formatNumber(e.nativeOn)} hint={`against ${formatNumber(e.jsEngine)} on the older JS engine`} />
+                <StatLine
+                  label="ClearTrack with a recent fix"
+                  value={
+                    <Badge tone={e.nativeStale + e.nativeNever === 0 ? "good" : "warn"} dot>
+                      {formatNumber(e.nativeFresh)}
+                    </Badge>
+                  }
+                  hint={`${formatNumber(e.nativeStale)} stale, ${formatNumber(e.nativeNever)} never had a fix`}
+                />
+              </div>
+              <p className="adm-note">
+                From {formatNumber(e.dumpsTotal)} diagnostics in the last {e.dumpWindowDays ?? 14} days
+                {e.staleDumpsExcluded ? ` (${formatNumber(e.staleDumpsExcluded)} older ones left out)` : ""}.
+              </p>
+            </div>
+          );
+        }}
+      </LoadState>
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Quiet drivers
+// ---------------------------------------------------------------------------
+
+function QuietPanel({ fleet }: { fleet: ReturnType<typeof useFleet> }) {
+  const columns: TableColumn<QuietRow>[] = [
+    {
+      key: "who",
+      header: "Driver",
+      sortValue: (r) => (r.displayName || r.email).toLowerCase(),
+      render: (r) => (
+        <span className="adm-drv-nowrap">
+          <Link className="adm-drv-link" href={`${A}/users?q=${encodeURIComponent(r.email)}`}>{r.displayName || r.email}</Link>
+          {r.displayName && <span className="adm-cell-sub">{r.email}</span>}
+        </span>
+      ),
+    },
+    { key: "prior", header: "Trips before", title: "Captured trips in the 30 to 7 days before today", numeric: true, sortValue: (r) => r.priorTrips, render: (r) => formatNumber(r.priorTrips) },
+    {
+      key: "last",
+      header: "Last trip",
+      hideOnMobile: true,
+      sortValue: (r) => new Date(r.lastTripAt).getTime(),
+      render: (r) => new Date(r.lastTripAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+    },
+    {
+      key: "quiet",
+      header: "Quiet for",
+      numeric: true,
+      sortValue: (r) => r.daysSinceLastTrip,
+      render: (r) => (
+        <Badge tone={r.daysSinceLastTrip >= 10 ? "bad" : "warn"} dot>
+          {r.daysSinceLastTrip} days
+        </Badge>
+      ),
+    },
+  ];
+  return (
+    <Panel
+      flush
+      title={`Drivers gone quiet${fleet.data ? ` (${fleet.data.quietDrivers.length})` : ""}`}
+      subtitle="Were capturing (3 or more captured trips between 30 and 7 days ago) but have recorded nothing in the last 7 days. Either the phone stopped capturing or they stopped driving."
+      footer={
+        <>
+          Capture counts and silent-device flags for every ClearTrack phone are on the ClearTrack page.{" "}
+          <Link href={`${A}/cleartrack`} className="adm-link-arrow">
+            Open ClearTrack <AdminIcon name="arrowRight" size={14} />
+          </Link>
+        </>
+      }
+    >
+      <LoadState
+        data={fleet.data}
+        loading={fleet.loading}
+        error={fleet.error}
+        onRetry={fleet.reload}
+        errorTitle="Couldn't load the quiet drivers."
+        skeleton={<div style={{ padding: "var(--adm-s4)" }}><LoadingSkeleton variant="table" rows={4} /></div>}
+      >
+        {(f) =>
+          f.quietDrivers.length === 0 ? (
+            <EmptyState compact title="Nobody has gone quiet">Every recently active driver is still capturing.</EmptyState>
+          ) : (
+            <DataTable
+              caption="Drivers who were capturing and have gone quiet"
+              columns={columns}
+              rows={f.quietDrivers}
+              rowKey={(r) => r.email}
+              initialSort={{ key: "quiet", dir: "desc" }}
+              maxHeight={480}
+            />
+          )
+        }
+      </LoadState>
+    </Panel>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+function useAutoTrips() {
+  return useAdminData<AutoTripData>("/admin/auto-trip-health");
+}
+function useFleet() {
+  return useAdminData<DetectionFleetData>("/admin/detection-fleet");
+}
+
+export default function AdminCapturePage() {
+  const auto = useAutoTrips();
+  const fleet = useFleet();
+  const d = auto.data;
+  const aLoading = auto.loading && !d;
+
+  return (
+    <>
+      <PageHeader
+        title="Capture health"
+        subtitle="Is the fleet recording drives on its own? Captured against typed-in trips, the detection engines, and drivers who have gone quiet."
+        actions={
+          <>
+            <Link href={`${A}/activation`} className="adm-btn">Activation</Link>
+            <Link href={`${A}/cleartrack`} className="adm-btn">
+              ClearTrack <AdminIcon name="arrowRight" size={14} />
+            </Link>
+          </>
+        }
+      />
+
+      <Grid min={160}>
+        <KpiCard label="Captured trips, 30 days" value={d?.autoTripsTotal ?? 0} tone="accent" loading={aLoading} error={auto.error} />
+        <KpiCard label="Manual trips, 30 days" value={d?.manualTripsTotal ?? 0} loading={aLoading} error={auto.error} />
+        <KpiCard
+          label="Captured trips classified"
+          value={d ? `${d.classificationRatePercent}%` : ""}
+          tone={d ? band(d.classificationRatePercent, 70, 40) : "neutral"}
+          loading={aLoading}
+          error={auto.error}
+          hint={d ? `${formatNumber(d.autoTripsClassified)} classified, ${formatNumber(d.autoTripsUnclassified)} waiting` : undefined}
+        />
+        <KpiCard
+          label="Drivers capturing"
+          value={d ? `${d.detectionAdoptionPercent}%` : ""}
+          loading={aLoading}
+          error={auto.error}
+          hint={d ? `${formatNumber(d.usersWithAutoTrips7d)} of ${formatNumber(d.usersWithPushToken)} with the app had a captured trip in 7 days` : undefined}
+        />
+        <KpiCard label="Average trip time" value={d ? `${d.avgTripDurationMinutes} min` : ""} loading={aLoading} error={auto.error} />
+        <KpiCard label="Average captured trip" value={d ? `${d.avgAutoTripDistanceMiles} mi` : ""} loading={aLoading} error={auto.error} />
+      </Grid>
+
+      <div className="adm-split">
+        <DailyPanel auto={auto} />
+        <EnginePanel fleet={fleet} />
+      </div>
+
+      <QuietPanel fleet={fleet} />
+
+      <Panel title="Trip quality and Live Activities" subtitle="Last 7 days. Each tab loads when you open it.">
+        <Tabs
+          label="Capture checks"
+          tabs={[
+            { id: "quality", label: "Trip quality", content: <TripQualityTab /> },
+            { id: "live", label: "Live Activities", content: <LiveActivityTab /> },
+          ]}
+        />
+      </Panel>
+    </>
   );
 }

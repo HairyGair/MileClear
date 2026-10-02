@@ -1,0 +1,136 @@
+/* Form controls for the admin kit: filter bars, search, selects, chips,
+   text fields and the pager. Loaded by Controls.tsx. Prefix adm-ctl-. */
+
+.adm-ctl-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--adm-s2);
+}
+
+.adm-ctl-bar--spaced { margin-bottom: var(--adm-s4); }
+
+.adm-ctl-field {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.adm-ctl-field--grow { flex: 1 1 240px; max-width: 420px; }
+
+.adm-ctl-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--adm-text-3);
+}
+
+.adm-ctl-input,
+.adm-ctl-select,
+.adm-ctl-textarea {
+  width: 100%;
+  height: 34px;
+  padding: 0 0.7rem;
+  border-radius: 9px;
+  border: 1px solid var(--adm-border-strong);
+  background: rgba(15, 23, 42, 0.85);
+  color: var(--adm-text-strong);
+  font: inherit;
+  font-size: 0.8125rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.adm-ctl-textarea {
+  height: auto;
+  min-height: 68px;
+  padding: 0.5rem 0.7rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.adm-ctl-input--search { padding-left: 2rem; }
+
+.adm-ctl-input::placeholder,
+.adm-ctl-textarea::placeholder { color: var(--adm-text-3); }
+
+.adm-ctl-input:hover,
+.adm-ctl-select:hover,
+.adm-ctl-textarea:hover { border-color: rgba(255, 255, 255, 0.2); }
+
+.adm-ctl-input:focus,
+.adm-ctl-select:focus,
+.adm-ctl-textarea:focus {
+  outline: none;
+  border-color: var(--adm-accent);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.18);
+}
+
+.adm-ctl-input::-webkit-search-cancel-button { filter: invert(0.6); }
+
+.adm-ctl-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 1.9rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237d8da5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+}
+
+.adm-ctl-select option { background: #0b1222; color: var(--adm-text); }
+
+.adm-ctl-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  bottom: 10px;
+  color: var(--adm-text-3);
+  display: grid;
+  pointer-events: none;
+}
+
+.adm-ctl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 30px;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--adm-border-strong);
+  background: transparent;
+  color: var(--adm-text-2);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.adm-ctl-chip:hover { color: var(--adm-text-strong); border-color: rgba(255, 255, 255, 0.22); }
+.adm-ctl-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.adm-ctl-chip[aria-pressed="true"] {
+  background: var(--adm-accent-soft);
+  border-color: var(--adm-accent-line);
+  color: var(--adm-accent-strong);
+}
+
+.adm-ctl-chip--good[aria-pressed="true"] { background: var(--adm-good-soft); border-color: rgba(52, 211, 153, 0.45); color: var(--adm-good); }
+.adm-ctl-chip--warn[aria-pressed="true"] { background: var(--adm-warn-soft); border-color: rgba(245, 158, 11, 0.45); color: var(--adm-warn); }
+.adm-ctl-chip--bad[aria-pressed="true"] { background: var(--adm-bad-soft); border-color: rgba(248, 113, 113, 0.45); color: var(--adm-bad); }
+.adm-ctl-chip--info[aria-pressed="true"] { background: var(--adm-info-soft); border-color: rgba(96, 165, 250, 0.45); color: var(--adm-info); }
+
+.adm-ctl-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--adm-s3);
+  padding-top: var(--adm-s3);
+}
+
+.adm-ctl-pager__info { font-size: 0.78rem; color: var(--adm-text-3); font-variant-numeric: tabular-nums; }
+.adm-ctl-pager__btns { display: flex; gap: var(--adm-s2); }

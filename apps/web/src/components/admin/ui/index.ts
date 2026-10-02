@@ -23,3 +23,8 @@ export type { ChartDatum } from "./chartUtils";
 export type { Tone, RangeKey } from "./types";
 export { RANGE_DAYS } from "./types";
 export { Segmented, type SegmentedOption } from "./Segmented";
+export { FilterBar, SearchField, SelectField, FilterChip, TextField, Pager } from "./Controls";
+export { Field, TextInput, TextArea, SelectInput, Checkbox, ChoiceChips, ExpandableText } from "./Form";
+export { Notice, Spinner } from "./Notice";
+export { Dialog } from "./Dialog";
+export { StackedBarChart, STACK_COLOURS, STACK_OTHER, STACK_NONE, type StackedDatum, type StackedSeries } from "./StackedBarChart";

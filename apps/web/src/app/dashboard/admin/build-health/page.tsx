@@ -1,14 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { api } from "../../../../lib/api";
+// Build health (Oct 2026 rebuild on the admin kit). Per-build regression
+// detection: the most recent active builds with incident rates per active
+// user, and a flag where a build is clearly worse than the one before it.
+// Reads /admin/build-health.
 
-// Per-build regression detection. Audit follow-up #1 from the aggregate
-// health-dashboard upgrades. Reads /admin/build-health and renders a
-// table of the most-recent active builds with per-active-user incident
-// rates, highlighting where the current build is significantly worse
-// than the previous build.
+import {
+  Badge,
+  DataTable,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Panel,
+  formatNumber,
+  useAdminData,
+  type TableColumn,
+} from "@/components/admin/ui";
 
 interface BuildRow {
   appVersion: string;
@@ -38,20 +47,17 @@ interface BuildHealthData {
   generatedAt: string;
 }
 
-// Significant-regression threshold. If the current build's per-user
-// rate is more than this multiple of the previous build's rate AND
-// the absolute count is non-trivial, highlight in red.
+// A build is flagged when its per-user rate is at least this multiple of the
+// previous build's AND the absolute count is not trivial.
 const REGRESSION_MULTIPLIER = 1.5;
-const MIN_INCIDENT_FLOOR = 2; // ignore tiny absolute numbers
+const MIN_INCIDENT_FLOOR = 2;
 
-function regressionTone(
-  current: number,
-  previous: number | null,
-  absolute: number
-): "ok" | "warn" | "regress" {
+type Verdict = "ok" | "warn" | "regress";
+
+function regressionTone(current: number, previous: number | null, absolute: number): Verdict {
   if (absolute < MIN_INCIDENT_FLOOR) return "ok";
   if (previous === null || previous === 0) {
-    // Going from 0 to >floor IS a regression
+    // Going from 0 to above the floor IS a regression.
     return absolute >= MIN_INCIDENT_FLOOR ? "regress" : "ok";
   }
   const ratio = current / previous;
@@ -60,284 +66,199 @@ function regressionTone(
   return "ok";
 }
 
-function toneColor(t: "ok" | "warn" | "regress"): string {
-  if (t === "regress") return "#ef4444";
-  if (t === "warn") return "#f59e0b";
-  return "#10b981";
-}
-
 function fmtRate(n: number): string {
   if (n === 0) return "0";
   if (n < 0.01) return n.toFixed(3);
-  if (n < 0.1) return n.toFixed(2);
   return n.toFixed(2);
 }
 
+/** Each row carries the build after it (the previous release) so the cells
+ *  can compare without looking the neighbour up again. */
+interface Row extends BuildRow {
+  key: string;
+  isLatest: boolean;
+  prev: BuildRow | null;
+}
+
+const RATE_FIELDS = [
+  { key: "watchdog", header: "Watchdog pings", rate: "watchdogPingsPerUserWeek", abs: "watchdogPings", title: "Server watchdog wake-ups per active user per week" },
+  { key: "drift", header: "Reconciliation drift", rate: "reconciliationDriftPerUserWeek", abs: "reconciliationDrift", title: "Phone and server disagreeing about trips, per active user per week" },
+  { key: "slow", header: "Slow requests", rate: "slowRequestsPerUserWeek", abs: "slowRequests", title: "Slow API requests per active user per week" },
+  { key: "login", header: "Login failures", rate: "loginFailuresPerUserWeek", abs: "loginFailures", title: "Failed logins per active user per week" },
+] as const;
+
+function verdictsFor(r: Row): Verdict[] {
+  const out: Verdict[] = RATE_FIELDS.map((f) => regressionTone(r[f.rate], r.prev ? r.prev[f.rate] : null, r[f.abs]));
+  out.push(regressionTone(r.tripDeletionRatePct, r.prev?.tripDeletionRatePct ?? null, r.tripDeleted));
+  return out;
+}
+
+function VerdictCell({ value, verdict, title }: { value: string; verdict: Verdict; title: string }) {
+  return (
+    <span title={title} style={{ display: "inline-flex", gap: "var(--adm-s2)", alignItems: "center", justifyContent: "flex-end" }}>
+      {verdict === "regress" && <Badge tone="bad">Worse</Badge>}
+      {verdict === "warn" && <Badge tone="warn">Up</Badge>}
+      <span style={verdict === "regress" ? { fontWeight: 700, color: "var(--adm-text-strong)" } : undefined}>{value}</span>
+    </span>
+  );
+}
+
+function columns(windowDays: number): TableColumn<Row>[] {
+  return [
+    {
+      key: "build",
+      header: "Build",
+      render: (r) => (
+        <>
+          <strong style={{ color: "var(--adm-text-strong)" }}>{r.appVersion}</strong>
+          <span className="adm-cell-sub">
+            build {r.buildNumber} {r.isLatest && <Badge tone="accent">Latest</Badge>}
+          </span>
+        </>
+      ),
+    },
+    { key: "users", header: "Active users", numeric: true, render: (r) => formatNumber(r.activeUsers) },
+    {
+      key: "userDays",
+      header: "User-days",
+      numeric: true,
+      title: "Exposure: distinct (user, day) pairs with events on this build in the window",
+      hideOnMobile: true,
+      render: (r) => (
+        <span
+          title={`Distinct (user, day) pairs with events on this build in the window. First seen ${
+            r.firstSeenAt ? new Date(r.firstSeenAt).toLocaleString("en-GB") : "n/a"
+          }; observed ${r.daysObserved} of ${windowDays} days.`}
+        >
+          {formatNumber(r.userDays)}
+          {r.daysObserved < windowDays && <span className="adm-cell-sub">{r.daysObserved} of {windowDays} days</span>}
+        </span>
+      ),
+    },
+    ...RATE_FIELDS.map<TableColumn<Row>>((f) => ({
+      key: f.key,
+      header: (
+        <>
+          {f.header}
+          <span className="adm-cell-sub">per user-week</span>
+        </>
+      ),
+      title: f.title,
+      numeric: true,
+      render: (r) => {
+        const prev = r.prev ? r.prev[f.rate] : null;
+        return (
+          <VerdictCell
+            value={fmtRate(r[f.rate])}
+            verdict={regressionTone(r[f.rate], prev, r[f.abs])}
+            title={`Absolute: ${r[f.abs]}. Previous build per user-week: ${prev ?? "n/a"}`}
+          />
+        );
+      },
+    })),
+    { key: "created", header: "Trips created", numeric: true, hideOnMobile: true, render: (r) => formatNumber(r.tripCreated) },
+    { key: "deleted", header: "Trips deleted", numeric: true, hideOnMobile: true, render: (r) => formatNumber(r.tripDeleted) },
+    {
+      key: "delPct",
+      header: "Deleted share",
+      numeric: true,
+      title: "Trips deleted as a share of trips created on this build",
+      render: (r) => (
+        <VerdictCell
+          value={`${r.tripDeletionRatePct}%`}
+          verdict={regressionTone(r.tripDeletionRatePct, r.prev?.tripDeletionRatePct ?? null, r.tripDeleted)}
+          title={`${r.tripDeleted} deleted. Previous build: ${r.prev ? `${r.prev.tripDeletionRatePct}%` : "n/a"}`}
+        />
+      ),
+    },
+    {
+      key: "replays",
+      header: "Duplicate saves caught",
+      numeric: true,
+      hideOnMobile: true,
+      title: "Idempotency replays: the phone sent the same save twice and the server returned the first result",
+      render: (r) => formatNumber(r.idempotencyReplays),
+    },
+  ];
+}
+
 export default function BuildHealthPage() {
-  const [data, setData] = useState<BuildHealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, loading, reload } = useAdminData<BuildHealthData>("/admin/build-health");
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    api
-      .get<{ data: BuildHealthData }>("/admin/build-health")
-      .then((res) => {
-        if (!cancelled) setData(res.data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const rows: Row[] = data
+    ? data.builds.map((b, i) => ({ ...b, key: `${b.appVersion}-${b.buildNumber}`, isLatest: i === 0, prev: data.builds[i + 1] ?? null }))
+    : [];
+  const latest = rows[0];
+  const flagged = rows.filter((r) => verdictsFor(r).includes("regress"));
+  const latestFlags = latest ? verdictsFor(latest).filter((v) => v === "regress").length : 0;
 
   return (
-    <div style={{ padding: "1.5rem 0", maxWidth: 1200 }}>
-      <div style={{ marginBottom: "1rem" }}>
-        <Link
-          href="/dashboard/admin"
-          style={{
-            color: "#94a3b8",
-            fontSize: "0.875rem",
-            textDecoration: "none",
-          }}
-        >
-          ← Admin
-        </Link>
-      </div>
+    <>
+      <PageHeader
+        title="Build health"
+        subtitle={`Did the latest app build make things worse? Builds active in the last ${data?.windowDays ?? 7} days, with problems counted per active user.`}
+        updatedAt={data?.generatedAt}
+        actions={
+          <button type="button" className="adm-btn adm-btn--sm" onClick={reload} disabled={loading}>
+            {loading ? "Refreshing" : "Refresh"}
+          </button>
+        }
+      />
 
-      <h1
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "1.75rem",
-          fontWeight: 700,
-          color: "#f9fafb",
-          marginBottom: "0.5rem",
-        }}
+      <Grid min={170}>
+        <KpiCard label="Builds in use" value={rows.length} loading={loading && !data} error={error} hint={data ? `with a heartbeat in the last ${data.windowDays} days` : undefined} />
+        <KpiCard
+          label="Latest build"
+          value={latest ? `${latest.appVersion} (${latest.buildNumber})` : "-"}
+          loading={loading && !data}
+          error={error}
+          hint={latest ? `${formatNumber(latest.activeUsers)} active users` : undefined}
+        />
+        <KpiCard
+          label="Latest build: measures worse"
+          value={latestFlags}
+          tone={latestFlags > 0 ? "bad" : "good"}
+          loading={loading && !data}
+          error={error}
+          hint={latest ? (latestFlags > 0 ? "worse than the build before it" : "nothing worse than the build before") : undefined}
+        />
+        <KpiCard
+          label="Builds with a flag"
+          value={flagged.length}
+          tone={flagged.length > 0 ? "warn" : "neutral"}
+          loading={loading && !data}
+          error={error}
+          hint="any measure worse than the build before"
+        />
+      </Grid>
+
+      <Panel
+        highlight
+        title="Every active build, newest first"
+        subtitle={`"Worse" means the rate is at least ${REGRESSION_MULTIPLIER} times the previous build's (and at least ${MIN_INCIDENT_FLOOR} events): the "we shipped a bug" signal. "Up" means at least 1.2 times.`}
+        flush
+        footer="An active build has at least one heartbeat in the window. Hover a figure for the absolute count and the previous build's rate."
       >
-        Build Health
-      </h1>
-      <p style={{ color: "#94a3b8", marginBottom: "2rem", lineHeight: 1.6 }}>
-        Per-build regression detection. Active builds in the last{" "}
-        {data?.windowDays ?? 7} days, with incident rates per active user.
-        A build is highlighted red when its rate is ≥ {REGRESSION_MULTIPLIER}× the
-        previous build&apos;s - that&apos;s the &quot;we shipped a bug&quot;
-        signal.
-      </p>
-
-      {loading && (
-        <p style={{ color: "#94a3b8" }}>Loading…</p>
-      )}
-
-      {error && (
-        <p style={{ color: "#ef4444" }}>Error: {error}</p>
-      )}
-
-      {data && data.builds.length === 0 && (
-        <p style={{ color: "#94a3b8" }}>
-          No builds with active heartbeats in the last {data.windowDays} days.
-        </p>
-      )}
-
-      {data && data.builds.length > 0 && (
-        <div
-          style={{
-            overflowX: "auto",
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: 12,
-            background: "rgba(15,23,42,0.6)",
-          }}
+        <LoadState
+          data={data}
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          errorTitle="Couldn't load build health."
+          skeleton={<div style={{ padding: "var(--adm-s4)" }}><LoadingSkeleton variant="table" rows={6} /></div>}
         >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.875rem",
-            }}
-          >
-            <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                <Th>Build</Th>
-                <Th>Active users</Th>
-                <Th>Exposure<br/>user-days</Th>
-                <Th>Watchdog pings<br/>/user-week</Th>
-                <Th>Reconciliation<br/>drift /user-week</Th>
-                <Th>Slow reqs<br/>/user-week</Th>
-                <Th>Login fails<br/>/user-week</Th>
-                <Th>Trips<br/>created</Th>
-                <Th>Trips<br/>deleted</Th>
-                <Th>Trip-delete %</Th>
-                <Th>Idempotency<br/>replays</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.builds.map((build, i) => {
-                // Previous build = next item in the array (since sorted desc).
-                // For the oldest build in the window, no comparison.
-                const prev = data.builds[i + 1] ?? null;
-                const isLatest = i === 0;
-
-                return (
-                  <tr
-                    key={`${build.appVersion}-${build.buildNumber}`}
-                    style={{
-                      borderTop: "1px solid rgba(255,255,255,0.05)",
-                      background: isLatest ? "rgba(245,166,35,0.04)" : "transparent",
-                    }}
-                  >
-                    <Td>
-                      <div style={{ fontWeight: 600, color: "#f9fafb" }}>
-                        {build.appVersion}
-                      </div>
-                      <div style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
-                        build {build.buildNumber}
-                        {isLatest && (
-                          <span
-                            style={{
-                              marginLeft: 6,
-                              fontSize: "0.7rem",
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              background: "rgba(245,166,35,0.15)",
-                              color: "#fbbf24",
-                            }}
-                          >
-                            LATEST
-                          </span>
-                        )}
-                      </div>
-                    </Td>
-                    <Td>{build.activeUsers}</Td>
-                    <Td>
-                      <span title={`Distinct (user, day) pairs with events on this build in the window. First seen ${build.firstSeenAt ? new Date(build.firstSeenAt).toLocaleString("en-GB") : "n/a"}; observed ${build.daysObserved} of ${data.windowDays} days.`}>
-                        {build.userDays.toLocaleString("en-GB")}
-                        {build.daysObserved < data.windowDays && (
-                          <span style={{ marginLeft: 6, fontSize: "0.7rem", color: "#fbbf24" }}>{build.daysObserved}d</span>
-                        )}
-                      </span>
-                    </Td>
-                    <Rate
-                      value={build.watchdogPingsPerUserWeek}
-                      absolute={build.watchdogPings}
-                      previous={prev?.watchdogPingsPerUserWeek ?? null}
-                    />
-                    <Rate
-                      value={build.reconciliationDriftPerUserWeek}
-                      absolute={build.reconciliationDrift}
-                      previous={prev?.reconciliationDriftPerUserWeek ?? null}
-                    />
-                    <Rate
-                      value={build.slowRequestsPerUserWeek}
-                      absolute={build.slowRequests}
-                      previous={prev?.slowRequestsPerUserWeek ?? null}
-                    />
-                    <Rate
-                      value={build.loginFailuresPerUserWeek}
-                      absolute={build.loginFailures}
-                      previous={prev?.loginFailuresPerUserWeek ?? null}
-                    />
-                    <Td>{build.tripCreated.toLocaleString("en-GB")}</Td>
-                    <Td>{build.tripDeleted.toLocaleString("en-GB")}</Td>
-                    <Td>
-                      <span
-                        style={{
-                          color: toneColor(
-                            regressionTone(
-                              build.tripDeletionRatePct,
-                              prev?.tripDeletionRatePct ?? null,
-                              build.tripDeleted
-                            )
-                          ),
-                        }}
-                      >
-                        {build.tripDeletionRatePct}%
-                      </span>
-                    </Td>
-                    <Td>{build.idempotencyReplays.toLocaleString("en-GB")}</Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {data && (
-        <p
-          style={{
-            color: "#64748b",
-            fontSize: "0.75rem",
-            marginTop: "1rem",
-          }}
-        >
-          Generated {new Date(data.generatedAt).toLocaleString("en-GB")}.
-          Active build = at least one heartbeat in window.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th
-      style={{
-        textAlign: "left",
-        padding: "0.625rem 0.75rem",
-        color: "#94a3b8",
-        fontWeight: 600,
-        fontSize: "0.75rem",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td
-      style={{
-        padding: "0.625rem 0.75rem",
-        color: "#cbd5e1",
-        verticalAlign: "top",
-      }}
-    >
-      {children}
-    </td>
-  );
-}
-
-function Rate({
-  value,
-  absolute,
-  previous,
-}: {
-  value: number;
-  absolute: number;
-  previous: number | null;
-}) {
-  const tone = regressionTone(value, previous, absolute);
-  return (
-    <td
-      style={{
-        padding: "0.625rem 0.75rem",
-        color: toneColor(tone),
-        fontWeight: tone === "regress" ? 700 : 400,
-        verticalAlign: "top",
-      }}
-      title={`Absolute: ${absolute} · Previous build per user-week: ${previous ?? "n/a"}`}
-    >
-      {fmtRate(value)}
-    </td>
+          {(d) => (
+            <DataTable
+              caption="Incident rates per active build"
+              columns={columns(d.windowDays)}
+              rows={rows}
+              rowKey={(r) => r.key}
+              rowTone={(r) => (verdictsFor(r).includes("regress") ? "bad" : undefined)}
+              emptyTitle={`No builds with a heartbeat in the last ${d.windowDays} days`}
+            />
+          )}
+        </LoadState>
+      </Panel>
+    </>
   );
 }

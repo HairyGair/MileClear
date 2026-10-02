@@ -1,0 +1,129 @@
+/* Styles for the Drivers pages (Users, Support, Missing trips, Capture,
+   ClearTrack, Android). Prefix adm-drv-. Tokens come from admin.css. */
+
+.adm-drv-stack { display: flex; flex-direction: column; gap: var(--adm-s4); }
+.adm-drv-stack--sm { gap: var(--adm-s3); }
+
+.adm-drv-row { display: flex; align-items: center; gap: var(--adm-s2); flex-wrap: wrap; }
+.adm-drv-row--between { justify-content: space-between; }
+
+.adm-drv-actions { display: flex; gap: var(--adm-s2); justify-content: flex-end; flex-wrap: nowrap; }
+
+.adm-drv-strong { color: var(--adm-text-strong); font-weight: 500; }
+.adm-drv-link { color: var(--adm-text-strong); text-decoration: none; font-weight: 500; }
+.adm-drv-link:hover { color: var(--adm-accent-strong); text-decoration: underline; }
+.adm-drv-quote { font-style: italic; color: var(--adm-text); }
+.adm-drv-wrap { white-space: normal; min-width: 200px; max-width: 420px; line-height: 1.45; }
+.adm-drv-nowrap { white-space: nowrap; }
+.adm-drv-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; }
+
+.adm-drv-tone-bad { color: var(--adm-bad); }
+.adm-drv-tone-warn { color: var(--adm-warn); }
+.adm-drv-tone-good { color: var(--adm-good); }
+.adm-drv-tone-muted { color: var(--adm-text-3); }
+
+.adm-drv-dim { opacity: 0.55; transition: opacity 0.15s; }
+
+.adm-drv-alert {
+  margin: 0 0 var(--adm-s3);
+  padding: var(--adm-s2) var(--adm-s3);
+  border-radius: var(--adm-radius-sm);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: var(--adm-bad-soft);
+  color: var(--adm-text-strong);
+  font-size: 0.8125rem;
+}
+
+/* Feedback threads: a list of expandable rows. */
+
+.adm-drv-threads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--adm-s2); }
+
+.adm-drv-thread {
+  border: 1px solid var(--adm-border);
+  border-radius: var(--adm-radius-sm);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.adm-drv-thread--open { border-color: var(--adm-border-strong); background: rgba(255, 255, 255, 0.03); }
+
+.adm-drv-thread__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--adm-s3);
+  width: 100%;
+  padding: var(--adm-s3) var(--adm-s4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--adm-radius-sm);
+}
+
+.adm-drv-thread__head:hover { background: var(--adm-hover); }
+
+.adm-drv-thread__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.adm-drv-thread__title { color: var(--adm-text-strong); font-weight: 600; font-size: 0.9rem; overflow-wrap: anywhere; }
+.adm-drv-thread__meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.75rem; color: var(--adm-text-3); }
+
+.adm-drv-thread__counts {
+  display: flex;
+  gap: var(--adm-s3);
+  align-items: center;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  color: var(--adm-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-drv-thread__chev { color: var(--adm-text-3); transition: transform 0.15s; display: grid; }
+.adm-drv-thread--open .adm-drv-thread__chev { transform: rotate(90deg); }
+
+.adm-drv-thread__body {
+  padding: 0 var(--adm-s4) var(--adm-s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--adm-s4);
+  border-top: 1px solid var(--adm-border);
+  padding-top: var(--adm-s4);
+}
+
+.adm-drv-thread__text { margin: 0; font-size: 0.875rem; line-height: 1.6; color: var(--adm-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.adm-drv-group { display: flex; flex-direction: column; gap: var(--adm-s2); }
+.adm-drv-group__label { margin: 0; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--adm-text-3); }
+
+.adm-drv-reply {
+  position: relative;
+  border-left: 2px solid var(--adm-accent-line);
+  background: var(--adm-accent-soft);
+  border-radius: 0 var(--adm-radius-sm) var(--adm-radius-sm) 0;
+  padding: var(--adm-s2) var(--adm-s3);
+}
+
+.adm-drv-reply__head { display: flex; justify-content: space-between; gap: var(--adm-s2); font-size: 0.72rem; margin-bottom: 2px; }
+.adm-drv-reply__who { color: var(--adm-accent-strong); font-weight: 600; }
+.adm-drv-reply__when { color: var(--adm-text-3); }
+.adm-drv-reply__body { margin: 0; padding-right: 4.5rem; font-size: 0.8125rem; line-height: 1.5; color: var(--adm-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.adm-drv-reply__del { position: absolute; right: var(--adm-s2); bottom: var(--adm-s2); }
+
+.adm-drv-compose { display: flex; gap: var(--adm-s2); align-items: flex-end; }
+.adm-drv-compose > :first-child { flex: 1; min-width: 0; }
+
+.adm-btn.adm-drv-btn-danger { border-color: rgba(248, 113, 113, 0.4); color: var(--adm-bad); }
+.adm-btn.adm-drv-btn-danger:hover { background: var(--adm-bad-soft); color: var(--adm-bad); }
+
+/* Diagnosis guide on the Missing trips page. */
+
+.adm-drv-guide { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.adm-drv-guide li { padding: var(--adm-s3) 0; border-bottom: 1px solid var(--adm-border); display: flex; flex-direction: column; gap: 6px; }
+.adm-drv-guide li:first-child { padding-top: 0; }
+.adm-drv-guide li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+@media (max-width: 640px) {
+  .adm-drv-thread__head { padding: var(--adm-s3); }
+  .adm-drv-thread__body { padding: var(--adm-s3); }
+  .adm-drv-compose { flex-direction: column; align-items: stretch; }
+  .adm-drv-wrap { min-width: 160px; }
+}
