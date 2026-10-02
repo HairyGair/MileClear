@@ -34,6 +34,9 @@ export const PUSH_PREF_KEYS = [
   "cheapestFuelDaily",
   // Monday EV running-cost summary push (jobs/fuelAlerts.ts).
   "evWeeklySummary",
+  // Road alerts trial: pre-departure heads-up when a usual road is closed or
+  // badly delayed (jobs/roadAlerts.ts).
+  "roadAlerts",
 ] as const;
 
 export type PushPrefKey = (typeof PUSH_PREF_KEYS)[number];
@@ -51,7 +54,7 @@ export function pushPrefEnabled(
 
 /** Opt-in keys: on ONLY when the stored value is exactly true. Missing,
  *  null or no prefs at all = off. */
-export const OPT_IN_PUSH_PREF_KEYS = ["cheapestFuelDaily", "evWeeklySummary"] as const;
+export const OPT_IN_PUSH_PREF_KEYS = ["cheapestFuelDaily", "evWeeklySummary", "roadAlerts"] as const;
 export type OptInPushPrefKey = (typeof OPT_IN_PUSH_PREF_KEYS)[number];
 
 export function pushPrefOptedIn(

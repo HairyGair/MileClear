@@ -19,6 +19,8 @@ import { logEvent } from "../services/appEvents.js";
 import { runJob } from "../services/jobRun.js";
 import { prewarmStationCache } from "../services/fuel.js";
 import { runCheapestFuelAlertJob, runEvWeeklySummaryJob } from "./fuelAlerts.js";
+import { runRoadAlertsJob } from "./roadAlerts.js";
+import { roadAlertsAvailable } from "../services/roadAlerts.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import {
   runActivationBgLocationNudgeJob,
@@ -1622,6 +1624,19 @@ export function startNotificationJobs(): void {
     const NATIVE_HEALTH_INTERVAL_MS = 15 * 60 * 1000;
     void runJob("native_engine_health", runNativeEngineHealthJob);
     setInterval(() => void runJob("native_engine_health", runNativeEngineHealthJob), NATIVE_HEALTH_INTERVAL_MS);
+
+    // Road alerts trial (2 Oct 2026): its own 10-minute tick, because the
+    // send window is 25-45 minutes before each driver's usual departure and
+    // the 30-minute windowed runner could miss it. Returns at once when no
+    // data source is configured (TOMTOM_API_KEY / STREET_MANAGER_SNS_ENABLED)
+    // and does nothing for drivers outside their own window. Not scheduled at
+    // all (no JobRun rows) when neither source is configured at boot.
+    const ROAD_ALERTS_INTERVAL_MS = 10 * 60 * 1000;
+    const roadSources = roadAlertsAvailable();
+    if (roadSources.incidents || roadSources.plannedWorks) {
+      void runJob("road_alerts", runRoadAlertsJob);
+      setInterval(() => void runJob("road_alerts", runRoadAlertsJob), ROAD_ALERTS_INTERVAL_MS);
+    }
 
     // Idempotency-key purge: hourly. Just deletes expired rows — cheap.
     const PURGE_INTERVAL_MS = 60 * 60 * 1000;

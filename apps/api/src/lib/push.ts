@@ -23,7 +23,9 @@ export interface ExpoPushMessage {
 export interface PushSendOptions {
   /** Send even between 21:00 and 08:00 UK time. Only for a push answering
    *  something a person just did (a support reply, their own shift ending),
-   *  an admin tool, or an alert to admins. Reminders never set this. */
+   *  an admin tool, or an alert to admins. Reminders never set this. The one
+   *  scheduled exception is the opted-in road alert inside the driver's own
+   *  pre-departure window, 05:00-07:59 only (roadAlertQuietHoursExempt). */
   ignoreQuietHours?: boolean;
 }
 

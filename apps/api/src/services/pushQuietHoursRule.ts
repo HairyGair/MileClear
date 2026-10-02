@@ -50,3 +50,28 @@ export function inStreakReminderWindow(now: Date = new Date()): boolean {
   const h = localHour(now);
   return h >= STREAK_WINDOW_START_HOUR && h < STREAK_WINDOW_END_HOUR;
 }
+
+/**
+ * ROAD ALERT EXEMPTION (2 Oct 2026, road alerts trial). NEEDS ANTHONY'S OK.
+ *
+ * The one deliberate exception to the 21:00-08:00 rule. Many drivers set off
+ * before 08:00, and a "your usual road is closed" heads-up is useless after
+ * they have left. So a road alert may go between 05:00 and 07:59 UK time when
+ * ALL of these hold:
+ *   - the driver opted in to road alerts (off by default),
+ *   - it is inside THAT driver's own pre-departure window (25-45 minutes
+ *     before their usual first start on this weekday),
+ *   - the event is serious (a closure, or lanes shut / an incident with a
+ *     15+ minute delay) and in effect when they usually leave.
+ * Never before 05:00, never in the evening part of quiet hours (21:00-23:59),
+ * and no other push may use it. The caller passes ignoreQuietHours only when
+ * this returns true.
+ */
+export const ROAD_ALERT_EARLIEST_HOUR = 5;
+
+export function roadAlertQuietHoursExempt(now: Date, inDriverPreDepartureWindow: boolean): boolean {
+  if (!inDriverPreDepartureWindow) return false;
+  if (!isPushQuietHours(now)) return false; // not needed outside quiet hours
+  const h = localHour(now);
+  return h >= ROAD_ALERT_EARLIEST_HOUR && h < PUSH_QUIET_END_HOUR;
+}

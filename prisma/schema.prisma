@@ -1724,3 +1724,44 @@ model ShiftSuggestion {
   @@index([userId, status])
   @@map("shift_suggestions")
 }
+
+// Road alerts trial (2 Oct 2026): DfT Street Manager open data, pushed to
+// POST /road-alerts/street-manager/sns over AWS SNS. Only works that hold
+// traffic up are kept (closures, lane closures, signals, contraflow), with
+// their geometry converted from British National Grid to WGS84. Street
+// Manager is push-only, so without a table every planned closure we had been
+// told about would be lost at the nightly restart. Rows are deleted when a
+// permit is cancelled/refused/revoked and purged two days after they end.
+// Migration 20261002150000_street_works_events (not yet deployed).
+model StreetWorksEvent {
+  id                 String    @id @default(uuid())
+  // permit_reference_number (permits) or activity_reference_number
+  reference          String    @unique @db.VarChar(64)
+  objectType         String    @db.VarChar(16)
+  // road_closure, lane_closure, contra_flow, multi_way_signals, ...
+  trafficManagement  String    @db.VarChar(40)
+  isTrafficSensitive Boolean   @default(false)
+  workStatus         String?   @db.VarChar(40)
+  streetName         String?   @db.VarChar(200)
+  town               String?   @db.VarChar(100)
+  areaName           String?   @db.VarChar(200)
+  highwayAuthority   String?   @db.VarChar(200)
+  promoter           String?   @db.VarChar(200)
+  startAt            DateTime?
+  endAt              DateTime?
+  minLat             Float
+  maxLat             Float
+  minLng             Float
+  maxLng             Float
+  // { lines: [[lat,lng],...][], points: [lat,lng][] }, WGS84
+  geometry           Json
+  // event_time of the newest message applied, so a late out-of-order SNS
+  // delivery never overwrites a newer state
+  lastEventAt        DateTime
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([minLat, minLng])
+  @@index([endAt])
+  @@map("street_works_events")
+}

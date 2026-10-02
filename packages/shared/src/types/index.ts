@@ -859,6 +859,60 @@ export interface CheapestTodayResponse {
   reason?: string;
 }
 
+/** One event on the Road alerts screen (road alerts trial, Oct 2026). */
+export interface RoadAlertItem {
+  id: string;
+  source: "tomtom" | "street_manager";
+  severity: "closure" | "major" | "minor";
+  category:
+    | "road_closed"
+    | "lane_closed"
+    | "accident"
+    | "broken_down_vehicle"
+    | "roadworks"
+    | "flooding"
+    | "hazard"
+    | "event"
+    | "other";
+  /** "now": in effect at the moment. "upcoming": starts in the next 7 days. */
+  when: "now" | "upcoming";
+  /** "M6 southbound closed" */
+  headline: string;
+  /** "M6 southbound is closed from J14 to J13 until about 10:00." */
+  sentence: string;
+  road: string | null;
+  direction: string | null;
+  from: string | null;
+  to: string | null;
+  town: string | null;
+  delayMinutes: number | null;
+  startAt: string | null;
+  endAt: string | null;
+  /** Days in the last 6 weeks the driver used this stretch. */
+  daysOnRoute: number;
+}
+
+/** GET /road-alerts */
+export interface RoadAlertsResponse {
+  data: {
+    /** The driver turned road alerts on (off by default). */
+    enabled: boolean;
+    /** At least one data source is configured on the server. */
+    available: boolean;
+    /** Planned works coverage (Street Manager is England only), or null. */
+    plannedWorksCoverage: "england" | null;
+    /** Show the one-time offer card: not on yet, and enough recent driving. */
+    offerEligible: boolean;
+    /** The driver has enough repeat driving for "usual roads" to exist. */
+    hasUsualRoads: boolean;
+    current: RoadAlertItem[];
+    upcoming: RoadAlertItem[];
+    /** Credit lines the data licences require; show them under the list. */
+    attribution: string[];
+    updatedAt: string;
+  };
+}
+
 export interface NearbyPricesResponse {
   stations: FuelStation[];
   nationalAverage: NationalAveragePrices | null;

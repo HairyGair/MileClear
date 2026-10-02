@@ -1,0 +1,119 @@
+{
+  "_comment": "CONSTRUCTED fixture in the shape of the TomTom Traffic Incident Details v5 response (no API key was available to capture a live one). Coordinates are [lng, lat] as TomTom sends them; the M6 line is the real M6 southbound J14-J13 geometry from the National Highways Road and Lane Closures v2 example. Replace with a trimmed live capture once TOMTOM_API_KEY is set.",
+  "incidents": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-2.118535, 52.777935], [-2.118181, 52.777526], [-2.117899, 52.777176],
+          [-2.117557, 52.776718], [-2.117274, 52.776296], [-2.116931, 52.77573],
+          [-2.116142, 52.774274], [-2.115352, 52.772854], [-2.114844, 52.771916]
+        ]
+      },
+      "properties": {
+        "id": "m6-sb-closure",
+        "iconCategory": 8,
+        "magnitudeOfDelay": 4,
+        "events": [{ "description": "Closed", "code": 401, "iconCategory": 8 }],
+        "startTime": "2026-10-05T04:30:00Z",
+        "endTime": "2026-10-05T09:00:00Z",
+        "from": "J14 (Stafford)",
+        "to": "J13 (Stafford South)",
+        "length": 680.2,
+        "delay": 0,
+        "roadNumbers": ["M6"],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-2.114544, 52.771916], [-2.115052, 52.772854], [-2.115842, 52.774274],
+          [-2.116631, 52.77573], [-2.116974, 52.776296], [-2.117599, 52.777176],
+          [-2.118235, 52.777935]
+        ]
+      },
+      "properties": {
+        "id": "m6-nb-accident",
+        "iconCategory": 1,
+        "magnitudeOfDelay": 3,
+        "events": [
+          { "description": "Accident", "code": 201, "iconCategory": 1 },
+          { "description": "Lane closed", "code": 501, "iconCategory": 7 }
+        ],
+        "startTime": "2026-10-05T05:10:00Z",
+        "endTime": "2026-10-05T07:30:00Z",
+        "from": "J13 (Stafford South)",
+        "to": "J14 (Stafford)",
+        "length": 690.0,
+        "delay": 1500,
+        "roadNumbers": ["M6"],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "LineString", "coordinates": [[-1.6, 54.95], [-1.6, 54.96]] },
+      "properties": {
+        "id": "a1-jam",
+        "iconCategory": 6,
+        "magnitudeOfDelay": 2,
+        "events": [{ "description": "Queuing traffic", "code": 108, "iconCategory": 6 }],
+        "delay": 420,
+        "roadNumbers": ["A1"],
+        "timeValidity": "present"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-2.1235, 52.8012] },
+      "properties": {
+        "id": "a34-works",
+        "iconCategory": 9,
+        "magnitudeOfDelay": 1,
+        "events": [{ "description": "Roadworks", "code": 701, "iconCategory": 9 }],
+        "startTime": "2026-10-08T19:00:00Z",
+        "endTime": "2026-10-09T05:00:00Z",
+        "from": "Stone Road",
+        "to": "Stone Road",
+        "delay": 0,
+        "roadNumbers": ["A34"],
+        "timeValidity": "future",
+        "probabilityOfOccurrence": "certain"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-2.13, 52.79] },
+      "properties": {
+        "id": "a518-breakdown",
+        "iconCategory": 14,
+        "magnitudeOfDelay": 1,
+        "events": [{ "description": "Broken down vehicle", "code": 211, "iconCategory": 14 }],
+        "delay": 120,
+        "roadNumbers": ["A518"],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "certain"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-2.2, 52.7] },
+      "properties": {
+        "id": "a449-risk",
+        "iconCategory": 7,
+        "magnitudeOfDelay": 3,
+        "events": [{ "description": "Lane closed", "code": 501, "iconCategory": 7 }],
+        "delay": 1800,
+        "roadNumbers": ["A449"],
+        "timeValidity": "present",
+        "probabilityOfOccurrence": "risk_of"
+      }
+    }
+  ]
+}
