@@ -5,7 +5,7 @@ import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "What Counts as Business Mileage? Commuting vs Business Travel (UK) | MileClear",
+    absolute: "What Counts as Business Mileage? UK Rules | MileClear",
   },
   description:
     "Which journeys count as business mileage in the UK: commuting vs business travel, the 24-month temporary workplace rule, depots and sales areas, with examples for gig drivers, employees and sales roles. Based on HMRC's manuals.",

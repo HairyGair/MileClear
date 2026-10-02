@@ -13,7 +13,7 @@ const PAGE_URL = "https://mileclear.com/android";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Mileage Tracker App for Android (UK): Free and Automatic | MileClear",
+    absolute: "Mileage Tracker App for Android UK: Free | MileClear",
   },
   description: PLAY_LIVE
     ? "MileClear is a free mileage tracker app for Android, on Google Play in the UK. Automatic trip tracking with no monthly drive cap, the approved HMRC rates, and the same account as the iPhone app."

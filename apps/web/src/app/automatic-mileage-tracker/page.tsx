@@ -6,7 +6,7 @@ const URL = "https://mileclear.com/automatic-mileage-tracker";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Automatic Mileage Tracker UK: How an Automatic Mileage Log Works | MileClear",
+    absolute: "Automatic Mileage Tracker UK: Free Auto Log | MileClear",
   },
   description:
     "How automatic mileage tracking works on iPhone and Android, what you have to allow, how accurate and battery-hungry it really is, what a mileage log must show, and how MileClear records drives on its own.",
