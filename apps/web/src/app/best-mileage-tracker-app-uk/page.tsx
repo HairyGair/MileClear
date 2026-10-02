@@ -99,7 +99,7 @@ const ROWS: Array<{ feature: string } & Record<AppKey, string>> = [
     triplog: "Says it applies new rates automatically; custom rates are a Premium feature",
     mileiq: "UK business rate can be edited in settings",
     driversnote: "\"Local and custom rates\" listed",
-    everlance: "Shows US dollars only; its UK help article suggests entering pence as dollars",
+    everlance: "Not stated on its pricing page (prices shown in US dollars)",
   },
   {
     feature: "Reports and exports",
@@ -522,7 +522,7 @@ export default function BestMileageTrackerAppUK() {
                 {
                   name: "Everlance",
                   tag: "US-focused, 30 free automatic trips a month",
-                  body: "Free for 30 automatic trips a month with unlimited manual trips. Prices are published in US dollars only, and its UK help article says the app displays dollars, not pounds.",
+                  body: "Free for 30 automatic trips a month with unlimited manual trips. Prices are published in US dollars only.",
                 },
               ].map((v, i) => (
                 <div
