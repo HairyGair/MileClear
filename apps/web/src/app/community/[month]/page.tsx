@@ -4,7 +4,7 @@ import CommunityView from "../CommunityView";
 import { MONTH_RE, fetchCommunityMonthly, monthLabel, summarySentence } from "../data";
 
 // One page per finished month, rendered on first request and refreshed hourly.
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 
 export function generateStaticParams(): Array<{ month: string }> {

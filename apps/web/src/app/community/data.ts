@@ -1,9 +1,10 @@
 import type { CommunityMonthly } from "@mileclear/shared";
 
-// Reads GET /community/monthly on the server. The page is ISR (hourly), and
-// the API caches each finished month for a day, so this is cheap.
+// Reads GET /community/monthly on the server, fresh on every visit: the API
+// caches each finished month for a day, so this is cheap. (It was ISR, but
+// a render during the deploy that added the endpoint cached "couldn't load"
+// for an hour, 2 Oct 2026.)
 
-export const COMMUNITY_REVALIDATE_SECONDS = 3600;
 export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export type CommunityResult =
@@ -16,7 +17,7 @@ export async function fetchCommunityMonthly(month?: string): Promise<CommunityRe
   const qs = month ? `?month=${encodeURIComponent(month)}` : "";
   try {
     const res = await fetch(`${base}/community/monthly${qs}`, {
-      next: { revalidate: COMMUNITY_REVALIDATE_SECONDS },
+      cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
     if (res.status === 404 || res.status === 400) return { status: "missing" };

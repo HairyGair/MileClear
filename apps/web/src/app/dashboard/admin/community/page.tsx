@@ -19,7 +19,6 @@ import {
   Panel,
   SelectField,
   formatNumber,
-  formatPence,
   useAdminData,
 } from "@/components/admin/ui";
 
@@ -32,8 +31,9 @@ function monthLabel(month: string): string {
   return `${MONTHS[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
 }
 
+/** "Wed 30 Sept": short enough for a KPI card. */
 function dayLabel(day: { date: string; weekday: string }): string {
-  return `${day.weekday} ${Number(day.date.slice(8, 10))} ${MONTHS[Number(day.date.slice(5, 7)) - 1]}`;
+  return `${day.weekday.slice(0, 3)} ${Number(day.date.slice(8, 10))} ${MONTHS[Number(day.date.slice(5, 7)) - 1].slice(0, 3)}`;
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -120,7 +120,7 @@ export default function AdminCommunityPage() {
         <KpiCard label="Business miles" value={show?.businessMiles ?? dash} loading={first} error={error} />
         <KpiCard
           label="Claim value (estimate)"
-          value={show?.claimValuePence != null ? formatPence(show.claimValuePence) : dash}
+          value={show?.claimValuePence != null ? `£${Math.round(show.claimValuePence / 100).toLocaleString("en-GB")}` : dash}
           hint="At the HMRC mileage rates"
           tone="accent"
           loading={first}

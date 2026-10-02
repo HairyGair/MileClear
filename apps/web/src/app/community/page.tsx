@@ -4,7 +4,7 @@ import { fetchCommunityMonthly, monthLabel, summarySentence } from "./data";
 
 // Hourly ISR: the latest month changes once a month, and the API caches each
 // finished month for a day. The page still prerenders for crawlers.
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 const URL = "https://mileclear.com/community";
 const FALLBACK = "What the MileClear community drove each month: drivers, miles, trips and the mileage claims those miles are worth.";
