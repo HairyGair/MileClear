@@ -1225,8 +1225,8 @@ export const BLOG_POSTS: BlogPost[] = [
 <p>The mileage deduction is claimed on the <strong>SA103S (short)</strong> or <strong>SA103F (full)</strong> Self Assessment page for self-employed income. Specifically:</p>
 
 <ul>
-<li><strong>SA103S (turnover under £85k):</strong> Box 20 "Car, van and travel expenses" - put your total AMAP claim here. Tick the "I have used cash basis or simplified expenses" box.</li>
-<li><strong>SA103F (turnover over £85k):</strong> Box 21 of the equivalent section. Same logic - simplified expenses (AMAP) goes in the travel box.</li>
+<li><strong>SA103S (turnover below £90,000):</strong> box 12, "Car, van and travel expenses". Put your total AMAP claim here, plus parking and tolls. There is no separate simplified expenses box on the 2025-26 form. Box 20 is the total of all your expenses.</li>
+<li><strong>SA103F (turnover of £90,000 or more):</strong> box 20, "Car, van and travel expenses". Same logic: the mileage figure goes in the travel box, and box 31 is the total of all your expenses.</li>
 </ul>
 
 <p>You enter the total deduction, not the miles. So 15,000 business miles (in 2026-27) becomes £6,750 (10,000 × 55p + 5,000 × 25p) - that £6,750 is what you write on the form. For a 2025-26 return the same mileage was £5,750 at the old 45p/25p rates.</p>
@@ -1302,7 +1302,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The deduction comes off your taxable profit. For a 15,000-mile-a-year self-employed driver, that's £6,750 off the top at the new 2026-27 rates - worth £1,350 to £2,700 in tax back depending on your band. (At the old 45p/25p that figure was £5,750.)</p>
 
-<p>It goes on the <strong>SA103S box 20</strong> or <strong>SA103F box 21</strong> (the travel expenses line) of your Self Assessment, marked under simplified expenses. See our <a href="/updates/how-to-track-business-miles-hmrc">full SA103 guide</a> for the boxes.</p>
+<p>It goes on the travel expenses line of your Self Assessment: <strong>box 12 on the SA103S</strong> (turnover below £90,000) or <strong>box 20 on the SA103F</strong>, "Car, van and travel expenses". See our <a href="/updates/how-to-track-business-miles-hmrc">full SA103 guide</a> for the boxes.</p>
 
 <p>The <a href="/self-employed-mileage-tracker">self-employed mileage tracker page</a> has a full walkthrough.</p>
 
@@ -1686,7 +1686,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The first is <strong>MTD ITSA</strong> for the 7 August 2026 first quarterly submission deadline. Phase 1 (OAuth and fraud-prevention scaffolding) is complete. Phase 2 (Self Employment Business API submission, Individual Calculations, BSAS) is the next ten days of work. Phase 3 (mobile UI), Phase 4 (HMRC's production credentials review, runs in parallel), and Phase 5 (TestFlight beta with high-earner drivers) follow. Target: TestFlight by 19 July, public by 7 August. This will ship as 1.2.0.</p>
 
-<p>The second is <strong>Other Expenses</strong> - food, accommodation, equipment, phone bills, working-from-home costs - which a Pro tester (thank you, Laura) requested earlier today. This will ship alongside MTD ITSA in 1.2.0 because the expense payload is part of the quarterly submission. Five phases, two to three weeks of work, seven HMRC-aligned categories that map directly to SA103S boxes 17, 18, and 19. Free tier will allow 5 manual expenses; Pro unlocks unlimited entries plus receipt OCR (reusing the Apple Vision pipeline already built for earnings) and categorised exports.</p>
+<p>The second is <strong>Other Expenses</strong> - food, accommodation, equipment, phone bills, working-from-home costs - which a Pro tester (thank you, Laura) requested earlier today. This will ship alongside MTD ITSA in 1.2.0 because the expense payload is part of the quarterly submission. Five phases, two to three weeks of work, seven HMRC-aligned categories, each mapped to its SA103S expense box. Free tier will allow 5 manual expenses; Pro unlocks unlimited entries plus receipt OCR (reusing the Apple Vision pipeline already built for earnings) and categorised exports.</p>
 
 <h2>Get it</h2>
 
@@ -2030,7 +2030,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Self Assessment wizard</h2>
 
-<p>This is the feature I'm most excited about. Instead of just giving you a PDF at tax time, MileClear now walks you through the actual HMRC Self Assessment form step by step. It maps your earnings, mileage deduction, and allowable expenses to specific SA103 box numbers - Box 9 for your turnover, Box 46 for simplified mileage, Box 27 for other expenses.</p>
+<p>This is the feature I'm most excited about. Instead of just giving you a PDF at tax time, MileClear now walks you through the actual HMRC Self Assessment form step by step. It maps your earnings, mileage deduction, and allowable expenses to specific box numbers on the short self-employment pages (SA103S) - box 9 for your turnover, box 12 for your mileage alongside parking and tolls, and the right box for each other expense.</p>
 
 <p>Each step shows the real numbers from your MileClear data with a full breakdown. The tax estimate includes income tax by band, Class 2 NI, and Class 4 NI, so you know roughly what to set aside. It is guidance, not tax advice - but it is a lot better than staring at a blank tax return wondering which number goes where.</p>
 

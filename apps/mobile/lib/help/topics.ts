@@ -153,7 +153,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "sa-wizard",
         q: "How does the Self Assessment wizard work?",
-        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the HMRC SA103 (self-employment) form your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Boxes 9 (turnover), 20 (allowable expenses), 31 (motor expenses or simplified mileage), 64 (taxable profit). At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
+        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the short self-employment pages (SA103S) your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Box 9 (turnover), box 12 (car, van and travel expenses, where your mileage goes), box 20 (total expenses) and box 31 (taxable profit). If your turnover was £90,000 or more you need the full pages (SA103F), which number the boxes differently. At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
         goTo: "/self-assessment",
       },
       {
@@ -259,7 +259,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "expenses",
         q: "What can I put in Expenses?",
-        a: "Avatar menu → Expenses. Any taxable purchase that supports your work: parking, tolls, congestion / ULEZ, fuel (when you're claiming actual costs not the AMAP rate), insurance, phone bill, hotel for an out-of-town gig, repairs, accountant fees, subscriptions, equipment.\n\n17 categories mapped to the SA103S boxes HMRC actually uses on Self Assessment - so when tax time rolls around your numbers slot straight in. Add manually (Add expense) or via Scan Receipt to OCR the amount, date and vendor off a photo automatically.",
+        a: "Avatar menu → Expenses. Any taxable purchase that supports your work: parking, tolls, congestion / ULEZ, fuel (when you're claiming actual costs not the AMAP rate), insurance, phone bill, hotel for an out-of-town gig, repairs, accountant fees, subscriptions, equipment.\n\n16 categories, each mapped to its box on the short self-employment pages (SA103S) - so when tax time rolls around your numbers slot straight in. Add manually (Add expense) or via Scan Receipt to OCR the amount, date and vendor off a photo automatically.",
         goTo: "/expenses",
       },
       {

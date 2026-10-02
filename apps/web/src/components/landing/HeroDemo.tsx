@@ -277,7 +277,7 @@ export default function HeroDemo() {
             </div>
             <div className="demo__claim">
               <span className="demo__claim-label">
-                {filed ? "Self Assessment · SA103 box 20" : "Mileage claim · 2026-27"}
+                {filed ? "Self Assessment · SA103S box 12" : "Mileage claim · 2026-27"}
               </span>
               <strong className="demo__claim-value">£{claim.toFixed(2)}</strong>
               <span className="demo__claim-sub">

@@ -560,7 +560,7 @@ export default function MtdItsaSoftwarePage() {
                 },
                 {
                   title: "Expense categorisation",
-                  body: "Every expense category (parking, tolls, phone, equipment, food/subsistence with HMRC SE57240 warning, accommodation, professional fees, etc.) is mapped to the right SA103S box (17 motor / 18 admin / 19 other). No manual reconciliation.",
+                  body: "Every expense category (parking, tolls, phone, equipment, food/subsistence with HMRC SE57240 warning, accommodation, professional fees, etc.) is mapped to the right SA103S box (12 car, van and travel / 16 professional fees / 18 phone and office costs / 19 other). No manual reconciliation.",
                 },
                 {
                   title: "Obligations countdown",
