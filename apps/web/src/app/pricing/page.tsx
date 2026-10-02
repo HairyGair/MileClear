@@ -161,7 +161,7 @@ const faqs = [
   },
   {
     q: 'Where does MileClear run?',
-    a: 'iPhone and iPad on the App Store, Android on Google Play (UK) once Google approves the release, and a full web dashboard at mileclear.com for trips, shifts, vehicles, fuel, earnings, expenses, exports and tax - all on one account.',
+    a: 'iPhone and iPad on the App Store, Android on Google Play (UK), and a full web dashboard at mileclear.com for trips, shifts, vehicles, fuel, earnings, expenses, exports and tax - all on one account.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -195,7 +195,7 @@ export default function PricingPage() {
     '@type': 'Product',
     name: 'MileClear',
     description:
-      'UK mileage tracker for gig workers, delivery drivers, and self-employed drivers, on iPhone, Android (beta) and the web. Free unlimited GPS tracking, HMRC deduction calculator, Self Assessment wizard, expenses and invoicing. Pro adds exports, Open Banking, automation and business insights.',
+      'UK mileage tracker for gig workers, delivery drivers, and self-employed drivers, on iPhone, Android and the web. Free unlimited GPS tracking, HMRC deduction calculator, Self Assessment wizard, expenses and invoicing. Pro adds exports, Open Banking, automation and business insights.',
     brand: { '@type': 'Brand', name: 'MileClear' },
     aggregateRating: {
       '@type': 'AggregateRating',
@@ -278,7 +278,7 @@ export default function PricingPage() {
               className="subtext"
               style={{ margin: '0 auto', maxWidth: 560 }}
             >
-              Track every mile for free, with no monthly drive cap - unlike MileIQ (40/month) or Driversnote (15/month). Upgrade to Pro when you need exports, Open Banking, automation and business insights. iPhone, Android (beta) and web, one account.
+              Track every mile for free, with no monthly drive cap - unlike MileIQ (40/month) or Driversnote (15/month). Upgrade to Pro when you need exports, Open Banking, automation and business insights. iPhone, Android and web, one account.
             </p>
 
             {/* Pricing Cards */}
@@ -408,7 +408,7 @@ export default function PricingPage() {
               className="subtext"
               style={{ margin: '0 auto 2rem', maxWidth: 480 }}
             >
-              Free on iPhone, in beta on Android, and on the web. No credit card needed.
+              Free on iPhone, Android and the web. No credit card needed.
             </p>
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
