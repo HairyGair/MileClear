@@ -678,6 +678,12 @@ export function setupNotificationResponseHandler(): void {
         router.push("/charging-nearby?rapid=1" as never);
         return;
 
+      case "open_road_alerts":
+        // Road alerts trial (jobs/roadAlerts.ts, Oct 2026). Older bundles
+        // fall through to the default.
+        router.push("/road-alerts" as never);
+        return;
+
       case "open_exports":
         router.navigate("/exports" as any);
         break;

@@ -82,6 +82,13 @@ export default function NotificationsSettings() {
           onToggle={(v) => toggle("evWeeklySummary", v)}
         />
         <ToggleRow
+          icon="warning-outline"
+          label="Road alerts on my usual roads (trial)"
+          hint="A heads-up before you usually set off if a road you use often is closed or badly delayed. At most one a day."
+          value={prefs.roadAlerts}
+          onToggle={(v) => toggle("roadAlerts", v)}
+        />
+        <ToggleRow
           icon="sunny-outline"
           label="Morning briefing"
           hint="Yesterday's miles and today's outlook, around 8am"

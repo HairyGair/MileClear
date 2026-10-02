@@ -63,6 +63,15 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "navigate",
       locked: true,
     },
+    // Road alerts trial (Oct 2026). Renders nothing unless something serious
+    // or planned is on the driver's usual roads, or (once) the opt-in offer.
+    {
+      key: "road_alerts",
+      label: "Road Alerts",
+      icon: "warning-outline",
+      description: "Closures and long delays on your usual roads (trial)",
+      insertAfter: "work_cta",
+    },
     // Tax Readiness moved up to position 3 — the most useful piece of
     // information on the dashboard (estimated tax owed + weekly set-aside)
     // was previously buried below Daily Recap and Business Mileage.
@@ -189,6 +198,14 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Start Trip & Quick Actions",
       icon: "navigate",
       locked: true,
+    },
+    // Road alerts trial (Oct 2026): see the work dashboard entry.
+    {
+      key: "road_alerts",
+      label: "Road Alerts",
+      icon: "warning-outline",
+      description: "Closures and long delays on your usual roads (trial)",
+      insertAfter: "personal_cta",
     },
     // Month first, today second (14 Sep). The summary card below leads on
     // today, which reads 0.0 first thing every morning, so with it on top the

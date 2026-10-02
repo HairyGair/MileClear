@@ -26,12 +26,15 @@ export interface NotificationPreferences {
   cheapestFuelDaily: boolean;
   /** OPT-IN (off by default): Monday EV running-cost summary. */
   evWeeklySummary: boolean;
+  /** OPT-IN (off by default, trial): a heads-up before the driver usually
+   *  sets off when a road they use often is closed or badly delayed. */
+  roadAlerts: boolean;
 }
 
 const PREFS_KEY = "notification_prefs";
 
 /** Opt-in switches the server may have turned on for this driver. */
-const SERVER_OPT_IN_KEYS = ["cheapestFuelDaily", "evWeeklySummary"] as const;
+const SERVER_OPT_IN_KEYS = ["cheapestFuelDaily", "evWeeklySummary", "roadAlerts"] as const;
 
 export const DEFAULT_PREFERENCES: NotificationPreferences = {
   weeklySummary: true,
@@ -47,6 +50,7 @@ export const DEFAULT_PREFERENCES: NotificationPreferences = {
   morningBriefing: true,
   cheapestFuelDaily: false,
   evWeeklySummary: false,
+  roadAlerts: false,
 };
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

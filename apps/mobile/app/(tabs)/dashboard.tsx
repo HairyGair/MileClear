@@ -72,6 +72,7 @@ import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
 import { CommunityMonthCard } from "../../components/community/CommunityMonthCard";
+import RoadAlertsCard from "../../components/roadAlerts/RoadAlertsCard";
 import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
 import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
 import { SaCountdownCard } from "../../components/business/SaCountdownCard";
@@ -2532,6 +2533,10 @@ export default function DashboardScreen() {
             // Filters for business trips; empty calendar without them.
             if (!hasBusinessDeduction) return null;
             return <WorkCalendarCard key={key} />;
+          case "road_alerts":
+            // Road alerts trial: renders nothing unless something is on the
+            // driver's usual roads, or the one-time opt-in offer.
+            return <RoadAlertsCard key={key} />;
           case "community_month":
             return <CommunityMonthCard key={key} />;
           case "community":

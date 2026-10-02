@@ -12,6 +12,7 @@ import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
 import { LocalBenchmarkCard } from "../business/LocalBenchmarkCard";
 import { CommunityMonthCard } from "../community/CommunityMonthCard";
+import RoadAlertsCard from "../roadAlerts/RoadAlertsCard";
 import { PremiumGate } from "../PremiumGate";
 import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
@@ -267,6 +268,8 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
         return stats && stats.totalTrips > 0 ? (
           <LocalBenchmarkCard key={key} mode="personal" />
         ) : null;
+      case "road_alerts":
+        return <RoadAlertsCard key={key} />;
       case "community_month":
         return <CommunityMonthCard key={key} />;
       case "community":
@@ -283,7 +286,7 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
   };
 
   const sectionOrder = visibleKeys || [
-    "personal_cta", "personal_summary", "daily_recap",
+    "personal_cta", "road_alerts", "personal_summary", "daily_recap",
     "milestone", "driving_patterns",
     "journey_map", "local_benchmark", "community_month", "community",
   ];
