@@ -330,8 +330,8 @@ describe("formatPence", () => {
     expect(formatPence(499)).toBe("£4.99");
   });
 
-  it("formats 450000p as £4500.00 (HMRC car deduction, 10k miles)", () => {
-    expect(formatPence(450_000)).toBe("£4500.00");
+  it("formats 450000p as £4,500.00 (HMRC car deduction, 10k miles)", () => {
+    expect(formatPence(450_000)).toBe("£4,500.00");
   });
 
   it("formats 1p as £0.01", () => {
@@ -342,8 +342,14 @@ describe("formatPence", () => {
     expect(formatPence(10)).toBe("£0.10");
   });
 
-  it("formats large value — 1000000p as £10000.00", () => {
-    expect(formatPence(1_000_000)).toBe("£10000.00");
+  it("formats large value — 1000000p as £10,000.00", () => {
+    expect(formatPence(1_000_000)).toBe("£10,000.00");
+  });
+
+  it("groups millions and keeps the sign", () => {
+    expect(formatPence(123_456_789)).toBe("£1,234,567.89");
+    expect(formatPence(-150_000)).toBe("£-1,500.00");
+    expect(formatPence(99_999)).toBe("£999.99");
   });
 
   it("uses pound sign £ (U+00A3), not # or $", () => {

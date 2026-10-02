@@ -156,7 +156,11 @@ export function resolveMileageRates(user: {
  */
 export function formatPence(pence: number): string {
   const pounds = pence / 100;
-  return `\u00A3${pounds.toFixed(2)}`;
+  // Thousands separators by hand, not toLocaleString, so the API, the web
+  // and both phone engines print the same thing. Without them the Self
+  // Assessment checklist read "£21480.00" (found 2 Oct 2026).
+  const [whole, frac] = pounds.toFixed(2).split(".");
+  return `\u00A3${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}.${frac}`;
 }
 
 /**
