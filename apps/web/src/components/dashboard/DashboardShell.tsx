@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../../lib/auth-context";
 import { Sidebar } from "./Sidebar";
 import { DashboardSkeleton } from "../ui/LoadingSkeleton";
@@ -10,6 +10,9 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  // The admin area brings its own sidebar; two side by side wasted a third of the screen.
+  const isAdmin = pathname?.startsWith("/dashboard/admin") ?? false;
 
   if (loading) {
     return (
@@ -25,6 +28,14 @@ export function DashboardShell({ children }: { children: ReactNode }) {
   if (!user) {
     router.replace("/login");
     return null;
+  }
+
+  if (isAdmin) {
+    return (
+      <div className="dash dash--admin">
+        <main className="dash__main">{children}</main>
+      </div>
+    );
   }
 
   return (

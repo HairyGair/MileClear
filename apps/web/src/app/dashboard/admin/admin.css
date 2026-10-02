@@ -983,9 +983,8 @@
 
 /* ── Responsive ──────────────────────────────────────────────────── */
 
-/* Below 1280px the dashboard sidebar plus the admin sidebar leave too little
-   room, so the admin menu becomes a drawer opened from the top bar. */
-@media (max-width: 1279px) {
+/* Below 1024px the admin menu becomes a drawer opened from the top bar. */
+@media (max-width: 1023px) {
   .adm { grid-template-columns: minmax(0, 1fr); gap: 0; }
 
   .adm-side {
@@ -1067,3 +1066,16 @@
 @media (min-width: 769px) {
   .adm-topbar__menu-label { display: none; }
 }
+
+/* The admin area replaces the main dashboard sidebar (DashboardShell). */
+.dash--admin { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1023px) {
+  .dash--admin .dash__main { padding-top: var(--dash-main-py); }
+}
+.adm-side__foot p { margin: 0; }
+.adm-side__back {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-bottom: 0.5rem; color: var(--adm-text-2, #94a3b8);
+  text-decoration: none; font-size: 0.8125rem;
+}
+.adm-side__back:hover, .adm-side__back:focus-visible { color: var(--adm-accent, #fcd34d); }

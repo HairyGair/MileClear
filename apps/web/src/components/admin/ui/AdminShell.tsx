@@ -139,9 +139,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
             </div>
           ))}
         </nav>
-        <p className="adm-side__foot">
-          Press <kbd>/</kbd> to find a user
-        </p>
+        <div className="adm-side__foot">
+          <Link href="/dashboard" className="adm-side__back">
+            <AdminIcon name="arrowLeft" size={14} />
+            Back to my dashboard
+          </Link>
+          <p>
+            Press <kbd>/</kbd> to find a user
+          </p>
+        </div>
       </aside>
 
       <div className="adm-main">
