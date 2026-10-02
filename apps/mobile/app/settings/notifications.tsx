@@ -6,24 +6,13 @@ import { ToggleRow } from "../../components/settings/ToggleRow";
 import {
   getNotificationPreferences,
   setNotificationPreferences,
+  DEFAULT_PREFERENCES,
   type NotificationPreferences,
 } from "../../lib/notifications/preferences";
 import { useUser } from "../../lib/user/context";
 import { PremiumTeaser } from "../../components/PremiumGate";
 
-const DEFAULTS: NotificationPreferences = {
-  weeklySummary: true,
-  unclassifiedNudge: true,
-  shiftReminder: true,
-  streakReminder: true,
-  taxDeadline: true,
-  milestoneAlerts: true,
-  shiftSummary: true,
-  monthlyRecap: true,
-  autoTripLiveActivity: true,
-  fuelAlert: true,
-  morningBriefing: true,
-};
+const DEFAULTS: NotificationPreferences = DEFAULT_PREFERENCES;
 
 export default function NotificationsSettings() {
   const { user } = useUser();
@@ -80,10 +69,17 @@ export default function NotificationsSettings() {
         />
         <ToggleRow
           icon="water-outline"
-          label="Fuel price alerts"
-          hint="Cheapest fuel near your saved locations, each morning"
-          value={prefs.fuelAlert}
-          onToggle={(v) => toggle("fuelAlert", v)}
+          label="Cheapest fuel near me each morning"
+          hint="Only when a station near where you set off is at least 3p a litre under the local average"
+          value={prefs.cheapestFuelDaily}
+          onToggle={(v) => toggle("cheapestFuelDaily", v)}
+        />
+        <ToggleRow
+          icon="flash-outline"
+          label="EV running costs each Monday"
+          hint="For electric cars: last week's miles costed at your home rate and on public rapid chargers"
+          value={prefs.evWeeklySummary}
+          onToggle={(v) => toggle("evWeeklySummary", v)}
         />
         <ToggleRow
           icon="sunny-outline"

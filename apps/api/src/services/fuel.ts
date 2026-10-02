@@ -7,6 +7,7 @@ import {
 } from "@mileclear/shared";
 import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
 import { isFuelFinderConfigured, fetchFuelFinderStations } from "./fuelFinder.js";
+import { parsePriceTimestamp } from "./cheapestFuelRule.js";
 
 const NATIONAL_AVG_CACHE_KEY = "fuel:national_averages";
 const NATIONAL_AVG_TTL_SECONDS = 24 * 60 * 60; // 24 hours
@@ -33,6 +34,8 @@ interface InternalStation {
     B7?: number;
     SDV?: number;
   };
+  /** ISO time each price was last reported (see FuelStation.pricesUpdatedAt). */
+  pricesUpdatedAt?: Partial<Record<keyof InternalStation["prices"], string>>;
 }
 
 let stationCache: StationCacheEntry | null = null;
@@ -50,7 +53,7 @@ interface RawFeedStation {
 
 const VALID_FUEL_TYPES = new Set(["E10", "E5", "B7", "SDV"]);
 
-function normaliseStation(raw: RawFeedStation, feedName: string): InternalStation | null {
+function normaliseStation(raw: RawFeedStation, feedName: string, feedUpdatedIso?: string | null): InternalStation | null {
   const lat = raw.location?.latitude;
   const lng = raw.location?.longitude;
   if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
@@ -73,6 +76,17 @@ function normaliseStation(raw: RawFeedStation, feedName: string): InternalStatio
   // Skip stations with no valid prices
   if (!prices.E10 && !prices.E5 && !prices.B7 && !prices.SDV) return null;
 
+  // Retailer feeds carry one timestamp for the whole file, so every price in
+  // it shares that time. Unknown stays unknown: the morning alert treats a
+  // price with no time as stale rather than guessing.
+  let pricesUpdatedAt: InternalStation["pricesUpdatedAt"];
+  if (feedUpdatedIso) {
+    pricesUpdatedAt = {};
+    for (const k of Object.keys(prices) as (keyof InternalStation["prices"])[]) {
+      pricesUpdatedAt[k] = feedUpdatedIso;
+    }
+  }
+
   return {
     siteId: String(raw.site_id || `${feedName}-${lat}-${lng}`),
     brand: raw.brand || feedName,
@@ -81,6 +95,7 @@ function normaliseStation(raw: RawFeedStation, feedName: string): InternalStatio
     latitude: lat,
     longitude: lng,
     prices,
+    ...(pricesUpdatedAt ? { pricesUpdatedAt } : {}),
   };
 }
 
@@ -100,10 +115,15 @@ async function fetchFeed(feed: { name: string; url: string }): Promise<{ station
       stations?: RawFeedStation[];
     };
 
+    // Feeds write "02/10/2026 09:56:30" (UK day first), which Date.parse
+    // cannot read; normalise it once for the per-price timestamps.
+    const feedMs = parsePriceTimestamp(data.last_updated);
+    const feedUpdatedIso = feedMs != null ? new Date(feedMs).toISOString() : null;
+
     const stations: InternalStation[] = [];
     if (Array.isArray(data.stations)) {
       for (const raw of data.stations) {
-        const normalised = normaliseStation(raw, feed.name);
+        const normalised = normaliseStation(raw, feed.name, feedUpdatedIso);
         if (normalised) stations.push(normalised);
       }
     }
@@ -235,7 +255,10 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 export async function getNearbyStations(
   lat: number,
   lng: number,
-  radiusMiles: number
+  radiusMiles: number,
+  /** Nearest N returned. 50 suits the app's list; the morning alert asks for
+   *  more so a busy 10-mile circle is not cut short before its far edge. */
+  limit = 50
 ): Promise<{ stations: FuelStation[]; lastUpdated: string }> {
   const cache = await getCachedStations();
 
@@ -268,14 +291,15 @@ export async function getNearbyStations(
       longitude: s.longitude,
       distanceMiles: Math.round(dist * 100) / 100,
       prices: s.prices,
+      ...(s.pricesUpdatedAt ? { pricesUpdatedAt: s.pricesUpdatedAt } : {}),
     });
   }
 
-  // Sort by distance, limit 50
+  // Sort by distance, nearest `limit`
   nearby.sort((a, b) => a.distanceMiles - b.distanceMiles);
 
   return {
-    stations: nearby.slice(0, 50),
+    stations: nearby.slice(0, limit),
     lastUpdated: cache.lastUpdated,
   };
 }

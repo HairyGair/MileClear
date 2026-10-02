@@ -28,6 +28,12 @@ export const PUSH_PREF_KEYS = [
   // Evening "Today: N trips, M miles" push (jobs/eveningDigest.ts). Missing
   // key = on, like every other key here.
   "eveningDigest",
+  // OPT-IN keys (2 Oct 2026): off unless the driver turned them on, so check
+  // them with pushPrefOptedIn(), never pushPrefEnabled().
+  // Morning "cheapest petrol/diesel near you" push (jobs/fuelAlerts.ts).
+  "cheapestFuelDaily",
+  // Monday EV running-cost summary push (jobs/fuelAlerts.ts).
+  "evWeeklySummary",
 ] as const;
 
 export type PushPrefKey = (typeof PUSH_PREF_KEYS)[number];
@@ -41,4 +47,17 @@ export function pushPrefEnabled(
   if (!prefs || typeof prefs !== "object" || Array.isArray(prefs)) return true;
   const v = (prefs as Record<string, unknown>)[key];
   return v !== false;
+}
+
+/** Opt-in keys: on ONLY when the stored value is exactly true. Missing,
+ *  null or no prefs at all = off. */
+export const OPT_IN_PUSH_PREF_KEYS = ["cheapestFuelDaily", "evWeeklySummary"] as const;
+export type OptInPushPrefKey = (typeof OPT_IN_PUSH_PREF_KEYS)[number];
+
+export function pushPrefOptedIn(
+  prefs: Prisma.JsonValue | null | undefined,
+  key: OptInPushPrefKey
+): boolean {
+  if (!prefs || typeof prefs !== "object" || Array.isArray(prefs)) return false;
+  return (prefs as Record<string, unknown>)[key] === true;
 }

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getCurrentLocation } from "../lib/location/geocoding";
 import { openDirections } from "../lib/location/directions";
@@ -21,7 +21,13 @@ const ACCESS_LABEL: Record<string, string> = {
   unknown: "",
 };
 
+/** Rapid = 50 kW or more, the usual UK split between "fast" and "rapid". */
+const RAPID_KW = 50;
+
 export default function ChargingNearbyScreen() {
+  // ?rapid=1 from the EV running-cost card and the Monday EV push.
+  const params = useLocalSearchParams<{ rapid?: string }>();
+  const [rapidOnly, setRapidOnly] = useState(params.rapid === "1");
   const [chargers, setChargers] = useState<ChargePoint[]>([]);
   const [attribution, setAttribution] = useState("");
   const [loading, setLoading] = useState(true);
@@ -54,6 +60,8 @@ export default function ChargingNearbyScreen() {
     load();
   }, [load]);
 
+  const shown = rapidOnly ? chargers.filter((c) => (c.maxPowerKw ?? 0) >= RAPID_KW) : chargers;
+
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: true, title: "Nearby Chargers" }} />
@@ -82,7 +90,26 @@ export default function ChargingNearbyScreen() {
             </View>
           ) : (
             <>
-              {chargers.map((c) => (
+              <View style={styles.filterRow}>
+                {[
+                  { label: "All", value: false },
+                  { label: `Rapid (${RAPID_KW} kW+)`, value: true },
+                ].map((f) => (
+                  <TouchableOpacity
+                    key={f.label}
+                    style={[styles.filterChip, rapidOnly === f.value && styles.filterChipActive]}
+                    onPress={() => setRapidOnly(f.value)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: rapidOnly === f.value }}
+                  >
+                    <Text style={[styles.filterText, rapidOnly === f.value && styles.filterTextActive]}>{f.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {rapidOnly && shown.length === 0 && (
+                <Text style={styles.emptyText}>No rapid chargers within 5 miles. Switch to All to see slower ones.</Text>
+              )}
+              {shown.map((c) => (
                 <View key={c.id} style={styles.card}>
                   <View style={styles.cardHeader}>
                     <View style={{ flex: 1 }}>
@@ -152,5 +179,10 @@ const styles = StyleSheet.create({
   costNote: { flex: 1, color: colors.text3, fontFamily: fonts.regular, fontSize: 11.5 },
   dirBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: colors.amber, borderRadius: 8, paddingHorizontal: 11, paddingVertical: 7 },
   dirBtnText: { color: colors.bg, fontFamily: fonts.bold, fontSize: 12.5 },
+  filterRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceBorder },
+  filterChipActive: { backgroundColor: colors.amber, borderColor: colors.amber },
+  filterText: { color: colors.text2, fontFamily: fonts.semibold, fontSize: 12.5 },
+  filterTextActive: { color: colors.bg },
   attribution: { color: colors.text3, fontFamily: fonts.regular, fontSize: 10.5, textAlign: "center", marginTop: 8 },
 });

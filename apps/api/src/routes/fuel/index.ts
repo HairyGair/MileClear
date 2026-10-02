@@ -5,6 +5,7 @@ import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, FUEL_PRICE_DEFAULT_RADIUS_MILES } from "@mileclear/shared";
 import { getNearbyStations, getNationalAverages } from "../../services/fuel.js";
+import { cheapestTodayFor } from "../../services/cheapestFuel.js";
 
 const createFuelLogSchema = z.object({
   vehicleId: z.string().uuid().optional(),
@@ -80,6 +81,15 @@ export async function fuelRoutes(app: FastifyInstance) {
   app.register(async (authApp) => {
     authApp.addHook("preHandler", authMiddleware);
     attachIdempotency(authApp);
+
+  // GET /fuel/cheapest-today: the line at the top of the fuel tab. Same rule
+  // as the opt-in morning push (services/cheapestFuelRule.ts), centred on
+  // where the driver usually starts trips. EV drivers get running costs.
+  // data: null (with a reason) when there is nothing honest to say.
+  authApp.get("/cheapest-today", async (request, reply) => {
+    const result = await cheapestTodayFor(request.userId!);
+    return reply.send(result);
+  });
 
   // Create fuel log
   authApp.post("/logs", async (request, reply) => {

@@ -117,6 +117,10 @@ model User {
   // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =
   // use the UK default. Octopus can suggest a current rate; user can override.
   electricityPencePerKwh Float?
+  // What the driver pays on public rapid chargers (pence per kWh), for the EV
+  // running-cost comparison. Null = DEFAULT_PUBLIC_RAPID_PENCE_PER_KWH (shared).
+  // There is no free live feed of public charger prices to fill this from.
+  publicChargePencePerKwh Float?
   notes                    String?   @db.Text
   lastLoginAt              DateTime?
   lastTripAt               DateTime?

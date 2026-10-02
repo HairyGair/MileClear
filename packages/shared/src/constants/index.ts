@@ -212,6 +212,17 @@ export const GIG_PLATFORMS = [
 // Fuel prices
 export const FUEL_PRICE_STALENESS_DAYS = 14;
 export const FUEL_PRICE_DEFAULT_RADIUS_MILES = 5;
+
+// EV running-cost defaults (Oct 2026). Used when the driver has not entered
+// their own figures. No free UK feed of public charger prices exists (each
+// operator publishes its own under the Public Charge Point Regulations 2023,
+// mostly behind a signed data agreement), so the public price is an editable
+// assumption, not a live price.
+/** Zapmap Price Index, August 2026: weighted average pay-as-you-go price on
+ *  rapid and ultra-rapid chargers. https://www.zapmap.com/ev-stats/charging-price-index */
+export const DEFAULT_PUBLIC_RAPID_PENCE_PER_KWH = 77;
+/** Typical UK EV efficiency when the vehicle has no miles/kWh set. */
+export const DEFAULT_EV_MILES_PER_KWH = 3.5;
 export const FUEL_STATION_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 // UK government-mandated retailer fuel price feeds
