@@ -127,6 +127,15 @@ const ARMED_SILENT_DAILY_CAP_MS = 24 * 60 * 60 * 1000;
 // one-a-day cadence, so the two groups can be compared on "drove within N
 // hours of the event". After the date every qualifying user is pushed again.
 export const ARMED_SILENT_HOLDOUT_UNTIL = Date.parse("2026-09-30T23:00:00Z");
+
+// Check 3 is OFF (Anthony, 2 Oct 2026) because the holdout showed no effect.
+// 23-30 Sep: 85.5% of pushed drivers drove again within 48 h against 85.2%
+// of held-out drivers (172 vs 162 drivers); within 24 h of each event,
+// 66.4% vs 69.7%. A silent phone drives again on its own as often without
+// the push, so it was a background push spent for nothing (and on iOS it
+// eats the silent-push budget Checks 1 and 2 rely on). The code and its
+// tests stay so it can come back with a different design.
+export const ARMED_SILENT_RESTART_PUSH_ENABLED = false;
 const ARMED_SILENT_HOLDOUT_SALT = "armed-silent-holdout-2026-09-23";
 
 // Pending-sync check thresholds. Discovered 4 May 2026 via James Taylor:
@@ -756,7 +765,8 @@ export async function runRecordingWatchdogJob(): Promise<void> {
   // of judgement here lives in one tested function, not split between a
   // WHERE clause and a loop.
   const armedSilentTripCutoff = new Date(now - ARMED_SILENT_TRIP_STALE_MS);
-  const armedSilentCandidates = await prisma.$queryRaw<ArmedSilentUser[]>`
+  const armedSilentCandidates = ARMED_SILENT_RESTART_PUSH_ENABLED
+    ? await prisma.$queryRaw<ArmedSilentUser[]>`
     SELECT id, lastHeartbeatAt, lastTripAt, bgLocationPermission,
            platformsSeen, pushToken
     FROM users
@@ -766,7 +776,8 @@ export async function runRecordingWatchdogJob(): Promise<void> {
       AND lastTripAt IS NOT NULL
       AND lastTripAt < ${armedSilentTripCutoff}
       AND pushToken IS NOT NULL
-  `;
+  `
+    : [];
   const armedSilent = armedSilentCandidates.filter((u) => isArmedButSilent(u, now));
 
   // Daily cap (see ARMED_SILENT_DAILY_CAP_MS above) - stricter than the
