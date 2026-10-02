@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
-import { PUSH_PREF_KEYS } from "../../services/pushPrefs.js";
+import { OPT_IN_PUSH_PREF_KEYS, PUSH_PREF_KEYS } from "../../services/pushPrefs.js";
 
 const registerTokenSchema = z.object({
   pushToken: z
@@ -42,11 +42,49 @@ export async function notificationRoutes(app: FastifyInstance) {
       if (!parsed.success) {
         return reply.status(400).send({ error: parsed.error.issues[0].message });
       }
+      // The app sends its whole set of switches. An app from before 2 Oct 2026
+      // does not know the opt-in keys, so a save from it must not switch off
+      // an opt-in the driver (or the 2 Oct carry-over) turned on: keep any
+      // opt-in key the body leaves out.
+      const existing = await prisma.user.findUnique({
+        where: { id: request.userId! },
+        select: { pushPrefs: true },
+      });
+      const stored =
+        existing?.pushPrefs && typeof existing.pushPrefs === "object" && !Array.isArray(existing.pushPrefs)
+          ? (existing.pushPrefs as Record<string, unknown>)
+          : {};
+      const next: Record<string, boolean> = {};
+      for (const k of OPT_IN_PUSH_PREF_KEYS) {
+        if (typeof stored[k] === "boolean") next[k] = stored[k] as boolean;
+      }
+      for (const [k, v] of Object.entries(parsed.data)) {
+        if (typeof v === "boolean") next[k] = v;
+      }
       await prisma.user.update({
         where: { id: request.userId! },
-        data: { pushPrefs: parsed.data },
+        data: { pushPrefs: next },
       });
       return reply.send({ data: { ok: true } });
+    }
+  );
+
+  // GET /notifications/preferences — the switches the server holds, so the
+  // app can pick up an opt-in set on the server (the 2 Oct 2026 fuel-alert
+  // carry-over) instead of showing it off and saving it off.
+  app.get(
+    "/preferences",
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const user = await prisma.user.findUnique({
+        where: { id: request.userId! },
+        select: { pushPrefs: true },
+      });
+      const prefs =
+        user?.pushPrefs && typeof user.pushPrefs === "object" && !Array.isArray(user.pushPrefs)
+          ? (user.pushPrefs as Record<string, unknown>)
+          : {};
+      return reply.send({ data: prefs });
     }
   );
 

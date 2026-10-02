@@ -4,7 +4,7 @@ import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { ToggleRow } from "../../components/settings/ToggleRow";
 import {
-  getNotificationPreferences,
+  adoptServerOptIns,
   setNotificationPreferences,
   DEFAULT_PREFERENCES,
   type NotificationPreferences,
@@ -20,7 +20,7 @@ export default function NotificationsSettings() {
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULTS);
 
   useEffect(() => {
-    getNotificationPreferences()
+    adoptServerOptIns()
       .then(setPrefs)
       .catch((e: unknown) => console.warn("[settings/notifications] load failed:", e));
   }, []);

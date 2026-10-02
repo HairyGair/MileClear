@@ -30,6 +30,9 @@ export interface NotificationPreferences {
 
 const PREFS_KEY = "notification_prefs";
 
+/** Opt-in switches the server may have turned on for this driver. */
+const SERVER_OPT_IN_KEYS = ["cheapestFuelDaily", "evWeeklySummary"] as const;
+
 export const DEFAULT_PREFERENCES: NotificationPreferences = {
   weeklySummary: true,
   unclassifiedNudge: true,
@@ -66,8 +69,22 @@ export async function setNotificationPreferences(
   partial: Partial<NotificationPreferences>
 ): Promise<void> {
   const current = await getNotificationPreferences();
-  const updated = { ...current, ...partial };
+  const updated: Partial<NotificationPreferences> = { ...current, ...partial };
   const db = await getDatabase();
+  // An opt-in this phone has never stored is not "off": it may be on at the
+  // server (2 Oct 2026 carry-over). Leave it out so the server keeps its value.
+  try {
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [PREFS_KEY]
+    );
+    const stored = row ? (JSON.parse(row.value) as Record<string, unknown>) : {};
+    for (const k of SERVER_OPT_IN_KEYS) {
+      if (typeof stored[k] !== "boolean" && partial[k] === undefined) delete updated[k];
+    }
+  } catch {
+    for (const k of SERVER_OPT_IN_KEYS) if (partial[k] === undefined) delete updated[k];
+  }
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
     [PREFS_KEY, JSON.stringify(updated)]
@@ -78,7 +95,7 @@ export async function setNotificationPreferences(
   syncPreferencesToServer(updated);
 }
 
-function syncPreferencesToServer(prefs: NotificationPreferences): void {
+function syncPreferencesToServer(prefs: Partial<NotificationPreferences>): void {
   import("../api/index")
     .then(({ apiRequest }) =>
       apiRequest("/notifications/preferences", {
@@ -89,4 +106,43 @@ function syncPreferencesToServer(prefs: NotificationPreferences): void {
     .catch(() => {
       /* offline or transient — next toggle re-syncs */
     });
+}
+
+
+/**
+ * Picks up opt-ins set on the server that this phone has never stored: the
+ * 2 Oct 2026 carry-over turned the new morning fuel alert on for drivers who
+ * were getting the old one. Without this the switch would show off here, and
+ * the next save (which sends every switch) would turn it off on the server.
+ * Only fills keys this phone has never saved, so a local choice always wins.
+ */
+export async function adoptServerOptIns(): Promise<NotificationPreferences> {
+  const current = await getNotificationPreferences();
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [PREFS_KEY]
+    );
+    const stored = row ? (JSON.parse(row.value) as Record<string, unknown>) : {};
+    const missing = SERVER_OPT_IN_KEYS.filter((k) => typeof stored[k] !== "boolean");
+    if (missing.length === 0) return current;
+    const { apiRequest } = await import("../api/index");
+    const res = await apiRequest<{ data: Record<string, unknown> }>("/notifications/preferences");
+    const adopted: Partial<NotificationPreferences> = {};
+    for (const k of missing) {
+      const v = res.data?.[k];
+      if (typeof v === "boolean") adopted[k] = v;
+    }
+    if (Object.keys(adopted).length === 0) return current;
+    const updated = { ...current, ...adopted };
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+      [PREFS_KEY, JSON.stringify(updated)]
+    );
+    return updated;
+  } catch {
+    // Offline or an older API: keep what the phone has.
+    return current;
+  }
 }

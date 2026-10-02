@@ -21,7 +21,7 @@ import { updateElectricityRate, updatePublicChargeRate } from "../../lib/api/cha
 import { registerPushToken } from "../../lib/api/notifications";
 import { registerForPushNotifications } from "../../lib/notifications";
 import {
-  getNotificationPreferences,
+  adoptServerOptIns,
   setNotificationPreferences,
 } from "../../lib/notifications/preferences";
 import { getDatabase } from "../../lib/db/index";
@@ -82,7 +82,7 @@ export default function CheapestTodayCard() {
         setShowPrompt(false);
         return;
       }
-      const prefs = await getNotificationPreferences();
+      const prefs = await adoptServerOptIns();
       const on = d.kind === "ev" ? prefs.evWeeklySummary : prefs.cheapestFuelDaily;
       setShowPrompt(!on && !(await promptSeen()));
     } catch {
