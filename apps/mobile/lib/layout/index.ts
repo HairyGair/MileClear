@@ -141,6 +141,15 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "calendar-outline",
       description: "Monthly heatmap of your driving activity",
     },
+    // Last month's community numbers (every driver together). The card
+    // renders only on the 1st-10th of a month, so it costs nothing the rest
+    // of the time. Added 2 Oct 2026; existing devices get it appended.
+    {
+      key: "community_month",
+      label: "This Month in MileClear",
+      icon: "people-circle-outline",
+      description: "Last month's totals across every MileClear driver (first 10 days of each month)",
+    },
     // Default-hidden: low-signal at the bottom of an 11-card dashboard
     // (13 Sep reorder). Still reachable via Settings > What You See.
     {
@@ -202,6 +211,15 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Recent Journeys",
       icon: "map-outline",
       description: "Map of your recent trips",
+    },
+    // Last month's community numbers (every driver together). The card
+    // renders only on the 1st-10th of a month, so it costs nothing the rest
+    // of the time. Added 2 Oct 2026; existing devices get it appended.
+    {
+      key: "community_month",
+      label: "This Month in MileClear",
+      icon: "people-circle-outline",
+      description: "Last month's totals across every MileClear driver (first 10 days of each month)",
     },
     // Default-hidden: low-signal at the bottom of the dashboard, same as
     // the work dashboard's copy of this card (13 Sep reorder). Still

@@ -71,6 +71,7 @@ import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
 import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
+import { CommunityMonthCard } from "../../components/community/CommunityMonthCard";
 import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
 import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
 import { MileageMonthCard } from "../../components/business/MileageMonthCard";
@@ -2518,6 +2519,8 @@ export default function DashboardScreen() {
             // Filters for business trips; empty calendar without them.
             if (!hasBusinessDeduction) return null;
             return <WorkCalendarCard key={key} />;
+          case "community_month":
+            return <CommunityMonthCard key={key} />;
           case "community":
             return (
               <View key={key}>

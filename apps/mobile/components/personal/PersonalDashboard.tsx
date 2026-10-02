@@ -10,6 +10,7 @@ import { PostTripCard } from "./PostTripCard";
 import { PersonalRecapCard } from "./PersonalRecapCard";
 import { MapOverview } from "./MapOverview";
 import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
+import { CommunityMonthCard } from "../community/CommunityMonthCard";
 import { PremiumGate } from "../PremiumGate";
 import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
@@ -261,6 +262,8 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
             </PremiumGate>
           </View>
         ) : null;
+      case "community_month":
+        return <CommunityMonthCard key={key} />;
       case "community":
         return (
           <View key={key}>
@@ -277,7 +280,7 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
   const sectionOrder = visibleKeys || [
     "personal_cta", "personal_summary", "daily_recap",
     "milestone", "driving_patterns",
-    "journey_map", "community",
+    "journey_map", "community_month", "community",
   ];
 
   return (
