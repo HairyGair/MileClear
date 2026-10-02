@@ -260,7 +260,7 @@ function KpiRow({ geo, f }: { geo: Geo; f: Filters }) {
   const conf = s?.byConfidence;
 
   return (
-    <Grid min={170}>
+    <Grid min={155}>
       <KpiCard
         label={f.win === "all" ? "Sign-ups, all time" : `Sign-ups, ${WINDOW_OPTIONS.find((o) => o.value === f.win)?.long.toLowerCase()}`}
         value={s?.signups ?? 0}
