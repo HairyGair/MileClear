@@ -15,7 +15,14 @@
 //     it) only after both checks, and only if the SubscribeURL is an AWS SNS
 //     host.
 
-import { createVerify } from "node:crypto";
+import {
+  constants as cryptoConstants,
+  createHash,
+  createPublicKey,
+  createVerify,
+  publicDecrypt,
+  timingSafeEqual,
+} from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { logEvent } from "./appEvents.js";
 import {
@@ -89,12 +96,40 @@ export function isAwsSnsUrl(raw: string | undefined, requirePem: boolean): boole
 export function verifySnsSignature(m: SnsMessage, certOrKeyPem: string): boolean {
   const toSign = snsStringToSign(m);
   if (!toSign || !m.Signature) return false;
-  const algo = m.SignatureVersion === "2" ? "RSA-SHA256" : m.SignatureVersion === "1" ? "RSA-SHA1" : null;
-  if (!algo) return false;
+  if (m.SignatureVersion === "1") return verifyRsaSha1(toSign, m.Signature, certOrKeyPem);
+  if (m.SignatureVersion !== "2") return false;
   try {
-    const v = createVerify(algo);
+    const v = createVerify("RSA-SHA256");
     v.update(toSign, "utf8");
     return v.verify(certOrKeyPem, m.Signature, "base64");
+  } catch {
+    return false;
+  }
+}
+
+/** DER prefix of a PKCS#1 v1.5 DigestInfo for SHA-1. */
+const SHA1_DIGEST_INFO_PREFIX = Buffer.from("3021300906052b0e03021a05000414", "hex");
+
+/**
+ * SNS signs with SHA-1 (SignatureVersion 1) unless the topic owner opts into
+ * SHA-256, and DfT's topics use 1. The production server's system crypto
+ * policy refuses SHA-1 signatures ("invalid digest" from createVerify), which
+ * rejected DfT's first two confirmations on 2 Oct 2026. So verify by hand:
+ * recover the signed DigestInfo with the certificate's public key and compare
+ * it with our own SHA-1 of the canonical string. Same maths, no policy gate.
+ */
+function verifyRsaSha1(toSign: string, signatureB64: string, certOrKeyPem: string): boolean {
+  try {
+    const key = createPublicKey(certOrKeyPem);
+    const recovered = publicDecrypt(
+      { key, padding: cryptoConstants.RSA_PKCS1_PADDING },
+      Buffer.from(signatureB64, "base64")
+    );
+    const expected = Buffer.concat([
+      SHA1_DIGEST_INFO_PREFIX,
+      createHash("sha1").update(toSign, "utf8").digest(),
+    ]);
+    return recovered.length === expected.length && timingSafeEqual(recovered, expected);
   } catch {
     return false;
   }
