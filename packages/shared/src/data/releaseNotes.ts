@@ -87,9 +87,18 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // App Store copy. Label flow as before: "Pending Review" with Apple,
     // "Latest" on approval in the same edit that drops 1.3.11 to "App Store".
     version: "1.3.12",
-    date: "September 2026",
-    label: "Pending Review",
+    date: "October 2026",
+    label: "Latest",
     items: [
+      "Start Trip finishes by itself once you've been parked for 15 minutes with the app closed",
+      "Cheapest fuel near you: the Fuel tab shows today's cheapest petrol or diesel near where you usually set off, and an optional morning alert when a station is at least 3p a litre under the local average",
+      "Electric cars: what a mile costs charged at home against a public rapid charger, with both prices yours to set, and an optional Monday summary",
+      "Drivers near you: an anonymous comparison of your weekly miles, mileage claim and trips with drivers in your area",
+      "Road alerts (trial): an optional heads-up before you set off when a road you drive regularly is closed or badly delayed",
+      "This Month in MileClear: last month's numbers across every driver, early each month, with a share button",
+      "Ready for 31 January: a checklist for your 2025-26 Self Assessment return, with each item one tap from the fix",
+      "The Self Assessment walkthrough shows the right boxes on the 2025-26 SA103S (mileage, parking and fares in box 12) and the right mileage rate for the year",
+      "Money over £1,000 shows with a comma, as in £21,480.00",
       "An Automatic trips switch on the home screen. Turn it off and the app stops recording drives on its own; shifts and Start Trip still record",
       "Trips recorded during a shift are saved as Business",
       "Less battery: automatic tracking sleeps while recording is paused and while a shift or Start Trip is running, and signing out always stops it",
@@ -112,8 +121,12 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ctaLabel: "Read the release notes",
     emailSubject: "What's new in MileClear 1.3.12",
     emailTagline:
-      "1.3.12 adds an Automatic trips switch to the home screen, saves battery while you're paused, and stops the same drive being saved twice.",
+      "1.3.12 brings the cheapest fuel near you, a comparison with drivers in your area, and a Start Trip that finishes itself when you park.",
     emailHighlights: [
+      "**Cheapest fuel near you** - today's cheapest petrol or diesel near where you set off, with an optional morning alert when it's at least 3p a litre cheaper.",
+      "**Drivers near you** - how your weekly miles and mileage claim compare with drivers in your area. Anonymous.",
+      "**Start Trip finishes itself** - park up and it saves the trip after 15 minutes, even if you forget to tap Arrived.",
+      "**Ready for 31 January** - a checklist for your 2025-26 Self Assessment return.",
       "**Automatic trips switch** - on the home screen. Off means the app stops recording drives on its own; shifts and Start Trip still record.",
       "**Less battery** - tracking sleeps while you're paused or on a shift, and signing out stops it.",
       "**No double drives** - a drive recorded by a shift or Start Trip is no longer saved a second time.",
@@ -143,7 +156,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // changed, never "update to get this", because most readers already have it.
     version: "1.3.11",
     date: "September 2026",
-    label: "Latest",
+    label: "App Store",
     items: [
       "Tapping Business or Personal on the lock-screen card after a trip now applies at once and the card clears, instead of waiting until the next time you open the app",
       "Tapping Not Driving on the lock-screen card during a detected drive now stops the recording there and then; before, the card went away but the drive was still saved",
