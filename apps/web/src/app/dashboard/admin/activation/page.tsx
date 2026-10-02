@@ -1,13 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { api } from "../../../../lib/api";
-
 // Activation health. The question this page answers is the one the topline
 // hides: who is running MileClear and getting nothing from it, and why.
-// Reads /admin/activation-health. Permission is the heartbeat's value
-// unless the diagnostic dump is newer, in which case the dump wins.
+// Reads /admin/activation-health (fixed window, no date range). Permission is
+// the heartbeat's value unless the diagnostic dump is newer, in which case
+// the dump wins.
+
+import { useState } from "react";
+import { Ago } from "@/components/admin/Ago";
+import { UserDetailModal } from "@/components/admin/UserDetailModal";
+import {
+  Badge,
+  BarChart,
+  DataTable,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Panel,
+  StatLine,
+  TabBar,
+  formatDay,
+  formatNumber,
+  formatShare,
+  useAdminData,
+  type TableColumn,
+  type Tone,
+} from "@/components/admin/ui";
 
 interface Row {
   userId: string;
@@ -37,6 +57,13 @@ interface GaveUpRow {
   build: string | null;
 }
 
+interface OtaRow {
+  runtime: string;
+  devices: number;
+  embedded: number;
+  updates: Array<{ updateId: string; devices: number; publishedAt: string | null }>;
+}
+
 interface Data {
   windowDays: number;
   fleet: number;
@@ -50,296 +77,355 @@ interface Data {
   needsPermission: Row[];
   dailyPermissionMissing: Array<{ date: string; users: number }>;
   gaveUp24h: { total: number; recovered: number; asleep: number; aliveAndSilentCount: number; aliveAndSilent: GaveUpRow[] };
-  ota: Array<{
-    runtime: string;
-    devices: number;
-    embedded: number;
-    updates: Array<{ updateId: string; devices: number; publishedAt: string | null }>;
-  }>;
+  ota: OtaRow[];
   generatedAt: string;
 }
 
-function ago(iso: string | null): string {
-  if (!iso) return "never";
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+// ---------------------------------------------------------------------------
+// Cells
+// ---------------------------------------------------------------------------
+
+function UserCell({ name, email }: { name: string | null; email: string }) {
+  return (
+    <>
+      <span style={{ color: "var(--adm-text-strong)" }}>{name || email}</span>
+      {name && <span className="adm-cell-sub">{email}</span>}
+    </>
+  );
 }
 
-const card: React.CSSProperties = {
-  background: "rgba(15,23,42,0.6)",
-  border: "1px solid rgba(255,255,255,0.06)",
-  borderRadius: 12,
-  padding: "1.25rem",
-  marginBottom: "1.25rem",
-};
-const h2: React.CSSProperties = {
-  fontFamily: "var(--font-display)",
-  fontSize: "1.125rem",
-  fontWeight: 700,
-  color: "#f9fafb",
-  margin: "0 0 0.35rem",
-};
-const sub: React.CSSProperties = { color: "#94a3b8", fontSize: "0.875rem", lineHeight: 1.6, margin: "0 0 1rem" };
-const th: React.CSSProperties = {
-  textAlign: "left",
-  padding: "0.5rem 0.6rem",
-  color: "#94a3b8",
-  fontSize: "0.75rem",
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: "0.04em",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
-  whiteSpace: "nowrap",
-};
-const td: React.CSSProperties = {
-  padding: "0.5rem 0.6rem",
-  fontSize: "0.8125rem",
-  color: "#e2e8f0",
-  borderBottom: "1px solid rgba(255,255,255,0.04)",
-  verticalAlign: "top",
-};
-const stat = (label: string, value: string | number, tone?: string, note?: string) => (
-  <div style={{ minWidth: 150 }}>
-    <div style={{ color: "#94a3b8", fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>{label}</div>
-    <div style={{ fontSize: "1.5rem", fontWeight: 700, color: tone ?? "#f9fafb" }}>{value}</div>
-    {note && <div style={{ color: "#64748b", fontSize: "0.75rem" }}>{note}</div>}
-  </div>
-);
+function permissionTone(p: string): Tone {
+  if (p === "granted") return "good";
+  if (p === "denied") return "bad";
+  return "warn";
+}
 
-function PermissionPill({ row }: { row: Row }) {
+function PermissionBadge({ row }: { row: Row }) {
   const p = row.effectivePermission;
-  const color = p === "granted" ? "#10b981" : p === "denied" ? "#ef4444" : "#f59e0b";
   return (
-    <span
-      title={row.permissionSource === "dump" ? `From a diagnostic dump newer than the heartbeat (heartbeat said ${row.heartbeatPermission ?? "unknown"})` : "From the latest heartbeat"}
-      style={{ color, fontWeight: 600 }}
+    <Badge
+      tone={permissionTone(p)}
+      title={
+        row.permissionSource === "dump"
+          ? `From a diagnostic dump newer than the heartbeat (heartbeat said ${row.heartbeatPermission ?? "unknown"})`
+          : "From the latest heartbeat"
+      }
     >
       {p}
-      {row.permissionSource === "dump" && <span style={{ color: "#64748b", fontWeight: 400 }}> (dump)</span>}
-    </span>
+      {row.permissionSource === "dump" ? " (dump)" : ""}
+    </Badge>
   );
 }
 
-function UserTable({ rows, showTrips }: { rows: Row[]; showTrips: boolean }) {
-  if (rows.length === 0) return <p style={{ color: "#64748b", fontSize: "0.875rem", margin: 0 }}>Nobody in this group right now.</p>;
-  return (
-    <div style={{ overflowX: "auto" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={th}>User</th>
-            <th style={th}>Signed up</th>
-            <th style={th}>Heartbeat</th>
-            <th style={th}>Background location</th>
-            {showTrips && <th style={th}>Trips (lifetime)</th>}
-            {showTrips && <th style={th} title="Auto-captured, non-phantom trips started in the window">Auto trips (14d)</th>}
-            <th style={th}>Last trip</th>
-            <th style={th}>Build</th>
-            <th style={th}>Reachable</th>
-            <th style={th}>Last nudged</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.userId}>
-              <td style={td}>
-                <Link href={`/dashboard/admin?user=${r.userId}`} style={{ color: "#fbbf24", textDecoration: "none" }}>
-                  {r.displayName || r.email}
-                </Link>
-                <div style={{ color: "#64748b", fontSize: "0.75rem" }}>{r.email}</div>
-              </td>
-              <td style={td}>{ago(r.createdAt)}</td>
-              <td style={td}>{ago(r.lastHeartbeatAt)}</td>
-              <td style={td}><PermissionPill row={r} /></td>
-              {showTrips && <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{r.tripsLifetime}</td>}
-              {showTrips && <td style={{ ...td, fontVariantNumeric: "tabular-nums", color: r.autoTrips14d > 0 ? "#10b981" : "#64748b" }}>{r.autoTrips14d}</td>}
-              <td style={td}>{ago(r.lastTripAt)}</td>
-              <td style={td}>{r.build ?? "-"}</td>
-              <td style={td}>
-                {r.hasPushToken ? <span style={{ color: "#10b981" }}>push</span> : <span style={{ color: "#ef4444" }} title="No push token - email is the only channel">no push</span>}
-              </td>
-              <td style={td}>{r.lastNudgedAt ? ago(r.lastNudgedAt) : <span style={{ color: "#64748b" }}>never</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+function Reachable({ push }: { push: boolean }) {
+  return push ? (
+    <Badge tone="good">Push</Badge>
+  ) : (
+    <Badge tone="bad" title="No push token: email is the only channel">
+      No push
+    </Badge>
   );
 }
+
+function userColumns(showTrips: boolean): TableColumn<Row>[] {
+  const cols: TableColumn<Row>[] = [
+    { key: "user", header: "Driver", sortValue: (r) => r.displayName || r.email, render: (r) => <UserCell name={r.displayName} email={r.email} /> },
+    { key: "created", header: "Signed up", sortValue: (r) => r.createdAt, render: (r) => <Ago iso={r.createdAt} />, hideOnMobile: true },
+    { key: "heartbeat", header: "Heartbeat", sortValue: (r) => r.lastHeartbeatAt, render: (r) => <Ago iso={r.lastHeartbeatAt} />, hideOnMobile: true },
+    { key: "perm", header: "Background location", sortValue: (r) => r.effectivePermission, render: (r) => <PermissionBadge row={r} /> },
+  ];
+  if (showTrips) {
+    cols.push(
+      { key: "lifetime", header: "Trips (lifetime)", numeric: true, sortValue: (r) => r.tripsLifetime, render: (r) => formatNumber(r.tripsLifetime) },
+      {
+        key: "auto14",
+        header: "Auto trips (14d)",
+        numeric: true,
+        title: "Auto-captured, non-phantom trips started in the window",
+        sortValue: (r) => r.autoTrips14d,
+        render: (r) => (r.autoTrips14d > 0 ? <Badge tone="good">{formatNumber(r.autoTrips14d)}</Badge> : <span style={{ color: "var(--adm-text-3)" }}>0</span>),
+      }
+    );
+  }
+  cols.push(
+    { key: "lastTrip", header: "Last trip", sortValue: (r) => r.lastTripAt, render: (r) => <Ago iso={r.lastTripAt} /> },
+    { key: "build", header: "Build", sortValue: (r) => r.build, render: (r) => r.build ?? "-", hideOnMobile: true },
+    { key: "push", header: "Reachable", sortValue: (r) => (r.hasPushToken ? 1 : 0), render: (r) => <Reachable push={r.hasPushToken} />, hideOnMobile: true },
+    {
+      key: "nudged",
+      header: "Last nudged",
+      sortValue: (r) => r.lastNudgedAt,
+      render: (r) => (r.lastNudgedAt ? <Ago iso={r.lastNudgedAt} /> : <span style={{ color: "var(--adm-text-3)" }}>never</span>),
+      hideOnMobile: true,
+    }
+  );
+  return cols;
+}
+
+const gaveUpColumns: TableColumn<GaveUpRow>[] = [
+  { key: "user", header: "Driver", sortValue: (r) => r.displayName || r.email, render: (r) => <UserCell name={r.displayName} email={r.email} /> },
+  { key: "gaveUp", header: "Gave up", sortValue: (r) => r.gaveUpAt, render: (r) => <Ago iso={r.gaveUpAt} /> },
+  { key: "heartbeat", header: "Heartbeat", sortValue: (r) => r.lastHeartbeatAt, render: (r) => <Ago iso={r.lastHeartbeatAt} /> },
+  { key: "build", header: "Build", sortValue: (r) => r.build, render: (r) => r.build ?? "-", hideOnMobile: true },
+  { key: "push", header: "Reachable", sortValue: (r) => (r.hasPushToken ? 1 : 0), render: (r) => <Reachable push={r.hasPushToken} /> },
+];
+
+const otaColumns: TableColumn<OtaRow>[] = [
+  { key: "runtime", header: "Runtime", sortValue: (r) => r.runtime, render: (r) => <strong style={{ color: "var(--adm-text-strong)" }}>{r.runtime}</strong> },
+  { key: "devices", header: "Devices", numeric: true, sortValue: (r) => r.devices, render: (r) => formatNumber(r.devices) },
+  { key: "embedded", header: "Embedded", numeric: true, title: "Running the bundle the store shipped", sortValue: (r) => r.embedded, render: (r) => formatNumber(r.embedded) },
+  {
+    key: "onOta",
+    header: "On an OTA",
+    numeric: true,
+    sortValue: (r) => r.devices - r.embedded,
+    render: (r) => (
+      <>
+        {formatNumber(r.devices - r.embedded)}
+        {r.devices > 0 && <span className="adm-cell-sub">{formatShare(r.devices - r.embedded, r.devices)}</span>}
+      </>
+    ),
+  },
+  {
+    key: "updates",
+    header: "Updates",
+    render: (r) =>
+      r.updates.length === 0 ? (
+        <span style={{ color: "var(--adm-text-3)" }}>none</span>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {r.updates.map((u) => (
+            <span key={u.updateId} title={u.updateId} style={{ whiteSpace: "nowrap" }}>
+              <code style={{ fontSize: "0.75rem" }}>{u.updateId.slice(0, 8)}</code>, {formatNumber(u.devices)} device{u.devices === 1 ? "" : "s"}
+              {u.publishedAt && (
+                <span style={{ color: "var(--adm-text-3)" }}>
+                  , published <Ago iso={u.publishedAt} />
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      ),
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
+type ListKey = "lapsed" | "never" | "needs" | "anyway" | "gaveup";
 
 export default function ActivationPage() {
-  const [data, setData] = useState<Data | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error, loading, reload } = useAdminData<Data>("/admin/activation-health");
+  const [list, setList] = useState<ListKey>("needs");
+  const [detailUserId, setDetailUserId] = useState<string | null>(null);
+  const kpiLoading = loading && !data;
+  const windowDays = data?.windowDays ?? 14;
 
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .get<{ data: Data }>("/admin/activation-health")
-      .then((res) => { if (!cancelled) setData(res.data); })
-      .catch((err: unknown) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load."); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
-
-  const maxDaily = data ? Math.max(1, ...data.dailyPermissionMissing.map((d) => d.users)) : 1;
+  const LIST_INFO: Record<ListKey, { title: string; text: string }> = {
+    needs: {
+      title: "Needs the permission fixed",
+      text: "Active fleet with background location not granted and no auto-captured trip in the window, most valuable first. \"Last nudged\" is the most recent capture_lapsed or activation_d7 push in 60 days; never means no automated nudge has reached them.",
+    },
+    lapsed: {
+      title: "Used to record, then stopped",
+      text: "Heartbeat in the window, zero trips of any kind in it, but they have recorded before. Listed by how much they used to record.",
+    },
+    never: {
+      title: "Never recorded a trip",
+      text: "Heartbeat in the window and no trip ever.",
+    },
+    anyway: {
+      title: "Reads not granted, capturing anyway",
+      text: "The reading and the outcome disagree, and the outcome wins: these phones captured auto trips in the window. Do not nudge them to flip a switch. The capture_lapsed job skips anyone who has captured under their current reading before.",
+    },
+    gaveup: {
+      title: "Watchdog gave up, phone alive, no trip",
+      text: "The phone has reported since the watchdog gave up in the last 24 hours, and no trip has been saved.",
+    },
+  };
 
   return (
-    <div style={{ padding: "1.5rem 0", maxWidth: 1300 }}>
-      <div style={{ marginBottom: "1rem" }}>
-        <Link href="/dashboard/admin" style={{ color: "#94a3b8", fontSize: "0.875rem", textDecoration: "none" }}>← Admin</Link>
-      </div>
-      <h1 style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 700, color: "#f9fafb", marginBottom: "0.5rem" }}>
-        Activation health
-      </h1>
-      <p style={{ color: "#94a3b8", marginBottom: "1.5rem", lineHeight: 1.6, maxWidth: 820 }}>
-        Who is running MileClear and getting nothing from it. The active fleet is every account with a heartbeat in the
-        last {data?.windowDays ?? 14} days. Background location comes from the heartbeat unless the diagnostic dump is
-        newer, in which case the dump wins: the two go stale at different moments. Fleet trip volume can rise while
-        every number on this page gets worse, which is why it exists.
-      </p>
+    <>
+      <PageHeader
+        title="Activation health"
+        subtitle="Who is running MileClear and getting nothing from it, and why. Fleet trip volume can rise while every number here gets worse, which is why this page exists."
+        updatedAt={data?.generatedAt}
+      />
 
-      {loading && <p style={{ color: "#94a3b8" }}>Loading…</p>}
-      {error && <p style={{ color: "#ef4444" }}>Error: {error}</p>}
+      <Grid min={150}>
+        <KpiCard label="Active fleet" value={data?.fleet ?? 0} loading={kpiLoading} error={error} hint={`Heartbeat in the last ${windowDays} days`} />
+        <KpiCard
+          label="Cannot capture"
+          value={data ? `${formatNumber(data.cannotCapture)} (${data.cannotCapturePct}%)` : 0}
+          tone={data && data.cannotCapturePct >= 20 ? "bad" : "warn"}
+          loading={kpiLoading}
+          error={error}
+          hint="Not granted, no auto trip in the window"
+        />
+        <KpiCard label="Capturing anyway" value={data?.capturingAnyway ?? 0} tone="good" loading={kpiLoading} error={error} hint="Not granted, but auto trips in the window" />
+        <KpiCard label="Granted" value={data?.permission.granted ?? 0} tone="good" loading={kpiLoading} error={error} />
+        <KpiCard label="Undetermined" value={data?.permission.undetermined ?? 0} tone="warn" loading={kpiLoading} error={error} hint="Never asked, dismissed, or While Using" />
+        <KpiCard label="Denied" value={data?.permission.denied ?? 0} tone="bad" loading={kpiLoading} error={error} />
+        <KpiCard label="Dump overrode heartbeat" value={data?.dumpOverrides ?? 0} loading={kpiLoading} error={error} hint="A newer dump disagreed" />
+      </Grid>
 
-      {data && (
-        <>
-          <section style={card}>
-            <h2 style={h2}>Can they capture at all?</h2>
-            <p style={sub}>
-              Background location across the active fleet, judged by outcome. &quot;Cannot capture&quot; is not granted AND no
-              auto-captured trip in the window. On iPhone the reading says &quot;undetermined&quot; for While Using as well as
-              never-asked, and While Using drivers who open the app before setting off capture fine, so a not-granted
-              reading with captures behind it is listed separately rather than counted.
-            </p>
-            <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-              {stat("Active fleet", data.fleet)}
-              {stat("Cannot capture", `${data.cannotCapture} (${data.cannotCapturePct}%)`, data.cannotCapturePct >= 20 ? "#ef4444" : "#f59e0b", "not granted, no auto trip in the window")}
-              {stat("Capturing anyway", data.capturingAnyway, "#10b981", "not granted, but auto trips in the window")}
-              {stat("Granted", data.permission.granted, "#10b981")}
-              {stat("Undetermined", data.permission.undetermined, "#f59e0b", "never asked, dismissed, or While Using")}
-              {stat("Denied", data.permission.denied, "#ef4444")}
-              {stat("Dump overrode heartbeat", data.dumpOverrides, undefined, "newer dump disagreed")}
-            </div>
-            <div>
-              <div style={{ color: "#94a3b8", fontSize: "0.75rem", marginBottom: 6 }}>Users firing alert.permission_missing, per day</div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 56 }}>
-                {data.dailyPermissionMissing.map((d) => (
-                  <div key={d.date} title={`${d.date}: ${d.users} users`} style={{ flex: 1, background: "rgba(245,158,11,0.55)", height: `${Math.max(2, (d.users / maxDaily) * 100)}%`, borderRadius: 2 }} />
-                ))}
-              </div>
-            </div>
-          </section>
+      <div className="adm-split">
+        <Panel
+          title="Drivers told background location is missing, per day"
+          subtitle="Distinct drivers whose phone fired alert.permission_missing each day."
+          footer={`"Cannot capture" is judged by outcome: not granted AND no auto-captured trip in the last ${windowDays} days. On iPhone the reading says "undetermined" for While Using as well as never asked, and While Using drivers who open the app before setting off capture fine, so a not-granted reading with captures behind it is counted under "Capturing anyway" instead. Background location comes from the heartbeat unless the diagnostic dump is newer.`}
+        >
+          <LoadState
+            data={data}
+            loading={loading}
+            error={error}
+            onRetry={reload}
+            errorTitle="Couldn't load activation health."
+            skeleton={<LoadingSkeleton variant="chart" height={200} />}
+          >
+            {(d) =>
+              d.dailyPermissionMissing.length === 0 ? (
+                <p className="adm-text">No permission alerts in the window.</p>
+              ) : (
+                <BarChart
+                  label="Drivers firing alert.permission_missing per day"
+                  unit="drivers"
+                  height={200}
+                  data={d.dailyPermissionMissing.map((x) => ({
+                    label: formatDay(x.date, { day: "numeric", month: "short" }),
+                    fullLabel: formatDay(x.date),
+                    value: x.users,
+                  }))}
+                />
+              )
+            }
+          </LoadState>
+        </Panel>
 
-          <section style={card}>
-            <h2 style={h2}>Running the app, recording nothing ({data.silent.total})</h2>
-            <p style={sub}>
-              Heartbeat in the window, zero trips of any kind in it. <strong style={{ color: "#e2e8f0" }}>{data.silent.lapsed} used to record and stopped</strong>;{" "}
-              <strong style={{ color: "#e2e8f0" }}>{data.silent.never} never have</strong>. Lapsed users are listed by how much they used to record.
-            </p>
-            <h3 style={{ color: "#e2e8f0", fontSize: "0.9375rem", margin: "0 0 0.5rem" }}>Lapsed</h3>
-            <UserTable rows={data.silent.lapsedRows} showTrips />
-            <h3 style={{ color: "#e2e8f0", fontSize: "0.9375rem", margin: "1.25rem 0 0.5rem" }}>Never recorded</h3>
-            <UserTable rows={data.silent.neverRows} showTrips={false} />
-          </section>
-
-          <section style={card}>
-            <h2 style={h2}>Needs the permission fixed ({data.needsPermission.length})</h2>
-            <p style={sub}>
-              Active fleet with background location not granted and no auto-captured trip in the window, most-valuable
-              first. &quot;Last nudged&quot; is the most recent capture_lapsed or activation_d7 push in 60 days; never means no
-              automated nudge has reached them.
-            </p>
-            <UserTable rows={data.needsPermission} showTrips />
-          </section>
-
-          <section style={card}>
-            <h2 style={h2}>Reads not granted, capturing anyway ({data.capturingAnyway})</h2>
-            <p style={sub}>
-              The reading and the outcome disagree, and the outcome wins: these phones captured auto trips in the window.
-              Do not nudge them to flip a switch. The capture_lapsed job skips anyone who has captured under their current
-              reading before.
-            </p>
-            <UserTable rows={data.capturingAnywayRows} showTrips />
-          </section>
-
-          <section style={card}>
-            <h2 style={h2}>Watchdog gave up in the last 24h ({data.gaveUp24h.total})</h2>
-            <p style={sub}>
-              The raw count is mostly sleeping phones. <strong style={{ color: "#e2e8f0" }}>Alive and silent</strong> is the group that
-              matters: the phone has reported since the give-up and no trip has been saved.
-            </p>
-            <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-              {stat("Recovered", data.gaveUp24h.recovered, "#10b981", "a trip landed afterwards")}
-              {stat("Asleep", data.gaveUp24h.asleep, "#94a3b8", "no heartbeat since")}
-              {stat("Alive and silent", data.gaveUp24h.aliveAndSilent.length, data.gaveUp24h.aliveAndSilent.length > 0 ? "#ef4444" : "#10b981")}
-            </div>
-            {data.gaveUp24h.aliveAndSilent.length > 0 && (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr><th style={th}>User</th><th style={th}>Gave up</th><th style={th}>Heartbeat</th><th style={th}>Build</th><th style={th}>Reachable</th></tr>
-                  </thead>
-                  <tbody>
-                    {data.gaveUp24h.aliveAndSilent.map((r) => (
-                      <tr key={r.userId}>
-                        <td style={td}>
-                          <Link href={`/dashboard/admin?user=${r.userId}`} style={{ color: "#fbbf24", textDecoration: "none" }}>{r.displayName || r.email}</Link>
-                          <div style={{ color: "#64748b", fontSize: "0.75rem" }}>{r.email}</div>
-                        </td>
-                        <td style={td}>{ago(r.gaveUpAt)}</td>
-                        <td style={td}>{ago(r.lastHeartbeatAt)}</td>
-                        <td style={td}>{r.build ?? "-"}</td>
-                        <td style={td}>{r.hasPushToken ? <span style={{ color: "#10b981" }}>push</span> : <span style={{ color: "#ef4444" }}>no push</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <Panel
+          title="Watchdog gave up, last 24 hours"
+          subtitle="The raw count is mostly sleeping phones. Alive and silent is the group that matters."
+        >
+          <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the watchdog figures.">
+            {(d) => (
+              <div className="adm-hub">
+                <div className="adm-hub__row">
+                  <div className="adm-figure">
+                    <span className="adm-figure__value">{formatNumber(d.gaveUp24h.aliveAndSilent.length)}</span>
+                    <span className="adm-figure__label">alive and silent</span>
+                  </div>
+                  <Badge tone={d.gaveUp24h.aliveAndSilent.length > 0 ? "bad" : "good"} dot size="md">
+                    {d.gaveUp24h.aliveAndSilent.length > 0 ? "Needs a look" : "None"}
+                  </Badge>
+                </div>
+                <div>
+                  <StatLine label="Gave up" value={formatNumber(d.gaveUp24h.total)} />
+                  <StatLine label="Recovered" hint="A trip landed afterwards" value={formatNumber(d.gaveUp24h.recovered)} />
+                  <StatLine label="Asleep" hint="No heartbeat since" value={formatNumber(d.gaveUp24h.asleep)} />
+                </div>
               </div>
             )}
-          </section>
+          </LoadState>
+        </Panel>
+      </div>
 
-          <section style={card}>
-            <h2 style={h2}>What each binary is actually running</h2>
-            <p style={sub}>From diagnostic dumps in the window. Embedded = the bundle the App Store shipped; an update id is an OTA group.</p>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr><th style={th}>Runtime</th><th style={th}>Devices</th><th style={th}>Embedded</th><th style={th}>On an OTA</th><th style={th}>Updates</th></tr>
-                </thead>
-                <tbody>
-                  {data.ota.map((r) => (
-                    <tr key={r.runtime}>
-                      <td style={{ ...td, fontWeight: 600 }}>{r.runtime}</td>
-                      <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{r.devices}</td>
-                      <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>{r.embedded}</td>
-                      <td style={{ ...td, fontVariantNumeric: "tabular-nums" }}>
-                        {r.devices - r.embedded}
-                        {r.devices > 0 && <span style={{ color: "#64748b" }}> ({Math.round(((r.devices - r.embedded) / r.devices) * 100)}%)</span>}
-                      </td>
-                      <td style={td}>
-                        {r.updates.length === 0
-                          ? <span style={{ color: "#64748b" }}>none</span>
-                          : r.updates.map((u) => (
-                              <div key={u.updateId} title={u.updateId}>
-                                <code style={{ fontSize: "0.75rem" }}>{u.updateId.slice(0, 8)}</code> · {u.devices} device{u.devices === 1 ? "" : "s"}
-                                {u.publishedAt && <span style={{ color: "#64748b" }}> · published {ago(u.publishedAt)}</span>}
-                              </div>
-                            ))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <Panel
+        highlight
+        title={LIST_INFO[list].title}
+        subtitle={LIST_INFO[list].text}
+        footer={
+          data ? (
+            <>
+              Running the app, recording nothing: {formatNumber(data.silent.total)} ({formatNumber(data.silent.lapsed)} used to record and stopped, {formatNumber(data.silent.never)} never have). Click a driver to open their account.
+            </>
+          ) : undefined
+        }
+      >
+        <LoadState
+          data={data}
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          errorTitle="Couldn't load the driver lists."
+          skeleton={<LoadingSkeleton variant="table" rows={8} />}
+        >
+          {(d) => (
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s3)", minWidth: 0 }}>
+              <TabBar
+                label="Which drivers"
+                size="sm"
+                value={list}
+                onChange={(v) => setList(v as ListKey)}
+                tabs={[
+                  { id: "needs", label: "Needs permission", count: d.needsPermission.length },
+                  { id: "lapsed", label: "Stopped recording", count: d.silent.lapsed },
+                  { id: "never", label: "Never recorded", count: d.silent.never },
+                  { id: "anyway", label: "Capturing anyway", count: d.capturingAnyway },
+                  { id: "gaveup", label: "Alive and silent", count: d.gaveUp24h.aliveAndSilent.length },
+                ]}
+              />
+              {list === "gaveup" ? (
+                <DataTable
+                  caption="Watchdog gave up, phone alive, no trip since"
+                  columns={gaveUpColumns}
+                  rows={d.gaveUp24h.aliveAndSilent}
+                  rowKey={(r) => r.userId}
+                  onRowClick={(r) => setDetailUserId(r.userId)}
+                  maxHeight={560}
+                  emptyTitle="Nobody in this group right now"
+                />
+              ) : (
+                <DataTable
+                  caption={LIST_INFO[list].title}
+                  columns={userColumns(list !== "never")}
+                  rows={
+                    list === "needs"
+                      ? d.needsPermission
+                      : list === "lapsed"
+                        ? d.silent.lapsedRows
+                        : list === "never"
+                          ? d.silent.neverRows
+                          : d.capturingAnywayRows
+                  }
+                  rowKey={(r) => r.userId}
+                  onRowClick={(r) => setDetailUserId(r.userId)}
+                  maxHeight={560}
+                  emptyTitle="Nobody in this group right now"
+                />
+              )}
             </div>
-          </section>
+          )}
+        </LoadState>
+      </Panel>
 
-          <p style={{ color: "#64748b", fontSize: "0.75rem" }}>Generated {new Date(data.generatedAt).toLocaleString("en-GB")}</p>
-        </>
-      )}
-    </div>
+      <Panel
+        title="What each app version is actually running"
+        subtitle={`From diagnostic dumps in the last ${windowDays} days. Embedded is the bundle the store shipped; an update id is an over-the-air update group.`}
+        flush
+      >
+        <LoadState
+          data={data}
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          errorTitle="Couldn't load the OTA breakdown."
+          skeleton={<LoadingSkeleton variant="table" rows={4} />}
+        >
+          {(d) => (
+            <DataTable
+              caption="Devices per runtime, embedded bundle against OTA updates"
+              columns={otaColumns}
+              rows={d.ota}
+              rowKey={(r) => r.runtime}
+              initialSort={{ key: "devices", dir: "desc" }}
+              emptyTitle="No diagnostic dumps in the window"
+            />
+          )}
+        </LoadState>
+      </Panel>
+
+      <UserDetailModal userId={detailUserId} open={!!detailUserId} onClose={() => setDetailUserId(null)} />
+    </>
   );
 }

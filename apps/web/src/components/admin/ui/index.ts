@@ -22,3 +22,4 @@ export { formatNumber, formatPence, formatShare, percentChange, formatDay, forma
 export type { ChartDatum } from "./chartUtils";
 export type { Tone, RangeKey } from "./types";
 export { RANGE_DAYS } from "./types";
+export { Segmented, type SegmentedOption } from "./Segmented";

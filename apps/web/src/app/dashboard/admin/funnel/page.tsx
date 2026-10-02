@@ -1,24 +1,39 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
-import { api } from "../../../../lib/api";
+// Funnel by sign-up month. Each registration month is its own row, so a month
+// where something broke for new drivers stands out from the overall funnel.
+// Reads /admin/funnel/cohorts (no date range: it returns every cohort).
 
-// Per-cohort activation funnel. Audit follow-up #3 of 5 (aggregate
-// health-dashboard upgrades). Surfaces WHICH month started under-
-// performing rather than just whether the global funnel is healthy.
+import Link from "next/link";
+import {
+  AdminIcon,
+  Badge,
+  BarChart,
+  DataTable,
+  Grid,
+  KpiCard,
+  LoadState,
+  LoadingSkeleton,
+  PageHeader,
+  Panel,
+  formatMonth,
+  formatNumber,
+  useAdminData,
+  type TableColumn,
+  type Tone,
+} from "@/components/admin/ui";
 
 interface CohortRow {
-  cohort: string;                // "YYYY-MM"
+  cohort: string; // "YYYY-MM"
   registered: number;
   firstTrip: number;
   firstClassification: number;
   firstExport: number;
   upgradedToPro: number;
-  rateFirstTrip: number;         // % of registered
-  rateClassification: number;    // % of first-trip
-  rateExport: number;            // % of first-classification
-  rateProConversion: number;     // % of registered (any time)
+  rateFirstTrip: number; // % of registered
+  rateClassification: number; // % of first-trip
+  rateExport: number; // % of first-classification
+  rateProConversion: number; // % of registered (any time)
 }
 
 interface FunnelData {
@@ -27,240 +42,195 @@ interface FunnelData {
   generatedAt: string;
 }
 
-// Compare a cohort's rate to the median of all other cohorts.
-// Significantly worse = red, mildly worse = amber, otherwise muted.
-function cohortTone(value: number, peers: number[]): "ok" | "warn" | "regress" {
-  if (peers.length === 0) return "ok";
-  const sorted = [...peers].sort((a, b) => a - b);
-  const median =
-    sorted.length % 2 === 0
-      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
-      : sorted[Math.floor(sorted.length / 2)];
-  if (median === 0) return "ok";
-  const ratio = value / median;
+type CohortTone = "ok" | "warn" | "regress";
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted.length % 2 === 0
+    ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+    : sorted[Math.floor(sorted.length / 2)];
+}
+
+// Compare a cohort's rate to the median rate across every cohort shown
+// (including itself). Under 70% of the median = well below, under 85% = below.
+function cohortTone(value: number, med: number): CohortTone {
+  if (med === 0) return "ok";
+  const ratio = value / med;
   if (ratio < 0.7) return "regress";
   if (ratio < 0.85) return "warn";
   return "ok";
 }
 
-function toneColor(t: "ok" | "warn" | "regress"): string {
-  if (t === "regress") return "#ef4444";
-  if (t === "warn") return "#f59e0b";
-  return "#cbd5e1";
-}
+const TONE: Record<CohortTone, Tone> = { ok: "neutral", warn: "warn", regress: "bad" };
+const TONE_WORD: Record<CohortTone, string> = { ok: "", warn: "below usual", regress: "well below usual" };
 
-function formatCohortMonth(key: string): string {
-  const [y, m] = key.split("-").map((s) => parseInt(s, 10));
-  const date = new Date(Date.UTC(y, m - 1, 1));
-  return date.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-}
-
-export default function FunnelCohortsPage() {
-  const [data, setData] = useState<FunnelData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    api
-      .get<{ data: FunnelData }>("/admin/funnel/cohorts")
-      .then((res) => {
-        if (!cancelled) setData(res.data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Pre-compute peers so each row's tone-comparison doesn't recompute the median.
-  const cohorts = data?.cohorts ?? [];
-  const peerRates = {
-    firstTrip: cohorts.map((c) => c.rateFirstTrip),
-    classification: cohorts.map((c) => c.rateClassification),
-    export: cohorts.map((c) => c.rateExport),
-    pro: cohorts.map((c) => c.rateProConversion),
-  };
-
+function RateCell({ count, rate, tone, med }: { count: number; rate: number; tone: CohortTone; med: number }) {
   return (
-    <div style={{ padding: "1.5rem 0", maxWidth: 1200 }}>
-      <div style={{ marginBottom: "1rem" }}>
-        <Link href="/dashboard/admin" style={{ color: "#94a3b8", fontSize: "0.875rem", textDecoration: "none" }}>
-          ← Admin
-        </Link>
-      </div>
-
-      <h1
-        style={{
-          fontFamily: "var(--font-display)",
-          fontSize: "1.75rem",
-          fontWeight: 700,
-          color: "#f9fafb",
-          marginBottom: "0.5rem",
-        }}
-      >
-        Funnel by Cohort
-      </h1>
-      <p style={{ color: "#94a3b8", marginBottom: "2rem", lineHeight: 1.6 }}>
-        Activation funnel split by registration month. Each step is measured within{" "}
-        {data?.activationWindowDays ?? 30} days of registration (except Pro conversion,
-        which is any time). A cohort&apos;s rate is highlighted red when it&apos;s
-        below 70% of the median rate across visible cohorts - the &quot;something
-        broke for new users this month&quot; signal.
-      </p>
-
-      {loading && <p style={{ color: "#94a3b8" }}>Loading…</p>}
-      {error && <p style={{ color: "#ef4444" }}>Error: {error}</p>}
-
-      {data && (
-        <div
-          style={{
-            overflowX: "auto",
-            border: "1px solid rgba(255,255,255,0.07)",
-            borderRadius: 12,
-            background: "rgba(15,23,42,0.6)",
-          }}
-        >
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-            <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                <Th>Cohort</Th>
-                <Th>Registered</Th>
-                <Th>→ First trip</Th>
-                <Th>→ Classified</Th>
-                <Th>→ Exported</Th>
-                <Th>→ Pro</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.cohorts.map((c, i) => {
-                const isLatest = i === data.cohorts.length - 1;
-                return (
-                  <tr
-                    key={c.cohort}
-                    style={{
-                      borderTop: "1px solid rgba(255,255,255,0.05)",
-                      background: isLatest ? "rgba(245,166,35,0.04)" : "transparent",
-                    }}
-                  >
-                    <Td>
-                      <strong style={{ color: "#f9fafb" }}>{formatCohortMonth(c.cohort)}</strong>
-                      {isLatest && (
-                        <span
-                          style={{
-                            marginLeft: 6,
-                            fontSize: "0.7rem",
-                            padding: "1px 6px",
-                            borderRadius: 4,
-                            background: "rgba(245,166,35,0.15)",
-                            color: "#fbbf24",
-                          }}
-                        >
-                          CURRENT
-                        </span>
-                      )}
-                    </Td>
-                    <Td>{c.registered.toLocaleString("en-GB")}</Td>
-                    <Rate
-                      count={c.firstTrip}
-                      rate={c.rateFirstTrip}
-                      tone={cohortTone(c.rateFirstTrip, peerRates.firstTrip)}
-                    />
-                    <Rate
-                      count={c.firstClassification}
-                      rate={c.rateClassification}
-                      tone={cohortTone(c.rateClassification, peerRates.classification)}
-                    />
-                    <Rate
-                      count={c.firstExport}
-                      rate={c.rateExport}
-                      tone={cohortTone(c.rateExport, peerRates.export)}
-                    />
-                    <Rate
-                      count={c.upgradedToPro}
-                      rate={c.rateProConversion}
-                      tone={cohortTone(c.rateProConversion, peerRates.pro)}
-                    />
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {data && (
-        <p style={{ color: "#64748b", fontSize: "0.75rem", marginTop: "1rem" }}>
-          Generated {new Date(data.generatedAt).toLocaleString("en-GB")}.
-          Rates: First trip is % of registered; Classified is % of those who logged a trip;
-          Exported is % of those who classified; Pro is % of registered (no time limit).
-        </p>
-      )}
+    <div>
+      <span style={{ color: "var(--adm-text-strong)", fontWeight: 600 }}>{formatNumber(count)}</span>
+      <span className="adm-cell-sub">
+        {tone === "ok" ? (
+          `${rate}%`
+        ) : (
+          <Badge tone={TONE[tone]} title={`Median across these months: ${Math.round(med * 10) / 10}%`}>
+            {rate}% {TONE_WORD[tone]}
+          </Badge>
+        )}
+      </span>
     </div>
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
-  return (
-    <th
-      style={{
-        textAlign: "left",
-        padding: "0.625rem 0.75rem",
-        color: "#94a3b8",
-        fontWeight: 600,
-        fontSize: "0.75rem",
-        textTransform: "uppercase",
-        letterSpacing: 0.4,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </th>
-  );
-}
+const STEPS = [
+  { key: "firstTrip", header: "First trip", count: (c: CohortRow) => c.firstTrip, rate: (c: CohortRow) => c.rateFirstTrip, title: "Logged a trip within the window. Rate is a share of everyone who registered." },
+  { key: "classified", header: "Classified", count: (c: CohortRow) => c.firstClassification, rate: (c: CohortRow) => c.rateClassification, title: "Classified a trip within the window. Rate is a share of those who logged a trip." },
+  { key: "exported", header: "Exported", count: (c: CohortRow) => c.firstExport, rate: (c: CohortRow) => c.rateExport, title: "Exported within the window. Rate is a share of those who classified." },
+  { key: "pro", header: "Pro", count: (c: CohortRow) => c.upgradedToPro, rate: (c: CohortRow) => c.rateProConversion, title: "On Pro right now by any route (paid, comp, referral or test), with no time limit. Rate is a share of everyone who registered." },
+] as const;
 
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td style={{ padding: "0.625rem 0.75rem", color: "#cbd5e1", verticalAlign: "top" }}>
-      {children}
-    </td>
-  );
-}
+export default function FunnelCohortsPage() {
+  const { data, error, loading, reload } = useAdminData<FunnelData>("/admin/funnel/cohorts");
 
-function Rate({
-  count,
-  rate,
-  tone,
-}: {
-  count: number;
-  rate: number;
-  tone: "ok" | "warn" | "regress";
-}) {
+  const cohorts = data?.cohorts ?? [];
+  const medians = {
+    firstTrip: median(cohorts.map((c) => c.rateFirstTrip)),
+    classified: median(cohorts.map((c) => c.rateClassification)),
+    exported: median(cohorts.map((c) => c.rateExport)),
+    pro: median(cohorts.map((c) => c.rateProConversion)),
+  };
+  const latest = cohorts[cohorts.length - 1];
+  const now = new Date();
+  const currentKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+  const latestKey = latest?.cohort === currentKey ? currentKey : null;
+  const windowDays = data?.activationWindowDays ?? 30;
+  const kpiLoading = loading && !data;
+
+  const columns: TableColumn<CohortRow>[] = [
+    {
+      key: "cohort",
+      header: "Sign-up month",
+      sortValue: (c) => c.cohort,
+      render: (c) => (
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--adm-s2)", flexWrap: "wrap" }}>
+          <strong style={{ color: "var(--adm-text-strong)" }}>{formatMonth(c.cohort)}</strong>
+          {c.cohort === latestKey && <Badge tone="accent">Current, still filling in</Badge>}
+        </span>
+      ),
+    },
+    { key: "registered", header: "Registered", numeric: true, sortValue: (c) => c.registered, render: (c) => formatNumber(c.registered) },
+    ...STEPS.map<TableColumn<CohortRow>>((s) => ({
+      key: s.key,
+      header: s.header,
+      title: s.title,
+      numeric: true,
+      sortValue: (c) => s.rate(c),
+      render: (c) => {
+        const med = medians[s.key];
+        return <RateCell count={s.count(c)} rate={s.rate(c)} tone={cohortTone(s.rate(c), med)} med={med} />;
+      },
+    })),
+  ];
+
   return (
-    <td
-      style={{
-        padding: "0.625rem 0.75rem",
-        verticalAlign: "top",
-      }}
-    >
-      <div style={{ color: "#f9fafb", fontWeight: 600 }}>
-        {count.toLocaleString("en-GB")}
-      </div>
-      <div
-        style={{
-          color: toneColor(tone),
-          fontSize: "0.75rem",
-          fontWeight: tone === "regress" ? 700 : 400,
-        }}
+    <>
+      <PageHeader
+        title="Funnel by sign-up month"
+        subtitle="How each month's new drivers got on: first trip, first classification, first export and Pro. A month that falls well below the others usually means something broke for new drivers that month."
+        updatedAt={data?.generatedAt}
+        actions={
+          <Link href="/dashboard/admin/activation" className="adm-btn adm-btn--sm">
+            Activation health <AdminIcon name="arrowRight" size={14} />
+          </Link>
+        }
+      />
+
+      <Grid min={170}>
+        <KpiCard
+          label={latest ? `Registered in ${formatMonth(latest.cohort, { month: "long" })}` : "Registered this month"}
+          value={latest?.registered ?? 0}
+          tone="accent"
+          loading={kpiLoading}
+          error={error}
+          hint={latest?.cohort === currentKey ? "Current month, so far" : "Most recent month with sign-ups"}
+        />
+        <KpiCard
+          label="Usual first-trip rate"
+          value={`${Math.round(medians.firstTrip * 10) / 10}%`}
+          loading={kpiLoading}
+          error={error}
+          hint={`Median across ${formatNumber(cohorts.length)} months, within ${windowDays} days`}
+        />
+        <KpiCard
+          label="Usual classification rate"
+          value={`${Math.round(medians.classified * 10) / 10}%`}
+          loading={kpiLoading}
+          error={error}
+          hint="Of those who logged a trip"
+        />
+        <KpiCard
+          label="Usual share on Pro"
+          value={`${Math.round(medians.pro * 10) / 10}%`}
+          loading={kpiLoading}
+          error={error}
+          hint="Of everyone registered, on Pro now"
+        />
+      </Grid>
+
+      <Panel
+        highlight
+        title="First-trip rate by sign-up month"
+        subtitle={`Share of each month's sign-ups who logged a trip within ${windowDays} days of registering.`}
+        footer={`The newest months are still filling in: drivers who joined in the last ${windowDays} days have not had the full window yet, so those months read low for now.`}
       >
-        {rate}%
-      </div>
-    </td>
+        <LoadState
+          data={data}
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          errorTitle="Couldn't load the funnel by month."
+          skeleton={<LoadingSkeleton variant="chart" height={220} />}
+        >
+          {(d) => (
+            <BarChart
+              label="Percentage of sign-ups who logged a first trip, by sign-up month"
+              formatValue={(n) => `${Math.round(n * 10) / 10}%`}
+              partialIndex={latestKey ? d.cohorts.length - 1 : undefined}
+              data={d.cohorts.map((c) => ({
+                label: formatMonth(c.cohort, { month: "short" }),
+                fullLabel: formatMonth(c.cohort, { month: "long", year: "numeric" }),
+                value: c.rateFirstTrip,
+              }))}
+            />
+          )}
+        </LoadState>
+      </Panel>
+
+      <Panel
+        title="Every month, step by step"
+        subtitle={`Each step is counted within ${windowDays} days of registering, except Pro, which counts any time. A rate is flagged when it is under 85% of the median for that step across the months shown, and "well below usual" under 70%.`}
+        footer="Rates: First trip is a share of everyone registered; Classified is a share of those who logged a trip; Exported is a share of those who classified; Pro is everyone from that month who is on Pro now by any route (paid, comp, referral or test), as a share of everyone registered."
+        flush
+      >
+        <LoadState
+          data={data}
+          loading={loading}
+          error={error}
+          onRetry={reload}
+          errorTitle="Couldn't load the funnel by month."
+          skeleton={<LoadingSkeleton variant="table" rows={8} />}
+        >
+          {(d) => (
+            <DataTable
+              caption="Activation funnel by sign-up month"
+              columns={columns}
+              rows={d.cohorts}
+              rowKey={(c) => c.cohort}
+              emptyTitle="No sign-up months yet"
+            />
+          )}
+        </LoadState>
+      </Panel>
+    </>
   );
 }
