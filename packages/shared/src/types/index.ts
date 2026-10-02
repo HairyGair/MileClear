@@ -1903,3 +1903,53 @@ export interface AdminGeography {
   generatedAt: string;
   meta: { baseLoadedAt: string; tripsScanned: number; tripsPerUserCap: number; cacheSeconds: number };
 }
+
+// ── Community numbers (monthly snapshot of the whole fleet) ──────────────
+//
+// GET /community/monthly (public) and GET /admin/community/monthly (adds
+// social post drafts). Aggregates only. A figure is null when fewer than
+// `privacyFloor` drivers stand behind it, and `published` is false (every
+// figure null) when the month itself had fewer active drivers than that.
+
+export interface CommunityMonthlyRegion {
+  /** A UK region or nation ("North East", "Scotland"). Never a town. */
+  region: string;
+  drivers: number;
+}
+
+export interface CommunityMonthly {
+  /** "YYYY-MM", a complete UK calendar month. */
+  month: string;
+  /** "September 2026". */
+  label: string;
+  published: boolean;
+  privacyFloor: number;
+  /** Drivers with at least one real (non-phantom) trip in the month. */
+  activeDrivers: number | null;
+  trips: number | null;
+  totalMiles: number | null;
+  businessMiles: number | null;
+  /** Estimated value of the month's business miles at the HMRC mileage rates, pence. */
+  claimValuePence: number | null;
+  /** Accounts created in the month. */
+  newDrivers: number | null;
+  busiestDay: { date: string; weekday: string; trips: number; miles: number } | null;
+  /** Up to five regions, each with at least `privacyFloor` active drivers. */
+  topRegions: CommunityMonthlyRegion[];
+  /** Share of trips recorded automatically (not typed in), 0-100, whole number. */
+  autoRecordedPct: number | null;
+  topPlatform: { platform: string; label: string; drivers: number; trips: number } | null;
+  /** Every month that can be asked for, newest first. */
+  months: string[];
+  generatedAt: string;
+}
+
+export interface CommunityPostVariant {
+  key: string;
+  label: string;
+  text: string;
+}
+
+export interface AdminCommunityMonthly extends CommunityMonthly {
+  posts: CommunityPostVariant[];
+}

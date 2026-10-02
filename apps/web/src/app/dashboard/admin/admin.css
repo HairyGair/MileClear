@@ -1083,3 +1083,21 @@ table.adm-sr { display: block; }
   text-decoration: none; font-size: 0.8125rem;
 }
 .adm-side__back:hover, .adm-side__back:focus-visible { color: var(--adm-accent, #fcd34d); }
+
+/* Community numbers: ready-to-paste social posts. */
+.adm-post {
+  margin: 0;
+  padding: var(--adm-s3) var(--adm-s4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--adm-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.adm-post__head { display: flex; align-items: center; justify-content: space-between; gap: var(--adm-s2); margin-bottom: var(--adm-s2); }
+.adm-post__label { margin: 0; font-size: 0.8125rem; font-weight: 600; color: var(--adm-text-strong); }
+.adm-posts { display: flex; flex-direction: column; gap: var(--adm-s4); }

@@ -79,6 +79,7 @@ export default function Footer() {
               <ul className="footer__col-list">
                 <li><a href="/about" className="footer__link">About</a></li>
                 <li><a href="/case-study" className="footer__link">Case study</a></li>
+                <li><a href="/community" className="footer__link">Community numbers</a></li>
                 <li><a href="/faq" className="footer__link">FAQ</a></li>
                 <li><a href="/support" className="footer__link">Support</a></li>
                 <li>

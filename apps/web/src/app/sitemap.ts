@@ -56,6 +56,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/limited-company-mileage`, lastModified: new Date("2026-08-28") },
     { url: `${BASE_URL}/how-long-to-keep-mileage-records`, lastModified: new Date("2026-08-28") },
     { url: `${BASE_URL}/tracker-missed-a-trip`, lastModified: new Date("2026-08-28") },
+    // Community numbers: a monthly snapshot, so the page changes every month.
+    { url: `${BASE_URL}/community`, lastModified: new Date("2026-10-02"), changeFrequency: "monthly" },
     { url: `${BASE_URL}/support`, lastModified: new Date("2026-03-25") },
     { url: `${BASE_URL}/design`, lastModified: new Date("2026-04-21") },
     { url: `${BASE_URL}/privacy`, lastModified: new Date("2026-03-13") },
