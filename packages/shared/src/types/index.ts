@@ -709,6 +709,8 @@ export interface CheapestFuelToday {
   underLocalPence: number;
   radiusMiles: number;
   stationCount: number;
+  /** Where the search centred: their usual trip start, or their saved home. */
+  startSource: "trip_starts" | "saved_home";
   /** One plain sentence, the same one the push would use. */
   line: string;
   /** Whether the push rule would send this today (at least 3p under). */

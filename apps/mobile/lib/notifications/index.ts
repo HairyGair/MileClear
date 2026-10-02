@@ -672,6 +672,12 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/(tabs)/fuel");
         break;
 
+      case "open_charging":
+        // Monday EV running-cost push (jobs/fuelAlerts.ts, Oct 2026): rapid
+        // chargers nearby. Older bundles fall through to the default.
+        router.push("/charging-nearby?rapid=1" as never);
+        return;
+
       case "open_exports":
         router.navigate("/exports" as any);
         break;

@@ -14,6 +14,7 @@ import { fetchFuelLogs } from "../../lib/api/fuel";
 import { Button } from "../../components/Button";
 import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries";
 import NearbyPrices from "../../components/fuel/NearbyPrices";
+import CheapestTodayCard from "../../components/fuel/CheapestTodayCard";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
@@ -214,6 +215,11 @@ export default function FuelScreen() {
                 </Text>
               </View>
             )}
+            {/* Cheapest near you today (or EV running costs): the same line
+                the opt-in morning push sends. Hidden when there is nothing
+                honest to say. */}
+            <CheapestTodayCard />
+
             {/* Summary card */}
             <View style={styles.summaryCard}>
               <View style={styles.summaryRow}>

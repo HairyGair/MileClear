@@ -20,11 +20,17 @@ export interface NotificationPreferences {
   fuelAlert: boolean;
   /** Daily morning briefing push (server-sent). */
   morningBriefing: boolean;
+  /** OPT-IN (2 Oct 2026, off by default): "Cheapest diesel near you today"
+   *  each morning, only when it is at least 3p under the local average.
+   *  Replaces fuelAlert, which the server no longer sends. */
+  cheapestFuelDaily: boolean;
+  /** OPT-IN (off by default): Monday EV running-cost summary. */
+  evWeeklySummary: boolean;
 }
 
 const PREFS_KEY = "notification_prefs";
 
-const DEFAULT_PREFERENCES: NotificationPreferences = {
+export const DEFAULT_PREFERENCES: NotificationPreferences = {
   weeklySummary: true,
   unclassifiedNudge: true,
   shiftReminder: true,
@@ -36,6 +42,8 @@ const DEFAULT_PREFERENCES: NotificationPreferences = {
   autoTripLiveActivity: true,
   fuelAlert: true,
   morningBriefing: true,
+  cheapestFuelDaily: false,
+  evWeeklySummary: false,
 };
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

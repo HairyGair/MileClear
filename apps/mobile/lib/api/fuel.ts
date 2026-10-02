@@ -1,5 +1,16 @@
 import { apiRequest } from "./index";
-import type { FuelLogWithVehicle, NearbyPricesResponse, PaginatedResponse } from "@mileclear/shared";
+import type {
+  CheapestTodayResponse,
+  FuelLogWithVehicle,
+  NearbyPricesResponse,
+  PaginatedResponse,
+} from "@mileclear/shared";
+
+/** The "cheapest near you today" line (or EV running costs) for the top of
+ *  the fuel tab. Same rule as the opt-in morning push. */
+export function fetchCheapestToday() {
+  return apiRequest<CheapestTodayResponse>("/fuel/cheapest-today");
+}
 
 export interface CreateFuelLogData {
   vehicleId?: string;

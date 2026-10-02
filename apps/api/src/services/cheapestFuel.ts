@@ -252,6 +252,7 @@ export async function cheapestTodayFor(
       underLocalPence: sel.underLocalPence,
       radiusMiles: sel.radiusMiles,
       stationCount: sel.stationCount,
+      startSource: ctx.start.source,
       line: cheapestFuelLine(label, sel)!,
       worthAlerting: sel.underLocalPence >= ALERT_THRESHOLD_PENCE,
     },
