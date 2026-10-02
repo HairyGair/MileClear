@@ -17,10 +17,12 @@ export type MapLevel = "area" | "district";
 export type MapMeasure = "window" | "alltime";
 export type MapColour = "growth" | "active";
 
-/** England, Scotland, Wales, Northern Ireland and the Channel Islands. */
+/** Where drivers are: Cornwall to the Highlands, Northern Ireland to the
+ *  Norfolk coast. Shetland and Orkney sit just outside (pan up for them);
+ *  fitting them too left England and Wales small in a wide frame. */
 const UK_BOUNDS: [[number, number], [number, number]] = [
-  [49.85, -8.3],
-  [60.9, 1.9],
+  [50.0, -7.6],
+  [58.0, 1.8],
 ];
 
 // Growth: two hues and a grey (never a status colour, so "shrinking" does not
