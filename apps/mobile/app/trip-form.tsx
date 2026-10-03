@@ -2331,8 +2331,10 @@ export default function TripFormScreen() {
 
     // A start moved past the end on a hand-typed trip. The API would refuse
     // the PATCH, and a refused PATCH sits in the sync queue with the wrong
-    // time already written locally, so it is caught here instead.
-    if (isEditing && endedAt && startedAt.getTime() > endedAt.getTime()) {
+    // time already written locally, so it is caught here instead. A new
+    // hand-typed trip is caught too: the API refuses a create that ends
+    // before it starts in the same way, after the form has already closed.
+    if ((isEditing || mode === "manual") && endedAt && startedAt.getTime() > endedAt.getTime()) {
       Alert.alert("Check the times", "The start time is after the end time. Set the start earlier, or move the end.");
       return;
     }

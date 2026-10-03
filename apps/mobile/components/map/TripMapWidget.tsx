@@ -1,6 +1,7 @@
-import { View, StyleSheet, UIManager, Platform } from "react-native";
-import { useMemo } from "react";
+import { View, StyleSheet, UIManager, Platform, type LayoutChangeEvent } from "react-native";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { colors } from "../../lib/theme";
+import { isRealPoint, regionForPoints, zoomForRegion } from "../../lib/tripRegion";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -53,43 +54,76 @@ export function TripMapWidget({
   interactive = false,
   showLine = true,
 }: TripMapWidgetProps) {
+  // Only real points: a NaN or 0,0 placeholder would stretch the region
+  // out to the whole world.
+  const realCoords = useMemo(() => coordinates.filter(isRealPoint), [coordinates]);
+  const realMatched = useMemo(
+    () => (matchedCoordinates ?? []).filter(isRealPoint),
+    [matchedCoordinates]
+  );
+
   // Use the matched polyline when the server has computed one — it's
   // road-snapped and looks materially cleaner than raw breadcrumbs.
   // Fall back to breadcrumbs when no match is available (older trips,
   // map-matching fail, or coords below the matching threshold).
-  const renderCoords = matchedCoordinates && matchedCoordinates.length >= 2
-    ? matchedCoordinates
-    : coordinates;
+  const renderCoords = realMatched.length >= 2 ? realMatched : realCoords;
 
-  const region = useMemo(() => {
-    if (renderCoords.length === 0) return undefined;
-
-    let minLat = renderCoords[0].lat;
-    let maxLat = renderCoords[0].lat;
-    let minLng = renderCoords[0].lng;
-    let maxLng = renderCoords[0].lng;
-
-    for (const c of renderCoords) {
-      if (c.lat < minLat) minLat = c.lat;
-      if (c.lat > maxLat) maxLat = c.lat;
-      if (c.lng < minLng) minLng = c.lng;
-      if (c.lng > maxLng) maxLng = c.lng;
-    }
-
-    const latDelta = Math.max((maxLat - minLat) * 1.4, 0.005);
-    const lngDelta = Math.max((maxLng - minLng) * 1.4, 0.005);
-
-    return {
-      latitude: (minLat + maxLat) / 2,
-      longitude: (minLng + maxLng) / 2,
-      latitudeDelta: latDelta,
-      longitudeDelta: lngDelta,
-    };
-  }, [renderCoords]);
+  // Keyed on the points' values, not the array's identity: callers build a
+  // fresh array on every render (TripRouteCard's endpoints), and a fresh
+  // `region` object makes the map move its camera again each time.
+  const pointsKey = renderCoords.map((c) => `${c.lat.toFixed(6)},${c.lng.toFixed(6)}`).join("|");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const region = useMemo(() => regionForPoints(renderCoords), [pointsKey]);
 
   const polylineCoords = useMemo(
     () => renderCoords.map((c) => ({ latitude: c.lat, longitude: c.lng })),
-    [renderCoords]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pointsKey]
+  );
+
+  // ── Android framing ──
+  // Google Maps on Android can be left showing the whole world: the region
+  // prop needs the map measured, and a camera move before onMapReady does
+  // nothing. So once the map is ready AND laid out, the camera is set
+  // directly from a centre and zoom (setCamera needs no measurement), and
+  // again whenever the trip's points change.
+  const mapRef = useRef<any>(null);
+  const mapReadyRef = useRef(false);
+  const sizeRef = useRef<{ width: number; height: number } | null>(null);
+  const regionRef = useRef(region);
+  regionRef.current = region;
+
+  const frameAndroid = useCallback(() => {
+    if (Platform.OS !== "android") return;
+    const r = regionRef.current;
+    const size = sizeRef.current;
+    if (!r || !size || !mapReadyRef.current || !mapRef.current?.setCamera) return;
+    mapRef.current.setCamera({
+      center: { latitude: r.latitude, longitude: r.longitude },
+      zoom: zoomForRegion(r, size.width, size.height),
+      heading: 0,
+      pitch: 0,
+    });
+  }, []);
+
+  useEffect(() => {
+    frameAndroid();
+  }, [region, frameAndroid]);
+
+  const onMapReady = useCallback(() => {
+    mapReadyRef.current = true;
+    frameAndroid();
+  }, [frameAndroid]);
+
+  const onLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      const { width, height } = e.nativeEvent.layout;
+      if (width > 0 && height > 0) {
+        sizeRef.current = { width, height };
+        frameAndroid();
+      }
+    },
+    [frameAndroid]
   );
 
   if (!region || renderCoords.length < 2) return null;
@@ -101,15 +135,17 @@ export function TripMapWidget({
   // Always anchor markers to the original GPS breadcrumbs (the user's
   // actual start and end), not the snapped endpoints — keeps the pins
   // honest even when the matched route diverges slightly.
-  const markerSource = coordinates.length >= 2 ? coordinates : renderCoords;
+  const markerSource = realCoords.length >= 2 ? realCoords : renderCoords;
   const start = markerSource[0];
   const end = markerSource[markerSource.length - 1];
 
   return (
-    <View style={[styles.container, { height }]}>
+    <View style={[styles.container, { height }]} onLayout={onLayout}>
       <MapViewComponent
+        ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         region={region}
+        onMapReady={onMapReady}
         userInterfaceStyle="dark"
         scrollEnabled={interactive}
         zoomEnabled={interactive}
@@ -124,7 +160,14 @@ export function TripMapWidget({
         // treat it as one: iOS renders once to an image (cacheEnabled),
         // Android uses its lite bitmap mode. That is what makes a list of
         // trip cards with a map each (TripRouteCard, 2 Sep 2026) affordable.
-        cacheEnabled={!interactive}
+        //
+        // Not cacheEnabled on Android: there it is a one-off snapshot laid
+        // over the map, taken the moment the map first loads. In lite mode
+        // that can be before the camera has reached the trip, and the frozen
+        // picture of the whole world then hides the real map for good
+        // (Elisa, 3 Oct 2026). Lite mode is already a bitmap, so the list
+        // stays cheap without it.
+        cacheEnabled={!interactive && Platform.OS === "ios"}
         liteMode={!interactive}
       >
         {showLine && (

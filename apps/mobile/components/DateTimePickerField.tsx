@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { colors, fonts } from "../lib/theme";
 import { AppModal } from "./AppModal";
+import { combineDayAndTime, isPickerSet } from "../lib/dateTimePick";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -19,8 +20,11 @@ const TEXT_3 = colors.text3;
 
 // Lazy import for Expo Go compatibility
 let DateTimePicker: any = null;
+let DateTimePickerAndroid: any = null;
 try {
-  DateTimePicker = require("@react-native-community/datetimepicker").default;
+  const mod = require("@react-native-community/datetimepicker");
+  DateTimePicker = mod.default;
+  DateTimePickerAndroid = mod.DateTimePickerAndroid ?? null;
 } catch {
   // Fallback to text input in Expo Go
 }
@@ -120,9 +124,20 @@ export function DateTimePickerField({
 }: DateTimePickerFieldProps) {
   const [showModal, setShowModal] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(() => toDate(value));
-  // Android shows date first, then time (date mode stops after the date)
-  const [androidMode, setAndroidMode] = useState<"date" | "time">("date");
-  const [showAndroid, setShowAndroid] = useState(false);
+  // Android: the latest onChange, read when a dialog answers. The dialogs
+  // are opened imperatively, so their callbacks outlive the render that
+  // opened them and must not call a stale handler.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const androidOpenRef = useRef<null | "date" | "time">(null);
+  useEffect(
+    () => () => {
+      // Leaving the screen with a dialog still up: close it.
+      const open = androidOpenRef.current;
+      if (open && DateTimePickerAndroid) DateTimePickerAndroid.dismiss(open);
+    },
+    []
+  );
   // Fallback text input for Expo Go
   const [fallbackText, setFallbackText] = useState(
     formatFallback(value, mode)
@@ -277,6 +292,50 @@ export function DateTimePickerField({
   }
 
   // ── Android: Native dialogs (date → time; date mode stops after the date) ──
+  //
+  // Opened imperatively with DateTimePickerAndroid.open, not by rendering
+  // <DateTimePicker>. The rendered component re-runs DateTimePickerAndroid.open
+  // whenever its onChange prop changes identity, which an inline handler does
+  // on EVERY render, and an open on a dialog that is already showing resets
+  // its clock to the starting value. So any re-render of the form while the
+  // dialog was up (a route or address landing, say) threw the driver's pick
+  // away and OK saved the old time: Elisa, 3 Oct 2026, "I have to try 3/4
+  // times before it accepts the time". The component also treated Cancel as
+  // a pick, because Android passes the original date back on dismiss.
+  const openAndroidPicker = () => {
+    if (!DateTimePickerAndroid) return;
+    const start = toDate(value);
+    androidOpenRef.current = "date";
+    DateTimePickerAndroid.open({
+      value: start,
+      mode: "date",
+      display: "default",
+      maximumDate,
+      onChange: (event: { type?: string }, day?: Date) => {
+        if (!isPickerSet(event, day)) {
+          androidOpenRef.current = null;
+          return;
+        }
+        if (mode === "date") {
+          androidOpenRef.current = null;
+          onChangeRef.current(day);
+          return;
+        }
+        androidOpenRef.current = "time";
+        DateTimePickerAndroid.open({
+          value: day,
+          mode: "time",
+          display: "default",
+          onChange: (timeEvent: { type?: string }, time?: Date) => {
+            androidOpenRef.current = null;
+            if (!isPickerSet(timeEvent, time)) return;
+            onChangeRef.current(combineDayAndTime(day, time));
+          },
+        });
+      },
+    });
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.labelRow}>
@@ -295,11 +354,7 @@ export function DateTimePickerField({
       <TouchableOpacity
         style={[styles.field, disabled && styles.inputDisabled]}
         onPress={() => {
-          if (!disabled) {
-            setTempDate(toDate(value));
-            setAndroidMode("date");
-            setShowAndroid(true);
-          }
+          if (!disabled) openAndroidPicker();
         }}
         activeOpacity={0.7}
         accessibilityRole="button"
@@ -320,28 +375,6 @@ export function DateTimePickerField({
           </TouchableOpacity>
         )}
       </TouchableOpacity>
-
-      {showAndroid && (
-        <DateTimePicker
-          value={tempDate}
-          mode={androidMode}
-          display="default"
-          onChange={(_: any, date?: Date) => {
-            if (!date) {
-              setShowAndroid(false);
-              return;
-            }
-            if (androidMode === "date" && mode === "datetime") {
-              setTempDate(date);
-              setAndroidMode("time");
-            } else {
-              onChange(date);
-              setShowAndroid(false);
-            }
-          }}
-          maximumDate={maximumDate}
-        />
-      )}
     </View>
   );
 }
