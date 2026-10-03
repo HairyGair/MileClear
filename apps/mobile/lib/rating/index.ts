@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 import { router } from "expo-router";
 import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
+import { requestPromptSlot } from "../promptGate/index";
 
 // Cooldown progression after "Not now" dismissals. Escalates so a
 // dismisser isn't pestered, and after MAX_NOT_NOW_DISMISSALS we stop
@@ -17,15 +18,6 @@ const MIN_TRIPS = 5;
 // e.g. if the user triggers it from the dashboard focus AND then classifies
 // a trip within a few seconds. Not persisted; resets on app restart.
 let promptShownThisSession = false;
-
-/**
- * Lets other one-shot prompts (the saved-places ask) stand down when the
- * rating alert has already gone up this session, so a user never gets two
- * system alerts stacked on one dashboard focus.
- */
-export function reviewPromptShownThisSession(): boolean {
-  return promptShownThisSession;
-}
 
 /** Fire-and-forget event log to the API for admin visibility. */
 function trackRatingEvent(type: string, metadata?: Record<string, unknown>): void {
@@ -130,6 +122,14 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
         });
         return;
       }
+    }
+
+    // Last in the prompt gate's order: a streak milestone on the first
+    // dashboard load after sign-in must not land on top of the primers or
+    // the saved-places ask. Losing touches no cooldown, so it asks later.
+    if (!(await requestPromptSlot("rating"))) {
+      trackRatingEvent("rating.skipped_other_prompt", { trigger });
+      return;
     }
 
     // All guards passed - log that the prompt is being shown

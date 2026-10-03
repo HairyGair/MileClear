@@ -67,6 +67,7 @@ import type {
 import { formatPence, filterTraceOutliers, MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { maybeSuggestSavedPlaces } from "../../lib/savedPlacesPrompt/index";
+import { requestPromptSlot } from "../../lib/promptGate/index";
 import { useMode } from "../../lib/mode/context";
 import { ModeToggle } from "../../components/ModeToggle";
 import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
@@ -930,12 +931,23 @@ export default function DashboardScreen() {
   // locPrimerSeen is true for everyone who never sees the primer, and flips
   // true the moment it is dismissed either way, so this cannot strand the
   // explainer.
+  //
+  // That check alone did not stop the stack (3 Oct 2026): the While Using
+  // primer decides after an async read, so it was not showing yet when this
+  // ran. The prompt gate holds this back for a few seconds so the primer can
+  // win, and if it does the explainer waits for a later app open, unseen.
   useEffect(() => {
-    if (isWork && !workExplainerSeen && !loading && !showLocPrimer && locPrimerSeen) {
+    if (!isWork || workExplainerSeen || loading || showLocPrimer || !locPrimerSeen) return;
+    let cancelled = false;
+    requestPromptSlot("work_explainer").then((granted) => {
+      if (!granted || cancelled) return;
       explainerShownAtRef.current = Date.now();
       trackEvent("work_explainer.shown", { source: "auto" });
       setShowWorkExplainer(true);
-    }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, [isWork, workExplainerSeen, loading, showLocPrimer, locPrimerSeen]);
 
   // locationTier starts optimistically at "always" and only drops after a
@@ -961,6 +973,9 @@ export default function DashboardScreen() {
         if (!(await isDriveDetectionSwitchOn())) return;
       }
       if (cancelled) return;
+      // Top of the prompt gate's order, so this only loses when another ask
+      // already showed this app open. Then it comes back on the next one.
+      if (!(await requestPromptSlot("location_primer")) || cancelled) return;
       trackEvent("loc_primer.shown", { source: "auto", tier: locationTier });
       setShowLocPrimer(true);
     })().catch(() => {});
@@ -1318,10 +1333,10 @@ export default function DashboardScreen() {
       // saved/classified, scorecard). Manual fallback lives at
       // Profile → Rate MileClear for users who want to volunteer one.
       //
-      // The one-time "save Home and Work?" ask lives here instead. It is
-      // delayed past the 3 s streak rating trigger and yields if the
-      // rating alert has already shown this session, so a single focus
-      // never stacks two prompts.
+      // The one-time "save Home and Work?" ask lives here instead. It goes
+      // through the prompt gate (lib/promptGate), so it stands down if the
+      // location primer, the Work explainer or the rating alert has this
+      // app open, and asks again on a later one.
       const suggestTimer = setTimeout(() => maybeSuggestSavedPlaces("dashboard_focus", isPremium), 4000);
       return () => clearTimeout(suggestTimer);
     }, [loadData, isPremium])

@@ -4,7 +4,7 @@ import { MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 import { getDatabase } from "../db/index";
 import { apiRequest } from "../api/index";
 import { fetchSavedLocationSuggestions } from "../api/savedLocations";
-import { reviewPromptShownThisSession } from "../rating/index";
+import { requestPromptSlot } from "../promptGate/index";
 
 // Only 114 of 1,009 users had any saved location (Sep 2026), yet saved
 // places are what name a driver's stops and stop drift at a known place
@@ -16,8 +16,9 @@ const MIN_TRIPS = 10;
 const MAX_NAMED_PLACES = 2;
 const PROMPT_KEY = "saved_places_prompt_at";
 
-// Same session guard as the rating prompt: a focus that fires twice in
-// quick succession must not stack two alerts.
+// A focus that fires twice in quick succession must not stack two alerts.
+// Other asks (the rating alert, the dashboard's primers) go through the
+// prompt gate below.
 let promptShownThisSession = false;
 
 function trackPromptEvent(type: string, metadata?: Record<string, unknown>): void {
@@ -37,7 +38,8 @@ function joinNames(names: string[]): string {
  *
  * Guards, in order: not already shown this session; never shown before
  * on this device; 10+ local trips; no recording in progress; a free slot
- * to put a place in; at least one suggestion the server could name.
+ * to put a place in; at least one suggestion the server could name; no
+ * other ask has this app open (the prompt gate).
  * Every skip is logged so the admin funnel can see why the ask is rare.
  * Fire-and-forget, never throws.
  */
@@ -46,7 +48,7 @@ export async function maybeSuggestSavedPlaces(
   isPremium: boolean
 ): Promise<void> {
   try {
-    if (promptShownThisSession || reviewPromptShownThisSession()) {
+    if (promptShownThisSession) {
       trackPromptEvent("saved_places_prompt.skipped_session_dedup", { trigger });
       return;
     }
@@ -102,6 +104,13 @@ export async function maybeSuggestSavedPlaces(
         trigger,
         suggestionCount: res.data?.length ?? 0,
       });
+      return;
+    }
+
+    // One ask per app open. Losing writes nothing, so it asks again on a
+    // later open instead of being spent.
+    if (!(await requestPromptSlot("saved_places"))) {
+      trackPromptEvent("saved_places_prompt.skipped_other_prompt", { trigger });
       return;
     }
 
