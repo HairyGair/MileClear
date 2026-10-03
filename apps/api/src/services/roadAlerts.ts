@@ -26,8 +26,8 @@ import {
 } from "./roadCorridor.js";
 import type { RoadEvent } from "./roadEvents.js";
 import { UPCOMING_DAYS, directionWord, offerEligible, splitForScreen, type MatchedEvent } from "./roadAlertsRule.js";
-import { groupMatches, sortGroups, type AlertGroup } from "./roadAlertGroups.js";
-import { applyKnownNames } from "./roadEventNames.js";
+import { groupMatches, sortGroups, unnamedLeads, type AlertGroup } from "./roadAlertGroups.js";
+import { applyKnownNames, queueNames } from "./roadEventNames.js";
 import {
   getTileEvents,
   isTomTomConfigured,
@@ -234,8 +234,10 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
   // Street names known so far (the rest are looked up in the background and
   // appear on the next load), then one card per closure.
   const relevant = [...current, ...upcoming];
-  const named = applyKnownNames(relevant.map((m) => m.event), now.getTime());
-  const groups = sortGroups(groupMatches(relevant.map((m, i): MatchedEvent => ({ ...m, event: named[i] })), now));
+  const named = applyKnownNames(relevant.map((m) => m.event));
+  const grouped = groupMatches(relevant.map((m, i): MatchedEvent => ({ ...m, event: named[i] })), now);
+  queueNames(unnamedLeads(grouped), now.getTime());
+  const groups = sortGroups(grouped);
   return {
     ...base,
     offerEligible: false,

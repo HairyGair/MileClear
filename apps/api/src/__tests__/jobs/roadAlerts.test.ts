@@ -43,7 +43,8 @@ vi.mock("../../services/streetManager.js", () => ({ purgeEndedStreetWorks: async
 // Street-name lookups go to OpenStreetMap; never from a test.
 vi.mock("../../services/roadEventNames.js", () => ({
   applyKnownNames: (events: unknown[]) => events,
-  nameEventsNow: async (events: unknown[]) => events,
+  queueNames: () => {},
+  waitForNames: async () => {},
 }));
 
 import { runRoadAlertsJob } from "../../jobs/roadAlerts.js";

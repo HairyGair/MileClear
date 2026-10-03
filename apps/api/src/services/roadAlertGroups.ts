@@ -394,3 +394,9 @@ export function buildGroupPushCopy(g: AlertGroup, extra: number, _now: Date): Ro
   const more = extra > 0 ? ` ${extra} more on your usual roads in the app.` : "";
   return { title, body: `${g.sentence} ${daysPhrase(g.days)}${more}` };
 }
+
+/** Closures with nothing at all to call them: the event to look up a street
+ *  name for (one per closure). */
+export function unnamedLeads(groups: AlertGroup[]): RoadEvent[] {
+  return groups.filter((g) => g.roads.length === 0).map((g) => g.lead);
+}

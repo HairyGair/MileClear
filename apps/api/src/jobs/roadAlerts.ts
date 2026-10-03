@@ -37,8 +37,8 @@ import {
   sentEventIdsFrom,
   splitForScreen,
 } from "../services/roadAlertsRule.js";
-import { buildGroupPushCopy, groupMatches, selectPushGroup } from "../services/roadAlertGroups.js";
-import { applyKnownNames, nameEventsNow } from "../services/roadEventNames.js";
+import { buildGroupPushCopy, groupMatches, selectPushGroup, unnamedLeads } from "../services/roadAlertGroups.js";
+import { applyKnownNames, queueNames, waitForNames } from "../services/roadEventNames.js";
 import {
   loadDepartureProfiles,
   matchedEventsForDriver,
@@ -120,7 +120,9 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
       try {
         const { matches } = await matchedEventsForDriver(x.user.id, now, PUSH_FRESHNESS_MS);
         const { current, upcoming } = splitForScreen(matches, now);
-        applyKnownNames([...current, ...upcoming].map((m) => m.event)); // queues street-name lookups
+        const rel = [...current, ...upcoming];
+        const named = applyKnownNames(rel.map((m) => m.event));
+        queueNames(unnamedLeads(groupMatches(rel.map((m, i) => ({ ...m, event: named[i] })), now)));
         result.prefetched++;
       } catch (err) {
         console.error("[jobs/roadAlerts] prefetch failed:", (err as Error).message);
@@ -193,8 +195,16 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
       // by the prefetch tick), then one card per closure, as on the screen.
       const { current, upcoming } = splitForScreen(matches, now);
       const relevant = [...current, ...upcoming];
-      const named = await nameEventsNow(relevant.map((m) => m.event), NAME_WAIT_MS);
-      const groups = groupMatches(relevant.map((m, i) => ({ ...m, event: named[i] })), now);
+      const group = () => {
+        const named = applyKnownNames(relevant.map((m) => m.event));
+        return groupMatches(relevant.map((m, i) => ({ ...m, event: named[i] })), now);
+      };
+      let groups = group();
+      const unnamed = unnamedLeads(groups);
+      if (unnamed.length > 0) {
+        await waitForNames(unnamed, NAME_WAIT_MS);
+        groups = group();
+      }
       const choice = selectPushGroup(groups, {
         departureAt,
         sentEventIds: sentEventIdsFrom(mine.map((r) => r.metadata)),

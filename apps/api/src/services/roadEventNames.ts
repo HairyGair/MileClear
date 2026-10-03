@@ -6,17 +6,21 @@
 // (geocoding.ts reverseGeocodeRoad) and remember it by event id.
 //
 // Nominatim asks for at most one request a second and the trip address
-// backfill already uses it, so lookups go through one slow queue (one every
-// 2 s) and the screen never waits: it shows what is known and the rest fills
-// in on the next load. Only the push job waits, briefly, for its candidates.
-// Volume is small: only events matched to an opted-in driver's usual roads,
-// each looked up once (events are shared between drivers).
+// backfill depends on it, so lookups go through one slow queue (one every
+// 5 s) that stops for 10 minutes the moment Nominatim refuses or times out
+// (3 Oct 2026: the first version, one lookup per event every 2 s, drew 429s
+// that also hit trip addresses). Only one event per closure with no name at
+// all is asked about (roadAlertGroups names the rest), and the screen never
+// waits: it shows what is known and the rest fills in on a later load. Only
+// the push job waits, briefly, for its candidates.
 
 import type { RoadEvent } from "./roadEvents.js";
 import type { LatLng } from "./roadCorridor.js";
 import { reverseGeocodeRoad } from "./geocoding.js";
 
-const LOOKUP_SPACING_MS = 2000;
+const LOOKUP_SPACING_MS = 5000;
+/** After a refusal or timeout, no lookups at all for this long. */
+const PAUSE_AFTER_FAILURE_MS = 10 * 60000;
 const MAX_QUEUE = 300;
 /** A known name (or a known "nothing here") is kept this long. */
 const NAME_TTL_MS = 7 * 24 * 3600000;
@@ -35,6 +39,7 @@ const names = new Map<string, NameEntry>();
 const queue: { id: string; at: LatLng }[] = [];
 const queued = new Set<string>();
 let running = false;
+let pausedUntil = 0;
 
 /** Where to ask about: the middle vertex of the first line, else the first point. */
 export function middleOf(e: Pick<RoadEvent, "lines" | "points">): LatLng | null {
@@ -54,6 +59,7 @@ function fresh(entry: NameEntry | undefined, now: number): boolean {
 }
 
 function enqueue(e: RoadEvent, now: number): void {
+  if (now < pausedUntil) return;
   if (queued.has(e.id) || fresh(names.get(e.id), now)) return;
   if (queue.length >= MAX_QUEUE) return;
   const at = middleOf(e);
@@ -72,6 +78,11 @@ async function drain(): Promise<void> {
       queued.delete(job.id);
       if (!res || res.outcome === "unavailable") {
         names.set(job.id, { street: null, town: null, at: Date.now(), failed: true });
+        // Back off completely: trip addresses share this provider.
+        pausedUntil = Date.now() + PAUSE_AFTER_FAILURE_MS;
+        for (const j of queue) queued.delete(j.id);
+        queue.length = 0;
+        break;
       } else {
         names.set(job.id, { street: res.street, town: res.town, at: Date.now() });
       }
@@ -86,27 +97,31 @@ async function drain(): Promise<void> {
   }
 }
 
-/** Copies of the events with any known street name attached; events still
- *  unnamed are queued for a lookup. Never waits. */
-export function applyKnownNames(events: RoadEvent[], now: number = Date.now()): RoadEvent[] {
+/** Copies of the events with any known street name attached. Never looks
+ *  anything up. */
+export function applyKnownNames(events: RoadEvent[]): RoadEvent[] {
   return events.map((e) => {
     if (!needsName(e)) return e;
     const entry = names.get(e.id);
-    if (!fresh(entry, now)) enqueue(e, now);
     if (!entry?.street) return e;
     return { ...e, placeName: entry.street, placeTown: entry.town };
   });
 }
 
-/** Queue lookups for these events and wait up to maxWaitMs for them, then
- *  return the named copies. For the push job, which runs in the background. */
-export async function nameEventsNow(events: RoadEvent[], maxWaitMs: number): Promise<RoadEvent[]> {
+/** Queue lookups for these events (one per unnamed closure; the caller
+ *  picks them). Never waits. */
+export function queueNames(events: RoadEvent[], now: number = Date.now()): void {
+  for (const e of events) if (needsName(e)) enqueue(e, now);
+}
+
+/** Queue lookups and wait up to maxWaitMs for them. For the push job, which
+ *  runs in the background. */
+export async function waitForNames(events: RoadEvent[], maxWaitMs: number): Promise<void> {
   const deadline = Date.now() + maxWaitMs;
-  applyKnownNames(events);
+  queueNames(events);
   while (Date.now() < deadline && events.some((e) => queued.has(e.id))) {
     await new Promise((r) => setTimeout(r, 250));
   }
-  return applyKnownNames(events);
 }
 
 /** Tests only. */
@@ -114,4 +129,5 @@ export function __resetRoadEventNames(): void {
   names.clear();
   queue.length = 0;
   queued.clear();
+  pausedUntil = 0;
 }
