@@ -114,7 +114,9 @@ export function ukTimePhrase(at: Date, now: Date): string {
   const day = new Intl.DateTimeFormat("en-GB", {
     weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London",
   }).format(at);
-  return `${hhmm} on ${day.replace(",", "")}`;
+  // Long closures run into next year: "on Wed 2 Jun 2027".
+  const year = a.dayKey.slice(0, 4) !== n.dayKey.slice(0, 4) ? ` ${a.dayKey.slice(0, 4)}` : "";
+  return `${hhmm} on ${day.replace(",", "")}${year}`;
 }
 
 /** "M6 southbound", "A1(M)", "Church Street, Leeds". */
@@ -125,7 +127,8 @@ export function roadLabel(e: RoadEvent): string {
   }
   const dir = e.directionMode === "along" ? directionWord(e.bearing) : null;
   if (e.road) return dir ? `${e.road} ${dir}` : e.road;
-  if (e.placeName) return e.placeTown ? `${e.placeName}, ${e.placeTown}` : e.placeName;
+  // A road number needs no district ("A19", not "A19, Park Lea").
+  if (e.placeName) return e.placeTown && !/^[AMB]\d/.test(e.placeName) ? `${e.placeName}, ${e.placeTown}` : e.placeName;
   return "A road on your usual route";
 }
 

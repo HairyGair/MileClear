@@ -128,6 +128,7 @@ describe("groupMatches", () => {
     const stretch = groupMatches([m(ev({ from: "Park Avenue", to: "Station Road" }))], NOW)[0];
     expect(stretch.headline).toBe("Park Avenue to Station Road closed");
     expect(stretch.named).toBe(true);
+    expect(groupMatches([m(ev({ placeName: "A19", placeTown: "Elmford" }))], NOW)[0].headline).toBe("A19 closed");
     const nothing = groupMatches([m(ev({}))], NOW)[0];
     expect(nothing.named).toBe(false);
   });
@@ -176,6 +177,10 @@ describe("push", () => {
 });
 
 describe("windowPhrase", () => {
+  it("dates next year carry the year", () => {
+    expect(windowPhrase(null, new Date("2027-06-02T22:59:00Z"), NOW)).toBe("until 23:59 on Wed 2 Jun 2027");
+  });
+
   it("UK times, same day or across days", () => {
     expect(windowPhrase(new Date("2026-10-04T07:30:00Z"), new Date("2026-10-04T14:00:00Z"), NOW)).toBe(
       "from 08:30 to 15:00 tomorrow"
