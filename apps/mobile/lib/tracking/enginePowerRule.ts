@@ -47,6 +47,9 @@ export interface EnginePowerInput {
   /** The driver switched Automatic trips off (not a pause). Optional so a
    *  caller that does not know reads as on, the old behaviour. */
   detectionOff?: boolean;
+  /** Platform.OS. On iOS a shift or Start Trip keeps the engine at normal
+   *  power (see decideEnginePower). Optional: unknown reads as not iOS. */
+  platform?: string;
 }
 
 /**
@@ -60,9 +63,19 @@ export interface EnginePowerInput {
  * reason that ends on a clock rather than by a tap, and the one worth seeing
  * in a dump.
  */
-export function decideEnginePower({ pausedUntil, now, activeShiftId, detectionOff }: EnginePowerInput): EnginePowerDecision {
+export function decideEnginePower({ pausedUntil, now, activeShiftId, detectionOff, platform }: EnginePowerInput): EnginePowerDecision {
   if (isPauseActive(pausedUntil ?? null, now)) return { mode: "low", reason: "paused" };
   const lock = typeof activeShiftId === "string" ? activeShiftId.trim() : "";
+  // iOS: never low for a shift or a Start Trip (3 Oct 2026). Low on iOS is
+  // significant changes only, and the engine at full GPS is what keeps the
+  // app awake in the background for the shift's own expo-location task.
+  // With the engine turned down the shift task was left asleep: from 29 Sep,
+  // when this rule went out, iPhone shift trips with under 5 GPS points a
+  // mile went from about 5% to 30-35% (non-shift trips stayed at 3%, Android
+  // shift trips at 1-4%). Shah Rouf, 3 Oct: a 17:00-21:34 shift of ~45 miles
+  // saved 4 miles from a handful of fixes, the phone silent from 16:55.
+  // The battery cost of a shift returns to what it was before 28 Sep.
+  if (lock.length > 0 && platform === "ios") return { mode: "normal", reason: null };
   if (lock === QUICK_TRIP_LOCK_ID) return { mode: "low", reason: "quick_trip" };
   if (lock.length > 0) return { mode: "low", reason: "shift" };
   // Automatic trips off (28 Sep 2026): the engine should be stopped outright

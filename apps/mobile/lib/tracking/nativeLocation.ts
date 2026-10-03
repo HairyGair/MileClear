@@ -862,6 +862,7 @@ export function applyEnginePower(source: string): Promise<EnginePowerMode | null
         now: Date.now(),
         activeShiftId: map["active_shift_id"] ?? null,
         detectionOff: !readDetectionSwitch(map["drive_detection_enabled"]),
+        platform: Platform.OS,
       });
       const current = parseEnginePower(map[ENGINE_POWER_KEY]);
       if (decision.mode === current.mode) {

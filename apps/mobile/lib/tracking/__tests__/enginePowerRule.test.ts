@@ -83,6 +83,31 @@ describe("decideEnginePower", () => {
   });
 });
 
+describe("decideEnginePower on iOS during a shift or Start Trip (3 Oct 2026)", () => {
+  it("stays normal for a shift: the engine keeps the shift's own recorder awake", () => {
+    expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: "shift-1", platform: "ios" })).toEqual({
+      mode: "normal",
+      reason: null,
+    });
+  });
+
+  it("stays normal for a Start Trip", () => {
+    expect(
+      decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: QUICK_TRIP_LOCK_ID, platform: "ios" })
+    ).toEqual({ mode: "normal", reason: null });
+  });
+
+  it("is still low while paused, and Android still goes low for a shift", () => {
+    expect(
+      decideEnginePower({ pausedUntil: NOW + HOUR, now: NOW, activeShiftId: "shift-1", platform: "ios" }).mode
+    ).toBe("low");
+    expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: "shift-1", platform: "android" })).toEqual({
+      mode: "low",
+      reason: "shift",
+    });
+  });
+});
+
 describe("decideEnginePower with Automatic trips off (28 Sep 2026)", () => {
   it("is low when switched off and nothing is running", () => {
     expect(decideEnginePower({ pausedUntil: null, now: NOW, activeShiftId: null, detectionOff: true })).toEqual({
