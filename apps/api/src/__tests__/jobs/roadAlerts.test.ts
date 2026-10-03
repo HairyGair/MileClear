@@ -15,7 +15,7 @@ const db = vi.hoisted(() => ({
 }));
 const sendPushNotifications = vi.hoisted(() => vi.fn());
 const logEvent = vi.hoisted(() => vi.fn());
-const matched = vi.hoisted(() => ({ list: [] as unknown[], departure: 390 }));
+const matched = vi.hoisted(() => ({ list: [] as unknown[], departure: 390, dismissed: new Set<string>() }));
 
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
@@ -34,6 +34,7 @@ vi.mock("../../services/roadAlerts.js", () => ({
   loadDepartureProfiles: async (ids: string[]) =>
     new Map(ids.map((id) => [id, { byWeekday: [null, matched.departure, null, null, null, null, null] }])),
   matchedEventsForDriver: async () => ({ corridor: {}, matches: matched.list }),
+  loadDismissedIds: async (ids: string[]) => new Map(ids.map((id) => [id, matched.dismissed])),
 }));
 vi.mock("../../services/tomtomTraffic.js", () => ({
   budgetSnapshot: async () => ({ day: "2026-10-05", used: 4, stopped: null, cap: 2000 }),
@@ -66,6 +67,7 @@ beforeEach(() => {
   db.shifts = [];
   matched.list = [{ event: closure, days: 9 }];
   matched.departure = 390;
+  matched.dismissed = new Set();
   sendPushNotifications.mockReset();
   sendPushNotifications.mockResolvedValue([{ status: "ok" }]);
   logEvent.mockReset();
@@ -107,6 +109,13 @@ describe("runRoadAlertsJob", () => {
 
   it("never the same event twice (sent last week)", async () => {
     db.sent = [{ userId: "u1", metadata: { eventIds: [closure.id] }, createdAt: new Date("2026-09-30T05:00:00Z") }];
+    const r = await runRoadAlertsJob(SEND_TICK);
+    expect(r?.sent).toBe(0);
+    expect(r?.skipped.nothing_serious).toBe(1);
+  });
+
+  it("never a closure they marked Not relevant to me", async () => {
+    matched.dismissed = new Set([closure.id]);
     const r = await runRoadAlertsJob(SEND_TICK);
     expect(r?.sent).toBe(0);
     expect(r?.skipped.nothing_serious).toBe(1);

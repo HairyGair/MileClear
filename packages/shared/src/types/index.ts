@@ -904,6 +904,9 @@ export interface RoadAlertItem {
   /** Source event ids merged into this item. */
   memberIds?: string[];
   centre?: { lat: number; lng: number } | null;
+  /** The closed stretch for the card's small map (a single point when the
+   *  source gave no line). */
+  line?: { lat: number; lng: number }[];
 }
 
 /** GET /road-alerts */

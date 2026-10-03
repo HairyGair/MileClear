@@ -29,6 +29,7 @@ import {
   isSerious,
   roadLabel,
   ukTimePhrase,
+  untilTimePhrase,
   type MatchedEvent,
 } from "./roadAlertsRule.js";
 
@@ -68,6 +69,8 @@ export interface AlertGroup {
   headline: string;
   sentence: string;
   centre: LatLng | null;
+  /** The lead's stretch for the small map on the card (at most 25 points). */
+  line: LatLng[];
 }
 
 // ── Geometry and time relations ────────────────────────────────────
@@ -147,7 +150,7 @@ const hhmm = (d: Date) => {
 /** "from 08:30 to 15:00 on Sun 4 Oct", "from 22:00 today until 06:00 tomorrow". */
 export function windowPhrase(start: Date | null, end: Date | null, now: Date): string {
   if (!start && !end) return "";
-  if (!start) return `until ${ukTimePhrase(end!, now)}`;
+  if (!start) return `until ${untilTimePhrase(end!, now)}`;
   if (!end) return `from ${ukTimePhrase(start, now)}`;
   const s = ukLocalParts(start), e = ukLocalParts(end);
   if (s.dayKey === e.dayKey) {
@@ -156,7 +159,7 @@ export function windowPhrase(start: Date | null, end: Date | null, now: Date): s
     const day = s.dayKey === n ? "today" : s.dayKey === tomorrow ? "tomorrow" : `on ${dayPhrase(start)}`;
     return `from ${hhmm(start)} to ${hhmm(end)} ${day}`;
   }
-  return `from ${ukTimePhrase(start, now)} until ${ukTimePhrase(end, now)}`;
+  return `from ${ukTimePhrase(start, now)} until ${untilTimePhrase(end, now)}`;
 }
 
 function describe(g: Omit<AlertGroup, "headline" | "sentence" | "named">, now: Date): { headline: string; sentence: string; named: boolean } {
@@ -215,8 +218,20 @@ function describe(g: Omit<AlertGroup, "headline" | "sentence" | "named">, now: D
     if (g.severity === "closure") headline = `${label} closed both ways`;
     sentence = sentence.replace(/\.$/, ", in both directions.");
   }
-  if (g.ongoing && !g.endAt) sentence += " No end date given.";
+  // Closures with no booked end say so, rather than leaving it blank. Live
+  // incidents (an accident) rarely have one, so only closures.
+  if (g.severity === "closure" && !g.endAt) sentence += " No end date given.";
   return { named, headline, sentence };
+}
+
+const MAP_LINE_MAX = 25;
+
+function mapLine(e: RoadEvent): LatLng[] {
+  const line = (e.lines ?? []).find((l) => l.length >= 2);
+  if (!line) return (e.points ?? []).slice(0, 1);
+  if (line.length <= MAP_LINE_MAX) return line;
+  const step = (line.length - 1) / (MAP_LINE_MAX - 1);
+  return Array.from({ length: MAP_LINE_MAX }, (_, i) => line[Math.round(i * step)]);
 }
 
 /** Group matched events into one card per closure. Every input lands in
@@ -324,6 +339,7 @@ export function groupMatches(matches: MatchedEvent[], now: Date): AlertGroup[] {
       occurrences: distinct.length,
       recurring,
       centre,
+      line: mapLine(lead),
     };
     groups.push({ ...base, ...describe(base, now) });
   }
@@ -399,4 +415,31 @@ export function buildGroupPushCopy(g: AlertGroup, extra: number, _now: Date): Ro
  *  name for (one per closure). */
 export function unnamedLeads(groups: AlertGroup[]): RoadEvent[] {
   return groups.filter((g) => g.roads.length === 0).map((g) => g.lead);
+}
+
+/** Drop closures the driver marked "Not relevant to me" (any part of them). */
+export function withoutDismissed(groups: AlertGroup[], dismissed: Set<string>): AlertGroup[] {
+  if (dismissed.size === 0) return groups;
+  return groups.filter((g) => !g.members.some((m) => dismissed.has(m.event.id)));
+}
+
+export const DISMISS_EVENT = "road_alerts.dismissed";
+export const UNDISMISS_EVENT = "road_alerts.undismissed";
+/** A dismissal lasts this long (planned closures rarely run longer). */
+export const DISMISS_DAYS = 90;
+
+/** Event ids the driver dismissed, from their AppEvents oldest first: a later
+ *  undo takes ids back out. */
+export function dismissedIdsFrom(rows: { type: string; metadata: unknown }[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of rows) {
+    const ids = (r.metadata as { eventIds?: unknown } | null)?.eventIds;
+    if (!Array.isArray(ids)) continue;
+    for (const id of ids) {
+      if (typeof id !== "string") continue;
+      if (r.type === DISMISS_EVENT) out.add(id);
+      else if (r.type === UNDISMISS_EVENT) out.delete(id);
+    }
+  }
+  return out;
 }

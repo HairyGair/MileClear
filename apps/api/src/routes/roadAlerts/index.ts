@@ -1,6 +1,18 @@
 import { FastifyInstance } from "fastify";
 import { authMiddleware } from "../../middleware/auth.js";
+import { z } from "zod";
 import { roadAlertsForUser } from "../../services/roadAlerts.js";
+import { DISMISS_EVENT, UNDISMISS_EVENT } from "../../services/roadAlertGroups.js";
+import { prisma } from "../../lib/prisma.js";
+
+const dismissSchema = z.object({
+  eventIds: z.array(z.string().min(1).max(200)).min(1).max(100),
+  undo: z.boolean().optional(),
+  // What the card said, so we can see which roads drivers find irrelevant.
+  road: z.string().max(200).nullable().optional(),
+  severity: z.string().max(20).optional(),
+  daysOnRoute: z.number().int().min(0).max(100).optional(),
+});
 import { handleSnsBody } from "../../services/streetManager.js";
 
 // Road alerts trial (2 Oct 2026). See services/roadAlerts.ts.
@@ -11,6 +23,25 @@ export async function roadAlertRoutes(app: FastifyInstance) {
   app.get("/", { preHandler: authMiddleware }, async (request, reply) => {
     const data = await roadAlertsForUser(request.userId!);
     return reply.send({ data });
+  });
+
+  // POST /road-alerts/dismiss: "Not relevant to me" on one card (every
+  // event merged into it), or { undo: true } to bring it back. Stored as an
+  // AppEvent, read back by roadAlertsForUser and the push job for 90 days.
+  app.post("/dismiss", { preHandler: authMiddleware }, async (request, reply) => {
+    const parsed = dismissSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: "Invalid request" });
+    const { eventIds, undo, road, severity, daysOnRoute } = parsed.data;
+    // Written before replying (logEvent is fire-and-forget), so the list the
+    // app reloads straight after already leaves the closure out.
+    await prisma.appEvent.create({
+      data: {
+        type: undo ? UNDISMISS_EVENT : DISMISS_EVENT,
+        userId: request.userId!,
+        metadata: { eventIds, road: road ?? null, severity: severity ?? null, daysOnRoute: daysOnRoute ?? null },
+      },
+    });
+    return reply.send({ ok: true });
   });
 
   // POST /road-alerts/street-manager/sns: DfT Street Manager open data over

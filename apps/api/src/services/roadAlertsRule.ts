@@ -119,6 +119,21 @@ export function ukTimePhrase(at: Date, now: Date): string {
   return `${hhmm} on ${day.replace(",", "")}${year}`;
 }
 
+/** An end time for "until ...": a closure booked to 23:59 ends with the day,
+ *  so "the end of Wed 7 Oct" rather than "23:59 on Wed 7 Oct". */
+export function untilTimePhrase(at: Date, now: Date): string {
+  const a = ukLocalParts(at);
+  if (a.minutes < 23 * 60 + 59) return ukTimePhrase(at, now);
+  const n = ukLocalParts(now);
+  if (a.dayKey === n.dayKey) return "the end of today";
+  if (a.dayKey === ukLocalParts(new Date(now.getTime() + 24 * 3600000)).dayKey) return "the end of tomorrow";
+  const day = new Intl.DateTimeFormat("en-GB", {
+    weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London",
+  }).format(at).replace(",", "");
+  const year = a.dayKey.slice(0, 4) !== n.dayKey.slice(0, 4) ? ` ${a.dayKey.slice(0, 4)}` : "";
+  return `the end of ${day}${year}`;
+}
+
 /** "M6 southbound", "A1(M)", "Church Street, Leeds". */
 export function roadLabel(e: RoadEvent): string {
   if (e.source === "street_manager") {
@@ -141,8 +156,9 @@ function stretch(e: RoadEvent): string {
 function untilPhrase(e: RoadEvent, now: Date): string {
   if (!e.endAt) return "";
   // Live incidents carry an estimate; planned works a booked end.
-  const about = e.source === "tomtom" && !e.future ? "about " : "";
-  return ` until ${about}${ukTimePhrase(e.endAt, now)}`;
+  const phrase = untilTimePhrase(e.endAt, now);
+  const about = e.source === "tomtom" && !e.future && !phrase.startsWith("the end") ? "about " : "";
+  return ` until ${about}${phrase}`;
 }
 
 function lowerFirst(s: string): string {

@@ -9,7 +9,11 @@ import type { RoadEvent } from "../../services/roadEvents.js";
 import { offsetPoint, type LatLng } from "../../services/roadCorridor.js";
 import type { MatchedEvent } from "../../services/roadAlertsRule.js";
 import {
+  DISMISS_EVENT,
+  UNDISMISS_EVENT,
   buildGroupPushCopy,
+  dismissedIdsFrom,
+  withoutDismissed,
   groupMatches,
   selectPushGroup,
   sortGroups,
@@ -178,7 +182,7 @@ describe("push", () => {
 
 describe("windowPhrase", () => {
   it("dates next year carry the year", () => {
-    expect(windowPhrase(null, new Date("2027-06-02T22:59:00Z"), NOW)).toBe("until 23:59 on Wed 2 Jun 2027");
+    expect(windowPhrase(null, new Date("2027-06-02T22:59:00Z"), NOW)).toBe("until the end of Wed 2 Jun 2027");
   });
 
   it("UK times, same day or across days", () => {
@@ -191,5 +195,38 @@ describe("windowPhrase", () => {
     expect(windowPhrase(new Date("2026-10-05T18:00:00Z"), new Date("2026-10-06T04:00:00Z"), NOW)).toBe(
       "from 19:00 on Mon 5 Oct until 05:00 on Tue 6 Oct"
     );
+  });
+});
+
+describe("Not relevant to me", () => {
+  it("a dismissed part hides the whole closure; undo brings it back", () => {
+    const nb = ev({ road: "A19", startAt: new Date("2026-10-03T16:00:00Z"), endAt: new Date("2026-10-03T22:00:00Z") });
+    const sb = opposite(nb);
+    const groups = groupMatches([m(nb), m(sb)], NOW);
+    const dismissed = dismissedIdsFrom([{ type: DISMISS_EVENT, metadata: { eventIds: [sb.id] } }]);
+    expect(withoutDismissed(groups, dismissed)).toHaveLength(0);
+    const undone = dismissedIdsFrom([
+      { type: DISMISS_EVENT, metadata: { eventIds: [nb.id, sb.id] } },
+      { type: UNDISMISS_EVENT, metadata: { eventIds: [nb.id, sb.id] } },
+    ]);
+    expect(withoutDismissed(groups, undone)).toHaveLength(1);
+    expect(dismissedIdsFrom([{ type: DISMISS_EVENT, metadata: null }, { type: DISMISS_EVENT, metadata: { eventIds: [3] } }]).size).toBe(0);
+  });
+});
+
+describe("end times", () => {
+  it("a closure booked to 23:59 ends with the day", () => {
+    const e = ev({ road: "A1", future: true, startAt: new Date("2026-10-04T23:00:00Z"), endAt: new Date("2026-10-07T22:59:00Z") });
+    expect(groupMatches([m(e)], NOW)[0].sentence).toBe("A1 northbound is closed until the end of Wed 7 Oct.");
+  });
+
+  it("a planned closure with no end says so", () => {
+    const e = ev({ road: "A1", future: true, startAt: new Date("2026-10-05T08:00:00Z") });
+    expect(groupMatches([m(e)], NOW)[0].sentence).toBe("A1 northbound is closed. No end date given.");
+  });
+
+  it("the card map gets the closed stretch", () => {
+    const g = groupMatches([m(ev({ road: "A1" }))], NOW)[0];
+    expect(g.line.length).toBe(3);
   });
 });

@@ -6,3 +6,18 @@ import { apiRequest } from "./index";
 export function fetchRoadAlerts() {
   return apiRequest<RoadAlertsResponse>("/road-alerts");
 }
+
+/** "Not relevant to me" on one card (every event merged into it), or
+ *  undo: true to bring it back. */
+export function dismissRoadAlert(body: {
+  eventIds: string[];
+  undo?: boolean;
+  road?: string | null;
+  severity?: string;
+  daysOnRoute?: number;
+}) {
+  return apiRequest<{ ok: boolean }>("/road-alerts/dismiss", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}

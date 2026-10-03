@@ -26,7 +26,17 @@ import {
 } from "./roadCorridor.js";
 import type { RoadEvent } from "./roadEvents.js";
 import { UPCOMING_DAYS, directionWord, offerEligible, splitForScreen, type MatchedEvent } from "./roadAlertsRule.js";
-import { groupMatches, sortGroups, unnamedLeads, type AlertGroup } from "./roadAlertGroups.js";
+import {
+  DISMISS_DAYS,
+  DISMISS_EVENT,
+  UNDISMISS_EVENT,
+  dismissedIdsFrom,
+  groupMatches,
+  sortGroups,
+  unnamedLeads,
+  withoutDismissed,
+  type AlertGroup,
+} from "./roadAlertGroups.js";
 import { applyKnownNames, queueNames } from "./roadEventNames.js";
 import {
   getTileEvents,
@@ -197,7 +207,25 @@ function toItem(g: AlertGroup): RoadAlertItem {
     recurring: g.recurring,
     memberIds: g.members.map((m) => m.event.id),
     centre: g.centre ? { lat: g.centre[0], lng: g.centre[1] } : null,
+    line: g.line.map(([lat, lng]) => ({ lat, lng })),
   };
+}
+
+/** Event ids each driver marked "Not relevant to me" in the last 90 days. */
+export async function loadDismissedIds(userIds: string[], now: Date): Promise<Map<string, Set<string>>> {
+  const out = new Map<string, Set<string>>();
+  if (userIds.length === 0) return out;
+  const rows = await prisma.appEvent.findMany({
+    where: {
+      userId: { in: userIds },
+      type: { in: [DISMISS_EVENT, UNDISMISS_EVENT] },
+      createdAt: { gte: new Date(now.getTime() - DISMISS_DAYS * 86400000) },
+    },
+    select: { userId: true, type: true, metadata: true, createdAt: true },
+  });
+  rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  for (const id of userIds) out.set(id, dismissedIdsFrom(rows.filter((r) => r.userId === id)));
+  return out;
 }
 
 /** GET /road-alerts for one driver. */
@@ -235,7 +263,11 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
   // appear on the next load), then one card per closure.
   const relevant = [...current, ...upcoming];
   const named = applyKnownNames(relevant.map((m) => m.event));
-  const grouped = groupMatches(relevant.map((m, i): MatchedEvent => ({ ...m, event: named[i] })), now);
+  const dismissed = (await loadDismissedIds([userId], now)).get(userId) ?? new Set<string>();
+  const grouped = withoutDismissed(
+    groupMatches(relevant.map((m, i): MatchedEvent => ({ ...m, event: named[i] })), now),
+    dismissed
+  );
   queueNames(unnamedLeads(grouped), now.getTime());
   const groups = sortGroups(grouped);
   return {

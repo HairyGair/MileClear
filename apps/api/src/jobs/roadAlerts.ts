@@ -37,10 +37,11 @@ import {
   sentEventIdsFrom,
   splitForScreen,
 } from "../services/roadAlertsRule.js";
-import { buildGroupPushCopy, groupMatches, selectPushGroup, unnamedLeads } from "../services/roadAlertGroups.js";
+import { buildGroupPushCopy, groupMatches, selectPushGroup, unnamedLeads, withoutDismissed } from "../services/roadAlertGroups.js";
 import { applyKnownNames, queueNames, waitForNames } from "../services/roadEventNames.js";
 import {
   loadDepartureProfiles,
+  loadDismissedIds,
   matchedEventsForDriver,
   pruneRoadAlertCaches,
   roadAlertsAvailable,
@@ -133,7 +134,7 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
     if (senders.length === 0) continue;
     const ids = senders.map((s) => s.user.id);
 
-    const [sentRows, recentTrips, openShifts] = await Promise.all([
+    const [sentRows, recentTrips, openShifts, dismissedByUser] = await Promise.all([
       prisma.appEvent.findMany({
         where: {
           type: ROAD_ALERT_SENT_EVENT,
@@ -151,6 +152,7 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
         where: { userId: { in: ids }, status: "active", startedAt: { gte: new Date(now.getTime() - 16 * 3600000) } },
         select: { userId: true, startedAt: true },
       }),
+      loadDismissedIds(ids, now),
     ]);
 
     for (const { user, dep } of senders) {
@@ -197,7 +199,10 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
       const relevant = [...current, ...upcoming];
       const group = () => {
         const named = applyKnownNames(relevant.map((m) => m.event));
-        return groupMatches(relevant.map((m, i) => ({ ...m, event: named[i] })), now);
+        return withoutDismissed(
+          groupMatches(relevant.map((m, i) => ({ ...m, event: named[i] })), now),
+          dismissedByUser.get(user.id) ?? new Set()
+        );
       };
       let groups = group();
       const unnamed = unnamedLeads(groups);
