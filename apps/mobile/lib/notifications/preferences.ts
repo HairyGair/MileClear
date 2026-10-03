@@ -70,7 +70,8 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
 }
 
 export async function setNotificationPreferences(
-  partial: Partial<NotificationPreferences>
+  partial: Partial<NotificationPreferences>,
+  opts: { awaitServer?: boolean } = {}
 ): Promise<void> {
   const current = await getNotificationPreferences();
   const updated: Partial<NotificationPreferences> = { ...current, ...partial };
@@ -95,18 +96,22 @@ export async function setNotificationPreferences(
   );
   // Sync to the server so SERVER-sent pushes (fuel alerts, recaps,
   // streaks, briefings) honour these too. Fire-and-forget: a failed
-  // sync self-heals on the next toggle.
-  syncPreferencesToServer(updated);
+  // sync self-heals on the next toggle. awaitServer waits for it, for a
+  // screen that reads the server's answer straight after (Road alerts:
+  // its reload beat the save and showed "Turn on" again, 3 Oct 2026).
+  const sync = syncPreferencesToServer(updated);
+  if (opts.awaitServer) await sync;
 }
 
-function syncPreferencesToServer(prefs: Partial<NotificationPreferences>): void {
-  import("../api/index")
+function syncPreferencesToServer(prefs: Partial<NotificationPreferences>): Promise<void> {
+  return import("../api/index")
     .then(({ apiRequest }) =>
       apiRequest("/notifications/preferences", {
         method: "PUT",
         body: JSON.stringify(prefs),
       })
     )
+    .then(() => undefined)
     .catch(() => {
       /* offline or transient — next toggle re-syncs */
     });

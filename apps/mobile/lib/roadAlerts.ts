@@ -37,13 +37,19 @@ export async function markRoadAlertsOfferSeen(): Promise<void> {
  *  permission only if it was never answered), then save the switch, which
  *  syncs it to the server. */
 export async function turnOnRoadAlerts(): Promise<void> {
-  try {
+  // Push registration can stall (no APNs on a simulator, a slow network, a
+  // permission sheet left open), and the Turn on button used to spin for
+  // ever with the switch never saved (found in the simulator, 3 Oct 2026).
+  // Wait up to 8 s, then save the switch anyway; the token still registers
+  // in the background whenever it arrives.
+  const registration = (async () => {
     const token = await registerForPushNotifications();
     if (token) await registerPushToken(token).catch(() => {});
-  } catch {
+  })().catch(() => {
     /* the switch still saves; Settings shows it */
-  }
-  await setNotificationPreferences({ roadAlerts: true });
+  });
+  await Promise.race([registration, new Promise((resolve) => setTimeout(resolve, 8000))]);
+  await setNotificationPreferences({ roadAlerts: true }, { awaitServer: true });
   await markRoadAlertsOfferSeen();
 }
 
