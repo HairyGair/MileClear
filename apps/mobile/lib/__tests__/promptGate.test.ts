@@ -75,12 +75,13 @@ describe("createPromptGate", () => {
     await expect(rating).resolves.toBe(false);
   });
 
-  it("allows only one prompt per session, even the top one", async () => {
+  it("allows only one prompt per session, except the location ask, which is never held back", async () => {
     const gate = makeGate();
     const places = gate.request("saved_places");
     await vi.advanceTimersByTimeAsync(PROMPT_SETTLE_MS);
     await expect(places).resolves.toBe(true);
-    await expect(gate.request("location_primer")).resolves.toBe(false);
+    await expect(gate.request("work_explainer")).resolves.toBe(false);
+    await expect(gate.request("location_primer")).resolves.toBe(true);
   });
 
   it("keeps saying yes to the prompt that holds the slot", async () => {

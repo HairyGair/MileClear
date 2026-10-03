@@ -78,15 +78,18 @@ export function createPromptGate(timers: Timers) {
      * resolves true, so an effect that re-runs cannot lock itself out.
      */
     request(id: PromptId): Promise<boolean> {
+      // The location ask is never held back, even if something else already
+      // showed (its permission read can take longer than the settle wait):
+      // without it trips do not record, which outweighs a second pop-up.
+      if (promptRank(id) === 0) {
+        if (shown === null) grant(id);
+        return Promise.resolve(true);
+      }
       if (shown !== null) return Promise.resolve(shown === id);
       return new Promise<boolean>((resolve) => {
         const list = waiting.get(id) ?? [];
         list.push(resolve);
         waiting.set(id, list);
-        if (promptRank(id) === 0) {
-          grant(id);
-          return;
-        }
         if (settleTimer === null) {
           settleTimer = timers.setTimer(() => {
             settleTimer = null;
