@@ -59,22 +59,6 @@ function rank(a: MatchedEvent, b: MatchedEvent): number {
   return b.days - a.days;
 }
 
-/** The one event worth a pre-departure push, if any, and how many other
- *  qualifying events there are (mentioned, not pushed separately). */
-export function selectPushEvent(
-  matches: MatchedEvent[],
-  opts: { departureAt: Date; sentEventIds: Set<string> }
-): { pick: MatchedEvent; extra: number } | null {
-  const eligible = matches
-    .filter((m) => isSerious(m.event))
-    .filter((m) => isNamedForPush(m.event))
-    .filter((m) => inEffectAt(m.event, opts.departureAt, DEPARTURE_EFFECT_SLACK_MIN))
-    .filter((m) => !opts.sentEventIds.has(m.event.id))
-    .sort(rank);
-  if (eligible.length === 0) return null;
-  return { pick: eligible[0], extra: eligible.length - 1 };
-}
-
 /** Event ids already pushed, from road_alert.sent AppEvent metadata. */
 export function sentEventIdsFrom(metadatas: unknown[]): Set<string> {
   const out = new Set<string>();
@@ -141,6 +125,7 @@ export function roadLabel(e: RoadEvent): string {
   }
   const dir = e.directionMode === "along" ? directionWord(e.bearing) : null;
   if (e.road) return dir ? `${e.road} ${dir}` : e.road;
+  if (e.placeName) return e.placeTown ? `${e.placeName}, ${e.placeTown}` : e.placeName;
   return "A road on your usual route";
 }
 
@@ -162,8 +147,7 @@ function lowerFirst(s: string): string {
 }
 
 /** One-line headline for the screen: "M6 southbound closed". */
-export function eventHeadline(e: RoadEvent): string {
-  const label = roadLabel(e);
+export function eventHeadline(e: RoadEvent, label: string = roadLabel(e)): string {
   if (e.severity === "closure") return `${label} closed`;
   switch (e.category) {
     case "lane_closed": return `${label}: lanes closed`;
@@ -176,8 +160,7 @@ export function eventHeadline(e: RoadEvent): string {
 }
 
 /** Plain sentence for the screen and the push body. */
-export function eventSentence(e: RoadEvent, now: Date): string {
-  const label = roadLabel(e);
+export function eventSentence(e: RoadEvent, now: Date, label: string = roadLabel(e)): string {
   const until = untilPhrase(e, now);
   if (e.severity === "closure") {
     const why = e.source === "street_manager" ? " for roadworks" : "";
@@ -190,25 +173,6 @@ export function eventSentence(e: RoadEvent, now: Date): string {
 
 export function daysPhrase(days: number): string {
   return `You've driven this way on ${days} ${days === 1 ? "day" : "days"} in the last 6 weeks.`;
-}
-
-export interface RoadAlertCopy {
-  title: string;
-  body: string;
-}
-
-export function buildRoadAlertCopy(m: MatchedEvent, extra: number, now: Date): RoadAlertCopy {
-  const e = m.event;
-  const name = e.road ?? (e.from && e.to && e.from !== e.to ? `${e.from} to ${e.to}` : e.from ?? e.to ?? null);
-  const title = name
-    ? e.severity === "closure"
-      ? `Before you set off: ${name} closed`
-      : `Before you set off: delays on ${/^[AMB]\d/.test(name) ? "the " : ""}${name}`
-    : e.severity === "closure"
-      ? "Before you set off: a closure on your usual route"
-      : "Before you set off: delays on your usual route";
-  const more = extra > 0 ? ` ${extra} more on your usual roads in the app.` : "";
-  return { title, body: `${eventSentence(e, now)} ${daysPhrase(m.days)}${more}` };
 }
 
 // ── Screen ─────────────────────────────────────────────────────────

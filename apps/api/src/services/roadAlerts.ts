@@ -25,15 +25,9 @@ import {
   type DepartureProfile,
 } from "./roadCorridor.js";
 import type { RoadEvent } from "./roadEvents.js";
-import {
-  UPCOMING_DAYS,
-  directionWord,
-  eventHeadline,
-  eventSentence,
-  offerEligible,
-  splitForScreen,
-  type MatchedEvent,
-} from "./roadAlertsRule.js";
+import { UPCOMING_DAYS, directionWord, offerEligible, splitForScreen, type MatchedEvent } from "./roadAlertsRule.js";
+import { groupMatches, sortGroups, type AlertGroup } from "./roadAlertGroups.js";
+import { applyKnownNames } from "./roadEventNames.js";
 import {
   getTileEvents,
   isTomTomConfigured,
@@ -177,25 +171,32 @@ export async function matchedEventsForDriver(
   return { corridor, matches };
 }
 
-function toItem(m: MatchedEvent, now: Date, when: "now" | "upcoming"): RoadAlertItem {
-  const e = m.event;
+function toItem(g: AlertGroup): RoadAlertItem {
+  const e = g.lead;
   return {
-    id: e.id,
+    id: g.id,
     source: e.source,
-    severity: e.severity,
+    severity: g.severity,
     category: e.category,
-    when,
-    headline: eventHeadline(e),
-    sentence: eventSentence(e, now),
-    road: e.road,
-    direction: e.directionMode === "along" ? directionWord(e.bearing) : null,
+    when: g.when,
+    headline: g.headline,
+    sentence: g.sentence,
+    road: g.roads[0] ?? null,
+    direction: !g.bothDirections && !g.multiPlace && e.directionMode === "along" ? directionWord(e.bearing) : null,
     from: e.from,
     to: e.to,
-    town: e.town,
+    town: e.town ?? e.placeTown ?? null,
     delayMinutes: e.delayMinutes,
-    startAt: e.startAt ? e.startAt.toISOString() : null,
-    endAt: e.endAt ? e.endAt.toISOString() : null,
-    daysOnRoute: m.days,
+    startAt: g.startAt ? g.startAt.toISOString() : null,
+    endAt: g.endAt ? g.endAt.toISOString() : null,
+    daysOnRoute: g.days,
+    ongoing: g.ongoing,
+    roads: g.roads,
+    bothDirections: g.bothDirections,
+    occurrences: g.occurrences,
+    recurring: g.recurring,
+    memberIds: g.members.map((m) => m.event.id),
+    centre: g.centre ? { lat: g.centre[0], lng: g.centre[1] } : null,
   };
 }
 
@@ -230,11 +231,19 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
 
   const { corridor, matches } = await matchedEventsForDriver(userId, now, await screenFreshnessMs(now));
   const { current, upcoming } = splitForScreen(matches, now);
+  // Street names known so far (the rest are looked up in the background and
+  // appear on the next load), then one card per closure.
+  const relevant = [...current, ...upcoming];
+  const named = applyKnownNames(relevant.map((m) => m.event), now.getTime());
+  const groups = sortGroups(groupMatches(relevant.map((m, i): MatchedEvent => ({ ...m, event: named[i] })), now));
   return {
     ...base,
     offerEligible: false,
     hasUsualRoads: corridor.cells.size > 0,
-    current: current.map((m) => toItem(m, now, "now")),
-    upcoming: upcoming.map((m) => toItem(m, now, "upcoming")),
+    // Older apps read only current and upcoming, so ongoing closures stay
+    // out of both: they disappear there rather than crowding the list.
+    current: groups.current.map(toItem),
+    upcoming: groups.upcoming.map(toItem),
+    ongoing: groups.ongoing.map(toItem),
   };
 }

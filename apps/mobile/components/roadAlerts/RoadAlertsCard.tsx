@@ -85,11 +85,13 @@ export default function RoadAlertsCard() {
     );
   }
 
-  const items = [...data.current, ...data.upcoming];
-  if (items.length === 0) return null;
-  const top = items[0];
+  // One alert only: the worst one now, else the next planned one. The API
+  // already merges each closure into one item, orders by the roads they
+  // drive most, and keeps long-running closures out of both lists.
+  const top = data.current[0] ?? data.upcoming[0];
+  if (!top) return null;
   const starts = top.when === "upcoming" ? formatAlertTime(top.startAt) : null;
-  const more = items.length - 1;
+  const more = data.current.length + data.upcoming.length - 1;
 
   return (
     <TouchableOpacity
@@ -97,7 +99,7 @@ export default function RoadAlertsCard() {
       onPress={() => router.push("/road-alerts" as never)}
       activeOpacity={0.75}
       accessibilityRole="button"
-      accessibilityLabel={`Road alerts. ${top.headline}. ${more > 0 ? `${more} more.` : ""} Tap for details.`}
+      accessibilityLabel={`Road alerts. ${top.headline}. Tap for details${more > 0 ? " and the rest" : ""}.`}
     >
       <View style={styles.header}>
         <View style={[styles.iconWrap, top.severity === "closure" && { backgroundColor: colors.redDim }]}>
@@ -113,7 +115,7 @@ export default function RoadAlertsCard() {
       <Text style={styles.line}>{top.headline}</Text>
       {starts ? <Text style={styles.meta}>Starts {starts}</Text> : null}
       <Text style={styles.meta}>{top.sentence}</Text>
-      {more > 0 ? <Text style={styles.more}>{more} more on the Road alerts screen</Text> : null}
+      {more > 0 ? <Text style={styles.more}>See all road alerts</Text> : null}
     </TouchableOpacity>
   );
 }

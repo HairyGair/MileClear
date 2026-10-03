@@ -8,19 +8,18 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseTomTomIncidents, type RoadEvent } from "../../services/roadEvents.js";
 import {
-  buildRoadAlertCopy,
   directionWord,
   eventHeadline,
   inEffectAt,
   isLikelyDriving,
   isNamedForPush,
   offerEligible,
-  selectPushEvent,
   sentEventIdsFrom,
   splitForScreen,
   ukTimePhrase,
   type MatchedEvent,
 } from "../../services/roadAlertsRule.js";
+import { buildGroupPushCopy, groupMatches, selectPushGroup } from "../../services/roadAlertGroups.js";
 import {
   isPushQuietHours,
   roadAlertQuietHoursExempt,
@@ -39,11 +38,15 @@ const breakdown = ev("a518-breakdown"); // minor
 const NOW = new Date("2026-10-05T04:50:00Z");
 const DEPART = new Date("2026-10-05T05:30:00Z");
 const m = (event: RoadEvent, days = 9): MatchedEvent => ({ event, days });
+const selectPushEvent = (ms: MatchedEvent[], opts: { departureAt: Date; sentEventIds: Set<string> }) =>
+  selectPushGroup(groupMatches(ms, NOW), opts);
+const buildRoadAlertCopy = (one: MatchedEvent, extra: number, now: Date) =>
+  buildGroupPushCopy(groupMatches([one], now)[0], extra, now);
 
-describe("selectPushEvent", () => {
+describe("selectPushGroup", () => {
   it("picks the closure over a major delay, and counts the rest", () => {
     const r = selectPushEvent([m(accident), m(closure), m(breakdown)], { departureAt: DEPART, sentEventIds: new Set() });
-    expect(r?.pick.event.id).toBe(closure.id);
+    expect(r?.pick.id).toBe(closure.id);
     expect(r?.extra).toBe(1); // the accident; the breakdown is minor
   });
 
@@ -53,7 +56,7 @@ describe("selectPushEvent", () => {
 
   it("never repeats an event already sent", () => {
     const r = selectPushEvent([m(closure), m(accident)], { departureAt: DEPART, sentEventIds: new Set([closure.id]) });
-    expect(r?.pick.event.id).toBe(accident.id);
+    expect(r?.pick.id).toBe(accident.id);
     expect(r?.extra).toBe(0);
     expect(
       selectPushEvent([m(closure), m(accident)], { departureAt: DEPART, sentEventIds: new Set([closure.id, accident.id]) })
@@ -66,15 +69,15 @@ describe("selectPushEvent", () => {
     const soon: RoadEvent = { ...closure, id: "tt:soon", startAt: new Date("2026-10-05T06:15:00Z") };
     expect(selectPushEvent([m(over)], { departureAt: DEPART, sentEventIds: new Set() })).toBeNull();
     expect(selectPushEvent([m(later)], { departureAt: DEPART, sentEventIds: new Set() })).toBeNull();
-    expect(selectPushEvent([m(soon)], { departureAt: DEPART, sentEventIds: new Set() })?.pick.event.id).toBe("tt:soon");
+    expect(selectPushEvent([m(soon)], { departureAt: DEPART, sentEventIds: new Set() })?.pick.id).toBe("tt:soon");
   });
 
   it("ties broken by delay, then by how often they use the road", () => {
     const a: RoadEvent = { ...accident, id: "tt:a", delayMinutes: 20 };
     const b: RoadEvent = { ...accident, id: "tt:b", delayMinutes: 40 };
-    expect(selectPushEvent([m(a), m(b)], { departureAt: DEPART, sentEventIds: new Set() })?.pick.event.id).toBe("tt:b");
+    expect(selectPushEvent([m(a), m(b)], { departureAt: DEPART, sentEventIds: new Set() })?.pick.id).toBe("tt:b");
     const c: RoadEvent = { ...accident, id: "tt:c" };
-    expect(selectPushEvent([m(accident, 3), m(c, 12)], { departureAt: DEPART, sentEventIds: new Set() })?.pick.event.id).toBe("tt:c");
+    expect(selectPushEvent([m(accident, 3), m(c, 12)], { departureAt: DEPART, sentEventIds: new Set() })?.pick.id).toBe("tt:c");
   });
 });
 

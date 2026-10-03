@@ -33,11 +33,12 @@ import {
   DEDUPE_LOOKBACK_DAYS,
   MAX_ROAD_ALERTS_PER_DAY,
   ROAD_ALERT_SENT_EVENT,
-  buildRoadAlertCopy,
   isLikelyDriving,
-  selectPushEvent,
   sentEventIdsFrom,
+  splitForScreen,
 } from "../services/roadAlertsRule.js";
+import { buildGroupPushCopy, groupMatches, selectPushGroup } from "../services/roadAlertGroups.js";
+import { applyKnownNames, nameEventsNow } from "../services/roadEventNames.js";
 import {
   loadDepartureProfiles,
   matchedEventsForDriver,
@@ -51,6 +52,8 @@ import { localDayBounds } from "./eveningDigest.js";
 const BATCH_SIZE = 50;
 /** Tiles must be at least this fresh for a push decision. */
 const PUSH_FRESHNESS_MS = 15 * 60000;
+/** How long the send tick waits for street names of unnamed closures. */
+const NAME_WAIT_MS = 8000;
 
 export interface RoadAlertJobResult {
   candidates: number;
@@ -115,7 +118,9 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
     // data even if TomTom is slow.
     for (const x of near.filter((n) => n.phase === "prefetch")) {
       try {
-        await matchedEventsForDriver(x.user.id, now, PUSH_FRESHNESS_MS);
+        const { matches } = await matchedEventsForDriver(x.user.id, now, PUSH_FRESHNESS_MS);
+        const { current, upcoming } = splitForScreen(matches, now);
+        applyKnownNames([...current, ...upcoming].map((m) => m.event)); // queues street-name lookups
         result.prefetched++;
       } catch (err) {
         console.error("[jobs/roadAlerts] prefetch failed:", (err as Error).message);
@@ -184,13 +189,19 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
         continue;
       }
       const departureAt = new Date(now.getTime() + (dep! - local.minutes) * 60000);
-      const choice = selectPushEvent(matches, {
+      // Name the unnamed ones first (a few seconds at most; usually cached
+      // by the prefetch tick), then one card per closure, as on the screen.
+      const { current, upcoming } = splitForScreen(matches, now);
+      const relevant = [...current, ...upcoming];
+      const named = await nameEventsNow(relevant.map((m) => m.event), NAME_WAIT_MS);
+      const groups = groupMatches(relevant.map((m, i) => ({ ...m, event: named[i] })), now);
+      const choice = selectPushGroup(groups, {
         departureAt,
         sentEventIds: sentEventIdsFrom(mine.map((r) => r.metadata)),
       });
       if (!choice) { skip("nothing_serious"); continue; }
 
-      const copy = buildRoadAlertCopy(choice.pick, choice.extra, now);
+      const copy = buildGroupPushCopy(choice.pick, choice.extra, now);
       const tickets = await sendPushNotifications(
         [
           {
@@ -198,7 +209,7 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
             title: copy.title,
             body: copy.body,
             sound: "default",
-            data: { type: "road_alert", action: "open_road_alerts", eventId: choice.pick.event.id },
+            data: { type: "road_alert", action: "open_road_alerts", eventId: choice.pick.id },
           },
         ],
         // Only this opted-in, pre-departure, 05:00-07:59 case may pass quiet
@@ -208,10 +219,12 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
       if (tickets[0]?.status !== "ok") { skip("push_failed"); continue; }
       result.sent++;
       logEvent(ROAD_ALERT_SENT_EVENT, user.id, {
-        eventIds: [choice.pick.event.id],
-        source: choice.pick.event.source,
-        severity: choice.pick.event.severity,
-        category: choice.pick.event.category,
+        // Every part of the closure, so another night or the other
+        // carriageway of the same closure is never pushed again.
+        eventIds: choice.pick.members.map((m) => m.event.id),
+        source: choice.pick.lead.source,
+        severity: choice.pick.severity,
+        category: choice.pick.lead.category,
         days: choice.pick.days,
         extra: choice.extra,
         departureMinutes: dep,

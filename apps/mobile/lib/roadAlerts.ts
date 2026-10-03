@@ -67,3 +67,13 @@ export function formatAlertTime(iso: string | null): string | null {
     timeZone: "Europe/London",
   });
 }
+
+/** "Mon 28 Sep" in UK time. */
+export function formatAlertDay(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d
+    .toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" })
+    .replace(",", "");
+}

@@ -21,7 +21,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { RoadAlertItem, RoadAlertsResponse } from "@mileclear/shared";
 import { fetchRoadAlerts } from "../lib/api/roadAlerts";
-import { formatAlertTime, turnOnRoadAlerts } from "../lib/roadAlerts";
+import { formatAlertDay, formatAlertTime, turnOnRoadAlerts } from "../lib/roadAlerts";
 import { colors, fonts, radii } from "../lib/theme";
 
 type Data = RoadAlertsResponse["data"];
@@ -29,6 +29,7 @@ type Data = RoadAlertsResponse["data"];
 function AlertRow({ item }: { item: RoadAlertItem }) {
   const closure = item.severity === "closure";
   const starts = item.when === "upcoming" ? formatAlertTime(item.startAt) : null;
+  const since = item.ongoing ? formatAlertDay(item.startAt) : null;
   return (
     <View style={styles.item} accessible accessibilityLabel={`${item.headline}. ${item.sentence}`}>
       <View style={[styles.badge, closure ? styles.badgeClosure : styles.badgeMajor]}>
@@ -41,6 +42,7 @@ function AlertRow({ item }: { item: RoadAlertItem }) {
       <View style={{ flex: 1 }}>
         <Text style={styles.headline}>{item.headline}</Text>
         {starts ? <Text style={styles.when}>Starts {starts}</Text> : null}
+        {since ? <Text style={styles.whenQuiet}>In place since {since}</Text> : null}
         <Text style={styles.sentence}>{item.sentence}</Text>
         {item.daysOnRoute > 0 ? (
           <Text style={styles.meta}>
@@ -59,6 +61,7 @@ export default function RoadAlertsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enabling, setEnabling] = useState(false);
+  const [showOngoing, setShowOngoing] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -174,6 +177,32 @@ export default function RoadAlertsScreen() {
               ) : (
                 data.upcoming.map((item) => <AlertRow key={item.id} item={item} />)
               )}
+
+              {(data.ongoing ?? []).length > 0 ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.foldRow}
+                    onPress={() => setShowOngoing((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityState={{ expanded: showOngoing }}
+                    accessibilityLabel={`Closures in place for a while, ${data.ongoing!.length}. ${showOngoing ? "Hide" : "Show"}`}
+                  >
+                    <Text style={styles.section}>In place for a while ({data.ongoing!.length})</Text>
+                    <Ionicons name={showOngoing ? "chevron-up" : "chevron-down"} size={16} color={colors.text3} />
+                  </TouchableOpacity>
+                  {showOngoing ? (
+                    <>
+                      <Text style={styles.foldNote}>
+                        Closures that started more than 3 days ago. You&apos;ve probably been driving round them, so we
+                        never send a notification about these.
+                      </Text>
+                      {data.ongoing!.map((item) => (
+                        <AlertRow key={item.id} item={item} />
+                      ))}
+                    </>
+                  ) : null}
+                </>
+              ) : null}
             </>
           )}
         </>
@@ -260,6 +289,9 @@ const styles = StyleSheet.create({
   badgeMajor: { backgroundColor: colors.amberDim },
   headline: { color: colors.text1, fontFamily: fonts.semibold, fontSize: 15, lineHeight: 20 },
   when: { color: colors.amber, fontFamily: fonts.medium, fontSize: 12.5, marginTop: 2 },
+  whenQuiet: { color: colors.text3, fontFamily: fonts.medium, fontSize: 12.5, marginTop: 2 },
+  foldRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 },
+  foldNote: { color: colors.text3, fontFamily: fonts.regular, fontSize: 12.5, lineHeight: 17, marginBottom: 10 },
   sentence: { color: colors.text2, fontFamily: fonts.regular, fontSize: 13.5, lineHeight: 19, marginTop: 4 },
   meta: { color: colors.text3, fontFamily: fonts.regular, fontSize: 12, marginTop: 6 },
   footer: { marginTop: 20, gap: 6 },

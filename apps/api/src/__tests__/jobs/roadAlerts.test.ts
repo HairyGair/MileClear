@@ -40,6 +40,11 @@ vi.mock("../../services/tomtomTraffic.js", () => ({
   pruneTileCache: () => {},
 }));
 vi.mock("../../services/streetManager.js", () => ({ purgeEndedStreetWorks: async () => 0 }));
+// Street-name lookups go to OpenStreetMap; never from a test.
+vi.mock("../../services/roadEventNames.js", () => ({
+  applyKnownNames: (events: unknown[]) => events,
+  nameEventsNow: async (events: unknown[]) => events,
+}));
 
 import { runRoadAlertsJob } from "../../jobs/roadAlerts.js";
 import { parseTomTomIncidents } from "../../services/roadEvents.js";

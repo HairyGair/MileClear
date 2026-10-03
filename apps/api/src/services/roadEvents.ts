@@ -56,6 +56,10 @@ export interface RoadEvent {
   /** True when the source says it has not started yet. */
   future: boolean;
   town: string | null;
+  /** Street (and area) at the middle of an event that has no road number,
+   *  looked up from OpenStreetMap after matching (services/roadEventNames.ts). */
+  placeName?: string | null;
+  placeTown?: string | null;
   lines: LatLng[][];
   points: LatLng[];
 }

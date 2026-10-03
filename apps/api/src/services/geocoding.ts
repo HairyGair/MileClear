@@ -187,6 +187,71 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   return (await reverseGeocodeDetailed(lat, lng)).address;
 }
 
+// ── Road name at a point (road alerts, Oct 2026) ──
+//
+// TomTom sends many closures with no road number and no street names (22 of
+// 34 on one Sunderland driver's list, 3 Oct 2026), which read as "A road on
+// your usual route closed". The street at the middle of the closure, plus the
+// area it is in, names it. Street level (zoom 17), not building level, so the
+// answer is the road itself rather than a shop on it. Same provider, cache
+// and failure rules as reverseGeocodeDetailed.
+
+export interface RoadNameResult {
+  street: string | null;
+  town: string | null;
+  outcome: ReverseGeocodeOutcome;
+}
+
+export async function reverseGeocodeRoad(lat: number, lng: number): Promise<RoadNameResult> {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return { street: null, town: null, outcome: "nowhere" };
+  const key = `revroad:v1:${roundCoord(lat)},${roundCoord(lng)}`;
+  const cached = await cacheGet(key);
+  if (cached !== null && cached !== undefined) {
+    if (cached === "") return { street: null, town: null, outcome: "nowhere" };
+    const [street, town] = cached.split("|");
+    return { street: street || null, town: town || null, outcome: "found" };
+  }
+
+  const url = new URL("/reverse", NOMINATIM_URL);
+  url.searchParams.set("lat", String(lat));
+  url.searchParams.set("lon", String(lng));
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("zoom", "17");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      warnThrottled(`Nominatim (road name) answered HTTP ${res.status}`);
+      return { street: null, town: null, outcome: "unavailable" };
+    }
+    const row = (await res.json()) as NominatimResult & { error?: string };
+    const a = row.address ?? {};
+    const street = row.error ? null : (a.road ?? null);
+    const town = row.error ? null : (a.suburb ?? a.town ?? a.city ?? a.village ?? a.hamlet ?? null);
+    if (!street) {
+      await cacheSet(key, "", REVERSE_CACHE_TTL_SECONDS);
+      return { street: null, town: null, outcome: "nowhere" };
+    }
+    await cacheSet(key, `${street}|${town ?? ""}`, REVERSE_CACHE_TTL_SECONDS);
+    return { street, town, outcome: "found" };
+  } catch (err) {
+    warnThrottled(
+      controller.signal.aborted
+        ? `Nominatim (road name) timed out after ${TIMEOUT_MS} ms`
+        : `Nominatim (road name) request failed: ${err instanceof Error ? err.message : String(err)}`
+    );
+    return { street: null, town: null, outcome: "unavailable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── Google Places Autocomplete (primary path) ─────────────────────
 //
 // Type-ahead: the user picks a real, disambiguated place instead of us

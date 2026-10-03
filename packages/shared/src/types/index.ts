@@ -890,6 +890,20 @@ export interface RoadAlertItem {
   endAt: string | null;
   /** Days in the last 6 weeks the driver used this stretch. */
   daysOnRoute: number;
+  // One item is one closure: both carriageways, every night of a repeating
+  // closure, and every street of one road plan are merged (Oct 2026).
+  // Optional so older APIs still type-check.
+  /** In place for more than 3 days: listed apart, never on the dashboard. */
+  ongoing?: boolean;
+  /** Named roads involved, road numbers first. */
+  roads?: string[];
+  bothDirections?: boolean;
+  /** Distinct time windows merged (nights of an overnight closure). */
+  occurrences?: number;
+  recurring?: boolean;
+  /** Source event ids merged into this item. */
+  memberIds?: string[];
+  centre?: { lat: number; lng: number } | null;
 }
 
 /** GET /road-alerts */
@@ -907,6 +921,8 @@ export interface RoadAlertsResponse {
     hasUsualRoads: boolean;
     current: RoadAlertItem[];
     upcoming: RoadAlertItem[];
+    /** Closures in place for more than 3 days (absent from older APIs). */
+    ongoing?: RoadAlertItem[];
     /** Credit lines the data licences require; show them under the list. */
     attribution: string[];
     updatedAt: string;
