@@ -54,6 +54,7 @@ import {
 } from "../../services/autoTripsOffRule.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
+import { latestEndingIndex, mergedDistanceMiles } from "../../services/tripMergeRule.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { parseReportedDate, formatReportedDate } from "../../lib/reportedDate.js";
@@ -2403,33 +2404,27 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "One or more trips not found" });
     }
 
-    // Use the first trip's start and last trip's end
+    // The first trip's start; the end of whichever trip ends LAST, and a
+    // distance that never drops a typed leg or the longer copy of the same
+    // drive (services/tripMergeRule.ts, Shah Rouf 3 Oct 2026).
     const first = trips[0];
-    const last = trips[trips.length - 1];
+    const last = trips[latestEndingIndex(trips)];
 
     // Combine all coordinates from all trips, sorted by time
     const allCoords = trips
       .flatMap((t) => t.coordinates)
       .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
 
-    // Calculate total distance from coordinate trail if available, else sum individual trips
-    let totalDistance = 0;
+    const totalDistance = mergedDistanceMiles(trips);
     const startLat = first.startLat;
     const startLng = first.startLng;
     const endLat = last.endLat;
     const endLng = last.endLng;
 
-    if (allCoords.length >= 2) {
-      // Sum haversine across all GPS breadcrumbs for accurate trail distance
-      for (let i = 1; i < allCoords.length; i++) {
-        totalDistance += haversineDistance(
-          allCoords[i - 1].lat, allCoords[i - 1].lng,
-          allCoords[i].lat, allCoords[i].lng
-        );
-      }
-    } else {
-      // No coordinates — sum the pre-calculated individual trip distances
-      totalDistance = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
+    // Keep a restorable copy of every original, as an ordinary delete does.
+    // Best effort: a failed archive must not block the merge.
+    for (const t of trips) {
+      await archiveTripBeforeDelete(t.id, userId, "user").catch(() => null);
     }
 
     // Create merged trip and delete originals in a transaction
