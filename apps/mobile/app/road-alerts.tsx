@@ -54,7 +54,14 @@ function AlertRow({ item, onDismiss }: { item: RoadAlertItem; onDismiss: (item: 
           // A still snapshot of the closed stretch, so the spot is recognisable
           // at a glance. Draws nothing in Expo Go (no native maps there).
           <View style={styles.map} accessible={false} importantForAccessibility="no-hide-descendants">
-            <TripMapWidget coordinates={item.line} height={120} showLine={item.line.length >= 2} />
+            <TripMapWidget
+              coordinates={item.line}
+              height={120}
+              showLine={item.line.length >= 2}
+              showEndpoints={false}
+              lineColor={colors.red}
+              lineWidth={6}
+            />
           </View>
         ) : null}
         <TouchableOpacity

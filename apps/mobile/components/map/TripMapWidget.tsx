@@ -44,6 +44,13 @@ interface TripMapWidgetProps {
   /** Draw the route line. Off for a manual trip's two pins, where a straight
    *  line between them would claim a route nobody recorded. */
   showLine?: boolean;
+  /** Green start and red end pins. Off for a road closure, where pins would
+   *  cover the short stretch and suggest a journey (one red pin is drawn
+   *  instead when there is no line to show). */
+  showEndpoints?: boolean;
+  /** Line colour and width; a closure draws a thicker red line. */
+  lineColor?: string;
+  lineWidth?: number;
 }
 
 export function TripMapWidget({
@@ -53,6 +60,9 @@ export function TripMapWidget({
   height = 200,
   interactive = false,
   showLine = true,
+  showEndpoints = true,
+  lineColor = AMBER,
+  lineWidth = 3,
 }: TripMapWidgetProps) {
   // Only real points: a NaN or 0,0 placeholder would stretch the region
   // out to the whole world.
@@ -173,18 +183,27 @@ export function TripMapWidget({
         {showLine && (
           <PolylineComponent
             coordinates={polylineCoords}
-            strokeColor={AMBER}
-            strokeWidth={3}
+            strokeColor={lineColor}
+            strokeWidth={lineWidth}
           />
         )}
-        <MarkerComponent
-          coordinate={{ latitude: start.lat, longitude: start.lng }}
-          pinColor="#34c759"
-        />
-        <MarkerComponent
-          coordinate={{ latitude: end.lat, longitude: end.lng }}
-          pinColor="#dc2626"
-        />
+        {showEndpoints ? (
+          <>
+            <MarkerComponent
+              coordinate={{ latitude: start.lat, longitude: start.lng }}
+              pinColor="#34c759"
+            />
+            <MarkerComponent
+              coordinate={{ latitude: end.lat, longitude: end.lng }}
+              pinColor="#dc2626"
+            />
+          </>
+        ) : !showLine ? (
+          <MarkerComponent
+            coordinate={{ latitude: start.lat, longitude: start.lng }}
+            pinColor="#dc2626"
+          />
+        ) : null}
         {cutMarkers?.map((c, i) => (
           <MarkerComponent
             key={`cut-${i}`}
