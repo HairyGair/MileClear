@@ -1666,6 +1666,21 @@ export default function DashboardScreen() {
             </>
           )}
 
+          {/* Gig drivers are paid per job, not by the hour, so the hourly
+              "Log shift earnings?" offer never reaches them. Start shift,
+              end shift, add earnings in one go (Krzysztof, 3 Oct 2026). */}
+          {scorecard && (
+            <Button
+              title="Add earnings for this shift"
+              icon="cash-outline"
+              variant="secondary"
+              onPress={() => {
+                setShowScorecard(false);
+                router.push({ pathname: "/earning-form", params: { prefillDate: scorecard.startedAt } });
+              }}
+              style={{ marginBottom: 10 }}
+            />
+          )}
           <Button
             title="Done"
             icon="checkmark"
