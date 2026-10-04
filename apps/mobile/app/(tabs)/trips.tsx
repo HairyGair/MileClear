@@ -28,6 +28,8 @@ import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
 import { mergeTripPage, uniqueById } from "../../lib/trips/pageMerge";
+import { tripEndLabel, type SavedPlace } from "../../lib/trips/placeLabel";
+import { getDatabase } from "../../lib/db";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
@@ -280,28 +282,35 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-/**
- * Short-form address for the compact trip row. Reverse-geocoded
- * addresses often come back as long postcode-suffixed strings like
- * "67, Durham Road, Sunderland, SR1 2NY". For a one-line route summary
- * we want the most informative segment — typically the road name or
- * locality, not the house number that leads the string. Strategy:
- *   1. Saved-location names ("Home", "Work") come through clean — pass as-is
- *   2. For comma-separated street addresses, skip leading segments that
- *      are pure-numeric (house numbers) and pick the first meaningful one.
- *   3. Cap to 22 chars so two ends still fit in one line.
- */
-function shortAddress(addr: string): string {
-  if (!addr) return "";
-  const trimmed = addr.trim();
-  // Saved location names (no commas, short) → use directly
-  if (!trimmed.includes(",") || trimmed.length < 18) {
-    return trimmed.length > 22 ? trimmed.slice(0, 20) + "…" : trimmed;
+// A quiet server classification stays undoable in the list for a week;
+// after that it reads like any other classified trip.
+const AUTO_UNDO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Low or medium confidence gets a pill; high stays visually clean. */
+function showConfidenceFor(item: TripItem): boolean {
+  const level = item.confidence?.level;
+  return level === "low" || level === "medium";
+}
+
+function isRecentAutoTrip(item: TripItem): boolean {
+  return (
+    item.classification !== "unclassified" &&
+    !!item.autoClassifiedAt &&
+    Date.now() - new Date(item.autoClassifiedAt).getTime() < AUTO_UNDO_WINDOW_MS
+  );
+}
+
+/** Saved places from the local database, for the route line's names. */
+async function loadSavedPlaces(): Promise<SavedPlace[]> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ name: string; latitude: number; longitude: number; radius_meters: number }>(
+      "SELECT name, latitude, longitude, radius_meters FROM saved_locations"
+    );
+    return rows.map((r) => ({ name: r.name, lat: r.latitude, lng: r.longitude, radiusMeters: r.radius_meters }));
+  } catch {
+    return [];
   }
-  const segments = trimmed.split(",").map((s) => s.trim());
-  // Skip pure-numeric or 1-2 char first segments (house numbers)
-  const first = segments.find((s) => s.length > 2 && !/^\d+$/.test(s)) ?? segments[0];
-  return first.length > 22 ? first.slice(0, 20) + "…" : first;
 }
 
 export default function TripsScreen() {
@@ -320,6 +329,8 @@ export default function TripsScreen() {
   // once. Stored as PlatformTag value or "all" sentinel.
   const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
   const [page, setPage] = useState(1);
+  // Saved places ("Home", "Depot") name the ends of the route line first.
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [totalPages, setTotalPages] = useState(1);
   // Date range state. When dateRange !== "all" (or any other filter is active)
   // a stats summary card appears at the top of the list.
@@ -536,6 +547,7 @@ export default function TripsScreen() {
       loadTrips(1);
       loadSummary();
       loadUnclassifiedCount();
+      loadSavedPlaces().then(setSavedPlaces);
     }, [loadTrips, loadSummary, loadUnclassifiedCount])
   );
 
@@ -729,6 +741,10 @@ export default function TripsScreen() {
         "",
         "",
         [
+          // The row's "Undo" again, for a trip MileClear sorted by itself.
+          ...(isRecentAutoTrip(item)
+            ? [{ text: "Undo automatic sort", onPress: () => handleUndoClassification(item.id) }]
+            : []),
           {
             text: "Delete Trip",
             style: "destructive",
@@ -745,7 +761,7 @@ export default function TripsScreen() {
         ]
       );
     },
-    [mergeMode, handleDeleteTrip]
+    [mergeMode, handleDeleteTrip, handleUndoClassification]
   );
 
   const toggleSelect = useCallback((id: string) => {
@@ -921,17 +937,18 @@ export default function TripsScreen() {
     []
   );
 
-  const renderTrip = ({ item }: { item: TripItem }) => {
+  // showDate: the day list already heads each day, so its rows leave the
+  // date out; the Inbox's route groups mix days, so theirs keep it.
+  const renderTrip = ({ item, showDate = false }: { item: TripItem; showDate?: boolean }) => {
     const isUnclassified = item.classification === "unclassified";
     const isBusiness = item.classification === "business";
     const isClassifying = classifyingId === item.id;
     const tripSuggestion = isUnclassified ? suggestions[item.id] : null;
-    // A quiet server classification stays undoable in the list for a week;
-    // after that it reads like any other classified trip.
-    const isRecentAuto =
-      !isUnclassified &&
-      !!item.autoClassifiedAt &&
-      Date.now() - new Date(item.autoClassifiedAt).getTime() < 7 * 24 * 60 * 60 * 1000;
+    const isRecentAuto = isRecentAutoTrip(item);
+    const fromLabel = tripEndLabel(item.startAddress, item.startLat, item.startLng, savedPlaces);
+    const toLabel = tripEndLabel(item.endAddress, item.endLat, item.endLng, savedPlaces);
+    const hasMeta =
+      showDate || !!item.platformTag || !!item._isLocal || !!item.isManualEntry || showConfidenceFor(item) || isRecentAuto;
     const isSelected = mergeMode && selectedIds.has(item.id);
     const note = displayNote(item.notes);
     const isEditingNote = editingNoteId === item.id;
@@ -959,7 +976,7 @@ export default function TripsScreen() {
     // visually clean. Includes accessibilityLabel that explains the
     // signal rather than just "dot".
     const confidence = item.confidence?.level;
-    const showConfidence = confidence === "low" || confidence === "medium";
+    const showConfidence = showConfidenceFor(item);
 
     // Swipe actions — Anthony 16 May audit. Right swipe = quick classify
     // (cycles Business / Personal / unclassified to the OTHER state),
@@ -1039,8 +1056,10 @@ export default function TripsScreen() {
         <View style={[styles.classificationBar, { backgroundColor: classificationBarColour }]} />
 
         <View style={styles.tripCardBody}>
-          {/* Line 1: distance · time · from → to */}
-          <View style={styles.tripPrimaryRow}>
+          {/* Compact row (4 Oct 2026): a small route thumbnail and three
+              short lines, so five or six trips fit on a screen. The
+              full-width map it replaced is on the trip screen. */}
+          <View style={styles.tripMainRow}>
             {mergeMode && (
               <View
                 style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
@@ -1049,118 +1068,130 @@ export default function TripsScreen() {
                 {isSelected && <Ionicons name="checkmark" size={14} color={BG} accessible={false} />}
               </View>
             )}
-            <Text style={styles.distanceCompact}>
-              {item.distanceMiles.toFixed(1)} mi
-            </Text>
-            <Text style={styles.dotSep}>·</Text>
-            <Text style={styles.timeCompact}>{formatTime(item.startedAt)}</Text>
-            {(item.startAddress || item.endAddress) && (
-              <>
-                <Text style={styles.dotSep}>·</Text>
-                <Text style={styles.routeCompact} numberOfLines={1} ellipsizeMode="tail">
-                  {item.startAddress && shortAddress(item.startAddress)}
-                  {item.startAddress && item.endAddress && (
-                    <Text style={styles.arrowSubtle}> → </Text>
-                  )}
-                  {item.endAddress && shortAddress(item.endAddress)}
-                </Text>
-              </>
-            )}
-          </View>
 
-          {/* Line 2: date · vehicle · platform · classification chip */}
-          <View style={styles.tripSecondaryRow}>
-            <Text style={styles.dateCompact}>{formatDate(item.startedAt)}</Text>
-            {item.vehicle && (
-              <>
-                <Text style={styles.dotSepSubtle}>·</Text>
-                <Text style={styles.vehicleCompact} numberOfLines={1}>
-                  {item.vehicle.make} {item.vehicle.model}
+            {/* Where it went. Shown for every trip, classified or not: the
+                route is what the Business / Personal choice is about
+                (Anthony, 2 Sep 2026). Taps and swipes pass straight
+                through. The icon shows when there is no map to draw. */}
+            <View style={styles.tripThumb} accessible={false}>
+              <Ionicons
+                name={item.isManualEntry ? "create-outline" : "map-outline"}
+                size={20}
+                color={TEXT_3}
+                accessible={false}
+              />
+              <TripRouteCard
+                tripId={item.id}
+                routePolyline={item.routePolyline}
+                isManualEntry={item.isManualEntry}
+                startLat={item.startLat}
+                startLng={item.startLng}
+                endLat={item.endLat}
+                endLng={item.endLng}
+                height={THUMB_SIZE}
+                compact
+                style={styles.tripThumbMap}
+              />
+            </View>
+
+            <View style={styles.tripText}>
+              {/* Line 1: distance · time, classification on the right */}
+              <View style={styles.tripPrimaryRow}>
+                <Text style={styles.distanceCompact}>
+                  {item.distanceMiles.toFixed(1)} mi
                 </Text>
-              </>
-            )}
-            {item.platformTag && (
-              <Text style={styles.platformBadge}>
-                {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
-              </Text>
-            )}
-            {item._isLocal && <Text style={styles.syncBadge}>Pending</Text>}
-            {item.isManualEntry && <Text style={styles.manualBadge}>Manual</Text>}
-            <View style={{ flex: 1 }} />
-            {isUnclassified ? (
-              <View style={styles.unclassifiedBadge}>
-                <Ionicons name="help-circle" size={11} color={AMBER} accessible={false} />
-                <Text style={styles.unclassifiedBadgeText}>Classify</Text>
-              </View>
-            ) : (
-              <>
-                <Text
-                  style={[
-                    styles.classificationBadge,
-                    isBusiness ? styles.businessBadge : styles.personalBadge,
-                  ]}
-                >
-                  {isBusiness ? "Business" : "Personal"}
-                </Text>
-                {isRecentAuto && (
-                  <TouchableOpacity
-                    onPress={() => handleUndoClassification(item.id)}
-                    disabled={classifyingId === item.id}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    accessibilityRole="button"
-                    accessibilityLabel="Sorted automatically from your previous drives. Undo"
+                <Text style={styles.dotSep}>·</Text>
+                <Text style={styles.timeCompact}>{formatTime(item.startedAt)}</Text>
+                <View style={{ flex: 1 }} />
+                {isUnclassified ? (
+                  <View style={styles.unclassifiedBadge}>
+                    <Ionicons name="help-circle" size={11} color={AMBER} accessible={false} />
+                    <Text style={styles.unclassifiedBadgeText}>Classify</Text>
+                  </View>
+                ) : (
+                  <Text
+                    style={[
+                      styles.classificationBadge,
+                      isBusiness ? styles.businessBadge : styles.personalBadge,
+                    ]}
                   >
-                    <Text style={styles.autoUndoText}>auto · Undo</Text>
+                    {isBusiness ? "Business" : "Personal"}
+                  </Text>
+                )}
+                {!inInbox && (
+                  <TouchableOpacity
+                    onPress={() => openNoteEditor(item.id)}
+                    hitSlop={8}
+                    style={styles.noteGlyphBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel={note ? "Edit note" : "Add note"}
+                  >
+                    <Ionicons
+                      name={note ? "chatbox-ellipses" : "chatbox-outline"}
+                      size={14}
+                      color={note ? AMBER : TEXT_3}
+                      accessible={false}
+                    />
                   </TouchableOpacity>
                 )}
-              </>
-            )}
-            {showConfidence && (
-              <View
-                style={[
-                  styles.confidencePill,
-                  confidence === "low" && styles.confidencePillLow,
-                ]}
-                accessible={true}
-                accessibilityLabel={`${confidence} confidence — MileClear is less sure about this classification`}
-              >
-                <Text style={styles.confidencePillText}>
-                  {confidence === "low" ? "Review" : "?"}
-                </Text>
               </View>
-            )}
-            {!inInbox && (
-              <TouchableOpacity
-                onPress={() => openNoteEditor(item.id)}
-                hitSlop={8}
-                style={styles.noteGlyphBtn}
-                accessibilityRole="button"
-                accessibilityLabel={note ? "Edit note" : "Add note"}
-              >
-                <Ionicons
-                  name={note ? "chatbox-ellipses" : "chatbox-outline"}
-                  size={14}
-                  color={note ? AMBER : TEXT_3}
-                  accessible={false}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
 
-          {/* Where it went. On every card, classified or not - the map is
-              the thing the Business / Personal choice is actually about
-              (Anthony, 2 Sep 2026). Taps and swipes pass straight through. */}
-          <TripRouteCard
-            tripId={item.id}
-            routePolyline={item.routePolyline}
-            isManualEntry={item.isManualEntry}
-            startLat={item.startLat}
-            startLng={item.startLng}
-            endLat={item.endLat}
-            endLng={item.endLng}
-            height={120}
-            style={styles.tripRouteMap}
-          />
+              {/* Line 2: from → to, on a line of its own so both ends read */}
+              {(fromLabel || toLabel) && (
+                <Text style={styles.routeCompact} numberOfLines={1} ellipsizeMode="tail">
+                  {fromLabel}
+                  {fromLabel && toLabel ? <Text style={styles.arrowSubtle}> → </Text> : null}
+                  {toLabel}
+                </Text>
+              )}
+
+              {/* Line 3, only when there is something to say. The vehicle
+                  is on the trip screen; truncated here it read as
+                  "Vauxhall A...". */}
+              {hasMeta && (
+                <View style={styles.tripSecondaryRow}>
+                  {showDate && <Text style={styles.dateCompact}>{formatDate(item.startedAt)}</Text>}
+                  {item.platformTag && (
+                    <Text style={styles.platformBadge}>
+                      {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
+                    </Text>
+                  )}
+                  {item._isLocal && <Text style={styles.syncBadge}>Pending</Text>}
+                  {item.isManualEntry && <Text style={styles.manualBadge}>Manual</Text>}
+                  {showConfidence && (
+                    <View
+                      style={[
+                        styles.confidencePill,
+                        confidence === "low" && styles.confidencePillLow,
+                      ]}
+                      accessible={true}
+                      accessibilityLabel={`${confidence} confidence: MileClear is less sure about this classification`}
+                    >
+                      <Text style={styles.confidencePillText}>
+                        {confidence === "low" ? "Review" : "?"}
+                      </Text>
+                    </View>
+                  )}
+                  {/* Was "auto · Undo", which nobody could read. The undo is
+                      also in the long-press menu. */}
+                  {isRecentAuto && (
+                    <View style={styles.autoSortedRow}>
+                      <Text style={styles.autoSortedText}>Sorted automatically</Text>
+                      <TouchableOpacity
+                        onPress={() => handleUndoClassification(item.id)}
+                        disabled={classifyingId === item.id}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sorted automatically from your previous drives. Undo"
+                      >
+                        <Text style={styles.autoUndoText}>Undo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
 
           {/* Free-text note — prominent in Inbox, subtle elsewhere */}
           {isEditingNote ? (
@@ -1354,18 +1385,13 @@ export default function TripsScreen() {
     return renderTrip({ item: item.trip });
   };
 
-  // Drives the collapsed Filters control: label + count so a narrowed list
-  // never reads as trips having gone missing.
+  // Drives the collapsed Filters control. A narrowed list never reads as
+  // trips having gone missing: the button turns amber with a count, and the
+  // summary card under the row names each active filter.
   const activePlatformLabel =
     platformFilter === "all" ? null : (PLATFORM_LABELS[platformFilter] ?? platformFilter);
   const activeDateLabel = dateRange === "all" ? null : rangeLabel(dateRange, customFrom, customTo);
   const activeFilterCount = (activePlatformLabel ? 1 : 0) + (activeDateLabel ? 1 : 0);
-  const filtersButtonLabel =
-    activeFilterCount === 0
-      ? "Filters"
-      : activeFilterCount === 1
-        ? (activePlatformLabel ?? activeDateLabel)!
-        : `${activeFilterCount} filters`;
 
   const renderRouteGroup = ({ item: group }: { item: RouteGroup }) => {
     const isExpanded = expandedGroups.has(group.key);
@@ -1497,7 +1523,7 @@ export default function TripsScreen() {
           <View style={styles.routeGroupTrips}>
             {group.trips.map((trip) => (
               <View key={trip.id} style={styles.routeGroupTripItem}>
-                {renderTrip({ item: trip })}
+                {renderTrip({ item: trip, showDate: true })}
               </View>
             ))}
           </View>
@@ -1520,11 +1546,13 @@ export default function TripsScreen() {
         renderItem={filter === "unclassified" ? (renderRouteGroup as any) : (renderDayRow as any)}
         onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
-        // Each card now carries a map. Keep the render window tight so the
-        // list mounts a screen or two of them, not the whole page.
+        // Each row carries a small map thumbnail (a lite / cached snapshot,
+        // not a live map). Keep the render window tight so the list mounts
+        // a screen or two of them, not the whole page. Day headers are
+        // items too, hence 10 for about six trips on the first screen.
         windowSize={7}
-        initialNumToRender={6}
-        maxToRenderPerBatch={6}
+        initialNumToRender={10}
+        maxToRenderPerBatch={8}
         removeClippedSubviews={Platform.OS === "android"}
         refreshControl={
           <RefreshControl
@@ -1542,7 +1570,7 @@ export default function TripsScreen() {
             {isOffline && (
               <View style={styles.offlineBanner}>
                 <Text style={styles.offlineBannerText}>
-                  Offline — showing local data
+                  Offline: showing trips saved on this phone
                 </Text>
               </View>
             )}
@@ -1623,16 +1651,17 @@ export default function TripsScreen() {
 
               {/* Platform + date range used to be two permanently-visible
                   chip rows here, pushing the first trip a third of the way
-                  down a tall phone. Both now live in the Filters sheet below;
-                  this single control shows the active value (or count, if
-                  both are set) so a narrowed list never reads as trips
-                  having gone missing. */}
+                  down a tall phone. Both now live in the Filters sheet below.
+                  Icon-only since 4 Oct 2026: with a text label the button
+                  covered "Personal" (it read "Perso"), so the four chips and
+                  this button now fit side by side on a standard iPhone. */}
               <TouchableOpacity
                 style={[
                   styles.filtersButton,
                   activeFilterCount > 0 && styles.filtersButtonActive,
                 ]}
                 onPress={() => setShowFiltersSheet(true)}
+                hitSlop={4}
                 accessibilityRole="button"
                 accessibilityLabel={
                   activeFilterCount > 0
@@ -1642,20 +1671,15 @@ export default function TripsScreen() {
               >
                 <Ionicons
                   name={activeFilterCount > 0 ? "funnel" : "funnel-outline"}
-                  size={14}
-                  color={activeFilterCount > 0 ? BG : TEXT_2}
+                  size={16}
+                  color={activeFilterCount > 0 ? AMBER : TEXT_2}
                   accessible={false}
                 />
-                <Text
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  style={[
-                    styles.filtersButtonText,
-                    activeFilterCount > 0 && styles.filtersButtonTextActive,
-                  ]}
-                >
-                  {filtersButtonLabel}
-                </Text>
+                {activeFilterCount > 0 && (
+                  <View style={styles.filtersCountBadge} accessible={false}>
+                    <Text style={styles.filtersCountText}>{activeFilterCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
 
@@ -1876,7 +1900,7 @@ export default function TripsScreen() {
                     <View style={styles.mergePreviewStats}>
                       <Text style={styles.mergePreviewStat}>{totalMiles.toFixed(1)} mi total</Text>
                       <Text style={styles.mergePreviewStat}>
-                        {formatTime(first.startedAt)} — {last.endedAt ? formatTime(last.endedAt) : "ongoing"}
+                        {formatTime(first.startedAt)} to {last.endedAt ? formatTime(last.endedAt) : "ongoing"}
                       </Text>
                     </View>
                   </View>
@@ -2175,6 +2199,9 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const GREEN = colors.green;
 const RED = colors.red;
+// Route thumbnail on each trip row: small enough for five or six rows per
+// screen, big enough to tell a known route at a glance.
+const THUMB_SIZE = 64;
 
 const styles = StyleSheet.create({
   container: {
@@ -2249,10 +2276,10 @@ const styles = StyleSheet.create({
   filterChipsContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
   filterChip: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: CARD_BG,
@@ -2276,17 +2303,14 @@ const styles = StyleSheet.create({
     color: BG,
   },
   // Collapsed control for platform + date range - opens the Filters sheet.
-  // Kept narrower than the classification chips (icon + short label,
-  // ellipsised) so a long platform name like "Uber / Uber Eats" can't push
-  // row 1 to wrap on a typical phone width.
+  // Icon only, so it can never crowd the classification chips off screen.
   filtersButton: {
-    flexDirection: "row",
+    marginLeft: "auto",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 4,
-    maxWidth: 120,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
     backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
@@ -2295,14 +2319,22 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(245, 166, 35, 0.15)",
     borderColor: "rgba(245, 166, 35, 0.4)",
   },
-  filtersButtonText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    flexShrink: 1,
+  filtersCountBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: AMBER,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  filtersButtonTextActive: {
-    color: AMBER,
+  filtersCountText: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: BG,
   },
   // Filters sheet body
   filtersSectionLabel: {
@@ -2436,11 +2468,31 @@ const styles = StyleSheet.create({
   },
   tripCardBody: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
-  tripRouteMap: {
-    marginTop: 10,
+  tripMainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  // Placeholder look (and icon) sits underneath; the map covers it.
+  tripThumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  tripThumbMap: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 10,
+  },
+  tripText: {
+    flex: 1,
+    minWidth: 0,
   },
   routeGroupMap: {
     marginTop: 10,
@@ -2490,11 +2542,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
+  // Wraps rather than clips when a trip has several badges at once.
   tripSecondaryRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 8,
-    marginTop: 6,
+    columnGap: 8,
+    rowGap: 4,
+    marginTop: 5,
   },
   distanceCompact: {
     fontSize: 16,
@@ -2508,10 +2563,9 @@ const styles = StyleSheet.create({
   },
   routeCompact: {
     fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    flexShrink: 1,
-    flex: 1,
+    fontFamily: fonts.medium,
+    color: TEXT_1,
+    marginTop: 3,
   },
   arrowSubtle: {
     color: TEXT_3,
@@ -2521,20 +2575,10 @@ const styles = StyleSheet.create({
     color: TEXT_3,
     marginHorizontal: 2,
   },
-  dotSepSubtle: {
-    fontSize: 12,
-    color: TEXT_3,
-  },
   dateCompact: {
     fontSize: 12,
     fontFamily: fonts.regular,
     color: TEXT_3,
-  },
-  vehicleCompact: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    flexShrink: 1,
   },
   // Confidence pill — replaces unexplained amber dot
   confidencePill: {
@@ -2627,11 +2671,20 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 4,
   },
+  autoSortedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  autoSortedText: {
+    fontSize: 11,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+  },
   autoUndoText: {
     fontSize: 11,
     fontFamily: fonts.semibold,
     color: AMBER,
-    marginLeft: 6,
   },
   duplicateWrap: {
     marginTop: 10,

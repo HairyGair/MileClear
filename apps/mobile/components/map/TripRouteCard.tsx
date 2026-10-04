@@ -16,6 +16,10 @@
 //    list of them is a list of images, not a list of live maps.
 //  - pointerEvents="none": the card's own tap (open the trip) and the swipe
 //    gestures keep working straight through the map.
+//  - `compact` (4 Oct 2026): the list now shows a small square thumbnail
+//    instead of a full-width map, so five or six trips fit on a screen. A
+//    thumbnail drops the start and end pins (they would cover the route)
+//    and draws a thinner line. The full map stays on the trip screen.
 
 import { useEffect, useMemo, useState } from "react";
 import { View, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
@@ -38,6 +42,8 @@ interface TripRouteCardProps {
   endLat?: number | null;
   endLng?: number | null;
   height?: number;
+  /** Small list thumbnail: route line only, no pins. */
+  compact?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -58,6 +64,7 @@ export function TripRouteCard({
   endLat,
   endLng,
   height = 120,
+  compact = false,
   style,
 }: TripRouteCardProps) {
   const fromPolyline = useMemo(
@@ -108,6 +115,8 @@ export function TripRouteCard({
           coordinates={endpoints ?? route}
           matchedCoordinates={route}
           height={height}
+          showEndpoints={!compact}
+          lineWidth={compact ? 2 : 3}
         />
       </View>
     );
