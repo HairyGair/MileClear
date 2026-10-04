@@ -83,6 +83,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     label: "Drivers",
     items: [
       { label: "Users", href: `${ADMIN_ROOT}/users`, icon: "users", hint: "Every account, searchable" },
+      { label: "Inbox", href: `${ADMIN_ROOT}/inbox`, icon: "inbox", hint: "Every email to support@, read and reply here", isNew: true },
       {
         label: "Support",
         href: `${ADMIN_ROOT}/support`,
