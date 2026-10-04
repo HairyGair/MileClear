@@ -64,6 +64,7 @@ import { reverseGeocode } from "../../services/geocoding.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, type KnownPlace } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
+import { runLateStartAroundNewTrip } from "../../services/lateStart.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
 import { planTripEndEdit } from "../../services/tripEndEdit.js";
 import {
@@ -1191,8 +1192,9 @@ export async function tripRoutes(app: FastifyInstance) {
       // forget — never blocks the trip-create response. If GraphHopper is
       // down or the trip has too few breadcrumbs, the polyline stays null
       // and the trip detail screen falls back to the raw breadcrumbs.
+      let routingHook: Promise<unknown> = Promise.resolve();
       if (hasCoordinates && coordinates && coordinates.length >= 10) {
-        runMapMatchingForTrip({
+        routingHook = runMapMatchingForTrip({
           tripId: trip.id,
           breadcrumbs: coordinates,
           currentDistanceMiles: distanceMiles,
@@ -1202,7 +1204,7 @@ export async function tripRoutes(app: FastifyInstance) {
         // Too few points to map-match: route along the roads between them
         // instead, so a trip caught only at its ends is not stored as a
         // straight line (services/sparseRoute.ts).
-        runSparseRoutingForTrip({
+        routingHook = runSparseRoutingForTrip({
           tripId: trip.id,
           points: coordinates,
           storedMiles: distanceMiles,
@@ -1211,6 +1213,18 @@ export async function tripRoutes(app: FastifyInstance) {
           userId,
           triggeredBy: "trip_create_hook",
         }).catch(() => {});
+      }
+
+      // Late start (services/lateStart.ts): a recording that began while the
+      // car was already moving, 0.2-2 mi from where the previous trip ended,
+      // gets that opening stretch back. Waits for the routing hook above,
+      // which rewrites distanceMiles, so the two never race; also judges the
+      // trip after this one, for a trip that synced out of order.
+      if (hasCoordinates && !isManualEntry) {
+        const createdTrip = trip;
+        routingHook
+          .then(() => runLateStartAroundNewTrip({ tripId: createdTrip.id, userId, endedAt: createdTrip.endedAt }))
+          .catch(() => {});
       }
 
       if (edgeTrim) {
@@ -1934,6 +1948,19 @@ export async function tripRoutes(app: FastifyInstance) {
       const bId = p.key.split(":")[1];
       const b = await prisma.trip.findFirst({ where: { id: bId, userId, isPhantomTrip: false } });
       if (!b) return reply.code(404).send({ error: "Trip no longer exists" });
+      // The late-start backfill (services/lateStart.ts) may already have
+      // given this trip its opening stretch; extending again would count it
+      // twice. Not the driver's decision, so "covered", like the scan does.
+      const bq = (b.gpsQuality && typeof b.gpsQuality === "object" && !Array.isArray(b.gpsQuality))
+        ? (b.gpsQuality as Record<string, unknown>)
+        : {};
+      if (bq.lateStartBackfill != null) {
+        await prisma.missedJourneyProposal.updateMany({
+          where: { id, userId, status: "proposed" },
+          data: { status: "covered" },
+        });
+        return reply.send({ ok: true, skipped: "already_extended", tripId: b.id });
+      }
 
       const crow = haversineDistance(p.fromLat, p.fromLng, p.toLat, p.toLng);
       const route = await resolveRouteDistance({
