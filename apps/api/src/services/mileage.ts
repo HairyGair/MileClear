@@ -63,7 +63,11 @@ export async function upsertMileageSummary(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
-      const vType = trip.vehicle?.vehicleType ?? fallbackType;
+      // Cars and vans are one kind of vehicle for the approved rates and
+      // share ONE 10,000-mile threshold a year (EIM31240, EIM31275); before
+      // 4 Oct 2026 each got its own 10,000 at the higher rate.
+      const raw = trip.vehicle?.vehicleType ?? fallbackType;
+      const vType = raw === "van" ? "car" : raw;
       businessMilesByType[vType] =
         (businessMilesByType[vType] ?? 0) + trip.distanceMiles;
     }

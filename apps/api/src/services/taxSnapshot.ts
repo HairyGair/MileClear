@@ -9,7 +9,6 @@ import {
   parseTaxYear,
   formatPence,
   formatMiles,
-  HMRC_RATES,
   HMRC_THRESHOLD_MILES,
   type TaxSnapshot,
   type ReadinessItem,
@@ -17,6 +16,7 @@ import {
   type NumberDerivation,
   type NumberAcrossWindows,
 } from "@mileclear/shared";
+import { getHmrcRatesForTaxYear } from "@mileclear/shared";
 
 // Earnings dedup window. When an earning has replacedByInvoiceId set
 // to a counted invoice, the earning is excluded from the gig-earnings
@@ -177,7 +177,9 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   const fallbackVehicleType = fallbackVehicleTypeFromList(vehicles);
   const milesByType = new Map<VehicleType, number>();
   for (const trip of businessTrips) {
-    const type = (trip.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
+    // Cars and vans share one 10,000-mile threshold (EIM31240/31275).
+    const raw = (trip.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
+    const type: VehicleType = raw === "van" ? "car" : raw;
     milesByType.set(type, (milesByType.get(type) ?? 0) + trip.distanceMiles);
   }
   const rateOpts = user ? resolveMileageRates(user) : {};
@@ -446,6 +448,9 @@ interface DerivationInput {
  */
 function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivation {
   const { taxYear, start, end, milesByType, businessTripCount, totalDeductionPence, fallbackVehicleType } = input;
+  // The workings must quote the rates of THIS tax year (45p for 2025-26),
+  // not the newest table (4 Oct 2026: they always printed 55p).
+  const yearRates = getHmrcRatesForTaxYear(taxYear);
 
   const components: NumberDerivation["components"] = [];
 
@@ -462,7 +467,7 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
   for (const [type, miles] of milesByType) {
     if (miles <= 0) continue;
     if (type === "motorbike") {
-      const rate = HMRC_RATES.motorbike.flat;
+      const rate = yearRates.motorbike.flat;
       const subtotal = Math.round(miles * rate);
       components.push({
         label: `Motorbike: ${formatMiles(miles)} × ${rate}p`,
@@ -472,22 +477,22 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
       // car / van — AMAP threshold split
       const firstTier = Math.min(miles, HMRC_THRESHOLD_MILES);
       const overflow = Math.max(0, miles - HMRC_THRESHOLD_MILES);
-      const tier1Pence = Math.round(firstTier * HMRC_RATES.car.first10000);
-      const tier2Pence = Math.round(overflow * HMRC_RATES.car.after10000);
+      const tier1Pence = Math.round(firstTier * yearRates.car.first10000);
+      const tier2Pence = Math.round(overflow * yearRates.car.after10000);
       const typeLabel = type === "van" ? "Van" : "Car";
 
       if (overflow > 0) {
         components.push({
-          label: `${typeLabel}: first ${formatMiles(firstTier)} × ${HMRC_RATES.car.first10000}p`,
+          label: `${typeLabel}: first ${formatMiles(firstTier)} × ${yearRates.car.first10000}p`,
           value: formatPence(tier1Pence),
         });
         components.push({
-          label: `${typeLabel}: remaining ${formatMiles(overflow)} × ${HMRC_RATES.car.after10000}p`,
+          label: `${typeLabel}: remaining ${formatMiles(overflow)} × ${yearRates.car.after10000}p`,
           value: formatPence(tier2Pence),
         });
       } else {
         components.push({
-          label: `${typeLabel}: ${formatMiles(miles)} × ${HMRC_RATES.car.first10000}p`,
+          label: `${typeLabel}: ${formatMiles(miles)} × ${yearRates.car.first10000}p`,
           value: formatPence(tier1Pence),
         });
       }
@@ -507,16 +512,16 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
     for (const [type, miles] of milesByType) {
       if (miles <= 0) continue;
       if (type === "motorbike") {
-        parts.push(`(${formatMiles(miles)} × ${HMRC_RATES.motorbike.flat}p)`);
+        parts.push(`(${formatMiles(miles)} × ${yearRates.motorbike.flat}p)`);
       } else {
         const firstTier = Math.min(miles, HMRC_THRESHOLD_MILES);
         const overflow = Math.max(0, miles - HMRC_THRESHOLD_MILES);
         if (overflow > 0) {
           parts.push(
-            `(${formatMiles(firstTier)} × ${HMRC_RATES.car.first10000}p) + (${formatMiles(overflow)} × ${HMRC_RATES.car.after10000}p)`
+            `(${formatMiles(firstTier)} × ${yearRates.car.first10000}p) + (${formatMiles(overflow)} × ${yearRates.car.after10000}p)`
           );
         } else {
-          parts.push(`(${formatMiles(miles)} × ${HMRC_RATES.car.first10000}p)`);
+          parts.push(`(${formatMiles(miles)} × ${yearRates.car.first10000}p)`);
         }
       }
     }
@@ -634,7 +639,8 @@ async function buildMileageDeductionAcrossWindows(
   ) => {
     const milesByTypeLocal = new Map<VehicleType, number>();
     for (const t of trips) {
-      const type = (t.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
+      const raw = (t.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
+      const type: VehicleType = raw === "van" ? "car" : raw; // one shared threshold
       milesByTypeLocal.set(type, (milesByTypeLocal.get(type) ?? 0) + t.distanceMiles);
     }
     let pence = 0;

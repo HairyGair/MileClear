@@ -18,6 +18,14 @@ export * from "./hmrc-sa103.js";
  * All values are pence per mile (integer).
  */
 export const HMRC_RATES_BY_TAX_YEAR = {
+  // 45p/25p and 24p have applied since 2011-12 (EIM31240). Before 4 Oct
+  // 2026 only 2025-26 was listed, so a backdated 2024-25 trip fell through
+  // to the newest year and was priced at 55p.
+  "2011-12": {
+    car: { first10000: 45, after10000: 25 },
+    van: { first10000: 45, after10000: 25 },
+    motorbike: { flat: 24 },
+  },
   "2025-26": {
     car: { first10000: 45, after10000: 25 },
     van: { first10000: 45, after10000: 25 },
@@ -44,6 +52,10 @@ export function getHmrcRatesForTaxYear(
 ): (typeof HMRC_RATES_BY_TAX_YEAR)[keyof typeof HMRC_RATES_BY_TAX_YEAR] {
   const known = HMRC_RATES_BY_TAX_YEAR[taxYear as keyof typeof HMRC_RATES_BY_TAX_YEAR];
   if (known) return known;
+  // Any year before 2025-26 uses the 2011-12 rates (unchanged until the
+  // 2026-27 rise); an uncatalogued FUTURE year uses the latest.
+  const startYear = parseInt(taxYear.slice(0, 4), 10);
+  if (Number.isFinite(startYear) && startYear < 2025) return HMRC_RATES_BY_TAX_YEAR["2011-12"];
   return HMRC_RATES_BY_TAX_YEAR[HMRC_LATEST_TAX_YEAR];
 }
 

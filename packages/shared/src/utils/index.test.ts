@@ -509,7 +509,7 @@ describe("estimateUkTax", () => {
     const result = estimateUkTax(2_000_000);
     expect(result.incomeTaxPence).toBe(148_600);
     // Class 2 NI flat £3.45/wk × 52 = £179.40
-    expect(result.class2NiPence).toBe(17_940);
+    expect(result.class2NiPence).toBe(0); // Class 2 not owed since April 2024
     // Class 4 NI: £20k - £12,570 = £7,430 at 6%
     expect(result.class4NiPence).toBe(44_580);
   });

@@ -1,8 +1,9 @@
 import { prisma } from "../lib/prisma.js";
 import { postcodesFor } from "./postcodeLookup.js";
 import {
-  HMRC_RATES,
   HMRC_THRESHOLD_MILES,
+  getHmrcRatesForTaxYear,
+  getTaxYear,
   parseTaxYear,
   calculateMileageDeduction,
   EXPENSE_CATEGORIES,
@@ -66,23 +67,31 @@ export async function fetchExportTrips(
     }),
   ]);
 
-  // Running tally of business miles per vehicle type for HMRC rate tiers
+  // Running tally of business miles for the HMRC rate tiers, per tax year
+  // and per kind of vehicle. Cars and vans are ONE kind and share one
+  // 10,000-mile threshold (EIM31240, EIM31275); each trip is priced at the
+  // rates of its own tax year, and the tally restarts on 6 April. Before
+  // 4 Oct 2026 every row used the newest rates (55p even for 2025-26) and
+  // cars and vans each had their own 10,000.
   const businessMilesByType: Record<string, number> = {};
 
   const rows: ExportTripRow[] = trips.map((trip) => {
     const vehicle = trip.vehicle ?? primaryVehicle;
     const vType = (vehicle?.vehicleType || "car") as VehicleType;
-    const prevBusinessMiles = businessMilesByType[vType] || 0;
+    const tripTaxYear = getTaxYear(new Date(trip.startedAt));
+    const rateTable = getHmrcRatesForTaxYear(tripTaxYear);
+    const tallyKey = `${tripTaxYear}:${vType === "motorbike" ? "motorbike" : "car"}`;
+    const prevBusinessMiles = businessMilesByType[tallyKey] || 0;
 
     let hmrcRatePence = 0;
     let deductionPence = 0;
 
     if (trip.classification === "business") {
       if (vType === "motorbike") {
-        hmrcRatePence = HMRC_RATES.motorbike.flat;
+        hmrcRatePence = rateTable.motorbike.flat;
         deductionPence = Math.round(trip.distanceMiles * hmrcRatePence);
       } else {
-        const rates = HMRC_RATES[vType];
+        const rates = rateTable[vType];
         // Determine effective rate based on running total
         if (prevBusinessMiles >= HMRC_THRESHOLD_MILES) {
           hmrcRatePence = rates.after10000;
@@ -104,7 +113,7 @@ export async function fetchExportTrips(
           // Use blended rate for display
           hmrcRatePence = Math.round(deductionPence / trip.distanceMiles);
         }
-        businessMilesByType[vType] =
+        businessMilesByType[tallyKey] =
           prevBusinessMiles + trip.distanceMiles;
       }
     }
@@ -246,11 +255,17 @@ export async function fetchExportSummary(
   const vehicleBreakdown: ExportVehicleBreakdown[] = [];
   let totalDeductionPence = 0;
 
+  // One 10,000-mile threshold across ALL cars and vans (EIM31240/31275),
+  // shared out between them by their business miles; motorbikes on their
+  // own. Before 4 Oct 2026 each vehicle got its own 10,000.
+  const carVanMiles = [...vehicleMap.values()].filter((v) => v.type !== "motorbike").reduce((s, v) => s + v.businessMiles, 0);
+  const carVanDeduction = calculateMileageDeduction("car", carVanMiles, { ...rateOpts, taxYear }).deductionPence;
+  const bikeMiles = [...vehicleMap.values()].filter((v) => v.type === "motorbike").reduce((s, v) => s + v.businessMiles, 0);
+  const bikeDeduction = calculateMileageDeduction("motorbike", bikeMiles, { ...rateOpts, taxYear }).deductionPence;
   for (const v of vehicleMap.values()) {
-    const deduction = calculateMileageDeduction(v.type, v.businessMiles, {
-      ...rateOpts,
-      taxYear,
-    }).deductionPence;
+    const poolMiles = v.type === "motorbike" ? bikeMiles : carVanMiles;
+    const poolDeduction = v.type === "motorbike" ? bikeDeduction : carVanDeduction;
+    const deduction = poolMiles > 0 ? Math.round((poolDeduction * v.businessMiles) / poolMiles) : 0;
     totalDeductionPence += deduction;
     vehicleBreakdown.push({
       vehicleName: v.name,
@@ -280,6 +295,10 @@ export async function fetchExportSummary(
   // Build ordered monthly breakdown (April → March)
   const { start: tyStart } = parseTaxYear(taxYear);
   const monthlyBreakdown: ExportMonthlyBreakdown[] = [];
+  // Each month's deduction is the change in the year-to-date figure, so the
+  // months add up to the year once the 10,000-mile threshold is passed
+  // (before 4 Oct 2026 every month was priced as if it were the first).
+  let milesBefore = 0;
   for (let i = 0; i < 12; i++) {
     const d = new Date(tyStart.getFullYear(), tyStart.getMonth() + i, 1);
     const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
@@ -287,10 +306,9 @@ export async function fetchExportSummary(
     if (data && data.trips > 0) {
       // Calculate deduction for this month's business miles. Trips without
       // a linked vehicle fall back to "car" rates (most common).
-      const deduction = calculateMileageDeduction("car", data.businessMiles, {
-        ...rateOpts,
-        taxYear,
-      }).deductionPence;
+      const ytd = (miles: number) => calculateMileageDeduction("car", miles, { ...rateOpts, taxYear }).deductionPence;
+      const deduction = ytd(milesBefore + data.businessMiles) - ytd(milesBefore);
+      milesBefore += data.businessMiles;
       monthlyBreakdown.push({
         month: key,
         trips: data.trips,

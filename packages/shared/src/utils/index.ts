@@ -1187,9 +1187,12 @@ export function estimateUkTax(
     ? Math.max(0, ukIncomeTaxOn(otherIncome + profit) - ukIncomeTaxOn(otherIncome))
     : ukIncomeTaxOn(profit);
 
-  const class2Ni = profit > T.class2NiThresholdPence
-    ? T.class2NiWeeklyPence * T.weeksInYear
-    : 0;
+  // Class 2 is no longer owed (from 6 April 2024): above the Small Profits
+  // Threshold it is "treated as having been paid", and below it paying is
+  // voluntary (https://www.gov.uk/self-employed-national-insurance-rates).
+  // Until 4 Oct 2026 this added £179.40 to every estimate over £12,570.
+  // The field stays, always 0, so callers and stored shapes keep working.
+  const class2Ni = 0;
 
   let class4Ni = 0;
   if (profit > T.class4NiUpperPence) {
