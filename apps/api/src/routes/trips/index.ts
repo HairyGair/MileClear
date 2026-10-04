@@ -55,7 +55,7 @@ import {
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { latestEndingIndex, mergedDistanceMiles } from "../../services/tripMergeRule.js";
-import { isSparseCandidate, judgeSparseRoute, routeThroughPoints, type SparseVerdict } from "../../services/sparseRoute.js";
+import { SPARSE_MAX_POINTS, isSparseCandidate, judgeSparseRoute, routeThroughPoints, usablePoints, type SparseVerdict } from "../../services/sparseRoute.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { parseReportedDate, formatReportedDate } from "../../lib/reportedDate.js";
@@ -3961,7 +3961,7 @@ async function runMapMatchingForTrip(args: {
  */
 export async function runSparseRoutingForTrip(args: {
   tripId: string;
-  points: { lat: number; lng: number }[];
+  points: { lat: number; lng: number; accuracy?: number | null }[];
   storedMiles: number;
   startedAt: Date;
   endedAt: Date | null;
@@ -3969,11 +3969,14 @@ export async function runSparseRoutingForTrip(args: {
   triggeredBy: string;
   dryRun?: boolean;
 }): Promise<SparseVerdict | null> {
-  const first = args.points[0];
-  const last = args.points[args.points.length - 1];
+  if (args.points.length > SPARSE_MAX_POINTS) return null;
+  const points = usablePoints(args.points);
+  if (points.length < 2) return null;
+  const first = points[0];
+  const last = points[points.length - 1];
   const crowMiles = haversineDistance(first.lat, first.lng, last.lat, last.lng);
-  if (!isSparseCandidate({ isManualEntry: false, coordinateCount: args.points.length, crowMiles })) return null;
-  const routed = await routeThroughPoints(args.points, args.userId);
+  if (!isSparseCandidate({ isManualEntry: false, coordinateCount: points.length, crowMiles })) return null;
+  const routed = await routeThroughPoints(points, args.userId);
   if (!routed) return null;
   const spanSecs = args.endedAt ? (args.endedAt.getTime() - args.startedAt.getTime()) / 1000 : null;
   const verdict = judgeSparseRoute({
@@ -3991,7 +3994,7 @@ export async function runSparseRoutingForTrip(args: {
     newMiles: verdict.miles,
     ratio: Math.round((verdict.miles / Math.max(args.storedMiles, 0.01)) * 100) / 100,
     source: "sparse_route",
-    points: args.points.length,
+    points: points.length,
     triggeredBy: args.triggeredBy,
   });
   upsertMileageSummary(args.userId, getTaxYear(args.startedAt)).catch(() => {});

@@ -41,6 +41,30 @@ export const SPARSE_MIN_SEGMENT_MILES = 0.15;
 export interface SparsePoint {
   lat: number;
   lng: number;
+  accuracy?: number | null;
+}
+
+/** Points worse than this are not used as waypoints. The dry run of 4 Oct
+ *  2026 found a trip whose last fix was 2,252 m out (a GPS jump) adding
+ *  miles never driven. */
+export const SPARSE_MAX_ACCURACY_M = 100;
+/** A single hop whose road route is more than this times its straight line
+ *  is a snapping artefact (one-way systems, the wrong carriageway): the dry
+ *  run had 0.35 mi hops priced at 0.99 mi in a city centre. Such a hop counts
+ *  at a typical road factor instead. */
+export const SPARSE_MAX_HOP_RATIO = 1.8;
+export const SPARSE_TYPICAL_HOP_RATIO = 1.3;
+
+/** Drop points too inaccurate to steer by. Unknown accuracy is kept. */
+export function usablePoints<T extends SparsePoint>(points: T[]): T[] {
+  return points.filter((p) => p.accuracy == null || p.accuracy <= SPARSE_MAX_ACCURACY_M);
+}
+
+/** Miles to count for one hop. */
+export function hopMiles(crowMiles: number, roadMiles: number | null): number {
+  if (roadMiles == null) return crowMiles * SPARSE_TYPICAL_HOP_RATIO;
+  if (crowMiles > 0 && roadMiles / crowMiles > SPARSE_MAX_HOP_RATIO) return crowMiles * SPARSE_TYPICAL_HOP_RATIO;
+  return roadMiles;
 }
 
 export function isSparseCandidate(args: {
@@ -98,8 +122,9 @@ export async function routeThroughPoints(
     }
     const r = await resolveRouteDistance({ startLat: a.lat, startLng: a.lng, endLat: b.lat, endLng: b.lng, userId });
     if (!r) return null;
-    miles += r.distanceMiles;
-    durationSecs += r.durationSecs;
+    const counted = hopMiles(crow, r.distanceMiles);
+    miles += counted;
+    durationSecs += counted === r.distanceMiles ? r.durationSecs : (counted / Math.max(r.distanceMiles, 0.01)) * r.durationSecs;
   }
   return { miles, durationSecs };
 }

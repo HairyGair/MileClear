@@ -4,7 +4,7 @@
  * Raising a GPS jump into a long drive would be an over-claim on a tax record.
  */
 import { describe, it, expect } from "vitest";
-import { isSparseCandidate, judgeSparseRoute } from "../../services/sparseRoute.js";
+import { hopMiles, isSparseCandidate, judgeSparseRoute, usablePoints } from "../../services/sparseRoute.js";
 
 describe("isSparseCandidate", () => {
   it("recorded trips with 2-9 points and a real span", () => {
@@ -41,5 +41,17 @@ describe("judgeSparseRoute", () => {
   });
   it("with no end time, only the distance checks apply", () => {
     expect(judgeSparseRoute({ ...base, spanSecs: null, routedMiles: 3.1 })).toEqual({ accept: true, miles: 3.1 });
+  });
+});
+
+describe("hops and points", () => {
+  it("a hop priced far beyond its straight line counts at a normal road factor", () => {
+    expect(hopMiles(0.35, 0.99)).toBeCloseTo(0.455, 3); // city-centre snapping, 4 Oct dry run
+    expect(hopMiles(2.7, 4.3)).toBe(4.3);
+    expect(hopMiles(1, null)).toBeCloseTo(1.3, 3);
+  });
+  it("points worse than 100 m are not used; unknown accuracy is kept", () => {
+    const pts = [{ lat: 1, lng: 1, accuracy: 30 }, { lat: 2, lng: 2, accuracy: 2252 }, { lat: 3, lng: 3, accuracy: null }];
+    expect(usablePoints(pts).map((p) => p.lat)).toEqual([1, 3]);
   });
 });

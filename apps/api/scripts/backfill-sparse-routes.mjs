@@ -28,7 +28,7 @@ const reasons = {};
 const accepted = [];
 let unroutable = 0, notCandidate = 0;
 for (const t of trips) {
-  const points = await p.tripCoordinate.findMany({ where: { tripId: t.id }, orderBy: { recordedAt: "asc" }, select: { lat: true, lng: true } });
+  const points = await p.tripCoordinate.findMany({ where: { tripId: t.id }, orderBy: { recordedAt: "asc" }, select: { lat: true, lng: true, accuracy: true } });
   const v = await runSparseRoutingForTrip({
     tripId: t.id, points, storedMiles: t.distanceMiles, startedAt: t.startedAt, endedAt: t.endedAt,
     userId: t.userId, triggeredBy: "backfill", dryRun: !APPLY,
