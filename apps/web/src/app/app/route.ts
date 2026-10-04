@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PLAY_LIVE } from "@/data/android";
-import { playUrlFor, sourceFrom, storeFor } from "@/lib/storeRedirect";
+import { clientIp, isCrawlerIp, playUrlFor, sourceFrom, storeFor } from "@/lib/storeRedirect";
 
 // One link for every store: mileclear.com/app sends an iPhone or iPad to the
 // App Store, an Android phone to Google Play, and anything else to the home
@@ -38,7 +38,10 @@ export async function GET(request: NextRequest) {
   // The billboard QR predates this and has no ?from.
   const params = request.nextUrl.searchParams;
   const from = sourceFrom(params.get("from"), ua, params.get("fbclid"));
-  if (!BOT_UA.test(ua)) await reportScan(store, from);
+  // Not counted: link previews and crawlers by user agent, and Meta's, Google's
+  // and Bing's own servers by address (they pose as ordinary phones).
+  const ip = clientIp(request.headers.get("x-forwarded-for"));
+  if (!BOT_UA.test(ua) && !isCrawlerIp(ip)) await reportScan(store, from);
   const target =
     store === "ios"
       ? APP_STORE_URL
