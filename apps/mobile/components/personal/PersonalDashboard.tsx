@@ -41,6 +41,9 @@ interface PersonalDashboardProps {
   pausedUntil?: number | null;
   onPause?: (choice: PauseChoice) => void;
   onResume?: () => void;
+  /** Rendering the sections under the dashboard's More (4 Oct 2026). The
+   *  just-saved trip card belongs on the home screen, not in here. */
+  inMore?: boolean;
 }
 
 function ordinal(n: number): string {
@@ -49,7 +52,7 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap: _onShowRecap, pausedUntil, onPause, onResume }: PersonalDashboardProps) {
+export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, recentTrips, dailyRecap, onShowRecap: _onShowRecap, pausedUntil, onPause, onResume, inMore }: PersonalDashboardProps) {
   const router = useRouter();
   const {
     monthMiles,
@@ -69,11 +72,12 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
 
   useFocusEffect(
     useCallback(() => {
+      if (inMore) return;
       const saved = consumeLastSavedTrip();
       if (saved && Date.now() - saved.savedAt < 5 * 60 * 1000) {
         setLastSaved(saved);
       }
-    }, [])
+    }, [inMore])
   );
 
   const dismissPostTrip = useCallback(() => setLastSaved(null), []);
@@ -286,9 +290,8 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
   };
 
   const sectionOrder = visibleKeys || [
-    "personal_cta", "road_alerts", "personal_summary", "daily_recap",
-    "milestone", "driving_patterns",
-    "journey_map", "local_benchmark", "community_month", "community",
+    "personal_cta", "road_alerts", "monthly_history", "personal_summary",
+    "milestone", "journey_map",
   ];
 
   return (

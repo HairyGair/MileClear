@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { LayoutAnimation, Platform, UIManager } from "react-native";
 import { getDatabase } from "../db/index";
+import { LEGACY_DEFAULTS, isUntouchedLegacyDefault } from "./legacyDefaults";
 
 if (
   Platform.OS === "android" &&
@@ -49,8 +50,18 @@ export const SCREEN_LABELS: Record<ScreenKey, string> = {
 };
 
 export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
+  // Calmer home screen (4 Oct 2026, owner approved): one hero, the trip
+  // buttons, then at most four cards. Everything else is defaultVisible:
+  // false, which since this change means "under More at the bottom of the
+  // dashboard" rather than "gone" (the dashboard lists every switched-off
+  // section there). A design review that day counted about ten cards above
+  // the fold on a real account, and nothing led.
+  //
+  // Only the DEFAULT changed. A device with a saved layout keeps it (see
+  // loadPrefs and legacyDefaults.ts); Customise and Settings > What You See
+  // still switch any of these back onto the home screen.
   dashboard_work: [
-    // Top: emotional summary + primary action
+    // Top: the figure worth seeing + the primary action
     {
       key: "work_hero",
       label: "Tax Deduction",
@@ -63,6 +74,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "navigate",
       locked: true,
     },
+    {
+      key: "work_shift",
+      label: "Start Shift",
+      icon: "play",
+      locked: true,
+    },
     // Road alerts trial (Oct 2026). Renders nothing unless something serious
     // or planned is on the driver's usual roads, or (once) the opt-in offer.
     {
@@ -72,11 +89,10 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Closures and long delays on your usual roads (trial)",
       insertAfter: "work_cta",
     },
-    // Tax Readiness moved up to position 3 — the most useful piece of
-    // information on the dashboard (estimated tax owed + weekly set-aside)
-    // was previously buried below Daily Recap and Business Mileage.
-    // Tax-anxious users now see "what HMRC will want" right after the
-    // hero (Anthony 16 May audit).
+    // The Self Assessment card: estimated tax owed, weekly set-aside, the
+    // guide and the HMRC reconcile link. The one money card that stays on
+    // the home screen (Business Mileage went under More: the hero already
+    // carries the year, and a month's miles early in the month is small).
     {
       key: "tax_readiness",
       label: "Tax Readiness",
@@ -94,10 +110,45 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       description: "Self Assessment checklist, 1 December to 31 January",
       insertAfter: "tax_readiness",
     },
-    // Summary cards (today / year / week)
-    // Default-hidden: shows three zeroes to anyone who hasn't driven yet
-    // today, on the same dashboard as Business Mileage below it. Still
-    // reachable via Settings > What You See (13 Sep reorder).
+    {
+      key: "journey_map",
+      label: "Recent Journeys",
+      icon: "map-outline",
+      description: "Map of your recent trips",
+    },
+    // ── Under More by default ──
+    {
+      key: "business_mileage",
+      label: "Business Mileage",
+      icon: "speedometer-outline",
+      description: "Business miles by month, with prev/next navigation to past months",
+      defaultVisible: false,
+    },
+    // 15 Sep: only 152 of 626 active drivers ever pressed Start Shift; the
+    // card offers a run of recent trips as a shift and grades it in one tap.
+    // Renders nothing when there is nothing to offer.
+    {
+      key: "shift_suggestion",
+      label: "Shift Suggestions",
+      icon: "time-outline",
+      description: "Recent trips that look like a shift, ready to grade",
+      defaultVisible: false,
+    },
+    {
+      key: "work_quicknav",
+      label: "Shortcuts",
+      icon: "grid-outline",
+      description: "Tax, Invoices, Expenses, Insights, Save spot",
+      defaultVisible: false,
+    },
+    {
+      key: "weekly_goal",
+      label: "Weekly Goal",
+      icon: "flag-outline",
+      description: "Progress towards your weekly earnings target",
+      defaultVisible: false,
+    },
+    // Shows three zeroes to anyone who hasn't driven yet today (13 Sep).
     {
       key: "daily_recap",
       label: "Today's Recap",
@@ -106,58 +157,18 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       defaultVisible: false,
     },
     {
-      key: "business_mileage",
-      label: "Business Mileage",
-      icon: "speedometer-outline",
-      description: "Business miles by month, with prev/next navigation to past months",
-    },
-    // Straight below the mileage (15 Sep). Only 152 of 626 active drivers
-    // ever pressed Start Shift; the card offers a run of recent trips as a
-    // shift and grades it in one tap. Renders nothing when there is nothing
-    // to offer.
-    {
-      key: "shift_suggestion",
-      label: "Shift Suggestions",
-      icon: "time-outline",
-      description: "Recent trips that look like a shift, ready to grade",
-    },
-    {
-      key: "weekly_goal",
-      label: "Weekly Goal",
-      icon: "flag-outline",
-      description: "Progress towards your weekly earnings target",
-    },
-    // Utility nav
-    {
-      key: "work_quicknav",
-      label: "Quick Actions",
-      icon: "grid-outline",
-      description: "Insights, Trips, Exports, Badges",
-    },
-    {
-      key: "work_shift",
-      label: "Start Shift",
-      icon: "play",
-      locked: true,
-    },
-    // Detail / exploration
-    {
-      key: "journey_map",
-      label: "Recent Journeys",
-      icon: "map-outline",
-      description: "Map of your recent trips",
-    },
-    {
       key: "activity_heatmap",
       label: "Activity Heatmap",
       icon: "grid-outline",
       description: "When you drive and earn most, by hour and platform",
+      defaultVisible: false,
     },
     {
       key: "benchmark",
       label: "How You Compare",
       icon: "people-outline",
       description: "Anonymous benchmarks vs other UK drivers",
+      defaultVisible: false,
     },
     // Free community card (2 Oct 2026): the same anonymous comparison as
     // "How You Compare", scoped to the driver's postcode area.
@@ -166,24 +177,24 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Drivers Near You",
       icon: "location-outline",
       description: "How your weekly miles compare with drivers in your area",
+      defaultVisible: false,
     },
     {
       key: "work_calendar",
       label: "Working Calendar",
       icon: "calendar-outline",
       description: "Monthly heatmap of your driving activity",
+      defaultVisible: false,
     },
     // Last month's community numbers (every driver together). The card
-    // renders only on the 1st-10th of a month, so it costs nothing the rest
-    // of the time. Added 2 Oct 2026; existing devices get it appended.
+    // renders only on the 1st-10th of a month. Added 2 Oct 2026.
     {
       key: "community_month",
       label: "This Month in MileClear",
       icon: "people-circle-outline",
       description: "Last month's totals across every MileClear driver (first 10 days of each month)",
+      defaultVisible: false,
     },
-    // Default-hidden: low-signal at the bottom of an 11-card dashboard
-    // (13 Sep reorder). Still reachable via Settings > What You See.
     {
       key: "community",
       label: "Community Insights",
@@ -192,6 +203,8 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       defaultVisible: false,
     },
   ],
+  // Same idea, lighter (4 Oct 2026): the Start Trip block, this month,
+  // today, the milestone and the map stay; the rest sits under More.
   dashboard_personal: [
     {
       key: "personal_cta",
@@ -223,10 +236,21 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       icon: "speedometer-outline",
       description: "Today's miles and trips, plus this week and fuel cost",
     },
-    // Default-hidden: it repeats figures the two cards above already carry,
-    // and it shows zeroes to anyone who hasn't driven yet today (13 Sep).
-    // The duplicate month miles and trip count it originally also called out
-    // were removed from Driving Summary itself on 14 Sep.
+    {
+      key: "milestone",
+      label: "Mileage Milestone",
+      icon: "flag-outline",
+      description: "Progress to your next milestone",
+    },
+    {
+      key: "journey_map",
+      label: "Recent Journeys",
+      icon: "map-outline",
+      description: "Map of your recent trips",
+    },
+    // ── Under More by default ──
+    // It repeats figures the two cards above already carry, and it shows
+    // zeroes to anyone who hasn't driven yet today (13 Sep).
     {
       key: "daily_recap",
       label: "Today's Recap",
@@ -235,41 +259,26 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       defaultVisible: false,
     },
     {
-      key: "milestone",
-      label: "Mileage Milestone",
-      icon: "flag-outline",
-      description: "Progress to your next milestone",
-    },
-    {
       key: "driving_patterns",
       label: "Driving Patterns",
       icon: "bar-chart-outline",
       description: "When and where you drive most",
-    },
-    {
-      key: "journey_map",
-      label: "Recent Journeys",
-      icon: "map-outline",
-      description: "Map of your recent trips",
+      defaultVisible: false,
     },
     {
       key: "local_benchmark",
       label: "Drivers Near You",
       icon: "location-outline",
       description: "How your weekly miles compare with drivers in your area",
+      defaultVisible: false,
     },
-    // Last month's community numbers (every driver together). The card
-    // renders only on the 1st-10th of a month, so it costs nothing the rest
-    // of the time. Added 2 Oct 2026; existing devices get it appended.
     {
       key: "community_month",
       label: "This Month in MileClear",
       icon: "people-circle-outline",
       description: "Last month's totals across every MileClear driver (first 10 days of each month)",
+      defaultVisible: false,
     },
-    // Default-hidden: low-signal at the bottom of the dashboard, same as
-    // the work dashboard's copy of this card (13 Sep reorder). Still
-    // reachable via Settings > What You See.
     {
       key: "community",
       label: "Community Insights",
@@ -332,7 +341,7 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
   avatar_menu: [
     // menu_dashboard stays locked (see the GROUPS comment in
     // AvatarMenuButton.tsx): locked keeps it un-hideable and un-reorderable
-    // in Customize Layout.
+    // in Customise Layout.
     { key: "menu_dashboard", label: "Dashboard", icon: "speedometer-outline", locked: true },
     { key: "menu_trips", label: "Trips", icon: "car-outline" },
     // Vehicles and Shifts added 13 Sep, once they finally had screens of their
@@ -392,6 +401,18 @@ async function loadPrefs(screen: ScreenKey): Promise<LayoutPref[]> {
   );
 
   if (rows.length === 0) return defaultPrefs(screen);
+
+  // Still the pre-4 Oct 2026 default (a card switched off and on again, say)?
+  // Then it was never really customised: give it the new default. Any real
+  // change, including an order saved under an older registry, is kept.
+  if (
+    isUntouchedLegacyDefault(
+      rows.map((r) => ({ key: r.section_key, visible: r.visible === 1 })),
+      LEGACY_DEFAULTS[screen]
+    )
+  ) {
+    return defaultPrefs(screen);
+  }
 
   // Merge: if new sections were added to the registry that aren't in DB yet
   const dbKeys = new Set(rows.map((r) => r.section_key));

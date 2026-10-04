@@ -89,7 +89,17 @@ import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, recoverLiveActivity } from "../../lib/liveActivity";
 import { getLiveActivityContext } from "../../lib/liveActivity/context";
-import { useLayoutPrefs } from "../../lib/layout/index";
+import { useLayoutPrefs, SECTION_REGISTRY } from "../../lib/layout/index";
+import { DashboardMoreSection, moreSummary } from "../../components/DashboardMoreSection";
+import {
+  chooseHeroFigure,
+  previousTaxYear,
+  wantsPreviousYear,
+  formatWholeMiles,
+  taxYearEndLabel,
+  type HeroYearFigure,
+} from "../../lib/heroFigure";
+import { fetchSelfAssessmentSummary } from "../../lib/api/selfAssessment";
 import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
 import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
 import { PauseRecordingRow } from "../../components/PauseRecordingRow";
@@ -208,6 +218,40 @@ export default function DashboardScreen() {
   const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
   const [showRecap, setShowRecap] = useState(false);
   const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
+
+  // Last tax year's deduction, for the hero (lib/heroFigure). Fetched only
+  // while this year's figure is weak (early in the year, or under £50), and
+  // once per tax year per visit: last year's total barely moves. From the
+  // Self Assessment summary, so it is the same number, worked out at that
+  // year's HMRC rates, that the wizard shows (free since 8 May 2026).
+  const [previousYear, setPreviousYear] = useState<HeroYearFigure | null>(null);
+  const previousYearFetchedFor = useRef<string | null>(null);
+  const heroWantsPreviousYear =
+    stats != null &&
+    wantsPreviousYear(new Date(), {
+      taxYear: stats.taxYear,
+      deductionPence: stats.deductionPence,
+      businessMiles: stats.businessMiles,
+    });
+  useEffect(() => {
+    if (!stats || !heroWantsPreviousYear) return;
+    const prev = previousTaxYear(stats.taxYear);
+    if (!prev || previousYearFetchedFor.current === prev) return;
+    previousYearFetchedFor.current = prev;
+    fetchSelfAssessmentSummary(prev)
+      .then((res) =>
+        setPreviousYear({
+          taxYear: prev,
+          deductionPence: res.data.mileageDeductionPence,
+          businessMiles: res.data.businessMiles,
+        })
+      )
+      .catch(() => {
+        // No figure is fine: the hero falls back to this year's. Let the
+        // next visit try again.
+        previousYearFetchedFor.current = null;
+      });
+  }, [stats, heroWantsPreviousYear]);
 
   // Recent trips with coordinates for MapOverview
   const { trips: recentTrips } = useRecentTripsWithCoords(10);
@@ -1547,7 +1591,7 @@ export default function DashboardScreen() {
               if (earnedPence > 0) {
                 Alert.alert(
                   "Log shift earnings?",
-                  `You worked ${formatElapsed(elapsedSecs)} at £${(hourlyRatePence / 100).toFixed(2)}/hr — that's ${formatPence(earnedPence)}. Add it to your earnings?`,
+                  `You worked ${formatElapsed(elapsedSecs)} at £${(hourlyRatePence / 100).toFixed(2)}/hr, that's ${formatPence(earnedPence)}. Add it to your earnings?`,
                   [
                     { text: "Not now", style: "cancel" },
                     {
@@ -2083,160 +2127,32 @@ export default function DashboardScreen() {
     );
   }
 
-  // ── Idle Dashboard ────────────────────────────────────────────
-  // Modals rendered as siblings of the ScrollView (not children) so they
-  // sit at the component root. Avoids any odd interaction between the
-  // outer ScrollView and the Modal's portal layer on iPad.
-  return (
-    <>
-      {scorecardModal}
-      {recapModal}
-      {workExplainerModal}
-      {locPrimerModal}
-      <AppHeader />
-      <ScrollView
-        style={s.container}
-        contentContainerStyle={[s.content, { paddingTop: 16 }]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
-        }
-      >
-      {/* Mode Toggle */}
-      <ModeToggle
-        onInfoPress={() => {
-          explainerShownAtRef.current = Date.now();
-          trackEvent("work_explainer.shown", { source: "manual" });
-          setShowWorkExplainer(true);
-        }}
-      />
+  // ── More (4 Oct 2026) ──
+  // The sections a driver hasn't got on the home screen. Locked ones are
+  // always on it, and company drivers never see the gig-only cards at all.
+  const workHiddenKeys = workLayout.prefs
+    .filter((p) => !p.visible)
+    .map((p) => p.key)
+    .filter((key) => !(isCompanyDriver && GIG_ONLY_DASHBOARD_KEYS.has(key)));
+  const personalHiddenKeys = personalLayout.prefs
+    .filter((p) => !p.visible)
+    .map((p) => p.key);
+  // Everything but first_trip, which stays on the home screen.
+  const moreSuggestions = dashboardMessages.suggestions.filter((id) => id !== "first_trip");
+  const moreSummaryText = (() => {
+    const screen = isWork ? "dashboard_work" : "dashboard_personal";
+    const keys = isWork ? workHiddenKeys : personalHiddenKeys;
+    const labels = keys
+      .map((k) => SECTION_REGISTRY[screen].find((sec) => sec.key === k)?.label)
+      .filter((l): l is string => !!l);
+    if (moreSuggestions.length > 0) labels.unshift("Suggestions");
+    return moreSummary(labels) || "Tips about your driving";
+  })();
 
-      {/* Active recording banner — appears whenever auto-detection has a
-          trip in progress, so the user always knows we're tracking even if
-          the Live Activity silently failed to present. */}
-      <ActiveRecordingBanner />
-      {/* Automatic trips on or off, in both modes (28 Sep 2026: a shift-only
-          driver could not find the switch, and it did not really switch
-          anything off). A compact row, not a card: the one-card rule above
-          the mileage still holds. It shows the off state itself, so the
-          "tracking is off" banner and the "off since" suggestion stand down
-          on this screen; a pause is still shown by the Pause row. */}
-      <AutomaticTripsRow onChange={refreshPauseState} />
-      <SyncStatusBanner />
-      {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
-          Hides itself while recording (banner above owns that state) and when
-          permissions are broken (the red blockers below own those). */}
-      <TripStatusStrip />
-
-      {/* Data-quality improvement celebration banner — fires once per user
-          when they open the app after a server-side backfill corrected
-          some of their trips. Turns invisible "we fixed your data" work
-          into a visible trust moment. SQLite-flagged so it only shows
-          once per device install. */}
-      {!dqBannerSeen && dqImprovement && (
-        <View style={s.dqBanner}>
-          <View style={s.dqBannerIconWrap}>
-            <Ionicons name="sparkles" size={20} color={colors.amber} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.dqBannerTitle}>We improved your trip data</Text>
-            <Text style={s.dqBannerBody}>
-              We re-routed {dqImprovement.improvedTripCount} of your recent {dqImprovement.improvedTripCount === 1 ? "trip" : "trips"} and recovered{" "}
-              {dqImprovement.milesGained.toFixed(1)} miles for you. Tax Readiness is up to date.
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={dismissDqBanner}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={20} color={colors.text3} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Background location nudge - auto trip detection requires "Always".
-          Uses the smart escalation helper so the right thing happens whether
-          the user has never granted, granted only foreground, or denied
-          outright. Linking.openSettings() alone is wrong for fresh installs:
-          iOS doesn't show a Location row in Settings until the app has
-          actually asked for permission once. */}
-      {/* One thing above your mileage: either MileClear cannot record at
-          all (red, non-dismissible) or there is setup left to finish. Never
-          both, and never the five separate permission nags this replaced. */}
-      {dashboardMessages.blocker && (
-        <DashboardBlockerCard
-          id={dashboardMessages.blocker}
-          onFixLocation={fixLocationFromBlocker}
-          onOpenSettings={() => { Linking.openSettings().catch(() => {}); }}
-        />
-      )}
-      {dashboardMessages.setup && (
-        <SetupChecklistCard
-          rows={setupRows}
-          done={dashboardMessages.setup.done}
-          total={dashboardMessages.setup.total}
-          onSnooze={snoozeSetupChecklist}
-        />
-      )}
-      {/* Low Power Mode / Battery Saver: above the mileage, where a driver in
-          that state will actually see it (lib/dashboardMessages NoticeId). */}
-      {dashboardMessages.notice === "low_power_mode" && (
-        <View
-          style={s.offSinceCard}
-          accessible
-          accessibilityLabel={
-            Platform.OS === "ios"
-              ? "Low Power Mode is on. Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you are driving."
-              : "Battery Saver is on. It can stop MileClear recording drives in the background. Turn it off while you are driving."
-          }
-        >
-          <Ionicons name="battery-dead-outline" size={20} color={AMBER} accessible={false} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.offSinceTitle}>
-              {Platform.OS === "ios" ? "Low Power Mode is on" : "Battery Saver is on"}
-            </Text>
-            <Text style={s.offSinceBody}>
-              {Platform.OS === "ios"
-                ? "Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you're driving."
-                : "Battery Saver can stop MileClear recording drives in the background. Turn it off while you're driving."}
-            </Text>
-          </View>
-        </View>
-      )}
-
-
-
-
-
-
-
-
-
-      {/* Auto-classified trips skip the Inbox, so they never get the prominent
-          "Add a note" row. Nudge for the most recent one (self-contained:
-          queries on focus, renders nothing when there's no candidate). */}
-      <AutoNoteNudgeCard />
-
-
-
-      {/* Smart Insights */}
-      <SmartInsightCard
-        stats={stats}
-        vehicles={vehicles}
-        isPremium={isPremium}
-        isWork={isWork}
-        unclassifiedCount={unclassifiedCount}
-      />
-
-
-
-      {/* ── Work Mode (layout-aware) ── */}
-      {/* Each card fades-in-from-below with a small stagger via
-          FadeInStagger. The IIFE around the switch captures the rendered
-          card so we can wrap it in the animation; the original returns
-          are preserved verbatim, only the outer wrapper changed. */}
-      {isWork && workLayout.visibleKeys
+  // ── Work cards (layout-aware) ──
+  // One renderer for both places a Work card can sit: the home screen
+  // (switched-on sections) and More (everything else, 4 Oct 2026).
+  const renderWorkCards = (keys: string[]) => keys
         // Company mode: an employee claiming mileage from their employer is
         // not competing with other UK drivers, has no earnings target, and
         // does not care which platform pays best by hour. These four cards
@@ -2257,8 +2173,71 @@ export default function DashboardScreen() {
 
         const card = (() => {
         switch (key) {
-          case "work_hero":
+          case "work_hero": {
             if (!stats) return null;
+            // Which figure leads (lib/heroFigure, 4 Oct 2026): never a
+            // deflating one when a bigger honest one exists, and always
+            // labelled with the period it covers.
+            const heroChoice = chooseHeroFigure({
+              now: new Date(),
+              current: {
+                taxYear: stats.taxYear,
+                deductionPence: stats.deductionPence,
+                businessMiles: stats.businessMiles,
+              },
+              totalMilesThisYear: stats.totalMiles,
+              previous: previousYear,
+            });
+            const unclassifiedNudge = (stats.unclassifiedTrips ?? 0) >= 5 ? (
+              <TouchableOpacity
+                style={s.heroNudge}
+                onPress={() => router.push("/(tabs)/trips" as any)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`${stats.unclassifiedTrips} unclassified trips this tax year. Tap to review.`}
+              >
+                <Ionicons name="alert-circle-outline" size={16} color="#fbbf24" />
+                <Text style={s.heroNudgeText}>
+                  {stats.unclassifiedTrips} unclassified {stats.unclassifiedTrips === 1 ? "trip" : "trips"} this tax year. Review them to add to your deduction.
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+              </TouchableOpacity>
+            ) : null;
+            // This year's running total, as the second line under a bigger
+            // figure. Plain words, no "£0.00".
+            const thisYearSoFar =
+              stats.deductionPence > 0
+                ? `${formatPence(stats.deductionPence)} so far`
+                : "no business miles yet";
+            if (heroChoice.kind === "previous_year") {
+              const prev = heroChoice.previous;
+              const ended = taxYearEndLabel(prev.taxYear);
+              return (
+                <View
+                  key={key}
+                  style={s.heroCard}
+                  accessible
+                  accessibilityLabel={`Tax deduction for the ${prev.taxYear} tax year: ${formatPence(prev.deductionPence)} of business mileage you can claim, from ${formatWholeMiles(prev.businessMiles)} business miles. ${stats.taxYear} started 6 April: ${thisYearSoFar}.`}
+                >
+                  <View style={s.heroTopRow}>
+                    <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {prev.taxYear}</Text>
+                  </View>
+                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
+                    {formatPence(prev.deductionPence)}
+                  </Text>
+                  <Text style={s.heroSavedLabel}>
+                    business mileage to claim for {prev.taxYear}
+                    {ended ? `, the tax year that ended ${ended}` : ""}
+                  </Text>
+                  <View style={s.heroMeta}>
+                    <Text style={s.heroMetaText}>
+                      {stats.taxYear} started 6 April: {thisYearSoFar}
+                    </Text>
+                  </View>
+                  {unclassifiedNudge}
+                </View>
+              );
+            }
             // Empty-state hero: replaces "£0.00 saved" with a Day 1 welcome
             // when the user has never logged a trip. The Start Trip CTA card
             // immediately below the hero is the next-action prompt.
@@ -2269,7 +2248,7 @@ export default function DashboardScreen() {
                     <Text style={s.heroLabel}>Welcome {"·"} Day 1</Text>
                   </View>
                   <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
-                  <Text style={s.heroSavedLabel}>tax saved so far</Text>
+                  <Text style={s.heroSavedLabel}>to claim so far</Text>
                   <Text style={s.heroEmptyBody}>
                     Tap Start Trip the next time you drive. Your HMRC deduction starts adding up from your first business mile.
                   </Text>
@@ -2300,6 +2279,32 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               );
             }
+            // A small deduction but plenty of miles (usually trips not yet
+            // marked Business): lead with the miles, deduction underneath.
+            if (heroChoice.kind === "miles_tracked") {
+              return (
+                <View key={key} style={s.heroCard}>
+                  <View style={s.heroTopRow}>
+                    <Text style={s.heroLabel}>Miles tracked {"\u00B7"} {stats.taxYear}</Text>
+                    {stats.currentStreakDays > 0 && (
+                      <View style={s.streakBadgeInline}>
+                        <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
+                    {formatWholeMiles(heroChoice.miles)} miles
+                  </Text>
+                  <Text style={s.heroSavedLabel}>tracked since {stats.taxYear} started on 6 April</Text>
+                  <View style={s.heroMeta}>
+                    <Text style={s.heroMetaText}>
+                      Business mileage to claim: {thisYearSoFar}
+                    </Text>
+                  </View>
+                  {unclassifiedNudge}
+                </View>
+              );
+            }
             return stats ? (
               <View key={key} style={s.heroCard}>
                 <View style={s.heroTopRow}>
@@ -2325,7 +2330,7 @@ export default function DashboardScreen() {
                   {formatPence(stats.deductionPence)}
                 </Text>
                 {stats.deductionPence >= 1000 && (
-                  <Text style={s.heroSavedLabel}>saved in tax this year</Text>
+                  <Text style={s.heroSavedLabel}>business mileage to claim this tax year</Text>
                 )}
                 {stats.deductionPence > 0 && stats.deductionPence < 1000 && (
                   <Text style={s.heroSavedLabel}>building up - keep classifying business trips</Text>
@@ -2346,23 +2351,10 @@ export default function DashboardScreen() {
                     {stats.totalTrips} trips
                   </Text>
                 </View>
-                {(stats.unclassifiedTrips ?? 0) >= 5 && (
-                  <TouchableOpacity
-                    style={s.heroNudge}
-                    onPress={() => router.push("/(tabs)/trips" as any)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${stats.unclassifiedTrips} unclassified trips this tax year. Tap to review.`}
-                  >
-                    <Ionicons name="alert-circle-outline" size={16} color="#fbbf24" />
-                    <Text style={s.heroNudgeText}>
-                      {stats.unclassifiedTrips} unclassified {stats.unclassifiedTrips === 1 ? "trip" : "trips"} this tax year — review to boost your deduction
-                    </Text>
-                    <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
-                  </TouchableOpacity>
-                )}
+                {unclassifiedNudge}
               </View>
             ) : null;
+          }
           case "tax_readiness":
             // Hide until there's at least one trip - "£0 estimated tax"
             // adds nothing for a brand-new user.
@@ -2589,7 +2581,144 @@ export default function DashboardScreen() {
             {key === "work_hero" && <AcquisitionSourceCard />}
           </FadeInStagger>
         ) : null;
-      })}
+      });
+
+  // ── Idle Dashboard ────────────────────────────────────────────
+  // Modals rendered as siblings of the ScrollView (not children) so they
+  // sit at the component root. Avoids any odd interaction between the
+  // outer ScrollView and the Modal's portal layer on iPad.
+  return (
+    <>
+      {scorecardModal}
+      {recapModal}
+      {workExplainerModal}
+      {locPrimerModal}
+      <AppHeader />
+      <ScrollView
+        style={s.container}
+        contentContainerStyle={[s.content, { paddingTop: 16 }]}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
+        }
+      >
+      {/* Mode Toggle */}
+      <ModeToggle
+        onInfoPress={() => {
+          explainerShownAtRef.current = Date.now();
+          trackEvent("work_explainer.shown", { source: "manual" });
+          setShowWorkExplainer(true);
+        }}
+      />
+
+      {/* Active recording banner — appears whenever auto-detection has a
+          trip in progress, so the user always knows we're tracking even if
+          the Live Activity silently failed to present. */}
+      <ActiveRecordingBanner />
+      {/* Automatic trips on or off, in both modes (28 Sep 2026: a shift-only
+          driver could not find the switch, and it did not really switch
+          anything off). A compact row, not a card: the one-card rule above
+          the mileage still holds. It shows the off state itself, so the
+          "tracking is off" banner and the "off since" suggestion stand down
+          on this screen; a pause is still shown by the Pause row. */}
+      <AutomaticTripsRow onChange={refreshPauseState} />
+      <SyncStatusBanner />
+      {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
+          Hides itself while recording (banner above owns that state) and when
+          permissions are broken (the red blockers below own those). */}
+      <TripStatusStrip />
+
+      {/* Data-quality improvement celebration banner — fires once per user
+          when they open the app after a server-side backfill corrected
+          some of their trips. Turns invisible "we fixed your data" work
+          into a visible trust moment. SQLite-flagged so it only shows
+          once per device install. */}
+      {!dqBannerSeen && dqImprovement && (
+        <View style={s.dqBanner}>
+          <View style={s.dqBannerIconWrap}>
+            <Ionicons name="sparkles" size={20} color={colors.amber} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.dqBannerTitle}>We improved your trip data</Text>
+            <Text style={s.dqBannerBody}>
+              We re-routed {dqImprovement.improvedTripCount} of your recent {dqImprovement.improvedTripCount === 1 ? "trip" : "trips"} and recovered{" "}
+              {dqImprovement.milesGained.toFixed(1)} miles for you. Tax Readiness is up to date.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={dismissDqBanner}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss"
+          >
+            <Ionicons name="close" size={20} color={colors.text3} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Background location nudge - auto trip detection requires "Always".
+          Uses the smart escalation helper so the right thing happens whether
+          the user has never granted, granted only foreground, or denied
+          outright. Linking.openSettings() alone is wrong for fresh installs:
+          iOS doesn't show a Location row in Settings until the app has
+          actually asked for permission once. */}
+      {/* One thing above your mileage: either MileClear cannot record at
+          all (red, non-dismissible) or there is setup left to finish. Never
+          both, and never the five separate permission nags this replaced. */}
+      {dashboardMessages.blocker && (
+        <DashboardBlockerCard
+          id={dashboardMessages.blocker}
+          onFixLocation={fixLocationFromBlocker}
+          onOpenSettings={() => { Linking.openSettings().catch(() => {}); }}
+        />
+      )}
+      {dashboardMessages.setup && (
+        <SetupChecklistCard
+          rows={setupRows}
+          done={dashboardMessages.setup.done}
+          total={dashboardMessages.setup.total}
+          onSnooze={snoozeSetupChecklist}
+        />
+      )}
+      {/* Low Power Mode / Battery Saver: above the mileage, where a driver in
+          that state will actually see it (lib/dashboardMessages NoticeId). */}
+      {dashboardMessages.notice === "low_power_mode" && (
+        <View
+          style={s.offSinceCard}
+          accessible
+          accessibilityLabel={
+            Platform.OS === "ios"
+              ? "Low Power Mode is on. Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you are driving."
+              : "Battery Saver is on. It can stop MileClear recording drives in the background. Turn it off while you are driving."
+          }
+        >
+          <Ionicons name="battery-dead-outline" size={20} color={AMBER} accessible={false} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.offSinceTitle}>
+              {Platform.OS === "ios" ? "Low Power Mode is on" : "Battery Saver is on"}
+            </Text>
+            <Text style={s.offSinceBody}>
+              {Platform.OS === "ios"
+                ? "Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you're driving."
+                : "Battery Saver can stop MileClear recording drives in the background. Turn it off while you're driving."}
+            </Text>
+          </View>
+        </View>
+      )}
+
+
+
+
+
+
+
+
+
+      {/* ── Work Mode (layout-aware) ── */}
+      {/* Each card fades-in-from-below with a small stagger via
+          FadeInStagger. The IIFE around the switch captures the rendered
+          card so we can wrap it in the animation; the original returns
+          are preserved verbatim, only the outer wrapper changed. */}
+      {isWork && renderWorkCards(workLayout.visibleKeys)}
 
       {/* Vehicle Nudge — no vehicles yet */}
       {isWork && showVehicleNudge && (
@@ -2659,12 +2788,8 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Suggestions. Optional, capped at two, and deliberately BELOW the
-          driver's own mileage: you opened the app to see your miles, not a
-          list of chores. Ordering and the cap live in lib/dashboardMessages. */}
-      {dashboardMessages.suggestions.length > 0 && (
-        <Text style={s.suggestionsHeading}>Suggestions</Text>
-      )}
+      {/* First trip: a driver with zero trips has one job, so this one
+          suggestion stays on the home screen rather than under More. */}
       {/* First-trip nudge — in-app activation safety net. Shows when the user
           has Always location on but still zero trips. Two paths: take a live
           trip now, or backfill one they already drove. */}
@@ -2713,159 +2838,208 @@ export default function DashboardScreen() {
           </View>
         </View>
       )}
-      {/* Saved-locations nudge: clusters available and a free slot to put them
-          in. Sits above the referral promo because it improves the user's own
-          data (named stops) and that earns the higher spot. */}
-      {dashboardMessages.suggestions.includes("saved_places") && (
-        <TouchableOpacity
-          style={s.savedLocsNudge}
-          onPress={() => router.push("/saved-locations-suggest" as never)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
-            savedLocationsSuggestionCount === 1 ? "place" : "places"
-          }`}
-        >
-          <TouchableOpacity
-            style={s.savedLocsNudgeDismiss}
-            onPress={dismissSavedLocationsNudge}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.savedLocsNudgeIconWrap}>
-            <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.savedLocsNudgeTitle}>
-            Save the places you visit often
-          </Text>
-          <Text style={s.savedLocsNudgeBody}>
-            MileClear spotted{" "}
-            {savedLocationsSuggestionCount === 1
-              ? "1 place"
-              : `${savedLocationsSuggestionCount} places`}{" "}
-            in your recent trips. Save them so journeys are labelled with names
-            you recognise.
-          </Text>
-          <View style={s.savedLocsNudgeCta}>
-            <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-      {/* Referral promo — dismissible (30 days), both modes. Links to the
-          Invite Friends screen. Suppressed while the first-trip nudge shows. */}
-      {dashboardMessages.suggestions.includes("referral") && (
-        <TouchableOpacity
-          style={s.referralCard}
-          onPress={() => router.push("/refer" as never)}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="Invite friends and get a free month of Pro for each. Opens the invite screen."
-        >
-          <View style={s.referralCardIcon}>
-            <Ionicons name="gift" size={20} color={AMBER} accessible={false} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.referralCardTitle}>Get Pro free - invite friends</Text>
-            <Text style={s.referralCardBody}>
-              A free month of Pro for every friend who joins and takes a trip (up to 3).
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
-          <TouchableOpacity
-            onPress={dismissReferralCard}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            style={s.referralCardDismiss}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-        </TouchableOpacity>
-      )}
-      {/* Pro Nudge Card — free users with 5+ trips */}
-      {dashboardMessages.suggestions.includes("pro") && (
-        <TouchableOpacity
-          style={s.proNudgeCard}
-          onPress={() => showPaywall("dashboard_nudge")}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Upgrade to Pro"
-        >
-          <TouchableOpacity
-            style={s.btPromoDismiss}
-            onPress={dismissProNudge}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss Pro nudge"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.proNudgeIcon}>
-            <Ionicons name="star" size={24} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
-          <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.vehicleNudgeCtaText}>See plans</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-      {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta
-          (replaced the 55p rate card that ran from April). Dismissible per
-          device; one-time SQLite flag keyed on the announcement id so a new
-          announcement re-shows even to people who dismissed the last one. */}
-      {dashboardMessages.suggestions.includes("android_beta") && (
-        <TouchableOpacity
-          style={s.savedLocsNudge}
-          onPress={() => {
-            Linking.openURL("https://mileclear.com/updates/mileclear-on-android-closed-beta").catch(() => {});
-          }}
-          activeOpacity={0.85}
-          accessibilityRole="button"
-          accessibilityLabel="MileClear is on Android. Closed beta, testers wanted."
-        >
-          <TouchableOpacity
-            style={s.savedLocsNudgeDismiss}
-            onPress={dismissAmapBanner}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.savedLocsNudgeIconWrap}>
-            <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.savedLocsNudgeTitle}>
-            MileClear is on Android
-          </Text>
-          <Text style={s.savedLocsNudgeBody}>
-            The Android app is in closed testing on Google Play. Know anyone
-            with an Android phone? Testers get Pro free. Send their Google
-            account email to support@mileclear.com for an invite.
-          </Text>
-          <View style={s.savedLocsNudgeCta}>
-            <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
 
-      {/* Customize layout — discoverable footer link, low visual weight */}
+      {/* More (4 Oct 2026): every section the driver hasn't switched on,
+          plus tips and suggestions. Collapsed, and nothing inside mounts or
+          fetches until it is opened. Customise brings any card back up. */}
+      <DashboardMoreSection
+        summary={moreSummaryText}
+        renderContent={() => (
+          <>
+            {isWork && renderWorkCards(workHiddenKeys)}
+            {isPersonal && personalHiddenKeys.length > 0 && (
+              <PersonalDashboard
+                inMore
+                avatarId={currentUser?.avatarId}
+                stats={stats}
+                visibleKeys={personalHiddenKeys}
+                recentTrips={recentTrips}
+                dailyRecap={dailyRecap}
+                onShowRecap={(recap) => { setRecapData(recap); setShowRecap(true); }}
+              />
+            )}
+            {/* Auto-classified trips skip the Inbox, so they never get the prominent
+                "Add a note" row. Nudge for the most recent one (self-contained:
+                queries on focus, renders nothing when there's no candidate). */}
+            <AutoNoteNudgeCard />
+
+
+
+            {/* Smart Insights */}
+            <SmartInsightCard
+              stats={stats}
+              vehicles={vehicles}
+              isPremium={isPremium}
+              isWork={isWork}
+              unclassifiedCount={unclassifiedCount}
+            />
+
+
+
+            {/* Suggestions. Optional, capped at two, and deliberately BELOW the
+                driver's own mileage: you opened the app to see your miles, not a
+                list of chores. Ordering and the cap live in lib/dashboardMessages.
+                Since 4 Oct 2026 they sit under More, all but the first-trip one. */}
+            {moreSuggestions.length > 0 && (
+              <Text style={s.suggestionsHeading}>Suggestions</Text>
+            )}
+            {/* Saved-locations nudge: clusters available and a free slot to put them
+                in. Sits above the referral promo because it improves the user's own
+                data (named stops) and that earns the higher spot. */}
+            {dashboardMessages.suggestions.includes("saved_places") && (
+              <TouchableOpacity
+                style={s.savedLocsNudge}
+                onPress={() => router.push("/saved-locations-suggest" as never)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
+                  savedLocationsSuggestionCount === 1 ? "place" : "places"
+                }`}
+              >
+                <TouchableOpacity
+                  style={s.savedLocsNudgeDismiss}
+                  onPress={dismissSavedLocationsNudge}
+                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                >
+                  <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+                </TouchableOpacity>
+                <View style={s.savedLocsNudgeIconWrap}>
+                  <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
+                </View>
+                <Text style={s.savedLocsNudgeTitle}>
+                  Save the places you visit often
+                </Text>
+                <Text style={s.savedLocsNudgeBody}>
+                  MileClear spotted{" "}
+                  {savedLocationsSuggestionCount === 1
+                    ? "1 place"
+                    : `${savedLocationsSuggestionCount} places`}{" "}
+                  in your recent trips. Save them so journeys are labelled with names
+                  you recognise.
+                </Text>
+                <View style={s.savedLocsNudgeCta}>
+                  <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
+                  <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+                </View>
+              </TouchableOpacity>
+            )}
+            {/* Referral promo — dismissible (30 days), both modes. Links to the
+                Invite Friends screen. Suppressed while the first-trip nudge shows. */}
+            {dashboardMessages.suggestions.includes("referral") && (
+              <TouchableOpacity
+                style={s.referralCard}
+                onPress={() => router.push("/refer" as never)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Invite friends and get a free month of Pro for each. Opens the invite screen."
+              >
+                <View style={s.referralCardIcon}>
+                  <Ionicons name="gift" size={20} color={AMBER} accessible={false} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.referralCardTitle}>Get Pro free - invite friends</Text>
+                  <Text style={s.referralCardBody}>
+                    A free month of Pro for every friend who joins and takes a trip (up to 3).
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+                <TouchableOpacity
+                  onPress={dismissReferralCard}
+                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  style={s.referralCardDismiss}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                >
+                  <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            )}
+            {/* Pro Nudge Card — free users with 5+ trips */}
+            {dashboardMessages.suggestions.includes("pro") && (
+              <TouchableOpacity
+                style={s.proNudgeCard}
+                onPress={() => showPaywall("dashboard_nudge")}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Upgrade to Pro"
+              >
+                <TouchableOpacity
+                  style={s.btPromoDismiss}
+                  onPress={dismissProNudge}
+                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss Pro nudge"
+                >
+                  <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+                </TouchableOpacity>
+                <View style={s.proNudgeIcon}>
+                  <Ionicons name="star" size={24} color={AMBER} accessible={false} />
+                </View>
+                <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
+                <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
+                <View style={s.btPromoCta}>
+                  <Text style={s.vehicleNudgeCtaText}>See plans</Text>
+                  <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+                </View>
+              </TouchableOpacity>
+            )}
+            {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta
+                (replaced the 55p rate card that ran from April). Dismissible per
+                device; one-time SQLite flag keyed on the announcement id so a new
+                announcement re-shows even to people who dismissed the last one. */}
+            {dashboardMessages.suggestions.includes("android_beta") && (
+              <TouchableOpacity
+                style={s.savedLocsNudge}
+                onPress={() => {
+                  Linking.openURL("https://mileclear.com/updates/mileclear-on-android-closed-beta").catch(() => {});
+                }}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="MileClear is on Android. Closed beta, testers wanted."
+              >
+                <TouchableOpacity
+                  style={s.savedLocsNudgeDismiss}
+                  onPress={dismissAmapBanner}
+                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss"
+                >
+                  <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+                </TouchableOpacity>
+                <View style={s.savedLocsNudgeIconWrap}>
+                  <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
+                </View>
+                <Text style={s.savedLocsNudgeTitle}>
+                  MileClear is on Android
+                </Text>
+                <Text style={s.savedLocsNudgeBody}>
+                  The Android app is in closed testing on Google Play. Know anyone
+                  with an Android phone? Testers get Pro free. Send their Google
+                  account email to support@mileclear.com for an invite.
+                </Text>
+                <View style={s.savedLocsNudgeCta}>
+                  <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
+                  <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+                </View>
+              </TouchableOpacity>
+            )}
+
+          </>
+        )}
+      />
+
+      {/* Customise layout: discoverable footer link, low visual weight */}
       <TouchableOpacity
         style={s.customizeFooter}
         onPress={() => router.push("/customize-layout" as any)}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Customize this dashboard. Reorder cards, hide ones you don't want."
+        accessibilityLabel="Customise this dashboard. Choose which cards are on your home screen and which sit under More."
       >
         <Ionicons name="options-outline" size={14} color="#64748b" accessible={false} />
-        <Text style={s.customizeFooterText}>Customize this dashboard</Text>
+        <Text style={s.customizeFooterText}>Customise this dashboard</Text>
       </TouchableOpacity>
 
       <View style={{ height: 24 }} />
