@@ -201,7 +201,7 @@ const faqSchema = {
       name: 'What is included in the free plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, the Self Assessment wizard, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with the shift scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings and expenses tracking, the pickup wait timer, all 18 achievements and gamification, up to 2 saved locations with geofencing, push notifications, and a first-time Self Assessment guide.',
+        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, the Self Assessment wizard, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with the shift scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings and expenses tracking, the pickup wait timer, all 39 achievements and gamification, up to 2 saved locations with geofencing, push notifications, and a first-time Self Assessment guide.',
       },
     },
     {
@@ -552,7 +552,7 @@ export default function FaqPage() {
                   history with advisories, the Activity Heatmap, shift management with the shift
                   scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby
                   fuel prices from over 8,300 stations across the UK, manual earnings and expenses
-                  tracking, the pickup wait timer, all 18 achievements and gamification, up
+                  tracking, the pickup wait timer, all 39 achievements and gamification, up
                   to 2 saved locations with geofencing, push notifications, and a first-time Self
                   Assessment guide.
                 </p>

@@ -2137,8 +2137,8 @@ export default function DashboardScreen() {
   const personalHiddenKeys = personalLayout.prefs
     .filter((p) => !p.visible)
     .map((p) => p.key);
-  // Everything but first_trip, which stays on the home screen.
-  const moreSuggestions = dashboardMessages.suggestions.filter((id) => id !== "first_trip");
+  // Everything but first_trip and pro, which stay on the home screen.
+  const moreSuggestions = dashboardMessages.suggestions.filter((id) => id !== "first_trip" && id !== "pro");
   const moreSummaryText = (() => {
     const screen = isWork ? "dashboard_work" : "dashboard_personal";
     const keys = isWork ? workHiddenKeys : personalHiddenKeys;
@@ -2839,6 +2839,38 @@ export default function DashboardScreen() {
         </View>
       )}
 
+      {/* Pro nudge (free drivers with 5+ trips), kept on the home screen rather
+          than under More (4 Oct 2026): paying is how the app is funded, and
+          under More almost nobody would see it. Still dismissible. */}
+      {dashboardMessages.suggestions.includes("pro") && (
+        <TouchableOpacity
+          style={s.proNudgeCard}
+          onPress={() => showPaywall("dashboard_nudge")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Upgrade to Pro"
+        >
+          <TouchableOpacity
+            style={s.btPromoDismiss}
+            onPress={dismissProNudge}
+            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss Pro nudge"
+          >
+            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
+          </TouchableOpacity>
+          <View style={s.proNudgeIcon}>
+            <Ionicons name="star" size={24} color={AMBER} accessible={false} />
+          </View>
+          <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
+          <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
+          <View style={s.btPromoCta}>
+            <Text style={s.vehicleNudgeCtaText}>See plans</Text>
+            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* More (4 Oct 2026): every section the driver hasn't switched on,
           plus tips and suggestions. Collapsed, and nothing inside mounts or
           fetches until it is opened. Customise brings any card back up. */}
@@ -2954,35 +2986,6 @@ export default function DashboardScreen() {
                 >
                   <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
                 </TouchableOpacity>
-              </TouchableOpacity>
-            )}
-            {/* Pro Nudge Card — free users with 5+ trips */}
-            {dashboardMessages.suggestions.includes("pro") && (
-              <TouchableOpacity
-                style={s.proNudgeCard}
-                onPress={() => showPaywall("dashboard_nudge")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Upgrade to Pro"
-              >
-                <TouchableOpacity
-                  style={s.btPromoDismiss}
-                  onPress={dismissProNudge}
-                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss Pro nudge"
-                >
-                  <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-                </TouchableOpacity>
-                <View style={s.proNudgeIcon}>
-                  <Ionicons name="star" size={24} color={AMBER} accessible={false} />
-                </View>
-                <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
-                <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
-                <View style={s.btPromoCta}>
-                  <Text style={s.vehicleNudgeCtaText}>See plans</Text>
-                  <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-                </View>
               </TouchableOpacity>
             )}
             {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta

@@ -1461,7 +1461,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>Platform tagging for gig drivers (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri, etc.)</li>
 <li>1 vehicle with DVLA registration lookup</li>
 <li>Fuel logging + live UK prices from 8,300+ stations</li>
-<li>All 18 achievements + streaks + personal records</li>
+<li>All 39 achievements + streaks + personal records</li>
 <li>Daily, weekly, monthly, yearly recaps</li>
 <li>2 saved locations with geofencing</li>
 <li>Tax Readiness card (running tax-year summary)</li>

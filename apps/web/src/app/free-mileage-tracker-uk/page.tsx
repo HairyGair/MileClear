@@ -103,7 +103,7 @@ const faqSchema = {
       name: "What is included in the free tier?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Free includes: unlimited GPS-tracked trips, business / personal classification, platform tagging for gig drivers, HMRC 55p/25p/24p rate calculation (the car/van first-tier rate rose from 45p to 55p on 6 April 2026), one vehicle with DVLA lookup, fuel logging with live UK prices from 8,300+ stations, all 18 achievements, streaks and personal records, weekly and monthly recaps, two saved locations, the Tax Readiness card, the Self Assessment wizard view, AMAP calculator, and MOT + tax reminders.",
+        text: "Free includes: unlimited GPS-tracked trips, business / personal classification, platform tagging for gig drivers, HMRC 55p/25p/24p rate calculation (the car/van first-tier rate rose from 45p to 55p on 6 April 2026), one vehicle with DVLA lookup, fuel logging with live UK prices from 8,300+ stations, all 39 achievements, streaks and personal records, weekly and monthly recaps, two saved locations, the Tax Readiness card, the Self Assessment wizard view, AMAP calculator, and MOT + tax reminders.",
       },
     },
     {
@@ -186,7 +186,7 @@ export default function FreeMileageTrackerUk() {
               unless you pay, and Driversnote caps you at 15 trips. MileClear has
               <strong> no monthly drive cap at all</strong> - track every business mile you drive,
               forever, without paying a penny. HMRC 55p/25p rates built in (rate rose from 45p on
-              6 April 2026), fuel prices from 8,300+ UK stations, all 18 achievements, vehicle
+              6 April 2026), fuel prices from 8,300+ UK stations, all 39 achievements, vehicle
               records and a Self Assessment wizard view - free. Pro (£4.99/mo) only unlocks the
               tax-time export PDF and a few power-user extras. It never gates the tracker.
             </p>
@@ -288,7 +288,7 @@ export default function FreeMileageTrackerUk() {
                   <li>Platform tagging (Uber/Deliveroo/etc)</li>
                   <li>1 vehicle with DVLA lookup</li>
                   <li>Fuel logging + 8,300+ UK price feeds</li>
-                  <li>All 18 achievements + streaks</li>
+                  <li>All 39 achievements + streaks</li>
                   <li>Daily, weekly, monthly, yearly recaps</li>
                   <li>2 saved locations</li>
                   <li>Tax Readiness card</li>
