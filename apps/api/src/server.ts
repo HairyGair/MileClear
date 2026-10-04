@@ -61,6 +61,7 @@ import { donationRoutes } from "./routes/donations/index.js";
 import { startInvoiceJobs } from "./jobs/invoices.js";
 import { startNotificationJobs } from "./jobs/notifications.js";
 import { startBriefingJobs } from "./jobs/briefing.js";
+import { startSupportInboxJobs } from "./jobs/supportInbox.js";
 import { logEvent, trackErrorForAlert } from "./services/appEvents.js";
 import { getAppleClient, getSignedDataVerifier } from "./services/appleIap.js";
 
@@ -286,6 +287,7 @@ try {
   startNotificationJobs();
 startInvoiceJobs();
   startBriefingJobs();
+  startSupportInboxJobs();
 } catch (err) {
   app.log.error(err);
   process.exit(1);

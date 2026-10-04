@@ -232,6 +232,7 @@ model User {
   feedback            Feedback[]
   feedbackVotes       FeedbackVote[]
   feedbackReplies     FeedbackReply[]
+  supportEmails       SupportEmail[]
   savedLocations      SavedLocation[]
   tripAnomalies       TripAnomaly[]
   appEvents           AppEvent[]
@@ -1817,4 +1818,35 @@ model MileageCertificate {
 
   @@index([userId, createdAt])
   @@map("mileage_certificates")
+}
+
+/// Every email to support@mileclear.com (direction "in", delivered by a
+/// cPanel pipe forwarder into a spool the API reads) and every reply sent
+/// from the admin inbox (direction "out"). Grouped into threads by
+/// threadKey. Oct 2026.
+model SupportEmail {
+  id           String    @id @default(uuid())
+  messageId    String    @unique @db.VarChar(255)
+  threadKey    String    @db.VarChar(255)
+  direction    String    @db.VarChar(8)
+  fromEmail    String    @db.VarChar(255)
+  fromName     String?   @db.VarChar(255)
+  toEmail      String?   @db.VarChar(255)
+  subject      String    @db.VarChar(500)
+  textBody     String    @db.MediumText
+  inReplyTo    String?   @db.VarChar(255)
+  attachments  Json?
+  userId       String?
+  status       String    @default("open") @db.VarChar(16)
+  isSpam       Boolean   @default(false)
+  sentByUserId String?
+  receivedAt   DateTime
+  createdAt    DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([threadKey, receivedAt])
+  @@index([status, receivedAt])
+  @@index([userId])
+  @@map("support_emails")
 }

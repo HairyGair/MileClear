@@ -1323,6 +1323,44 @@ async function deliver(opts: {
  *  user. Defaults From to EMAIL_FROM (noreply@mileclear.com, a domain
  *  verified in Resend). Throws on a payload-level failure so callers
  *  can record it; logs to console when no transport is configured. */
+/**
+ * A reply written in the admin support inbox (Oct 2026). Comes from Gair,
+ * with Reply-To support@ so the driver's answer lands back in the inbox, and
+ * threading headers so it sits under their message in their mail app.
+ * Returns the Message-ID we set, to store with the reply.
+ */
+export async function sendSupportReply(opts: {
+  to: string;
+  subject: string;
+  text: string;
+  inReplyTo?: string | null;
+  references?: string[];
+}): Promise<string> {
+  const messageId = `support-${crypto.randomUUID()}@mileclear.com`;
+  const headers: Record<string, string> = { "Message-ID": `<${messageId}>` };
+  if (opts.inReplyTo) headers["In-Reply-To"] = `<${opts.inReplyTo}>`;
+  const refs = (opts.references ?? []).filter(Boolean).slice(-10);
+  if (refs.length) headers["References"] = refs.map((r) => `<${r}>`).join(" ");
+  const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a1a;">${opts.text
+    .split(/\n{2,}/)
+    .map((p) => `<p style="margin: 0 0 14px;">${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`)
+    .join("")}</div>`;
+  if (!transporter) {
+    console.log(`[EMAIL] support reply to ${opts.to}: ${opts.subject} (dev only)`);
+    return messageId;
+  }
+  await transporter.sendMail({
+    from: FROM_PERSONAL,
+    to: opts.to,
+    replyTo: SUPPORT_INBOX,
+    subject: opts.subject,
+    html,
+    text: opts.text,
+    headers,
+  });
+  return messageId;
+}
+
 export async function sendAdminEmail(opts: {
   to: string;
   subject: string;
