@@ -41,17 +41,17 @@ const CARDS: Card[] = [
   {
     icon: "swap-horizontal-outline",
     title: "Tag it Work or Personal",
-    body: "After each trip, tag it as Work (counts toward HMRC) or Personal (just for your records). Do the same A→B journey three times and we'll auto-classify the fourth — taps disappear fast.",
+    body: "After each trip, tag it as Work (counts towards HMRC) or Personal (just for your records). Do the same A→B journey three times and we'll auto-classify the fourth - taps disappear fast.",
   },
   {
     icon: "calculator-outline",
     title: "Real-time tax estimate",
-    body: "The Tax Readiness card on your dashboard shows what you'll owe HMRC at year-end, updated live as you drive. The 'Set aside this week' figure tells you exactly what to save — no surprises in January.",
+    body: "The Tax Readiness card on your dashboard shows what you'll owe HMRC at year-end, updated live as you drive. The 'Set aside this week' figure tells you exactly what to save - no surprises in January.",
   },
   {
     icon: "cloud-upload-outline",
     title: "Submit straight to HMRC",
-    body: "From April 2026, sole traders earning £50k+ must submit four quarterly returns to HMRC. MileClear Pro does this for you — Connect once, preview every quarter, tap Submit. No paperwork.",
+    body: "From April 2026, sole traders earning £50k+ must submit four quarterly returns to HMRC. MileClear Pro does this for you - Connect once, preview every quarter, tap Submit. No paperwork.",
   },
   {
     icon: "checkmark-circle",

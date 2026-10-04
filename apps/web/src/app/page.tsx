@@ -12,16 +12,16 @@ import Community from "@/components/landing/Community";
 import Footer from "@/components/landing/Footer";
 import StructuredData from "@/components/landing/StructuredData";
 
-import {
-  ACTIVE_DRIVERS_DISPLAY,
-  APP_STORE_RATING,
-  APP_STORE_RATING_COUNT,
-  MILES_TRACKED_DISPLAY,
-} from "@/data/stats";
+import { APP_STORE_RATING, APP_STORE_RATING_COUNT } from "@/data/stats";
+import { getLiveStats, type LiveStats } from "@/data/liveStats";
+
+// The miles and active-driver figures are live (GET /community/totals), so
+// the page is regenerated hourly. Keep in step with LIVE_STATS_REVALIDATE_SECONDS.
+export const revalidate = 3600;
 
 const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
-function SocialProof() {
+function SocialProof({ stats }: { stats: LiveStats }) {
   return (
     <section
       aria-label="How much driving MileClear has recorded"
@@ -57,12 +57,16 @@ function SocialProof() {
         }}
       >
         <span style={proofItem}>
-          <strong style={proofFigure}>{MILES_TRACKED_DISPLAY}</strong> miles
+          <strong style={proofFigure}>{stats.milesDisplay}</strong> miles
         </span>
-        <span style={proofDivider}>|</span>
-        <span style={proofItem}>
-          <strong style={proofFigure}>{ACTIVE_DRIVERS_DISPLAY}</strong> drivers tracking last month
-        </span>
+        {stats.activeDriversDisplay && (
+          <>
+            <span style={proofDivider}>|</span>
+            <span style={proofItem}>
+              <strong style={proofFigure}>{stats.activeDriversDisplay}</strong> drivers in the last 30 days
+            </span>
+          </>
+        )}
         <span style={proofDivider}>|</span>
         <a
           href={APP_STORE_URL}
@@ -127,21 +131,22 @@ function AboutSection() {
   );
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const stats = await getLiveStats();
   return (
     <>
       <StructuredData />
       <Navbar />
       <main id="main-content" tabIndex={-1}>
         <Hero />
-        <SocialProof />
+        <SocialProof stats={stats} />
         <Problem />
         <ClearTrack />
         <Features />
         <Screenshots />
         <WhoItsFor />
         <Pricing />
-        <EarlyAccess />
+        <EarlyAccess milesDisplay={stats.milesDisplay} />
         <Community />
         <FAQ />
         <AboutSection />

@@ -432,7 +432,7 @@ export default function JustEatMileageTracker() {
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               The biggest unclaimed mileage on a Just Eat shift is the empty leg. You finish a
               drop in a quiet residential area, accept a new Offer at a restaurant 1.4 miles
-              back toward the high street. Just Eat does not pay you for the 1.4 miles; HMRC
+              back towards the high street. Just Eat does not pay you for the 1.4 miles; HMRC
               does not care. The mile counts because you drove it on shift, with the intent of
               taking the next paid delivery.
             </p>

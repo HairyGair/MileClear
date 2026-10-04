@@ -1508,7 +1508,7 @@ export async function sendFirstTripEmail(
 ${para(greeting)}
 ${statGrid([
     { value: miles, label: "Miles tracked" },
-    { value: gbp(trip.deductionPence), label: "Toward your deduction" },
+    { value: gbp(trip.deductionPence), label: "Towards your deduction" },
   ])}
 ${para("That drive is saved, mapped, and counted - and you didn't have to lift a finger. That's exactly how every trip works from here.")}
 ${para("Two quick wins to get the most out of MileClear:")}
@@ -2266,7 +2266,7 @@ export async function sendAdminBriefingEmail(
           ? briefingRow("Watchdog gave up (unreachable)", briefing.watchdogGaveUp, "#ef4444")
           : "",
       ].filter(Boolean)
-    ) || briefingSection("Capture health", [briefingRow("All clear — no silent, stranded or reported capture problems", "✓", "#10b981")])}
+    ) || briefingSection("Capture health", [briefingRow("All clear - no silent, stranded or reported capture problems", "✓", "#10b981")])}
 
     ${briefingSection(
       "Money",
@@ -2923,7 +2923,7 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
   let bodyHtml: string;
 
   if (kind === "send") {
-    subject = `Invoice ${ref} from ${senderName} — ${amount}`;
+    subject = `Invoice ${ref} from ${senderName} - ${amount}`;
     bodyHtml = [
       para(`Hi,`),
       para(
@@ -2934,7 +2934,7 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
         { value: dueText, label: "Payment due" },
       ]),
       para(
-        `Payment details are on the attached PDF — please use the payment reference <strong style="color:#f0f2f5;">${ref}</strong> so your payment is easy to identify.`
+        `Payment details are on the attached PDF - please use the payment reference <strong style="color:#f0f2f5;">${ref}</strong> so your payment is easy to identify.`
       ),
       para(`Any questions, just reply to this email and it will reach ${escapeHtml(senderName)} directly.`),
     ].join("\n");
@@ -2944,13 +2944,13 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
     // paragraphed; subject escalates by kind.
     const prefix =
       kind === "chase_pre_due"
-        ? "Payment due soon — "
+        ? "Payment due soon: "
         : kind === "chase_2"
-          ? "Second reminder — "
+          ? "Second reminder: "
           : kind === "chase_final"
-            ? "Final reminder — "
+            ? "Final reminder: "
             : "";
-    subject = `${prefix}invoice ${ref} from ${senderName} — ${amount}`;
+    subject = `${prefix}invoice ${ref} from ${senderName} - ${amount}`;
     const text = args.chaseBodyText ?? "";
     bodyHtml = text
       .split(/\n\s*\n/)
@@ -2959,7 +2959,7 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
   }
 
   const html = emailShell({
-    preheader: `Invoice ${ref} — ${amount}, due ${dueText}`,
+    preheader: `Invoice ${ref} - ${amount}, due ${dueText}`,
     eyebrow: kind === "send" ? "Invoice" : "Payment reminder",
     title: `Invoice ${ref}`,
     bodyHtml,

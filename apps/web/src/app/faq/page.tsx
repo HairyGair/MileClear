@@ -152,7 +152,7 @@ const faqSchema = {
       name: 'What counts as a business mile?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'A business mile is any journey made wholly and exclusively for work purposes. This includes travelling to a customer, picking up a delivery order, driving between depots, or visiting a client. Normal commuting to a fixed place of work does not count. If you work for gig platforms like Uber or Deliveroo, all miles driven during active jobs qualify. If you are an employee using your personal car for work (site-to-site, client visits, healthcare home visits), those miles also qualify. MileClear lets you classify each trip so only business miles count toward your deduction.',
+        text: 'A business mile is any journey made wholly and exclusively for work purposes. This includes travelling to a customer, picking up a delivery order, driving between depots, or visiting a client. Normal commuting to a fixed place of work does not count. If you work for gig platforms like Uber or Deliveroo, all miles driven during active jobs qualify. If you are an employee using your personal car for work (site-to-site, client visits, healthcare home visits), those miles also qualify. MileClear lets you classify each trip so only business miles count towards your deduction.',
       },
     },
     {
@@ -469,7 +469,7 @@ export default function FaqPage() {
                   count. If you work for gig platforms like Uber or Deliveroo, all miles driven during
                   active jobs qualify. If you are an employee using your personal car for work
                   (site-to-site, client visits, healthcare home visits), those miles also qualify.
-                  MileClear lets you classify each trip so only business miles count toward your
+                  MileClear lets you classify each trip so only business miles count towards your
                   deduction.
                 </p>
               </div>

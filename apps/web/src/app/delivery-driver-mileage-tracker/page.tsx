@@ -336,7 +336,7 @@ export default function DeliveryDriverMileageTracker() {
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               Most full-time UK delivery drivers run more than one app. A Deliveroo lunch shift, an Amazon Flex
               afternoon block, a Just Eat evening run. From HMRC&apos;s perspective every business mile is the same -
-              they all count toward your AMAP deduction. But your accountant (and you) want to know which platform
+              they all count towards your AMAP deduction. But your accountant (and you) want to know which platform
               is actually paying best per mile.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>

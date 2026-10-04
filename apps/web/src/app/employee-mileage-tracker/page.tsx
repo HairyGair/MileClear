@@ -211,7 +211,7 @@ export default function EmployeeMileageTracker() {
               if your employer pays below 55p/mile (the AMAP rate rose from 45p to 55p on 6 April
               2026). Tracking is unlimited and free forever - no monthly drive cap. Hybrid workers
               might only do 20-50 business miles in a month, but every single one of those miles
-              counts toward your employer reimbursement and MAR claim. MileIQ stops tracking at 40
+              counts towards your employer reimbursement and MAR claim. MileIQ stops tracking at 40
               drives a month on the free tier and Driversnote at 15 trips, so even a fortnight of site
               visits could put you up against the wall. MileClear has no cap, ever. Pro features
               unlock for £4.99 per month.

@@ -1,14 +1,14 @@
 import Reveal from "./Reveal";
 import StoreButtons from "@/components/StoreButtons";
-import { FUEL_STATIONS_DISPLAY, MILES_TRACKED_DISPLAY } from "@/data/stats";
+import { FUEL_STATIONS_DISPLAY } from "@/data/stats";
 
-const stats = [
-  { value: MILES_TRACKED_DISPLAY, label: "miles recorded" },
-  { value: FUEL_STATIONS_DISPLAY, label: "UK fuel stations" },
-  { value: "55p", label: "HMRC rate (2026-27)" },
-];
-
-export default function EarlyAccess() {
+/** `milesDisplay` comes from data/liveStats.ts (live, rounded down). */
+export default function EarlyAccess({ milesDisplay }: { milesDisplay: string }) {
+  const stats = [
+    { value: milesDisplay, label: "miles recorded" },
+    { value: FUEL_STATIONS_DISPLAY, label: "UK fuel stations" },
+    { value: "55p", label: "HMRC rate (2026-27)" },
+  ];
   return (
     <section id="early-access" className="section ea">
       <div className="container ea__wrap">

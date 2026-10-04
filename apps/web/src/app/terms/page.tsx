@@ -46,7 +46,7 @@ export default function TermsOfService() {
             <ul className="legal__toc-list legal__toc-list--grid">
               <li><a href="#acceptance" className="legal__toc-link">Acceptance of Terms</a></li>
               <li><a href="#eligibility" className="legal__toc-link">Eligibility &amp; Age</a></li>
-              <li><a href="#license" className="legal__toc-link">License to Use</a></li>
+              <li><a href="#license" className="legal__toc-link">Licence to Use</a></li>
               <li><a href="#user-responsibilities" className="legal__toc-link">Your Responsibilities</a></li>
               <li><a href="#content" className="legal__toc-link">User Content</a></li>
               <li><a href="#no-warranty" className="legal__toc-link">Disclaimers</a></li>
@@ -110,11 +110,11 @@ export default function TermsOfService() {
               </div>
             </section>
 
-            {/* 3. License to Use */}
+            {/* 3. Licence to Use */}
             <section id="license" className="legal__section">
-              <h2 className="legal__section-title">3. License to Use the Service</h2>
+              <h2 className="legal__section-title">3. Licence to Use the Service</h2>
               <p className="legal__text">
-                We grant you a limited, non-exclusive, non-transferable, revocable license to access and use MileClear for your personal, non-commercial use as a self-employed driver or gig worker.
+                We grant you a limited, non-exclusive, non-transferable, revocable licence to access and use MileClear for your personal, non-commercial use as a self-employed driver or gig worker.
               </p>
 
               <div className="legal__card">
@@ -249,8 +249,8 @@ export default function TermsOfService() {
               </div>
 
               <div className="legal__card">
-                <h3 className="legal__card-title">Our License to Your Data</h3>
-                <p className="legal__card-text">By using MileClear, you grant us a limited license to:</p>
+                <h3 className="legal__card-title">Our Licence to Your Data</h3>
+                <p className="legal__card-text">By using MileClear, you grant us a limited licence to:</p>
                 <ul className="legal__list">
                   <li className="legal__list-item">Store your data on our servers and local devices</li>
                   <li className="legal__list-item">Process data to provide the Service (calculations, exports, analytics)</li>
@@ -730,24 +730,24 @@ export default function TermsOfService() {
                   <li className="legal__list-item">Documentation and guides</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{ marginTop: '1rem' }}>
-                  You have a license to use these only as permitted by these Terms. Do not copy, reproduce, or reverse-engineer.
+                  You have a licence to use these only as permitted by these Terms. Do not copy, reproduce, or reverse-engineer.
                 </p>
               </div>
 
               <div className="legal__card">
-                <h3 className="legal__card-title">Third-Party Licenses</h3>
+                <h3 className="legal__card-title">Third-Party Licences</h3>
                 <p className="legal__card-text">
-                  MileClear uses open-source libraries (React, TypeScript, Prisma, etc.) and proprietary services (Stripe, Apple, Google). We comply with all third-party licenses and respect their intellectual property.
+                  MileClear uses open-source libraries (React, TypeScript, Prisma, etc.) and proprietary services (Stripe, Apple, Google). We comply with all third-party licences and respect their intellectual property.
                 </p>
                 <p className="legal__card-text legal__text--small">
-                  Open-source licenses: Available in the app&apos;s settings or contact support@mileclear.com for details.
+                  Open-source licences: Available in the app&apos;s settings or contact support@mileclear.com for details.
                 </p>
               </div>
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Your IP</h3>
                 <p className="legal__card-text">
-                  You retain ownership of your User Content (trips, notes, etc.). By submitting it to MileClear, you grant us the limited license described in Section 5 (User Content).
+                  You retain ownership of your User Content (trips, notes, etc.). By submitting it to MileClear, you grant us the limited licence described in Section 5 (User Content).
                 </p>
               </div>
 

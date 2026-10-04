@@ -98,7 +98,7 @@ export default function DataExportsSettings() {
         />
         <SettingsRow
           icon="grid-outline"
-          label="Customize dashboard layout"
+          label="Customise dashboard layout"
           hint="Drag to reorder cards, hide what you don't use"
           onPress={() => router.push("/customize-layout")}
         />

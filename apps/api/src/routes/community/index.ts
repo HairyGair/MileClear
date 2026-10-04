@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { availableMonths, isMonthKey, latestCompleteMonth } from "../../services/communityMonthly.js";
 import { getCommunityMonthly } from "../../services/communityMonthlyLoader.js";
+import { COMMUNITY_TOTALS_CACHE_SECONDS, getCommunityTotals } from "../../services/communityTotals.js";
 
 // Community numbers: what the whole fleet did in one UK calendar month.
 // Public (the mileclear.com/community page and the in-app card read it), so
@@ -32,6 +33,19 @@ export async function communityRoutes(app: FastifyInstance) {
       if (!month) return reply.status(404).send({ error: "No community numbers for that month" });
       const data = await getCommunityMonthly(month);
       reply.header("Cache-Control", "public, max-age=3600");
+      return reply.send({ data });
+    },
+  );
+
+  // GET /community/totals
+  // Response { data: CommunityTotals }: all-time miles and drivers active in
+  // the last 30 days, both rounded down. Read by the mileclear.com home page.
+  app.get(
+    "/totals",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (_request, reply) => {
+      const data = await getCommunityTotals();
+      reply.header("Cache-Control", `public, max-age=${COMMUNITY_TOTALS_CACHE_SECONDS}`);
       return reply.send({ data });
     },
   );

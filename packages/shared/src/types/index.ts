@@ -2139,6 +2139,17 @@ export interface CommunityMonthly {
   generatedAt: string;
 }
 
+/** GET /community/totals: fleet-wide figures for the public website.
+ *  Every number is already rounded DOWN by the API, so the site can quote it
+ *  with a "+" and never overstate. */
+export interface CommunityTotals {
+  /** Miles in real (non-phantom, not double-counted) trips, all time, rounded down. */
+  milesAllTime: number;
+  /** Drivers with at least one real trip started in the last 30 days, rounded down. */
+  activeDrivers30d: number;
+  generatedAt: string;
+}
+
 export interface CommunityPostVariant {
   key: string;
   label: string;

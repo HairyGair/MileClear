@@ -2401,7 +2401,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <ul>
 <li><strong>Leaving a saved location is now a high-confidence trip start.</strong> If you save your home, work, or a regular depot in MileClear, the app starts recording the moment you cross the geofence boundary. No more waiting for a second confirmation.</li>
-<li><strong>A single fast reading is enough.</strong> If the GPS reports 25 mph or faster with decent accuracy on one reading, we skip the two-burst gate entirely and start recording immediately. Nothing fakes highway speeds.</li>
+<li><strong>A single fast reading is enough.</strong> If the GPS reports 25 mph or faster with decent accuracy on one reading, we skip the two-burst gate entirely and start recording immediately. Nothing fakes motorway speeds.</li>
 <li><strong>Cold-start GPS is trusted sooner.</strong> When you pull out of a garage or a shaded driveway, your first location fix might have 60-75 metres of accuracy while the chip is still settling. Previously we ignored those readings. Now we trust them for speed detection purposes.</li>
 </ul>
 

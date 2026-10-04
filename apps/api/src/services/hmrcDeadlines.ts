@@ -39,7 +39,7 @@ export const HMRC_DEADLINES: HmrcDeadlineRule[] = [
     day: 31,
     label: "1st Payment on Account",
     what:
-      "If last year's bill was over £1,000, the first prepayment toward next year's tax is due alongside the SA balancing payment.",
+      "If last year's bill was over £1,000, the first prepayment towards next year's tax is due alongside the SA balancing payment.",
   },
   {
     id: "tax-year-end-apr5",
@@ -63,7 +63,7 @@ export const HMRC_DEADLINES: HmrcDeadlineRule[] = [
     day: 31,
     label: "2nd Payment on Account",
     what:
-      "The second prepayment toward your current-year tax bill, if you have payments on account active.",
+      "The second prepayment towards your current-year tax bill, if you have payments on account active.",
   },
   {
     id: "sa-register-oct5",

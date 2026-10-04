@@ -305,7 +305,7 @@ export const SA103_GUIDANCE: Sa103Guidance = {
     "tax year ends (e.g. 31 October 2026 for the 2025-26 year). Online returns via " +
     "HMRC's website or commercial software must be filed by 31 January (e.g. 31 " +
     "January 2027 for 2025-26). Any tax owed is also due by 31 January. Payments on " +
-    "account (advance payments toward the next year's bill) may be due on 31 January " +
+    "account (advance payments towards the next year's bill) may be due on 31 January " +
     "and 31 July if your tax bill exceeds a certain threshold.",
 
   disclaimer:

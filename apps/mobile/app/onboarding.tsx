@@ -477,7 +477,7 @@ export default function OnboardingScreen() {
               Track every mile.{"\n"}Claim what you're owed.
             </Text>
             <Text style={s.welcomeSubtitle}>
-              GPS trip tracking, automatic HMRC deductions, and a personal driving journal — all in one app.
+              GPS trip tracking, automatic HMRC deductions, and a personal driving journal - all in one app.
             </Text>
 
             <Text style={s.sectionLabel}>How will you use MileClear?</Text>
@@ -745,7 +745,7 @@ export default function OnboardingScreen() {
 
             <Text style={s.stepHeading}>Never miss a mile</Text>
             <Text style={s.stepSubtitle}>
-              MileClear logs every business mile automatically — even with your screen off. A forgotten 20-mile trip is about £11 you can&apos;t claim back. &ldquo;Always&rdquo; location means you never miss one.
+              MileClear logs every business mile automatically - even with your screen off. A forgotten 20-mile trip is about £11 you can&apos;t claim back. &ldquo;Always&rdquo; location means you never miss one.
             </Text>
 
             {/* Explanation cards */}
@@ -774,7 +774,7 @@ export default function OnboardingScreen() {
                 <View style={s.permCardBody}>
                   <Text style={s.permCardTitle}>Always (recommended)</Text>
                   <Text style={s.permCardText}>
-                    Records trips with the app closed — so every claimable mile is captured, even the ones you&apos;d forget.
+                    Records trips with the app closed - so every claimable mile is captured, even the ones you&apos;d forget.
                   </Text>
                 </View>
               </View>
@@ -783,7 +783,7 @@ export default function OnboardingScreen() {
             {locationStatus === "always" && (
               <View style={s.grantedBanner}>
                 <Ionicons name="checkmark-circle" size={20} color={SUCCESS} />
-                <Text style={s.grantedText}>Always location on — auto-detection is live</Text>
+                <Text style={s.grantedText}>Always location on - auto-detection is live</Text>
               </View>
             )}
 
@@ -798,7 +798,7 @@ export default function OnboardingScreen() {
                   <Text style={[s.deniedTitle, { color: "#f59e0b" }]}>One more tap for auto-tracking</Text>
                 </View>
                 <Text style={s.deniedBody}>
-                  You allowed location <Text style={{ fontFamily: fonts.semibold }}>{Platform.OS === "ios" ? "While Using the App" : "only while using the app"}</Text>. Automatic trip detection needs <Text style={{ fontFamily: fonts.semibold }}>{Platform.OS === "ios" ? "Always" : "Allow all the time"}</Text> — otherwise trips only record while MileClear is open on screen.
+                  You allowed location <Text style={{ fontFamily: fonts.semibold }}>{Platform.OS === "ios" ? "While Using the App" : "only while using the app"}</Text>. Automatic trip detection needs <Text style={{ fontFamily: fonts.semibold }}>{Platform.OS === "ios" ? "Always" : "Allow all the time"}</Text> - otherwise trips only record while MileClear is open on screen.
                 </Text>
                 <Text style={s.deniedHelp}>
                   {Platform.OS === "ios"
@@ -816,10 +816,10 @@ export default function OnboardingScreen() {
                 </TouchableOpacity>
                 {/* Permission-after-value: don't frame While-Using as failure.
                     ~47% of users stall here when pushed; a working first trip
-                    converts better than a settings lecture — the post-capture
+                    converts better than a settings lecture - the post-capture
                     prompt (trip-form) makes the Always offer at that moment. */}
                 <Text style={[s.deniedHelp, { marginTop: 10 }]}>
-                  Or decide later — you're still covered: open MileClear when you
+                  Or decide later - you're still covered: open MileClear when you
                   drive and the trip records. After your first captured drive
                   we'll offer to make it automatic.
                 </Text>
@@ -875,7 +875,7 @@ export default function OnboardingScreen() {
               )}
 
               {/* Forward only AFTER the OS prompt has been answered. When idle we
-                  deliberately offer no in-step bypass — the old "Continue" +
+                  deliberately offer no in-step bypass - the old "Continue" +
                   "Skip for now" buttons let a new user pass with permission still
                   'undetermined' (never even asked), landing in an app that can
                   never record a trip (Adnan K, 1 June). The OS dialog itself is
@@ -940,7 +940,7 @@ export default function OnboardingScreen() {
                 <View style={s.permCardBody}>
                   <Text style={s.permCardTitle}>Weekly summary</Text>
                   <Text style={s.permCardText}>
-                    Your miles, deductions, and progress — delivered every Sunday.
+                    Your miles, deductions, and progress - delivered every Sunday.
                   </Text>
                 </View>
               </View>
@@ -994,7 +994,7 @@ export default function OnboardingScreen() {
               <View style={[s.deniedBanner, { marginTop: 16 }]}>
                 <Ionicons name="warning-outline" size={20} color="#f87171" />
                 <Text style={s.deniedText}>
-                  Notifications denied — you can enable them later in Settings.
+                  Notifications denied - you can enable them later in Settings.
                 </Text>
               </View>
             )}
@@ -1135,7 +1135,7 @@ export default function OnboardingScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.nextStepTitle}>Tap to classify</Text>
                   <Text style={s.nextStepBody}>
-                    Mark each trip business or personal in one tap. Only business miles count toward your HMRC deduction.
+                    Mark each trip business or personal in one tap. Only business miles count towards your HMRC deduction.
                   </Text>
                 </View>
               </View>

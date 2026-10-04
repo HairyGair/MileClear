@@ -39,7 +39,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "exp-parking",
     title: "💡 Parking + tolls are deductible",
     body:
-      "Every paid parking session and toll on a business trip is an allowable expense. Save the receipt — even a photo is fine for HMRC.",
+      "Every paid parking session and toll on a business trip is an allowable expense. Save the receipt - even a photo is fine for HMRC.",
     category: "expenses",
   },
   {
@@ -60,14 +60,14 @@ export const TAX_TIPS: TaxTip[] = [
     id: "exp-vehicle-cleaning",
     title: "💡 Vehicle cleaning is deductible (when it's a business cost)",
     body:
-      "If you clean your car/van for customers (rideshare standards, food-delivery hygiene), the cost is allowable. Personal monthly washes aren't — but the 5x a week valets for Uber Premium absolutely are.",
+      "If you clean your car/van for customers (rideshare standards, food-delivery hygiene), the cost is allowable. Personal monthly washes aren't - but the 5x a week valets for Uber Premium absolutely are.",
     category: "expenses",
   },
   {
     id: "exp-trade-subs",
     title: "💡 Trade subscriptions are deductible",
     body:
-      "Driver Net, Professional Drivers GB membership, dashcam cloud plans — anything you pay to do your work better is an allowable expense.",
+      "Driver Net, Professional Drivers GB membership, dashcam cloud plans - anything you pay to do your work better is an allowable expense.",
     category: "expenses",
   },
   {
@@ -81,33 +81,33 @@ export const TAX_TIPS: TaxTip[] = [
     id: "exp-small-equipment",
     title: "💡 Small equipment (under £200) is straightforward",
     body:
-      "Phone mounts, dashcams, USB chargers, delivery bags — anything under £200 is a normal allowable expense. No depreciation schedule needed.",
+      "Phone mounts, dashcams, USB chargers, delivery bags - anything under £200 is a normal allowable expense. No depreciation schedule needed.",
     category: "expenses",
   },
   {
     id: "exp-software-subs",
     title: "💡 App + software subscriptions count too",
     body:
-      "MileClear Pro, Google Maps Premium, a cloud-storage plan for your receipts — every monthly business subscription is deductible.",
+      "MileClear Pro, Google Maps Premium, a cloud-storage plan for your receipts - every monthly business subscription is deductible.",
     category: "expenses",
   },
   {
     id: "exp-ppe",
     title: "💡 PPE + driver kit is allowable",
     body:
-      "Helmets, hi-vis vests, panniers, thermal gear, gloves — anything specifically for the work counts. Even a winter jacket if it's only worn for delivery shifts.",
+      "Helmets, hi-vis vests, panniers, thermal gear, gloves - anything specifically for the work counts. Even a winter jacket if it's only worn for delivery shifts.",
     category: "expenses",
   },
   {
     id: "exp-stationery",
     title: "💡 Don't forget stationery + admin costs",
     body:
-      "Printer ink for invoices, A4 paper, envelopes, stamps to send things to HMRC — small but they add up. Worth £20-£50 over a year for most drivers.",
+      "Printer ink for invoices, A4 paper, envelopes, stamps to send things to HMRC - small but they add up. Worth £20-£50 over a year for most drivers.",
     category: "expenses",
   },
   {
     id: "exp-roadside-assistance",
-    title: "💡 RAC, AA, Green Flag — business portion is deductible",
+    title: "💡 RAC, AA, Green Flag - business portion is deductible",
     body:
       "If you'd lose work without your vehicle, your breakdown cover is at least partly a business expense. Most drivers claim a high percentage.",
     category: "expenses",
@@ -116,7 +116,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "exp-marketing",
     title: "💡 Marketing + advertising is allowable",
     body:
-      "Vehicle signage, business cards for repeat customers, Facebook ads if you take private hire — all deductible. Even a website domain if you run one.",
+      "Vehicle signage, business cards for repeat customers, Facebook ads if you take private hire - all deductible. Even a website domain if you run one.",
     category: "expenses",
   },
   {
@@ -137,7 +137,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "exp-courses",
     title: "💡 Training that's relevant to your work is deductible",
     body:
-      "First aid courses, advanced driving qualifications, food-hygiene certificates for delivery — all allowable. New skills that change your career aren't.",
+      "First aid courses, advanced driving qualifications, food-hygiene certificates for delivery - all allowable. New skills that change your career aren't.",
     category: "expenses",
   },
 
@@ -152,7 +152,7 @@ export const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "deadline-paper-sa-oct31",
-    title: "📅 31 October — paper SA deadline",
+    title: "📅 31 October - paper SA deadline",
     body:
       "Paper Self Assessment returns are due by 31 October. Filing online buys you 3 more months (until 31 January). Almost no driver should still be on paper.",
     category: "deadlines",
@@ -176,7 +176,7 @@ export const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "deadline-jul31-payment",
-    title: "🚨 31 July — second payment on account",
+    title: "🚨 31 July - second payment on account",
     body:
       "If your last tax bill was over £1,000 you owe a second payment on account by 31 July. Catches a lot of drivers out. Check your HMRC account now.",
     category: "deadlines",
@@ -184,7 +184,7 @@ export const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "deadline-register-oct5",
-    title: "📋 5 October — register for Self Assessment",
+    title: "📋 5 October - register for Self Assessment",
     body:
       "Started self-employed work in the current tax year? Register with HMRC by 5 October of the following tax year. Miss it and you're looking at penalties before you've even filed.",
     category: "deadlines",
@@ -192,7 +192,7 @@ export const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "deadline-mtd-itsa",
-    title: "📅 MTD ITSA is coming — April 2026",
+    title: "📅 MTD ITSA is coming - April 2026",
     body:
       "From April 2026, sole traders with income over £50k must file quarterly digital updates to HMRC. Over £30k from April 2027. MileClear's the UK's first driver-first MTD-ready tracker.",
     category: "deadlines",
@@ -203,19 +203,19 @@ export const TAX_TIPS: TaxTip[] = [
     id: "sa-utr",
     title: "🆔 What's a UTR?",
     body:
-      "Your Unique Tax Reference is a 10-digit number HMRC issues when you register. You'll need it for every tax return you ever file. Register at gov.uk if you don't have one — takes a couple of weeks to arrive in the post.",
+      "Your Unique Tax Reference is a 10-digit number HMRC issues when you register. You'll need it for every tax return you ever file. Register at gov.uk if you don't have one - takes a couple of weeks to arrive in the post.",
     category: "self-assessment",
   },
   {
     id: "sa-id-verify",
     title: "🔐 Verify your identity for HMRC online",
     body:
-      "First-time filing online? You'll need your passport or driving licence + a payslip OR P60 OR Self Assessment account to verify identity at gov.uk/personal-tax-account. Skip the Government Gateway dance if you can — Verify is faster.",
+      "First-time filing online? You'll need your passport or driving licence + a payslip OR P60 OR Self Assessment account to verify identity at gov.uk/personal-tax-account. Skip the Government Gateway dance if you can - Verify is faster.",
     category: "self-assessment",
   },
   {
     id: "sa-box-9",
-    title: "📝 SA box 9 — your total turnover",
+    title: "📝 SA box 9 - your total turnover",
     body:
       "Box 9 on the short self-employment pages (SA103S) is your gross self-employed income: everything earned BEFORE expenses or deductions. Fares + tips + bonuses + delivery fees. MileClear's earnings total goes here.",
     category: "self-assessment",
@@ -224,26 +224,26 @@ export const TAX_TIPS: TaxTip[] = [
     id: "sa-capital-allowances",
     title: "🚗 Capital allowances vs simplified expenses",
     body:
-      "Once you pick simplified expenses (the AMAP rate — 55p/25p for cars and vans from 2026-27, 45p/25p before) for a vehicle, you can't switch to capital allowances on the same one. Make the decision once, stick with it.",
+      "Once you pick simplified expenses (the AMAP rate - 55p/25p for cars and vans from 2026-27, 45p/25p before) for a vehicle, you can't switch to capital allowances on the same one. Make the decision once, stick with it.",
     category: "self-assessment",
   },
   {
     id: "sa-amap-vs-actual",
-    title: "🚗 AMAP rates vs actual costs — which?",
+    title: "🚗 AMAP rates vs actual costs - which?",
     body:
-      "Cars + vans (2026-27 onwards): 55p per mile for the first 10k, 25p after — up from 45p/25p in earlier years. For most drivers covering 8-15k business miles this is more generous than tracking actual fuel/wear/insurance. Switch only if you have an expensive vehicle and low mileage.",
+      "Cars + vans (2026-27 onwards): 55p per mile for the first 10k, 25p after - up from 45p/25p in earlier years. For most drivers covering 8-15k business miles this is more generous than tracking actual fuel/wear/insurance. Switch only if you have an expensive vehicle and low mileage.",
     category: "self-assessment",
   },
   {
     id: "sa-payment-on-account",
     title: "💸 Payment on account explained",
     body:
-      "Owe HMRC over £1,000? You'll owe two prepayments toward NEXT year's bill, due 31 Jan + 31 Jul. Each is 50% of this year's total. Catches new self-employed drivers by surprise — set the cash aside.",
+      "Owe HMRC over £1,000? You'll owe two prepayments towards NEXT year's bill, due 31 Jan + 31 Jul. Each is 50% of this year's total. Catches new self-employed drivers by surprise - set the cash aside.",
     category: "self-assessment",
   },
   {
     id: "sa-late-penalty",
-    title: "🚨 SA late-filing penalties — they escalate",
+    title: "🚨 SA late-filing penalties - they escalate",
     body:
       "£100 fixed if 1 day late, even if you owe nothing. £10/day after 3 months (£900 max). £300 OR 5% of tax owed at 6 months, and again at 12 months. File a placeholder return rather than miss the date.",
     category: "self-assessment",
@@ -275,7 +275,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-amap-covers-everything",
     title: "💡 AMAP covers EVERYTHING vehicle-related",
     body:
-      "When you claim the AMAP rate (55p/mile in 2026-27, was 45p before), that includes fuel + insurance + servicing + tyres + depreciation + MOT. You can't claim those separately on top. Parking + tolls though — those are extra.",
+      "When you claim the AMAP rate (55p/mile in 2026-27, was 45p before), that includes fuel + insurance + servicing + tyres + depreciation + MOT. You can't claim those separately on top. Parking + tolls though - those are extra.",
     category: "did-you-know",
   },
   {
@@ -289,7 +289,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-parking-fines",
     title: "🚫 Parking tickets aren't deductible",
     body:
-      "HMRC won't let you claim Penalty Charge Notices, speeding fines, or red-route tickets — even if you got them during a job. The legal logic: HMRC won't reward law-breaking.",
+      "HMRC won't let you claim Penalty Charge Notices, speeding fines, or red-route tickets - even if you got them during a job. The legal logic: HMRC won't reward law-breaking.",
     category: "did-you-know",
   },
   {
@@ -303,12 +303,12 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-trading-allowance",
     title: "💡 First £1,000 of self-employed income is tax-free",
     body:
-      "The Trading Allowance lets you earn £1,000 of self-employed income before needing to register or file. Great for side hustles. Stops being useful when you go full-time — you can't combine it with expense claims.",
+      "The Trading Allowance lets you earn £1,000 of self-employed income before needing to register or file. Great for side hustles. Stops being useful when you go full-time - you can't combine it with expense claims.",
     category: "did-you-know",
   },
   {
     id: "dyk-marriage-allowance",
-    title: "💍 Marriage Allowance — transfer £1,260",
+    title: "💍 Marriage Allowance - transfer £1,260",
     body:
       "Married or in a civil partnership? The lower-earning partner can transfer £1,260 of unused Personal Allowance to the higher earner. Saves up to £252/year. Apply once at gov.uk/marriage-allowance.",
     category: "did-you-know",
@@ -324,7 +324,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-class2-voluntary",
     title: "💡 Class 2 NI is voluntary below £6,725 profit",
     body:
-      "If you earn less than the Small Profits Threshold, Class 2 NI is voluntary. Pay anyway: it's £180/year and counts toward state pension + maternity allowance. Big bang for tiny buck.",
+      "If you earn less than the Small Profits Threshold, Class 2 NI is voluntary. Pay anyway: it's £180/year and counts towards state pension + maternity allowance. Big bang for tiny buck.",
     category: "did-you-know",
   },
   {
@@ -343,9 +343,9 @@ export const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "dyk-cash-vs-accruals",
-    title: "💡 Cash basis vs accruals — choose your basis",
+    title: "💡 Cash basis vs accruals - choose your basis",
     body:
-      "Cash basis (default since 2024) means income counts when paid, expenses when paid. Accruals counts when invoiced. Most drivers should stick with cash basis — invoices that go unpaid don't show as taxable income.",
+      "Cash basis (default since 2024) means income counts when paid, expenses when paid. Accruals counts when invoiced. Most drivers should stick with cash basis - invoices that go unpaid don't show as taxable income.",
     category: "did-you-know",
   },
   {
@@ -359,7 +359,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-state-pension-top-up",
     title: "💡 Top up missing NIC years",
     body:
-      "Need a full state pension? You need ~35 qualifying years of NI. Self-employed years can have gaps. Pay voluntary Class 2 NI to fill them — cheap, especially for years before 2025.",
+      "Need a full state pension? You need ~35 qualifying years of NI. Self-employed years can have gaps. Pay voluntary Class 2 NI to fill them - cheap, especially for years before 2025.",
     category: "did-you-know",
   },
   {
@@ -373,7 +373,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "dyk-mileage-records",
     title: "💡 Why HMRC wants per-trip mileage records",
     body:
-      "HMRC requires you to be able to back up every mileage claim. A 12,000-mile entry on your SA needs a log showing the trips — date, route, purpose. MileClear keeps this automatically.",
+      "HMRC requires you to be able to back up every mileage claim. A 12,000-mile entry on your SA needs a log showing the trips - date, route, purpose. MileClear keeps this automatically.",
     category: "did-you-know",
   },
 
@@ -410,7 +410,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mistake-forgetting-payment-on-account",
     title: "⚠️ Forgetting that 31 July payment",
     body:
-      "First-year drivers get the £1,000+ threshold wrong all the time. Your January bill is THIS year's tax PLUS next year's first POA — usually 1.5× what you expected. Set aside enough for both.",
+      "First-year drivers get the £1,000+ threshold wrong all the time. Your January bill is THIS year's tax PLUS next year's first POA - usually 1.5× what you expected. Set aside enough for both.",
     category: "mistakes",
   },
   {
@@ -424,7 +424,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mistake-undeclared-side-income",
     title: "⚠️ Not declaring side gigs",
     body:
-      "HMRC sees data from Uber, Deliveroo, Just Eat, Etsy, eBay, Airbnb — the platforms share it under the OECD's MRD reporting rules. Hiding income from any of them is high-risk. Declare everything.",
+      "HMRC sees data from Uber, Deliveroo, Just Eat, Etsy, eBay, Airbnb - the platforms share it under the OECD's MRD reporting rules. Hiding income from any of them is high-risk. Declare everything.",
     category: "mistakes",
   },
   {
@@ -438,7 +438,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mistake-trying-to-diy",
     title: "⚠️ DIYing past a certain scale",
     body:
-      "Once you're earning £30k+ self-employed, an accountant usually saves more than they cost. Capital allowances, VAT analysis, pension planning, payment-on-account smoothing — they'll catch things you didn't know existed.",
+      "Once you're earning £30k+ self-employed, an accountant usually saves more than they cost. Capital allowances, VAT analysis, pension planning, payment-on-account smoothing - they'll catch things you didn't know existed.",
     category: "mistakes",
   },
   {
@@ -461,7 +461,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mc-saved-locations",
     title: "🏠 Saved locations = auto-classify",
     body:
-      "Pin your Home, Work, and Depot in Settings → Tracking & Locations. MileClear classifies trips between them automatically — no more manual tagging.",
+      "Pin your Home, Work, and Depot in Settings → Tracking & Locations. MileClear classifies trips between them automatically - no more manual tagging.",
     category: "mileclear",
   },
   {
@@ -489,7 +489,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mc-open-banking",
     title: "🏦 Auto-import earnings via Open Banking",
     body:
-      "Connect your business bank in Settings → Earnings → Open Banking. MileClear auto-imports your gig payments — no manual entry, no CSV juggling. Pro feature.",
+      "Connect your business bank in Settings → Earnings → Open Banking. MileClear auto-imports your gig payments - no manual entry, no CSV juggling. Pro feature.",
     category: "mileclear",
   },
   {
