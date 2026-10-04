@@ -1,49 +1,45 @@
 /**
- * Support inbox (Oct 2026): reads mail that the cPanel pipe forwarder drops
- * into SUPPORT_SPOOL_DIR every 30 seconds, and clears raw copies older than
- * 30 days out of done/ (the mailbox keeps the original). Off unless
- * SUPPORT_SPOOL_DIR is set.
+ * Support inbox (Oct 2026): every minute, collects new mail from the
+ * collection mailbox that support@ forwards to. Off unless SUPPORT_POP3_USER
+ * and SUPPORT_POP3_PASS are set. Runs only in the first pm2 instance so two
+ * processes never share a POP3 mailbox (POP3 locks it anyway).
  */
 
-import { promises as fs } from "node:fs";
-import path from "node:path";
-import { ingestSupportSpool } from "../services/supportInbox.js";
+import { collectSupportMail } from "../services/supportInbox.js";
 
-const EVERY_MS = 30_000;
-const KEEP_DONE_MS = 30 * 86_400_000;
-
-async function pruneDone(dir: string): Promise<void> {
-  const done = path.join(dir, "done");
-  const names = await fs.readdir(done).catch(() => [] as string[]);
-  const cutoff = Date.now() - KEEP_DONE_MS;
-  for (const n of names) {
-    const f = path.join(done, n);
-    const st = await fs.stat(f).catch(() => null);
-    if (st && st.mtimeMs < cutoff) await fs.unlink(f).catch(() => {});
-  }
-}
+const EVERY_MS = 60_000;
 
 export function startSupportInboxJobs(): void {
-  const dir = process.env.SUPPORT_SPOOL_DIR;
-  if (!dir) return;
+  const user = process.env.SUPPORT_POP3_USER;
+  const pass = process.env.SUPPORT_POP3_PASS;
+  if (!user || !pass) return;
+  if (process.env.NODE_APP_INSTANCE && process.env.NODE_APP_INSTANCE !== "0") return;
+
+  const opts = {
+    host: process.env.SUPPORT_POP3_HOST || "127.0.0.1",
+    port: Number(process.env.SUPPORT_POP3_PORT || 995),
+    servername: process.env.SUPPORT_POP3_SERVERNAME || "mail.mileclear.com",
+    user,
+    pass,
+  };
   let running = false;
-  let lastPrune = 0;
+  let lastErrorAt = 0;
   const tick = async () => {
     if (running) return;
     running = true;
     try {
-      const r = await ingestSupportSpool(dir);
-      if (r.stored || r.failed) console.log("[support-inbox] stored %d, failed %d", r.stored, r.failed);
-      if (Date.now() - lastPrune > 86_400_000) {
-        lastPrune = Date.now();
-        await pruneDone(dir);
-      }
+      const r = await collectSupportMail(opts);
+      if (r.stored || r.failed) console.log("[support-inbox] stored %d, duplicate %d, failed %d", r.stored, r.duplicate, r.failed);
     } catch (err) {
-      console.error("[support-inbox] tick failed:", err instanceof Error ? err.message : err);
+      // Log at most once an hour so a wrong password can't flood the logs.
+      if (Date.now() - lastErrorAt > 3_600_000) {
+        lastErrorAt = Date.now();
+        console.error("[support-inbox] collect failed:", err instanceof Error ? err.message : err);
+      }
     } finally {
       running = false;
     }
   };
-  setTimeout(tick, 5_000);
+  setTimeout(tick, 10_000);
   setInterval(tick, EVERY_MS);
 }

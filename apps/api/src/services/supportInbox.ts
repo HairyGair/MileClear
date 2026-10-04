@@ -2,21 +2,19 @@
  * Support inbox (Oct 2026): every email to support@mileclear.com, readable
  * and answerable from the admin.
  *
- * Delivery: a cPanel forwarder pipes each message to
- * ~/bin/support-inbox-pipe.sh, which only writes the raw message into
- * SUPPORT_SPOOL_DIR/new (and always exits 0, so a fault here can never bounce
- * mail back to the sender). The mailbox and the forward to gair@ carry on as
- * before. `ingestSupportSpool` claims each file by renaming it (atomic, so
- * two API processes can't both take it), parses it and stores it.
+ * Delivery: support@ forwards a copy to a collection mailbox
+ * (SUPPORT_POP3_USER), which the API empties over POP3 on localhost. The
+ * support@ mailbox and the forward to gair@ carry on as before. (A cPanel
+ * pipe forwarder was tried first, 4 Oct 2026: this host drops pipe
+ * deliveries silently, so don't go back to it.)
  *
  * Attachments are listed by name and size only; their content stays in the
  * mailbox.
  */
 
-import { promises as fs } from "node:fs";
-import path from "node:path";
 import PostalMime from "postal-mime";
 import { prisma } from "../lib/prisma.js";
+import { Pop3Client, type Pop3Options } from "./pop3.js";
 
 export const MAX_BODY_CHARS = 200_000;
 /** Our own sending addresses: mail from these is a relay (contact form,
@@ -167,39 +165,44 @@ export async function storeSupportEmail(p: ParsedSupportEmail): Promise<"stored"
   return "stored";
 }
 
-/** Read every waiting message in the spool. Safe to run from more than one
- *  process: a file is claimed by renaming it out of new/. */
-export async function ingestSupportSpool(dir: string): Promise<{ stored: number; duplicate: number; failed: number }> {
+/** Collect everything waiting in the collection mailbox (a copy of every
+ *  email to support@), store it, and delete it from that mailbox only once
+ *  stored. The support@ mailbox and the gair@ copy are untouched. A message
+ *  that cannot be parsed is stored as a stub with its raw start so it is
+ *  never silently lost, then deleted. */
+export async function collectSupportMail(opts: Pop3Options, max = 50): Promise<{ stored: number; duplicate: number; failed: number }> {
   const out = { stored: 0, duplicate: 0, failed: 0 };
-  const newDir = path.join(dir, "new");
-  const workDir = path.join(dir, "work");
-  const doneDir = path.join(dir, "done");
-  const failedDir = path.join(dir, "failed");
-  await Promise.all([workDir, doneDir, failedDir].map((d) => fs.mkdir(d, { recursive: true })));
-
-  let names: string[];
+  const client = new Pop3Client(opts);
   try {
-    names = (await fs.readdir(newDir)).filter((n) => !n.startsWith(".")).sort();
-  } catch {
-    return out;
-  }
-  for (const name of names.slice(0, 50)) {
-    const claimed = path.join(workDir, name);
-    try {
-      await fs.rename(path.join(newDir, name), claimed);
-    } catch {
-      continue; // another process took it
+    await client.connect();
+    const waiting = (await client.list()).slice(0, max);
+    for (const { n } of waiting) {
+      const raw = await client.retrieve(n);
+      try {
+        out[await storeSupportEmail(await parseSupportEmail(raw))]++;
+      } catch (err) {
+        out.failed++;
+        console.error("[support-inbox] could not parse message %d:", n, err instanceof Error ? err.message : err);
+        await storeSupportEmail({
+          messageId: `unparsed-${Date.now()}-${n}`,
+          inReplyTo: null,
+          references: [],
+          fromEmail: "unknown",
+          fromName: null,
+          toEmail: null,
+          subject: "(could not read this email; see the support@ mailbox)",
+          textBody: raw.subarray(0, 4000).toString("utf8"),
+          attachments: [],
+          isSpam: false,
+          receivedAt: new Date(),
+        });
+      }
+      await client.delete(n);
     }
-    try {
-      const raw = await fs.readFile(claimed);
-      const result = await storeSupportEmail(await parseSupportEmail(raw));
-      out[result]++;
-      await fs.rename(claimed, path.join(doneDir, name));
-    } catch (err) {
-      out.failed++;
-      console.error("[support-inbox] could not store %s:", name, err instanceof Error ? err.message : err);
-      await fs.rename(claimed, path.join(failedDir, name)).catch(() => {});
-    }
+    await client.quit();
+  } catch (err) {
+    client.destroy(); // no QUIT, so nothing is deleted from a broken session
+    throw err;
   }
   return out;
 }

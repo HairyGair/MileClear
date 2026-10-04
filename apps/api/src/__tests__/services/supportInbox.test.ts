@@ -94,3 +94,11 @@ describe("normaliseSubject / htmlToText", () => {
     expect(htmlToText("<style>x{}</style><script>bad()</script><b>ok</b>")).toBe("ok");
   });
 });
+
+import { unstuff } from "../../services/pop3.js";
+
+describe("POP3 unstuff", () => {
+  it("turns dot-stuffed lines back into single dots", () => {
+    expect(unstuff(Buffer.from("..hidden\r\nline\r\n...two\r\n")).toString()).toBe(".hidden\r\nline\r\n..two\r\n");
+  });
+});
