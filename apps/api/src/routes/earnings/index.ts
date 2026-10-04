@@ -102,6 +102,77 @@ export async function earningRoutes(app: FastifyInstance) {
     return reply.status(201).send({ data: earning });
   });
 
+  // Snap your statement (Pro). The app reads a screenshot of a platform's
+  // earnings summary on the device, the driver confirms the figures, and this
+  // saves them. Duplicates are answered with 200 + `duplicate`, not an error:
+  //   exact   - the same externalId (platform + period + amount) is saved
+  //             already; never saved twice (the unique key would refuse it).
+  //   similar - an earning for the same platform, period and amount exists
+  //             from another source (typed in, CSV, bank). Saved only when
+  //             the driver says so (`force: true`).
+  app.post("/statement", { preHandler: premiumMiddleware }, async (request, reply) => {
+    const schema = createEarningSchema.extend({
+      externalId: z.string().min(1).max(255),
+      notes: z.string().max(500).optional(),
+      force: z.boolean().optional(),
+    });
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const { platform, amountPence, periodStart, periodEnd, projectLabel, externalId, notes, force } =
+      parsed.data;
+    const userId = request.userId!;
+
+    if (periodEnd < periodStart) {
+      return reply.status(400).send({ error: "Period end must be on or after period start" });
+    }
+
+    const exact = await prisma.earning.findUnique({
+      where: { userId_externalId: { userId, externalId } },
+    });
+    if (exact) {
+      return reply.send({ data: null, duplicate: { kind: "exact", earning: exact } });
+    }
+
+    if (!force) {
+      const similar = await prisma.earning.findFirst({
+        where: { userId, platform, amountPence, periodStart, periodEnd },
+      });
+      if (similar) {
+        return reply.send({ data: null, duplicate: { kind: "similar", earning: similar } });
+      }
+    }
+
+    try {
+      const earning = await prisma.earning.create({
+        data: {
+          userId,
+          platform,
+          amountPence,
+          periodStart,
+          periodEnd,
+          source: "ocr",
+          externalId,
+          notes: notes ?? null,
+          projectLabel: projectLabel ?? null,
+        },
+      });
+      logEvent("earnings.created", userId, { platform, amountPence, source: "ocr", via: "snap_statement" });
+      return reply.status(201).send({ data: earning });
+    } catch (err: any) {
+      // Two taps racing past the check above.
+      if (err?.code === "P2002") {
+        const existing = await prisma.earning.findUnique({
+          where: { userId_externalId: { userId, externalId } },
+        });
+        return reply.send({ data: null, duplicate: { kind: "exact", earning: existing } });
+      }
+      throw err;
+    }
+  });
+
   // List earnings with pagination
   app.get("/", async (request, reply) => {
     const parsed = listEarningsQuery.safeParse(request.query);

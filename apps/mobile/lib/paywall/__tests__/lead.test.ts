@@ -21,6 +21,7 @@ const LEAD_SOURCES = [
   "invoice_chase",
   "open_banking",
   "csv_import",
+  "snap_statement",
   "vehicle_limit",
   "saved_locations_suggest",
   "Driving Analytics",
@@ -73,6 +74,7 @@ describe("paywallLeadFor", () => {
   it("covers the new upgrade-path sources", () => {
     expect(paywallLeadFor("open_banking")?.highlightFeature).toBe("open_banking");
     expect(paywallLeadFor("csv_import")?.highlightFeature).toBe("csv_import");
+    expect(paywallLeadFor("snap_statement")?.highlightFeature).toBe("snap_statement");
     expect(paywallLeadFor("vehicle_limit")?.highlightFeature).toBe("vehicles");
   });
 

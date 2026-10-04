@@ -54,10 +54,12 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_locations: { key: "menu_locations", label: "Saved Locations", route: "/saved-locations", icon: "location-outline" },
   menu_fuel: { key: "menu_fuel", label: "Fuel", route: "/(tabs)/fuel", icon: "water-outline", replace: true },
   menu_tax: { key: "menu_tax", label: "Self Assessment", route: "/self-assessment", icon: "calculator-outline" },
+  menu_tax_planner: { key: "menu_tax_planner", label: "Tax Payment Plan", route: "/tax-planner", icon: "calendar-outline" },
   menu_reconciliation: { key: "menu_reconciliation", label: "Reconciliation", route: "/hmrc-reconciliation", icon: "git-compare-outline" },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
   menu_accountant: { key: "menu_accountant", label: "Accountant", route: "/accountant", icon: "people-outline", badge: "PRO" },
   menu_work_tax: { key: "menu_work_tax", label: "Tax Settings", route: "/settings/work-tax", icon: "briefcase-outline" },
+  menu_mileage_relief: { key: "menu_mileage_relief", label: "Mileage Relief", route: "/mileage-relief", icon: "trending-down-outline" },
   menu_earnings: { key: "menu_earnings", label: "Earnings", route: "/(tabs)/earnings", icon: "cash-outline", replace: true },
   menu_expenses: { key: "menu_expenses", label: "Expenses", route: "/expenses", icon: "receipt-outline" },
   menu_invoices: { key: "menu_invoices", label: "Invoices", route: "/invoices", icon: "document-text-outline" },
@@ -90,11 +92,13 @@ const MENU_ITEMS: Record<string, MenuItem> = {
 // /(tabs)/profile and Shifts had no screen at all - shifts could only be
 // started and ended inline on the dashboard.
 /** Menu entries that only make sense for a gig worker, hidden in company mode. */
-const GIG_ONLY_MENU_KEYS = new Set(["menu_earnings", "menu_bank", "menu_inbox", "menu_invoices"]);
+const GIG_ONLY_MENU_KEYS = new Set(["menu_earnings", "menu_bank", "menu_inbox", "menu_invoices", "menu_tax_planner"]);
+/** Mileage Allowance Relief is for employees driving their own vehicle, so only employee/both see it. */
+const EMPLOYEE_ONLY_MENU_KEYS = new Set(["menu_mileage_relief"]);
 
 const GROUPS = [
   { id: "track", label: "TRACKING", keys: ["menu_dashboard", "menu_trips", "menu_vehicles", "menu_shifts", "menu_locations", "menu_fuel"] },
-  { id: "tax", label: "TAX", keys: ["menu_tax", "menu_reconciliation", "menu_exports", "menu_accountant", "menu_work_tax"] },
+  { id: "tax", label: "TAX", keys: ["menu_tax", "menu_tax_planner", "menu_reconciliation", "menu_exports", "menu_accountant", "menu_work_tax", "menu_mileage_relief"] },
   { id: "insight", label: "INSIGHTS", keys: ["menu_insights", "menu_analytics", "menu_achievements"] },
   { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_bank", "menu_inbox"] },
   // menu_invoices demoted here from MONEY: 5 of 1,093 users have ever used
@@ -261,6 +265,7 @@ export default function AvatarMenuButton() {
                     // employer has no gig income to log, so the Earnings
                     // shortcut is noise on their menu.
                     .filter((k) => !(isCompanyDriver && GIG_ONLY_MENU_KEYS.has(k)))
+                    .filter((k) => !EMPLOYEE_ONLY_MENU_KEYS.has(k) || user?.workType === "employee" || user?.workType === "both")
                     .sort((a, b) => {
                       const ai = menuLayout.visibleKeys.indexOf(a);
                       const bi = menuLayout.visibleKeys.indexOf(b);

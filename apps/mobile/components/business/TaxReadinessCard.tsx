@@ -285,6 +285,19 @@ export function TaxReadinessCard() {
         <Ionicons name="chevron-forward" size={15} color="#0b0f1a" />
       </TouchableOpacity>
 
+      {/* Tax bill planner: when the money is actually due (31 Jan / 31 Jul)
+          and a weekly figure to cover it. */}
+      <TouchableOpacity
+        onPress={() => router.navigate("/tax-planner" as never)}
+        style={s.planLink}
+        accessibilityRole="button"
+        accessibilityLabel="See your tax payment plan"
+      >
+        <Ionicons name="calendar-outline" size={14} color={AMBER} />
+        <Text style={s.planLinkText}>See your payment plan</Text>
+        <Ionicons name="chevron-forward" size={14} color={AMBER} />
+      </TouchableOpacity>
+
       {/* First-time guide link - subtle, low-priority entry point */}
       <TouchableOpacity
         onPress={() => router.navigate("/first-tax-return" as never)}
@@ -565,5 +578,21 @@ const s = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
     flex: 1,
+  },
+  planLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.35)",
+  },
+  planLinkText: {
+    color: AMBER,
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

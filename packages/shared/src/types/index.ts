@@ -2159,3 +2159,78 @@ export interface CommunityPostVariant {
 export interface AdminCommunityMonthly extends CommunityMonthly {
   posts: CommunityPostVariant[];
 }
+
+// ── Tax bill planner (4 Oct 2026) ────────────────────────────────────
+// GET /tax-planner: "how much will I have to pay HMRC, and when?" for a
+// self-employed driver. Built by apps/api/src/services/taxPlanner.ts; the
+// rules (with their GOV.UK sources) are in services/taxPlannerMath.ts.
+
+export type TaxPlannerBillSource =
+  | "entered"
+  | "estimate"
+  | "projection"
+  | "not_self_employed"
+  | "assumed_same"
+  | "unknown";
+
+export type TaxPlannerNoPoaReason = "under_threshold" | "mostly_deducted_at_source" | "no_bill";
+
+export interface TaxPlannerPart {
+  kind: "balancing" | "poa1" | "poa2";
+  /** The tax year the money goes towards. */
+  taxYear: string;
+  /** null = can't be worked out from what's recorded. */
+  amountPence: number | null;
+  noPoaReason?: TaxPlannerNoPoaReason;
+  /** Balancing only: payments on account came to more than the bill. */
+  overpaidPence?: number;
+}
+
+export interface TaxPlannerPayment {
+  /** "2027-01-31" */
+  dueDate: string;
+  daysAway: number;
+  /** null when any part is unknown. */
+  amountPence: number | null;
+  parts: TaxPlannerPart[];
+  /** Whole bill for last year plus half again towards this one (~150%). */
+  firstPaymentOnAccount: boolean;
+}
+
+export interface TaxPlannerYear {
+  taxYear: string;
+  billPence: number | null;
+  source: TaxPlannerBillSource;
+  /** Earnings counted for the year (so far, for the current year). */
+  recordedEarningsPence: number;
+  /** Joined MileClear after this tax year began, so the estimate only
+   *  counts part of it. */
+  partialYear: boolean;
+}
+
+export interface TaxPlannerSettings {
+  /** "2026-27", "earlier", or null when the driver hasn't said. */
+  firstSelfEmployedTaxYear: string | null;
+  /** Bills the driver typed in, by tax year, in pence. */
+  bills: Record<string, number>;
+}
+
+export interface TaxPlan {
+  currentTaxYear: string;
+  /** Year before last, last year, this year. */
+  years: TaxPlannerYear[];
+  payments: TaxPlannerPayment[];
+  /** Put this by each week from today to cover the payments listed (up to
+   *  coversTo). null when the next payment can't be worked out. */
+  weeklySetAsidePence: number | null;
+  coversTo: string | null;
+  /** No earnings recorded for the current tax year. */
+  missingCurrentEarnings: boolean;
+  /** The driver hasn't said when they started working for themselves. */
+  startAssumed: boolean;
+  settings: TaxPlannerSettings;
+  /** Tax deadline reminders are on (push preference). */
+  remindersOn: boolean;
+  /** Has said they drive as an employee, or is in Personal mode. */
+  mayNotApply: boolean;
+}

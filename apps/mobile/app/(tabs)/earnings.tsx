@@ -20,6 +20,8 @@ import { Skeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
 import { colors, fonts } from "../../lib/theme";
 import AppHeader from "../../components/AppHeader";
+import { useUser } from "../../lib/user/context";
+import { usePaywall } from "../../components/paywall";
 
 type EarningItem = Earning & { _isLocal?: boolean };
 
@@ -31,7 +33,7 @@ const SOURCE_LABELS: Record<string, string> = {
   manual: "Manual",
   csv: "CSV",
   open_banking: "Open Banking",
-  ocr: "OCR",
+  ocr: "Snapped",
 };
 
 function formatDate(iso: string): string {
@@ -45,6 +47,8 @@ function formatDate(iso: string): string {
 
 export default function EarningsScreen() {
   const router = useRouter();
+  const { user } = useUser();
+  const { showPaywall } = usePaywall();
   const [earnings, setEarnings] = useState<EarningItem[]>([]);
   const [platformFilter, setPlatformFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -278,6 +282,22 @@ export default function EarningsScreen() {
               title="Connect Bank"
               icon="business-outline"
               onPress={() => router.push("/open-banking")}
+            />
+            <Button
+              variant="secondary"
+              title="Snap a statement"
+              icon={user?.isPremium ? "camera-outline" : "lock-closed"}
+              onPress={() =>
+                user?.isPremium
+                  ? router.push("/snap-statement")
+                  : showPaywall("snap_statement")
+              }
+              accessibilityLabel={
+                user?.isPremium
+                  ? "Snap a statement: read your earnings from a screenshot"
+                  : "Snap a statement, a Pro feature"
+              }
+              style={{ marginTop: 10 }}
             />
             <Button
               variant="secondary"

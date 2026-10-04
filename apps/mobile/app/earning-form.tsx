@@ -26,6 +26,9 @@ import { Button } from "../components/Button";
 import { isOcrAvailable } from "../lib/ocr";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { useUser } from "../lib/user/context";
+import { usePaywall } from "../components/paywall";
+import { Ionicons } from "@expo/vector-icons";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -48,6 +51,8 @@ export default function EarningFormScreen() {
     prefillVendor?: string;
   }>();
   const isEditing = !!id;
+  const { user } = useUser();
+  const { showPaywall } = usePaywall();
 
   const [platform, setPlatform] = useState<string>("");
   const [amount, setAmount] = useState(prefillAmount ?? "");
@@ -188,6 +193,33 @@ export default function EarningFormScreen() {
             accessibilityLabel="Scan a receipt to pre-fill this form"
           >
             <Text style={styles.scanButtonText}>Scan Receipt</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Snap a statement (Pro): read a platform's earnings screenshot.
+            Free drivers see it with a lock that opens the paywall. */}
+        {!isEditing && (
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={() =>
+              user?.isPremium
+                ? router.replace("/snap-statement")
+                : showPaywall("snap_statement")
+            }
+            accessibilityRole="button"
+            accessibilityLabel={
+              user?.isPremium
+                ? "Snap a statement: read your earnings from a screenshot"
+                : "Snap a statement, a Pro feature"
+            }
+          >
+            <Ionicons
+              name={user?.isPremium ? "camera-outline" : "lock-closed"}
+              size={15}
+              color={AMBER}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.scanButtonText}>Snap a statement</Text>
           </TouchableOpacity>
         )}
 

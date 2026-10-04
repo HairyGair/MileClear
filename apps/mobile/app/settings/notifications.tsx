@@ -97,6 +97,19 @@ export default function NotificationsSettings() {
         />
       </SettingsGroup>
 
+      {/* Free for everyone (4 Oct 2026): the tax payment reminders from the
+          free tax bill planner go to free drivers too, so they need the off
+          switch. It sat in the Pro-only group before. */}
+      <SettingsGroup title="TAX">
+        <ToggleRow
+          icon="receipt-outline"
+          label="Tax deadline"
+          hint="Tax year end, 31 January and tax payment reminders"
+          value={prefs.taxDeadline}
+          onToggle={(v) => toggle("taxDeadline", v)}
+        />
+      </SettingsGroup>
+
       {isPremium ? (
         <>
           <SettingsGroup title="WEEKLY">
@@ -131,18 +144,11 @@ export default function NotificationsSettings() {
               value={prefs.milestoneAlerts}
               onToggle={(v) => toggle("milestoneAlerts", v)}
             />
-            <ToggleRow
-              icon="receipt-outline"
-              label="Tax deadline"
-              hint="Reminder before 5 April tax year end"
-              value={prefs.taxDeadline}
-              onToggle={(v) => toggle("taxDeadline", v)}
-            />
           </SettingsGroup>
         </>
       ) : (
         <View style={{ marginTop: 16 }}>
-          <PremiumTeaser feature="5 more notification types" compact />
+          <PremiumTeaser feature="4 more notification types" compact />
         </View>
       )}
     </SettingsScreen>

@@ -357,6 +357,7 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_exports", label: "Tax Exports", icon: "download-outline" },
     { key: "menu_accountant", label: "Accountant", icon: "people-outline" },
     { key: "menu_work_tax", label: "Tax Settings", icon: "briefcase-outline" },
+    { key: "menu_mileage_relief", label: "Mileage Relief", icon: "trending-down-outline", insertAfter: "menu_work_tax" },
     { key: "menu_earnings", label: "Earnings", icon: "cash-outline" },
     { key: "menu_expenses", label: "Expenses", icon: "receipt-outline" },
     { key: "menu_bank", label: "Link Bank", icon: "business-outline" },

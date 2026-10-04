@@ -39,6 +39,7 @@ import { runEveningDigestJob, localDayBounds } from "./eveningDigest.js";
 import { inStreakReminderWindow, isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { runClassifyNudgeJob } from "./classifyNudge.js";
 import { runSaCountdownRemindersJob } from "./saCountdownReminders.js";
+import { runTaxPaymentRemindersJob } from "./taxPaymentReminders.js";
 import {
   runUnclassifiedNudgeEmailJob,
   runWeeklyRecapEmailJob,
@@ -1592,6 +1593,9 @@ export function startNotificationJobs(): void {
     // "Ready for 31 January?" pushes: 1 Dec, 2 Jan, 20 Jan, 29 Jan at 18:00
     // UK. Dry run unless SA_COUNTDOWN_PUSH=1.
     void runJob("sa_countdown", runSaCountdownRemindersJob);
+    // Tax bill planner payment reminders: 14 and 3 days before 31 Jan and
+    // 31 Jul at 12:00 UK. Dry run unless TAX_PAYMENT_PUSH=1.
+    void runJob("tax_payment", runTaxPaymentRemindersJob);
   };
 
   setTimeout(() => {

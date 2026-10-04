@@ -710,6 +710,13 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/sa-checklist" as any);
         break;
 
+      case "open_tax_planner":
+        // Tax payment reminders (jobs/taxPaymentReminders.ts, Oct 2026), 14
+        // and 3 days before 31 Jan / 31 Jul. Older bundles fall through to
+        // the dashboard, which has the Tax Readiness card.
+        router.push("/tax-planner" as never);
+        return;
+
       case "open_settings":
         Linking.openSettings();
         return;

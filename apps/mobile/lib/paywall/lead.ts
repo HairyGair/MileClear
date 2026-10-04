@@ -16,6 +16,7 @@ export type PaywallFeatureId =
   | "mileage_exports"
   | "invoices"
   | "csv_import"
+  | "snap_statement"
   | "open_banking"
   | "business_insights"
   | "driving_analytics"
@@ -43,6 +44,7 @@ export const PAYWALL_FEATURES: readonly PaywallFeature[] = [
   { id: "mileage_exports", icon: "download-outline", label: "Mileage Exports", desc: "CSV and PDF mileage logs for your records or accountant" },
   { id: "invoices", icon: "receipt-outline", label: "Unlimited Invoices", desc: "Branded PDFs, email to clients and auto-chase (free plan: 3 a month)" },
   { id: "csv_import", icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
+  { id: "snap_statement", icon: "camera-outline", label: "Snap a Statement", desc: "Read your earnings from a platform screenshot" },
   { id: "open_banking", icon: "card-outline", label: "Open Banking", desc: "Import earnings from your bank" },
   { id: "business_insights", icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L and golden hours" },
   { id: "driving_analytics", icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends and deeper efficiency metrics" },
@@ -168,6 +170,14 @@ export function paywallLeadFor(source: string | null | undefined): PaywallLead |
           "Pro reads the earnings CSV from your Uber, Deliveroo, Amazon Flex or other driver portal and adds every row in one go, skipping any you already have.",
         icon: "cloud-upload-outline",
         highlightFeature: "csv_import",
+      };
+    case "snap_statement":
+      return {
+        headline: "Add a week of earnings from a screenshot",
+        subline:
+          "Pro reads the total and the dates from your Uber, Deliveroo, Just Eat, Amazon Flex or other earnings screen. You check it before it is saved.",
+        icon: "camera-outline",
+        highlightFeature: "snap_statement",
       };
     case "vehicle_limit":
       return {

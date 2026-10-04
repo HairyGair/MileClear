@@ -117,3 +117,30 @@ export function disconnectBankConnection(connectionId: string) {
     { method: "DELETE" }
   );
 }
+
+// ── Snap your statement (Pro) ─────────────────────────────────────────
+
+export interface CreateStatementEarningData extends CreateEarningData {
+  /** From statementExternalId(): platform + period + amount. */
+  externalId: string;
+  notes?: string;
+  /** Save even though a matching earning from another source exists. */
+  force?: boolean;
+}
+
+export interface StatementEarningResponse {
+  /** The saved earning, or null when a duplicate stopped the save. */
+  data: Earning | null;
+  duplicate?: {
+    /** exact: this statement is saved already. similar: a matching earning from another source. */
+    kind: "exact" | "similar";
+    earning: Earning | null;
+  };
+}
+
+export function createStatementEarning(data: CreateStatementEarningData) {
+  return apiRequest<StatementEarningResponse>("/earnings/statement", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}

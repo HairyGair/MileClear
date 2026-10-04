@@ -351,6 +351,14 @@ export default function WorkTaxSettings() {
             helpTopicId="employer-mileage"
           />
         )}
+        {(workType === "employee" || workType === "both") && (
+          <SettingsRow
+            icon="calculator-outline"
+            label="Mileage Allowance Relief"
+            hint="Tax relief when your employer pays less per mile than the approved rates"
+            onPress={() => router.push("/mileage-relief")}
+          />
+        )}
         <SettingsRow
           icon="wallet-outline"
           label="Other annual income"
