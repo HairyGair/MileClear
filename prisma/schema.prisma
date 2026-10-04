@@ -1850,3 +1850,44 @@ model SupportEmail {
   @@index([userId])
   @@map("support_emails")
 }
+
+// Paid ads (4 Oct 2026): Meta (Facebook/Instagram) campaign figures, synced
+// daily from the Marketing API, shown in the admin beside our own link clicks
+// and sign-ups. id is Meta's campaign id. Lifetime figures come from insights
+// with date_preset=maximum; fromSource is the ?from= channel the boosted post
+// links to, set by hand in the admin.
+model AdCampaign {
+  id          String    @id @db.VarChar(64)
+  accountId   String    @db.VarChar(64)
+  accountName String?   @db.VarChar(255)
+  name        String    @db.VarChar(255)
+  status      String?   @db.VarChar(32)
+  objective   String?   @db.VarChar(64)
+  startTime   DateTime?
+  stopTime    DateTime?
+  currency    String    @db.VarChar(8)
+  spendPence  Int       @default(0)
+  impressions Int       @default(0)
+  reach       Int       @default(0)
+  linkClicks  Int       @default(0)
+  fromSource  String?   @db.VarChar(40)
+  syncedAt    DateTime
+  createdAt   DateTime  @default(now())
+
+  @@map("ad_campaigns")
+}
+
+model AdDailyStat {
+  id          String   @id @default(uuid())
+  campaignId  String   @db.VarChar(64)
+  date        String   @db.VarChar(10)
+  spendPence  Int
+  impressions Int
+  reach       Int
+  linkClicks  Int
+  updatedAt   DateTime @updatedAt
+
+  @@unique([campaignId, date])
+  @@index([campaignId])
+  @@map("ad_daily_stats")
+}

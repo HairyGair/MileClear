@@ -23,7 +23,7 @@ function ukDate(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(d);
 }
 
-function sourceOf(metadata: unknown): string {
+export function sourceOf(metadata: unknown): string {
   const f = (metadata as { from?: unknown } | null)?.from;
   return typeof f === "string" && /^[a-z0-9-]{1,32}$/.test(f) ? f : "billboard";
 }

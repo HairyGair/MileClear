@@ -6,6 +6,7 @@
 import type { Analytics } from "@/components/admin/legacy";
 import { AcquisitionPanel } from "@/components/admin/panels/AcquisitionPanel";
 import { QrScansPanel } from "@/components/admin/panels/QrScansPanel";
+import { PaidAdsPanel } from "@/components/admin/panels/PaidAdsPanel";
 import { Grid, KpiCard, LoadState, PageHeader, Panel, ProgressBar, useAdminData } from "@/components/admin/ui";
 
 function ReferralPanel() {
@@ -48,6 +49,7 @@ export default function AdminAcquisitionPage() {
         <ReferralPanel />
       </div>
       <QrScansPanel variant="full" />
+      <PaidAdsPanel />
     </>
   );
 }

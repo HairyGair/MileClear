@@ -43,6 +43,7 @@ import { adminObservabilityRoutes } from "./observability.js";
 import { adminCommunityRoutes } from "./community.js";
 import { adminMilesheetRoutes } from "./milesheet.js";
 import { adminSupportInboxRoutes } from "./supportInbox.js";
+import { adminPaidAdsRoutes } from "./paidAds.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
@@ -236,6 +237,8 @@ export async function adminRoutes(app: FastifyInstance) {
   await app.register(adminMilesheetRoutes);
   // Support inbox: emails to support@ as threads, reply from the admin.
   await app.register(adminSupportInboxRoutes);
+  // Paid ads: Meta campaign figures beside our clicks and sign-ups.
+  await app.register(adminPaidAdsRoutes);
 
   // GET /admin/analytics
   app.get("/analytics", async (_request, reply) => {
