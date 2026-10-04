@@ -82,9 +82,9 @@ describe("paywallLeadFor", () => {
     expect(paywallLeadFor("vehicle_limit")?.highlightFeature).toBe("vehicles");
   });
 
-  it("leads Ask MileClear with its own pitch, without a page 3 entry while it can be dormant", () => {
+  it("leads EmSee with its own pitch, without a page 3 entry while it can be dormant", () => {
     const lead = paywallLeadFor("ask_mileclear");
-    expect(lead?.headline).toBe("Ask about your own figures");
+    expect(lead?.headline).toBe("Ask EmSee about your figures");
     expect(lead?.subline).toContain("recorded in MileClear");
     expect(lead?.highlightFeature).toBeUndefined();
   });

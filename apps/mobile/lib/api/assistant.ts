@@ -3,7 +3,7 @@ import { apiRequest } from "./index";
 import { getDatabase } from "../db/index";
 
 /**
- * Ask MileClear (Pro, Oct 2026): answers questions from the driver's own
+ * EmSee, was Ask MileClear (Pro, Oct 2026): answers questions from the driver's own
  * records. The server is dormant until its Anthropic key is set; while
  * /assistant/status says unavailable, every entry point stays hidden.
  */

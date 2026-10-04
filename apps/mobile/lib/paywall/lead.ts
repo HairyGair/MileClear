@@ -191,13 +191,13 @@ export function paywallLeadFor(source: string | null | undefined): PaywallLead |
         icon: "shield-checkmark-outline",
         highlightFeature: "ticket_defender",
       };
-    // Ask MileClear (Oct 2026). Not on page 3: the feature is dormant until
+    // EmSee, was Ask MileClear (Oct 2026). Not on page 3: the feature is dormant until
     // the server has its key, and page 3 must only list what the app can do.
     case "ask_mileclear":
       return {
-        headline: "Ask about your own figures",
+        headline: "Ask EmSee about your figures",
         subline:
-          "Pro answers questions like \"How much did I make on Uber in September?\" or \"Which week was my best?\" from the trips, earnings, expenses and fuel you have recorded in MileClear.",
+          "EmSee, the MileClear assistant in Pro, answers questions like \"How much did I make on Uber in September?\" or \"Which week was my best?\" from the trips, earnings, expenses and fuel you have recorded in MileClear.",
         icon: "chatbubbles-outline",
       };
     case "vehicle_limit":

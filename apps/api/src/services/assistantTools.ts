@@ -1,5 +1,5 @@
 /**
- * Ask MileClear (Pro, Oct 2026): the server-side tools the model can call.
+ * EmSee (was Ask MileClear; Pro, Oct 2026): the server-side tools the model can call.
  *
  * Every executor takes the driver's id from the authenticated request, never
  * from the model. The input schemas are strict, so a model that tries to pass
@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { messageTheTeam } from "./assistantMessage.js";
 import { lookupExpense } from "./expenseBank.js";
 import { fetchExpenseSummary } from "./export-data.js";
 import { buildTaxSnapshot } from "./taxSnapshot.js";
@@ -766,6 +767,20 @@ export const ASSISTANT_TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "message_the_team",
+    description:
+      "Pass a message from the driver to Anthony and the MileClear team: a suggestion for the app, a problem or bug they have hit, or anything they ask you to pass on. Write it in the driver's own words, with the details they gave. The team replies by email. Only use it when the driver makes a suggestion, reports a problem, or asks you to pass something on.",
+    input_schema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["suggestion", "problem", "other"] },
+        message: { type: "string", description: "What to pass on, 3 to 1500 characters." },
+      },
+      required: ["kind", "message"],
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 export type AssistantToolName = (typeof ASSISTANT_TOOLS)[number]["name"];
@@ -780,6 +795,7 @@ const EXECUTORS: Record<AssistantToolName, Executor> = {
   best_worst_week: (u, i) => bestWorstWeek(u, i),
   tax_year_figures: taxYearFigures,
   can_i_claim: canIClaim,
+  message_the_team: messageTheTeam,
 };
 
 export interface ToolRunResult {

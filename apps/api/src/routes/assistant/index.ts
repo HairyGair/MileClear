@@ -48,7 +48,7 @@ const inFlight = new Set<string>();
 
 async function dormantGuard(request: FastifyRequest, reply: FastifyReply) {
   if (isAssistantAvailable()) return;
-  const err = new ApiError("SERVICE_UNAVAILABLE", "Ask MileClear isn't available yet.", { statusCode: 503, retryable: false });
+  const err = new ApiError("SERVICE_UNAVAILABLE", "EmSee isn't available yet.", { statusCode: 503, retryable: false });
   return reply.status(503).send(err.toBody(request.id));
 }
 
@@ -122,7 +122,7 @@ export async function assistantRoutes(app: FastifyInstance) {
             "SERVICE_UNAVAILABLE",
             err.kind === "timeout"
               ? "That took too long to answer. Please try again."
-              : "Ask MileClear is busy right now. Please try again in a minute.",
+              : "EmSee is busy right now. Please try again in a minute.",
             { statusCode: 503, retryable: true }
           );
           return reply.status(503).send(apiErr.toBody(request.id));

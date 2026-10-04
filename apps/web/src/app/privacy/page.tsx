@@ -486,7 +486,7 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts can include your email address, account ID, display name, subscription status and trip counts. They never include your location data or trip routes. Discord Inc. processes this data on our behalf under its standard data processing terms.</p>
               </div>
 
-              {/* Ask MileClear (Pro, Oct 2026). Anthropic's commercial terms and
+              {/* EmSee, was Ask MileClear (Pro, Oct 2026). Anthropic's commercial terms and
                   data policy, checked 4 Oct 2026:
                   https://www.anthropic.com/legal/commercial-terms
                     "Anthropic may not train models on Customer Content from Services."
@@ -503,9 +503,9 @@ export default function PrivacyPolicy() {
                     SCCs Modules Two/Three and the UK Approved Addendum (Schedule 3).
                   Re-check these pages if Anthropic's terms change. */}
               <div className="legal__card" id="ask-mileclear">
-                <h3 className="legal__card-title">Ask MileClear (Anthropic)</h3>
+                <h3 className="legal__card-title">EmSee, the MileClear assistant (Anthropic)</h3>
                 <p className="legal__card-text">
-                  Ask MileClear is a Pro feature that answers questions about your own records, such as how much you earned on a platform in a month or how many business miles you have driven this tax year. It only runs when you use it: nothing is sent unless you ask a question.
+                  EmSee is the MileClear assistant, a Pro feature that answers questions about your own records, such as how much you earned on a platform in a month or how many business miles you have driven this tax year. It only runs when you use it: nothing is sent unless you ask a question.
                 </p>
                 <p className="legal__card-text legal__text--small">
                   <strong>What we send:</strong> your question, up to six earlier messages from the same conversation, and the summary figures needed to answer it (for example total earnings by platform, miles by month, or expense totals by category, for the dates you asked about). We never send your GPS routes, coordinates, addresses or contact details.
@@ -518,6 +518,9 @@ export default function PrivacyPolicy() {
                 </p>
                 <p className="legal__card-text legal__text--small">
                   <strong>What we keep:</strong> we do not store your questions or the answers. We log that a question was asked, with its size, timing and which kinds of figures were looked up, so we can run the feature and enforce fair-use limits.
+                </p>
+                <p className="legal__card-text legal__text--small">
+                  <strong>Messages you ask it to pass on:</strong> if you ask EmSee to pass a suggestion, problem or message to the MileClear team, that message is emailed to our support inbox with your name and email address so we can reply, and kept with your account like any other support message.
                 </p>
               </div>
 
@@ -867,7 +870,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>Brevo (France):</strong> Email service, GDPR-compliant EU processor</li>
                   <li className="legal__list-item"><strong>Resend (USA):</strong> Primary email service. Subject to DPA and SCCs</li>
                   <li className="legal__list-item"><strong>Discord (USA):</strong> Internal operational alerts. Subject to Discord&apos;s Data Processing Addendum and SCCs</li>
-                  <li className="legal__list-item"><strong>Anthropic (USA):</strong> Ask MileClear answers (Pro, only when you ask a question). Subject to Anthropic&apos;s Data Processing Addendum, which includes SCCs and the UK International Data Transfer Addendum</li>
+                  <li className="legal__list-item"><strong>Anthropic (USA):</strong> EmSee answers (Pro, only when you ask a question). Subject to Anthropic&apos;s Data Processing Addendum, which includes SCCs and the UK International Data Transfer Addendum</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   All international transfers comply with UK GDPR Article 46 (SCCs) and Data Protection Act 2018 Chapter 5. We have reviewed these services&apos; security certifications and compliance frameworks.

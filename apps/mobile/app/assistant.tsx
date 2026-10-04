@@ -1,5 +1,5 @@
 /**
- * Ask MileClear (Pro, Oct 2026).
+ * EmSee, the MileClear assistant (was Ask MileClear; Pro, Oct 2026).
  *
  * A driver asks a question about their own records ("How much did I make on
  * Uber in September?") and gets a short answer with the period it covers.
@@ -141,7 +141,7 @@ export default function AssistantScreen() {
   if (!user || noticeSeen === null || available === null) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Ask MileClear" }} />
+        <Stack.Screen options={{ title: "EmSee" }} />
         <View style={styles.centreBox}>
           <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
         </View>
@@ -152,10 +152,10 @@ export default function AssistantScreen() {
   if (!available) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Ask MileClear" }} />
+        <Stack.Screen options={{ title: "EmSee" }} />
         <View style={styles.centreBox}>
           <Text style={styles.centreTitle}>Not available yet</Text>
-          <Text style={styles.centreBody}>Ask MileClear isn't switched on yet. Check back soon.</Text>
+          <Text style={styles.centreBody}>EmSee isn't switched on yet. Check back soon.</Text>
         </View>
       </View>
     );
@@ -164,7 +164,7 @@ export default function AssistantScreen() {
   if (!isPremium) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Ask MileClear" }} />
+        <Stack.Screen options={{ title: "EmSee" }} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={[styles.lockBadge, { alignSelf: "center", marginTop: 12 }]}>
             <Ionicons name="chatbubbles-outline" size={28} color={AMBER} />
@@ -193,7 +193,7 @@ export default function AssistantScreen() {
   if (!noticeSeen) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "Ask MileClear" }} />
+        <Stack.Screen options={{ title: "EmSee" }} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={[styles.lockBadge, { alignSelf: "center", marginTop: 12 }]}>
             <Ionicons name="lock-closed-outline" size={28} color={AMBER} />
@@ -201,7 +201,7 @@ export default function AssistantScreen() {
           <Text style={styles.centreTitle}>Before you ask</Text>
           <View style={styles.card}>
             <Text style={styles.noticeText}>
-              Ask MileClear uses Anthropic, an AI company, to write its answers.
+              EmSee uses Anthropic, an AI company, to write its answers.
             </Text>
             <Text style={styles.noticeText}>
               When you ask a question, we send Anthropic your question and the figures needed to answer
@@ -210,6 +210,10 @@ export default function AssistantScreen() {
             <Text style={styles.noticeText}>
               We never send your GPS routes, addresses or contact details. Anthropic handles this for us
               and does not use it to train its models.
+            </Text>
+            <Text style={styles.noticeText}>
+              If you ask EmSee to pass on a suggestion or a problem, it goes to the MileClear team with
+              your name and email address so we can reply.
             </Text>
             <Text style={styles.noticeText}>Nothing is sent unless you ask a question.</Text>
             <TouchableOpacity
@@ -232,7 +236,7 @@ export default function AssistantScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Ask MileClear" }} />
+      <Stack.Screen options={{ title: "EmSee" }} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -248,7 +252,7 @@ export default function AssistantScreen() {
             <>
               <Text style={styles.heading}>Ask about your records</Text>
               <Text style={styles.subheading}>
-                Earnings, miles, expenses, fuel and your tax year so far. Try one of these:
+                Earnings, miles, expenses, fuel and your tax year so far. Got a suggestion or a problem with the app? Tell EmSee and it will pass it on to the team. Try one of these:
               </Text>
               <View style={styles.chipRow}>
                 {SUGGESTIONS.map((q) => (

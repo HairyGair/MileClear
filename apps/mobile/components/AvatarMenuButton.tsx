@@ -75,7 +75,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
   menu_help: { key: "menu_help", label: "Help & Tutorials", route: "/help", icon: "help-circle-outline" },
   menu_ticket_defender: { key: "menu_ticket_defender", label: "Ticket Defender", route: "/ticket-defender", icon: "shield-checkmark-outline", badge: "PRO" },
-  menu_ask: { key: "menu_ask", label: "Ask MileClear", route: "/assistant", icon: "chatbubbles-outline", badge: "PRO" },
+  menu_ask: { key: "menu_ask", label: "EmSee", route: "/assistant", icon: "chatbubbles-outline", badge: "PRO" },
 };
 
 // Group definitions — items render in layout-pref order within each group.
@@ -106,7 +106,7 @@ const GROUPS = [
   { id: "insight", label: "INSIGHTS", keys: ["menu_insights", "menu_analytics", "menu_achievements"] },
   { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_bank", "menu_inbox"] },
   // Ticket defender (Pro, Oct 2026): a fine to check, Clean Air Zone charges to pay.
-  // Ask MileClear (Pro, Oct 2026): hidden while the server says it is unavailable.
+  // EmSee (Pro, Oct 2026): hidden while the server says it is unavailable.
   { id: "tools", label: "TOOLS", keys: ["menu_ticket_defender", "menu_ask"] },
   // menu_invoices demoted here from MONEY: 5 of 1,093 users have ever used
   // Invoices (0.5%), so it no longer sits next to Expenses and Link Bank.
