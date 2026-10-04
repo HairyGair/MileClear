@@ -76,8 +76,11 @@ export default function AppHeader({
               resizeMode="contain"
               accessible={false}
             />
-            <Text style={styles.brandWhite}>Mile</Text>
-            <Text style={styles.brandAmber}>Clear</Text>
+            {/* One Text, not two siblings: iOS measured the second sibling a
+                little narrow and clipped its last letter ("MileClea", 4 Oct 2026). */}
+            <Text style={styles.brandWhite} numberOfLines={1}>
+              Mile<Text style={styles.brandAmber}>Clear</Text>
+            </Text>
           </TouchableOpacity>
         )}
       </View>
