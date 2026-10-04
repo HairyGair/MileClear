@@ -221,6 +221,26 @@ export default function ExportsScreen() {
           <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} />
         </TouchableOpacity>
 
+        {/* Mileage certificate link */}
+        <TouchableOpacity
+          style={styles.saWizardRow}
+          onPress={() => router.push("/mileage-certificate")}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Open Mileage Certificate"
+        >
+          <View style={styles.saWizardIcon}>
+            <Ionicons name="ribbon-outline" size={20} color={AMBER} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.saWizardTitle}>Mileage Certificate</Text>
+            <Text style={styles.saWizardDesc}>
+              A record of your miles with a link anyone can check, for an insurer, employer, accountant or buyer
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} />
+        </TouchableOpacity>
+
         {/* Download rows */}
         <Text style={styles.sectionTitle}>Downloads</Text>
 

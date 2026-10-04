@@ -14,9 +14,11 @@
 export type PaywallFeatureId =
   | "sa_pdf"
   | "mileage_exports"
+  | "mileage_certificate"
   | "invoices"
   | "csv_import"
   | "snap_statement"
+  | "ticket_defender"
   | "open_banking"
   | "business_insights"
   | "driving_analytics"
@@ -42,9 +44,11 @@ export interface PaywallFeature {
 export const PAYWALL_FEATURES: readonly PaywallFeature[] = [
   { id: "sa_pdf", icon: "document-text-outline", label: "Self Assessment PDF", desc: "Your SA103 figures as a print-ready PDF to file from" },
   { id: "mileage_exports", icon: "download-outline", label: "Mileage Exports", desc: "CSV and PDF mileage logs for your records or accountant" },
+  { id: "mileage_certificate", icon: "ribbon-outline", label: "Mileage Certificate", desc: "A record of your miles anyone can check, for an insurer, employer or buyer" },
   { id: "invoices", icon: "receipt-outline", label: "Unlimited Invoices", desc: "Branded PDFs, email to clients and auto-chase (free plan: 3 a month)" },
   { id: "csv_import", icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
   { id: "snap_statement", icon: "camera-outline", label: "Snap a Statement", desc: "Read your earnings from a platform screenshot" },
+  { id: "ticket_defender", icon: "shield-checkmark-outline", label: "Ticket Defender", desc: "A PDF record of where your phone was when a fine says you were somewhere, plus Clean Air Zone pay-by dates" },
   { id: "open_banking", icon: "card-outline", label: "Open Banking", desc: "Import earnings from your bank" },
   { id: "business_insights", icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L and golden hours" },
   { id: "driving_analytics", icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends and deeper efficiency metrics" },
@@ -179,12 +183,28 @@ export function paywallLeadFor(source: string | null | undefined): PaywallLead |
         icon: "camera-outline",
         highlightFeature: "snap_statement",
       };
+    case "ticket_defender":
+      return {
+        headline: "Got a fine you don't recognise?",
+        subline:
+          "Pro shows where MileClear recorded your phone at the time on the notice, how fast and how accurately, as a PDF record you can send with an appeal. It also lists Clean Air Zone charges with the date to pay by.",
+        icon: "shield-checkmark-outline",
+        highlightFeature: "ticket_defender",
+      };
     case "vehicle_limit":
       return {
         headline: "Add every vehicle you drive",
         subline: "The free plan covers 1 vehicle. Pro lets you add as many cars, vans and motorbikes as you need.",
         icon: "car-outline",
         highlightFeature: "vehicles",
+      };
+    case "mileage_certificate":
+      return {
+        headline: "Prove your mileage with a certificate",
+        subline:
+          "Pro makes a PDF of the miles you have recorded for any period, with a link anyone can use to check it. Handy for an insurer, an employer, an accountant or selling your car.",
+        icon: "ribbon-outline",
+        highlightFeature: "mileage_certificate",
       };
     case "saved_locations_suggest":
       return {

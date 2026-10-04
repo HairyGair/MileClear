@@ -57,6 +57,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_tax_planner: { key: "menu_tax_planner", label: "Tax Payment Plan", route: "/tax-planner", icon: "calendar-outline" },
   menu_reconciliation: { key: "menu_reconciliation", label: "Reconciliation", route: "/hmrc-reconciliation", icon: "git-compare-outline" },
   menu_exports: { key: "menu_exports", label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
+  menu_certificate: { key: "menu_certificate", label: "Mileage Certificate", route: "/mileage-certificate", icon: "ribbon-outline", badge: "PRO" },
   menu_accountant: { key: "menu_accountant", label: "Accountant", route: "/accountant", icon: "people-outline", badge: "PRO" },
   menu_work_tax: { key: "menu_work_tax", label: "Tax Settings", route: "/settings/work-tax", icon: "briefcase-outline" },
   menu_mileage_relief: { key: "menu_mileage_relief", label: "Mileage Relief", route: "/mileage-relief", icon: "trending-down-outline" },
@@ -72,6 +73,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_refer: { key: "menu_refer", label: "Refer a Driver", route: "/refer", icon: "gift-outline" },
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
   menu_help: { key: "menu_help", label: "Help & Tutorials", route: "/help", icon: "help-circle-outline" },
+  menu_ticket_defender: { key: "menu_ticket_defender", label: "Ticket Defender", route: "/ticket-defender", icon: "shield-checkmark-outline", badge: "PRO" },
 };
 
 // Group definitions — items render in layout-pref order within each group.
@@ -98,9 +100,11 @@ const EMPLOYEE_ONLY_MENU_KEYS = new Set(["menu_mileage_relief"]);
 
 const GROUPS = [
   { id: "track", label: "TRACKING", keys: ["menu_dashboard", "menu_trips", "menu_vehicles", "menu_shifts", "menu_locations", "menu_fuel"] },
-  { id: "tax", label: "TAX", keys: ["menu_tax", "menu_tax_planner", "menu_reconciliation", "menu_exports", "menu_accountant", "menu_work_tax", "menu_mileage_relief"] },
+  { id: "tax", label: "TAX", keys: ["menu_tax", "menu_tax_planner", "menu_reconciliation", "menu_exports", "menu_certificate", "menu_accountant", "menu_work_tax", "menu_mileage_relief"] },
   { id: "insight", label: "INSIGHTS", keys: ["menu_insights", "menu_analytics", "menu_achievements"] },
   { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_bank", "menu_inbox"] },
+  // Ticket defender (Pro, Oct 2026): a fine to check, Clean Air Zone charges to pay.
+  { id: "tools", label: "TOOLS", keys: ["menu_ticket_defender"] },
   // menu_invoices demoted here from MONEY: 5 of 1,093 users have ever used
   // Invoices (0.5%), so it no longer sits next to Expenses and Link Bank.
   { id: "more", label: "MORE", keys: ["menu_schedule", "menu_refer", "menu_suggestions", "menu_help", "menu_invoices"] },

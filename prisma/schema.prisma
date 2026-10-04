@@ -254,6 +254,7 @@ model User {
   missedJourneys      MissedJourneyProposal[]
   shiftSuggestions    ShiftSuggestion[]
   deletedTrips        DeletedTrip[]
+  mileageCertificates MileageCertificate[]
 
   @@map("users")
 }
@@ -1771,4 +1772,31 @@ model StreetWorksEvent {
   @@index([minLat, minLng])
   @@index([endAt])
   @@map("street_works_events")
+}
+
+// Mileage record certificate (Pro, 4 Oct 2026). A summary of the miles
+// recorded for a period the driver chose, for an insurer, an employer, a buyer
+// of their car or an accountant. `code` is 20 random base32 characters and is
+// the key of the public page mileclear.com/verify/<code>. `snapshot` holds the
+// figures as issued (MileageCertificateSnapshot in @mileclear/shared), so
+// later trip edits never change an issued certificate. No routes or addresses
+// are stored. vehicleId has no foreign key on purpose: deleting the vehicle
+// must not change or delete a certificate the snapshot already describes.
+// revokedAt is set when the driver withdraws it; the public page then shows
+// no figures. Deleted with the user (GDPR).
+model MileageCertificate {
+  id          String    @id @default(uuid())
+  userId      String
+  code        String    @unique @db.VarChar(32)
+  periodStart DateTime
+  periodEnd   DateTime
+  vehicleId   String?
+  snapshot    Json
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("mileage_certificates")
 }

@@ -1,0 +1,132 @@
+/* ================================================================
+   MILEAGE CERTIFICATE CHECK (/verify/<code>)
+   Midnight Utility tokens from globals.css; every class starts vf-.
+   ================================================================ */
+
+.vf {
+  padding-top: calc(68px + clamp(2rem, 5vw, 3.5rem));
+  padding-bottom: clamp(3rem, 8vw, 5rem);
+}
+
+.vf__inner { max-width: 820px; }
+
+.vf-card {
+  background: var(--bg-card-solid);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.vf-card .label { margin-bottom: 0; }
+.vf-card--withdrawn { border-color: rgba(239, 68, 68, 0.35); }
+
+.vf-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vf-status {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--r-full);
+}
+.vf-status--valid { color: var(--emerald-400); background: var(--emerald-glow); border: 1px solid rgba(16, 185, 129, 0.35); }
+.vf-status--withdrawn { color: #fca5a5; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); }
+
+.vf-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vf-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 4.5vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  color: var(--text-white);
+  overflow-wrap: anywhere;
+}
+.vf-title em { font-style: normal; color: var(--amber-300); font-variant-numeric: tabular-nums; }
+
+.vf-lead { color: var(--text-secondary); font-size: 1.0625rem; line-height: 1.6; }
+
+.vf-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem 1.5rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--border-default);
+}
+.vf-facts dt { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+.vf-facts dd { color: var(--text-primary); font-weight: 600; }
+
+.vf-vehicle { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.vf-vehicle + .vf-vehicle { margin-top: 0.35rem; }
+.vf-plate {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  color: #111827;
+  background: var(--amber-300);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+}
+
+.vf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.vf-h2 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-white);
+  margin-bottom: 0.75rem;
+}
+
+.vf-rows div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.vf-rows dt { color: var(--text-secondary); }
+.vf-rows dd { color: var(--text-primary); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+
+.vf-months { list-style: none; display: flex; flex-direction: column; gap: 0.4rem; }
+.vf-months li {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, auto) 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.9375rem;
+}
+.vf-months__name { color: var(--text-secondary); }
+.vf-months__value { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.vf-months__bar { height: 6px; background: var(--border-subtle); border-radius: var(--r-full); overflow: hidden; }
+.vf-months__bar span { display: block; height: 100%; background: var(--amber-400); border-radius: var(--r-full); }
+
+.vf-small { color: var(--text-muted); font-size: 0.875rem; line-height: 1.6; }
+
+.vf-foot { margin-top: 1.25rem; text-align: center; }
+.vf-foot a { color: var(--amber-300); }
+
+@media (max-width: 480px) {
+  .vf-months li { grid-template-columns: 6.5rem 1fr auto; gap: 0.5rem; font-size: 0.875rem; }
+}

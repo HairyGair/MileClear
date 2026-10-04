@@ -353,8 +353,12 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_locations", label: "Saved Locations", icon: "location-outline" },
     { key: "menu_fuel", label: "Fuel", icon: "water-outline" },
     { key: "menu_tax", label: "Self Assessment", icon: "calculator-outline" },
+    // Missed when the planner shipped (4 Oct 2026), so the menu hid it: the
+    // menu only shows keys listed here.
+    { key: "menu_tax_planner", label: "Tax Payment Plan", icon: "calendar-outline", insertAfter: "menu_tax" },
     { key: "menu_reconciliation", label: "Reconciliation", icon: "git-compare-outline" },
     { key: "menu_exports", label: "Tax Exports", icon: "download-outline" },
+    { key: "menu_certificate", label: "Mileage Certificate", icon: "ribbon-outline", insertAfter: "menu_exports" },
     { key: "menu_accountant", label: "Accountant", icon: "people-outline" },
     { key: "menu_work_tax", label: "Tax Settings", icon: "briefcase-outline" },
     { key: "menu_mileage_relief", label: "Mileage Relief", icon: "trending-down-outline", insertAfter: "menu_work_tax" },
@@ -369,6 +373,7 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_refer", label: "Refer a Driver", icon: "gift-outline" },
     { key: "menu_suggestions", label: "Suggestions", icon: "bulb-outline" },
     { key: "menu_help", label: "Help & Tutorials", icon: "help-circle-outline" },
+    { key: "menu_ticket_defender", label: "Ticket Defender", icon: "shield-checkmark-outline", insertAfter: "menu_help" },
     // Moved to the end of the list (was between Tax Settings and Link
     // Bank) and out of the MONEY group into MORE: 5 users have ever used
     // Invoices (0.5% of 1,093), so it no longer earns top billing next to

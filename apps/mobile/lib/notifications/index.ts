@@ -717,6 +717,12 @@ export function setupNotificationResponseHandler(): void {
         router.push("/tax-planner" as never);
         return;
 
+      case "open_ticket_defender":
+        // Clean Air Zone "pay by tomorrow" reminders (jobs/cazPayReminders.ts,
+        // Oct 2026, Pro). Older bundles fall through to the dashboard.
+        router.push("/ticket-defender" as never);
+        return;
+
       case "open_settings":
         Linking.openSettings();
         return;

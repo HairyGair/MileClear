@@ -29,6 +29,9 @@ export interface NotificationPreferences {
   /** OPT-IN (off by default, trial): a heads-up before the driver usually
    *  sets off when a road they use often is closed or badly delayed. */
   roadAlerts: boolean;
+  /** Pro, Ticket defender: Clean Air Zone "pay by tomorrow" reminder the
+   *  evening before a zone's pay-by date (server-sent, on by default). */
+  cazPayReminder: boolean;
 }
 
 const PREFS_KEY = "notification_prefs";
@@ -51,6 +54,7 @@ export const DEFAULT_PREFERENCES: NotificationPreferences = {
   cheapestFuelDaily: false,
   evWeeklySummary: false,
   roadAlerts: false,
+  cazPayReminder: true,
 };
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

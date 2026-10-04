@@ -1006,6 +1006,9 @@ export async function userRoutes(app: FastifyInstance) {
         ])
       : [null, []];
 
+    // Mileage record certificates, each with the frozen figures as issued.
+    const mileageCertificates = await prisma.mileageCertificate.findMany({ where: { userId } });
+
     // Push tokens are device credentials: show that one is held and its
     // tail, never the full value.
     const maskToken = (t: string | null | undefined) =>
@@ -1107,6 +1110,7 @@ export async function userRoutes(app: FastifyInstance) {
       appleIapWebhookLogs,
       waitlistEntry,
       teamInterest,
+      mileageCertificates,
     };
 
     reply.header("Content-Disposition", "attachment; filename=mileclear-data-export.json");

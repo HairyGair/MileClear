@@ -1,4 +1,5 @@
 import { runTeamMonthReadyJob } from "./teamApprovals.js";
+import { runMilesheetAlarmJob } from "./milesheetAlarm.js";
 import { devicePlatformOf, openSettingsLocationSteps } from "./activationBgLocation.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
@@ -40,6 +41,7 @@ import { inStreakReminderWindow, isPushQuietHours } from "../services/pushQuietH
 import { runClassifyNudgeJob } from "./classifyNudge.js";
 import { runSaCountdownRemindersJob } from "./saCountdownReminders.js";
 import { runTaxPaymentRemindersJob } from "./taxPaymentReminders.js";
+import { runCazPayRemindersJob } from "./cazPayReminders.js";
 import {
   runUnclassifiedNudgeEmailJob,
   runWeeklyRecapEmailJob,
@@ -1546,6 +1548,9 @@ export function startNotificationJobs(): void {
     void runJob("welcome_nudge", runWelcomeNudgeJob);
     void runJob("checkin_email", runCheckinEmailJob);
     void runJob("vehicle_reminders", runVehicleRemindersJob);
+    // Milesheet alarm (4 Oct 2026): invites going out with nobody joining, or
+    // a team payment still failing. Deduped per condition per 2 days.
+    void runJob("milesheet_alarm", runMilesheetAlarmJob);
   };
 
   // Jobs gated to a NARROW time window must tick faster than the window is
@@ -1596,6 +1601,9 @@ export function startNotificationJobs(): void {
     // Tax bill planner payment reminders: 14 and 3 days before 31 Jan and
     // 31 Jul at 12:00 UK. Dry run unless TAX_PAYMENT_PUSH=1.
     void runJob("tax_payment", runTaxPaymentRemindersJob);
+    // Clean Air Zone "pay by tomorrow" reminders (Ticket defender, Pro),
+    // 18:00 UK the evening before a deadline. Dry run unless CAZ_PAY_PUSH=1.
+    void runJob("caz_pay", runCazPayRemindersJob);
   };
 
   setTimeout(() => {

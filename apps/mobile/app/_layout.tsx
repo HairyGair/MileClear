@@ -726,6 +726,7 @@ function RootNavigator() {
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
         <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "HMRC Reconciliation" }} />
         <Stack.Screen name="mileage-relief" options={{ headerShown: true, title: "Mileage Relief" }} />
+        <Stack.Screen name="mileage-certificate" options={{ headerShown: true, title: "Mileage Certificate" }} />
         <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Tax (MTD)" }} />
         <Stack.Screen name="tax-mtd-nino" options={{ headerShown: true, title: "National Insurance Number" }} />
         <Stack.Screen name="tax-mtd-business" options={{ headerShown: true, title: "Confirm trade" }} />
@@ -741,6 +742,7 @@ function RootNavigator() {
         <Stack.Screen name="inbox" options={{ headerShown: true, title: "Inbox" }} />
         <Stack.Screen name="receipt-scan" options={{ headerShown: true, title: "Scan Receipt" }} />
         <Stack.Screen name="snap-statement" options={{ headerShown: true, title: "Snap a statement" }} />
+        <Stack.Screen name="ticket-defender" options={{ headerShown: true, title: "Ticket defender" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "My Accountant" }} />
         <Stack.Screen name="help" options={{ headerShown: true, title: "Help & Tutorials" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so

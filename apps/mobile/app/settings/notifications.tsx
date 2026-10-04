@@ -145,6 +145,16 @@ export default function NotificationsSettings() {
               onToggle={(v) => toggle("milestoneAlerts", v)}
             />
           </SettingsGroup>
+
+          <SettingsGroup title="CLEAN AIR ZONES">
+            <ToggleRow
+              icon="leaf-outline"
+              label="Pay-by reminders"
+              hint="The evening before a Clean Air Zone or ULEZ charge is due, if you haven't ticked it as paid"
+              value={prefs.cazPayReminder}
+              onToggle={(v) => toggle("cazPayReminder", v)}
+            />
+          </SettingsGroup>
         </>
       ) : (
         <View style={{ marginTop: 16 }}>

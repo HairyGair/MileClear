@@ -3955,6 +3955,23 @@ export default function TripFormScreen() {
               </View>
             )}
 
+            {/* Ticket defender (Pro, Oct 2026): a fine that names this trip's
+                time opens the lookup with the trip's start time filled in. */}
+            {isEditing && !editingIsManual && (
+              <TouchableOpacity
+                style={styles.ticketDefenderLink}
+                onPress={() =>
+                  router.push({ pathname: "/ticket-defender", params: { at: startedAt.toISOString() } } as never)
+                }
+                accessibilityRole="link"
+                accessibilityLabel="Got a fine for this trip? Check what MileClear recorded"
+              >
+                <Ionicons name="shield-checkmark-outline" size={16} color={AMBER} />
+                <Text style={styles.ticketDefenderLinkText}>Got a fine for this trip?</Text>
+                <Ionicons name="chevron-forward" size={14} color={AMBER} />
+              </TouchableOpacity>
+            )}
+
             {/* Trip Insights (from GPS data - editing mode) */}
             {isEditing && insights && (
               <View style={styles.insightsCard}>
@@ -5139,6 +5156,15 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   cazTripHeader: { flexDirection: "row", alignItems: "center", gap: 7, marginBottom: 6 },
+  ticketDefenderLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingVertical: 10,
+    marginTop: 4,
+  },
+  ticketDefenderLinkText: { fontSize: 14, fontFamily: fonts.semibold, color: AMBER },
   cazTripTitle: { fontSize: 13.5, fontFamily: fonts.bold, color: colors.text1 },
   cazTripBody: { fontSize: 12.5, fontFamily: fonts.regular, color: colors.text2, lineHeight: 17, marginBottom: 8 },
   cazTripRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },

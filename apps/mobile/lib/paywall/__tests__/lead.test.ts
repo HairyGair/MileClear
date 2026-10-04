@@ -22,8 +22,10 @@ const LEAD_SOURCES = [
   "open_banking",
   "csv_import",
   "snap_statement",
+  "ticket_defender",
   "vehicle_limit",
   "saved_locations_suggest",
+  "mileage_certificate",
   "Driving Analytics",
   "Business Insights",
   "Journey Map",
@@ -75,6 +77,7 @@ describe("paywallLeadFor", () => {
     expect(paywallLeadFor("open_banking")?.highlightFeature).toBe("open_banking");
     expect(paywallLeadFor("csv_import")?.highlightFeature).toBe("csv_import");
     expect(paywallLeadFor("snap_statement")?.highlightFeature).toBe("snap_statement");
+    expect(paywallLeadFor("ticket_defender")?.highlightFeature).toBe("ticket_defender");
     expect(paywallLeadFor("vehicle_limit")?.highlightFeature).toBe("vehicles");
   });
 

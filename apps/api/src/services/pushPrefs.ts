@@ -28,6 +28,9 @@ export const PUSH_PREF_KEYS = [
   // Evening "Today: N trips, M miles" push (jobs/eveningDigest.ts). Missing
   // key = on, like every other key here.
   "eveningDigest",
+  // Ticket defender (Pro): Clean Air Zone "pay by tomorrow" reminder
+  // (jobs/cazPayReminders.ts). Missing key = on.
+  "cazPayReminder",
   // OPT-IN keys (2 Oct 2026): off unless the driver turned them on, so check
   // them with pushPrefOptedIn(), never pushPrefEnabled().
   // Morning "cheapest petrol/diesel near you" push (jobs/fuelAlerts.ts).
