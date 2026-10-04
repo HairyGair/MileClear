@@ -41,6 +41,7 @@ import { resolveRouteDistance } from "../../services/routing.js";
 import { resolveAdminTripDistance } from "../../services/adminTripDistance.js";
 import { adminObservabilityRoutes } from "./observability.js";
 import { adminCommunityRoutes } from "./community.js";
+import { adminMilesheetRoutes } from "./milesheet.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
@@ -228,6 +229,9 @@ export async function adminRoutes(app: FastifyInstance) {
   await app.register(adminObservabilityRoutes);
   // Community numbers + social post drafts (GET /admin/community/monthly).
   await app.register(adminCommunityRoutes);
+  // Milesheet (teams) admin: overview, journey, teams, attention, team page
+  // and the admin actions (GET/POST /admin/milesheet/...).
+  await app.register(adminMilesheetRoutes);
 
   // GET /admin/analytics
   app.get("/analytics", async (_request, reply) => {

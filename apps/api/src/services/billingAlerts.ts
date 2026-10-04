@@ -39,7 +39,10 @@ export type BillingAlertKind =
   | "subscription.payment_failed"
   | "subscription.refund_requested"
   | "subscription.refund_granted"
-  | "subscription.revoked";
+  | "subscription.revoked"
+  // Milesheet alarm (jobs/milesheetAlarm.ts, 4 Oct 2026).
+  | "team.invites_stalled"
+  | "team.payment_failing";
 
 export interface BillingAlertInput {
   kind: BillingAlertKind;

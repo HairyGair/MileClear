@@ -38,7 +38,7 @@ const TEAM_SEAT_PRICE_ENV = "STRIPE_TEAM_SEAT_PRICE_ID";
 const PRICE_CACHE_TTL_MS = 60 * 60 * 1000; // a Price object rarely changes intraday
 let cachedSeatPrice: { pence: number; cachedAt: number } | null = null;
 
-async function getSeatPricePence(): Promise<number | null> {
+export async function getSeatPricePence(): Promise<number | null> {
   const priceId = process.env[TEAM_SEAT_PRICE_ENV];
   if (!stripe || !priceId) return null;
   const now = Date.now();

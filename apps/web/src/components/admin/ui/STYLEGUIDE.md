@@ -195,7 +195,7 @@ Then create `src/app/dashboard/admin/payouts/page.tsx`. Never delete or move an
 existing admin URL: if a page moves, keep the old path as a child or alias so
 bookmarks and links in support notes still work.
 
-Groups: Overview, Growth, Drivers, Money, Operations. Add to an existing group
+Groups: Overview, Growth, Drivers, Companies (Milesheet), Money, Operations. Add to an existing group
 before inventing a new one.
 
 ## 8. Checks before you hand back

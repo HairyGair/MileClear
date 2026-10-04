@@ -1,0 +1,15 @@
+/* Milesheet admin pages (4 Oct 2026). Same token rules as admin.css. */
+
+/* An email in a table that opens the account: a button that reads as a link. */
+.adm-ms-linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--adm-text-strong);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.adm-ms-linkbtn:hover { color: var(--adm-accent-strong); text-decoration: underline; }

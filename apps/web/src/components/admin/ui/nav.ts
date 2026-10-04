@@ -101,6 +101,23 @@ export const ADMIN_NAV: AdminNavGroup[] = [
     ],
   },
   {
+    label: "Companies",
+    items: [
+      {
+        label: "Milesheet",
+        href: `${ADMIN_ROOT}/milesheet`,
+        icon: "teams",
+        hint: "Company teams: invites, approvals, billing",
+        isNew: true,
+        children: [
+          { label: "Teams", href: `${ADMIN_ROOT}/milesheet/teams` },
+          { label: "Journey", href: `${ADMIN_ROOT}/milesheet/journey` },
+          { label: "Needs attention", href: `${ADMIN_ROOT}/milesheet/attention` },
+        ],
+      },
+    ],
+  },
+  {
     label: "Money",
     items: [{ label: "Revenue", href: `${ADMIN_ROOT}/revenue`, icon: "revenue", hint: "Paying subscribers and MRR" }],
   },

@@ -19,6 +19,7 @@ export type AdminIconName =
   | "ops"
   | "comms"
   | "community"
+  | "teams"
   | "search"
   | "menu"
   | "close"
@@ -117,6 +118,13 @@ const PATHS: Record<AdminIconName, ReactNode> = {
     <>
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="M3.5 6.5l8.5 6.5 8.5-6.5" />
+    </>
+  ),
+  teams: (
+    <>
+      <rect x="3.5" y="7.5" width="17" height="12" rx="1.8" />
+      <path d="M9 7.5V5.8A1.3 1.3 0 0 1 10.3 4.5h3.4A1.3 1.3 0 0 1 15 5.8v1.7" />
+      <path d="M3.5 12.5h17" />
     </>
   ),
   search: (
