@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
   const store = storeFor(ua);
   // One link per channel: mileclear.com/app?from=press, ?from=flex-group...
   // The billboard QR predates this and has no ?from.
-  const from = sourceFrom(request.nextUrl.searchParams.get("from"));
+  const params = request.nextUrl.searchParams;
+  const from = sourceFrom(params.get("from"), ua, params.get("fbclid"));
   if (!BOT_UA.test(ua)) await reportScan(store, from);
   const target =
     store === "ios"

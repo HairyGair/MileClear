@@ -10,10 +10,19 @@ export function storeFor(userAgent: string): "ios" | "android" | "other" {
 }
 
 /** The channel a /app link was shared in (?from=), lower-case letters,
- *  digits and dashes only. No ?from (the billboard QR) or junk = "billboard". */
-export function sourceFrom(raw: string | null): string {
+ *  digits and dashes only. With no usable ?from, a click from Facebook or
+ *  Instagram is told apart from a billboard QR scan (4 Oct 2026: the boosted
+ *  post and the billboard share the bare link): Meta's in-app browsers name
+ *  themselves in the user agent, and Meta adds ?fbclid= to links it sends
+ *  out, so those count as "instagram", "facebook" or "meta". Anything else
+ *  with no ?from is the billboard QR. */
+export function sourceFrom(raw: string | null, userAgent = "", fbclid: string | null = null): string {
   const v = (raw ?? "").trim().toLowerCase();
-  return /^[a-z0-9-]{1,32}$/.test(v) ? v : "billboard";
+  if (/^[a-z0-9-]{1,32}$/.test(v)) return v;
+  if (/Instagram/i.test(userAgent)) return "instagram";
+  if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A/i.test(userAgent)) return "facebook";
+  if (fbclid) return "meta";
+  return "billboard";
 }
 
 /** Google Play link carrying the channel as an install referrer, so the Play
