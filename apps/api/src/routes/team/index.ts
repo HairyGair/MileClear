@@ -129,8 +129,27 @@ export async function teamRoutes(app: FastifyInstance) {
           where: { orgId_invitedEmail: { orgId: admin.orgId, invitedEmail: email } },
           select: { id: true, status: true },
         });
-        if (existing && existing.status !== "disabled") {
-          results.push({ email, status: `already ${existing.status}` });
+        if (existing && existing.status === "active") {
+          results.push({ email, status: "already active" });
+          continue;
+        }
+        // A pending invite: send a fresh link (the old one stops working).
+        // Before 4 Oct 2026 this said "already invited" and there was no way
+        // to resend a lost or broken invite.
+        const resend = existing?.status === "invited";
+        if (resend) {
+          const token = crypto.randomBytes(64).toString("hex").slice(0, 128);
+          await prisma.orgMembership.update({
+            where: { id: existing!.id },
+            data: { role: parsed.data.role, inviteTokenHash: hashToken(token), inviteExpiresAt: new Date(Date.now() + INVITE_TTL_MS), invitedAt: new Date() },
+          });
+          try {
+            await sendTeamInviteEmail(email, org?.name ?? "your team", token, parsed.data.role);
+            results.push({ email, status: "invite resent" });
+          } catch (err) {
+            request.log.error({ err, email }, "team invite resend email failed");
+            results.push({ email, status: "invite renewed (email failed - try again)" });
+          }
           continue;
         }
         // A fresh invite and a re-invite of a disabled member both add one
@@ -304,7 +323,21 @@ export async function teamRoutes(app: FastifyInstance) {
     });
     if (!m) return reply.status(404).send({ error: "Member not found" });
     if (m.id === admin.id) return reply.status(400).send({ error: "You cannot disable yourself." });
-    if (m.status === "invited") return reply.status(400).send({ error: "Pending invites expire on their own; re-invite to refresh." });
+    if (m.status === "invited") {
+      // Cancelling a pending invite: the link stops working at once and the
+      // place is freed. Invite the address again to send a new one.
+      if (parsed.data.status !== "disabled") return reply.status(400).send({ error: "Resend the invite instead." });
+      await prisma.orgMembership.update({
+        where: { id: m.id },
+        data: { status: "disabled", disabledAt: new Date(), inviteTokenHash: null, inviteExpiresAt: null },
+      });
+      logEvent("team.invite_cancelled", request.userId!, { orgId: admin.orgId });
+      return reply.send({ data: { id: m.id, status: "disabled" } });
+    }
+    // Someone who never accepted has no account to switch back on.
+    if (parsed.data.status === "active" && !m.userId) {
+      return reply.status(400).send({ error: "They never accepted. Invite them again instead." });
+    }
 
     if (parsed.data.status === "active") {
       const org = await prisma.organisation.findUnique({

@@ -78,6 +78,20 @@ export default function MilesheetPortalPage() {
     }
   };
 
+  const resendInvite = async (m: Member) => {
+    setNotice(null);
+    try {
+      const res = await api.post<{ data: Array<{ email: string; status: string }> }>("/team/invites", {
+        emails: [m.email],
+        role: m.role === "admin" ? "admin" : "driver",
+      });
+      setNotice(res.data.map((r) => `${r.email}: ${r.status}`).join(" · "));
+      load();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Resend failed");
+    }
+  };
+
   const setStatus = async (id: string, status: "active" | "disabled") => {
     try {
       await api.patch(`/team/members/${id}`, { status });
@@ -193,9 +207,17 @@ export default function MilesheetPortalPage() {
                     {m.status === "active" && m.role !== "admin" && (
                       <button className="btn btn--sm btn--ghost" onClick={() => setStatus(m.id, "disabled")}>Disable</button>
                     )}
-                    {m.status === "disabled" && (
-                      <button className="btn btn--sm btn--ghost" onClick={() => setStatus(m.id, "active")}>Re-enable</button>
+                    {m.status === "invited" && (
+                      <>
+                        <button className="btn btn--sm btn--ghost" onClick={() => resendInvite(m)}>Resend</button>
+                        <button className="btn btn--sm btn--ghost" onClick={() => setStatus(m.id, "disabled")}>Cancel invite</button>
+                      </>
                     )}
+                    {m.status === "disabled" && (m.acceptedAt ? (
+                      <button className="btn btn--sm btn--ghost" onClick={() => setStatus(m.id, "active")}>Re-enable</button>
+                    ) : (
+                      <button className="btn btn--sm btn--ghost" onClick={() => resendInvite(m)}>Invite again</button>
+                    ))}
                   </td>
                 </tr>
               ))}

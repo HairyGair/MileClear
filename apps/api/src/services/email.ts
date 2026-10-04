@@ -200,6 +200,10 @@ const transporter =
 const FROM = process.env.EMAIL_FROM || "MileClear <noreply@mileclear.com>";
 const FROM_PERSONAL = "Gair - MileClear <gair@mileclear.com>";
 const API_BASE_URL = process.env.API_BASE_URL || "https://api.mileclear.com";
+/** The website, for links to pages people open in a browser (team invites,
+ *  the accountant dashboard, the team portal). API_BASE_URL is the API
+ *  (api.mileclear.com in production), and links built from it 404'd: Rob
+ *  Lyons' driver invite, 4 Oct 2026. */
 const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
 const SUPPORT_INBOX = process.env.SUPPORT_INBOX || "support@mileclear.com";
 const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear/id6759671005";
@@ -2766,7 +2770,7 @@ export async function sendTeamInviteEmail(
   token: string,
   role: "admin" | "driver"
 ): Promise<void> {
-  const base = process.env.API_BASE_URL || "https://mileclear.com";
+  const base = WEB_BASE_URL;
   const url = `${base}/milesheet/invite/${token}`;
   const safeOrg = escapeHtml(orgName);
   const isAdmin = role === "admin";
@@ -2809,7 +2813,7 @@ export async function sendAccountantInviteEmail(
   token: string
 ): Promise<void> {
   const safeInviterName = escapeHtml(inviterName);
-  const dashboardUrl = `${process.env.API_BASE_URL || "https://mileclear.com"}/accountant/${token}`;
+  const dashboardUrl = `${WEB_BASE_URL}/accountant/${token}`;
   const subject = `${inviterName} shared their MileClear data with you`;
   const html = `
     <!DOCTYPE html>
@@ -2995,7 +2999,7 @@ export async function sendTeamMonthReadyEmail(
   orgName: string,
   monthLabel: string
 ): Promise<void> {
-  const url = `${process.env.API_BASE_URL || "https://mileclear.com"}/team`;
+  const url = `${WEB_BASE_URL}/milesheet/portal`;
   const safeOrg = escapeHtml(orgName);
   const safeMonth = escapeHtml(monthLabel);
   const subject = `${monthLabel} is ready to approve for ${orgName}`;
@@ -3031,7 +3035,7 @@ export async function sendManagerNominationEmail(
   companyName: string,
   token: string
 ): Promise<void> {
-  const base = process.env.API_BASE_URL || "https://mileclear.com";
+  const base = WEB_BASE_URL;
   const url = `${base}/milesheet/invite/${token}`;
   const safeDriver = escapeHtml(driverName);
   const safeCompany = escapeHtml(companyName);
