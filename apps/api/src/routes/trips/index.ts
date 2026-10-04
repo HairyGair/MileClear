@@ -55,6 +55,7 @@ import {
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
 import { latestEndingIndex, mergedDistanceMiles } from "../../services/tripMergeRule.js";
+import { isSparseCandidate, judgeSparseRoute, routeThroughPoints, type SparseVerdict } from "../../services/sparseRoute.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { parseReportedDate, formatReportedDate } from "../../lib/reportedDate.js";
@@ -1196,6 +1197,19 @@ export async function tripRoutes(app: FastifyInstance) {
           breadcrumbs: coordinates,
           currentDistanceMiles: distanceMiles,
           userId,
+        }).catch(() => {});
+      } else if (hasCoordinates && coordinates && coordinates.length >= 2 && !isManualEntry) {
+        // Too few points to map-match: route along the roads between them
+        // instead, so a trip caught only at its ends is not stored as a
+        // straight line (services/sparseRoute.ts).
+        runSparseRoutingForTrip({
+          tripId: trip.id,
+          points: coordinates,
+          storedMiles: distanceMiles,
+          startedAt: trip.startedAt,
+          endedAt: trip.endedAt,
+          userId,
+          triggeredBy: "trip_create_hook",
         }).catch(() => {});
       }
 
@@ -3937,6 +3951,51 @@ async function runMapMatchingForTrip(args: {
       currentDistanceMiles: args.currentDistanceMiles,
     });
   }
+}
+
+/**
+ * Road distance for a recorded trip with 2-9 GPS points (too few to
+ * map-match). Raises the stored distance only when the route along the
+ * recorded points passes every check in judgeSparseRoute; logs the old
+ * figure so the change can be undone. Exported for the backfill script.
+ */
+export async function runSparseRoutingForTrip(args: {
+  tripId: string;
+  points: { lat: number; lng: number }[];
+  storedMiles: number;
+  startedAt: Date;
+  endedAt: Date | null;
+  userId: string;
+  triggeredBy: string;
+  dryRun?: boolean;
+}): Promise<SparseVerdict | null> {
+  const first = args.points[0];
+  const last = args.points[args.points.length - 1];
+  const crowMiles = haversineDistance(first.lat, first.lng, last.lat, last.lng);
+  if (!isSparseCandidate({ isManualEntry: false, coordinateCount: args.points.length, crowMiles })) return null;
+  const routed = await routeThroughPoints(args.points, args.userId);
+  if (!routed) return null;
+  const spanSecs = args.endedAt ? (args.endedAt.getTime() - args.startedAt.getTime()) / 1000 : null;
+  const verdict = judgeSparseRoute({
+    routedMiles: routed.miles,
+    routedDurationSecs: routed.durationSecs,
+    storedMiles: args.storedMiles,
+    crowMiles,
+    spanSecs,
+  });
+  if (!verdict.accept || args.dryRun) return verdict;
+  await prisma.trip.update({ where: { id: args.tripId }, data: { distanceMiles: verdict.miles } });
+  logEvent("trip.distance_recalculated", args.userId, {
+    tripId: args.tripId,
+    oldMiles: args.storedMiles,
+    newMiles: verdict.miles,
+    ratio: Math.round((verdict.miles / Math.max(args.storedMiles, 0.01)) * 100) / 100,
+    source: "sparse_route",
+    points: args.points.length,
+    triggeredBy: args.triggeredBy,
+  });
+  upsertMileageSummary(args.userId, getTaxYear(args.startedAt)).catch(() => {});
+  return verdict;
 }
 
 /**
