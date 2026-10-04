@@ -4,6 +4,7 @@ import { stripe } from "../lib/stripe.js";
 import { logEvent } from "./appEvents.js";
 import { notifyBillingEvent } from "./billingAlerts.js";
 import type { TeamSeatBilling } from "@mileclear/shared";
+import { trialDaysLeft, trialStateOf } from "./teamTrial.js";
 
 // Milesheet Phase 3 (24 Aug 2026) - per-seat billing.
 //
@@ -126,8 +127,16 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
       stripeSubscriptionId: true,
       seatsBilled: true,
       billingEmail: true,
+      trialEndsAt: true,
     },
   });
+  const now = new Date();
+  const trial = org
+    ? {
+        trialEndsAt: org.trialEndsAt ? org.trialEndsAt.toISOString() : null,
+        trialDaysLeft: trialDaysLeft(org.trialEndsAt, now),
+      }
+    : { trialEndsAt: null, trialDaysLeft: null };
   if (!org) {
     return {
       pilotFree: false,
@@ -153,15 +162,19 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
     };
   }
   if (!org.stripeSubscriptionId || !stripe) {
+    // No subscription: a team on (or past) its free trial says so; any other
+    // team is simply not subscribed.
+    const trialState = trialStateOf(org, now);
     return {
       pilotFree: false,
       activeSeats,
       seatCap: org.seatCap,
       seatsBilled: org.seatsBilled,
       pricePerSeatPence,
-      status: "none",
+      status: trialState === "active" ? "trial" : trialState === "ended" ? "trial_ended" : "none",
       currentPeriodEnd: null,
       billingEmail: org.billingEmail,
+      ...trial,
     };
   }
 
@@ -187,6 +200,7 @@ export async function getSeatBilling(orgId: string): Promise<TeamSeatBilling> {
       status,
       currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
       billingEmail: org.billingEmail,
+      ...trial,
     };
   } catch (err) {
     console.error(`teamBilling.getSeatBilling: Stripe lookup failed for org ${orgId}:`, err);

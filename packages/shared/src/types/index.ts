@@ -1931,9 +1931,18 @@ export interface TeamSeatBilling {
    * undecided price is shown as undecided rather than invented.
    */
   pricePerSeatPence: number | null;
-  status: "pilot" | "none" | "active" | "past_due" | "canceled";
+  /**
+   * "trial": inside the free trial with no subscription yet. "trial_ended":
+   * the trial is over and nothing else covers the team (data kept, team Pro
+   * stopped). Both only appear for teams started while new teams are open.
+   */
+  status: "pilot" | "none" | "active" | "past_due" | "canceled" | "trial" | "trial_ended";
   currentPeriodEnd: string | null;
   billingEmail: string | null;
+  /** ISO end of the free trial, null when the team never had one. */
+  trialEndsAt?: string | null;
+  /** Whole days left in the trial (rounded up), 0 once ended, null for no trial. */
+  trialDaysLeft?: number | null;
 }
 
 // Admin Geography (GET /admin/geography). Where sign-ups are, by nation,

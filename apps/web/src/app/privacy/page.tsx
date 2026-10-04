@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 26 August 2026</p>
+            <p className="legal__date">Last updated: 4 October 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -486,6 +486,41 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts can include your email address, account ID, display name, subscription status and trip counts. They never include your location data or trip routes. Discord Inc. processes this data on our behalf under its standard data processing terms.</p>
               </div>
 
+              {/* Ask MileClear (Pro, Oct 2026). Anthropic's commercial terms and
+                  data policy, checked 4 Oct 2026:
+                  https://www.anthropic.com/legal/commercial-terms
+                    "Anthropic may not train models on Customer Content from Services."
+                  https://privacy.claude.com/en/articles/7996868-is-my-data-used-for-model-training
+                    "By default, we will not use your inputs or outputs from our commercial
+                    products (e.g. Claude for Work, Anthropic API, ...) to train our models."
+                  https://privacy.claude.com/en/articles/7996866-how-long-do-you-store-my-organization-s-data
+                    "For Anthropic API users, we automatically delete inputs and outputs on our
+                    backend within 30 days of receipt or generation" (exceptions: longer
+                    retention services, custom agreements, Usage Policy enforcement, legal
+                    requirements).
+                  https://www.anthropic.com/legal/data-processing-addendum
+                    The Commercial Terms incorporate the DPA by reference; the DPA incorporates
+                    SCCs Modules Two/Three and the UK Approved Addendum (Schedule 3).
+                  Re-check these pages if Anthropic's terms change. */}
+              <div className="legal__card" id="ask-mileclear">
+                <h3 className="legal__card-title">Ask MileClear (Anthropic)</h3>
+                <p className="legal__card-text">
+                  Ask MileClear is a Pro feature that answers questions about your own records, such as how much you earned on a platform in a month or how many business miles you have driven this tax year. It only runs when you use it: nothing is sent unless you ask a question.
+                </p>
+                <p className="legal__card-text legal__text--small">
+                  <strong>What we send:</strong> your question, up to six earlier messages from the same conversation, and the summary figures needed to answer it (for example total earnings by platform, miles by month, or expense totals by category, for the dates you asked about). We never send your GPS routes, coordinates, addresses or contact details.
+                </p>
+                <p className="legal__card-text legal__text--small">
+                  <strong>Why:</strong> Anthropic&apos;s Claude model writes the answer in plain English from those figures. The figures themselves are worked out on our own servers from what you have recorded in MileClear.
+                </p>
+                <p className="legal__card-text legal__text--small">
+                  <strong>Anthropic&apos;s role:</strong> Anthropic PBC (USA) acts as our data processor under its commercial terms and Data Processing Addendum. Under those terms Anthropic may not train its models on this data, and it automatically deletes API inputs and outputs within 30 days, except where it must keep them longer to enforce its usage policy or to meet a legal obligation.
+                </p>
+                <p className="legal__card-text legal__text--small">
+                  <strong>What we keep:</strong> we do not store your questions or the answers. We log that a question was asked, with its size, timing and which kinds of figures were looked up, so we can run the feature and enforce fair-use limits.
+                </p>
+              </div>
+
               <div className="legal__card">
                 <h3 className="legal__card-title">Your Chosen Third Parties (Not Sub-Processors)</h3>
                 <p className="legal__card-text"><strong>Accountants (Token-Based Read-Only Access)</strong></p>
@@ -832,6 +867,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>Brevo (France):</strong> Email service, GDPR-compliant EU processor</li>
                   <li className="legal__list-item"><strong>Resend (USA):</strong> Primary email service. Subject to DPA and SCCs</li>
                   <li className="legal__list-item"><strong>Discord (USA):</strong> Internal operational alerts. Subject to Discord&apos;s Data Processing Addendum and SCCs</li>
+                  <li className="legal__list-item"><strong>Anthropic (USA):</strong> Ask MileClear answers (Pro, only when you ask a question). Subject to Anthropic&apos;s Data Processing Addendum, which includes SCCs and the UK International Data Transfer Addendum</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
                   All international transfers comply with UK GDPR Article 46 (SCCs) and Data Protection Act 2018 Chapter 5. We have reviewed these services&apos; security certifications and compliance frameworks.

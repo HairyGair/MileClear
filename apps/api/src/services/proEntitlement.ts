@@ -5,7 +5,9 @@
 //      the future) - Stripe, Apple, Google or a comp grant;
 //   2. banked referral credit (referralProUntil in the future);
 //   3. an ACTIVE membership of an ENTITLED team: an approved free pilot
-//      (pilotFree) or an org that carries a Stripe subscription.
+//      (pilotFree), an org that carries a Stripe subscription, or an org
+//      still inside its free trial (trialEndsAt in the future, Oct 2026;
+//      the rule is isOrgEntitled in teamTrial.ts).
 //
 // 1 and 2 come from resolvePremiumStatus (services/referral.ts). 3 is the
 // rule premiumMiddleware has applied since Milesheet teams shipped. Free
@@ -18,6 +20,7 @@
 
 import { prisma } from "../lib/prisma.js";
 import { resolvePremiumStatus } from "./referral.js";
+import { entitledOrgWhere } from "./teamTrial.js";
 
 export type ProSource = "subscription" | "referral" | "team" | "none";
 
@@ -44,15 +47,16 @@ const NONE: ProEntitlement = { isPro: false, source: "none", until: null };
 
 /**
  * Membership alone is NOT entitlement: anyone can create a team and become
- * its active admin, so the org itself must be a free pilot or carry a
- * subscription. A disabled/invited membership grants nothing.
+ * its active admin, so the org itself must be a free pilot, carry a
+ * subscription, or be inside its free trial. A disabled/invited membership
+ * grants nothing, and a trial that has ended grants nothing.
  */
-export async function hasEntitledTeamMembership(userId: string): Promise<boolean> {
+export async function hasEntitledTeamMembership(userId: string, now: Date = new Date()): Promise<boolean> {
   const membership = await prisma.orgMembership.findFirst({
     where: {
       userId,
       status: "active",
-      org: { OR: [{ pilotFree: true }, { stripeSubscriptionId: { not: null } }] },
+      org: entitledOrgWhere(now),
     },
     select: { id: true },
   });

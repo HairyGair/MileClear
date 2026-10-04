@@ -20,6 +20,8 @@ export interface OrgRow {
   seatCap: number | null;
   stripeSubscriptionId: string | null;
   seatsBilled: number | null;
+  /** Free trial end (Oct 2026); absent or null = no trial. */
+  trialEndsAt?: Date | null;
 }
 
 export interface MembershipRow {

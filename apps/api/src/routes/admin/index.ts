@@ -42,6 +42,7 @@ import { resolveAdminTripDistance } from "../../services/adminTripDistance.js";
 import { adminObservabilityRoutes } from "./observability.js";
 import { adminCommunityRoutes } from "./community.js";
 import { adminMilesheetRoutes } from "./milesheet.js";
+import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
@@ -1016,13 +1017,26 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
-  // GET /admin/team-interest
+  // GET /admin/team-interest[?view=waitlist|interest]
   // The "MileClear for teams" register. Rows newest first plus the totals
   // that decide whether an employer tier gets built: how many companies,
   // and roughly how many drivers they represent (band midpoints, so the
   // figure is indicative, not a count).
-  app.get("/team-interest", async (_request, reply) => {
+  //
+  // Since 4 Oct 2026 it also holds the Milesheet waiting list: requests to
+  // start a team parked while MILESHEET_NEW_TEAMS is "waitlist" carry a
+  // waitlistSource (self_serve | driver_nomination | admin_form). view=
+  // waitlist returns only those, view=interest only the plain form rows.
+  app.get("/team-interest", async (request, reply) => {
+    const { view } = request.query as { view?: string };
+    const where =
+      view === "waitlist"
+        ? { waitlistSource: { not: null } }
+        : view === "interest"
+          ? { waitlistSource: null }
+          : {};
     const rows = await prisma.teamInterest.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       take: 200,
     });
@@ -1030,26 +1044,51 @@ export async function adminRoutes(app: FastifyInstance) {
     const byDrivers: Record<string, number> = {};
     const byApproval: Record<string, number> = {};
     const byDestination: Record<string, number> = {};
+    const bySource: Record<string, number> = {};
     const domains = new Set<string>();
     let estimatedDrivers = 0;
     for (const r of rows) {
-      byDrivers[r.drivers] = (byDrivers[r.drivers] ?? 0) + 1;
-      byApproval[r.approval] = (byApproval[r.approval] ?? 0) + 1;
-      byDestination[r.destination] = (byDestination[r.destination] ?? 0) + 1;
+      // Waiting-list rows from the app have no band / approval / destination.
+      if (r.drivers) byDrivers[r.drivers] = (byDrivers[r.drivers] ?? 0) + 1;
+      if (r.approval) byApproval[r.approval] = (byApproval[r.approval] ?? 0) + 1;
+      if (r.destination) byDestination[r.destination] = (byDestination[r.destination] ?? 0) + 1;
+      if (r.waitlistSource) bySource[r.waitlistSource] = (bySource[r.waitlistSource] ?? 0) + 1;
       domains.add(r.email.split("@")[1]?.toLowerCase() ?? r.email);
-      estimatedDrivers += MIDPOINT[r.drivers] ?? 0;
+      estimatedDrivers += r.drivers ? MIDPOINT[r.drivers] ?? 0 : 0;
     }
+    const nominatorIds = [...new Set(rows.map((r) => r.nominatedByUserId).filter((x): x is string => !!x))];
+    const nominators = nominatorIds.length
+      ? new Map(
+          (
+            await prisma.user.findMany({
+              where: { id: { in: nominatorIds } },
+              select: { id: true, email: true, displayName: true },
+            })
+          ).map((u) => [u.id, u])
+        )
+      : new Map<string, { id: string; email: string; displayName: string | null }>();
     return reply.send({
-      data: rows,
+      data: rows.map((r) => {
+        const n = r.nominatedByUserId ? nominators.get(r.nominatedByUserId) : undefined;
+        return {
+          ...r,
+          waitlisted: !!r.waitlistSource,
+          nominatedBy: n ? { userId: n.id, email: n.email, displayName: n.displayName } : null,
+        };
+      }),
+      newTeams: newTeamsMode(),
       totals: {
         submissions: rows.length,
         companies: domains.size,
         estimatedDrivers,
         // The bar set on 21 Aug 2026: five companies with 10+ drivers each.
-        tenPlusCompanies: rows.filter((r) => r.drivers !== "1-5").length,
+        tenPlusCompanies: rows.filter((r) => r.drivers && r.drivers !== "1-5").length,
+        waitlisted: rows.filter((r) => r.waitlistSource && !r.admittedAt).length,
+        admitted: rows.filter((r) => r.admittedAt).length,
         byDrivers,
         byApproval,
         byDestination,
+        bySource,
       },
     });
   });

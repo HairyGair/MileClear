@@ -26,19 +26,28 @@ function statusBadge(status: TeamSeatBilling["status"]) {
   }
 }
 
-export default function SeatBillingCard() {
-  const [billing, setBilling] = useState<TeamSeatBilling | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * Pass `billing` when the page already loaded /team/billing (the portal does,
+ * to put a trial card at the top); without it the card fetches its own.
+ */
+export default function SeatBillingCard({ billing: given }: { billing?: TeamSeatBilling } = {}) {
+  const [billing, setBilling] = useState<TeamSeatBilling | null>(given ?? null);
+  const [loading, setLoading] = useState(!given);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
+    if (given) {
+      setBilling(given);
+      setLoading(false);
+      return;
+    }
     api
       .get<{ data: TeamSeatBilling }>("/team/billing")
       .then((res) => setBilling(res.data))
       .catch((err: Error) => setError(err.message || "Could not load billing"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [given]);
 
   const startCheckout = async () => {
     setActionLoading(true);
@@ -114,6 +123,53 @@ export default function SeatBillingCard() {
             </>
           )}
         </p>
+      </div>
+    );
+  }
+
+  // Free trial (teams started once new teams reopen). During it the team is
+  // covered like a pilot; after it, data stays but driver Pro stops.
+  if (billing.status === "trial" || billing.status === "trial_ended") {
+    const ended = billing.status === "trial_ended";
+    const daysLeft = billing.trialDaysLeft ?? 0;
+    const endDate = billing.trialEndsAt
+      ? new Date(billing.trialEndsAt).toLocaleDateString("en-GB", { day: "numeric", month: "long" })
+      : null;
+    const cannotStart = billing.activeSeats < 1 || seatPricePence == null || overThreshold;
+    return (
+      <div className="card" style={ended ? { borderColor: "rgba(239, 68, 68, 0.35)" } : undefined}>
+        <div className="card__header">
+          <div>
+            <div className="card__title">{ended ? "Your free trial has ended" : `Free trial: ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`}</div>
+            <div className="card__subtitle">{billing.activeSeats} active driver{billing.activeSeats === 1 ? "" : "s"}</div>
+          </div>
+          {ended ? <Badge variant="danger">Trial ended</Badge> : <Badge variant="pro">Free trial</Badge>}
+        </div>
+
+        {error && <div className="alert alert--error" style={{ marginBottom: "0.75rem" }}>{error}</div>}
+
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "0.75rem" }}>
+          {ended
+            ? "Your team, journeys and approvals are all still here. Your drivers no longer get MileClear Pro through the company, and will again as soon as billing starts."
+            : `Your drivers have MileClear Pro through the company until ${endDate ?? "the trial ends"}. Start billing any time: you won't be charged until the trial is over.`}
+          {seatPricePence == null
+            ? " We have not set the per driver price yet, so nothing can be charged. We will agree it with you before any billing starts."
+            : ` ${formatPence(seatPricePence)}/seat/month.`}
+        </p>
+        {overThreshold ? (
+          <a href="mailto:gair@mileclear.com" className="btn btn--secondary btn--sm">
+            Get in touch about invoicing
+          </a>
+        ) : (
+          <Button variant="primary" size="sm" onClick={startCheckout} disabled={actionLoading || cannotStart}>
+            {actionLoading ? "Redirecting..." : "Subscribe"}
+          </Button>
+        )}
+        {billing.activeSeats < 1 && (
+          <p style={{ color: "var(--text-muted)", fontSize: "0.8125rem", marginTop: "0.5rem" }}>
+            Invite at least one active driver first.
+          </p>
+        )}
       </div>
     );
   }

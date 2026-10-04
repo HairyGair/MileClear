@@ -11,6 +11,7 @@ import type { AdminUser, Analytics, FbItem } from "@/components/admin/legacy";
 import { FB_CATEGORY_OPTIONS, FB_STATUSES } from "@/components/admin/legacy";
 import { AcquisitionPanel } from "@/components/admin/panels/AcquisitionPanel";
 import { QrScansPanel } from "@/components/admin/panels/QrScansPanel";
+import { TeamInterestTab } from "@/components/admin/milesheet/TeamInterestTab";
 import type { EngagementData, RatingDiagnostics, RevenueData, SupportQueueData, TripQualityData } from "@/components/admin/panels/types";
 import { useRecentSignups, type RecentSignups } from "@/components/admin/panels/useRecentSignups";
 import {
@@ -542,84 +543,6 @@ function RecentFeedbackTab() {
   );
 }
 
-interface TeamInterestRow {
-  id: string;
-  email: string;
-  company: string | null;
-  drivers: string;
-  approval: string;
-  destination: string;
-  destinationDetail: string | null;
-  notes: string | null;
-  source: string | null;
-  createdAt: string;
-}
-interface TeamInterestResponse {
-  data: TeamInterestRow[];
-  totals: { submissions: number; companies: number; estimatedDrivers: number; tenPlusCompanies: number };
-}
-
-const APPROVAL_LABEL: Record<string, string> = {
-  monthly_signoff: "Monthly sign-off",
-  line_by_line: "Line by line",
-  view_only: "View only",
-};
-
-function TeamsTab() {
-  const { data, error, loading, reload } = useAdminData<TeamInterestResponse>("/admin/team-interest", { unwrap: false });
-  const cols: TableColumn<TeamInterestRow>[] = [
-    {
-      key: "who",
-      header: "Who",
-      render: (r) => (
-        <>
-          {r.company || r.email.split("@")[1]}
-          <span className="adm-cell-sub">{r.email}{r.source ? `, via /${r.source}` : ""}</span>
-        </>
-      ),
-      sortValue: (r) => r.company ?? r.email,
-    },
-    { key: "drivers", header: "Drivers", render: (r) => r.drivers, numeric: true },
-    { key: "approval", header: "Approval", render: (r) => APPROVAL_LABEL[r.approval] ?? r.approval, hideOnMobile: true },
-    { key: "destination", header: "Figures go to", render: (r) => `${r.destination.replace("_", " ")}${r.destinationDetail ? ` (${r.destinationDetail})` : ""}`, hideOnMobile: true },
-    { key: "notes", header: "Notes", render: (r) => <span style={{ color: "var(--adm-text-2)" }}>{r.notes || "-"}</span>, hideOnMobile: true },
-    { key: "createdAt", header: "When", render: (r) => new Date(r.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" }), sortValue: (r) => r.createdAt, align: "right" },
-  ];
-  return (
-    <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load Teams interest.">
-      {(d) => (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s4)" }}>
-          <Grid min={200} gap="sm">
-            <KpiCard label="Companies" value={d.totals.companies} hint={`${formatNumber(d.totals.submissions)} submissions`} />
-            <KpiCard label="Drivers (estimate)" value={d.totals.estimatedDrivers} hint="Band midpoints 3 / 13 / 35 / 75. Indicative, not a count." />
-            <div className="adm-kpi">
-              <p className="adm-kpi__label">Companies with 10+ drivers</p>
-              <div style={{ marginTop: "var(--adm-s3)" }}>
-                <ProgressBar
-                  value={d.totals.tenPlusCompanies}
-                  max={5}
-                  valueLabel={`${d.totals.tenPlusCompanies} of 5`}
-                  tone={d.totals.tenPlusCompanies >= 5 ? "good" : "accent"}
-                  label="Target set 21 Aug 2026"
-                />
-              </div>
-            </div>
-          </Grid>
-          <DataTable
-            caption="Teams interest register"
-            columns={cols}
-            rows={d.data.slice(0, 25)}
-            rowKey={(r) => r.id}
-            maxHeight={420}
-            emptyTitle="Nobody has registered yet"
-            empty="The form is on /teams and /employee-mileage-tracker."
-          />
-        </div>
-      )}
-    </LoadState>
-  );
-}
-
 function ActivityPanel() {
   const [detailUserId, setDetailUserId] = useState<string | null>(null);
   return (
@@ -630,7 +553,7 @@ function ActivityPanel() {
           { id: "signups", label: "New sign-ups", content: <UsersListTab kind="status" path="/admin/users?page=1&pageSize=15&sortBy=createdAt" onOpen={setDetailUserId} /> },
           { id: "pro", label: "Pro users", content: <UsersListTab kind="pro" path="/admin/users?page=1&pageSize=15&sortBy=createdAt&plan=premium" onOpen={setDetailUserId} /> },
           { id: "feedback", label: "Feedback", content: <RecentFeedbackTab /> },
-          { id: "teams", label: "Teams interest", content: <TeamsTab /> },
+          { id: "teams", label: "Teams interest & waiting list", content: <TeamInterestTab /> },
         ]}
       />
       <UserDetailModal userId={detailUserId} open={!!detailUserId} onClose={() => setDetailUserId(null)} />

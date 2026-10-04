@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth-context";
+import WaitlistForm, { WAITLIST_HEADLINE, WAITLIST_LEDE, useNewTeamsMode } from "./WaitlistForm";
 
 // Milesheet Phase 3 (24 Aug 2026) self-serve entry point on /teams.
 // Anonymous visitors never see this - they keep the interest-register form
@@ -10,6 +12,10 @@ import { api } from "../../lib/api";
 // already in a team" or a one-field org creation form, checked client-side
 // against /team/me so this stays a plain addition, not a rewrite of the
 // public page.
+//
+// Waiting list (4 Oct 2026): while the API says new teams are on the
+// waiting list (GET /team/availability), the create form is replaced by
+// WaitlistForm. Existing teams are unaffected: a member never reaches this.
 
 const card: React.CSSProperties = {
   background: "rgba(234,179,8,0.05)",
@@ -48,12 +54,15 @@ interface Me {
 }
 
 export default function TeamSelfServeGate() {
+  const { user } = useAuth();
+  const newTeams = useNewTeamsMode();
   const [authed, setAuthed] = useState(false);
   const [checking, setChecking] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [pausedMidway, setPausedMidway] = useState(false);
 
   useEffect(() => {
     const hasToken = typeof window !== "undefined" && !!localStorage.getItem("mc_access_token");
@@ -78,7 +87,14 @@ export default function TeamSelfServeGate() {
     }
     setSubmitting(true);
     try {
-      await api.post("/team/self-serve", { name: name.trim() });
+      const res = await api.post<{ data: { waitlisted?: boolean } }>("/team/self-serve", { name: name.trim() });
+      // New teams were paused between loading this page and submitting:
+      // show the waiting-list form's answer rather than an empty portal.
+      if (res.data?.waitlisted) {
+        setPausedMidway(true);
+        setSubmitting(false);
+        return;
+      }
       window.location.href = "/milesheet/portal";
     } catch (err: any) {
       setError(err.message || "Could not create your team");
@@ -86,7 +102,7 @@ export default function TeamSelfServeGate() {
     }
   };
 
-  if (!authed || checking) return null;
+  if (!authed || checking || newTeams === null) return null;
 
   if (me) {
     return (
@@ -97,6 +113,20 @@ export default function TeamSelfServeGate() {
         <Link href="/milesheet/portal" style={{ ...btn, textDecoration: "none", display: "inline-block" }}>
           Open your portal
         </Link>
+      </div>
+    );
+  }
+
+  if (newTeams === "waitlist" || pausedMidway) {
+    return (
+      <div style={card}>
+        <p style={{ color: "var(--text-white)", fontSize: "1.0625rem", fontWeight: 700, margin: "0 0 0.5rem" }}>
+          {WAITLIST_HEADLINE}
+        </p>
+        <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.6, margin: "0 0 1rem" }}>
+          {WAITLIST_LEDE}
+        </p>
+        <WaitlistForm signedInEmail={user?.email ?? null} />
       </div>
     );
   }

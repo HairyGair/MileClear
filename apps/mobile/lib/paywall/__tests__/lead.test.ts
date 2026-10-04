@@ -23,6 +23,7 @@ const LEAD_SOURCES = [
   "csv_import",
   "snap_statement",
   "ticket_defender",
+  "ask_mileclear",
   "vehicle_limit",
   "saved_locations_suggest",
   "mileage_certificate",
@@ -79,6 +80,13 @@ describe("paywallLeadFor", () => {
     expect(paywallLeadFor("snap_statement")?.highlightFeature).toBe("snap_statement");
     expect(paywallLeadFor("ticket_defender")?.highlightFeature).toBe("ticket_defender");
     expect(paywallLeadFor("vehicle_limit")?.highlightFeature).toBe("vehicles");
+  });
+
+  it("leads Ask MileClear with its own pitch, without a page 3 entry while it can be dormant", () => {
+    const lead = paywallLeadFor("ask_mileclear");
+    expect(lead?.headline).toBe("Ask about your own figures");
+    expect(lead?.subline).toContain("recorded in MileClear");
+    expect(lead?.highlightFeature).toBeUndefined();
   });
 
   it("returns null (the generic page) for generic and unknown sources", () => {

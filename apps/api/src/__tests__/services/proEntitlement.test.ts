@@ -1,7 +1,7 @@
 /**
  * The shared Pro entitlement rule (services/proEntitlement.ts): personal
  * subscription, referral credit, or an active membership of an entitled
- * org (free pilot or Stripe-subscribed). premiumMiddleware, the free caps,
+ * org (free pilot, Stripe-subscribed, or inside its free trial). premiumMiddleware, the free caps,
  * /user/profile and /billing/status all answer through it.
  *
  * orgMembership.findFirst is faked with a tiny evaluator over fixture rows
@@ -14,7 +14,7 @@ interface MembershipRow {
   id: string;
   userId: string;
   status: string;
-  org: { pilotFree: boolean; stripeSubscriptionId: string | null };
+  org: { pilotFree: boolean; stripeSubscriptionId: string | null; trialEndsAt?: Date | null };
 }
 
 let memberships: MembershipRow[] = [];
@@ -31,7 +31,9 @@ vi.mock("../../lib/prisma.js", () => ({
               ? org.pilotFree === cond.pilotFree
               : cond.stripeSubscriptionId?.not === null
                 ? org.stripeSubscriptionId !== null
-                : false
+                : cond.trialEndsAt?.gt instanceof Date
+                  ? !!org.trialEndsAt && org.trialEndsAt.getTime() > cond.trialEndsAt.gt.getTime()
+                  : false
           );
         const hit = memberships.find(
           (m) => m.userId === where.userId && m.status === where.status && orgMatches(m.org)
@@ -102,6 +104,21 @@ describe("getProEntitlement", () => {
   it("an active member of an org that is neither a pilot nor subscribed is not Pro", async () => {
     memberships = [member({ pilotFree: false, stripeSubscriptionId: null })];
     expect(await isProUser(USER_ID, FREE)).toBe(false);
+  });
+
+  it("an active member of an org inside its free trial is Pro via team", async () => {
+    memberships = [member({ pilotFree: false, stripeSubscriptionId: null, trialEndsAt: future() })];
+    expect(await getProEntitlement(USER_ID, FREE)).toEqual({ isPro: true, source: "team", until: null });
+  });
+
+  it("an active member of an org whose free trial has ended is not Pro", async () => {
+    memberships = [member({ pilotFree: false, stripeSubscriptionId: null, trialEndsAt: past() })];
+    expect(await isProUser(USER_ID, FREE)).toBe(false);
+  });
+
+  it("a team that subscribed after its trial ended is still Pro", async () => {
+    memberships = [member({ pilotFree: false, stripeSubscriptionId: "sub_team", trialEndsAt: past() })];
+    expect(await isProUser(USER_ID, FREE)).toBe(true);
   });
 
   it("an inactive membership of an entitled org is not Pro", async () => {

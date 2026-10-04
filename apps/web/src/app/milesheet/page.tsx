@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import MilesheetHeader from "../../components/milesheet/MilesheetHeader";
 import MilesheetFooter from "../../components/milesheet/MilesheetFooter";
+import MilesheetCta from "../../components/milesheet/MilesheetCta";
 
 export const metadata: Metadata = {
   // Targeted at "business mileage app" and "mileage tracking software", the
@@ -147,18 +148,7 @@ export default function MilesheetPage() {
           </section>
 
           <section className="ms-section" style={{ paddingBottom: "3rem" }}>
-            <div className="card" style={{ padding: "2rem", textAlign: "center" }}>
-              <h2 className="ms-section__title" style={{ marginBottom: "0.5rem" }}>
-                Set your company up
-              </h2>
-              <p className="ms-lede" style={{ maxWidth: 520, margin: "0 auto 1.5rem" }}>
-                Create your company, invite your drivers by email, and approve your first month.
-                It takes about five minutes.
-              </p>
-              <Link href="/milesheet/portal" className="btn btn--lg btn--primary">
-                Get started
-              </Link>
-            </div>
+            <MilesheetCta />
           </section>
         </div>
       </main>

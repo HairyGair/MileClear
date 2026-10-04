@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { TeamSeatBilling } from "@mileclear/shared";
 import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
@@ -38,6 +39,9 @@ export default function MilesheetPortalPage() {
   const [inviteText, setInviteText] = useState("");
   const [inviting, setInviting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Loaded here rather than inside SeatBillingCard so a free-trial team sees
+  // its trial card at the top of the portal, not under the people table.
+  const [billing, setBilling] = useState<TeamSeatBilling | null>(null);
 
   const load = useCallback(() => {
     api
@@ -45,6 +49,10 @@ export default function MilesheetPortalPage() {
       .then((res) => {
         setMe(res.data);
         if (res.data?.role === "admin") {
+          api
+            .get<{ data: TeamSeatBilling }>("/team/billing")
+            .then((b) => setBilling(b.data))
+            .catch(() => setBilling(null));
           return api.get<{ data: Member[] }>("/team/members").then((m) => setMembers(m.data));
         }
       })
@@ -133,6 +141,7 @@ export default function MilesheetPortalPage() {
     );
   }
 
+  const trialCard = billing?.status === "trial" || billing?.status === "trial_ended";
   const active = members?.filter((m) => m.status === "active") ?? [];
   const invited = members?.filter((m) => m.status === "invited") ?? [];
   const disabled = members?.filter((m) => m.status === "disabled") ?? [];
@@ -146,6 +155,8 @@ export default function MilesheetPortalPage() {
           month to date {Math.round(active.reduce((s, m) => s + m.monthBusinessMiles, 0) * 10) / 10} business miles
         </p>
       </div>
+
+      {trialCard && <SeatBillingCard billing={billing!} />}
 
       <MonthView />
 
@@ -230,7 +241,7 @@ export default function MilesheetPortalPage() {
         </p>
       </div>
 
-      <SeatBillingCard />
+      {!trialCard && (billing ? <SeatBillingCard billing={billing} /> : <SeatBillingCard />)}
     </div>
   );
 }

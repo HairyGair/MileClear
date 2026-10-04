@@ -7,6 +7,8 @@ import { adminMiddleware } from "../../middleware/admin.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendTeamInviteEmail } from "../../services/email.js";
 import { syncSeats } from "../../services/teamBilling.js";
+import { newTeamsMode } from "../../services/milesheetNewTeams.js";
+import { trialEndsAtForNewTeam } from "../../services/teamTrial.js";
 import { sendPushToUser } from "../../lib/push.js";
 import {
   MONTH_RE,
@@ -58,15 +60,24 @@ export async function teamRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: parsed.error.issues[0].message });
       }
       const { name, adminEmail, pilotFree } = parsed.data;
+      // MileClear admins can always start a team: this is the override for
+      // the waiting list (MILESHEET_NEW_TEAMS, services/milesheetNewTeams.ts).
+      // A paid (non-pilot) team started while new teams are open gets the
+      // same free trial as any other new team; a pilot needs none.
+      const mode = newTeamsMode();
+      const trialEndsAt = pilotFree
+        ? null
+        : trialEndsAtForNewTeam(mode, new Date(), { creatorHadTrial: false });
 
       const token = crypto.randomBytes(64).toString("hex").slice(0, 128);
       const org = await prisma.organisation.create({
         data: {
           name,
           pilotFree,
+          trialEndsAt,
           // Free pilots are capped: free-for-testing must not scale into a
           // free 400-driver fleet. Paying orgs are capped by their bill.
-          seatCap: pilotFree ? 20 : null,
+          seatCap: pilotFree || trialEndsAt ? 20 : null,
           createdByUserId: request.userId!,
           memberships: {
             create: {
@@ -86,7 +97,13 @@ export async function teamRoutes(app: FastifyInstance) {
       } catch (err) {
         request.log.error({ err }, "team admin invite email failed (org created)");
       }
-      logEvent("team.org_created", request.userId!, { orgId: org.id, name, pilotFree });
+      logEvent("team.org_created", request.userId!, {
+        orgId: org.id,
+        name,
+        pilotFree,
+        waitlistOverride: mode === "waitlist",
+        trialEndsAt: trialEndsAt?.toISOString() ?? null,
+      });
       return reply.status(201).send({ data: org });
     }
   );

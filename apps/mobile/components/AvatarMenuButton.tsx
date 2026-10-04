@@ -17,6 +17,7 @@ import { useUser } from "../lib/user/context";
 import { UserAvatar } from "./avatars/AvatarRegistry";
 import { useLayoutPrefs } from "../lib/layout/index";
 import { fetchUnclassifiedCount } from "../lib/api/trips";
+import { useAssistantAvailable } from "../lib/api/assistant";
 import { colors, fonts } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -74,6 +75,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
   menu_help: { key: "menu_help", label: "Help & Tutorials", route: "/help", icon: "help-circle-outline" },
   menu_ticket_defender: { key: "menu_ticket_defender", label: "Ticket Defender", route: "/ticket-defender", icon: "shield-checkmark-outline", badge: "PRO" },
+  menu_ask: { key: "menu_ask", label: "Ask MileClear", route: "/assistant", icon: "chatbubbles-outline", badge: "PRO" },
 };
 
 // Group definitions — items render in layout-pref order within each group.
@@ -104,7 +106,8 @@ const GROUPS = [
   { id: "insight", label: "INSIGHTS", keys: ["menu_insights", "menu_analytics", "menu_achievements"] },
   { id: "money", label: "MONEY", keys: ["menu_earnings", "menu_expenses", "menu_bank", "menu_inbox"] },
   // Ticket defender (Pro, Oct 2026): a fine to check, Clean Air Zone charges to pay.
-  { id: "tools", label: "TOOLS", keys: ["menu_ticket_defender"] },
+  // Ask MileClear (Pro, Oct 2026): hidden while the server says it is unavailable.
+  { id: "tools", label: "TOOLS", keys: ["menu_ticket_defender", "menu_ask"] },
   // menu_invoices demoted here from MONEY: 5 of 1,093 users have ever used
   // Invoices (0.5%), so it no longer sits next to Expenses and Link Bank.
   { id: "more", label: "MORE", keys: ["menu_schedule", "menu_refer", "menu_suggestions", "menu_help", "menu_invoices"] },
@@ -121,6 +124,7 @@ export default function AvatarMenuButton() {
   const [menuVisible, setMenuVisible] = useState(false);
   const menuLayout = useLayoutPrefs("avatar_menu");
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  const assistantAvailable = useAssistantAvailable();
 
   useEffect(() => {
     fetchUnclassifiedCount()
@@ -270,6 +274,8 @@ export default function AvatarMenuButton() {
                     // shortcut is noise on their menu.
                     .filter((k) => !(isCompanyDriver && GIG_ONLY_MENU_KEYS.has(k)))
                     .filter((k) => !EMPLOYEE_ONLY_MENU_KEYS.has(k) || user?.workType === "employee" || user?.workType === "both")
+                    // Dormant until the server has its Anthropic key.
+                    .filter((k) => k !== "menu_ask" || assistantAvailable === true)
                     .sort((a, b) => {
                       const ai = menuLayout.visibleKeys.indexOf(a);
                       const bi = menuLayout.visibleKeys.indexOf(b);

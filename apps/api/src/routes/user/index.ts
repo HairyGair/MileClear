@@ -912,6 +912,7 @@ export async function userRoutes(app: FastifyInstance) {
           stripeSubscriptionId: true,
           billingEmail: true,
           seatsBilled: true,
+          trialEndsAt: true,
           createdAt: true,
           updatedAt: true,
         },

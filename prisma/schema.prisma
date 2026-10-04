@@ -1102,19 +1102,32 @@ model TeamInterest {
   id                String   @id @default(uuid())
   email             String   @db.VarChar(254)
   company           String?  @db.VarChar(160)
-  // "1-5" | "6-20" | "21-50" | "50+"
-  drivers           String   @db.VarChar(8)
+  // "1-5" | "6-20" | "21-50" | "50+". Null on a waiting-list request that
+  // did not ask (a driver nominating their manager from the app).
+  drivers           String?  @db.VarChar(8)
   // "monthly_signoff" | "line_by_line" | "view_only"
-  approval          String   @db.VarChar(24)
+  approval          String?  @db.VarChar(24)
   // "payroll" | "expenses_system" | "spreadsheet" | "accountant" | "other"
-  destination       String   @db.VarChar(24)
+  destination       String?  @db.VarChar(24)
   destinationDetail String?  @db.VarChar(160)
   notes             String?  @db.Text
   // Which page the form was on.
   source            String?  @db.VarChar(64)
+  // Milesheet waiting list (Oct 2026). Set when a request to START a team
+  // was parked because MILESHEET_NEW_TEAMS is "waitlist":
+  // "self_serve" | "driver_nomination" | "admin_form". Null on a plain
+  // interest-register submission.
+  waitlistSource    String?  @db.VarChar(24)
+  contactName       String?  @db.VarChar(120)
+  // The driver who named their manager, on a driver_nomination row.
+  nominatedByUserId String?  @db.VarChar(191)
+  // Set when an admin let this request in: the team that was created.
+  admittedOrgId     String?  @db.VarChar(191)
+  admittedAt        DateTime?
   createdAt         DateTime @default(now())
 
   @@index([createdAt])
+  @@index([waitlistSource, createdAt])
   @@map("team_interest")
 }
 
@@ -1146,6 +1159,11 @@ model Organisation {
   billingEmail         String? @db.VarChar(255)
   /// Quantity last synced to Stripe, so we only call out when it changes.
   seatsBilled          Int?
+  // Free trial for teams started once new teams reopen (Oct 2026, built but
+  // off while MILESHEET_NEW_TEAMS is "waitlist"). Until this passes, the team
+  // is entitled like a pilot; after it, with no subscription, members keep
+  // their data but lose team Pro. Null = no trial (pilots, older teams).
+  trialEndsAt          DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

@@ -1,5 +1,6 @@
 import { runTeamMonthReadyJob } from "./teamApprovals.js";
 import { runMilesheetAlarmJob } from "./milesheetAlarm.js";
+import { runMilesheetTrialRemindersJob } from "./milesheetTrial.js";
 import { devicePlatformOf, openSettingsLocationSteps } from "./activationBgLocation.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
@@ -1551,6 +1552,10 @@ export function startNotificationJobs(): void {
     // Milesheet alarm (4 Oct 2026): invites going out with nobody joining, or
     // a team payment still failing. Deduped per condition per 2 days.
     void runJob("milesheet_alarm", runMilesheetAlarmJob);
+    // Milesheet free trial: email team admins 7 days and 1 day before the
+    // trial ends. Dry run unless MILESHEET_TRIAL_EMAILS=1; no trials exist
+    // until MILESHEET_NEW_TEAMS=open.
+    void runJob("milesheet_trial", runMilesheetTrialRemindersJob);
   };
 
   // Jobs gated to a NARROW time window must tick faster than the window is

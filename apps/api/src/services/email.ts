@@ -3061,3 +3061,79 @@ export async function sendManagerNominationEmail(
   }
   await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
 }
+
+/**
+ * Milesheet waiting list (4 Oct 2026): confirmation to a manager who asked to
+ * start a team from the website while new teams are paused. Sent for
+ * self-serve requests only, never for a driver's nomination (that manager
+ * did not ask us for anything). No dates, no prices.
+ */
+export async function sendMilesheetWaitlistEmail(
+  email: string,
+  contactName: string | null,
+  companyName: string
+): Promise<void> {
+  const safeCompany = escapeHtml(companyName);
+  const greeting = contactName ? `Hi ${escapeHtml(contactName.split(/\s+/)[0])},` : "Hello,";
+  const subject = `You're on the Milesheet waiting list`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">${greeting}</p>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">Thanks for asking about Milesheet for <strong>${safeCompany}</strong>. Milesheet is in a small pilot at the moment, so we're not setting up new companies just yet. You're on the waiting list, and we'll email you at this address when there's a place.</p>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">There's nothing you need to do in the meantime. If you have a question, just reply to this email.</p>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">Thanks,<br />MileClear</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send Milesheet waiting list email in production");
+    }
+    console.log(`[EMAIL] Milesheet waiting list confirmation (${companyName}) -> ${email} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+}
+
+/**
+ * Milesheet free trial reminder (4 Oct 2026), 7 days and 1 day before the
+ * trial ends, to the team's admins. Gated by MILESHEET_TRIAL_EMAILS=1 in
+ * jobs/milesheetTrial.ts.
+ */
+export async function sendMilesheetTrialEndingEmail(
+  email: string,
+  orgName: string,
+  daysLeft: number,
+  trialEndsAt: Date
+): Promise<void> {
+  const url = `${WEB_BASE_URL}/milesheet/portal`;
+  const safeOrg = escapeHtml(orgName);
+  const endDate = trialEndsAt.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Europe/London",
+  });
+  const when = daysLeft <= 1 ? "tomorrow" : `in ${daysLeft} days`;
+  const subject = `${orgName}'s Milesheet free trial ends ${when}`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">Your free trial ends ${when}</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">The Milesheet free trial for <strong>${safeOrg}</strong> ends on ${escapeHtml(endDate)}. To keep your drivers covered after that, start billing from the portal.</p>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">If you don't, nothing is deleted: your team, journeys and approvals all stay. Your drivers just stop getting MileClear Pro through the company until billing starts.</p>
+      <p style="margin: 24px 0;">
+        <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Open the portal</a>
+      </p>
+      <p style="color: #888; font-size: 12px;">Questions about billing? Reply to this email.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send Milesheet trial reminder in production");
+    }
+    console.log(`[EMAIL] Milesheet trial ends ${when} (${orgName}) -> ${email}: ${url} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+}

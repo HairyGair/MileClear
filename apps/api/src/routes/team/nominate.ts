@@ -5,6 +5,13 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendManagerNominationEmail } from "../../services/email.js";
+import {
+  WAITLISTED_CODE,
+  newTeamsMode,
+  nominationWaitlistMessage,
+} from "../../services/milesheetNewTeams.js";
+import { creatorHadTrial, recordWaitlistRequest } from "../../services/milesheetTeams.js";
+import { TEAM_TRIAL_SEAT_CAP, trialEndsAtForNewTeam } from "../../services/teamTrial.js";
 
 // Milesheet Phase 1.5 (25 Aug 2026) - the reverse of POST /orgs. A market
 // study found almost no employer-side search volume (140 UK searches/mo
@@ -17,6 +24,22 @@ import { sendManagerNominationEmail } from "../../services/email.js";
 //
 // Same invite token discipline as index.ts: 128 hex chars CSPRNG, sha256 at
 // rest, 7-day expiry, raw token only ever in the email.
+//
+// Waiting list (4 Oct 2026): while MILESHEET_NEW_TEAMS is not "open" (the
+// default) no team is created and NO email goes to the manager (they did
+// not ask us for anything). The nomination is stored in team_interest
+// (waitlistSource "driver_nomination", nominatedByUserId = this driver) and
+// the answer is a 409 in the modern error shape:
+//
+//   { error: { code: "MILESHEET_WAITLISTED", message, retryable: false },
+//     waitlisted: true }
+//
+// Current app builds recognise the code and show the waiting-list screen.
+// Older builds treat any non-2xx as an error and show `message` in the red
+// box under the form ("Milesheet is in a small pilot at the moment. We've
+// added your company to the waiting list and will contact <manager> when
+// places open."), which reads correctly there too. A 2xx would have made
+// old builds say "We've emailed your manager", which would be untrue.
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -106,8 +129,38 @@ export async function nominateManagerRoutes(app: FastifyInstance) {
         });
       }
 
+      const mode = newTeamsMode();
+      if (mode === "waitlist") {
+        const { id, duplicate } = await recordWaitlistRequest({
+          source: "driver_nomination",
+          email: managerEmail,
+          company: companyName,
+          nominatedByUserId: userId,
+          notes: `Named by ${caller.displayName ? `${caller.displayName}, ` : ""}${caller.email.toLowerCase()} in the app.`,
+          page: "app/nominate-manager",
+        });
+        logEvent("team.waitlisted", userId, {
+          interestId: id,
+          source: "driver_nomination",
+          duplicate,
+          companyName,
+          managerDomain: managerEmail.split("@")[1] ?? null,
+        });
+        return reply.status(409).send({
+          error: {
+            code: WAITLISTED_CODE,
+            message: nominationWaitlistMessage(managerEmail),
+            retryable: false,
+          },
+          waitlisted: true,
+        });
+      }
+
       const token = crypto.randomBytes(64).toString("hex").slice(0, 128);
       const inviteExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
+      const trialEndsAt = trialEndsAtForNewTeam(mode, new Date(), {
+        creatorHadTrial: await creatorHadTrial(userId),
+      });
 
       const org = await prisma.$transaction(async (tx) => {
         const created = await tx.organisation.create({
@@ -118,6 +171,10 @@ export async function nominateManagerRoutes(app: FastifyInstance) {
             // this unset would let a driver mint themselves free Pro by
             // nominating an inbox they control.
             pilotFree: false,
+            // New teams are open: a 30-day free trial, one per person who
+            // starts a team, capped like a pilot.
+            trialEndsAt,
+            seatCap: trialEndsAt ? TEAM_TRIAL_SEAT_CAP : null,
             createdByUserId: userId,
           },
           select: { id: true, name: true },

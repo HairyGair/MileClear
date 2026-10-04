@@ -374,6 +374,9 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_suggestions", label: "Suggestions", icon: "bulb-outline" },
     { key: "menu_help", label: "Help & Tutorials", icon: "help-circle-outline" },
     { key: "menu_ticket_defender", label: "Ticket Defender", icon: "shield-checkmark-outline", insertAfter: "menu_help" },
+    // Ask MileClear (Oct 2026). The menu only shows keys listed here; it is
+    // also hidden while /assistant/status says unavailable.
+    { key: "menu_ask", label: "Ask MileClear", icon: "chatbubbles-outline", insertAfter: "menu_ticket_defender" },
     // Moved to the end of the list (was between Tax Settings and Link
     // Bank) and out of the MONEY group into MORE: 5 users have ever used
     // Invoices (0.5% of 1,093), so it no longer earns top billing next to

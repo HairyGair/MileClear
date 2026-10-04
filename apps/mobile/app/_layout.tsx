@@ -743,6 +743,7 @@ function RootNavigator() {
         <Stack.Screen name="receipt-scan" options={{ headerShown: true, title: "Scan Receipt" }} />
         <Stack.Screen name="snap-statement" options={{ headerShown: true, title: "Snap a statement" }} />
         <Stack.Screen name="ticket-defender" options={{ headerShown: true, title: "Ticket defender" }} />
+        <Stack.Screen name="assistant" options={{ headerShown: true, title: "Ask MileClear" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "My Accountant" }} />
         <Stack.Screen name="help" options={{ headerShown: true, title: "Help & Tutorials" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so

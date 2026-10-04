@@ -8,6 +8,10 @@ import { sendManagerNominationEmail, sendTeamInviteEmail } from "../../services/
 import { getSeatBilling, getSeatPricePence, syncSeats } from "../../services/teamBilling.js";
 import { invalidatePremiumCache } from "../../middleware/premium.js";
 import { resolvePremiumStatus } from "../../services/referral.js";
+import { newTeamsMode } from "../../services/milesheetNewTeams.js";
+import { recordWaitlistRequest } from "../../services/milesheetTeams.js";
+import { TEAM_TRIAL_DAYS, TEAM_TRIAL_SEAT_CAP, isOrgEntitled } from "../../services/teamTrial.js";
+import { TEAM_DRIVER_BANDS } from "../teamInterest/index.js";
 import {
   computeTeamMonthSummary,
   currentLondonMonth,
@@ -100,6 +104,7 @@ const ORG_SELECT = {
   seatCap: true,
   stripeSubscriptionId: true,
   seatsBilled: true,
+  trialEndsAt: true,
 } as const;
 
 async function loadOrg(orgId: string): Promise<OrgRow | null> {
@@ -202,7 +207,7 @@ export async function adminMilesheetRoutes(app: FastifyInstance): Promise<void> 
     const { orgs, memberships, users, events } = await loadAll();
     const pricePerSeatPence = await getSeatPricePence();
 
-    const entitled = new Set(orgs.filter((o) => o.pilotFree || o.stripeSubscriptionId).map((o) => o.id));
+    const entitled = new Set(orgs.filter((o) => isOrgEntitled({ ...o, trialEndsAt: o.trialEndsAt ?? null }, now)).map((o) => o.id));
     const activeMembers = memberships.filter((m) => m.status === "active" && m.userId);
     const teamProUsers = new Set(activeMembers.filter((m) => entitled.has(m.orgId)).map((m) => m.userId!));
     let teamProOnly = 0;
@@ -909,5 +914,150 @@ export async function adminMilesheetRoutes(app: FastifyInstance): Promise<void> 
       after: { pilotFree: parsed.data.pilotFree },
     });
     return reply.send({ data: { ok: true } });
+  });
+
+  // ── Waiting list (4 Oct 2026) ──────────────────────────────────────────
+  // While MILESHEET_NEW_TEAMS is "waitlist", requests to start a team land in
+  // team_interest (GET /admin/team-interest?view=waitlist). These two let the
+  // admin add one by hand (a phone call, an email) and let one in.
+
+  // POST /admin/milesheet/waitlist { company, email, contactName?, drivers?, notes? }
+  app.post("/milesheet/waitlist", async (request, reply) => {
+    const parsed = z
+      .object({
+        company: z.string().trim().min(2).max(160),
+        email: z.string().trim().email().max(254),
+        contactName: z.string().trim().max(120).optional().or(z.literal("")),
+        drivers: z.enum(TEAM_DRIVER_BANDS).optional(),
+        notes: z.string().trim().max(2000).optional().or(z.literal("")),
+      })
+      .safeParse(request.body);
+    if (!parsed.success) return bad(reply, 400, parsed.error.issues[0].message);
+    const d = parsed.data;
+    const { id, duplicate } = await recordWaitlistRequest({
+      source: "admin_form",
+      email: d.email,
+      company: d.company,
+      contactName: d.contactName || null,
+      drivers: d.drivers ?? null,
+      notes: d.notes || null,
+      page: "admin",
+    });
+    logEvent("admin.milesheet.waitlist_add", request.userId!, { adminUserId: request.userId, interestId: id, duplicate });
+    return reply.send({ data: { id, duplicate } });
+  });
+
+  // POST /admin/milesheet/waitlist/:id/create-team
+  //   { name?, adminEmail?, plan: "pilot" | "trial" | "paid" }
+  // "Create team from this request": creates the organisation, invites the
+  // manager with the normal email (links to WEB_BASE_URL/milesheet/invite),
+  // and marks the request as let in. Works in either MILESHEET_NEW_TEAMS
+  // mode: an admin letting someone in IS the override. A request that came
+  // from a driver naming their manager brings that driver along: they join
+  // the team the moment the manager accepts, exactly as a nomination does.
+  app.post("/milesheet/waitlist/:id/create-team", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const parsed = z
+      .object({
+        name: z.string().trim().min(2).max(160).optional(),
+        adminEmail: z.string().trim().email().max(255).optional(),
+        plan: z.enum(["pilot", "trial", "paid"]).default("pilot"),
+      })
+      .safeParse(request.body ?? {});
+    if (!parsed.success) return bad(reply, 400, parsed.error.issues[0].message);
+
+    const row = await prisma.teamInterest.findUnique({ where: { id } });
+    if (!row) return bad(reply, 404, "Request not found");
+    if (row.admittedAt) {
+      return reply.status(409).send({ error: "This request was already let in.", orgId: row.admittedOrgId });
+    }
+    const name = parsed.data.name ?? row.company ?? "";
+    if (name.trim().length < 2) return bad(reply, 400, "Give the team a name: this request has no company name.");
+    const adminEmail = (parsed.data.adminEmail ?? row.email).toLowerCase();
+    const plan = parsed.data.plan;
+    const pilotFree = plan === "pilot";
+    const trialEndsAt = plan === "trial" ? new Date(Date.now() + TEAM_TRIAL_DAYS * DAY_MS) : null;
+
+    // The nominating driver comes along only if they are not already in a
+    // team and are not the manager themselves.
+    let nominator: { id: string; email: string; displayName: string | null } | null = null;
+    if (row.nominatedByUserId) {
+      const u = await prisma.user.findUnique({
+        where: { id: row.nominatedByUserId },
+        select: { id: true, email: true, displayName: true },
+      });
+      const busy = u
+        ? await prisma.orgMembership.findFirst({ where: { userId: u.id, status: "active" }, select: { id: true } })
+        : null;
+      if (u && !busy && u.email.toLowerCase() !== adminEmail) nominator = u;
+    }
+
+    const token = crypto.randomBytes(64).toString("hex").slice(0, 128);
+    const org = await prisma.$transaction(async (tx) => {
+      const created = await tx.organisation.create({
+        data: {
+          name: name.trim(),
+          pilotFree,
+          trialEndsAt,
+          seatCap: pilotFree || trialEndsAt ? TEAM_TRIAL_SEAT_CAP : null,
+          createdByUserId: request.userId!,
+          memberships: {
+            create: {
+              role: "admin",
+              status: "invited",
+              invitedEmail: adminEmail,
+              inviteTokenHash: hashToken(token),
+              inviteExpiresAt: new Date(Date.now() + INVITE_TTL_MS),
+            },
+          },
+        },
+        select: { id: true, name: true },
+      });
+      if (nominator) {
+        await tx.orgMembership.create({
+          data: {
+            orgId: created.id,
+            userId: nominator.id,
+            role: "driver",
+            status: "invited",
+            invitedEmail: nominator.email.toLowerCase(),
+          },
+        });
+      }
+      await tx.teamInterest.update({
+        where: { id: row.id },
+        data: { admittedAt: new Date(), admittedOrgId: created.id },
+      });
+      return created;
+    });
+
+    let emailSent = true;
+    try {
+      if (nominator) {
+        await sendManagerNominationEmail(adminEmail, nominator.displayName ?? "A MileClear user", org.name, token);
+      } else {
+        await sendTeamInviteEmail(adminEmail, org.name, token, "admin");
+      }
+    } catch (err) {
+      emailSent = false;
+      request.log.error({ err }, "waitlist create-team invite email failed (team created; resend from the team page)");
+    }
+
+    // team.org_created keeps the team journey and the invites alarm counting
+    // this team like any other admin-started one.
+    logEvent("team.org_created", request.userId!, { orgId: org.id, name: org.name, pilotFree, fromWaitlist: row.id });
+    logEvent("admin.milesheet.create_from_waitlist", request.userId!, {
+      adminUserId: request.userId,
+      orgId: org.id,
+      interestId: row.id,
+      waitlistSource: row.waitlistSource,
+      plan,
+      broughtNominator: !!nominator,
+      newTeamsMode: newTeamsMode(),
+      emailSent,
+    });
+    return reply.status(201).send({
+      data: { orgId: org.id, name: org.name, adminEmail, emailSent, broughtNominator: !!nominator },
+    });
   });
 }

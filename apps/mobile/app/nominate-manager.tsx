@@ -5,7 +5,7 @@
 // the prompt that opens this screen, and its comment on the shared local
 // storage key that must never be shown again after a successful submit.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NOMINATE_PROMPT_STATE_KEY } from "../components/NominateManagerCard";
 import {
   View,
@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { nominateManager } from "../lib/api/team";
+import { fetchMilesheetAvailability, nominateManager } from "../lib/api/team";
 import { describeError } from "../lib/api/apiError";
 import { getDatabase } from "../lib/db";
 import { useUser } from "../lib/user/context";
@@ -50,6 +50,25 @@ export default function NominateManagerScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  // Set when Milesheet is in its pilot and the company went on the waiting
+  // list instead: no team was made and nobody was emailed.
+  const [waitlisted, setWaitlisted] = useState(false);
+  // Whether Milesheet is taking new companies, so the copy before submitting
+  // doesn't promise an email that won't go. Null until known (or if the
+  // check fails), which keeps the original wording.
+  const [pilotOnly, setPilotOnly] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetchMilesheetAvailability()
+      .then((mode) => {
+        if (alive) setPilotOnly(mode === "waitlist");
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const markAnswered = useCallback(async () => {
     try {
@@ -85,9 +104,10 @@ export default function NominateManagerScreen() {
 
     setSubmitting(true);
     try {
-      await nominateManager(trimmedEmail, trimmedCompany);
+      const result = await nominateManager(trimmedEmail, trimmedCompany);
       await markAnswered();
       haptic("success");
+      setWaitlisted(result.waitlisted);
       setSubmitted(true);
     } catch (err) {
       haptic("error");
@@ -97,6 +117,38 @@ export default function NominateManagerScreen() {
       setSubmitting(false);
     }
   }, [companyName, managerEmail, user?.email, markAnswered]);
+
+  if (submitted && waitlisted) {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <Stack.Screen
+          options={{
+            title: "On the waiting list",
+            headerStyle: { backgroundColor: BG },
+            headerTintColor: TEXT_1,
+            headerBackVisible: false,
+          }}
+        />
+        <View style={[styles.successIcon, styles.waitIcon]}>
+          <Ionicons name="time-outline" size={32} color={AMBER} accessible={false} />
+        </View>
+        <Text style={styles.successTitle}>You're on the waiting list</Text>
+        <Text style={styles.successBody}>
+          Milesheet is in a small pilot at the moment. We've added your company to the waiting
+          list and will contact {managerEmail.trim()} when places open. Until then, just keep
+          driving as normal.
+        </Text>
+        <TouchableOpacity
+          style={styles.doneButton}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Done"
+        >
+          <Text style={styles.doneButtonText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (submitted) {
     return (
@@ -147,9 +199,9 @@ export default function NominateManagerScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={styles.intro}>
-          Milesheet is the company side of MileClear. Tell us who to invite, and here's exactly
-          what happens next: your manager gets an email, sets up their team in a few minutes,
-          and approves your mileage each month, no separate app, no extra sign-up for you.
+          {pilotOnly
+            ? "Milesheet is the company side of MileClear: your manager approves your mileage each month, with no separate app for you. It's in a small pilot at the moment, so we'll add your company to the waiting list and contact your manager when places open."
+            : "Milesheet is the company side of MileClear. Tell us who to invite, and here's exactly what happens next: your manager gets an email, sets up their team in a few minutes, and approves your mileage each month, no separate app, no extra sign-up for you."}
         </Text>
 
         <Field label="YOUR EMPLOYER'S NAME">
@@ -200,7 +252,7 @@ export default function NominateManagerScreen() {
           ) : (
             <>
               <Ionicons name="mail-outline" size={18} color={BG} accessible={false} />
-              <Text style={styles.submitButtonText}>Send invite</Text>
+              <Text style={styles.submitButtonText}>{pilotOnly ? "Join the waiting list" : "Send invite"}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -300,6 +352,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 20,
   },
+  waitIcon: { backgroundColor: "rgba(245, 166, 35, 0.12)" },
   successTitle: {
     color: TEXT_1,
     fontSize: 20,
