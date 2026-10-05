@@ -137,6 +137,7 @@ export async function fetchExportTrips(
       classification: trip.classification as "business" | "personal",
       platform: trip.platformTag,
       businessPurpose: trip.businessPurpose,
+      projectLabel: trip.projectLabel?.trim() || null,
       vehicleType: (vehicle?.vehicleType || null) as VehicleType | null,
       vehicleName: vehicle
         ? `${vehicle.make} ${vehicle.model}`

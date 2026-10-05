@@ -19,7 +19,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
-import { fetchTrips, fetchTripSummary, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
+import { fetchTrips, fetchTripSummary, fetchProjectLabels, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
@@ -350,6 +350,9 @@ export default function TripsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  // Whether the driver has tagged any trip with a Project / client. Only
+  // then is the "Miles by project" link worth its row. One grouped query.
+  const [hasProjectLabels, setHasProjectLabels] = useState(false);
   const [classifyingId, setClassifyingId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, ClassificationSuggestion>>({});
@@ -548,6 +551,9 @@ export default function TripsScreen() {
       loadSummary();
       loadUnclassifiedCount();
       loadSavedPlaces().then(setSavedPlaces);
+      fetchProjectLabels()
+        .then((labels) => setHasProjectLabels(labels.length > 0))
+        .catch(() => {});
     }, [loadTrips, loadSummary, loadUnclassifiedCount])
   );
 
@@ -1608,6 +1614,20 @@ export default function TripsScreen() {
             {filter !== "unclassified" && <MissedJourneys />}
             {filter !== "unclassified" && <MissingTripReporter onTripAdded={onRefresh} />}
 
+            {hasProjectLabels && filter !== "unclassified" && (
+              <TouchableOpacity
+                style={styles.projectLink}
+                onPress={() => router.push("/project-totals")}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel="Miles by project. Opens your business miles totalled by project or client."
+              >
+                <Ionicons name="briefcase-outline" size={14} color={AMBER} accessible={false} />
+                <Text style={styles.projectLinkText}>Miles by project</Text>
+                <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+              </TouchableOpacity>
+            )}
+
             <View style={styles.filterRow}>
               {/* The chips scroll sideways so the Filters control always
                   stays on this row. It used to wrap onto a second line,
@@ -2260,6 +2280,22 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   // Filter chips
+  projectLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.amberDim,
+    marginBottom: 12,
+  },
+  projectLinkText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+  },
   filterRow: {
     flexDirection: "row",
     alignItems: "center",

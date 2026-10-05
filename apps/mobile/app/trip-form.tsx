@@ -40,7 +40,7 @@ import {
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, calculateHmrcDeduction } from "@mileclear/shared";
-import { fetchServerRouteDistance, type RouteDistanceResult } from "../lib/api/trips";
+import { fetchServerRouteDistance, fetchProjectLabels, type RouteDistanceResult } from "../lib/api/trips";
 import { describeError } from "../lib/api/apiError";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle, CazTripAssessment } from "@mileclear/shared";
 import { formatPence } from "@mileclear/shared";
@@ -829,6 +829,18 @@ export default function TripFormScreen() {
   const [notes, setNotes] = useState("");
   const [projectLabel, setProjectLabel] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  // The driver's earlier Project / client labels, offered as chips so the
+  // wording stays the same from trip to trip (Miles by project groups by
+  // it). Fetched once, the first time Details is opened.
+  const [projectLabelOptions, setProjectLabelOptions] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (!showDetails || projectLabelOptions !== null) return;
+    let cancelled = false;
+    fetchProjectLabels()
+      .then((labels) => { if (!cancelled) setProjectLabelOptions(labels); })
+      .catch(() => { if (!cancelled) setProjectLabelOptions([]); });
+    return () => { cancelled = true; };
+  }, [showDetails, projectLabelOptions]);
 
   // Smart suggestion
   const [suggestion, setSuggestion] = useState<ClassificationSuggestion | null>(null);
@@ -4396,6 +4408,33 @@ export default function TripFormScreen() {
                   placeholderTextColor={TEXT_3}
                   accessibilityLabel="Project or client name"
                 />
+                {(() => {
+                  const typed = projectLabel.trim().toLowerCase();
+                  const matches = (projectLabelOptions ?? [])
+                    .filter((l) => l.toLowerCase() !== typed && (!typed || l.toLowerCase().includes(typed)))
+                    .slice(0, 12);
+                  if (matches.length === 0) return null;
+                  return (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={[styles.platformRow, { marginTop: 8 }]}
+                    >
+                      {matches.map((l) => (
+                        <TouchableOpacity
+                          key={l}
+                          style={styles.platformChip}
+                          onPress={() => setProjectLabel(l)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Use project ${l}`}
+                        >
+                          <Text style={styles.platformChipText}>{l}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  );
+                })()}
               </View>
             )}
 

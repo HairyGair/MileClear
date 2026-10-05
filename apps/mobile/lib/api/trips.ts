@@ -590,3 +590,35 @@ export function signalTripStart(data: {
     body: JSON.stringify(data),
   });
 }
+
+/** One row of GET /trips/project-totals. label null = "No project". */
+export interface ProjectTotalRow {
+  label: string | null;
+  trips: number;
+  miles: number;
+  valuePence: number;
+}
+
+export interface ProjectTotalsResponse {
+  taxYear: string;
+  projects: ProjectTotalRow[];
+  totals: { trips: number; miles: number; valuePence: number };
+  /** Every Project / client label the driver has used, most recent first (max 30). */
+  labels: string[];
+}
+
+/**
+ * Business miles by Project / client for one tax year (default: the current
+ * one), valued at the approved mileage rates. Free, not Pro.
+ */
+export async function fetchProjectTotals(taxYear?: string): Promise<ProjectTotalsResponse> {
+  const qs = taxYear ? `?taxYear=${encodeURIComponent(taxYear)}` : "";
+  const res = await apiRequest<{ data: ProjectTotalsResponse }>(`/trips/project-totals${qs}`);
+  return res.data;
+}
+
+/** Every Project / client label the driver has used, most recent first (max 30). */
+export async function fetchProjectLabels(): Promise<string[]> {
+  const res = await apiRequest<{ data: { labels: string[] } }>(`/trips/project-labels`);
+  return res.data.labels;
+}

@@ -1125,6 +1125,8 @@ export interface ExportTripRow {
   classification: TripClassification;
   platform: string | null;
   businessPurpose: string | null;
+  /** The driver's Project / client label, if they gave one. */
+  projectLabel: string | null;
   vehicleType: VehicleType | null;
   vehicleName: string | null;
   hmrcRatePence: number;

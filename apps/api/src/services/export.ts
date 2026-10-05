@@ -8,6 +8,7 @@ import {
   HMRC_RATES,
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
+  projectLabelKey,
 } from "@mileclear/shared";
 import type { ExportTripRow } from "@mileclear/shared";
 
@@ -417,7 +418,7 @@ function escapeCsvField(value: string | number | null | undefined): string {
   return str;
 }
 
-function tripsToCsv(trips: ExportTripRow[]): string {
+export function tripsToCsv(trips: ExportTripRow[]): string {
   const headers = [
     "Date",
     "Start Time",
@@ -430,6 +431,7 @@ function tripsToCsv(trips: ExportTripRow[]): string {
     "Classification",
     "Platform",
     "Business Purpose",
+    "Project / client",
     "Vehicle Type",
     "Vehicle",
     "HMRC Rate (p/mi)",
@@ -449,6 +451,7 @@ function tripsToCsv(trips: ExportTripRow[]): string {
       t.classification,
       t.platform,
       t.businessPurpose,
+      t.projectLabel,
       t.vehicleType,
       t.vehicleName,
       t.hmrcRatePence,
@@ -459,6 +462,57 @@ function tripsToCsv(trips: ExportTripRow[]): string {
   );
 
   return [headers.join(","), ...rows].join("\r\n") + "\r\n";
+}
+
+/**
+ * Business miles by Project / client, built from the report's own rows so
+ * the figures match the Deduction column. Labels group case-insensitively
+ * and trimmed, shown in their most-used spelling; "No project" goes last.
+ * Empty when no business trip has a project.
+ */
+export function projectSummaryFromRows(
+  trips: ExportTripRow[],
+): { label: string; trips: number; miles: number; deductionPence: number }[] {
+  const groups = new Map<
+    string,
+    { trips: number; miles: number; deductionPence: number; spellings: Map<string, number> }
+  >();
+  let anyLabelled = false;
+  for (const t of trips) {
+    if (t.classification !== "business") continue;
+    const key = projectLabelKey(t.projectLabel);
+    if (key) anyLabelled = true;
+    const g = groups.get(key) ?? { trips: 0, miles: 0, deductionPence: 0, spellings: new Map() };
+    g.trips += 1;
+    g.miles += t.distanceMiles;
+    g.deductionPence += t.deductionPence;
+    if (key) {
+      const spelling = t.projectLabel!.trim().replace(/\s+/g, " ");
+      g.spellings.set(spelling, (g.spellings.get(spelling) ?? 0) + 1);
+    }
+    groups.set(key, g);
+  }
+  if (!anyLabelled) return [];
+  const rows: { label: string; trips: number; miles: number; deductionPence: number }[] = [];
+  let none: (typeof rows)[number] | null = null;
+  for (const [key, g] of groups) {
+    const base = { trips: g.trips, miles: Math.round(g.miles * 10) / 10, deductionPence: g.deductionPence };
+    if (!key) {
+      none = { label: "No project", ...base };
+      continue;
+    }
+    let best = "";
+    let bestCount = -1;
+    for (const [spelling, n] of g.spellings) {
+      if (n > bestCount) {
+        best = spelling;
+        bestCount = n;
+      }
+    }
+    rows.push({ label: best, ...base });
+  }
+  rows.sort((a, b) => b.miles - a.miles || a.label.localeCompare(b.label, "en-GB"));
+  return none ? [...rows, none] : rows;
 }
 
 export async function generateTripsCsv(
@@ -663,6 +717,71 @@ export async function generateTripsPdf(
     .lineWidth(0.5)
     .strokeColor(GREY_200)
     .stroke();
+
+  // ── Business miles by project (only when a trip has one) ──
+  const projectRows = projectSummaryFromRows(trips);
+  if (projectRows.length > 0) {
+    const pCols = [
+      { header: "Project / client", width: 260, align: "left" as const },
+      { header: "Trips", width: 70, align: "right" as const },
+      { header: "Miles", width: 90, align: "right" as const },
+      { header: "Deduction", width: 100, align: "right" as const },
+    ];
+    const pTableWidth = pCols.reduce((sum, c) => sum + c.width, 0);
+    const needed = 22 + (projectRows.length + 1) * rowHeight + 4;
+    y += 18;
+    if (y + needed > pageHeight - 50) {
+      drawFooter(doc, pageNum, null, pageWidth, pageHeight, margin, reportRef);
+      pageNum++;
+      doc.addPage();
+      drawHeader(doc, "Trip Report", label, reportRef, pageWidth, margin, true);
+      y = doc.y;
+    }
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(NAVY)
+      .text("Business miles by project", startX, y, { lineBreak: false });
+    y += 18;
+
+    doc.rect(startX, y - 2, pTableWidth, rowHeight + 2).fill(NAVY);
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(WHITE);
+    let px = startX;
+    for (const col of pCols) {
+      doc.text(col.header, px + 3, y + 1, { width: col.width - 6, align: col.align, lineBreak: false });
+      px += col.width;
+    }
+    y += rowHeight + 2;
+
+    projectRows.forEach((r, idx) => {
+      if (y > pageHeight - 50) {
+        drawFooter(doc, pageNum, null, pageWidth, pageHeight, margin, reportRef);
+        pageNum++;
+        doc.addPage();
+        drawHeader(doc, "Trip Report", label, reportRef, pageWidth, margin, true);
+        y = doc.y;
+      }
+      if (idx % 2 === 0) doc.rect(startX, y - 1, pTableWidth, rowHeight).fill(GREY_100);
+      doc.font("Helvetica").fontSize(7.5).fillColor(NAVY);
+      const vals = [r.label, String(r.trips), r.miles.toFixed(1), formatPence(r.deductionPence)];
+      let vx = startX;
+      pCols.forEach((col, j) => {
+        doc.text(vals[j], vx + 3, y + 1, { width: col.width - 6, align: col.align, lineBreak: false });
+        vx += col.width;
+      });
+      y += rowHeight;
+    });
+
+    const totalTripsP = projectRows.reduce((sum, r) => sum + r.trips, 0);
+    const totalMilesP = projectRows.reduce((sum, r) => sum + r.miles, 0);
+    const totalPenceP = projectRows.reduce((sum, r) => sum + r.deductionPence, 0);
+    doc.moveTo(startX, y).lineTo(startX + pTableWidth, y).lineWidth(0.5).strokeColor(GREY_200).stroke();
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor(NAVY);
+    const totals = ["All business trips", String(totalTripsP), totalMilesP.toFixed(1), formatPence(totalPenceP)];
+    let tx = startX;
+    pCols.forEach((col, j) => {
+      doc.text(totals[j], tx + 3, y + 3, { width: col.width - 6, align: col.align, lineBreak: false });
+      tx += col.width;
+    });
+  }
 
   drawFooter(doc, pageNum, null, pageWidth, pageHeight, margin, reportRef);
 

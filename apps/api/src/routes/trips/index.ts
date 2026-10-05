@@ -25,6 +25,7 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
   return "car";
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
+import { loadProjectTotals, loadProjectLabels } from "../../services/projectTotals.js";
 import { startTimeChangeAllowed } from "../../services/tripTimeEdit.js";
 import {
   parseTripCsvPreview,
@@ -2211,6 +2212,42 @@ export async function tripRoutes(app: FastifyInstance) {
         personalMiles,
       },
     });
+  });
+
+  // Miles by project: a tax year's business trips totalled by their
+  // Project / client label, valued at the approved mileage rates (or the
+  // driver's employer rate). Free, not premium. `labels` feeds the
+  // suggestion chips under the Project / client box in the trip form.
+  const projectTotalsQuery = z.object({
+    taxYear: z.string().regex(/^\d{4}-\d{2}$/, "taxYear must look like 2026-27").optional(),
+  });
+
+  app.get("/project-totals", async (request, reply) => {
+    const parsed = projectTotalsQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const taxYear = parsed.data.taxYear ?? getTaxYear(new Date());
+    const userId = request.userId!;
+    let totals;
+    try {
+      totals = await loadProjectTotals(userId, taxYear);
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith("Invalid tax year")) {
+        return reply.status(400).send({ error: "taxYear must look like 2026-27" });
+      }
+      throw err;
+    }
+    const labels = await loadProjectLabels(userId);
+    return reply.send({ data: { ...totals, labels } });
+  });
+
+  // Just the labels (one grouped query): lets the Trips tab decide whether
+  // to show its "Miles by project" link, and the trip form offer chips,
+  // without totalling a whole tax year.
+  app.get("/project-labels", async (request, reply) => {
+    const labels = await loadProjectLabels(request.userId!);
+    return reply.send({ data: { labels } });
   });
 
   // Suggest classification based on past trips near a location
