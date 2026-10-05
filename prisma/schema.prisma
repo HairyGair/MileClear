@@ -577,6 +577,7 @@ model Trip {
   vehicle     Vehicle?          @relation(fields: [vehicleId], references: [id])
   coordinates TripCoordinate[]
   anomalies   TripAnomaly[]
+  diversion   TripDiversion?
 
   @@index([userId, startedAt])
   @@index([userId, classification])
@@ -631,6 +632,32 @@ model DeletedTrip {
   @@index([userId, deletedAt])
   @@index([originalTripId])
   @@map("deleted_trips")
+}
+
+// Diversion label (5 Oct 2026). A GPS trip that ran noticeably longer than
+// the driver's usual route between the same two places while a planned road
+// closure (DfT Street Manager) sat on that usual route, and the trip went
+// round it. A label only: the trip's distanceMiles and route are never
+// changed. Written by services/diversions.ts behind TRIP_DIVERSIONS=1. No
+// locations are stored here beyond the street name of the closure.
+model TripDiversion {
+  id         String   @id @default(uuid())
+  tripId     String   @unique
+  userId     String
+  // StreetWorksEvent.reference of the closure
+  closureRef String   @db.VarChar(64)
+  streetName String?  @db.VarChar(200)
+  town       String?  @db.VarChar(100)
+  promoter   String?  @db.VarChar(200)
+  // Median distance of the driver's past trips between the same places
+  usualMiles Float
+  extraMiles Float
+  createdAt  DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("trip_diversions")
 }
 
 model TripAnomaly {

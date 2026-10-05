@@ -29,6 +29,7 @@ import {
   mergeTrips,
   resolveMissedJourney,
   ClassificationSuggestion,
+  type TripDiversion,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
 import { TripMapWidget } from "../components/map/TripMapWidget";
@@ -685,6 +686,15 @@ function sampleRoute(points: { lat: number; lng: number }[]): { lat: number; lng
   return sampled.map((c) => ({ lat: c.lat, lng: c.lng }));
 }
 
+/** "Diversion: Durham Road was closed (BT works). About 1.2 mi longer than
+ *  your usual route. These are miles you drove, so they count." */
+function diversionLabel(d: TripDiversion): string {
+  const where = d.streetName ? d.streetName : "A road on your usual route";
+  const who = d.promoter ? ` (${d.promoter} works)` : "";
+  const extra = Math.max(0.1, Math.round(d.extraMiles * 10) / 10).toFixed(1);
+  return `Diversion: ${where} was closed${who}. About ${extra} mi longer than your usual route. These are miles you drove, so they count.`;
+}
+
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
   { value: "personal", label: "Personal" },
@@ -893,6 +903,8 @@ export default function TripFormScreen() {
   const [editedAt, setEditedAt] = useState<string | null>(null);
   // Clean Air Zone charges this trip likely incurred + which we've logged.
   const [cleanAirZones, setCleanAirZones] = useState<CazTripAssessment | null>(null);
+  // Diversion label (server-flagged: went round a road closure on the usual route).
+  const [diversion, setDiversion] = useState<TripDiversion | null>(null);
   const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
   const [loggingCaz, setLoggingCaz] = useState<string | null>(null);
 
@@ -1305,6 +1317,7 @@ export default function TripFormScreen() {
         gapMeters: number;
       } | null;
       cleanAirZones?: CazTripAssessment | null;
+      diversion?: TripDiversion | null;
       isManualEntry?: boolean;
       coordinates?: unknown[];
       matchedCoordinates?: { lat: number; lng: number }[] | null;
@@ -1338,6 +1351,7 @@ export default function TripFormScreen() {
       if (t.confidence) setConfidence(t.confidence);
       if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
       if (t.cleanAirZones) setCleanAirZones(t.cleanAirZones);
+      if (t.diversion) setDiversion(t.diversion);
       // Only the server payload carries these; the local-SQLite fallback
       // doesn't, so canSplit stays false offline (split needs the API anyway).
       setCanSplit(t.isManualEntry === false && (t.coordinates?.length ?? 0) >= 10);
@@ -3867,6 +3881,15 @@ export default function TripFormScreen() {
               <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} />
             )}
 
+            {/* Diversion label: longer than the usual route because of a road
+                closure on it. Explains the miles; never changes them. */}
+            {isEditing && diversion && (
+              <View style={styles.diversionCard}>
+                <Ionicons name="git-branch-outline" size={18} color={AMBER} />
+                <Text style={styles.diversionText}>{diversionLabel(diversion)}</Text>
+              </View>
+            )}
+
             {/* Edit audit trail */}
             {isEditing && editedAt && (
               <Text style={styles.editedAt}>
@@ -5130,6 +5153,25 @@ const styles = StyleSheet.create({
   },
   confidenceReasonText: {
     fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    lineHeight: 17,
+  },
+  diversionCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "rgba(245, 166, 35, 0.08)",
+    borderColor: "rgba(245, 166, 35, 0.25)",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 12,
+  },
+  diversionText: {
+    flex: 1,
+    fontSize: 12.5,
     fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 17,

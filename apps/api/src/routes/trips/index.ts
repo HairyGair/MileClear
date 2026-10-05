@@ -65,6 +65,7 @@ import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, typ
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import { runLateStartAroundNewTrip } from "../../services/lateStart.js";
+import { runDiversionHook, loadDiversionsForTrips } from "../../services/diversions.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
 import { planTripEndEdit } from "../../services/tripEndEdit.js";
 import {
@@ -1220,10 +1221,16 @@ export async function tripRoutes(app: FastifyInstance) {
       // gets that opening stretch back. Waits for the routing hook above,
       // which rewrites distanceMiles, so the two never race; also judges the
       // trip after this one, for a trip that synced out of order.
+      //
+      // Diversion label (services/diversions.ts, TRIP_DIVERSIONS=1): runs
+      // last, once the stored distance is final. A label only, never changes
+      // the trip; it runs even if the late start step failed.
       if (hasCoordinates && !isManualEntry) {
         const createdTrip = trip;
         routingHook
           .then(() => runLateStartAroundNewTrip({ tripId: createdTrip.id, userId, endedAt: createdTrip.endedAt }))
+          .catch(() => {})
+          .then(() => runDiversionHook({ tripId: createdTrip.id, userId }))
           .catch(() => {});
       }
 
@@ -1353,6 +1360,8 @@ export async function tripRoutes(app: FastifyInstance) {
     // Classification suggestions for the unclassified rows on this page,
     // answered inline instead of by a per-row fetch from the client.
     const suggestions = new Map<string, Awaited<ReturnType<typeof suggestionForPoint>>>();
+    // Diversion labels for the page, one query (services/diversions.ts).
+    const diversionsP = loadDiversionsForTrips(rawData.filter((t) => !t.isManualEntry).map((t) => t.id));
     await Promise.all(
       rawData
         .filter((t) => t.classification === "unclassified" && t.endLat != null && t.endLng != null)
@@ -1361,6 +1370,7 @@ export async function tripRoutes(app: FastifyInstance) {
           if (sug) suggestions.set(t.id, sug);
         })
     );
+    const diversions = await diversionsP;
 
     // Compute per-trip confidence inline. computeTripConfidence is pure
     // and ~microseconds per call, so doing it for a 100-row page is
@@ -1382,7 +1392,7 @@ export async function tripRoutes(app: FastifyInstance) {
       // dropping it keeps the page body lean.
       const { gpsQuality, ...rest } = trip;
       void gpsQuality;
-      return { ...rest, confidence, suggestion: suggestions.get(trip.id) ?? null };
+      return { ...rest, confidence, suggestion: suggestions.get(trip.id) ?? null, diversion: diversions.get(trip.id) ?? null };
     });
 
     return reply.send({
@@ -2746,8 +2756,12 @@ export async function tripRoutes(app: FastifyInstance) {
       if (assessment.charges.length > 0) cleanAirZones = assessment;
     }
 
+    // Diversion label (services/diversions.ts): why this trip ran longer
+    // than the driver's usual route. Null when none (or the table is absent).
+    const diversion = (await loadDiversionsForTrips([trip.id])).get(trip.id) ?? null;
+
     return reply.send({
-      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion, cleanAirZones },
+      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion, cleanAirZones, diversion },
     });
   });
 

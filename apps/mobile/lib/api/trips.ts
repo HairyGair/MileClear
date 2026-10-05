@@ -109,6 +109,18 @@ export interface TripDetail extends Trip {
    *  when the vehicle is non-compliant AND the route crossed a charging zone.
    *  Drives the "log the £X charge as an expense" prompt on trip detail. */
   cleanAirZones?: import("@mileclear/shared").CazTripAssessment | null;
+  /** Diversion label: this trip ran longer than the driver's usual route
+   *  between the same places while a planned road closure sat on that usual
+   *  route. A label only; the trip's distance is unchanged. */
+  diversion?: TripDiversion | null;
+}
+
+export interface TripDiversion {
+  streetName: string | null;
+  town: string | null;
+  promoter: string | null;
+  usualMiles: number;
+  extraMiles: number;
 }
 
 export interface CoordinateInput {
