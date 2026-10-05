@@ -31,7 +31,7 @@ async function sendProWelcomeEmailOnce(
       select: { id: true },
     });
     if (existing) return;
-    await sendProWelcomeEmail(email, displayName);
+    await sendProWelcomeEmail(email, displayName, "stripe");
     await logEvent("welcome.pro_sent", userId, { method: "email" });
   } catch (err) {
     console.error("sendProWelcomeEmailOnce failed:", err);

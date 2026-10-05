@@ -643,11 +643,24 @@ ${ctaButton("Get the app", APP_STORE_URL)}
  */
 export async function sendProWelcomeEmail(
   email: string,
-  displayName?: string | null
+  displayName?: string | null,
+  platform: "apple" | "google" | "stripe" = "apple"
 ): Promise<void> {
   const firstName = (displayName ?? "").trim().split(/\s+/)[0];
   const greeting = firstName ? `Hi ${escapeHtml(firstName)},` : "Hi there,";
-  const subject = "Thanks for trying MileClear Pro";
+  // 5 Oct 2026 rewrite: was "Thanks for trying MileClear Pro" (to people who
+  // had just paid), promoted MTD submissions still in HMRC's sandbox, used
+  // pre-redesign menu paths, and gave everyone the iPhone cancel route.
+  const subject = "Welcome to MileClear Pro";
+  const cancelHow =
+    platform === "google"
+      ? "in the Play Store app: tap your profile picture, then Payments &amp; subscriptions, then Subscriptions"
+      : platform === "stripe"
+        ? "on mileclear.com: sign in, then Settings, then Subscription"
+        : "in your iPhone Settings: tap your name, then Subscriptions";
+  const P = 'style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"';
+  const LI = 'style="margin-bottom: 12px;"';
+  const B = 'style="color: #f0f2f5;"';
   const html = `
     <!DOCTYPE html>
     <html>
@@ -670,22 +683,24 @@ export async function sendProWelcomeEmail(
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Anthony here, the founder of MileClear. I wanted to drop you a personal note to say thanks for upgrading to Pro.</p>
+                  <p ${P}>Anthony here, the founder of MileClear. Thank you for upgrading to Pro. MileClear is built by a very small team, so every subscriber really does keep it going.</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">When you build something like this on your own, every paying customer matters more than I can comfortably explain. You're one of them now, so genuinely &mdash; thank you.</p>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 12px;">A few useful things now that you're in:</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 12px;">Here's what Pro gives you, and where to find it. Tap your picture in the top right of the app to open the menu:</p>
 
                   <ol style="color: #c0c8d4; font-size: 14px; line-height: 1.7; margin: 0 0 20px; padding-left: 20px;">
-                    <li style="margin-bottom: 12px;"><strong style="color: #f0f2f5;">Everything you record is yours.</strong> If you ever cancel Pro, every mile you've tracked stays with you. No data lock-in, no ransom.</li>
-                    <li style="margin-bottom: 12px;"><strong style="color: #f0f2f5;">HMRC quarterly submissions (MTD ITSA)</strong> live under Avatar &rarr; Work &amp; Tax &rarr; MTD ITSA. We're currently in HMRC's sandbox until they grant our production credentials &mdash; submissions go to a test environment, not your real tax account. The Sandbox banner makes that obvious so you don't accidentally rely on it for a real submission.</li>
-                    <li style="margin-bottom: 12px;"><strong style="color: #f0f2f5;">The Tax Readiness card on your dashboard</strong> shows what to set aside each week. The more trips and earnings you log, the more accurate it gets.</li>
-                    <li style="margin-bottom: 0;"><strong style="color: #f0f2f5;">There's a quick tour</strong> you can replay any time from Avatar &rarr; Help &amp; Tutorials. The same screen has a categorised FAQ for the trickier bits (cash vs accruals, PAYE offset, employer mileage rate).</li>
+                    <li ${LI}><strong ${B}>Tax Exports</strong> (under Tax): your Self Assessment summary, a trip-by-trip report and a spreadsheet of every journey, for your accountant or an employer. Business trips only, unless you choose otherwise.</li>
+                    <li ${LI}><strong ${B}>EmSee</strong> (under Tools): ask about your own records, like "How much did I earn on Uber in September?" or "How many business miles have I done this tax year?". You can also tell it a suggestion or a problem and it passes it to me.</li>
+                    <li ${LI}><strong ${B}>Ticket Defender</strong> (under Tools): got a parking or traffic fine you don't recognise? It shows where MileClear recorded you at that time, as a PDF you can send with an appeal, and lists Clean Air Zone charges with the date to pay by.</li>
+                    <li ${LI}><strong ${B}>Mileage Certificate</strong> (under Tax): a record of your miles with a link anyone can check, for an insurer, employer or accountant.</li>
+                    <li ${LI}><strong ${B}>Insights</strong>: what you earn per mile and per hour, which platform pays best, and your best hours to drive.</li>
+                    <li style="margin-bottom: 0;"><strong ${B}>Snap a statement</strong> (on the Earnings tab): take a screenshot of a platform earnings statement and MileClear reads the earnings off it for you to check and save.</li>
                   </ol>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">If anything looks wrong, doesn't make sense, or you have an idea for something the app should do &mdash; just reply to this email. I read every one and usually get back within a few hours.</p>
+                  <p ${P}>Everything you record is yours. If you ever stop Pro, every mile you've tracked stays in your account.</p>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">You can cancel anytime from iPhone Settings &rarr; your name &rarr; Subscriptions. Nothing locked away if you leave.</p>
+                  <p ${P}>If anything looks wrong, doesn't make sense, or you'd like the app to do something it doesn't, just reply to this email. I read every message and will get back to you personally.</p>
+
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">You can cancel any time ${cancelHow}.</p>
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 4px;">Welcome aboard,</p>
                   <p style="color: #f0f2f5; font-size: 15px; line-height: 1.7; margin: 0; font-weight: 600;">Anthony</p>
@@ -697,7 +712,7 @@ export async function sendProWelcomeEmail(
 
             <!-- Footer -->
             <tr><td style="padding: 24px 16px 0;">
-              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you upgraded to MileClear Pro. Reply to this email for support &mdash; it lands in my inbox directly.</p>
+              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you upgraded to MileClear Pro. Reply to this email if you need help.</p>
             </td></tr>
 
           </table>

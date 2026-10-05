@@ -198,7 +198,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                 select: { id: true },
               });
               if (!alreadySent) {
-                await sendProWelcomeEmail(fullUser.email, fullUser.displayName);
+                await sendProWelcomeEmail(fullUser.email, fullUser.displayName, "apple");
                 await logEvent("welcome.pro_sent", request.userId!, { method: "email" });
               }
             } catch (err) {
@@ -542,7 +542,7 @@ export async function appleBillingRoutes(app: FastifyInstance) {
                     select: { id: true },
                   });
                   if (!alreadySent) {
-                    await sendProWelcomeEmail(fullUser.email, fullUser.displayName);
+                    await sendProWelcomeEmail(fullUser.email, fullUser.displayName, "apple");
                     await logEvent("welcome.pro_sent", user.id, { method: "email", path: "webhook" });
                   }
                 } catch (err) {

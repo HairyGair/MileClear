@@ -128,7 +128,7 @@ export async function googleBillingRoutes(app: FastifyInstance) {
               select: { id: true },
             });
             if (!alreadySent) {
-              await sendProWelcomeEmail(fullUser.email, fullUser.displayName);
+              await sendProWelcomeEmail(fullUser.email, fullUser.displayName, "google");
               await logEvent("welcome.pro_sent", request.userId!, { method: "email" });
             }
           } catch (err) {
