@@ -151,7 +151,14 @@ async function sendViaResend(opts: MailOpts): Promise<void> {
 const transporter =
   process.env.RESEND_API_KEY || brevoTransporter || process.env.BREVO_API_KEY
     ? {
-        sendMail: async (opts: MailOpts) => {
+        sendMail: async (rawOpts: MailOpts) => {
+          // Replies to anything from gair@ go to support@ (5 Oct 2026), which
+          // forwards to gair@ AND the admin Inbox, so driver replies are
+          // never missed there. An explicit Reply-To still wins.
+          const opts: MailOpts =
+            !rawOpts.replyTo && /gair@mileclear\.com/i.test(rawOpts.from ?? "")
+              ? { ...rawOpts, replyTo: SUPPORT_INBOX }
+              : rawOpts;
           if (process.env.RESEND_API_KEY) {
             try {
               return await sendViaResend(opts);
@@ -621,7 +628,7 @@ ${ctaButton("Get the app", APP_STORE_URL)}
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 /**
@@ -708,7 +715,7 @@ export async function sendProWelcomeEmail(
   await transporter.sendMail({
     from: FROM_PERSONAL,
     to: email,
-    replyTo: "gair@mileclear.com",
+    replyTo: SUPPORT_INBOX,
     subject,
     html,
   });
@@ -1067,7 +1074,7 @@ export async function sendUpdateEmail(
   await transporter.sendMail({
     from: FROM_PERSONAL,
     to: email,
-    replyTo: "gair@mileclear.com",
+    replyTo: SUPPORT_INBOX,
     subject,
     html,
     headers: unsubscribeHeaders(userId),
@@ -1309,7 +1316,7 @@ async function deliver(opts: {
       ? `${opts.fromName.replace(/["<>]/g, "")} <${opts.fromAddress ?? "gair@mileclear.com"}>`
       : FROM_PERSONAL,
     to: opts.email,
-    replyTo: opts.replyTo ?? "gair@mileclear.com",
+    replyTo: opts.replyTo ?? SUPPORT_INBOX,
     subject: opts.subject,
     html: opts.html,
     headers: opts.gated ? unsubscribeHeaders(opts.userId) : undefined,
@@ -2489,7 +2496,7 @@ export async function sendCheckinEmail(
   await transporter.sendMail({
     from: FROM_PERSONAL,
     to: email,
-    replyTo: "gair@mileclear.com",
+    replyTo: SUPPORT_INBOX,
     subject,
     html,
     headers: unsubscribeHeaders(userId),
@@ -2674,7 +2681,7 @@ export async function sendFeedbackAcknowledgement(
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 export async function sendFeedbackReplyNotification(
@@ -2724,7 +2731,7 @@ export async function sendFeedbackReplyNotification(
     return;
   }
 
-  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 /**
@@ -2791,7 +2798,7 @@ export async function sendWaitlistConfirmation(
   await transporter.sendMail({
     from: FROM_PERSONAL,
     to: email,
-    replyTo: "gair@mileclear.com",
+    replyTo: SUPPORT_INBOX,
     subject,
     html,
   });
@@ -2842,7 +2849,7 @@ export async function sendTeamInviteEmail(
     console.log(`[EMAIL] Team invite (${role}) for ${orgName} -> ${email}: ${url} (dev only)`);
     return;
   }
-  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 export async function sendAccountantInviteEmail(
@@ -3056,7 +3063,7 @@ export async function sendTeamMonthReadyEmail(
     console.log(`[EMAIL] Team month ready (${monthLabel}) for ${orgName} -> ${email} (dev only)`);
     return;
   }
-  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 /**
@@ -3097,7 +3104,7 @@ export async function sendManagerNominationEmail(
     console.log(`[EMAIL] Manager nomination from ${driverName} (${companyName}) -> ${email}: ${url} (dev only)`);
     return;
   }
-  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 /**
@@ -3130,7 +3137,7 @@ export async function sendMilesheetWaitlistEmail(
     console.log(`[EMAIL] Milesheet waiting list confirmation (${companyName}) -> ${email} (dev only)`);
     return;
   }
-  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
 
 /**
@@ -3173,5 +3180,5 @@ export async function sendMilesheetTrialEndingEmail(
     console.log(`[EMAIL] Milesheet trial ends ${when} (${orgName}) -> ${email}: ${url} (dev only)`);
     return;
   }
-  await transporter.sendMail({ from: FROM, to: email, replyTo: "gair@mileclear.com", subject, html });
+  await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
