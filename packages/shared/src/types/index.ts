@@ -4,6 +4,9 @@ export type WorkType = "gig" | "employee" | "both";
 export interface User {
   id: string;
   email: string;
+  /** A new address waiting for its confirmation code; sign-in stays on
+   *  `email` until it's confirmed. Optional: older API responses lack it. */
+  pendingEmail?: string | null;
   displayName: string | null;
   fullName: string | null;
   avatarId: string | null;

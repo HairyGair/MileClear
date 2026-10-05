@@ -140,6 +140,11 @@ export async function verifyEmail(code: string): Promise<void> {
   });
 }
 
+/** Drop an email change that's still waiting for its code. */
+export async function cancelPendingEmail(): Promise<void> {
+  await apiRequest("/user/pending-email", { method: "DELETE" });
+}
+
 export async function forgotPassword(email: string): Promise<void> {
   await apiRequest("/auth/forgot-password", {
     method: "POST",

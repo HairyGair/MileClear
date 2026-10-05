@@ -19,6 +19,8 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "../lib/auth/context";
+import { cancelPendingEmail } from "../lib/auth";
+import { useUser } from "../lib/user/context";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -33,6 +35,10 @@ export default function VerifyEmailScreen() {
   const router = useRouter();
   const { email } = useLocalSearchParams<{ email?: string }>();
   const { sendVerificationCode, verifyEmail } = useAuth();
+  const { user, refreshUser } = useUser();
+  // The address the code went to: the screen param, else the pending change.
+  const target = email || user?.pendingEmail || null;
+  const [cancelling, setCancelling] = useState(false);
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -55,7 +61,8 @@ export default function VerifyEmailScreen() {
     setLoading(true);
     try {
       await verifyEmail(code);
-      Alert.alert("Email confirmed", "Thanks. Your new email address is confirmed.");
+      await refreshUser().catch(() => {});
+      Alert.alert("Email confirmed", target ? `You'll sign in with ${target} from now on.` : "Thanks. Your new email address is confirmed.");
       router.back();
     } catch (e: unknown) {
       setError(e instanceof Error && e.message ? e.message : "That code didn't work. Check it and try again.");
@@ -78,6 +85,20 @@ export default function VerifyEmailScreen() {
     }
   };
 
+  const handleCancel = async () => {
+    if (cancelling) return;
+    setCancelling(true);
+    try {
+      await cancelPendingEmail();
+      await refreshUser().catch(() => {});
+      router.back();
+    } catch (e: unknown) {
+      setError(e instanceof Error && e.message ? e.message : "Couldn't cancel the change. Try again in a moment.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <Stack.Screen options={{ title: "Confirm your email" }} />
@@ -85,9 +106,13 @@ export default function VerifyEmailScreen() {
         <View style={s.card}>
           <Text style={s.title}>Check your email</Text>
           <Text style={s.subtitle}>
-            {email
-              ? `We've sent a 6-digit code to ${email}. Enter it here to confirm your new address.`
+            {target
+              ? "We've sent a 6-digit code to:"
               : "We've sent a 6-digit code to your new email address. Enter it here to confirm it."}
+          </Text>
+          {target ? <Text style={s.target} selectable>{target}</Text> : null}
+          <Text style={s.hint}>
+            Until you confirm it, you still sign in with your current email.
           </Text>
 
           {error ? (
@@ -139,6 +164,22 @@ export default function VerifyEmailScreen() {
               </Text>
             )}
           </TouchableOpacity>
+
+          {user?.pendingEmail ? (
+            <TouchableOpacity
+              onPress={handleCancel}
+              disabled={cancelling}
+              style={s.skipWrap}
+              accessibilityRole="button"
+              accessibilityLabel="Wrong address? Cancel this change"
+            >
+              {cancelling ? (
+                <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading" />
+              ) : (
+                <Text style={s.cancelText}>Wrong address? Cancel this change</Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
 
           <TouchableOpacity onPress={() => router.back()} style={s.skipWrap} accessibilityRole="button" accessibilityLabel="Do this later">
             <Text style={s.skipText}>Do this later</Text>
@@ -286,5 +327,25 @@ const s = StyleSheet.create({
     color: TEXT_2,
     fontSize: 14,
     fontFamily: fonts.regular,
+  },
+  target: {
+    color: AMBER,
+    fontSize: 17,
+    fontFamily: fonts.semibold,
+    textAlign: "center",
+    marginTop: 6,
+  },
+  hint: {
+    color: TEXT_3,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    textAlign: "center",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  cancelText: {
+    color: AMBER,
+    fontSize: 14,
+    fontFamily: fonts.medium,
   },
 });

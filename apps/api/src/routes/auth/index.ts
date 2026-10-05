@@ -472,7 +472,9 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(404).send({ error: "User not found" });
       }
 
-      if (user.emailVerified) {
+      // A pending email change takes the code; otherwise the account email.
+      const target = user.pendingEmail ?? user.email;
+      if (!user.pendingEmail && user.emailVerified) {
         return reply.status(400).send({ error: "Email is already verified" });
       }
 
@@ -487,7 +489,7 @@ export async function authRoutes(app: FastifyInstance) {
         data: { userId, code, expiresAt: otpExpiry() },
       });
 
-      await sendVerificationEmail(user.email, code);
+      await sendVerificationEmail(target, code);
 
       return reply.status(200).send({ message: "Verification code sent" });
     }
@@ -519,6 +521,18 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: "Invalid or expired verification code" });
       }
 
+      // A pending email change: the code proves the new address works, so it
+      // becomes the sign-in email now (not when it was typed).
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { pendingEmail: true } });
+      const newEmail = user?.pendingEmail ?? null;
+      if (newEmail) {
+        const taken = await prisma.user.findFirst({ where: { email: newEmail, id: { not: userId } }, select: { id: true } });
+        if (taken) {
+          await prisma.user.update({ where: { id: userId }, data: { pendingEmail: null } });
+          return reply.status(409).send({ error: "That email is already used by another account, so it wasn't changed." });
+        }
+      }
+
       await prisma.$transaction([
         prisma.verificationCode.update({
           where: { id: record.id },
@@ -526,11 +540,11 @@ export async function authRoutes(app: FastifyInstance) {
         }),
         prisma.user.update({
           where: { id: userId },
-          data: { emailVerified: true },
+          data: newEmail ? { email: newEmail, pendingEmail: null, emailVerified: true } : { emailVerified: true },
         }),
       ]);
 
-      logEvent("user.verified", userId);
+      logEvent(newEmail ? "user.email_changed" : "user.verified", userId);
 
       return reply.status(200).send({ message: "Email verified" });
     }

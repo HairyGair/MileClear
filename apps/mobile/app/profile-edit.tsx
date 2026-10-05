@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TextInput,
+  TouchableOpacity,
   ScrollView,
   Alert,
   ActivityIndicator,
@@ -29,6 +30,7 @@ export default function ProfileEditScreen() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [originalEmail, setOriginalEmail] = useState("");
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
@@ -40,6 +42,7 @@ export default function ProfileEditScreen() {
         setFullName((res.data as any).fullName || "");
         setEmail(res.data.email);
         setOriginalEmail(res.data.email);
+        setPendingEmail(res.data.pendingEmail ?? null);
       })
       .catch((err: unknown) => {
         Alert.alert("Couldn't load your profile", err instanceof Error ? err.message : "Try again in a moment.");
@@ -140,10 +143,22 @@ export default function ProfileEditScreen() {
           accessibilityLabel="Email address"
         />
 
+        {pendingEmail && !emailChanged && (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: "/verify-email", params: { email: pendingEmail } } as never)}
+            accessibilityRole="button"
+            accessibilityLabel={`Change to ${pendingEmail} is waiting for its code. Enter the code`}
+          >
+            <Text style={styles.hint}>
+              Waiting for you to confirm {pendingEmail}. Tap to enter the code.
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {emailChanged && (
           <>
             <Text style={styles.hint}>
-              Changing your email requires your current password. Email verification will be reset.
+              Changing your email needs your current password. We'll email a code to the new address, and it only becomes your sign-in email once you enter it.
             </Text>
             <Text style={styles.label}>Current Password</Text>
             <TextInput

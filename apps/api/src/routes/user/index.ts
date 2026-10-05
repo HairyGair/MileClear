@@ -87,6 +87,7 @@ const deleteAccountSchema = z.object({
 const USER_SELECT = {
   id: true,
   email: true,
+  pendingEmail: true,
   displayName: true,
   fullName: true,
   avatarId: true,
@@ -357,7 +358,7 @@ export async function userRoutes(app: FastifyInstance) {
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, passwordHash: true },
+      select: { email: true, passwordHash: true, pendingEmail: true },
     });
 
     if (!currentUser) {
@@ -491,8 +492,14 @@ export async function userRoutes(app: FastifyInstance) {
       }
     }
 
-    // Email change requires password verification
-    if (email && email !== currentUser.email) {
+    // Email change requires password verification. The new address waits in
+    // pendingEmail until its code is entered (POST /auth/verify), so sign-in
+    // stays on the current email and a typo can't strand the account.
+    let pendingEmailToConfirm: string | null = null;
+    if (email && email.trim().toLowerCase() === currentUser.email.toLowerCase()) {
+      // Back to the current address: drop any change waiting for its code.
+      if (currentUser.pendingEmail) updateData.pendingEmail = null;
+    } else if (email) {
       if (!currentUser.passwordHash) {
         return reply.status(400).send({
           error: "Cannot change email on OAuth-only accounts",
@@ -511,13 +518,14 @@ export async function userRoutes(app: FastifyInstance) {
       }
 
       // Check email uniqueness
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const newEmail = email.trim().toLowerCase();
+      const existing = await prisma.user.findUnique({ where: { email: newEmail } });
       if (existing) {
         return reply.status(409).send({ error: "Email already in use" });
       }
 
-      updateData.email = email;
-      updateData.emailVerified = false;
+      updateData.pendingEmail = newEmail;
+      pendingEmailToConfirm = newEmail;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -532,11 +540,11 @@ export async function userRoutes(app: FastifyInstance) {
 
     // New email: send the confirmation code to it straight away. A failed
     // send never fails the change; the driver can ask for another code.
-    if (typeof updateData.email === "string") {
-      issueVerificationCode(userId, updateData.email).catch((err) =>
+    if (pendingEmailToConfirm) {
+      issueVerificationCode(userId, pendingEmailToConfirm).catch((err) =>
         request.log.error({ err }, "verification code after email change failed")
       );
-      logEvent("user.email_changed", userId, {});
+      logEvent("user.email_change_requested", userId, {});
     }
 
     return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))) });
@@ -1126,6 +1134,18 @@ export async function userRoutes(app: FastifyInstance) {
 
     reply.header("Content-Disposition", "attachment; filename=mileclear-data-export.json");
     return reply.send(exportData);
+  });
+
+  // DELETE /user/pending-email: drop an email change that's waiting for its
+  // code (wrong address typed). Sign-in was never moved, so nothing else changes.
+  app.delete("/pending-email", async (request, reply) => {
+    const userId = request.userId!;
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { pendingEmail: null } }),
+      prisma.verificationCode.updateMany({ where: { userId, used: false }, data: { used: true } }),
+    ]);
+    logEvent("user.email_change_cancelled", userId, {});
+    return reply.send({ data: { cancelled: true } });
   });
 
   // Delete account

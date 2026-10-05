@@ -15,6 +15,10 @@ model User {
   displayName      String?
   fullName         String?
   emailVerified    Boolean   @default(false)
+  // A new address waiting for its code (5 Oct 2026). It only replaces
+  // `email` once the code sent to it is entered, so a typo can't move
+  // someone's sign-in to an address that doesn't exist (Sarah Webb).
+  pendingEmail     String?   @db.VarChar(191)
   appleId          String?   @unique
   googleId         String?   @unique
   /** Discord user ID (snowflake) — set when a user links their MileClear
