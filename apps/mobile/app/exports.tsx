@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   StyleSheet,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
@@ -49,6 +50,12 @@ export default function ExportsScreen() {
   const [rangeMode, setRangeMode] = useState<"taxYear" | "dateRange">("taxYear");
   const [fromDate, setFromDate] = useState<Date>(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
   const [toDate, setToDate] = useState<Date>(() => new Date());
+  // Business trips only for the CSV and Trip Report (5 Oct 2026). Both used to
+  // include every trip, so a report sent to an employer carried the driver's
+  // personal drives too (Sarah Webb). On by default; the server already
+  // filters on ?classification=business. Self Assessment is business-only
+  // by nature and ignores it.
+  const [businessOnly, setBusinessOnly] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -86,9 +93,10 @@ export default function ExportsScreen() {
         const useRange = rangeMode === "dateRange" && type !== "self-assessment";
         const rangeLabel = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
         const filename = `mileclear-${type}-${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
-        const param = useRange
+        const base = useRange
           ? `from=${fromDate.toISOString()}&to=${toDate.toISOString()}`
           : `taxYear=${selectedYear}`;
+        const param = businessOnly && type !== "self-assessment" ? `${base}&classification=business` : base;
 
         await downloadAndShareExport(
           `/exports/${type}?${param}`,
@@ -107,7 +115,7 @@ export default function ExportsScreen() {
         setLoadingKey(null);
       }
     },
-    [selectedYear, rangeMode, fromDate, toDate, showPaywall]
+    [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly]
   );
 
   return (
@@ -243,6 +251,23 @@ export default function ExportsScreen() {
 
         {/* Download rows */}
         <Text style={styles.sectionTitle}>Downloads</Text>
+
+        <View style={[styles.row, styles.switchRow]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Business trips only</Text>
+            <Text style={styles.rowDesc}>
+              {businessOnly
+                ? "The CSV and Trip Report leave out personal and unsorted trips. Best for sending to an employer."
+                : "The CSV and Trip Report include every trip, personal ones too."}
+            </Text>
+          </View>
+          <Switch
+            value={businessOnly}
+            onValueChange={setBusinessOnly}
+            trackColor={{ true: AMBER }}
+            accessibilityLabel="Business trips only in the CSV and Trip Report"
+          />
+        </View>
 
         <TouchableOpacity
           style={styles.row}
@@ -422,6 +447,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
+  },
+  switchRow: {
+    alignItems: "center",
+    gap: 12,
   },
   rowTitleRow: {
     flexDirection: "row",
