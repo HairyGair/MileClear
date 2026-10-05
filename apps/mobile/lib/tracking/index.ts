@@ -2,6 +2,7 @@
 // Uses expo-location + expo-task-manager for background location
 // Stores coordinates in SQLite, segments into trips on shift end
 
+import { Platform } from "react-native";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 import { getDatabase } from "../db/index";
@@ -79,6 +80,32 @@ async function applyNativeEnginePower(source: string): Promise<void> {
     await applyEnginePower(source);
   } catch {
     // best effort: the next wake or foreground re-applies it
+  }
+}
+
+/**
+ * iPhone with Automatic trips switched off: start the automatic engine for a
+ * shift or Start Trip anyway (5 Oct 2026). On iOS the engine at full power is
+ * what keeps the app awake in the background for the shift's own GPS task
+ * (see enginePowerRule.ts). With the switch off the engine is stopped, so the
+ * shift recorder dozed between fixes: iPhone shifts with under 10 GPS points
+ * a mile were 14% for drivers with the switch off against 1% with it on,
+ * before 28 Sep, and about a third since. The engine's own fixes are still
+ * ignored while the switch is off (handleNativeLocation returns before
+ * buffering), and the shift's end stops it again (startDriveDetection ->
+ * enforceDriveDetectionOff). Never throws.
+ */
+async function keepEngineAwakeForLock(source: string): Promise<void> {
+  if (Platform.OS !== "ios") return;
+  try {
+    const { isDriveDetectionSwitchOn } = await import("./detection");
+    if (await isDriveDetectionSwitchOn()) return; // on, or only paused: the engine is already handled
+    const { isNativeEngineAvailable, startNativeLocationEngine, applyEnginePower } = await import("./nativeLocation");
+    if (!isNativeEngineAvailable()) return;
+    await startNativeLocationEngine();
+    await applyEnginePower(source);
+  } catch {
+    // best effort: the shift still records with its own task
   }
 }
 
@@ -169,6 +196,7 @@ export async function startShiftTracking(shiftId: string): Promise<void> {
     [String(Date.now())]
   );
   await applyNativeEnginePower("shift_started");
+  await keepEngineAwakeForLock("shift_started_switch_off");
 
   try {
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
@@ -249,6 +277,7 @@ export async function startQuickTripTracking(): Promise<void> {
   // on an open recording. Before the early return below, so a resumed Start
   // Trip is covered too.
   await applyNativeEnginePower("quick_trip_started");
+  await keepEngineAwakeForLock("quick_trip_started_switch_off");
 
   const isRunning = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
   if (isRunning) return; // Already running (e.g. resumed after background)
