@@ -252,7 +252,15 @@ export function selectWeekAhead(
 
 // ── Words ─────────────────────────────────────────────────────────
 
-const weekdayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", timeZone: "Europe/London" });
+const weekdayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+
+/** Street Manager names often carry the stretch: "Shibdon Road From Blaydon
+ *  Bus Station To Chainbridge Road". The push keeps the street only. */
+export function shortStreetName(name: string | null): string | null {
+  if (!name) return name;
+  const cut = name.split(/\s+(?:from|between|o\/s|outside|junction with|jct)\s+/i)[0].trim();
+  return cut.length >= 3 ? cut : name;
+}
 
 function capitalise(s: string): string {
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
@@ -286,8 +294,9 @@ export function buildWeekAheadPushCopy(sel: WeekAheadSelection): WeekAheadCopy |
   const top = sel.items[0];
   if (!top) return null;
   const g = top.group;
-  const name = g.roads[0] ?? g.lead.town ?? null;
-  const from = g.startAt ? ` from ${weekdayFmt.format(g.startAt)}` : "";
+  const name = shortStreetName(g.roads[0] ?? g.lead.town ?? null);
+  // "from Sun 18 Oct": the day alone is ambiguous on a Sunday evening.
+  const from = g.startAt ? ` from ${weekdayFmt.format(g.startAt).replace(",", "")}` : "";
   const who = top.promoter ? ` (${top.promoter} works)` : "";
   const others = sel.total - 1;
   const more = others > 0 ? `, plus ${others} more` : "";

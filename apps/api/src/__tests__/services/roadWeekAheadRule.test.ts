@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { streetWorksToRoadEvent } from "../../services/roadEvents.js";
 import type { LatLng } from "../../services/roadCorridor.js";
 import {
+  shortStreetName,
   buildWeekAheadPushCopy,
   disruptionTier,
   inWeekAheadSendWindow,
@@ -212,12 +213,12 @@ describe("buildWeekAheadPushCopy", () => {
     const b = works({ street: "SIDE STREET", tm: "two_way_signals", start: "2026-10-21T07:00:00Z" });
     const c = works({ street: "BACK LANE", tm: "lane_closure", start: "2026-10-22T07:00:00Z" });
     const copy = buildWeekAheadPushCopy(sel([b, top, c]));
-    expect(copy).toEqual({ title: "Next week on your roads", body: "Durham Road closed from Tue (BT works), plus 2 more" });
+    expect(copy).toEqual({ title: "Next week on your roads", body: "Durham Road closed from Tue 20 Oct (BT works), plus 2 more" });
   });
 
   it("lights with no promoter and nothing else", () => {
     const only = works({ street: "HIGH STREET", tm: "multi_way_signals", start: "2026-10-23T07:00:00Z" });
-    expect(buildWeekAheadPushCopy(sel([only]))?.body).toBe("Temporary lights on High Street from Fri");
+    expect(buildWeekAheadPushCopy(sel([only]))?.body).toBe("Temporary lights on High Street from Fri 23 Oct");
   });
 
   it("nothing to say: null", () => {
@@ -244,5 +245,14 @@ describe("helpers", () => {
     expect(disruptionTier({ trafficManagement: "lane_closure", isTrafficSensitive: true })).toBe(1);
     expect(disruptionTier({ trafficManagement: "stop_go_boards", isTrafficSensitive: false })).toBe(2);
     expect(disruptionTier({ trafficManagement: "no_carriageway_incursion", isTrafficSensitive: false })).toBeNull();
+  });
+});
+
+describe("shortStreetName", () => {
+  it("keeps the street and drops the stretch description", () => {
+    expect(shortStreetName("Shibdon Road From Blaydon Bus Station To Chainbridge Road")).toBe("Shibdon Road");
+    expect(shortStreetName("High Street between Church Lane and Mill Road")).toBe("High Street");
+    expect(shortStreetName("Durham Road")).toBe("Durham Road");
+    expect(shortStreetName(null)).toBeNull();
   });
 });

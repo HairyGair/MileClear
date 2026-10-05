@@ -106,7 +106,7 @@ describe("runRoadWeekAheadJob", () => {
     expect(messages[0]).toMatchObject({
       to: "ExponentPushToken[u1]",
       title: "Next week on your roads",
-      body: "Test Road closed from Tue (BT works), plus 2 more",
+      body: "Test Road closed from Tue 20 Oct (BT works), plus 2 more",
     });
     expect(messages[0].data).toMatchObject({ action: "open_road_alerts", section: "week", week: "2026-W43" });
     const sent = logEvent.mock.calls.find((c) => c[0] === WEEK_AHEAD_SENT_EVENT)!;
