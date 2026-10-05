@@ -24,6 +24,7 @@ export interface CreateVehicleData {
   estimatedMpg?: number;
   milesPerKwh?: number;
   isPrimary?: boolean;
+  providedByOthers?: boolean;
   euroStatus?: string | null;
   firstRegistration?: string | null;
 }
@@ -38,6 +39,7 @@ export interface UpdateVehicleData {
   bluetoothName?: string | null;
   estimatedMpg?: number | null;
   isPrimary?: boolean;
+  providedByOthers?: boolean;
 }
 
 export function fetchVehicles() {

@@ -408,6 +408,7 @@ function PostTripReviewCard({
   autoClassified,
   learnedMatchCount,
   routeSourceLabel,
+  notClaimed,
   onDone,
 }: {
   distanceMiles: number;
@@ -415,6 +416,8 @@ function PostTripReviewCard({
   autoClassified: boolean;
   learnedMatchCount: number | null;
   routeSourceLabel: string | null;
+  /** The trip's vehicle is one someone else pays for: no claim value. */
+  notClaimed: boolean;
   onDone: () => void;
 }) {
   const accent = classification === "business" ? colors.amber : colors.green;
@@ -422,8 +425,10 @@ function PostTripReviewCard({
   // Compute AMAP value at the standard car rate. We use calculateHmrcDeduction
   // (tax-year-aware tiered car rate - 55p/25p from 2026-27, was 45p/25p
   // before) which matches the figure shown across the rest of the app for
-  // business trips. Personal trips don't claim, so we hide it.
-  const amapPence = classification === "business"
+  // business trips. Personal trips don't claim, and nor does a vehicle
+  // someone else pays for, so we hide it.
+  const showClaim = classification === "business" && !notClaimed;
+  const amapPence = showClaim
     ? calculateHmrcDeduction("car", distanceMiles)
     : 0;
   const amapPounds = (amapPence / 100).toFixed(2);
@@ -448,7 +453,7 @@ function PostTripReviewCard({
             </Text>
             <Text style={reviewCardStyles.statLabel}>MILES</Text>
           </View>
-          {classification === "business" && (
+          {showClaim && (
             <>
               <View style={reviewCardStyles.divider} />
               <View style={reviewCardStyles.statItem}>
@@ -2862,7 +2867,7 @@ export default function TripFormScreen() {
 
   const handleSelectVehicle = useCallback(() => {
     const options = vehicles.map((v) => ({
-      text: `${v.make} ${v.model}${v.isPrimary ? " (Primary)" : ""}`,
+      text: `${v.make} ${v.model}${v.isPrimary ? " (Primary)" : ""}${v.providedByOthers ? " (not claimed)" : ""}`,
       onPress: () => setVehicleId(v.id),
     }));
     options.push({ text: "None", onPress: () => setVehicleId(undefined) });
@@ -4488,6 +4493,7 @@ export default function TripFormScreen() {
           autoClassified={reviewCard.autoClassified}
           learnedMatchCount={reviewCard.learnedMatchCount}
           routeSourceLabel={reviewCard.routeSourceLabel}
+          notClaimed={!!vehicles.find((v) => v.id === vehicleId)?.providedByOthers}
           onDone={() => {
             setReviewCard(null);
             router.back();

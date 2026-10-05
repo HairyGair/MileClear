@@ -3,6 +3,7 @@ export { calculateHmrcDeduction } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { attachSoleVehicleToOrphanTrips, fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import { calculateMileageDeduction, parseTaxYear, resolveMileageRates } from "@mileclear/shared";
+import { isClaimableTrip } from "../lib/claimableTrips.js";
 
 /**
  * Recompute and upsert the MileageSummary for a user + tax year.
@@ -47,7 +48,7 @@ export async function upsertMileageSummary(
     select: {
       distanceMiles: true,
       classification: true,
-      vehicle: { select: { vehicleType: true } },
+      vehicle: { select: { vehicleType: true, providedByOthers: true } },
     },
   });
 
@@ -63,6 +64,10 @@ export async function upsertMileageSummary(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
+    }
+    // businessMiles keeps every business trip; the deduction leaves out
+    // vehicles someone else pays for.
+    if (isClaimableTrip(trip)) {
       // Cars and vans are one kind of vehicle for the approved rates and
       // share ONE 10,000-mile threshold a year (EIM31240, EIM31275); before
       // 4 Oct 2026 each got its own 10,000 at the higher rate.

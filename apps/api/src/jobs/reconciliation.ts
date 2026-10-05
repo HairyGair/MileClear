@@ -108,7 +108,7 @@ export async function runReconciliationJob(): Promise<void> {
         },
         select: {
           distanceMiles: true,
-          vehicle: { select: { vehicleType: true } },
+          vehicle: { select: { vehicleType: true, providedByOthers: true } },
         },
       }),
       prisma.user.findUnique({
@@ -125,6 +125,9 @@ export async function runReconciliationJob(): Promise<void> {
     const milesByType = new Map<VehicleType, number>();
     for (const t of trips) {
       expectedMiles += t.distanceMiles;
+      // Same split as upsertMileageSummary: miles count every business trip,
+      // the deduction leaves out vehicles someone else pays for.
+      if (t.vehicle?.providedByOthers) continue;
       const type = (t.vehicle?.vehicleType ?? fallbackType) as VehicleType;
       milesByType.set(type, (milesByType.get(type) ?? 0) + t.distanceMiles);
     }

@@ -121,6 +121,22 @@ describe("computeProjectMileageTotals", () => {
     expect(res.projects.reduce((s, p) => s + p.trips, 0)).toBe(400);
   });
 
+  it("counts miles in a vehicle someone else pays for at no value, outside the threshold", () => {
+    const res = computeProjectMileageTotals(
+      [
+        { ...trip("2026-05-01", 9_990, "Own"), notClaimed: false },
+        { ...trip("2026-05-02", 100, "Client van"), notClaimed: true },
+        { ...trip("2026-05-03", 10, "Own"), notClaimed: false },
+      ],
+      { taxYear: "2026-27" },
+    );
+    const van = res.projects.find((p) => p.label === "Client van")!;
+    expect(van).toEqual({ label: "Client van", trips: 1, miles: 100, valuePence: 0 });
+    // The van's 100 miles don't push the own-car trips past 10,000.
+    expect(res.totals.valuePence).toBe(10_000 * 55);
+    expect(res.totals.miles).toBe(10_100);
+  });
+
   it("ignores zero-mile trips and handles no trips", () => {
     const res = computeProjectMileageTotals([trip("2026-05-01", 0, "A")], { taxYear: "2026-27" });
     expect(res.projects).toEqual([]);

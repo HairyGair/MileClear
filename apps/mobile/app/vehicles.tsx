@@ -80,6 +80,7 @@ function VehicleCard({
           </View>
           <Text style={styles.metaText}>{fuelLabel}</Text>
           {item.year && <Text style={styles.metaText}>{item.year}</Text>}
+          {item.providedByOthers && <Text style={styles.metaText}>Not in your claim</Text>}
           {item.dvlaPlateProblem && (
             <View style={[styles.cazChip, styles.cazChipWarn]}>
               <Ionicons name="alert-circle" size={10} color="#f59e0b" accessible={false} />

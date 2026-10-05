@@ -92,6 +92,32 @@ describe("runReconciliationJob", () => {
     expect(runEvents).toHaveLength(1);
   });
 
+  it("counts a van someone else pays for in miles but not the deduction", async () => {
+    vi.mocked(prisma.mileageSummary.findMany).mockResolvedValue([
+      {
+        id: "sum-1",
+        userId: USER_A,
+        taxYear: TAX_YEAR,
+        businessMiles: 150,
+        deductionPence: 4500, // only the 100 own-car miles × 45p
+      } as any,
+    ]);
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([
+      { distanceMiles: 100, vehicle: { vehicleType: "car", providedByOthers: false } },
+      { distanceMiles: 50, vehicle: { vehicleType: "van", providedByOthers: true } },
+    ] as any);
+
+    await runReconciliationJob();
+    await flushLogEvents();
+
+    const driftEvents = vi
+      .mocked(prisma.appEvent.create)
+      .mock.calls.filter(
+        (c) => (c[0] as any).data?.type === "reconciliation.drift"
+      );
+    expect(driftEvents).toHaveLength(0);
+  });
+
   it("logs drift when cached miles disagree with trip totals", async () => {
     vi.mocked(prisma.mileageSummary.findMany).mockResolvedValue([
       {

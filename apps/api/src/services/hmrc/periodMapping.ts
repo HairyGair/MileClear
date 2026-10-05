@@ -47,6 +47,7 @@ import {
   type Sa103sBox,
 } from "@mileclear/shared";
 import { calculateMileageDeduction } from "@mileclear/shared";
+import { claimableWhere } from "../../lib/claimableTrips.js";
 import type {
   HmrcPeriodIncome,
   HmrcPeriodExpenses,
@@ -268,12 +269,12 @@ export async function buildPeriodSubmission(args: {
 
   // Business miles this period (excluding phantom trips).
   const tripsThisPeriod = await prisma.trip.findMany({
-    where: {
+    where: claimableWhere({
       userId,
       classification: "business",
       isPhantomTrip: false,
       startedAt: { gte: periodStart, lte: periodEnd },
-    },
+    }),
     select: { distanceMiles: true },
   });
   const milesThisPeriod = tripsThisPeriod.reduce(
@@ -283,12 +284,12 @@ export async function buildPeriodSubmission(args: {
 
   // Business miles earlier in the same tax year — needed for tier crossing.
   const tripsPriorInTaxYear = await prisma.trip.aggregate({
-    where: {
+    where: claimableWhere({
       userId,
       classification: "business",
       isPhantomTrip: false,
       startedAt: { gte: taxYearStart, lt: periodStart },
-    },
+    }),
     _sum: { distanceMiles: true },
   });
   const milesPriorInTaxYear = tripsPriorInTaxYear._sum.distanceMiles ?? 0;

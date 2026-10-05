@@ -24,6 +24,7 @@ import {
 } from "../services/email.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import { calculateMileageDeduction, resolveMileageRates, getTaxYear } from "@mileclear/shared";
+import { claimableWhere } from "../lib/claimableTrips.js";
 
 const ENABLED = () => process.env.TRIGGERED_EMAILS_ENABLED === "1";
 const SEND_DELAY_MS = 300;
@@ -116,7 +117,12 @@ async function unclassifiedTargets(): Promise<Array<{ user: Candidate; count: nu
     });
     if (recent === 0) continue;
     if (await sentWithin(user.id, EVENT.unclassified, UNCLASSIFIED_COOLDOWN_MS)) continue;
-    const pence = calculateMileageDeduction("car", agg._sum.distanceMiles ?? 0, {
+    // Value only the miles that could be claimed (not vehicles someone else pays for).
+    const claimable = await prisma.trip.aggregate({
+      where: claimableWhere({ userId: user.id, classification: "unclassified", isPhantomTrip: false }),
+      _sum: { distanceMiles: true },
+    });
+    const pence = calculateMileageDeduction("car", claimable._sum.distanceMiles ?? 0, {
       ...resolveMileageRates(user), taxYear,
     }).deductionPence;
     out.push({ user, count, pence });

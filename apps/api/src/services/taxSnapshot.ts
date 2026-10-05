@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { fetchExpenseSummary } from "./export-data.js";
 import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
+import { claimableWhere } from "../lib/claimableTrips.js";
 import {
   estimateUkTax,
   calculateMileageDeduction,
@@ -97,12 +98,12 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
       }),
       prisma.trip.findMany({
-        where: {
+        where: claimableWhere({
           userId,
           classification: "business",
           isPhantomTrip: false,
           startedAt: { gte: start, lte: end },
-        },
+        }),
         select: {
           distanceMiles: true,
           vehicle: { select: { vehicleType: true } },
@@ -596,36 +597,36 @@ async function buildMileageDeductionAcrossWindows(
   // (This-tax-year is reused from the snapshot's pre-computed total.)
   const [last7DaysTrips, thisMonthTrips, lastTaxYearTrips] = await Promise.all([
     prisma.trip.findMany({
-      where: {
+      where: claimableWhere({
         userId,
         classification: "business",
         isPhantomTrip: false,
         startedAt: { gte: last7DaysStart, lte: now },
-      },
+      }),
       select: {
         distanceMiles: true,
         vehicle: { select: { vehicleType: true } },
       },
     }),
     prisma.trip.findMany({
-      where: {
+      where: claimableWhere({
         userId,
         classification: "business",
         isPhantomTrip: false,
         startedAt: { gte: thisMonthStart, lte: now },
-      },
+      }),
       select: {
         distanceMiles: true,
         vehicle: { select: { vehicleType: true } },
       },
     }),
     prisma.trip.findMany({
-      where: {
+      where: claimableWhere({
         userId,
         classification: "business",
         isPhantomTrip: false,
         startedAt: { gte: lastTyStart, lte: lastTyEnd },
-      },
+      }),
       select: {
         distanceMiles: true,
         vehicle: { select: { vehicleType: true } },

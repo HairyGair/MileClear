@@ -28,6 +28,9 @@ export interface ProjectMileageTrip {
   /** null = vehicle unknown; the fallback type is used. */
   vehicleType: ProjectVehicleType | string | null;
   projectLabel: string | null;
+  /** In a vehicle someone else pays for: counts as miles, adds no value and
+   *  does not use up the 10,000-mile threshold. */
+  notClaimed?: boolean;
 }
 
 export interface ProjectMileageOptions {
@@ -106,12 +109,15 @@ export function computeProjectMileageTotals(
   const groups = new Map<string, Group>();
 
   for (const { t, time } of ordered) {
-    const cls = rateClass(t.vehicleType, fallback);
-    const before = runningPence[cls];
-    runningMiles[cls] += t.distanceMiles;
-    const after = deduction(cls, runningMiles[cls]);
-    runningPence[cls] = after;
-    const value = after - before;
+    let value = 0;
+    if (!t.notClaimed) {
+      const cls = rateClass(t.vehicleType, fallback);
+      const before = runningPence[cls];
+      runningMiles[cls] += t.distanceMiles;
+      const after = deduction(cls, runningMiles[cls]);
+      runningPence[cls] = after;
+      value = after - before;
+    }
 
     const key = projectLabelKey(t.projectLabel);
     let g = groups.get(key);

@@ -434,6 +434,11 @@ model Vehicle {
   // cost-per-mile for electric vehicles.
   milesPerKwh       Float?
   isPrimary         Boolean  @default(true)
+  // Someone else pays for this vehicle (an employer's or client's van, a hire
+  // car on a client's account). Its trips still count as miles, but business
+  // trips in it are never in a mileage claim: you cannot claim 55p a mile for
+  // a vehicle you did not pay to run. Read through lib/claimableTrips.ts.
+  providedByOthers  Boolean  @default(false)
   createdAt         DateTime @default(now())
 
   // DVLA-sourced expiry data + reminder bookkeeping. Refreshed weekly by

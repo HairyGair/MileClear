@@ -85,6 +85,7 @@ export default function VehicleFormScreen() {
   const [estimatedMpg, setEstimatedMpg] = useState("");
   const [milesPerKwh, setMilesPerKwh] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
+  const [providedByOthers, setProvidedByOthers] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -107,6 +108,7 @@ export default function VehicleFormScreen() {
               : ""
           );
           setIsPrimary(vehicle.isPrimary);
+          setProvidedByOthers(vehicle.providedByOthers ?? false);
           setRegistrationPlate(vehicle.registrationPlate || "");
           setCleanAirZones(vehicle.cleanAirZones ?? null);
           if (vehicle.dvlaPlateProblem && vehicle.registrationPlate) {
@@ -161,14 +163,19 @@ export default function VehicleFormScreen() {
       return;
     }
 
-    // Free users limited to 1 vehicle
+    // Free users limited to 1 vehicle of their own + 1 someone else pays for
     if (!isEditing && !user?.isPremium) {
       try {
         const existing = await fetchVehicles();
-        if (existing.data.length >= 1) {
+        const sameKind = existing.data.filter(
+          (v) => (v.providedByOthers ?? false) === providedByOthers
+        );
+        if (sameKind.length >= 1) {
           Alert.alert(
             "Vehicle Limit",
-            "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.",
+            providedByOthers
+              ? "Free accounts can have 1 vehicle that someone else pays for. Upgrade to Pro for unlimited vehicles."
+              : "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.",
             [
               { text: "OK", style: "cancel" },
               { text: "See Pro", onPress: () => showPaywall("vehicle_limit") },
@@ -187,6 +194,7 @@ export default function VehicleFormScreen() {
         vehicleType,
         fuelType,
         isPrimary,
+        providedByOthers,
       };
       if (year.trim()) payload.year = parseInt(year, 10);
       if (estimatedMpg.trim() && fuelType !== "electric") {
@@ -212,7 +220,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, registrationPlate, euroStatus, firstRegistration, isEditing, id, router, user?.isPremium, showPaywall]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, registrationPlate, euroStatus, firstRegistration, isEditing, id, router, user?.isPremium, showPaywall]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -454,6 +462,29 @@ export default function VehicleFormScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Someone else pays for it: miles count, the claim doesn't */}
+        <TouchableOpacity
+          style={styles.toggleRow}
+          onPress={() => setProvidedByOthers(!providedByOthers)}
+          activeOpacity={0.7}
+          accessibilityRole="switch"
+          accessibilityLabel="Someone else pays for this vehicle"
+          accessibilityHint="Its miles still count, but its business trips are left out of your mileage claim"
+          accessibilityState={{ checked: providedByOthers }}
+        >
+          <View style={styles.toggleTextCol}>
+            <Text style={styles.toggleLabel}>Someone else pays for this vehicle</Text>
+            <Text style={styles.toggleHint}>
+              For a client's or employer's van. Its miles still count, but its business trips are left out of your mileage claim.
+            </Text>
+          </View>
+          <View style={[styles.toggle, providedByOthers && styles.toggleActive]} accessible={false}>
+            <View
+              style={[styles.toggleThumb, providedByOthers && styles.toggleThumbActive]}
+            />
+          </View>
+        </TouchableOpacity>
+
         {/* Clean Air Zone / ULEZ compliance — edit mode, when we have data */}
         {isEditing && cleanAirZones && <CleanAirZoneCard assessment={cleanAirZones} />}
 
@@ -617,6 +648,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: TEXT_2,
     fontFamily: fonts.medium,
+  },
+  toggleTextCol: {
+    flex: 1,
+    marginRight: 12,
+  },
+  toggleHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: TEXT_3,
+    fontFamily: fonts.regular,
+    marginTop: 3,
   },
   toggle: {
     width: 48,

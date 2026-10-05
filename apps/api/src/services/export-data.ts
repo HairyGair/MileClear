@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { postcodesFor } from "./postcodeLookup.js";
+import { isClaimableTrip } from "../lib/claimableTrips.js";
 import {
   HMRC_THRESHOLD_MILES,
   getHmrcRatesForTaxYear,
@@ -54,7 +55,7 @@ export async function fetchExportTrips(
       },
       include: {
         vehicle: {
-          select: { make: true, model: true, vehicleType: true },
+          select: { make: true, model: true, vehicleType: true, providedByOthers: true },
         },
       },
       orderBy: { startedAt: "asc" },
@@ -86,7 +87,9 @@ export async function fetchExportTrips(
     let hmrcRatePence = 0;
     let deductionPence = 0;
 
-    if (trip.classification === "business") {
+    // A vehicle someone else pays for keeps its row but claims nothing and
+    // does not use up the 10,000-mile threshold.
+    if (isClaimableTrip(trip)) {
       if (vType === "motorbike") {
         hmrcRatePence = rateTable.motorbike.flat;
         deductionPence = Math.round(trip.distanceMiles * hmrcRatePence);
@@ -140,7 +143,7 @@ export async function fetchExportTrips(
       projectLabel: trip.projectLabel?.trim() || null,
       vehicleType: (vehicle?.vehicleType || null) as VehicleType | null,
       vehicleName: vehicle
-        ? `${vehicle.make} ${vehicle.model}`
+        ? `${vehicle.make} ${vehicle.model}${providedSuffix(trip.vehicle)}`
         : null,
       hmrcRatePence,
       deductionPence,
@@ -162,6 +165,11 @@ export async function fetchExportTrips(
   return rows;
 }
 
+/** Marks a vehicle someone else pays for wherever an export names it. */
+function providedSuffix(vehicle: { providedByOthers?: boolean } | null | undefined): string {
+  return vehicle?.providedByOthers ? " (provided, not claimed)" : "";
+}
+
 export async function fetchExportSummary(
   userId: string,
   taxYear: string
@@ -173,7 +181,7 @@ export async function fetchExportSummary(
       where: { userId, isPhantomTrip: false, startedAt: { gte: start, lte: end } },
       include: {
         vehicle: {
-          select: { make: true, model: true, vehicleType: true },
+          select: { make: true, model: true, vehicleType: true, providedByOthers: true },
         },
       },
     }),
@@ -212,6 +220,8 @@ export async function fetchExportSummary(
       type: VehicleType;
       totalMiles: number;
       businessMiles: number;
+      /** Business miles that can be claimed (not in a vehicle someone else pays for). */
+      claimableMiles: number;
     }
   >();
 
@@ -232,15 +242,17 @@ export async function fetchExportSummary(
       if (trip.classification === "business") {
         existing.businessMiles += trip.distanceMiles;
       }
+      if (isClaimableTrip(trip)) existing.claimableMiles += trip.distanceMiles;
     } else {
       vehicleMap.set(vKey, {
         name: vehicle
-          ? `${vehicle.make} ${vehicle.model}`
+          ? `${vehicle.make} ${vehicle.model}${providedSuffix(trip.vehicle)}`
           : "Unassigned trips",
         type: (vehicle?.vehicleType || "car") as VehicleType,
         totalMiles: trip.distanceMiles,
         businessMiles:
           trip.classification === "business" ? trip.distanceMiles : 0,
+        claimableMiles: isClaimableTrip(trip) ? trip.distanceMiles : 0,
       });
     }
   }
@@ -259,14 +271,16 @@ export async function fetchExportSummary(
   // One 10,000-mile threshold across ALL cars and vans (EIM31240/31275),
   // shared out between them by their business miles; motorbikes on their
   // own. Before 4 Oct 2026 each vehicle got its own 10,000.
-  const carVanMiles = [...vehicleMap.values()].filter((v) => v.type !== "motorbike").reduce((s, v) => s + v.businessMiles, 0);
+  // Pools count claimable miles only: a vehicle someone else pays for shows
+  // its business miles but claims nothing.
+  const carVanMiles = [...vehicleMap.values()].filter((v) => v.type !== "motorbike").reduce((s, v) => s + v.claimableMiles, 0);
   const carVanDeduction = calculateMileageDeduction("car", carVanMiles, { ...rateOpts, taxYear }).deductionPence;
-  const bikeMiles = [...vehicleMap.values()].filter((v) => v.type === "motorbike").reduce((s, v) => s + v.businessMiles, 0);
+  const bikeMiles = [...vehicleMap.values()].filter((v) => v.type === "motorbike").reduce((s, v) => s + v.claimableMiles, 0);
   const bikeDeduction = calculateMileageDeduction("motorbike", bikeMiles, { ...rateOpts, taxYear }).deductionPence;
   for (const v of vehicleMap.values()) {
     const poolMiles = v.type === "motorbike" ? bikeMiles : carVanMiles;
     const poolDeduction = v.type === "motorbike" ? bikeDeduction : carVanDeduction;
-    const deduction = poolMiles > 0 ? Math.round((poolDeduction * v.businessMiles) / poolMiles) : 0;
+    const deduction = poolMiles > 0 ? Math.round((poolDeduction * v.claimableMiles) / poolMiles) : 0;
     totalDeductionPence += deduction;
     vehicleBreakdown.push({
       vehicleName: v.name,
@@ -278,18 +292,19 @@ export async function fetchExportSummary(
   }
 
   // Monthly breakdown (ordered by tax year month: April → March)
-  const monthlyMap = new Map<string, { trips: number; miles: number; businessMiles: number; deductionPence: number }>();
+  const monthlyMap = new Map<string, { trips: number; miles: number; businessMiles: number; claimableMiles: number; deductionPence: number }>();
   const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   for (const trip of trips) {
     const d = new Date(trip.startedAt);
     const key = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-    const existing = monthlyMap.get(key) || { trips: 0, miles: 0, businessMiles: 0, deductionPence: 0 };
+    const existing = monthlyMap.get(key) || { trips: 0, miles: 0, businessMiles: 0, claimableMiles: 0, deductionPence: 0 };
     existing.trips += 1;
     existing.miles += trip.distanceMiles;
     if (trip.classification === "business") {
       existing.businessMiles += trip.distanceMiles;
     }
+    if (isClaimableTrip(trip)) existing.claimableMiles += trip.distanceMiles;
     monthlyMap.set(key, existing);
   }
 
@@ -308,8 +323,8 @@ export async function fetchExportSummary(
       // Calculate deduction for this month's business miles. Trips without
       // a linked vehicle fall back to "car" rates (most common).
       const ytd = (miles: number) => calculateMileageDeduction("car", miles, { ...rateOpts, taxYear }).deductionPence;
-      const deduction = ytd(milesBefore + data.businessMiles) - ytd(milesBefore);
-      milesBefore += data.businessMiles;
+      const deduction = ytd(milesBefore + data.claimableMiles) - ytd(milesBefore);
+      milesBefore += data.claimableMiles;
       monthlyBreakdown.push({
         month: key,
         trips: data.trips,

@@ -10,6 +10,28 @@ import { FUEL_TYPES, VEHICLE_TYPES, assessCleanAirZones, getTaxYear } from "@mil
 import type { FuelType, VehicleLookupResult, CazVehicleClass } from "@mileclear/shared";
 import { fetchMotHistory, DvsaMotError } from "../../services/dvsaMot.js";
 
+function freeVehicleLimitMessage(providedByOthers: boolean): string {
+  return providedByOthers
+    ? "Free accounts can have 1 vehicle that someone else pays for. Upgrade to Pro for unlimited vehicles."
+    : "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.";
+}
+
+async function recomputeSummariesForVehicle(userId: string, vehicleId: string): Promise<void> {
+  const span = await prisma.trip.aggregate({
+    where: { userId, vehicleId },
+    _min: { startedAt: true },
+    _max: { startedAt: true },
+  });
+  if (!span._min.startedAt || !span._max.startedAt) return;
+  const first = getTaxYear(span._min.startedAt);
+  const last = getTaxYear(span._max.startedAt);
+  const years: string[] = [];
+  for (let y = Number(first.slice(0, 4)); y <= Number(last.slice(0, 4)); y++) {
+    years.push(`${y}-${String((y + 1) % 100).padStart(2, "0")}`);
+  }
+  for (const taxYear of years) await upsertMileageSummary(userId, taxYear);
+}
+
 // Map our stored vehicleType to the CAZ engine's vehicle class (it only
 // distinguishes car / van / motorcycle for charge + standard purposes).
 function toCazVehicleClass(vehicleType: string): CazVehicleClass {
@@ -53,6 +75,7 @@ const createVehicleSchema = z.object({
   estimatedMpg: z.number().positive().optional(),
   milesPerKwh: z.number().positive().max(20).optional(),
   isPrimary: z.boolean().default(true),
+  providedByOthers: z.boolean().default(false),
   // DVLA emissions data, passed straight from the lookup result so Clean Air
   // Zone compliance can be shown without a second DVLA call.
   euroStatus: z.string().max(20).optional(),
@@ -75,6 +98,7 @@ const updateVehicleSchema = z.object({
   estimatedMpg: z.number().positive().nullable().optional(),
   milesPerKwh: z.number().positive().max(20).nullable().optional(),
   isPrimary: z.boolean().optional(),
+  providedByOthers: z.boolean().optional(),
   euroStatus: z.string().max(20).nullable().optional(),
   firstRegistration: z.string().max(7).nullable().optional(),
 });
@@ -221,13 +245,16 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const userId = request.userId!;
     const data = parsed.data;
 
-    // Free users limited to 1 vehicle. Pro from any source (subscription,
-    // referral credit or an entitled team) lifts the cap.
+    // Free users limited to 1 vehicle of their own plus 1 that someone else
+    // pays for (a client's van). Pro from any source (subscription, referral
+    // credit or an entitled team) lifts the cap.
     const isPremium = await isProUser(userId);
     if (!isPremium) {
-      const count = await prisma.vehicle.count({ where: { userId } });
+      const count = await prisma.vehicle.count({
+        where: { userId, providedByOthers: data.providedByOthers },
+      });
       if (count >= 1) {
-        return reply.status(403).send({ error: "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles." });
+        return reply.status(403).send({ error: freeVehicleLimitMessage(data.providedByOthers) });
       }
     }
 
@@ -245,7 +272,9 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
     // First vehicle: the trips recorded before it was added belong to it,
     // and the tax figure must follow (a motorbike is 24p, not 55p).
-    const attached = await attachSoleVehicleToOrphanTrips(userId);
+    // Not when it's someone else's van: that would take those trips out of
+    // the claim.
+    const attached = vehicle.providedByOthers ? 0 : await attachSoleVehicleToOrphanTrips(userId);
     if (attached > 0) {
       await upsertMileageSummary(userId, getTaxYear(new Date())).catch(() => {});
     }
@@ -281,6 +310,19 @@ export async function vehicleRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Vehicle not found" });
     }
 
+    const providedChanged =
+      data.providedByOthers !== undefined && data.providedByOthers !== existing.providedByOthers;
+
+    // Switching sides must not get round the free cap (1 own + 1 provided).
+    if (providedChanged && !(await isProUser(userId))) {
+      const count = await prisma.vehicle.count({
+        where: { userId, providedByOthers: data.providedByOthers, id: { not: id } },
+      });
+      if (count >= 1) {
+        return reply.status(403).send({ error: freeVehicleLimitMessage(data.providedByOthers!) });
+      }
+    }
+
     // If setting as primary, unset existing primary
     if (data.isPrimary) {
       await prisma.vehicle.updateMany({
@@ -311,6 +353,11 @@ export async function vehicleRoutes(app: FastifyInstance) {
           }
         : data,
     });
+
+    // The claim for every tax year this vehicle drove in has just changed.
+    if (providedChanged) {
+      await recomputeSummariesForVehicle(userId, id).catch(() => {});
+    }
 
     return reply.send({ data: withCleanAirZones(vehicle) });
   });

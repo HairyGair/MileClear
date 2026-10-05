@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { isClaimableTrip } from "../lib/claimableTrips.js";
 import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import {
   getTaxYear,
@@ -490,6 +491,7 @@ export async function getWeeklyPnL(
   const pnlRateOpts = pnlUser ? resolveMileageRates(pnlUser) : {};
   let hmrcDeductionPence = 0;
   for (const trip of trips) {
+    if (!isClaimableTrip(trip)) continue;
     const vType = (trip.vehicle?.vehicleType ?? pnlFallbackType) as "car" | "van" | "motorbike";
     const tripTaxYear = getTaxYear(trip.startedAt);
     hmrcDeductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {

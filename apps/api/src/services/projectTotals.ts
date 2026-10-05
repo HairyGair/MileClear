@@ -43,7 +43,7 @@ export async function loadProjectTotals(
         startedAt: true,
         distanceMiles: true,
         projectLabel: true,
-        vehicle: { select: { vehicleType: true } },
+        vehicle: { select: { vehicleType: true, providedByOthers: true } },
       },
       orderBy: { startedAt: "asc" },
     }),
@@ -55,6 +55,7 @@ export async function loadProjectTotals(
       distanceMiles: t.distanceMiles,
       vehicleType: t.vehicle?.vehicleType ?? null,
       projectLabel: t.projectLabel,
+      notClaimed: t.vehicle?.providedByOthers ?? false,
     })),
     {
       taxYear,

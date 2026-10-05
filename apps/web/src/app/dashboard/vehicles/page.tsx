@@ -48,6 +48,7 @@ export default function VehiclesPage() {
     estimatedMpg: "",
     milesPerKwh: "",
     isPrimary: true,
+    providedByOthers: false,
     euroStatus: null as string | null,
     firstRegistration: null as string | null,
   });
@@ -94,6 +95,7 @@ export default function VehiclesPage() {
       estimatedMpg: "",
       milesPerKwh: "",
       isPrimary: vehicles.length === 0,
+      providedByOthers: false,
       euroStatus: null,
       firstRegistration: null,
     });
@@ -113,6 +115,7 @@ export default function VehiclesPage() {
       estimatedMpg: v.estimatedMpg ? String(v.estimatedMpg) : "",
       milesPerKwh: v.milesPerKwh != null ? String(v.milesPerKwh) : "",
       isPrimary: v.isPrimary,
+      providedByOthers: v.providedByOthers ?? false,
       // Preserve stored emissions data through an edit so compliance survives.
       euroStatus: null,
       firstRegistration: null,
@@ -158,6 +161,7 @@ export default function VehiclesPage() {
         estimatedMpg: form.estimatedMpg ? parseFloat(form.estimatedMpg) : undefined,
         milesPerKwh: form.milesPerKwh ? parseFloat(form.milesPerKwh) : undefined,
         isPrimary: form.isPrimary,
+        providedByOthers: form.providedByOthers,
         euroStatus: form.euroStatus ?? undefined,
         firstRegistration: form.firstRegistration ?? undefined,
       };
@@ -300,6 +304,12 @@ export default function VehiclesPage() {
                   <div className="vehicle-card__spec">
                     <span className="vehicle-card__spec-label">Economy</span>
                     <span className="vehicle-card__spec-value">{v.estimatedMpg} mpg</span>
+                  </div>
+                )}
+                {v.providedByOthers && (
+                  <div className="vehicle-card__spec">
+                    <span className="vehicle-card__spec-label">Paid for by</span>
+                    <span className="vehicle-card__spec-value">Someone else (not in your claim)</span>
                   </div>
                 )}
               </div>
@@ -493,6 +503,23 @@ export default function VehiclesPage() {
             placeholder="e.g. 3.5"
           />
         )}
+        <div className="form-group">
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
+            <input
+              id="providedByOthers"
+              type="checkbox"
+              checked={form.providedByOthers}
+              onChange={(e) => setForm((f) => ({ ...f, providedByOthers: e.target.checked }))}
+              style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--amber-400)" }}
+            />
+            <span>
+              <span style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>Someone else pays for this vehicle</span>
+              <span style={{ display: "block", fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 2 }}>
+                For a client&apos;s or employer&apos;s van. Its miles still count, but its business trips are left out of your mileage claim.
+              </span>
+            </span>
+          </label>
+        </div>
       </Modal>
 
       {/* Delete Confirmation */}

@@ -468,6 +468,10 @@ export interface Vehicle {
    *  for cost-per-mile on electric vehicles. */
   milesPerKwh: number | null;
   isPrimary: boolean;
+  /** Someone else pays for this vehicle (an employer's or client's van). Its
+   *  miles count in totals but never in a mileage claim. Optional because
+   *  older API responses do not carry it. */
+  providedByOthers?: boolean;
   /** Set when the DVLA cannot answer for the plate, so MOT and tax reminders
    *  are off: "not_found" (no record) or "invalid" (not a plate it accepts).
    *  Optional because older API responses do not carry it. */

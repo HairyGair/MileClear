@@ -16,6 +16,7 @@ import {
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
 import { loadSaChecklist } from "../../services/saChecklist.js";
+import { isClaimableTrip } from "../../lib/claimableTrips.js";
 
 const taxYearSchema = z
   .string()
@@ -106,6 +107,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
                   make: true,
                   model: true,
                   vehicleType: true,
+                  providedByOthers: true,
                 },
               },
             },
@@ -159,6 +161,9 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         totalMiles: number;
         deductionPence: number;
       }
+      // Business miles the deduction is worked out from: a vehicle someone
+      // else pays for shows its business miles but claims nothing.
+      const claimableMilesByVehicle = new Map<string, number>();
 
       const vehicleMap = new Map<string, VehicleRow>();
       for (const trip of trips) {
@@ -184,6 +189,9 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         } else {
           row.personalMiles += trip.distanceMiles;
         }
+        if (isClaimableTrip(trip)) {
+          claimableMilesByVehicle.set(vKey, (claimableMilesByVehicle.get(vKey) ?? 0) + trip.distanceMiles);
+        }
       }
 
       // SA103 is the self-employment form: HMRC rates, not an employer's
@@ -195,7 +203,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         row.totalMiles = Math.round(row.totalMiles * 100) / 100;
         row.deductionPence = calculateMileageDeduction(
           row.vehicleType as VehicleType,
-          row.businessMiles,
+          claimableMilesByVehicle.get(row.vehicleId) ?? 0,
           { ...rateOpts, taxYear: validatedTaxYear },
         ).deductionPence;
       }

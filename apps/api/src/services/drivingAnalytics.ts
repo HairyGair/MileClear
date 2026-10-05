@@ -1,4 +1,5 @@
 import { prisma } from "../lib/prisma.js";
+import { isClaimableTrip } from "../lib/claimableTrips.js";
 import {
   getTaxYear,
   parseTaxYear,
@@ -53,6 +54,7 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   const [trips, shifts, earnings, achievements, stats, dvrUser] = await Promise.all([
     prisma.trip.findMany({
       where: { userId, startedAt: { gte: start, lte: end } },
+      include: { vehicle: { select: { providedByOthers: true } } },
     }),
     prisma.shift.findMany({
       where: { userId, status: "completed", startedAt: { gte: start, lte: end } },
@@ -168,7 +170,9 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   // pass total business miles as "car" - a tier crossing inside one week is
   // unusual but the function still handles it correctly.
   const dvrRateOpts = dvrUser ? resolveMileageRates(dvrUser) : {};
-  const deductionPence = calculateMileageDeduction("car", businessMiles, {
+  // Vehicles someone else pays for are business miles but claim nothing.
+  const claimableMiles = trips.filter(isClaimableTrip).reduce((s, t) => s + t.distanceMiles, 0);
+  const deductionPence = calculateMileageDeduction("car", claimableMiles, {
     ...dvrRateOpts,
     taxYear: getTaxYear(start),
   }).deductionPence;

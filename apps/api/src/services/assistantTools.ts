@@ -530,7 +530,7 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
       where: { id: userId },
       select: { workType: true, employerMileageRatePence: true, employerMileageRatePenceAfter10k: true },
     }),
-    prisma.vehicle.findMany({ where: { userId }, select: { id: true, vehicleType: true, isPrimary: true } }),
+    prisma.vehicle.findMany({ where: { userId }, select: { id: true, vehicleType: true, isPrimary: true, providedByOthers: true } }),
     prisma.trip.findMany({
       where: { userId, isPhantomTrip: false, classification: "business", startedAt: { gte: bounds.start, lte: bounds.end } },
       select: { distanceMiles: true, vehicleId: true },
@@ -547,9 +547,16 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
   // services/mileage.ts; motorbikes have their own flat rate.
   const fallback = fallbackVehicleTypeFromList(vehicles);
   const typeOf = new Map(vehicles.map((v) => [v.id, v.vehicleType]));
+  const providedIds = new Set(vehicles.filter((v) => v.providedByOthers).map((v) => v.id));
   let carVan = 0;
   let motorbike = 0;
+  let provided = 0;
   for (const t of trips) {
+    // Vehicles someone else pays for: business miles, but no allowance.
+    if (t.vehicleId && providedIds.has(t.vehicleId)) {
+      provided += t.distanceMiles;
+      continue;
+    }
     const vt = (t.vehicleId && typeOf.get(t.vehicleId)) || fallback;
     if (vt === "motorbike") motorbike += t.distanceMiles;
     else carVan += t.distanceMiles;
@@ -566,6 +573,12 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
       carAndVan: round1(carVan),
       motorbike: round1(motorbike),
       total: round1(carVan + motorbike),
+      ...(provided > 0
+        ? {
+            inVehiclesSomeoneElsePaysFor: round1(provided),
+            note: "Business miles in vehicles marked as paid for by someone else are not in the mileage allowance or the totals above.",
+          }
+        : {}),
     },
     mileageRates: {
       source: carCalc.source === "employer" ? "your employer's rate" : "HMRC approved mileage rates",

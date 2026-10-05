@@ -74,6 +74,24 @@ describe("tax year and rate", () => {
     expect(mileageByVehicle(b, [], "2025-26").mileageClaimPence).toBe(4_500);
   });
 
+  it("counts a van someone else pays for in business miles but not the claim", () => {
+    const VAN: ChecklistVehicle = { ...CAR, id: "v-van", make: "Ford", model: "Transit", vehicleType: "van", providedByOthers: true };
+    const b = [
+      { vehicleId: "v-car", classification: "business", miles: 1000, count: 10 },
+      { vehicleId: "v-van", classification: "business", miles: 400, count: 4 },
+    ];
+    const r = mileageByVehicle(b, [CAR, VAN], "2026-27");
+    expect(r.businessMiles).toBe(1400);
+    expect(r.businessTrips).toBe(14);
+    expect(r.mileageClaimPence).toBe(55_000);
+  });
+
+  it("keeps trips with no vehicle claimable even when the primary is provided", () => {
+    const VAN: ChecklistVehicle = { ...CAR, id: "v-van", vehicleType: "van", providedByOthers: true };
+    const b = [{ vehicleId: null, classification: "business", miles: 100, count: 1 }];
+    expect(mileageByVehicle(b, [VAN], "2026-27").mileageClaimPence).toBe(5_500);
+  });
+
   it("ignores personal and unclassified miles in the claim", () => {
     const b = [
       { vehicleId: "v-car", classification: "business", miles: 100, count: 2 },

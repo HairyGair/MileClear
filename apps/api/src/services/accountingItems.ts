@@ -21,6 +21,7 @@
 // push lives here so the two ledgers can never drift apart.
 
 import { prisma } from "../lib/prisma.js";
+import { claimableWhere } from "../lib/claimableTrips.js";
 import {
   calculateMileageDeduction,
   resolveMileageRates,
@@ -68,13 +69,13 @@ export async function buildMileageItems(
   const rateOpts = { ...(user ? resolveMileageRates(user) : {}), taxYear };
 
   const trips = await prisma.trip.findMany({
-    where: {
+    where: claimableWhere({
       userId,
       classification: "business",
       isPhantomTrip: false,
       vehicleId: { not: null },
       startedAt: { gte: start, lte: end },
-    },
+    }),
     select: { startedAt: true, distanceMiles: true, vehicleId: true },
     orderBy: { startedAt: "asc" },
   });

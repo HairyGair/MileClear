@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
+import { isClaimableTrip } from "../lib/claimableTrips.js";
 import {
   getTaxYear,
   parseTaxYear,
@@ -527,6 +528,8 @@ export async function getShiftScorecard(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
+    }
+    if (isClaimableTrip(trip)) {
       const vType = (trip.vehicle?.vehicleType ?? scorecardFallbackType) as
         | "car"
         | "van"
@@ -671,6 +674,8 @@ export async function getPeriodRecap(
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
+    }
+    if (isClaimableTrip(trip)) {
       const vType = (trip.vehicle?.vehicleType ?? recapFallbackType) as
         | "car"
         | "van"

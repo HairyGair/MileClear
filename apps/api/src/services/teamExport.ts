@@ -6,6 +6,7 @@ import {
 } from "@mileclear/shared";
 import type { TeamApprovalStatus, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
+import { claimableWhere } from "../lib/claimableTrips.js";
 
 // Milesheet Phase 2 (24 Aug 2026).
 //
@@ -220,26 +221,28 @@ export async function computeTeamMonthSummary(orgId: string, month: string): Pro
   // Per tax-year segment: the miles inside it, and the miles already run up
   // earlier in that same tax year (which decide whether the driver is still
   // on the first-10k rate).
+  // The amount leaves out vans someone else pays for (no mileage to
+  // reimburse); the miles column still shows every business trip.
   const segments = taxYearSegmentsForMonth(month);
   const segmentData = await Promise.all(
     segments.map(async (seg) => {
       const [inSeg, prior] = await Promise.all([
         prisma.trip.groupBy({
           by: ["userId"],
-          where: {
+          where: claimableWhere({
             userId: { in: driverUserIds },
             classification: "business",
             startedAt: { gte: seg.segStart, lt: seg.segEnd },
-          },
+          }),
           _sum: { distanceMiles: true },
         }),
         prisma.trip.groupBy({
           by: ["userId"],
-          where: {
+          where: claimableWhere({
             userId: { in: driverUserIds },
             classification: "business",
             startedAt: { gte: seg.tyStart, lt: seg.segStart },
-          },
+          }),
           _sum: { distanceMiles: true },
         }),
       ]);

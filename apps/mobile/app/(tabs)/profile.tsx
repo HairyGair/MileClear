@@ -382,6 +382,7 @@ export default function ProfileScreen() {
                       <Text style={styles.metaChip}>{VEHICLE_TYPE_LABELS[v.vehicleType]}</Text>
                       <Text style={styles.metaText}>{FUEL_TYPE_LABELS[v.fuelType]}</Text>
                       {v.year && <Text style={styles.metaText}>{v.year}</Text>}
+                      {v.providedByOthers && <Text style={styles.metaText}>Not in your claim</Text>}
                       {v.cleanAirZones && v.cleanAirZones.verdict !== "unknown" && (
                         <View
                           style={[

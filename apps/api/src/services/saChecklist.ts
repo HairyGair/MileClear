@@ -55,6 +55,8 @@ export interface ChecklistVehicle {
   model: string;
   vehicleType: string;
   createdAt: Date;
+  /** Someone else pays for it: its business miles count but claim nothing. */
+  providedByOthers?: boolean;
 }
 
 function isVehicleType(v: string): v is VehicleType {
@@ -81,6 +83,7 @@ export function mileageByVehicle(
 } {
   const primary = vehicles[0] ?? null;
   const typeById = new Map(vehicles.map((v) => [v.id, v.vehicleType]));
+  const providedIds = new Set(vehicles.filter((v) => v.providedByOthers).map((v) => v.id));
   const businessByKey = new Map<string, { type: VehicleType; miles: number }>();
   const tripsByVehicle = new Map<string, number>();
   let businessMiles = 0;
@@ -92,6 +95,8 @@ export function mileageByVehicle(
     if (b.classification !== "business") continue;
     businessMiles += b.miles;
     businessTrips += b.count;
+    // Trips with no vehicle stay claimable, as in lib/claimableTrips.ts.
+    if (b.vehicleId && providedIds.has(b.vehicleId)) continue;
     const rawType = typeById.get(key) ?? "car";
     const type: VehicleType = isVehicleType(rawType) ? rawType : "car";
     const row = businessByKey.get(key) ?? { type, miles: 0 };
@@ -405,7 +410,7 @@ export async function loadSaChecklist(
     prisma.vehicle.findMany({
       where: { userId },
       orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-      select: { id: true, make: true, model: true, vehicleType: true, createdAt: true },
+      select: { id: true, make: true, model: true, vehicleType: true, createdAt: true, providedByOthers: true },
     }),
     prisma.trip.groupBy({
       by: ["vehicleId", "classification"],

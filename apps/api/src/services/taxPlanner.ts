@@ -19,6 +19,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { claimableWhere } from "../lib/claimableTrips.js";
 import { fetchExpenseSummary } from "./export-data.js";
 import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import { pushPrefEnabled } from "./pushPrefs.js";
@@ -108,7 +109,7 @@ async function yearProfit(
   const basis = user.taxBasis === "accruals" ? "accruals" : "cash";
   const [trips, earnings, invoices, expenses] = await Promise.all([
     prisma.trip.findMany({
-      where: { userId, classification: "business", isPhantomTrip: false, startedAt: { gte: start, lte: end } },
+      where: claimableWhere({ userId, classification: "business", isPhantomTrip: false, startedAt: { gte: start, lte: end } }),
       select: { distanceMiles: true, vehicle: { select: { vehicleType: true } } },
     }),
     prisma.earning.findMany({
