@@ -22,6 +22,7 @@ import { runJob } from "../services/jobRun.js";
 import { prewarmStationCache } from "../services/fuel.js";
 import { runCheapestFuelAlertJob, runEvWeeklySummaryJob } from "./fuelAlerts.js";
 import { runRoadAlertsJob } from "./roadAlerts.js";
+import { runRoadWeekAheadJob } from "./roadWeekAhead.js";
 import { roadAlertsAvailable } from "../services/roadAlerts.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import {
@@ -1609,6 +1610,9 @@ export function startNotificationJobs(): void {
     // Clean Air Zone "pay by tomorrow" reminders (Ticket defender, Pro),
     // 18:00 UK the evening before a deadline. Dry run unless CAZ_PAY_PUSH=1.
     void runJob("caz_pay", runCazPayRemindersJob);
+    // "Next week on your roads": Sunday 18:00-19:59 UK, road alerts opt-in
+    // only, once per driver per week. Off unless ROAD_WEEK_AHEAD_PUSH=1.
+    void runJob("road_week_ahead", runRoadWeekAheadJob);
   };
 
   setTimeout(() => {

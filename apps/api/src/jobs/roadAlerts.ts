@@ -37,6 +37,7 @@ import {
   sentEventIdsFrom,
   splitForScreen,
 } from "../services/roadAlertsRule.js";
+import { WEEK_AHEAD_SENT_EVENT } from "../services/roadWeekAheadRule.js";
 import { buildGroupPushCopy, groupMatches, selectPushGroup, unnamedLeads, withoutDismissed } from "../services/roadAlertGroups.js";
 import { applyKnownNames, queueNames, waitForNames } from "../services/roadEventNames.js";
 import {
@@ -137,7 +138,9 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
     const [sentRows, recentTrips, openShifts, dismissedByUser] = await Promise.all([
       prisma.appEvent.findMany({
         where: {
-          type: ROAD_ALERT_SENT_EVENT,
+          // The Sunday week-ahead push counts towards the one-a-day cap too
+          // (its rows carry no eventIds, so they never block an event).
+          type: { in: [ROAD_ALERT_SENT_EVENT, WEEK_AHEAD_SENT_EVENT] },
           userId: { in: ids },
           createdAt: { gte: new Date(now.getTime() - DEDUPE_LOOKBACK_DAYS * 86400000) },
         },

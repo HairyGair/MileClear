@@ -5,9 +5,11 @@
 // roads in the next 7 days. "Usual roads" are worked out on our server from
 // the driver's own recent drives and never shared. Not a sat-nav: no live
 // traffic, nothing while driving. Opened from the dashboard card, Settings and
-// the pre-departure push (data.action "open_road_alerts").
+// the pre-departure push (data.action "open_road_alerts"). The Sunday
+// "Next week on your roads" push opens it at the "Coming up" section
+// (?section=week).
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
   RefreshControl,
@@ -17,19 +19,29 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import type { RoadAlertItem, RoadAlertsResponse } from "@mileclear/shared";
 import { dismissRoadAlert, fetchRoadAlerts } from "../lib/api/roadAlerts";
 import { TripMapWidget } from "../components/map/TripMapWidget";
 import { formatAlertDay, formatAlertTime, turnOnRoadAlerts } from "../lib/roadAlerts";
+import { weekAheadStartLine, weekAheadTitle, withoutWeekAhead } from "../lib/roadAlertsWeek";
 import { colors, fonts, radii } from "../lib/theme";
 
 type Data = RoadAlertsResponse["data"];
 
-function AlertRow({ item, onDismiss }: { item: RoadAlertItem; onDismiss: (item: RoadAlertItem) => void }) {
+function AlertRow({
+  item,
+  onDismiss,
+  startLine,
+}: {
+  item: RoadAlertItem;
+  onDismiss: (item: RoadAlertItem) => void;
+  /** Replaces the "Starts ..." line (week-ahead cards name the works company). */
+  startLine?: string | null;
+}) {
   const closure = item.severity === "closure";
-  const starts = item.when === "upcoming" ? formatAlertTime(item.startAt) : null;
+  const starts = startLine ? null : item.when === "upcoming" ? formatAlertTime(item.startAt) : null;
   const since = item.ongoing ? formatAlertDay(item.startAt) : null;
   return (
     <View style={styles.item} accessible accessibilityLabel={`${item.headline}. ${item.sentence}`}>
@@ -42,6 +54,7 @@ function AlertRow({ item, onDismiss }: { item: RoadAlertItem; onDismiss: (item: 
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.headline}>{item.headline}</Text>
+        {startLine ? <Text style={styles.when}>{startLine}</Text> : null}
         {starts ? <Text style={styles.when}>Starts {starts}</Text> : null}
         {since ? <Text style={styles.whenQuiet}>In place since {since}</Text> : null}
         <Text style={styles.sentence}>{item.sentence}</Text>
@@ -78,8 +91,16 @@ function AlertRow({ item, onDismiss }: { item: RoadAlertItem; onDismiss: (item: 
   );
 }
 
+function hideKeys(item: RoadAlertItem): string[] {
+  return [item.id, ...(item.memberIds ?? [])];
+}
+
 export default function RoadAlertsScreen() {
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const scrollRef = useRef<ScrollView>(null);
+  // Opened from the Sunday week-ahead push: scroll to "Coming up" once.
+  const scrolledToWeek = useRef(false);
   const [data, setData] = useState<Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -91,7 +112,9 @@ export default function RoadAlertsScreen() {
   const [lastHidden, setLastHidden] = useState<RoadAlertItem | null>(null);
 
   const dismiss = useCallback((item: RoadAlertItem) => {
-    setHidden((h) => new Set(h).add(item.id));
+    // Keyed by every event in the card too, so the same closure listed under
+    // both "Coming up" and "Planned in the next 7 days" goes from both.
+    setHidden((h) => new Set([...h, ...hideKeys(item)]));
     setLastHidden(item);
     dismissRoadAlert({
       eventIds: item.memberIds ?? [item.id],
@@ -102,7 +125,7 @@ export default function RoadAlertsScreen() {
       // Not saved: show it again rather than pretend.
       setHidden((h) => {
         const next = new Set(h);
-        next.delete(item.id);
+        for (const k of hideKeys(item)) next.delete(k);
         return next;
       });
       setLastHidden(null);
@@ -115,13 +138,14 @@ export default function RoadAlertsScreen() {
     setLastHidden(null);
     setHidden((h) => {
       const next = new Set(h);
-      next.delete(item.id);
+      for (const k of hideKeys(item)) next.delete(k);
       return next;
     });
     dismissRoadAlert({ eventIds: item.memberIds ?? [item.id], undo: true }).catch(() => {});
   }, [lastHidden]);
 
-  const visible = (list: RoadAlertItem[] | undefined) => (list ?? []).filter((i) => !hidden.has(i.id));
+  const visible = (list: RoadAlertItem[] | undefined) =>
+    (list ?? []).filter((i) => !hideKeys(i).some((k) => hidden.has(k)));
 
   const load = useCallback(async () => {
     setError(null);
@@ -163,6 +187,7 @@ export default function RoadAlertsScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
+        ref={scrollRef}
         style={styles.screen}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -232,11 +257,38 @@ export default function RoadAlertsScreen() {
                   visible(data.current).map((item) => <AlertRow key={item.id} item={item} onDismiss={dismiss} />)
                 )}
 
+                {visible(data.weekAhead).length > 0 ? (
+                  <View
+                    onLayout={(e) => {
+                      if (section !== "week" || scrolledToWeek.current) return;
+                      scrolledToWeek.current = true;
+                      const y = e.nativeEvent.layout.y;
+                      scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true });
+                    }}
+                  >
+                    <Text style={styles.section}>{weekAheadTitle()}</Text>
+                    {visible(data.weekAhead).map((item) => (
+                      <AlertRow key={item.id} item={item} onDismiss={dismiss} startLine={weekAheadStartLine(item)} />
+                    ))}
+                    {data.weekAheadMore ? (
+                      <Text style={styles.empty}>
+                        Plus {data.weekAheadMore} more planned on your usual roads.
+                      </Text>
+                    ) : null}
+                  </View>
+                ) : null}
+
                 <Text style={styles.section}>Planned in the next 7 days</Text>
-                {visible(data.upcoming).length === 0 ? (
-                  <Text style={styles.empty}>No planned closures or roadworks on your usual roads.</Text>
+                {withoutWeekAhead(visible(data.upcoming), visible(data.weekAhead)).length === 0 ? (
+                  <Text style={styles.empty}>
+                    {visible(data.weekAhead).length > 0
+                      ? "Nothing else planned on your usual roads."
+                      : "No planned closures or roadworks on your usual roads."}
+                  </Text>
                 ) : (
-                  visible(data.upcoming).map((item) => <AlertRow key={item.id} item={item} onDismiss={dismiss} />)
+                  withoutWeekAhead(visible(data.upcoming), visible(data.weekAhead)).map((item) => (
+                    <AlertRow key={item.id} item={item} onDismiss={dismiss} />
+                  ))
                 )}
 
                 {visible(data.ongoing).length > 0 ? (

@@ -107,6 +107,15 @@ describe("runRoadAlertsJob", () => {
     expect(r?.skipped.already_sent_today).toBe(1);
   });
 
+  it("the Sunday week-ahead push counts towards the one-a-day cap", async () => {
+    const { prisma } = await import("../../lib/prisma.js");
+    const findMany = prisma.appEvent.findMany as unknown as ReturnType<typeof vi.fn>;
+    findMany.mockClear();
+    await runRoadAlertsJob(SEND_TICK);
+    const where = findMany.mock.calls[0][0].where;
+    expect(where.type).toEqual({ in: ["road_alert.sent", "road_alert.week_ahead_sent"] });
+  });
+
   it("never the same event twice (sent last week)", async () => {
     db.sent = [{ userId: "u1", metadata: { eventIds: [closure.id] }, createdAt: new Date("2026-09-30T05:00:00Z") }];
     const r = await runRoadAlertsJob(SEND_TICK);

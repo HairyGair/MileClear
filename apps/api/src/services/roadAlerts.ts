@@ -46,6 +46,8 @@ import {
 } from "./tomtomTraffic.js";
 import { isStreetManagerEnabled, loadStreetWorks } from "./streetManager.js";
 import { pushPrefOptedIn } from "./pushPrefs.js";
+import { weekAheadForCorridor } from "./roadWeekAhead.js";
+import { weekAheadWindow } from "./roadWeekAheadRule.js";
 
 const CACHE_TTL_MS = 24 * 3600000;
 const COORD_CHUNK_TRIPS = 40;
@@ -270,6 +272,9 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
   );
   queueNames(unnamedLeads(grouped), now.getTime());
   const groups = sortGroups(grouped);
+  // "Coming up this week" (Sunday: next week): planned works starting in the
+  // week in view, most disruptive first. Same opt-in, same corridor.
+  const week = await weekAheadForCorridor(corridor, weekAheadWindow(now), now, dismissed);
   return {
     ...base,
     offerEligible: false,
@@ -279,5 +284,7 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
     current: groups.current.map(toItem),
     upcoming: groups.upcoming.map(toItem),
     ongoing: groups.ongoing.map(toItem),
+    weekAhead: week.items.map((e) => ({ ...toItem(e.group), promoter: e.promoter })),
+    weekAheadMore: week.more,
   };
 }

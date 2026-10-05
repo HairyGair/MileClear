@@ -907,6 +907,8 @@ export interface RoadAlertItem {
   /** The closed stretch for the card's small map (a single point when the
    *  source gave no line). */
   line?: { lat: number; lng: number }[];
+  /** Works company, short form ("BT"), on week-ahead items only. */
+  promoter?: string | null;
 }
 
 /** GET /road-alerts */
@@ -926,6 +928,12 @@ export interface RoadAlertsResponse {
     upcoming: RoadAlertItem[];
     /** Closures in place for more than 3 days (absent from older APIs). */
     ongoing?: RoadAlertItem[];
+    /** Planned works starting in the week in view (the rest of this week, or
+     *  on a Sunday the Monday to Sunday ahead), most disruptive first, at
+     *  most 5. Absent from older APIs. */
+    weekAhead?: RoadAlertItem[];
+    /** How many more week-ahead items there were past the 5. */
+    weekAheadMore?: number;
     /** Credit lines the data licences require; show them under the list. */
     attribution: string[];
     updatedAt: string;

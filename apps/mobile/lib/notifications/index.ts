@@ -680,8 +680,10 @@ export function setupNotificationResponseHandler(): void {
 
       case "open_road_alerts":
         // Road alerts trial (jobs/roadAlerts.ts, Oct 2026). Older bundles
-        // fall through to the default.
-        router.push("/road-alerts" as never);
+        // fall through to the default. The Sunday "Next week on your roads"
+        // push (jobs/roadWeekAhead.ts) adds section "week" to land on the
+        // "Coming up" list.
+        router.push((data?.section === "week" ? "/road-alerts?section=week" : "/road-alerts") as never);
         return;
 
       case "open_exports":
