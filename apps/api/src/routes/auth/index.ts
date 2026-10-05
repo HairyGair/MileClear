@@ -3,6 +3,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { createLocalJWKSet, jwtVerify, type JSONWebKeySet } from "jose";
 import { prisma } from "../../lib/prisma.js";
+import { generateOtp, otpExpiry } from "../../services/verificationCodes.js";
 import {
   hashPassword,
   verifyPassword,
@@ -98,13 +99,6 @@ async function getJWKS(url: string) {
 const APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys";
 const GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
 
-function generateOtp(): string {
-  return crypto.randomInt(100000, 999999).toString();
-}
-
-function otpExpiry(): Date {
-  return new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-}
 
 function hashToken(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");

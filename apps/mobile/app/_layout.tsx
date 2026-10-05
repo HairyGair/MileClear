@@ -692,6 +692,7 @@ function RootNavigator() {
         <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Nearby Chargers" }} />
         <Stack.Screen name="road-alerts" options={{ headerShown: true, title: "Road alerts" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
+        <Stack.Screen name="verify-email" options={{ headerShown: true, title: "Confirm your email" }} />
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
         <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax Exports" }} />

@@ -71,7 +71,9 @@ export default function ProfileEditScreen() {
       await updateProfile(data);
 
       if (emailChanged) {
-        Alert.alert("Profile updated", "Your email has been changed. Please verify your new email address.");
+        // The server has emailed a code to the new address; confirm it here.
+        router.replace({ pathname: "/verify-email", params: { email: email.trim().toLowerCase() } } as never);
+        return;
       }
 
       router.back();

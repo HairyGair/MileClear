@@ -7,6 +7,7 @@ import { verifyPassword } from "../../services/auth.js";
 import { sendPushToUser } from "../../lib/push.js";
 import { isPushQuietHours } from "../../services/pushQuietHoursRule.js";
 import { logEvent } from "../../services/appEvents.js";
+import { issueVerificationCode } from "../../services/verificationCodes.js";
 import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup.js";
 import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
@@ -528,6 +529,15 @@ export async function userRoutes(app: FastifyInstance) {
       data: updateData,
       select: USER_SELECT,
     });
+
+    // New email: send the confirmation code to it straight away. A failed
+    // send never fails the change; the driver can ask for another code.
+    if (typeof updateData.email === "string") {
+      issueVerificationCode(userId, updateData.email).catch((err) =>
+        request.log.error({ err }, "verification code after email change failed")
+      );
+      logEvent("user.email_changed", userId, {});
+    }
 
     return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))) });
   });
