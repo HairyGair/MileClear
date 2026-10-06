@@ -95,6 +95,13 @@ export default function NotificationsSettings() {
           value={prefs.morningBriefing}
           onToggle={(v) => toggle("morningBriefing", v)}
         />
+        <ToggleRow
+          icon="moon-outline"
+          label="Evening summary"
+          hint="Today's trips and miles, around 7pm"
+          value={prefs.eveningDigest}
+          onToggle={(v) => toggle("eveningDigest", v)}
+        />
       </SettingsGroup>
 
       {/* Free for everyone (4 Oct 2026): the tax payment reminders from the

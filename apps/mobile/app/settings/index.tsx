@@ -155,6 +155,7 @@ function formatNotifSummary(
     { key: "autoTripLiveActivity", short: "Live Activity" },
     { key: "shiftReminder", short: "shift alerts" },
     { key: "streakReminder", short: "streaks" },
+    { key: "eveningDigest", short: "evening summary" },
   ];
   // Pro-tier categories
   const proCategories: { key: keyof NotificationPreferences; short: string }[] = [

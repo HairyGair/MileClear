@@ -29,6 +29,10 @@ export interface NotificationPreferences {
   /** OPT-IN (off by default, trial): a heads-up before the driver usually
    *  sets off when a road they use often is closed or badly delayed. */
   roadAlerts: boolean;
+  /** Evening "Today's driving" summary around 7pm (server-sent, on by
+   *  default). Had no switch until 6 Oct 2026 (Josh Casey: "never ending
+   *  notifications"), so drivers could only silence it in iOS Settings. */
+  eveningDigest: boolean;
   /** Pro, Ticket defender: Clean Air Zone "pay by tomorrow" reminder the
    *  evening before a zone's pay-by date (server-sent, on by default). */
   cazPayReminder: boolean;
@@ -54,6 +58,7 @@ export const DEFAULT_PREFERENCES: NotificationPreferences = {
   cheapestFuelDaily: false,
   evWeeklySummary: false,
   roadAlerts: false,
+  eveningDigest: true,
   cazPayReminder: true,
 };
 
