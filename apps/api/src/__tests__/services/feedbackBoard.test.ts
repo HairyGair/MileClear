@@ -5,13 +5,14 @@
 import { describe, it, expect } from "vitest";
 import { buildBoard, isPublicIdea, legacyListVisibility } from "../../services/feedbackBoard.js";
 
-const item = (o: Partial<{ id: string; userId: string | null; category: string; status: string; createdAt: Date; shippedAt: Date | null }>) => ({
+const item = (o: Partial<{ id: string; userId: string | null; category: string; status: string; createdAt: Date; shippedAt: Date | null; shippedNote: string | null }>) => ({
   id: "x",
   userId: null as string | null,
   category: "feature_request",
   status: "new",
   createdAt: new Date("2026-09-01T00:00:00Z"),
   shippedAt: null as Date | null,
+  shippedNote: null as string | null,
   ...o,
 });
 
@@ -32,8 +33,9 @@ describe("buildBoard", () => {
   const items = [
     item({ id: "planned-old", status: "planned", createdAt: new Date("2026-09-01") }),
     item({ id: "progress-new", status: "in_progress", createdAt: new Date("2026-09-20") }),
-    item({ id: "done-early", status: "done", shippedAt: new Date("2026-09-05") }),
-    item({ id: "done-late", status: "done", shippedAt: new Date("2026-10-01") }),
+    item({ id: "done-early", status: "done", shippedAt: new Date("2026-09-05"), shippedNote: "Built A" }),
+    item({ id: "done-late", status: "done", shippedAt: new Date("2026-10-01"), shippedNote: "Built B" }),
+    item({ id: "done-no-note", status: "done", shippedAt: new Date("2026-10-02") }),
     item({ id: "bug-done", status: "done", category: "bug_report", userId: "me" }),
     item({ id: "my-new", status: "new", userId: "me", createdAt: new Date("2026-10-02") }),
     item({ id: "their-new", status: "new", userId: "them" }),
@@ -45,6 +47,9 @@ describe("buildBoard", () => {
   it("lists built ideas by when they shipped, latest first, and never bug reports", () => {
     expect(buildBoard(items, null).built.map((i) => i.id)).toEqual(["done-late", "done-early"]);
   });
+  it("leaves a done idea off Built until it has a 'what we built' note", () => {
+    expect(buildBoard(items, null).built.some((i) => i.id === "done-no-note")).toBe(false);
+  });
   it("shows a driver their own ideas, including new ones, but not their bug reports", () => {
     expect(buildBoard(items, "me").mine.map((i) => i.id)).toEqual(["my-new"]);
   });
@@ -54,7 +59,7 @@ describe("buildBoard", () => {
     expect(b.mine).toEqual([]);
   });
   it("caps the built list", () => {
-    const many = Array.from({ length: 40 }, (_, n) => item({ id: `d${n}`, status: "done", shippedAt: new Date(2026, 8, n + 1) }));
+    const many = Array.from({ length: 40 }, (_, n) => item({ id: `d${n}`, status: "done", shippedAt: new Date(2026, 8, n + 1), shippedNote: "Built" }));
     expect(buildBoard(many, null, 30).built).toHaveLength(30);
   });
 });

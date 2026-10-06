@@ -12,6 +12,7 @@ export interface BoardItemLike {
   status: string;
   createdAt: Date;
   shippedAt: Date | null;
+  shippedNote?: string | null;
 }
 
 export function isPublicIdea(item: { category: string; status: string }): boolean {
@@ -29,8 +30,11 @@ export function buildBoard<T extends BoardItemLike>(
   const onTheList = items
     .filter((i) => isPublicIdea(i) && i.status !== "done")
     .sort(byNewest);
+  // Built needs a "what we built" note: posts marked done before the
+  // redesign were often problems ("It is not tracking all my drives"), and a
+  // BUILT badge on those reads wrong. They appear once the admin writes one.
   const built = items
-    .filter((i) => isPublicIdea(i) && i.status === "done")
+    .filter((i) => isPublicIdea(i) && i.status === "done" && !!i.shippedNote?.trim())
     .sort((a, b) => shippedTime(b) - shippedTime(a))
     .slice(0, builtLimit);
   const mine = userId
