@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
 
@@ -11,6 +12,8 @@ interface ConfirmModalProps {
   message: string;
   confirmLabel?: string;
   loading?: boolean;
+  /** Extra content under the message, e.g. a password field. */
+  children?: ReactNode;
 }
 
 export function ConfirmModal({
@@ -21,6 +24,7 @@ export function ConfirmModal({
   message,
   confirmLabel = "Delete",
   loading,
+  children,
 }: ConfirmModalProps) {
   return (
     <Modal
@@ -41,6 +45,7 @@ export function ConfirmModal({
       <p style={{ fontSize: "0.9375rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
         {message}
       </p>
+      {children}
     </Modal>
   );
 }

@@ -68,6 +68,7 @@ export default function SettingsPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
@@ -299,11 +300,13 @@ export default function SettingsPage() {
   // Delete account
   const handleDeleteAccount = async () => {
     setDeleteLoading(true);
+    setDeleteError("");
     try {
       await api.delete("/user/account", deletePassword ? { password: deletePassword } : undefined);
       window.location.href = "/";
     } catch (err: any) {
-      setError(err.message);
+      // Shown inside the dialog: the page-level error sits behind it.
+      setDeleteError(err.message || "Couldn't delete your account. Try again in a moment.");
     } finally {
       setDeleteLoading(false);
     }
@@ -764,13 +767,33 @@ export default function SettingsPage() {
         onClose={() => {
           setShowDeleteAccount(false);
           setDeletePassword("");
+          setDeleteError("");
         }}
         onConfirm={handleDeleteAccount}
         title="Delete Account"
         message="This will permanently delete your account and all associated data. This action cannot be undone."
         confirmLabel="Delete my account"
         loading={deleteLoading}
-      />
+      >
+        {/* Until 6 Oct 2026 there was no field here, so every account with a
+            password got "Password is required" and could not delete (Alan Tector). */}
+        <div style={{ marginTop: "1rem" }}>
+          <Input
+            id="deletePassword"
+            label="Your MileClear password"
+            type="password"
+            autoComplete="current-password"
+            value={deletePassword}
+            onChange={(e) => setDeletePassword(e.target.value)}
+            placeholder="Leave blank if you sign in with Apple"
+          />
+          {deleteError && (
+            <p role="alert" style={{ marginTop: "0.5rem", fontSize: "0.875rem", color: "var(--dash-red)" }}>
+              {deleteError}
+            </p>
+          )}
+        </div>
+      </ConfirmModal>
 
       {/* Avatar Picker Modal */}
       <Modal
