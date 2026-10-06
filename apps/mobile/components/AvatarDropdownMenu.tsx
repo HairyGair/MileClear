@@ -52,7 +52,7 @@ export default function AvatarDropdownMenu({ visible, onClose }: Props) {
     { label: "Tax Exports", route: "/exports", icon: "download-outline", badge: "PRO" },
     { label: "Edit Profile", route: "/profile-edit", icon: "create-outline" },
     { label: "Community", route: "/settings/community", icon: "chatbubbles-outline" },
-    { label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
+    { label: "Feedback", route: "/feedback", icon: "bulb-outline" },
   ];
 
   const handleNav = (item: MenuItem) => {

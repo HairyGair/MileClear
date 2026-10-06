@@ -31,10 +31,12 @@ const CARD_BORDER = "rgba(255,255,255,0.08)";
 
 const CATEGORY_COLORS: Record<string, string> = {
   feature_request: "#3b82f6",
-  bug_report: RED,
   improvement: "#a855f7",
   other: TEXT_2,
 };
+
+// Ideas only since 6 Oct 2026: problems go privately through /report-problem.
+const IDEA_CATEGORIES = FEEDBACK_CATEGORIES.filter((c) => c.value !== "bug_report");
 
 export default function FeedbackFormScreen() {
   const router = useRouter();
@@ -60,7 +62,7 @@ export default function FeedbackFormScreen() {
         body: body.trim(),
         category,
       });
-      Alert.alert("Thank you!", "Your feedback has been received and will be personally reviewed. It genuinely helps us make MileClear better.", [
+      Alert.alert("Thanks for the idea", "We read every one. You'll find it under Your ideas, and we'll let you know if we build it.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e: any) {
@@ -83,14 +85,21 @@ export default function FeedbackFormScreen() {
         {/* Intro message */}
         <View style={s.introCard}>
           <Text style={s.introText}>
-            Whether it's a feature you'd love, a bug you've hit, or something that could work better — we genuinely want to hear it. Every submission is personally reviewed by the team.
+            Something you'd love MileClear to do, or do better? Ideas we pick up appear on the board, and we'll tell you when yours is built.
           </Text>
+          <TouchableOpacity
+            onPress={() => router.replace("/report-problem" as never)}
+            accessibilityRole="link"
+            accessibilityLabel="Something not working? Report it privately instead"
+          >
+            <Text style={s.problemLink}>Something not working? Report it privately instead</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Display Name */}
         <View style={s.field}>
           <Text style={s.label}>Display Name</Text>
-          <Text style={s.labelHint}>Optional — shown publicly</Text>
+          <Text style={s.labelHint}>Optional, shown publicly</Text>
           <TextInput
             style={s.input}
             value={displayName}
@@ -107,7 +116,7 @@ export default function FeedbackFormScreen() {
         <View style={s.field}>
           <Text style={s.label}>Category</Text>
           <View style={s.categoryRow}>
-            {FEEDBACK_CATEGORIES.map((cat) => {
+            {IDEA_CATEGORIES.map((cat) => {
               const active = category === cat.value;
               const color = CATEGORY_COLORS[cat.value] ?? TEXT_3;
               return (
@@ -154,7 +163,7 @@ export default function FeedbackFormScreen() {
             placeholderTextColor={TEXT_3}
             maxLength={200}
             autoCapitalize="sentences"
-            accessibilityLabel="Feedback title"
+            accessibilityLabel="Idea title"
           />
           {title.length > 0 && title.length < 3 && (
             <Text
@@ -179,14 +188,14 @@ export default function FeedbackFormScreen() {
             style={[s.input, s.inputMultiline]}
             value={body}
             onChangeText={setBody}
-            placeholder="Describe your idea, the problem it solves, or what you'd like to see..."
+            placeholder="What would you like MileClear to do, and how would it help you?"
             placeholderTextColor={TEXT_3}
             maxLength={2000}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
             autoCapitalize="sentences"
-            accessibilityLabel="Feedback description"
+            accessibilityLabel="Describe your idea"
           />
           {body.length > 0 && body.length < 10 && (
             <Text
@@ -206,13 +215,13 @@ export default function FeedbackFormScreen() {
           disabled={!canSubmit}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Submit suggestion"
+          accessibilityLabel="Send idea"
           accessibilityState={{ disabled: !canSubmit }}
         >
           {submitting ? (
             <ActivityIndicator color={BG} accessibilityLabel="Loading" />
           ) : (
-            <Text style={s.submitButtonText}>Submit Suggestion</Text>
+            <Text style={s.submitButtonText}>Send idea</Text>
           )}
         </TouchableOpacity>
 
@@ -240,6 +249,12 @@ const s = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_2,
     lineHeight: 19,
+  },
+  problemLink: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+    marginTop: 10,
   },
   field: { marginBottom: 20 },
   label: {

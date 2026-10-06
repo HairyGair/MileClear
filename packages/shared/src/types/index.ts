@@ -1537,6 +1537,85 @@ export interface FeedbackWithVoted extends FeedbackItem {
   hasVoted: boolean;
 }
 
+// ── Feedback redesign (6 Oct 2026) ──────────────────────────────────────────
+// Problems are private conversations in the admin Inbox (SupportEmail rows,
+// channel "app"); ideas stay public as Feedback. See
+// docs/feedback-redesign-oct2026.md for the full contract.
+
+/** Shipped-idea fields on a public Feedback item. */
+export interface FeedbackShipped {
+  /** One plain sentence on what was built, written by the admin. */
+  shippedNote: string | null;
+  shippedAt: string | null;
+}
+
+/** GET /feedback/board: the public "You asked, we built" page. */
+export interface FeedbackBoard {
+  /** status planned | in_progress, ideas only, newest first. */
+  onTheList: (FeedbackItem & FeedbackShipped)[];
+  /** status done, ideas only, newest shippedAt first, max 30. */
+  built: (FeedbackItem & FeedbackShipped)[];
+  /** The caller's own ideas, any status (empty when signed out). */
+  mine: (FeedbackItem & FeedbackShipped)[];
+}
+
+/** Phone details attached to an in-app problem report (built server-side
+ *  from the latest diagnostic dump + recent trips). Every field optional. */
+export interface SupportDeviceContext {
+  capturedAt?: string | null;
+  platform?: string | null;
+  osVersion?: string | null;
+  appVersion?: string | null;
+  buildNumber?: string | null;
+  /** When the running app update (OTA) was published; old = not updated. */
+  updateCreatedAt?: string | null;
+  runtimeVersion?: string | null;
+  backgroundPermission?: string | null;
+  motionPermission?: string | null;
+  autoDetectEnabled?: boolean | null;
+  lowPowerMode?: boolean | null;
+  verdict?: string | null;
+  activeShiftId?: string | null;
+  isPro?: boolean | null;
+  recentTrips?: { startedAt: string; distanceMiles: number; source: "auto" | "shift" | "manual"; points: number }[];
+}
+
+export interface SupportAttachmentRef {
+  id: string;
+  mime: string;
+}
+
+export interface SupportThreadSummary {
+  threadKey: string;
+  subject: string;
+  lastAt: string;
+  lastDirection: "in" | "out";
+  /** A reply from us the driver hasn't opened yet. */
+  unread: boolean;
+}
+
+export interface SupportThreadMessage {
+  id: string;
+  /** "in" = from the driver, "out" = from MileClear. */
+  direction: "in" | "out";
+  body: string;
+  at: string;
+  fromName: string | null;
+  attachments: SupportAttachmentRef[];
+}
+
+export interface SupportThreadDetail {
+  threadKey: string;
+  subject: string;
+  messages: SupportThreadMessage[];
+}
+
+/** A screenshot sent with a report or reply: base64 without a data: prefix. */
+export interface SupportScreenshotUpload {
+  mime: "image/jpeg" | "image/png";
+  base64: string;
+}
+
 // Admin types
 /** Why a user has Pro. Paying = Stripe or a production Apple subscription. */
 export type AdminProSource = "paying" | "comp" | "referral" | "sandbox" | "team";

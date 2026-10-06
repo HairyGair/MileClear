@@ -50,7 +50,7 @@ export default function HelpSettings() {
         />
         <SettingsRow
           icon="chatbubble-ellipses-outline"
-          label="Suggestions & Feedback"
+          label="Feedback"
           hint="Vote on features the team is building"
           onPress={() => router.push("/feedback")}
         />

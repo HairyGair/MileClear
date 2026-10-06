@@ -1,5 +1,5 @@
 import { apiRequest } from "./index";
-import type { FeedbackWithVoted, FeedbackReply, FeedbackCategory, FeedbackStatus, KnownIssueStatus, PaginatedResponse } from "@mileclear/shared";
+import type { FeedbackWithVoted, FeedbackReply, FeedbackCategory, FeedbackStatus, KnownIssueStatus, PaginatedResponse, FeedbackBoard } from "@mileclear/shared";
 
 export interface FeedbackListParams {
   page?: number;
@@ -7,6 +7,11 @@ export interface FeedbackListParams {
   category?: FeedbackCategory;
   status?: FeedbackStatus;
   sort?: "newest" | "most_voted";
+}
+
+/** The public "You asked, we built" board plus the caller's own ideas (6 Oct 2026). */
+export function fetchFeedbackBoard() {
+  return apiRequest<{ data: FeedbackBoard }>("/feedback/board");
 }
 
 export function fetchFeedbackList(params?: FeedbackListParams) {

@@ -294,14 +294,28 @@ describe("GET /feedback", () => {
 
     await app.inject({
       method: "GET",
-      url: "/feedback?category=bug_report",
+      url: "/feedback?category=feature_request",
     });
 
     expect(vi.mocked(prisma.feedback.findMany)).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ category: "bug_report" }),
+        where: expect.objectContaining({ category: "feature_request" }),
       })
     );
+  });
+
+  it("never lists bug reports publicly (problem reports are private since 6 Oct 2026)", async () => {
+    vi.mocked(prisma.feedback.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.feedback.count).mockResolvedValue(0);
+
+    await app.inject({
+      method: "GET",
+      url: "/feedback?category=bug_report",
+    });
+
+    const where = vi.mocked(prisma.feedback.findMany).mock.calls.at(-1)![0]!.where as Record<string, unknown>;
+    expect(where.category).not.toBe("bug_report");
+    expect(where.AND).toEqual(expect.arrayContaining([{ category: { not: "bug_report" } }]));
   });
 
   it("filters by status when provided", async () => {

@@ -1079,6 +1079,9 @@ model Feedback {
   upvoteCount      Int      @default(0)
   isKnownIssue     Boolean  @default(false)
   knownIssueStatus String?  @db.VarChar(30)
+  // "You asked, we built" (6 Oct 2026): what was built, set when marked done.
+  shippedNote      String?  @db.VarChar(500)
+  shippedAt        DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -1878,13 +1881,35 @@ model SupportEmail {
   sentByUserId String?
   receivedAt   DateTime
   createdAt    DateTime  @default(now())
+  // Feedback redesign (6 Oct 2026): "app" = written in the app (a private
+  // problem report or an in-app reply), "email" = collected from support@.
+  channel      String    @default("email") @db.VarChar(16)
+  // Phone details (SupportDeviceContext) attached to in-app messages.
+  context      Json?
+  // Outbound rows: when the driver opened the thread in the app.
+  readByUserAt DateTime?
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user        User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  screenshots SupportAttachment[]
 
   @@index([threadKey, receivedAt])
   @@index([status, receivedAt])
   @@index([userId])
   @@map("support_emails")
+}
+
+// Screenshots sent with an in-app problem report or reply (6 Oct 2026).
+model SupportAttachment {
+  id             String   @id @default(uuid())
+  supportEmailId String
+  mime           String   @db.VarChar(40)
+  data           Bytes    @db.MediumBlob
+  createdAt      DateTime @default(now())
+
+  supportEmail SupportEmail @relation(fields: [supportEmailId], references: [id], onDelete: Cascade)
+
+  @@index([supportEmailId])
+  @@map("support_attachments")
 }
 
 // Paid ads (4 Oct 2026): Meta (Facebook/Instagram) campaign figures, synced

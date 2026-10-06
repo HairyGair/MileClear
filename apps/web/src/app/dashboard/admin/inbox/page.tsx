@@ -8,6 +8,8 @@ import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
+import type { SupportDeviceContext } from "@mileclear/shared";
+import { AuthImageRow } from "@/components/support/AuthImage";
 import {
   AdminIcon,
   Badge,
@@ -38,6 +40,8 @@ interface ThreadRow {
   lastDirection: "in" | "out";
   lastAt: string;
   messageCount: number;
+  /** "app" when any message in the thread came from the in-app report form. */
+  channel?: "email" | "app";
   user: { id: string; email: string; displayName: string | null; isPremium: boolean } | null;
 }
 
@@ -54,9 +58,29 @@ interface Message {
   toEmail: string;
   subject: string;
   textBody: string | null;
-  attachments: Array<{ filename: string; mimeType: string; size: number }> | null;
+  /** Email attachments are listed by name (content stays in the mailbox);
+   *  screenshots from the app come with an id and load from the API. */
+  attachments: Array<EmailAttachment | ScreenshotRef> | null;
   isSpam: boolean;
   receivedAt: string;
+  channel?: "email" | "app";
+  /** Phone details captured with an in-app report or reply. */
+  context?: SupportDeviceContext | null;
+}
+
+interface EmailAttachment {
+  filename: string;
+  mimeType: string;
+  size: number;
+}
+
+interface ScreenshotRef {
+  id: string;
+  mime: string;
+}
+
+function isScreenshot(a: EmailAttachment | ScreenshotRef): a is ScreenshotRef {
+  return typeof (a as ScreenshotRef).id === "string";
 }
 
 interface ThreadData {
@@ -144,21 +168,117 @@ function MessageBody({ body }: { body: string }) {
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function onOff(v: boolean | null | undefined, on: string, off: string): string | null {
+  if (v === true) return on;
+  if (v === false) return off;
+  return null;
+}
+
+function permissionWords(v: string | null | undefined, granted: string): string | null {
+  if (!v) return null;
+  if (v === "granted") return granted;
+  if (v === "denied") return "Not allowed";
+  if (v === "undetermined") return "Never answered";
+  return v;
+}
+
+/** The phone details attached to an in-app report, in plain words. */
+function PhoneDetails({ ctx, at }: { ctx: SupportDeviceContext; at: string }) {
+  const device =
+    ctx.platform === "ios" ? "iPhone" : ctx.platform === "android" ? "Android" : ctx.platform ?? null;
+  const app = ctx.appVersion
+    ? `${ctx.appVersion}${ctx.buildNumber ? ` (build ${ctx.buildNumber})` : ""}`
+    : null;
+  // Age of the running app update, measured at the time of the message.
+  const reference = Date.parse(ctx.capturedAt ?? at) || Date.now();
+  const updatedMs = ctx.updateCreatedAt ? Date.parse(ctx.updateCreatedAt) : NaN;
+  const updateDays = Number.isFinite(updatedMs) ? Math.floor((reference - updatedMs) / DAY_MS) : null;
+  const shift =
+    ctx.activeShiftId == null
+      ? null
+      : ctx.activeShiftId === "__quick_trip__"
+        ? "A Start Trip is still open"
+        : "A shift is still open";
+
+  const rows: Array<[string, string | null]> = [
+    ["Phone", device ? `${device}${ctx.osVersion ? ` ${ctx.platform === "ios" ? "iOS " : ""}${ctx.osVersion}` : ""}` : null],
+    ["App", app],
+    [
+      "App update",
+      Number.isFinite(updatedMs)
+        ? `From ${longDate(ctx.updateCreatedAt as string).split(",")[0]}${ctx.runtimeVersion ? ` (${ctx.runtimeVersion})` : ""}`
+        : null,
+    ],
+    ["Background location", permissionWords(ctx.backgroundPermission, "Always")],
+    ["Motion", permissionWords(ctx.motionPermission, "Allowed")],
+    ["Automatic trips", onOff(ctx.autoDetectEnabled, "On", "Off")],
+    ["Low Power Mode", onOff(ctx.lowPowerMode, "On", "Off")],
+    ["Pro", onOff(ctx.isPro, "Yes", "No")],
+    ["Health check", ctx.verdict ?? null],
+    ["Open now", shift],
+  ];
+
+  return (
+    <div className="adm-inbox-ctx">
+      <div className="adm-inbox-ctx__head">
+        <strong>Phone details</strong>
+        {ctx.capturedAt && <span className="adm-inbox-muted">as of {longDate(ctx.capturedAt)}</span>}
+      </div>
+      {updateDays != null && updateDays > 3 && (
+        <Notice tone="warn">
+          The app update on this phone is {updateDays} days old. Close the app fully and reopen it twice to update.
+        </Notice>
+      )}
+      <dl className="adm-inbox-ctx__grid">
+        {rows
+          .filter(([, v]) => v)
+          .map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+      </dl>
+      {ctx.recentTrips && ctx.recentTrips.length > 0 && (
+        <div>
+          <div className="adm-inbox-muted">Recent trips</div>
+          <ul className="adm-inbox-ctx__trips">
+            {ctx.recentTrips.map((t, i) => (
+              <li key={`${t.startedAt}-${i}`}>
+                {longDate(t.startedAt)} · {t.distanceMiles.toFixed(1)} mi · {t.source === "auto" ? "automatic" : t.source} ·{" "}
+                {t.points.toLocaleString("en-GB")} points
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageCard({ m }: { m: Message }) {
   const out = m.direction === "out";
   const who = out ? "You replied" : m.fromName ? `${m.fromName} <${m.fromEmail}>` : m.fromEmail;
+  const attachments = m.attachments ?? [];
+  const shots = attachments.filter(isScreenshot);
+  const files = attachments.filter((a): a is EmailAttachment => !isScreenshot(a));
   return (
     <article className={`adm-inbox-msg${out ? " adm-inbox-msg--out" : ""}`}>
       <header className="adm-inbox-msg__head">
-        <strong>{who}</strong>
+        <strong>
+          {who} {!out && m.channel === "app" && <Badge tone="info">App</Badge>}
+        </strong>
         <span className="adm-inbox-msg__date">{longDate(m.receivedAt)}</span>
       </header>
       {m.isSpam && <Badge tone="bad">Flagged as spam</Badge>}
       <MessageBody body={m.textBody ?? ""} />
-      {m.attachments && m.attachments.length > 0 && (
+      {shots.length > 0 && <AuthImageRow paths={shots.map((s) => `/admin/support-inbox/attachments/${encodeURIComponent(s.id)}`)} />}
+      {files.length > 0 && (
         <div className="adm-inbox-attach">
           <ul>
-            {m.attachments.map((a, i) => (
+            {files.map((a, i) => (
               <li key={`${a.filename}-${i}`}>
                 {a.filename} <span className="adm-inbox-muted">({fileSize(a.size)})</span>
               </li>
@@ -167,6 +287,7 @@ function MessageCard({ m }: { m: Message }) {
           <span className="adm-inbox-muted">Open in the mailbox to see attachments</span>
         </div>
       )}
+      {!out && m.context && <PhoneDetails ctx={m.context} at={m.receivedAt} />}
     </article>
   );
 }
@@ -233,11 +354,13 @@ function ThreadView({ threadKey, onBack, onChanged }: { threadKey: string; onBac
         errorTitle="Couldn't load this thread."
         skeleton={<LoadingSkeleton rows={6} />}
       >
-        {(t) => (
+        {(t) => {
+          const fromApp = t.threadKey.startsWith("app-") || t.messages.some((m) => m.channel === "app");
+          return (
           <>
             <Panel
               title={t.subject || "(no subject)"}
-              subtitle={`${t.contactEmail} · ${STATUS_LABEL[t.status]}`}
+              subtitle={`${t.contactEmail} · ${STATUS_LABEL[t.status]}${fromApp ? " · Sent from the app" : ""}`}
               actions={
                 <div className="adm-inbox-actions">
                   {t.status === "closed" || t.status === "spam" ? (
@@ -305,7 +428,11 @@ function ThreadView({ threadKey, onBack, onChanged }: { threadKey: string; onBac
                 value={text}
                 disabled={sending}
                 onChange={(e) => setText(e.target.value)}
-                hint="Sent from gair@mileclear.com. Plain text."
+                hint={
+                  fromApp
+                    ? "Sent from gair@mileclear.com by email, and shown in their app with a notification. Plain text."
+                    : "Sent from gair@mileclear.com. Plain text."
+                }
               />
               <div style={{ marginTop: "var(--adm-s3)" }}>
                 <button type="button" className="adm-btn adm-btn--primary" disabled={sending || !text.trim()} onClick={() => setConfirming(true)}>
@@ -330,10 +457,14 @@ function ThreadView({ threadKey, onBack, onChanged }: { threadKey: string; onBac
                 </>
               }
             >
-              <p style={{ margin: 0 }}>Send this reply to {t.contactEmail}? It goes out as a real email.</p>
+              <p style={{ margin: 0 }}>
+                Send this reply to {t.contactEmail}? It goes out as a real email
+                {fromApp ? " and shows in their MileClear app." : "."}
+              </p>
             </Dialog>
           </>
-        )}
+          );
+        }}
       </LoadState>
     </div>
   );
@@ -378,7 +509,10 @@ function InboxInner() {
 
   return (
     <>
-      <PageHeader title="Inbox" subtitle="Every email to support@mileclear.com. Replies go from gair@ and come back here." />
+      <PageHeader
+        title="Inbox"
+        subtitle="Every email to support@mileclear.com and every problem reported in the app. Replies go from gair@ and come back here."
+      />
       <div className={`adm-inbox${selected ? " adm-inbox--reading" : ""}`}>
         <div className="adm-inbox-list">
           <TabBar tabs={tabs} value={filter} onChange={(id) => setFilter(id as Filter)} label="Filter by status" size="sm" />
@@ -417,7 +551,8 @@ function InboxInner() {
                           </span>
                           <span className="adm-inbox-row__subject">{t.subject || "(no subject)"}</span>
                           <span className="adm-inbox-row__meta">
-                            {t.user && <Badge tone={t.user.isPremium ? "accent" : "info"}>{t.user.isPremium ? "Pro" : "Driver"}</Badge>}
+                            {t.channel === "app" && <Badge tone="info">App</Badge>}
+                            {t.user && <Badge tone={t.user.isPremium ? "accent" : "neutral"}>{t.user.isPremium ? "Pro" : "Driver"}</Badge>}
                             {filter === "all" && <Badge>{STATUS_LABEL[t.status]}</Badge>}
                             <span className="adm-inbox-muted">
                               {t.messageCount} {t.messageCount === 1 ? "message" : "messages"}

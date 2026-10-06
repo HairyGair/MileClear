@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendSupportReply } from "../../services/email.js";
+import { sendPushToUser } from "../../lib/push.js";
 import { normaliseSubject } from "../../services/supportInbox.js";
 
 // Support inbox (Oct 2026): every email to support@ as threads, with the
@@ -33,6 +34,7 @@ const msgSelect = {
   isSpam: true,
   userId: true,
   receivedAt: true,
+  channel: true,
 } as const;
 
 export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<void> {
@@ -63,13 +65,14 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
       take: 3000,
     });
 
-    const threads = new Map<string, { latest: (typeof rows)[number]; count: number; firstIn: (typeof rows)[number] | null }>();
+    const threads = new Map<string, { latest: (typeof rows)[number]; count: number; firstIn: (typeof rows)[number] | null; app: boolean }>();
     for (const r of rows) {
       const t = threads.get(r.threadKey);
-      if (!t) threads.set(r.threadKey, { latest: r, count: 1, firstIn: r.direction === "in" ? r : null });
+      if (!t) threads.set(r.threadKey, { latest: r, count: 1, firstIn: r.direction === "in" ? r : null, app: r.channel === "app" });
       else {
         t.count++;
         if (r.direction === "in") t.firstIn = r; // rows are newest first, so this ends on the oldest
+        if (r.channel === "app") t.app = true;
       }
     }
 
@@ -92,7 +95,7 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
     return reply.send({
       data: {
         counts,
-        threads: picked.map(({ latest, count, firstIn }) => {
+        threads: picked.map(({ latest, count, firstIn, app }) => {
           const who = firstIn ?? latest;
           return {
             threadKey: latest.threadKey,
@@ -103,6 +106,8 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
             lastDirection: latest.direction,
             lastAt: latest.receivedAt,
             messageCount: count,
+            // "app" when any message in it was written in the app (problem report / in-app reply).
+            channel: app ? "app" : "email",
             user: who.userId ? byId.get(who.userId) ?? null : null,
           };
         }),
@@ -119,6 +124,7 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
     const messages = await prisma.supportEmail.findMany({
       where: { threadKey: key.data.key },
       orderBy: { receivedAt: "asc" },
+      include: { screenshots: { select: { id: true, mime: true } } },
     });
     if (!messages.length) return reply.status(404).send({ error: "Not found" });
 
@@ -168,7 +174,16 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
           toEmail: m.toEmail,
           subject: m.subject,
           textBody: m.textBody,
-          attachments: m.attachments,
+          // One list: email attachments ({ filename, mimeType, size }, listed
+          // only, content stays in the mailbox) and in-app screenshots
+          // ({ id, mime }, served from /admin/support-inbox/attachments/:id).
+          attachments: [
+            ...(Array.isArray(m.attachments) ? (m.attachments as unknown[]) : []),
+            ...m.screenshots.map((a) => ({ id: a.id, mime: a.mime })),
+          ],
+          channel: m.channel,
+          context: m.context,
+          readByUserAt: m.readByUserAt,
           isSpam: m.isSpam,
           receivedAt: m.receivedAt,
         })),
@@ -185,7 +200,7 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
     const messages = await prisma.supportEmail.findMany({
       where: { threadKey: key.data.key },
       orderBy: { receivedAt: "asc" },
-      select: { messageId: true, direction: true, fromEmail: true, toEmail: true, subject: true, userId: true },
+      select: { messageId: true, direction: true, fromEmail: true, toEmail: true, subject: true, userId: true, channel: true },
     });
     const lastIn = [...messages].reverse().find((m) => m.direction === "in");
     if (!lastIn) return reply.status(404).send({ error: "Nothing to reply to" });
@@ -233,7 +248,34 @@ export async function adminSupportInboxRoutes(app: FastifyInstance): Promise<voi
       threadKey: key.data.key,
       normalisedSubject: normaliseSubject(subject),
     });
+
+    // The driver also sees the reply in the app (Feedback > Your messages),
+    // so tell their phone. Email still goes as before.
+    if (userId) {
+      sendPushToUser(
+        userId,
+        "Gair replied to your message",
+        body.data.text.replace(/\s+/g, " ").slice(0, 120),
+        { action: "support_thread", threadKey: key.data.key }
+      ).catch(() => {});
+    }
     return reply.send({ data: { sent: true } });
+  });
+
+  // ── GET /admin/support-inbox/attachments/:id ─────────────────────────────
+  // A screenshot sent with an in-app report or reply.
+  app.get("/support-inbox/attachments/:id", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) return reply.status(400).send({ error: "Invalid attachment" });
+    const att = await prisma.supportAttachment.findUnique({
+      where: { id: params.data.id },
+      select: { mime: true, data: true },
+    });
+    if (!att) return reply.status(404).send({ error: "Not found" });
+    return reply
+      .header("Content-Type", att.mime)
+      .header("Cache-Control", "private, max-age=86400")
+      .send(Buffer.from(att.data));
   });
 
   // ── POST /admin/support-inbox/status?key= ────────────────────────────────

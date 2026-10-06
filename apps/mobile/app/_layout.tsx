@@ -704,8 +704,10 @@ function RootNavigator() {
         <Stack.Screen name="admin-users" options={{ headerShown: true, title: "User Management" }} />
         <Stack.Screen name="admin-user-detail" options={{ headerShown: true, title: "User Detail" }} />
         <Stack.Screen name="admin-health" options={{ headerShown: true, title: "System Health" }} />
-        <Stack.Screen name="feedback" options={{ headerShown: true, title: "Suggestions" }} />
-        <Stack.Screen name="feedback-form" options={{ headerShown: true, title: "Submit Suggestion" }} />
+        <Stack.Screen name="feedback" options={{ headerShown: true, title: "Feedback" }} />
+        <Stack.Screen name="feedback-form" options={{ headerShown: true, title: "Suggest an idea" }} />
+        <Stack.Screen name="report-problem" options={{ headerShown: true, title: "Report a problem" }} />
+        <Stack.Screen name="support-thread" options={{ headerShown: true, title: "Conversation" }} />
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
         <Stack.Screen name="drive-detection-diagnostics" options={{ headerShown: true, title: "Drive Detection" }} />

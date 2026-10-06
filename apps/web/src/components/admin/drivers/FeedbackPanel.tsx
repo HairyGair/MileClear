@@ -45,6 +45,9 @@ interface FbItem {
   hasVoted: boolean;
   isOwner: boolean;
   replies: Reply[];
+  /** What was built, shown on the public board and sent to the author. */
+  shippedNote?: string | null;
+  shippedAt?: string | null;
 }
 
 type ChipTone = "good" | "warn" | "bad" | "info" | undefined;
@@ -93,6 +96,8 @@ export function FeedbackPanel({ onChanged }: Props) {
   const [sendingReply, setSendingReply] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
 
   const load = useCallback(async () => {
@@ -132,6 +137,33 @@ export function FeedbackPanel({ onChanged }: Props) {
       fail("Couldn't change the status")(e);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  // Marking an idea done with a note puts it under "Built" on the public
+  // board and tells the driver who asked (push + email, sent by the API).
+  const handleShipped = async (item: FbItem) => {
+    const note = (noteDrafts[item.id] ?? item.shippedNote ?? "").trim();
+    if (!note) return;
+    setSavingNoteId(item.id);
+    setActionError(null);
+    try {
+      await api.patch(`/feedback/${item.id}/status`, { status: "done", shippedNote: note });
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === item.id ? { ...i, status: "done", shippedNote: note, shippedAt: i.shippedAt ?? new Date().toISOString() } : i
+        )
+      );
+      setNoteDrafts((d) => {
+        const next = { ...d };
+        delete next[item.id];
+        return next;
+      });
+      onChanged?.();
+    } catch (e) {
+      fail("Couldn't save what was built")(e);
+    } finally {
+      setSavingNoteId(null);
     }
   };
 
@@ -284,6 +316,40 @@ export function FeedbackPanel({ onChanged }: Props) {
                       ))}
                     </div>
                   </div>
+
+                  {item.category !== "bug_report" && (
+                    <div className="adm-drv-group">
+                      <p className="adm-drv-group__label">What we built</p>
+                      <div className="adm-drv-compose">
+                        <TextField
+                          id={`shipped-${item.id}`}
+                          label="One plain sentence on what was built"
+                          placeholder="e.g. You can now mark a vehicle as one someone else pays for."
+                          value={noteDrafts[item.id] ?? item.shippedNote ?? ""}
+                          onChange={(v) => setNoteDrafts((d) => ({ ...d, [item.id]: v }))}
+                          multiline
+                          rows={2}
+                        />
+                        <button
+                          type="button"
+                          className="adm-btn adm-btn--primary"
+                          onClick={() => void handleShipped(item)}
+                          disabled={
+                            savingNoteId === item.id ||
+                            !(noteDrafts[item.id] ?? item.shippedNote ?? "").trim() ||
+                            (item.status === "done" && (noteDrafts[item.id] ?? item.shippedNote ?? "").trim() === (item.shippedNote ?? "").trim())
+                          }
+                        >
+                          {savingNoteId === item.id ? "Saving..." : item.status === "done" ? "Save note" : "Mark done and tell them"}
+                        </button>
+                      </div>
+                      <p className="adm-drv-group__hint">
+                        {item.status === "done"
+                          ? "Shown under \"Built\" on the board."
+                          : "Marks it done, shows it under \"Built\" on the board, and tells the driver who asked."}
+                      </p>
+                    </div>
+                  )}
 
                   <div className="adm-drv-group">
                     <p className="adm-drv-group__label">Known issue</p>

@@ -93,6 +93,7 @@
 
 .adm-drv-group { display: flex; flex-direction: column; gap: var(--adm-s2); }
 .adm-drv-group__label { margin: 0; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--adm-text-3); }
+.adm-drv-group__hint { margin: 0; font-size: 0.75rem; color: var(--adm-text-3); }
 
 .adm-drv-reply {
   position: relative;

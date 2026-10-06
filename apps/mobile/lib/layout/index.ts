@@ -371,7 +371,7 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     { key: "menu_achievements", label: "Achievements", icon: "trophy-outline" },
     { key: "menu_schedule", label: "Work Schedule", icon: "time-outline" },
     { key: "menu_refer", label: "Refer a Driver", icon: "gift-outline" },
-    { key: "menu_suggestions", label: "Suggestions", icon: "bulb-outline" },
+    { key: "menu_suggestions", label: "Feedback", icon: "bulb-outline" },
     { key: "menu_help", label: "Help & Tutorials", icon: "help-circle-outline" },
     { key: "menu_ticket_defender", label: "Ticket Defender", icon: "shield-checkmark-outline", insertAfter: "menu_help" },
     // EmSee, was Ask MileClear (Oct 2026). The menu only shows keys listed here; it is

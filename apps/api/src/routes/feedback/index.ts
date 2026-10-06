@@ -3,7 +3,9 @@ import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware, optionalAuthMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
-import { sendFeedbackAcknowledgement, sendFeedbackReplyNotification } from "../../services/email.js";
+import { sendFeedbackAcknowledgement, sendFeedbackReplyNotification, sendFeedbackShippedNotification } from "../../services/email.js";
+import { buildBoard, legacyListVisibility } from "../../services/feedbackBoard.js";
+import { createAppReport, isPrivateFeedbackCategory } from "../../services/supportReports.js";
 import { logEvent } from "../../services/appEvents.js";
 import { postFounderAlert } from "../../services/discord.js";
 import { sendPushToUser } from "../../lib/push.js";
@@ -35,9 +37,13 @@ const listQuerySchema = z.object({
   sort: z.enum(["newest", "most_voted"]).default("most_voted"),
 });
 
-const statusUpdateSchema = z.object({
-  status: z.enum(["new", "planned", "in_progress", "done", "declined"]),
-});
+const statusUpdateSchema = z
+  .object({
+    status: z.enum(["new", "planned", "in_progress", "done", "declined"]).optional(),
+    // "You asked, we built": one plain sentence on what was built.
+    shippedNote: z.string().trim().max(500).nullable().optional(),
+  })
+  .refine((d) => d.status !== undefined || d.shippedNote !== undefined, { message: "Nothing to update" });
 
 const knownIssueSchema = z.object({
   isKnownIssue: z.boolean(),
@@ -65,6 +71,40 @@ export async function feedbackRoutes(app: FastifyInstance) {
       }
 
       const { displayName, title, body, category } = parsed.data;
+
+      // Older apps still offer "Bug report". From a signed-in driver it becomes
+      // a private conversation in the Inbox (with phone details), not a public
+      // post. Anonymous ones are stored but never shown publicly.
+      if (request.userId && isPrivateFeedbackCategory(category)) {
+        const threadKey = await createAppReport({
+          userId: request.userId,
+          subject: sanitizeText(title),
+          body: sanitizeText(body),
+          images: [],
+          source: "old_feedback_form",
+        });
+        return reply.status(201).send({
+          data: {
+            private: true,
+            threadKey,
+            // Older apps read these fields after a submit.
+            id: threadKey,
+            displayName: null,
+            title: sanitizeText(title),
+            body: sanitizeText(body),
+            category,
+            status: "new",
+            upvoteCount: 0,
+            createdAt: new Date().toISOString(),
+            hasVoted: false,
+            replyCount: 0,
+            isKnownIssue: false,
+            knownIssueStatus: null,
+            replies: [],
+          },
+          message: "Thanks. This went privately to the MileClear team, and we'll reply to you directly.",
+        });
+      }
 
       const feedback = await prisma.feedback.create({
         data: {
@@ -269,6 +309,64 @@ export async function feedbackRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
+  // GET /feedback/board — "You asked, we built" (6 Oct 2026)
+  app.get("/board", { preHandler: [optionalAuthMiddleware] }, async (request, reply) => {
+    const userId = request.userId ?? null;
+    const items = await prisma.feedback.findMany({
+      where: {
+        category: { not: "bug_report" },
+        OR: [{ status: { in: ["planned", "in_progress", "done"] } }, ...(userId ? [{ userId }] : [])],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: {
+        id: true,
+        userId: true,
+        displayName: true,
+        title: true,
+        body: true,
+        category: true,
+        status: true,
+        upvoteCount: true,
+        isKnownIssue: true,
+        knownIssueStatus: true,
+        shippedNote: true,
+        shippedAt: true,
+        createdAt: true,
+        replies: {
+          select: { id: true, body: true, createdAt: true, user: { select: { displayName: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    const board = buildBoard(items, userId);
+    const shape = (item: (typeof items)[number]) => ({
+      id: item.id,
+      displayName: item.displayName,
+      title: item.title,
+      body: item.body,
+      category: item.category,
+      status: item.status,
+      upvoteCount: item.upvoteCount,
+      replyCount: item.replies.length,
+      isKnownIssue: item.isKnownIssue,
+      knownIssueStatus: item.knownIssueStatus,
+      createdAt: item.createdAt.toISOString(),
+      isOwner: userId ? item.userId === userId : false,
+      shippedNote: item.shippedNote,
+      shippedAt: item.shippedAt ? item.shippedAt.toISOString() : null,
+      replies: item.replies.map((r) => ({
+        id: r.id,
+        body: r.body,
+        adminName: r.user.displayName || "MileClear Team",
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
+    return reply.send({
+      data: { onTheList: board.onTheList.map(shape), built: board.built.map(shape), mine: board.mine.map(shape) },
+    });
+  });
+
   // GET /feedback — list (optional auth for hasVoted)
   app.get("/", { preHandler: [optionalAuthMiddleware] }, async (request, reply) => {
     const parsed = listQuerySchema.safeParse(request.query);
@@ -278,8 +376,10 @@ export async function feedbackRoutes(app: FastifyInstance) {
 
     const { page, pageSize, category, status, sort } = parsed.data;
 
-    const where: Record<string, unknown> = {};
-    if (category) where.category = category;
+    // Since 6 Oct 2026 the public list is ideas the admin has picked up, plus
+    // the caller's own; problem reports are private. Admins still see all.
+    const where: Record<string, unknown> = legacyListVisibility(request.userId ?? null, request.isAdmin === true);
+    if (category) where.category = category === "bug_report" && !request.isAdmin ? "__none__" : category;
     if (status) where.status = status;
 
     const orderBy =
@@ -433,10 +533,40 @@ export async function feedbackRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "Feedback not found" });
     }
 
+    const { status, shippedNote } = parsed.data;
+    const becomesDone = status === "done" && feedback.status !== "done";
     const updated = await prisma.feedback.update({
       where: { id },
-      data: { status: parsed.data.status },
+      data: {
+        ...(status ? { status } : {}),
+        ...(shippedNote !== undefined ? { shippedNote: shippedNote ? sanitizeText(shippedNote) : null } : {}),
+        ...(becomesDone && !feedback.shippedAt ? { shippedAt: new Date() } : {}),
+      },
     });
+
+    // Tell whoever suggested it. Bug reports aren't ideas, so they don't get this.
+    if (becomesDone && feedback.userId && feedback.category !== "bug_report") {
+      const authorId = feedback.userId;
+      const note = updated.shippedNote;
+      void (async () => {
+        try {
+          await sendPushToUser(
+            authorId,
+            "Your idea is in MileClear",
+            note ? note.slice(0, 120) : feedback.title.slice(0, 120),
+            { action: "feedback_shipped", feedbackId: id }
+          );
+          const author = await prisma.user.findUnique({
+            where: { id: authorId },
+            select: { email: true, displayName: true },
+          });
+          if (author) await sendFeedbackShippedNotification(author.email, author.displayName, feedback.title, note);
+          logEvent("feedback.shipped_notified", authorId, { feedbackId: id });
+        } catch (err) {
+          console.error("[feedback] shipped notification failed:", err);
+        }
+      })();
+    }
 
     return reply.send({ data: updated, message: "Status updated" });
   });

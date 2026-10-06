@@ -72,7 +72,7 @@ const MENU_ITEMS: Record<string, MenuItem> = {
   menu_achievements: { key: "menu_achievements", label: "Achievements", route: "/achievements", icon: "trophy-outline" },
   menu_schedule: { key: "menu_schedule", label: "Work Schedule", route: "/work-schedule", icon: "time-outline" },
   menu_refer: { key: "menu_refer", label: "Refer a Driver", route: "/refer", icon: "gift-outline" },
-  menu_suggestions: { key: "menu_suggestions", label: "Suggestions", route: "/feedback", icon: "bulb-outline" },
+  menu_suggestions: { key: "menu_suggestions", label: "Feedback", route: "/feedback", icon: "bulb-outline" },
   menu_help: { key: "menu_help", label: "Help & Tutorials", route: "/help", icon: "help-circle-outline" },
   menu_ticket_defender: { key: "menu_ticket_defender", label: "Ticket Defender", route: "/ticket-defender", icon: "shield-checkmark-outline", badge: "PRO" },
   menu_ask: { key: "menu_ask", label: "EmSee", route: "/assistant", icon: "chatbubbles-outline", badge: "PRO" },

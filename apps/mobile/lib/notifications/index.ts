@@ -735,6 +735,18 @@ export function setupNotificationResponseHandler(): void {
         router.push("/feedback" as never);
         return;
 
+      case "support_thread": {
+        // We replied to the driver's private report (6 Oct 2026).
+        const threadKey = typeof data?.threadKey === "string" ? data.threadKey : null;
+        router.push((threadKey ? `/support-thread?key=${encodeURIComponent(threadKey)}` : "/feedback") as never);
+        return;
+      }
+
+      case "feedback_shipped":
+        // An idea the driver suggested has been built (6 Oct 2026).
+        router.push("/feedback" as never);
+        return;
+
       case "open_saved_locations":
         // Short-hop nudge (jobs/activation.ts, 23 Aug 2026): the fix for
         // hops the engine cannot arm for in time is a saved location whose
@@ -776,6 +788,12 @@ export function setupNotificationResponseHandler(): void {
 
       case "open_admin_health":
         router.navigate("/admin-health" as any);
+        break;
+
+      case "open_admin_inbox":
+        // Admin: a driver sent a problem report or replied in the app. The
+        // Inbox lives on the website only.
+        Linking.openURL("https://mileclear.com/dashboard/admin/inbox").catch(() => {});
         break;
 
       case "open_admin_billing": {

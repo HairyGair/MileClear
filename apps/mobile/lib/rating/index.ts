@@ -157,7 +157,9 @@ export async function maybeRequestReview(trigger: string): Promise<void> {
           onPress: () => {
             trackRatingEvent("rating.could_be_better", { trigger });
             try {
-              router.push("/feedback-form" as any);
+              // Private since 6 Oct 2026: an unhappy driver's problem goes to
+              // the Inbox, not the public ideas board.
+              router.push("/report-problem" as any);
             } catch {}
           },
         },
