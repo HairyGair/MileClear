@@ -13,7 +13,7 @@
 // 07:07, driven at 17:30, then typed in again and counted twice). Before the
 // form opens, a trip already saved at that time is pointed out. The server
 // stops offering journeys more than 14 days old.
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -184,9 +184,18 @@ function formatWhen(iso: string): string {
   return `${day}, ${time}`;
 }
 
-export function MissedJourneys() {
+export function MissedJourneys({
+  startExpanded = false,
+  onCountChange,
+}: {
+  /** Open the list straight away (the Inbox view, where it is the content). */
+  startExpanded?: boolean;
+  /** Told how many journeys are waiting, so the review card can say so. */
+  onCountChange?: (count: number) => void;
+} = {}) {
   const router = useRouter();
   const [items, setItems] = useState<MissedJourneyProposal[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   // Rows revealed so far. Not reset on refetch: after an accept/dismiss the
   // list shrinks by one and the next hidden row moves up to fill the slot.
@@ -194,7 +203,7 @@ export function MissedJourneys() {
   // The card sits in the Trips list header, so it starts as one line and opens
   // in place. It used to be the list footer, where scrolling down to it fired
   // the next page load and pushed it away again (Chris Saunders, 22 Sep 2026).
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(startExpanded);
   // The gap offer whose set-off time is being asked for, if any.
   const [choosing, setChoosing] = useState<Choosing | null>(null);
   const [opening, setOpening] = useState(false);
@@ -203,9 +212,18 @@ export function MissedJourneys() {
 
   const load = useCallback(() => {
     fetchMissedJourneys()
-      .then((r) => setItems(orderProposals(r.proposals ?? [])))
+      .then((r) => {
+        setItems(orderProposals(r.proposals ?? []));
+        setLoaded(true);
+      })
       .catch(() => {});
   }, []);
+
+  // Report a count only once a load has succeeded: before that, or after a
+  // failed fetch, "0" would be a guess and would hide journeys that exist.
+  useEffect(() => {
+    if (loaded) onCountChange?.(items.length);
+  }, [loaded, items.length, onCountChange]);
 
   // Re-scan whenever the screen regains focus, so a journey added (or dismissed)
   // disappears when the user returns from the trip form.

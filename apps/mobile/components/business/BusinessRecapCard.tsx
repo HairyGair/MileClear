@@ -74,6 +74,8 @@ export function BusinessRecapCard() {
     : insights.totalShiftHours;
   const displayLabel = isWeek ? (pnl?.periodLabel ?? "This Week") : monthLabel;
 
+  const hasEarnings = displayEarnings > 0;
+
   const shareData: BusinessRecapShareData = {
     periodLabel: displayLabel,
     grossEarningsPence: displayEarnings,
@@ -137,38 +139,51 @@ export function BusinessRecapCard() {
 
         {/* Hero stats */}
         <View style={styles.heroRow}>
-          <View style={styles.heroStat}>
-            <Text style={[styles.heroValue, { color: GREEN }]}>
-              {formatPence(displayEarnings)}
-            </Text>
-            <Text style={styles.heroUnit}>earned</Text>
-          </View>
-          <View style={styles.heroDivider} />
+          {hasEarnings && (
+            <>
+              <View style={styles.heroStat}>
+                <Text style={[styles.heroValue, { color: GREEN }]}>
+                  {formatPence(displayEarnings)}
+                </Text>
+                <Text style={styles.heroUnit}>earned</Text>
+              </View>
+              <View style={styles.heroDivider} />
+            </>
+          )}
           <View style={styles.heroStat}>
             <Text style={styles.heroValue}>
               {displayMiles < 100 ? displayMiles.toFixed(1) : Math.round(displayMiles).toLocaleString("en-GB")}
             </Text>
-            <Text style={styles.heroUnit}>miles</Text>
+            <Text style={styles.heroUnit}>business miles</Text>
           </View>
           <View style={styles.heroDivider} />
           <View style={styles.heroStat}>
             <Text style={styles.heroValue}>{displayTrips}</Text>
-            <Text style={styles.heroUnit}>{displayTrips === 1 ? "trip" : "trips"}</Text>
+            <Text style={styles.heroUnit}>{isWeek ? (displayTrips === 1 ? "trip" : "trips") : (displayTrips === 1 ? "trip on shifts" : "trips on shifts")}</Text>
           </View>
         </View>
 
         {/* Efficiency insights */}
         <View style={styles.insightList}>
-          <View style={styles.insightRow}>
-            <View style={[styles.insightIcon, styles.insightIconAmber]}>
-              <Ionicons name="speedometer" size={12} color={AMBER} />
+          {hasEarnings ? (
+            <View style={styles.insightRow}>
+              <View style={[styles.insightIcon, styles.insightIconAmber]}>
+                <Ionicons name="speedometer" size={12} color={AMBER} />
+              </View>
+              <Text style={styles.insightText}>
+                {formatPence(insights.earningsPerMilePence)}/mi{insights.earningsPerHourPence > 0 ? ` · ${formatPence(insights.earningsPerHourPence)}/hr` : ""}
+              </Text>
             </View>
-            <Text style={styles.insightText}>
-              {formatPence(insights.earningsPerMilePence)}/mi{insights.earningsPerHourPence > 0 ? ` · ${formatPence(insights.earningsPerHourPence)}/hr` : ""}
-            </Text>
-          </View>
+          ) : (
+            <View style={styles.insightRow}>
+              <View style={[styles.insightIcon, styles.insightIconAmber]}>
+                <Ionicons name="cash-outline" size={12} color={AMBER} />
+              </View>
+              <Text style={styles.insightText}>Add earnings to see what you made per mile.</Text>
+            </View>
+          )}
 
-          {insights.avgShiftGrade && (
+          {hasEarnings && insights.avgShiftGrade && (
             <View style={styles.insightRow}>
               <View style={[styles.insightIcon, styles.insightIconGreen]}>
                 <Ionicons name="ribbon" size={12} color={GREEN} />
@@ -228,6 +243,8 @@ export function BusinessRecapCard() {
           )}
         </View>
 
+        {hasEarnings && (
+        <>
         <View style={styles.separator} />
 
         {/* Share button */}
@@ -243,6 +260,8 @@ export function BusinessRecapCard() {
           <Ionicons name="share-outline" size={16} color={AMBER} />
           <Text style={styles.shareText}>Share Earnings Report</Text>
         </Pressable>
+        </>
+        )}
       </View>
     </View>
   );

@@ -118,6 +118,10 @@ export function MileageMonthCard({
         ? "PERSONAL MILEAGE"
         : "MILEAGE");
 
+  const daysLeft = Math.max(
+    1,
+    new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate() + 1
+  );
   const avgPerTrip = trips > 0 ? miles / trips : 0;
 
   return (
@@ -165,7 +169,7 @@ export function MileageMonthCard({
         ) : (
           <>
             <Text style={styles.heroValue}>{formatMilesHero(miles)}</Text>
-            <Text style={styles.heroUnit}>miles</Text>
+            <Text style={styles.heroUnit}>{classification === "business" ? "business miles" : classification === "personal" ? "personal miles" : "miles, all driving"}</Text>
           </>
         )}
       </View>
@@ -181,15 +185,15 @@ export function MileageMonthCard({
           <Text style={styles.statValue}>{avgPerTrip.toFixed(1)}</Text>
           <Text style={styles.statLabel}>mi / trip</Text>
         </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, !isCurrent && styles.completeText]}>
-            {isCurrent ? "in progress" : "complete"}
-          </Text>
-          <Text style={styles.statLabel}>
-            {isCurrent ? "this month" : "month"}
-          </Text>
-        </View>
+        {isCurrent && (
+          <>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{daysLeft}</Text>
+              <Text style={styles.statLabel}>{daysLeft === 1 ? "day left" : "days left"}</Text>
+            </View>
+          </>
+        )}
       </View>
     </View>
   );

@@ -19,7 +19,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
-import { fetchTrips, fetchTripSummary, fetchProjectLabels, fetchUnclassifiedCount, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
+import { fetchTrips, fetchTripSummary, fetchProjectLabels, fetchUnclassifiedCount, fetchMissedJourneys, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
@@ -38,6 +38,8 @@ import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import { TripNoteEditor, displayNote } from "../../components/TripNoteEditor";
 import { EmptyState } from "../../components/EmptyState";
+import { ErrorState } from "../../components/ErrorState";
+import { TripsReviewStrip } from "../../components/trips/TripsReviewStrip";
 import { MissingTripReporter } from "../../components/MissingTripReporter";
 import { MissedJourneys } from "../../components/MissedJourneys";
 import { TrackingOffBanner } from "../../components/TrackingOffBanner";
@@ -350,6 +352,11 @@ export default function TripsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
+  // Journeys to check (missed-journey proposals). null = not known yet, or the
+  // fetch failed; the review card then treats it as none.
+  const [missedCount, setMissedCount] = useState<number | null>(null);
+  const [countsLoaded, setCountsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   // Whether the driver has tagged any trip with a Project / client. Only
   // then is the "Miles by project" link worth its row. One grouped query.
   const [hasProjectLabels, setHasProjectLabels] = useState(false);
@@ -379,8 +386,19 @@ export default function TripsScreen() {
       const res = await fetchUnclassifiedCount();
       setUnclassifiedCount(res.count);
     } catch {
-      // Ignore — badge just won't show
+      // Ignore: the review card just keeps the last count
+    } finally {
+      setCountsLoaded(true);
     }
+  }, []);
+
+  // Journeys to check feed the review card. A failure leaves the last known
+  // count (or none) rather than claiming there is nothing to check. Not run
+  // for the Inbox view or on filter taps: there MissedJourneys loads its own.
+  const loadMissedCount = useCallback(() => {
+    fetchMissedJourneys()
+      .then((r) => setMissedCount((r.proposals ?? []).length))
+      .catch(() => {});
   }, []);
 
   // Fetch classification suggestions for unclassified trips
@@ -472,6 +490,7 @@ export default function TripsScreen() {
         });
         if (generation !== listGenerationRef.current) return;
         setIsOffline(false);
+        setLoadError(false);
 
         if (append) {
           // Never append a trip that is already on screen: a trip that synced
@@ -505,6 +524,7 @@ export default function TripsScreen() {
             platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
           const local = await getLocalTrips({ classification, platformTag });
           setTrips(local as TripItem[]);
+          setLoadError(local.length === 0);
           setIsOffline(isNetworkError(err));
           setTotalPages(1);
         }
@@ -550,11 +570,12 @@ export default function TripsScreen() {
       loadTrips(1);
       loadSummary();
       loadUnclassifiedCount();
+      if (filterRef.current !== "unclassified") loadMissedCount();
       loadSavedPlaces().then(setSavedPlaces);
       fetchProjectLabels()
         .then((labels) => setHasProjectLabels(labels.length > 0))
         .catch(() => {});
-    }, [loadTrips, loadSummary, loadUnclassifiedCount])
+    }, [loadTrips, loadSummary, loadUnclassifiedCount, loadMissedCount])
   );
 
   const onRefresh = useCallback(() => {
@@ -567,7 +588,8 @@ export default function TripsScreen() {
     loadTrips(1);
     loadSummary();
     loadUnclassifiedCount();
-  }, [loadTrips, loadSummary, loadUnclassifiedCount]);
+    if (filterRef.current !== "unclassified") loadMissedCount();
+  }, [loadTrips, loadSummary, loadUnclassifiedCount, loadMissedCount]);
 
   const onEndReached = useCallback(() => {
     if (loadingMoreRef.current || loadingMore || page >= totalPages) return;
@@ -740,35 +762,37 @@ export default function TripsScreen() {
     [filter]
   );
 
+  // A small list sheet rather than Alert.alert: Android keeps only three
+  // Alert buttons, which dropped Cancel and Merge.
+  const [menuTrip, setMenuTrip] = useState<TripItem | null>(null);
   const handleLongPress = useCallback(
     (item: TripItem) => {
-      if (mergeMode || item._isLocal) return;
-      Alert.alert(
-        "",
-        "",
-        [
-          // The row's "Undo" again, for a trip MileClear sorted by itself.
-          ...(isRecentAutoTrip(item)
-            ? [{ text: "Undo automatic sort", onPress: () => handleUndoClassification(item.id) }]
-            : []),
-          {
-            text: "Delete Trip",
-            style: "destructive",
-            onPress: () => handleDeleteTrip(item.id),
-          },
-          {
-            text: "Merge Trips",
-            onPress: () => {
-              setMergeMode(true);
-              setSelectedIds(new Set([item.id]));
-            },
-          },
-          { text: "Cancel", style: "cancel" },
-        ]
-      );
+      if (mergeMode) return;
+      setMenuTrip(item);
     },
-    [mergeMode, handleDeleteTrip, handleUndoClassification]
+    [mergeMode]
   );
+  const menuActions = useMemo(() => {
+    const item = menuTrip;
+    if (!item) return [];
+    const note = { label: "Add or edit note", onPress: () => setEditingNoteId(item.id) };
+    // Unsynced trips can only take a note from here; the rest needs the server copy.
+    if (item._isLocal) return [note];
+    return [
+      ...(isRecentAutoTrip(item)
+        ? [{ label: "Undo automatic sort", onPress: () => handleUndoClassification(item.id) }]
+        : []),
+      note,
+      {
+        label: "Merge trips",
+        onPress: () => {
+          setMergeMode(true);
+          setSelectedIds(new Set([item.id]));
+        },
+      },
+      { label: "Delete trip", destructive: true, onPress: () => handleDeleteTrip(item.id) },
+    ];
+  }, [menuTrip, handleDeleteTrip, handleUndoClassification]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -954,7 +978,7 @@ export default function TripsScreen() {
     const fromLabel = tripEndLabel(item.startAddress, item.startLat, item.startLng, savedPlaces);
     const toLabel = tripEndLabel(item.endAddress, item.endLat, item.endLng, savedPlaces);
     const hasMeta =
-      showDate || !!item.platformTag || !!item._isLocal || !!item.isManualEntry || showConfidenceFor(item) || isRecentAuto;
+      showDate || !!item.platformTag || !!item._isLocal || !!item.isManualEntry || showConfidenceFor(item);
     const isSelected = mergeMode && selectedIds.has(item.id);
     const note = displayNote(item.notes);
     const isEditingNote = editingNoteId === item.id;
@@ -1053,10 +1077,16 @@ export default function TripsScreen() {
         accessibilityLabel={
           mergeMode
             ? `${isSelected ? "Deselect" : "Select"} trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
-            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}${confidence && confidence !== "high" ? `, ${confidence} confidence` : ""}. Tap to edit. Swipe right to classify as ${targetLabel}. Swipe left to delete.`
+            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}${confidence && confidence !== "high" ? `, ${confidence} confidence` : ""}${isRecentAuto ? ", sorted automatically" : ""}. Tap to open. Swipe right to classify as ${targetLabel}. Swipe left to delete.`
         }
         accessibilityState={mergeMode ? { selected: isSelected } : undefined}
-        accessibilityHint={mergeMode ? undefined : "Long press to enter merge mode"}
+        accessibilityHint={mergeMode ? undefined : "Long press for more options"}
+        accessibilityActions={
+          !mergeMode && isRecentAuto ? [{ name: "undo", label: "Undo automatic sort" }] : undefined
+        }
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === "undo") handleUndoClassification(item.id);
+        }}
       >
         {/* Left classification bar */}
         <View style={[styles.classificationBar, { backgroundColor: classificationBarColour }]} />
@@ -1124,7 +1154,16 @@ export default function TripsScreen() {
                     {isBusiness ? "Business" : "Personal"}
                   </Text>
                 )}
-                {!inInbox && (
+                {isRecentAuto && (
+                  <Ionicons
+                    name="sparkles-outline"
+                    size={12}
+                    color={TEXT_3}
+                    style={styles.autoSortedIcon}
+                    accessible={false}
+                  />
+                )}
+                {!inInbox && !!note && (
                   <TouchableOpacity
                     onPress={() => openNoteEditor(item.id)}
                     hitSlop={8}
@@ -1176,22 +1215,6 @@ export default function TripsScreen() {
                       <Text style={styles.confidencePillText}>
                         {confidence === "low" ? "Review" : "?"}
                       </Text>
-                    </View>
-                  )}
-                  {/* Was "auto · Undo", which nobody could read. The undo is
-                      also in the long-press menu. */}
-                  {isRecentAuto && (
-                    <View style={styles.autoSortedRow}>
-                      <Text style={styles.autoSortedText}>Sorted automatically</Text>
-                      <TouchableOpacity
-                        onPress={() => handleUndoClassification(item.id)}
-                        disabled={classifyingId === item.id}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Sorted automatically from your previous drives. Undo"
-                      >
-                        <Text style={styles.autoUndoText}>Undo</Text>
-                      </TouchableOpacity>
                     </View>
                   )}
                 </View>
@@ -1399,6 +1422,13 @@ export default function TripsScreen() {
   const activeDateLabel = dateRange === "all" ? null : rangeLabel(dateRange, customFrom, customTo);
   const activeFilterCount = (activePlatformLabel ? 1 : 0) + (activeDateLabel ? 1 : 0);
 
+  // A brand-new driver with no trips and nothing to sort: no review card, just
+  // the empty state.
+  const noTripsAtAll =
+    !loading && filter === "all" && trips.length === 0 && unclassifiedCount === 0 &&
+    (missedCount ?? 0) === 0 &&
+    dateRange === "all" && platformFilter === "all";
+
   const renderRouteGroup = ({ item: group }: { item: RouteGroup }) => {
     const isExpanded = expandedGroups.has(group.key);
     const isBatchClassifying = batchClassifyingKey === group.key;
@@ -1540,7 +1570,35 @@ export default function TripsScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader title="Trips" showBack addRoute="/trip-form" />
+      <AppHeader
+        title="Trips"
+        addRoute="/trip-form"
+        right={
+          <TouchableOpacity
+            style={[styles.filtersButton, activeFilterCount > 0 && styles.filtersButtonActive]}
+            onPress={() => setShowFiltersSheet(true)}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel={
+              activeFilterCount > 0
+                ? `Filters, ${[activePlatformLabel, activeDateLabel].filter(Boolean).join(", ")} active. Opens filter options.`
+                : "Filters. Opens platform and date range options."
+            }
+          >
+            <Ionicons
+              name={activeFilterCount > 0 ? "funnel" : "funnel-outline"}
+              size={16}
+              color={activeFilterCount > 0 ? AMBER : TEXT_2}
+              accessible={false}
+            />
+            {activeFilterCount > 0 && (
+              <View style={styles.filtersCountBadge} accessible={false}>
+                <Text style={styles.filtersCountText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        }
+      />
       <FlatList
         key={filter === "unclassified" ? "grouped" : "flat"}
         data={filter === "unclassified" ? (routeGroups as any[]) : dayRows}
@@ -1573,135 +1631,72 @@ export default function TripsScreen() {
             {/* Safety: warn (any filter) if auto-detection is off, so missing
                 trips don't go unexplained. One tap re-enables. */}
             <TrackingOffBanner />
-            {isOffline && (
-              <View style={styles.offlineBanner}>
-                <Text style={styles.offlineBannerText}>
-                  Offline: showing trips saved on this phone
-                </Text>
+            {noTripsAtAll ? (
+              // Brand-new drivers are the ones who most need "Missing a trip?".
+              <View style={styles.soloReporter}>
+                <MissingTripReporter variant="row" onTripAdded={onRefresh} />
               </View>
+            ) : (
+              <TripsReviewStrip
+                unclassifiedCount={unclassifiedCount}
+                missedCount={missedCount}
+                loading={!countsLoaded}
+                offline={isOffline}
+                inInbox={filter === "unclassified"}
+                onOpenInbox={() => handleFilterChange("unclassified")}
+                reporter={<MissingTripReporter variant="row" onTripAdded={onRefresh} />}
+              />
             )}
 
-            {/* Inbox banner — shows when there are unclassified trips and not already viewing inbox */}
-            {unclassifiedCount > 0 && filter !== "unclassified" && (
-              <TouchableOpacity
-                style={styles.inboxBanner}
-                onPress={() => handleFilterChange("unclassified")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s need" : " needs"} classifying. Tap to review.`}
-              >
-                <View style={styles.inboxBannerLeft}>
-                  <View style={styles.inboxBannerIcon}>
-                    <Ionicons name="file-tray" size={18} color={AMBER} accessible={false} />
-                  </View>
-                  <View>
-                    <Text style={styles.inboxBannerTitle}>
-                      {unclassifiedCount} trip{unclassifiedCount !== 1 ? "s" : ""} to classify
-                    </Text>
-                    <Text style={styles.inboxBannerSubtitle}>
-                      Tap to review and classify
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={TEXT_3} accessible={false} />
-              </TouchableOpacity>
-            )}
-
-            {/* Both back in the header 22 Sep. In the footer they could not be
-                reached: scrolling down to them loaded the next page of trips
-                and pushed them away again. Journeys to check is a single line
-                that opens in place, so the pair costs two slim rows. */}
-            {filter !== "unclassified" && <MissedJourneys />}
-            {filter !== "unclassified" && <MissingTripReporter onTripAdded={onRefresh} />}
-
-            {hasProjectLabels && filter !== "unclassified" && (
-              <TouchableOpacity
-                style={styles.projectLink}
-                onPress={() => router.push("/project-totals")}
-                hitSlop={6}
-                accessibilityRole="button"
-                accessibilityLabel="Miles by project. Opens your business miles totalled by project or client."
-              >
-                <Ionicons name="briefcase-outline" size={14} color={AMBER} accessible={false} />
-                <Text style={styles.projectLinkText}>Miles by project</Text>
-                <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-              </TouchableOpacity>
-            )}
-
-            <View style={styles.filterRow}>
-              {/* The chips scroll sideways so the Filters control always
-                  stays on this row. It used to wrap onto a second line,
-                  costing a whole row of height above the first trip. */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.filterChipsScroll}
-                contentContainerStyle={styles.filterChipsContent}
-              >
-                {FILTERS.map((f) => (
+            {/* Four equal segments, no sideways scroll: with the Filters
+                button up in the header the row has the full width, so
+                "Personal" fits whole even at large text. The Inbox shows a
+                dot, not a number; the count lives in the review card. */}
+            <View style={styles.segmented} accessibilityRole="tablist">
+              {FILTERS.map((f) => {
+                const selected = filter === f.value;
+                return (
                   <TouchableOpacity
                     key={f.label}
-                    style={[
-                      styles.filterChip,
-                      filter === f.value && styles.filterChipActive,
-                    ]}
+                    style={[styles.segment, selected && styles.segmentActive]}
                     onPress={() => handleFilterChange(f.value)}
-                    accessibilityRole="button"
-                    accessibilityLabel={f.value === "unclassified" && unclassifiedCount > 0 ? `${f.label}, ${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""}` : f.label}
-                    accessibilityState={{ selected: filter === f.value }}
+                    hitSlop={{ top: 4, bottom: 4 }}
+                    accessibilityRole="tab"
+                    accessibilityLabel={
+                      f.value === "unclassified" && unclassifiedCount > 0
+                        ? `${f.label}, ${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""} to classify`
+                        : f.label
+                    }
+                    accessibilityState={{ selected }}
                   >
                     <Text
-                      style={[
-                        styles.filterChipText,
-                        filter === f.value && styles.filterChipTextActive,
-                      ]}
+                      style={[styles.segmentText, selected && styles.segmentTextActive]}
+                      numberOfLines={1}
+                      maxFontSizeMultiplier={1.3}
                     >
                       {f.label}
                     </Text>
                     {f.value === "unclassified" && unclassifiedCount > 0 && (
-                      <View style={styles.filterBadge}>
-                        <Text style={styles.filterBadgeText}>
-                          {unclassifiedCount > 99 ? "99+" : unclassifiedCount}
-                        </Text>
-                      </View>
+                      <View
+                        style={[styles.segmentDot, selected && styles.segmentDotActive]}
+                        accessible={false}
+                      />
                     )}
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Platform + date range used to be two permanently-visible
-                  chip rows here, pushing the first trip a third of the way
-                  down a tall phone. Both now live in the Filters sheet below.
-                  Icon-only since 4 Oct 2026: with a text label the button
-                  covered "Personal" (it read "Perso"), so the four chips and
-                  this button now fit side by side on a standard iPhone. */}
-              <TouchableOpacity
-                style={[
-                  styles.filtersButton,
-                  activeFilterCount > 0 && styles.filtersButtonActive,
-                ]}
-                onPress={() => setShowFiltersSheet(true)}
-                hitSlop={4}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  activeFilterCount > 0
-                    ? `Filters, ${[activePlatformLabel, activeDateLabel].filter(Boolean).join(", ")} active. Opens filter options.`
-                    : "Filters. Opens platform and date range options."
-                }
-              >
-                <Ionicons
-                  name={activeFilterCount > 0 ? "funnel" : "funnel-outline"}
-                  size={16}
-                  color={activeFilterCount > 0 ? AMBER : TEXT_2}
-                  accessible={false}
-                />
-                {activeFilterCount > 0 && (
-                  <View style={styles.filtersCountBadge} accessible={false}>
-                    <Text style={styles.filtersCountText}>{activeFilterCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+                );
+              })}
             </View>
+
+            {/* Inbox: journeys to check come first, then the trips to classify. */}
+            {filter === "unclassified" && (
+              <View style={{ display: (missedCount ?? 0) > 0 ? "flex" : "none" }}>
+                <Text style={styles.inboxSectionLabel}>JOURNEYS TO CHECK</Text>
+                <MissedJourneys startExpanded onCountChange={setMissedCount} />
+              </View>
+            )}
+            {filter === "unclassified" && routeGroups.length > 0 && (
+              <Text style={styles.inboxSectionLabel}>TO CLASSIFY</Text>
+            )}
 
             {/* Stats summary - shown when any filter (date range OR platform)
                 is active. Sourced from /trips/summary so totals are accurate
@@ -1819,18 +1814,42 @@ export default function TripsScreen() {
         }
         ListEmptyComponent={
           !loading ? (
-            filter === "unclassified" ? (
+            loadError ? (
+              <ErrorState
+                title="Couldn't load your trips"
+                description="Check your connection and pull down to try again."
+                onRetry={() => {
+                  setLoading(true);
+                  loadTrips(1);
+                }}
+              />
+            ) : filter === "unclassified" ? (
+              (missedCount ?? 0) > 0 ? null : (
+                <EmptyState
+                  icon="checkmark-circle-outline"
+                  title="All caught up"
+                  description="Every trip is sorted and there's nothing to check."
+                  iconColor={colors.amber}
+                />
+              )
+            ) : filter === "business" || filter === "personal" ? (
               <EmptyState
-                icon="checkmark-circle-outline"
-                title="All caught up!"
-                description="All your trips have been classified"
-                iconColor={colors.amber}
+                icon="filter-outline"
+                title={`No ${filter} trips`}
+                description={`Trips you mark ${filter === "business" ? "Business" : "Personal"} show here.`}
               />
             ) : (
               <EmptyState
                 icon="car-outline"
-                title="No trips recorded yet"
-                description="Tap + at the top right to add a trip manually."
+                title="No trips yet"
+                description="Drives record by themselves once you set off. You can also add one by hand."
+                action={
+                  <Button
+                    title="Add a past trip"
+                    variant="secondary"
+                    onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never)}
+                  />
+                }
               />
             )
           ) : null
@@ -1853,11 +1872,14 @@ export default function TripsScreen() {
                   : `Showing ${trips.length} of ${summary?.totalTrips ?? "..."} trips · page ${page} of ${totalPages}`}
               </Text>
             )}
-            <Button
-              title="Add Trip"
-              icon="add"
-              onPress={() => router.push("/trip-form")}
-            />
+            {!noTripsAtAll && (
+              <Button
+                title="Add a past trip"
+                variant="secondary"
+                icon="add"
+                onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never)}
+              />
+            )}
           </View>
         }
       />
@@ -1874,6 +1896,36 @@ export default function TripsScreen() {
           </View>
         </View>
       )}
+
+      {/* Long-press menu */}
+      <AppModal visible={menuTrip != null} animationType="fade" onRequestClose={() => setMenuTrip(null)}>
+        <Pressable style={styles.mergeBackdrop} onPress={() => setMenuTrip(null)}>
+          <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.mergeHandle} />
+            {menuActions.map((a) => (
+              <TouchableOpacity
+                key={a.label}
+                style={styles.projectRow}
+                onPress={() => {
+                  setMenuTrip(null);
+                  a.onPress();
+                }}
+                accessibilityRole="button"
+              >
+                <Text
+                  style={[
+                    styles.projectRowText,
+                    "destructive" in a && a.destructive && { color: "#f87171" },
+                  ]}
+                >
+                  {a.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <Button title="Cancel" variant="ghost" onPress={() => setMenuTrip(null)} />
+          </Pressable>
+        </Pressable>
+      </AppModal>
 
       {/* Merge classification modal */}
       {mergeModalVisible && (
@@ -2121,6 +2173,22 @@ export default function TripsScreen() {
               </ScrollView>
             </View>
 
+            {hasProjectLabels && (
+              <TouchableOpacity
+                style={styles.projectRow}
+                onPress={() => {
+                  setShowFiltersSheet(false);
+                  router.push("/project-totals");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Miles by project. Opens your business miles totalled by project or client."
+              >
+                <Ionicons name="briefcase-outline" size={18} color={TEXT_2} accessible={false} />
+                <Text style={styles.projectRowText}>Miles by project</Text>
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+              </TouchableOpacity>
+            )}
+
             <View style={styles.filtersSheetFooter}>
               <Button
                 title="Clear filters"
@@ -2242,106 +2310,77 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.sm,
   },
-  // Inbox banner
-  inboxBanner: {
-    backgroundColor: "rgba(245, 166, 35, 0.08)",
+  // Collapsed control for platform + date range - opens the Filters sheet.
+  // Icon only, so it can never crowd the classification chips off screen.
+  // Four equal segments under the review card.
+  soloReporter: {
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.2)",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radii.md,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  segmented: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  inboxBannerLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  inboxBannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(245, 166, 35, 0.12)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  inboxBannerTitle: {
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-  inboxBannerSubtitle: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    marginTop: 1,
-  },
-  // Filter chips
-  projectLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: colors.amberDim,
-    marginBottom: 12,
-  },
-  projectLinkText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-  filterRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    // Never wraps: the chips scroll sideways instead, so the Filters control
-    // stays on this row at any width rather than dropping to a second line.
-    flexWrap: "nowrap",
-    gap: 8,
     marginBottom: 16,
   },
-  filterChipsScroll: {
-    flexGrow: 0,
-    flexShrink: 1,
-  },
-  filterChipsContent: {
+  segment: {
+    flex: 1,
+    minHeight: 40,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-  },
-  filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 4,
+    borderRadius: radii.pill,
     backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
   },
-  filterChipActive: {
+  segmentActive: {
     backgroundColor: AMBER,
     borderColor: AMBER,
   },
-  filterChipText: {
-    fontSize: 13,
+  segmentText: {
+    fontSize: 14,
     fontFamily: fonts.semibold,
     color: TEXT_2,
   },
-  filterChipTextActive: {
-    fontFamily: fonts.semibold,
+  segmentTextActive: {
     color: BG,
   },
-  // Collapsed control for platform + date range - opens the Filters sheet.
-  // Icon only, so it can never crowd the classification chips off screen.
+  segmentDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: AMBER,
+  },
+  segmentDotActive: {
+    backgroundColor: BG,
+  },
+  inboxSectionLabel: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: TEXT_3,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  projectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 44,
+    marginBottom: 16,
+  },
+  projectRowText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: fonts.medium,
+    color: colors.text1,
+  },
   filtersButton: {
-    marginLeft: "auto",
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -2469,20 +2508,6 @@ const styles = StyleSheet.create({
     color: TEXT_2,
     lineHeight: 17,
     marginBottom: 16,
-  },
-  filterBadge: {
-    backgroundColor: AMBER,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 5,
-  },
-  filterBadgeText: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    color: BG,
   },
   // Trip cards — compact layout (Anthony 16 May audit)
   tripCard: {
@@ -2707,20 +2732,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 4,
   },
-  autoSortedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  autoSortedText: {
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-  },
-  autoUndoText: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: AMBER,
+  autoSortedIcon: {
+    marginLeft: 6,
   },
   duplicateWrap: {
     marginTop: 10,
@@ -2897,18 +2910,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.semibold,
     color: TEXT_2,
-  },
-  offlineBanner: {
-    backgroundColor: "#92400e",
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    alignItems: "center",
-  },
-  offlineBannerText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: "#fef3c7",
   },
   // Footer
   footer: {

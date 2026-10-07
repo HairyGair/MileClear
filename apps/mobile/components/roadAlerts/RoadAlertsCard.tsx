@@ -91,6 +91,14 @@ export default function RoadAlertsCard() {
   const top = data.current[0] ?? data.upcoming[0];
   if (!top) return null;
   const starts = top.when === "upcoming" ? formatAlertTime(top.startAt) : null;
+  // The headline already says which road and what is wrong, so drop any
+  // sentence that opens with the same road name. What is left (usually
+  // "No end date given.") is the part that adds something.
+  const roadName = top.headline.split(/ (?:closed|is) /i)[0].trim().toLowerCase();
+  const extra = (top.sentence.match(/[^.!?]+[.!?]*/g) ?? [top.sentence])
+    .map((part) => part.trim())
+    .filter((part) => part && !(roadName && part.toLowerCase().startsWith(roadName)))
+    .join(" ");
   const more = data.current.length + data.upcoming.length - 1;
 
   return (
@@ -114,7 +122,7 @@ export default function RoadAlertsCard() {
       </View>
       <Text style={styles.line}>{top.headline}</Text>
       {starts ? <Text style={styles.meta}>Starts {starts}</Text> : null}
-      <Text style={styles.meta}>{top.sentence}</Text>
+      {extra ? <Text style={styles.meta}>{extra}</Text> : null}
       {more > 0 ? <Text style={styles.more}>See all road alerts</Text> : null}
     </TouchableOpacity>
   );

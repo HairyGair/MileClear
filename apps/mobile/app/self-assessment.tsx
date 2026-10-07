@@ -9,7 +9,6 @@ import {
   StyleSheet,
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
-import { safeBack } from "../lib/nav";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
@@ -415,17 +414,6 @@ function StepSa103Guide({
 const HEADER_OPTIONS = {
   headerShown: true,
   title: "Self Assessment",
-  headerBackVisible: false,
-  headerLeft: () => (
-    <TouchableOpacity
-      onPress={() => safeBack()}
-      accessibilityRole="button"
-      accessibilityLabel="Back"
-      hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-    >
-      <Ionicons name="chevron-back" size={26} color={AMBER} />
-    </TouchableOpacity>
-  ),
 };
 
 export default function SelfAssessmentScreen() {

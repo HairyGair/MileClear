@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
-import { safeBack } from "../lib/nav";
 import * as WebBrowser from "expo-web-browser";
 import { getTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
@@ -123,18 +122,7 @@ export default function ExportsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Tax Exports",
-          headerBackVisible: false,
-          headerLeft: () => (
-            <TouchableOpacity
-              onPress={() => safeBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            >
-              <Ionicons name="chevron-back" size={26} color={AMBER} />
-            </TouchableOpacity>
-          ),
+          title: "Tax exports",
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>

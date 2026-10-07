@@ -56,7 +56,7 @@ export default function HelpScreen() {
     <View style={styles.root}>
       <Stack.Screen
         options={{
-          title: "Help & Tutorials",
+          title: "Help and tutorials",
           headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.text1,
         }}

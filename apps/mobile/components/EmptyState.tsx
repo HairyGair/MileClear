@@ -25,21 +25,25 @@ interface EmptyStateProps {
   /** Tint colour of the icon. Defaults to text2 (muted) — pass `colors.amber`
    *  for celebratory/positive empty states (e.g. "All caught up!"). */
   iconColor?: string;
+  /** "screen" (default) fills a whole empty screen; "card" sits inside a Card
+   *  when one section is empty. */
+  size?: "screen" | "card";
 }
 
-export function EmptyState({ icon, title, description, action, iconColor = colors.text2 }: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action, iconColor = colors.text2, size = "screen" }: EmptyStateProps) {
+  const card = size === "card";
   return (
     <View
-      style={styles.container}
+      style={card ? styles.containerCard : styles.container}
       accessibilityRole="text"
       accessibilityLiveRegion="polite"
     >
-      <View style={[styles.iconWrap, { borderColor: iconColor + "30" }]}>
-        <Ionicons name={icon} size={36} color={iconColor} accessible={false} />
+      <View style={[styles.iconWrap, card && styles.iconWrapCard, { borderColor: iconColor + "30" }]}>
+        <Ionicons name={icon} size={card ? 24 : 36} color={iconColor} accessible={false} />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.description}>{description}</Text>
-      {action ? <View style={styles.actionWrap}>{action}</View> : null}
+      <Text style={card ? styles.titleCard : styles.title} maxFontSizeMultiplier={1.4}>{title}</Text>
+      <Text style={styles.description} maxFontSizeMultiplier={1.6}>{description}</Text>
+      {action ? <View style={card ? styles.actionWrapCard : styles.actionWrap}>{action}</View> : null}
     </View>
   );
 }
@@ -49,6 +53,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: spacing.xxxl,
     paddingHorizontal: spacing.xl,
+  },
+  containerCard: {
+    alignItems: "center",
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+  },
+  iconWrapCard: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.bg,
+    marginBottom: spacing.md,
+  },
+  titleCard: {
+    fontSize: 16,
+    fontFamily: fonts.semibold,
+    color: colors.text1,
+    marginBottom: spacing.xs,
+    textAlign: "center",
+  },
+  actionWrapCard: {
+    marginTop: spacing.md,
   },
   iconWrap: {
     width: 72,
@@ -61,7 +87,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   title: {
-    fontSize: 17,
+    fontSize: 18,
     fontFamily: fonts.semibold,
     color: colors.text1,
     marginBottom: spacing.xs,

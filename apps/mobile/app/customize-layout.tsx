@@ -29,13 +29,14 @@ const SCREENS: ScreenKey[] = [
   "dashboard_work",
   "dashboard_personal",
   "profile",
-  "avatar_menu",
 ];
 
 const TAB_LABELS: Record<ScreenKey, string> = {
   dashboard_work: "Work",
   dashboard_personal: "Personal",
   profile: "Profile",
+  // The Menu tab is gone (7 Oct 2026, the More tab replaced the avatar menu).
+  // The label stays only because the record is keyed by every ScreenKey.
   avatar_menu: "Menu",
 };
 

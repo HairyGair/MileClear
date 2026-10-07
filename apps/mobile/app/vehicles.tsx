@@ -108,7 +108,7 @@ function VehicleCard({
                   { color: item.cleanAirZones.verdict === "compliant" ? "#10b981" : "#f59e0b" },
                 ]}
               >
-                {item.cleanAirZones.verdict === "compliant" ? "ULEZ ready" : "May be charged"}
+                {item.cleanAirZones.verdict === "compliant" ? "Clean air zones: no charge" : "Clean air zones: may be charged"}
               </Text>
             </View>
           )}

@@ -10,14 +10,16 @@
 // view does the same arithmetic with exact attribution.
 
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from "react-native";
+import { useRouter } from "expo-router";
+import { EmptyState } from "../EmptyState";
 import { Ionicons } from "@expo/vector-icons";
 import {
   fetchPlatformPnL,
   type PlatformPnLRow,
 } from "../../lib/api/businessInsights";
 import { formatPence, GIG_PLATFORMS } from "@mileclear/shared";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -37,6 +39,7 @@ function labelFor(platform: string): string {
 }
 
 export function PlatformPnLCard({ days = 30 }: { days?: number }) {
+  const router = useRouter();
   const [rows, setRows] = useState<PlatformPnLRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -65,23 +68,40 @@ export function PlatformPnLCard({ days = 30 }: { days?: number }) {
     return null;
   }
 
-  if (rows.length === 0) {
+  const earningRows = rows.filter((r) => r.grossEarningsPence > 0);
+
+  if (earningRows.length === 0) {
     return (
       <View style={styles.card}>
         <View style={styles.headerRow}>
           <Text style={styles.title}>Profit by platform</Text>
-          <Text style={styles.windowLabel}>Last {days} days</Text>
-        </View>
-        <Text style={styles.emptyText}>
-          No earnings logged in the last {days} days. Add platform earnings to see
-          your real net per platform after fuel and allowable expenses.
-        </Text>
+          </View>
+        <EmptyState
+          size="card"
+          icon="cash-outline"
+          title={`No earnings in the last ${days} days`}
+          description="Add earnings and tag trips with the app you drove for to compare them."
+          action={
+            <TouchableOpacity
+              onPress={() => router.push("/earning-form")}
+              hitSlop={8}
+              style={{ flexDirection: "row", alignItems: "center", gap: 2, minHeight: 44 }}
+              accessibilityRole="button"
+              accessibilityLabel="Add earnings"
+            >
+              <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: AMBER }} maxFontSizeMultiplier={fontScaleCap.body}>
+                Add earnings
+              </Text>
+              <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+            </TouchableOpacity>
+          }
+        />
       </View>
     );
   }
 
-  const topNet = rows[0]?.netPence ?? 0;
-  const topPlatform = rows[0];
+  const topNet = earningRows[0]?.netPence ?? 0;
+  const topPlatform = earningRows[0];
 
   return (
     <View style={styles.card}>
@@ -108,7 +128,7 @@ export function PlatformPnLCard({ days = 30 }: { days?: number }) {
         <Text style={[styles.headerCell, styles.headerCellNum]}>Net</Text>
       </View>
 
-      {rows.slice(0, 6).map((r) => {
+      {earningRows.slice(0, 6).map((r) => {
         const costPence = r.fuelPence + r.expensesPence;
         const netColor = r.netPence >= 0 ? GREEN : RED;
         return (

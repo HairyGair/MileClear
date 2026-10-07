@@ -237,7 +237,14 @@ interface Added {
   typed: boolean;
 }
 
-export function MissingTripReporter({ onTripAdded }: { onTripAdded?: () => void } = {}) {
+export function MissingTripReporter({
+  onTripAdded,
+  variant = "card",
+}: {
+  onTripAdded?: () => void;
+  /** "row" is the bare trigger row for the Trips review card: no card styling of its own. */
+  variant?: "card" | "row";
+} = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("form");
   const [from, setFrom] = useState<Place | null>(null);
@@ -558,7 +565,7 @@ export function MissingTripReporter({ onTripAdded }: { onTripAdded?: () => void 
   return (
     <>
       <TouchableOpacity
-        style={styles.link}
+        style={variant === "row" ? styles.linkRow : styles.link}
         onPress={() => {
           // Fresh sheet each time: a time left over from an earlier open
           // would be filed silently as this report's drive.
@@ -784,6 +791,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
     backgroundColor: colors.surface,
+  },
+  linkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 44,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   linkText: {
     color: colors.text2,

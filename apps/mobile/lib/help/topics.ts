@@ -1,10 +1,10 @@
 // Single source of truth for in-app help topics. Used by:
-//   - /help (the full Help & Tutorials screen) — renders all topics
-//   - ContextualHelp component — looks up a single topic by id and
+//   - /help (the full Help & Tutorials screen) - renders all topics
+//   - ContextualHelp component - looks up a single topic by id and
 //     renders it in a bottom sheet next to the UI it explains
 //
 // When you add a new topic, give it a stable `id` (kebab-case) and
-// add it to the appropriate section. Don't break existing ids — they
+// add it to the appropriate section. Don't break existing ids - they
 // might be referenced from ContextualHelp call sites across screens.
 
 import type { Ionicons } from "@expo/vector-icons";
@@ -14,7 +14,7 @@ export interface HelpTopic {
   id: string;
   q: string;
   a: string;
-  /** Optional deep-link to the screen this topic is about — shown as
+  /** Optional deep-link to the screen this topic is about - shown as
    *  "Open" instead of "Got it" on the contextual help sheet. */
   goTo?: string;
   /** Optional external article. */
@@ -49,13 +49,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "modes",
         q: "Work mode vs Personal mode?",
-        a: "Top of the dashboard — switch between Work and Personal whenever your day changes. Work mode shows your tax deduction, business insights, and HMRC tooling. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you do both, set your dashboard mode to \"Both\" in Settings to see everything at once.",
+        a: "Top of the dashboard - switch between Work and Personal whenever your day changes. Work mode shows your tax deduction, business insights, and HMRC tooling. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you do both, set your dashboard mode to \"Both\" in Settings to see everything at once.",
         goTo: "/settings/general",
       },
       {
         id: "first-trip",
-        q: "I just installed the app — what should I do first?",
-        a: "Five things in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (Settings → Saved Locations). Trips that start or end there get labelled with the name rather than a street address, and trips between two saved places can be auto-classified. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Profile → Settings → Community) for tax tips, platform talk and product updates from other UK drivers.",
+        q: "I just installed the app - what should I do first?",
+        a: "Five things in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (More → Saved places). Trips that start or end there get labelled with the name rather than a street address, and trips between two saved places can be auto-classified. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Profile → Settings → Community) for tax tips, platform talk and product updates from other UK drivers.",
       },
       {
         id: "unlimited-free",
@@ -88,29 +88,29 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "mtd-itsa",
         q: "What is MTD ITSA?",
-        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement — no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. Avatar → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
+        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. the Tax tab (or More → Tax in Personal mode) → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
         goTo: "/tax-mtd",
       },
       {
         id: "paye-offset",
-        q: "I have a day job too — does MileClear handle that?",
+        q: "I have a day job too - does MileClear handle that?",
         a: "Yes. Settings → Work & Tax → enter what your employer has already deducted in PAYE this year (it's on your most recent payslip, year-to-date tax line). Tax Readiness then shows what you STILL owe on top of PAYE, rather than the full gross liability.",
         goTo: "/settings/work-tax",
       },
       {
         id: "cash-vs-accruals",
-        q: "Cash or accruals basis — what's the difference?",
+        q: "Cash or accruals basis - what's the difference?",
         a: "Cash basis (default since April 2024 for most sole traders) counts invoice income when the money actually arrives in your account. Accruals counts it when you sent the invoice, regardless of payment.\n\nUnless your accountant has told you otherwise, leave it on cash. It matches how the money actually flows.",
       },
       {
         id: "accountant",
-        q: "I pay an accountant — can I factor that in?",
+        q: "I pay an accountant - can I factor that in?",
         a: "Settings → Work & Tax → Sole Trader → My Accountant. Enter their annual filing fee. We spread it across 52 weeks and add it to your weekly set-aside, so by filing season the cash is already there for both the tax and the accountant.",
         goTo: "/accountant",
       },
       {
         id: "employer-mileage",
-        q: "My employer reimburses me for mileage — what do I enter?",
+        q: "My employer reimburses me for mileage - what do I enter?",
         a: "Settings → Work & Tax → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 55p / 25p (up from 45p / 25p on 6 April 2026) - that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
         goTo: "/settings/work-tax",
       },
@@ -153,13 +153,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "sa-wizard",
         q: "How does the Self Assessment wizard work?",
-        a: "Avatar → Work & Tax → Self Assessment. Walks you box-by-box through the short self-employment pages (SA103S) your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Box 9 (turnover), box 12 (car, van and travel expenses, where your mileage goes), box 20 (total expenses) and box 31 (taxable profit). If your turnover was £90,000 or more you need the full pages (SA103F), which number the boxes differently. At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
+        a: "The Tax tab (or More → Tax in Personal mode) → Self Assessment. Walks you box-by-box through the short self-employment pages (SA103S) your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Box 9 (turnover), box 12 (car, van and travel expenses, where your mileage goes), box 20 (total expenses) and box 31 (taxable profit). If your turnover was £90,000 or more you need the full pages (SA103F), which number the boxes differently. At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
         goTo: "/self-assessment",
       },
       {
         id: "first-tax-return",
         q: "It's my first ever Self Assessment - help?",
-        a: "Avatar → Work & Tax → First Self Assessment? Read the guide. Plain-English walkthrough covering UTR registration (10-digit number HMRC issues, takes 10 working days), the tax year (6 April to 5 April), what you actually pay (income tax + Class 2 NI + Class 4 NI), the AMAP mileage deduction (45p/55p per car/van mile), and the 31 January deadline.\n\nIf you've earned over £1,000 from self-employment in a tax year, you must register and file - even if you also have a day job.",
+        a: "The Tax tab (or More → Tax in Personal mode) → First Self Assessment? Read the guide. Plain-English walkthrough covering UTR registration (10-digit number HMRC issues, takes 10 working days), the tax year (6 April to 5 April), what you actually pay (income tax + Class 2 NI + Class 4 NI), the AMAP mileage deduction (45p/55p per car/van mile), and the 31 January deadline.\n\nIf you've earned over £1,000 from self-employment in a tax year, you must register and file - even if you also have a day job.",
         goTo: "/first-tax-return",
       },
     ],
@@ -171,17 +171,17 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "manual-trip",
         q: "How do I add a trip manually?",
-        a: "Dashboard → Start Trip → Manual. Enter the start and end address (or pick on the map), set the date, classify as Work or Personal, save.\n\nManual trips use our routing engine for accurate distance — the same address pair always returns the same mileage.",
+        a: "Dashboard → Start Trip → Manual. Enter the start and end address (or pick on the map), set the date, classify as Work or Personal, save.\n\nManual trips use our routing engine for accurate distance - the same address pair always returns the same mileage.",
       },
       {
         id: "classification",
         q: "How does auto-classification work?",
-        a: "Tag the same A → B journey as Work three times consistently, and the fourth time MileClear suggests Work automatically. After saving you'll see a toast confirming the auto-decision — tap to override if it's wrong.\n\nFor auto-detected trips, the Lock Screen confirmation push leads with the suggestion: \"Work trip detected — Tap Yes, Work to confirm.\"",
+        a: "Tag the same A → B journey as Work three times consistently, and the fourth time MileClear suggests Work automatically. After saving you'll see a toast confirming the auto-decision - tap to override if it's wrong.\n\nFor auto-detected trips, the Lock Screen confirmation push leads with the suggestion: \"Work trip detected - Tap Yes, Work to confirm.\"",
       },
       {
         id: "wrong-distance",
         q: "A trip's distance looks wrong",
-        a: "Open the trip → Recalculate distance. Hits our routing engine on demand. For sparse-GPS trips, also try Settings → Data Quality → Recheck suspicious trips — we'll re-route any trip with low confidence in bulk.",
+        a: "Open the trip → Recalculate distance. Hits our routing engine on demand. For sparse-GPS trips, also try Settings → Data Quality → Recheck suspicious trips - we'll re-route any trip with low confidence in bulk.",
       },
       {
         id: "confidence",
@@ -197,7 +197,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "saved-locations-pin",
         q: "How do I pin a place manually?",
-        a: "Profile menu → Saved Locations → Add. Search by name or address, drop the pin precisely with the map picker, set the type (home / work / depot / custom) and the radius (default 100m) that counts as being at the place.\n\nFree tier: 2 saved locations. Pro: unlimited. Once pinned, MileClear uses the name in your trip list, ignores GPS drift while you're parked there so it isn't logged as a trip, and can auto-classify trips between two saved locations.",
+        a: "More → Saved places → Add. Search by name or address, drop the pin precisely with the map picker, set the type (home / work / depot / custom) and the radius (default 100m) that counts as being at the place.\n\nFree tier: 2 saved locations. Pro: unlimited. Once pinned, MileClear uses the name in your trip list, ignores GPS drift while you're parked there so it isn't logged as a trip, and can auto-classify trips between two saved locations.",
         goTo: "/saved-locations",
       },
       {
@@ -246,7 +246,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "fuel",
         q: "Should I log fuel?",
-        a: "Optional — but logging fuel unlocks running-cost analytics. The Personal dashboard shows pence-per-mile, monthly fuel spend, recent fill-ups. Doesn't affect HMRC mileage calculation (HMRC's rates already cover fuel as a notional allowance), just gives you the real picture of your driving costs.",
+        a: "Optional - but logging fuel unlocks running-cost analytics. The Personal dashboard shows pence-per-mile, monthly fuel spend, recent fill-ups. Doesn't affect HMRC mileage calculation (HMRC's rates already cover fuel as a notional allowance), just gives you the real picture of your driving costs.",
       },
       {
         id: "pro-features",
@@ -259,20 +259,20 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "expenses",
         q: "What can I put in Expenses?",
-        a: "Avatar menu → Expenses. Any taxable purchase that supports your work: parking, tolls, congestion / ULEZ, fuel (when you're claiming actual costs not the AMAP rate), insurance, phone bill, hotel for an out-of-town gig, repairs, accountant fees, subscriptions, equipment.\n\n16 categories, each mapped to its box on the short self-employment pages (SA103S) - so when tax time rolls around your numbers slot straight in. Add manually (Add expense) or via Scan Receipt to OCR the amount, date and vendor off a photo automatically.",
+        a: "More → Expenses. Any taxable purchase that supports your work: parking, tolls, congestion / ULEZ, fuel (when you're claiming actual costs not the AMAP rate), insurance, phone bill, hotel for an out-of-town gig, repairs, accountant fees, subscriptions, equipment.\n\n16 categories, each mapped to its box on the short self-employment pages (SA103S) - so when tax time rolls around your numbers slot straight in. Add manually (Add expense) or via Scan Receipt to OCR the amount, date and vendor off a photo automatically.",
         goTo: "/expenses",
       },
       {
         id: "receipt-scanning",
         q: "How does receipt scanning work?",
         a: Platform.OS === "android"
-          ? "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Google's on-device ML Kit OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR model runs locally on your device, so receipts for sensitive stuff (medical, hotel) stay private. ML Kit is the same text-recognition engine behind Google Lens, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nFree for everyone. The earnings receipt scanner uses the same pipeline."
-          : "Avatar → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nFree for everyone. The earnings receipt scanner uses the same pipeline.",
+          ? "More → Expenses → Scan Receipt. Snap a photo or pick one from your library. Google's on-device ML Kit OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR model runs locally on your device, so receipts for sensitive stuff (medical, hotel) stay private. ML Kit is the same text-recognition engine behind Google Lens, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nFree for everyone. The earnings receipt scanner uses the same pipeline."
+          : "More → Expenses → Scan Receipt. Snap a photo or pick one from your library. Apple's on-device Vision OCR reads the amount, date and vendor straight off the paper and pre-fills the expense form for one-tap save.\n\nNothing leaves your phone - the OCR runs locally on the iPhone's Neural Engine, so receipts for sensitive stuff (medical, hotel) stay private. Apple Vision is the same engine that powers Live Text and Translate, so it handles thermal-print fuel receipts, faded parking stubs and crumpled hotel bills better than most cloud OCR services.\n\nFree for everyone. The earnings receipt scanner uses the same pipeline.",
       },
       {
         id: "inbox",
         q: "What's the Bank-feed Inbox? (Pro)",
-        a: "Connect your bank with Open Banking (Profile → Settings → Open Banking) and every transaction lands in a triage screen at Avatar → Inbox. Each row shows the merchant, amount, date and a suggested category dot - green for high confidence, amber for medium, grey for low.\n\nOne tap to Accept as Earning, Accept as Expense, or Ignore. The categoriser learns from every override - if you mark \"Costa Coffee\" as Subsistence twice, the third time it auto-suggests Subsistence with high confidence.\n\nKnown gig platforms (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr) still auto-import as Earnings in the background - the Inbox is for everything else.",
+        a: "Connect your bank with Open Banking (Profile → Settings → Open Banking) and every transaction lands in a triage screen at More → Bank inbox. Each row shows the merchant, amount, date and a suggested category dot - green for high confidence, amber for medium, grey for low.\n\nOne tap to Accept as Earning, Accept as Expense, or Ignore. The categoriser learns from every override - if you mark \"Costa Coffee\" as Subsistence twice, the third time it auto-suggests Subsistence with high confidence.\n\nKnown gig platforms (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr) still auto-import as Earnings in the background - the Inbox is for everything else.",
         goTo: "/inbox",
       },
       {
@@ -294,12 +294,12 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "csv-earnings-import",
         q: "How do I import earnings from a platform CSV? (Pro)",
-        a: "Avatar → Earnings → Import CSV. Drop in the CSV file you exported from the platform (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart - all auto-detected).\n\nMileClear maps the columns, shows a preview of what will be imported (with duplicate detection via external ID), and you confirm. Existing earnings won't be double-imported. Useful for back-filling weeks before you connected Open Banking, or for platforms we don't yet support via the bank feed.",
+        a: "More → Earnings → Import CSV. Drop in the CSV file you exported from the platform (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart - all auto-detected).\n\nMileClear maps the columns, shows a preview of what will be imported (with duplicate detection via external ID), and you confirm. Existing earnings won't be double-imported. Useful for back-filling weeks before you connected Open Banking, or for platforms we don't yet support via the bank feed.",
       },
       {
         id: "invoices",
         q: "How do invoices work?",
-        a: "Avatar → Invoices. Track freelance / consultancy work you've billed clients for - sent date, due date, paid status, project label. When you mark an invoice paid, MileClear surfaces matching earnings (within ±50p / ±14 days) so you can link them - avoids double-counting the same money as both an earning and an invoice.\n\nFree tier: 3 invoices per calendar month. Pro: unlimited. Goal is a neat package for tax-time, not a full collections workflow - if you need that, use Xero or FreeAgent.",
+        a: "More → Invoices. Track freelance / consultancy work you've billed clients for - sent date, due date, paid status, project label. When you mark an invoice paid, MileClear surfaces matching earnings (within ±50p / ±14 days) so you can link them - avoids double-counting the same money as both an earning and an invoice.\n\nFree tier: 3 invoices per calendar month. Pro: unlimited. Goal is a neat package for tax-time, not a full collections workflow - if you need that, use Xero or FreeAgent.",
       },
     ],
   },
@@ -338,7 +338,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "achievements",
         q: "How do achievements work?",
-        a: "18 milestone badges across miles driven, trips logged, shifts completed, classification consistency, and streaks. Unlock notifications appear in real-time as you hit each threshold; the full grid lives at Avatar → Achievements.\n\nGamification is intentionally subtle - no flashing animations or coin-collecting. The point is to make it satisfying to keep logging, not to manipulate you into using the app more than you need to. Free for all users (was a Pro perk until May 2026; we moved it to free because gating motivation felt wrong).",
+        a: "18 milestone badges across miles driven, trips logged, shifts completed, classification consistency, and streaks. Unlock notifications appear in real-time as you hit each threshold; the full grid lives at More → Achievements.\n\nGamification is intentionally subtle - no flashing animations or coin-collecting. The point is to make it satisfying to keep logging, not to manipulate you into using the app more than you need to. Free for all users (was a Pro perk until May 2026; we moved it to free because gating motivation felt wrong).",
         goTo: "/achievements",
       },
       {
@@ -349,7 +349,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "personal-records",
         q: "Where are my personal records shown?",
-        a: "Dashboard (Personal mode) → Personal Records card. Longest single trip, most miles in a day, most miles in a week, longest streak, busiest day. Updates automatically; tap any record for the date and trip detail.\n\nFree feature. The same data feeds the shareable Personal Recap card (Avatar → Recaps → Share) if you want to brag on Discord.",
+        a: "Dashboard (Personal mode) → Personal Records card. Longest single trip, most miles in a day, most miles in a week, longest streak, busiest day. Updates automatically; tap any record for the date and trip detail.\n\nFree feature. The same data feeds the shareable Personal Recap card (Insights → Month → Share) if you want to brag on Discord.",
       },
       {
         id: "recaps",
@@ -401,23 +401,23 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "la-not-showing",
         q: "Live Activity not showing on the Lock Screen",
-        a: "Two things to check:\n\n1. Settings (iOS) → Notifications → MileClear → Live Activities — must be ON.\n2. Settings (iOS) → MileClear → Live Activities → also ON.\n\nIf both are on and you still don't see one, restart the app once.",
+        a: "Two things to check:\n\n1. Settings (iOS) → Notifications → MileClear → Live Activities - must be ON.\n2. Settings (iOS) → MileClear → Live Activities → also ON.\n\nIf both are on and you still don't see one, restart the app once.",
       },
       {
         id: "trips-not-syncing",
         q: "Trips not appearing on the web dashboard",
-        a: "Open Settings → Sync Status. Pending trips upload as soon as you're back online. If you see \"failed\" items, tap Retry. Trips are always saved locally first — they don't get lost if sync is delayed.",
+        a: "Open Settings → Sync Status. Pending trips upload as soon as you're back online. If you see \"failed\" items, tap Retry. Trips are always saved locally first - they don't get lost if sync is delayed.",
         goTo: "/sync-status",
       },
       {
         id: "logged-out",
         q: "I got logged out and ended up in a blank profile",
-        a: "Known issue we've now fixed (1.2.0). If it happens, log out of the blank profile and sign in again using the method you originally signed up with (email + password, OR Apple ID — whichever you used first). You'll be back in your real account with all your data.",
+        a: "Known issue we've now fixed (1.2.0). If it happens, log out of the blank profile and sign in again using the method you originally signed up with (email + password, OR Apple ID - whichever you used first). You'll be back in your real account with all your data.",
       },
       {
         id: "battery",
         q: "Is GPS tracking going to kill my battery?",
-        a: "MileClear uses iOS's significant-location-change API while you're stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check Settings → Data Quality — your tracking permissions might be sub-optimal.",
+        a: "MileClear uses iOS's significant-location-change API while you're stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check Settings → Data Quality - your tracking permissions might be sub-optimal.",
       },
       {
         id: "notification-permission",
@@ -432,7 +432,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "offline",
         q: "Will MileClear work without signal?",
-        a: "Yes. Trip recording, classification, manual entries, fuel logs, earnings — all written to local SQLite first, no network needed. As soon as you're back online, the sync queue uploads everything to the server. You won't lose a mile in a tunnel, multi-storey car park, or rural blackspot.",
+        a: "Yes. Trip recording, classification, manual entries, fuel logs, earnings - all written to local SQLite first, no network needed. As soon as you're back online, the sync queue uploads everything to the server. You won't lose a mile in a tunnel, multi-storey car park, or rural blackspot.",
       },
       {
         id: "phantom-trip",
@@ -463,7 +463,7 @@ for (const section of HELP_SECTIONS) {
 
 /**
  * Look up a single topic by its stable id. Returns null when the id
- * isn't registered — call sites should fall back gracefully (e.g.
+ * isn't registered - call sites should fall back gracefully (e.g.
  * hide the help icon) rather than crash.
  */
 export function getHelpTopic(id: string): HelpTopic | null {

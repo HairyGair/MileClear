@@ -695,7 +695,7 @@ function RootNavigator() {
         <Stack.Screen name="verify-email" options={{ headerShown: true, title: "Confirm your email" }} />
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
-        <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax Exports" }} />
+        <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax exports" }} />
         <Stack.Screen name="project-totals" options={{ headerShown: true, title: "Miles by project" }} />
         <Stack.Screen name="refer" options={{ headerShown: true, title: "Invite Friends" }} />
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
@@ -711,11 +711,10 @@ function RootNavigator() {
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
         <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
         <Stack.Screen name="drive-detection-diagnostics" options={{ headerShown: true, title: "Drive Detection" }} />
-        <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved Locations" }} />
+        <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved places" }} />
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
         <Stack.Screen name="saved-locations-suggest" options={{ headerShown: true, title: "Suggested Places" }} />
-        <Stack.Screen name="insights" options={{ headerShown: true, title: "Insights & Analytics" }} />
-        <Stack.Screen name="analytics" options={{ headerShown: true, title: "Driving Analytics" }} />
+        <Stack.Screen name="analytics" options={{ headerShown: false }} />
         <Stack.Screen name="classification-rules" options={{ headerShown: true, title: "Classification Rules" }} />
         <Stack.Screen name="admin-revenue" options={{ headerShown: true, title: "Revenue" }} />
         <Stack.Screen name="admin-engagement" options={{ headerShown: true, title: "Engagement" }} />
@@ -728,8 +727,8 @@ function RootNavigator() {
         <Stack.Screen name="sa-checklist" options={{ headerShown: true, title: "Ready for 31 January?" }} />
         <Stack.Screen name="tax-planner" options={{ headerShown: true, title: "Tax Payment Plan" }} />
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
-        <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "HMRC Reconciliation" }} />
-        <Stack.Screen name="mileage-relief" options={{ headerShown: true, title: "Mileage Relief" }} />
+        <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "Check against HMRC's figures" }} />
+        <Stack.Screen name="mileage-relief" options={{ headerShown: true, title: "Mileage Allowance Relief" }} />
         <Stack.Screen name="mileage-certificate" options={{ headerShown: true, title: "Mileage Certificate" }} />
         <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Tax (MTD)" }} />
         <Stack.Screen name="tax-mtd-nino" options={{ headerShown: true, title: "National Insurance Number" }} />
@@ -748,8 +747,8 @@ function RootNavigator() {
         <Stack.Screen name="snap-statement" options={{ headerShown: true, title: "Snap a statement" }} />
         <Stack.Screen name="ticket-defender" options={{ headerShown: true, title: "Ticket defender" }} />
         <Stack.Screen name="assistant" options={{ headerShown: true, title: "EmSee" }} />
-        <Stack.Screen name="accountant" options={{ headerShown: true, title: "My Accountant" }} />
-        <Stack.Screen name="help" options={{ headerShown: true, title: "Help & Tutorials" }} />
+        <Stack.Screen name="accountant" options={{ headerShown: true, title: "Your accountant" }} />
+        <Stack.Screen name="help" options={{ headerShown: true, title: "Help and tutorials" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />

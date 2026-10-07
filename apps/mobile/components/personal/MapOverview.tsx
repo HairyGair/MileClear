@@ -13,7 +13,7 @@ import {
 import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import type { TripDetail } from "../../lib/api/trips";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, mapPalette, mapOlder } from "../../lib/theme";
 import { useReducedMotion } from "../../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -23,8 +23,6 @@ const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;
-const GREEN = colors.green;
-const RED = colors.red;
 
 // Lazy import for Expo Go compatibility — check native module exists before requiring
 let MapViewComponent: any = null;
@@ -44,16 +42,15 @@ if (hasNativeMap) {
   }
 }
 
-const TRIP_COLOURS = [
-  AMBER, // amber
-  GREEN, // emerald
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#06b6d4", // cyan
-  RED, // red
-  "#eab308", // yellow
-];
+// Five distinct route colours, never cycled. Anything older than the five
+// newest trips draws in the quiet "older" slate (see mapPalette in theme.ts).
+function tripColour(i: number): string {
+  return i < mapPalette.length ? mapPalette[i] : mapOlder;
+}
+
+function formatClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
 
 type TimeFilter = "today" | "week" | "month" | "all";
 
@@ -215,7 +212,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
   }
 
   const selectedInfo = selectedTrip != null ? filteredTrips[selectedTrip] : null;
-  const selectedColor = selectedTrip != null ? TRIP_COLOURS[selectedTrip % TRIP_COLOURS.length] : AMBER;
+  const selectedColor = selectedTrip != null ? tripColour(selectedTrip) : AMBER;
 
   const renderMapContent = (tripsToShow: TripDetail[], interactive: boolean, height: number | "full", region: any) => (
     <MapViewComponent
@@ -233,7 +230,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
       showsPointsOfInterest={false}
     >
       {tripsToShow.map((trip, i) => {
-        const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
+        const color = tripColour(i);
         const isSelected = selectedTrip === i;
         const isDimmed = selectedTrip != null && !isSelected;
         const coords = trip.coordinates.map((c) => ({
@@ -248,7 +245,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
             <PolylineComponent
               coordinates={coords}
               strokeColor={isDimmed ? `${color}40` : color}
-              strokeWidth={isSelected ? 5 : 3}
+              strokeWidth={isSelected ? 5 : i < mapPalette.length ? 3 : 2}
               tappable
               onPress={() => showSheet(i)}
             />
@@ -259,18 +256,15 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                   anchor={{ x: 0.5, y: 0.5 }}
                   onPress={() => showSheet(i)}
                 >
-                  <View style={[styles.tripDot, { backgroundColor: "#34c759", borderColor: isDimmed ? "#34c75940" : "#34c759" }]}>
-                    <View style={[styles.tripDotInner, { backgroundColor: isDimmed ? "#34c75940" : "#34c759" }]} />
-                  </View>
+                  {/* Start = hollow ring in the trip colour. Green means nothing on this map. */}
+                  <View style={[styles.startRing, { borderColor: isDimmed ? `${color}40` : color }]} />
                 </MarkerComponent>
                 <MarkerComponent
                   coordinate={last}
                   anchor={{ x: 0.5, y: 0.5 }}
                   onPress={() => showSheet(i)}
                 >
-                  <View style={[styles.tripDot, { borderColor: isDimmed ? `${color}40` : color }]}>
-                    <View style={[styles.tripDotInner, { backgroundColor: isDimmed ? `${color}40` : color }]} />
-                  </View>
+                  <View style={[styles.endDot, { backgroundColor: isDimmed ? `${color}40` : color }]} />
                 </MarkerComponent>
               </>
             )}
@@ -280,20 +274,28 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
     </MapViewComponent>
   );
 
-  // Inline legend
+  // Inline legend: colour plus start time and distance, so colour is never
+  // the only clue. Trips past the fifth share one grey "+N older" item.
+  const legendTrips = allTripsWithCoords.slice(0, mapPalette.length);
+  const olderCount = allTripsWithCoords.length - legendTrips.length;
   const legend = (
     <View style={styles.legendRow}>
-      {allTripsWithCoords.map((trip, i) => {
-        const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
-        return (
-          <View key={trip.id} style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: color }]} />
-            <Text style={styles.legendText} numberOfLines={1}>
-              {trip.distanceMiles.toFixed(1)} mi
-            </Text>
-          </View>
-        );
-      })}
+      {legendTrips.map((trip, i) => (
+        <View key={trip.id} style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: tripColour(i) }]} />
+          <Text style={styles.legendText} numberOfLines={1} maxFontSizeMultiplier={1.4}>
+            {formatClock(trip.startedAt)} {"\u00B7"} {trip.distanceMiles.toFixed(1)} mi
+          </Text>
+        </View>
+      ))}
+      {olderCount > 0 && (
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: mapOlder }]} />
+          <Text style={styles.legendText} numberOfLines={1} maxFontSizeMultiplier={1.4}>
+            +{olderCount} older
+          </Text>
+        </View>
+      )}
     </View>
   );
 
@@ -422,7 +424,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
               </View>
               <View style={styles.tripSheetRoute}>
                 <View style={styles.tripSheetRouteRow}>
-                  <View style={[styles.routeCircle, { backgroundColor: "#34c759" }]} />
+                  <View style={[styles.routeCircle, { backgroundColor: BG, borderWidth: 2, borderColor: selectedColor }]} />
                   <Text style={styles.tripSheetRouteText} numberOfLines={1}>
                     {selectedInfo.startAddress ?? "Start"}
                   </Text>
@@ -459,7 +461,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                 contentContainerStyle={styles.tripListScroll}
               >
                 {filteredTrips.map((trip, i) => {
-                  const color = TRIP_COLOURS[i % TRIP_COLOURS.length];
+                  const color = tripColour(i);
                   return (
                     <TouchableOpacity
                       key={trip.id}
@@ -587,6 +589,18 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  startRing: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    backgroundColor: BG,
+  },
+  endDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -685,19 +699,6 @@ const styles = StyleSheet.create({
     color: AMBER,
   },
   // Trip dot markers
-  tripDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  tripDotInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
   // Trip info bottom sheet
   tripSheet: {
     position: "absolute",

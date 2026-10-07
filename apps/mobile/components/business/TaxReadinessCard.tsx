@@ -15,6 +15,7 @@ import type { TaxSnapshot } from "@mileclear/shared";
 import { DerivationPanel } from "../DerivationPanel";
 import { AcrossWindowsPanel } from "../AcrossWindowsPanel";
 import { ContextualHelp } from "../ContextualHelp";
+import { useUser } from "../../lib/user/context";
 import { colors } from "../../lib/theme";
 
 // Show the higher-rate warning when YTD taxable profit is between £35k and
@@ -50,8 +51,14 @@ function deadlineTone(days: number): {
   return { color: TEXT_2, background: "rgba(255,255,255,0.04)", label: `${days} days to file` };
 }
 
-export function TaxReadinessCard() {
+export function TaxReadinessCard({
+  onResolved,
+}: {
+  /** Called once the snapshot has loaded: true when the card is showing, false when it rendered nothing. */
+  onResolved?: (shown: boolean) => void;
+} = {}) {
   const router = useRouter();
+  const { isCompanyDriver } = useUser();
   const [snap, setSnap] = useState<TaxSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -66,15 +73,21 @@ export function TaxReadinessCard() {
     let cancelled = false;
     fetchTaxSnapshot()
       .then((res) => {
-        if (!cancelled) setSnap(res.data);
+        if (!cancelled) {
+          setSnap(res.data);
+          onResolved?.(true);
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) onResolved?.(false);
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -170,9 +183,21 @@ export function TaxReadinessCard() {
         <>
           <Text style={s.heroLabel}>Tax estimate</Text>
           <Text style={s.heroValueDim}>£0.00</Text>
-          <Text style={s.heroMeta}>
-            Add earnings in the Earnings tab to see your live HMRC estimate.
-          </Text>
+          {isCompanyDriver ? (
+            <Text style={s.heroMeta}>
+              Your claim builds up from the business trips you mark.
+            </Text>
+          ) : (
+            <TouchableOpacity
+              onPress={() => router.navigate("/earning-form" as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Add your earnings to see your tax estimate"
+            >
+              <Text style={s.heroMeta}>
+                Add your earnings to see your tax estimate.
+              </Text>
+            </TouchableOpacity>
+          )}
         </>
       )}
 
@@ -192,7 +217,7 @@ export function TaxReadinessCard() {
         )}
 
       {/* Earnings nudge - drives the largest gap in our active-user data */}
-      {snap.nudges?.earnings && (
+      {snap.nudges?.earnings && !isCompanyDriver && (
         <TouchableOpacity
           onPress={() => router.navigate("/earning-form" as never)}
           style={s.nudgeRow}

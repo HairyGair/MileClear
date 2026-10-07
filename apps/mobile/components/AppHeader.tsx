@@ -16,6 +16,7 @@
 // views, no UIKit involvement, identical on every screen and every iOS
 // version. The tab group sets headerShown: false (see (tabs)/_layout.tsx).
 
+import type React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -30,23 +31,29 @@ const ROUTE_LABELS: Record<string, string> = {
 };
 
 /**
- * @param title names the screen. There is no bottom tab bar in this app, so
- * without it nothing on screen says where you are. The dashboard omits it and
- * shows the wordmark instead, since it is home.
+ * @param title names the screen. The dashboard omits it and shows the
+ * wordmark instead, since it is home.
  * @param showBack shows a back chevron. Trips, Fuel and Earnings are opened
  * with `replace`, so there is no history to pop — HeaderBackButton routes
  * through `safeBack`, which falls back to the dashboard rather than dead-end.
  * @param addRoute when set, shows a "+" that opens this form route. Trips,
  * Fuel and Earnings use it; Dashboard, Profile and Admin do not.
+ * @param right extra controls drawn before the "+" (e.g. the Trips filter).
+ * @param hideAvatar hides the profile avatar (the More screen has its own
+ * profile card).
  */
 export default function AppHeader({
   title,
   showBack,
   addRoute,
+  right,
+  hideAvatar,
 }: {
   title?: string;
   showBack?: boolean;
   addRoute?: string;
+  right?: React.ReactNode;
+  hideAvatar?: boolean;
 }) {
   const router = useRouter();
   // expo-router mounts SafeAreaProvider itself (see ExpoRoot), so insets are
@@ -55,7 +62,7 @@ export default function AppHeader({
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top }]}>
-      <View style={styles.left}>
+      <View style={[styles.left, !title && styles.leftBrand]}>
         {showBack && <HeaderBackButton />}
         {title ? (
           <Text style={styles.title} numberOfLines={1}>
@@ -78,7 +85,10 @@ export default function AppHeader({
             />
             {/* One Text, not two siblings: iOS measured the second sibling a
                 little narrow and clipped its last letter ("MileClea", 4 Oct 2026). */}
-            <Text style={styles.brandWhite} numberOfLines={1}>
+            {/* The brand never truncates or scales: Yoga rounds the measured
+                width down a hair and numberOfLines={1} turned that into
+                "MileCl..." (7 Oct 2026). */}
+            <Text style={styles.brandWhite} allowFontScaling={false}>
               Mile<Text style={styles.brandAmber}>Clear</Text>
             </Text>
           </TouchableOpacity>
@@ -86,6 +96,7 @@ export default function AppHeader({
       </View>
 
       <View style={styles.right}>
+        {right}
         {addRoute && (
           <TouchableOpacity
             onPress={() => router.push(addRoute as any)}
@@ -97,7 +108,7 @@ export default function AppHeader({
             <Ionicons name="add" size={20} color="#f5a623" accessible={false} />
           </TouchableOpacity>
         )}
-        <AvatarMenuButton />
+        {!hideAvatar && <AvatarMenuButton />}
       </View>
     </View>
   );
@@ -117,7 +128,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexShrink: 1,
   },
+  leftBrand: {
+    flexShrink: 0,
+  },
   title: {
+    flexShrink: 1,
     fontSize: 18,
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: "#f0f2f5",
@@ -125,6 +140,7 @@ const styles = StyleSheet.create({
   brand: {
     flexDirection: "row",
     alignItems: "center",
+    flexShrink: 0,
   },
   brandIcon: {
     width: 28,
@@ -133,13 +149,16 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   brandWhite: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    letterSpacing: -0.2,
+    paddingRight: 2,
     color: "#f0f2f5",
   },
   brandAmber: {
-    fontSize: 18,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 20,
+    fontFamily: "PlusJakartaSans_700Bold",
+    letterSpacing: -0.2,
     color: "#f5a623",
   },
   right: {

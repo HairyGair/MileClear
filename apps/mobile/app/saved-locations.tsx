@@ -265,7 +265,7 @@ export default function SavedLocationsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Saved Locations" }} />
+      <Stack.Screen options={{ title: "Saved places" }} />
       <FlatList
         data={locations}
         keyExtractor={(item) => item.id}

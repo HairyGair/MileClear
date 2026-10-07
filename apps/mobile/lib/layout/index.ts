@@ -135,13 +135,6 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       defaultVisible: false,
     },
     {
-      key: "work_quicknav",
-      label: "Shortcuts",
-      icon: "grid-outline",
-      description: "Tax, Invoices, Expenses, Insights, Save spot",
-      defaultVisible: false,
-    },
-    {
       key: "weekly_goal",
       label: "Weekly Goal",
       icon: "flag-outline",
@@ -425,7 +418,10 @@ async function loadPrefs(screen: ScreenKey): Promise<LayoutPref[]> {
 
   // Merge: if new sections were added to the registry that aren't in DB yet
   const dbKeys = new Set(rows.map((r) => r.section_key));
-  const result: LayoutPref[] = rows.map((r) => ({
+  // Retired sections (e.g. work_quicknav, 7 Oct 2026) are dropped here so a
+  // saved row for one never reaches the dashboard or More as a blank entry.
+  const knownKeys = new Set(SECTION_REGISTRY[screen].map((sec) => sec.key));
+  const result: LayoutPref[] = rows.filter((r) => knownKeys.has(r.section_key)).map((r) => ({
     key: r.section_key,
     visible: r.visible === 1,
     position: r.position,
@@ -478,6 +474,12 @@ async function savePrefs(
 export async function resetAllLayouts(): Promise<void> {
   const db = await getDatabase();
   await db.runAsync("DELETE FROM layout_prefs");
+}
+
+/** Reset only the two home screen layouts; Profile and the rest are kept. */
+export async function resetHomeLayouts(): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync("DELETE FROM layout_prefs WHERE screen IN (?, ?)", ["dashboard_work", "dashboard_personal"]);
 }
 
 // ── Hook ───────────────────────────────────────────────────────────

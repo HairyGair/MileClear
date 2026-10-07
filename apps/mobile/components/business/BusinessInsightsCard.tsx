@@ -10,8 +10,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessInsights";
 import { formatPence, BUSINESS_PURPOSES } from "@mileclear/shared";
 import type { BusinessInsights, WeeklyPnL } from "@mileclear/shared";
+import { useRouter } from "expo-router";
+import { EmptyState } from "../EmptyState";
 import { useUser } from "../../lib/user/context";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const BG = colors.bg;
@@ -53,7 +55,36 @@ function gradeColor(grade: string): string {
 
 type Section = "efficiency" | "platforms" | "shifts" | "pnl" | "fuel";
 
+function AddEarningsLink({ onPress, label = "Add earnings" }: { onPress: () => void; label?: string }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={s.emptyLink}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
+      <Text style={s.emptyLinkText} maxFontSizeMultiplier={fontScaleCap.body}>{label}</Text>
+      <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
+    </TouchableOpacity>
+  );
+}
+
+/** "5 to 11 Oct" style range for the week the P&L is showing. */
+function weekRangeLabel(weekOffset: number): string {
+  const now = new Date();
+  const day = (now.getDay() + 6) % 7; // Monday = 0
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - weekOffset * 7);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  const mon = (d: Date) => d.toLocaleDateString("en-GB", { month: "short" });
+  return start.getMonth() === end.getMonth()
+    ? `${start.getDate()} to ${end.getDate()} ${mon(end)}`
+    : `${start.getDate()} ${mon(start)} to ${end.getDate()} ${mon(end)}`;
+}
+
 export function BusinessInsightsCard() {
+  const router = useRouter();
+  const goAddEarnings = () => router.push("/earning-form");
   const { user } = useUser();
   const workType = user?.workType ?? "gig";
   const isGigDriver = workType === "gig" || workType === "both";
@@ -101,6 +132,11 @@ export function BusinessInsightsCard() {
     return null; // No data yet
   }
 
+  const noEarnings = insights.totalEarningsPence === 0;
+  // Trend chips need data in both weeks. A zero week would read as -100%.
+  const showEarningsTrend = !noEarnings && insights.earningsTrendPercent !== null && insights.earningsTrendPercent > -100;
+  const showMileTrend = insights.mileTrendPercent !== null && insights.mileTrendPercent > -100;
+
   const toggle = (section: Section) => {
     setExpanded((prev) => (prev === section ? null : section));
   };
@@ -108,8 +144,18 @@ export function BusinessInsightsCard() {
   return (
     <View style={{ gap: 12, marginBottom: 16 }}>
       {/* Efficiency Overview */}
+      {noEarnings && !isGigDriver ? null : (
       <View style={s.card}>
         <Text style={s.cardTitle}>Business Intelligence</Text>
+        {noEarnings ? (
+          <EmptyState
+            size="card"
+            icon="cash-outline"
+            title="Add your earnings to see this"
+            description="Log what you were paid and we'll show your pay per mile and per hour."
+            action={<AddEarningsLink onPress={goAddEarnings} />}
+          />
+        ) : (
         <View style={s.metricsRow}>
           <View style={s.metric}>
             <Text style={s.metricValue}>{formatPence(insights.earningsPerMilePence)}</Text>
@@ -126,10 +172,11 @@ export function BusinessInsightsCard() {
             <Text style={s.metricLabel}>trips/shift</Text>
           </View>
         </View>
-        {/* Trends */}
-        {(insights.earningsTrendPercent !== null || insights.mileTrendPercent !== null) && (
+        )}
+        {/* Trends: a chip only shows when both weeks had data, so never "-100%" */}
+        {(showEarningsTrend || showMileTrend) && (
           <View style={s.trendsRow}>
-            {insights.earningsTrendPercent !== null && (
+            {showEarningsTrend && insights.earningsTrendPercent !== null && (
               <View style={s.trendChip}>
                 <Ionicons
                   name={insights.earningsTrendPercent >= 0 ? "trending-up" : "trending-down"}
@@ -141,7 +188,7 @@ export function BusinessInsightsCard() {
                 </Text>
               </View>
             )}
-            {insights.mileTrendPercent !== null && (
+            {showMileTrend && insights.mileTrendPercent !== null && (
               <View style={s.trendChip}>
                 <Ionicons
                   name={insights.mileTrendPercent >= 0 ? "trending-up" : "trending-down"}
@@ -157,6 +204,7 @@ export function BusinessInsightsCard() {
           </View>
         )}
       </View>
+      )}
 
       {/* Platform / Purpose Performance */}
       {insights.platformPerformance.length > 0 && (
@@ -171,7 +219,7 @@ export function BusinessInsightsCard() {
           <View style={s.expandHeader}>
             <View style={{ flex: 1 }}>
               <Text style={s.sectionLabel}>{isGigDriver ? "Platform Performance" : "Trip Breakdown"}</Text>
-              {insights.bestPlatform && (
+              {insights.bestPlatform && !noEarnings && (
                 <Text style={s.bestLabel}>
                   Best: {isGigDriver ? platformLabel(insights.bestPlatform) : purposeLabel(insights.bestPlatform)} ({formatPence(insights.platformPerformance[0]?.earningsPerMilePence ?? 0)}/mi)
                 </Text>
@@ -205,7 +253,20 @@ export function BusinessInsightsCard() {
       )}
 
       {/* Shift Grades */}
-      {insights.recentShifts.length > 0 && (
+      {isGigDriver && (insights.recentShifts.length === 0 || noEarnings) && (
+        <View style={s.card}>
+          <Text style={s.sectionLabel}>Shift Grades</Text>
+          <Text style={s.emptyRowTitle}>
+            {insights.recentShifts.length === 0 ? "No shifts yet" : "Grades need earnings"}
+          </Text>
+          <Text style={s.label}>
+            {insights.recentShifts.length === 0
+              ? "Start a shift from Home and each one gets a grade."
+              : "Add what you were paid on each shift to get a grade."}
+          </Text>
+        </View>
+      )}
+      {insights.recentShifts.length > 0 && !noEarnings && (
         <TouchableOpacity
           style={s.card}
           onPress={() => toggle("shifts")}
@@ -310,10 +371,24 @@ export function BusinessInsightsCard() {
               </TouchableOpacity>
             </View>
           </View>
+          {pnl.grossEarningsPence === 0 && pnl.businessMiles === 0 && pnl.totalTrips === 0 ? (
+            <Text style={[s.label, { marginTop: 12, fontSize: 14, color: TEXT_2 }]} maxFontSizeMultiplier={fontScaleCap.body}>
+              Nothing logged for {weekRangeLabel(pnlWeek)}
+            </Text>
+          ) : (
+          <>
           <View style={s.pnlRows}>
             <View style={s.pnlRow}>
               <Text style={s.pnlLabel}>Gross Earnings</Text>
-              <Text style={[s.pnlValue, { color: GREEN }]}>{formatPence(pnl.grossEarningsPence)}</Text>
+              {pnl.grossEarningsPence === 0 ? (
+                <TouchableOpacity onPress={goAddEarnings} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add earnings">
+                  <Text style={[s.pnlValue, { color: TEXT_3, fontFamily: fonts.regular }]}>
+                    Not added <Text style={{ color: AMBER, fontFamily: fonts.semibold }}>Add earnings</Text>
+                  </Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={[s.pnlValue, { color: GREEN }]}>{formatPence(pnl.grossEarningsPence)}</Text>
+              )}
             </View>
             <View style={s.pnlRow}>
               <Text style={s.pnlLabel}>Fuel Cost</Text>
@@ -328,12 +403,14 @@ export function BusinessInsightsCard() {
               </Text>
             </View>
             <View style={s.pnlDivider} />
+            {pnl.grossEarningsPence > 0 && (
             <View style={s.pnlRow}>
               <Text style={[s.pnlLabel, { color: TEXT_1, fontWeight: "700" }]}>Net Profit</Text>
               <Text style={[s.pnlValue, { color: pnl.netProfitPence >= 0 ? GREEN : RED, fontWeight: "700", fontSize: 16 }]}>
                 {formatPence(pnl.netProfitPence)}
               </Text>
             </View>
+            )}
             <View style={s.pnlRow}>
               <Text style={[s.pnlLabel, { color: TEXT_3 }]}>HMRC Deduction</Text>
               <Text style={[s.pnlValue, { color: TEXT_3 }]}>{formatPence(pnl.hmrcDeductionPence)}</Text>
@@ -342,6 +419,8 @@ export function BusinessInsightsCard() {
           <Text style={s.pnlMeta}>
             {pnl.businessMiles} mi · {pnl.totalTrips} trips
           </Text>
+          </>
+          )}
         </View>
       )}
 
@@ -396,6 +475,24 @@ const s = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: TEXT_1,
     letterSpacing: -0.2,
+  },
+  emptyLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    minHeight: 44,
+  },
+  emptyLinkText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+  },
+  emptyRowTitle: {
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: TEXT_2,
+    marginTop: 6,
+    marginBottom: 2,
   },
   label: {
     fontSize: 12,

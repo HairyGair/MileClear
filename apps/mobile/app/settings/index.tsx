@@ -56,19 +56,13 @@ export default function SettingsHub() {
       <SettingsGroup>
         <SettingsRow
           icon="gift-outline"
-          label="Invite friends, get Pro free"
+          label="Invite a friend, get Pro free"
           hint="A free month of Pro for every friend who joins (up to 3)"
           onPress={go("/refer")}
         />
       </SettingsGroup>
 
       <SettingsGroup>
-        <SettingsRow
-          icon="person-outline"
-          label="Profile"
-          hint="Name, avatar, email, password"
-          onPress={go("/settings/profile")}
-        />
         <SettingsRow
           icon="apps-outline"
           label="What you see"
@@ -78,7 +72,7 @@ export default function SettingsHub() {
         <SettingsRow
           icon="options-outline"
           label="Preferences"
-          hint="Dashboard mode — Work, Personal, or Both"
+          hint="Dashboard mode: Work, Personal or Both"
           onPress={go("/settings/preferences")}
         />
         <SettingsRow
@@ -170,12 +164,12 @@ function formatNotifSummary(
   const enabled = all.filter((c) => prefs[c.key]);
 
   if (enabled.length === 0) {
-    return "All alerts off — tap to enable";
+    return "All alerts off. Tap to turn some on";
   }
 
   // Show a count + the first couple of enabled names
   const sampleNames = enabled.slice(0, 2).map((c) => c.short).join(", ");
   const more = enabled.length - 2;
   const tail = more > 0 ? `, +${more} more` : "";
-  return `${enabled.length} of ${all.length} on — ${sampleNames}${tail}`;
+  return `${enabled.length} of ${all.length} on: ${sampleNames}${tail}`;
 }

@@ -37,7 +37,7 @@ import {
 import { validateGooglePurchase } from "../../lib/api/billingGoogle";
 import { billingCopyFor, billingChannelFor } from "../../lib/paywall/lead";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
-import { useLayoutPrefs, resetAllLayouts } from "../../lib/layout/index";
+import { useLayoutPrefs, resetHomeLayouts } from "../../lib/layout/index";
 import { usePaywall } from "../../components/paywall";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import AppHeader from "../../components/AppHeader";
@@ -288,27 +288,26 @@ export default function ProfileScreen() {
 
   const handleResetLayout = useCallback(() => {
     Alert.alert(
-      "Reset all layouts?",
-      "This restores the default order and visibility for the dashboard, profile, and avatar menu. Your data is unaffected.",
+      "Reset your home screen?",
+      "Your cards go back to their original order and any you hid come back. Your trips and settings are not touched.",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Reset",
           style: "destructive",
           onPress: async () => {
-            await resetAllLayouts();
-            profileLayout.reset();
-            Alert.alert("Done", "All layouts have been reset to default.");
+            await resetHomeLayouts();
+            Alert.alert("Home screen reset");
           },
         },
       ]
     );
-  }, [profileLayout]);
+  }, []);
 
   // ── Render ───────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      <AppHeader title="Profile" showBack />
+      <AppHeader title="Profile" showBack hideAvatar />
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -338,6 +337,27 @@ export default function ProfileScreen() {
               <Text style={styles.memberSince}>
                 Member since {formatDate(user.createdAt)}
               </Text>
+            </View>
+          </View>
+        )}
+
+        {/* ── Name, email and password ── */}
+        {user && (
+          <View style={styles.group}>
+            <View style={styles.groupCard}>
+              <TouchableOpacity
+                style={styles.settingsDoor}
+                onPress={() => router.push("/settings/profile" as never)}
+                activeOpacity={0.6}
+                accessibilityRole="button"
+                accessibilityLabel="Name, email and password"
+              >
+                <View style={styles.iconCircle}>
+                  <Ionicons name="person-outline" size={18} color={colors.amber} accessible={false} />
+                </View>
+                <Text style={[styles.itemLabel, { flex: 1 }]}>Name, email and password</Text>
+                <Ionicons name="chevron-forward" size={16} color={colors.text3} accessible={false} />
+              </TouchableOpacity>
             </View>
           </View>
         )}
@@ -404,7 +424,7 @@ export default function ProfileScreen() {
                               { color: v.cleanAirZones.verdict === "compliant" ? "#10b981" : "#f59e0b" },
                             ]}
                           >
-                            {v.cleanAirZones.verdict === "compliant" ? "ULEZ ready" : "May be charged"}
+                            {v.cleanAirZones.verdict === "compliant" ? "Clean air zones: no charge" : "Clean air zones: may be charged"}
                           </Text>
                         </View>
                       )}
@@ -421,10 +441,10 @@ export default function ProfileScreen() {
               accessibilityRole="button"
               accessibilityLabel="Add vehicle"
             >
-              <View style={[styles.iconCircle, { backgroundColor: "rgba(16, 185, 129, 0.1)" }]}>
-                <Ionicons name="add" size={18} color={colors.green} />
+              <View style={styles.iconCircle}>
+                <Ionicons name="add" size={18} color={colors.amber} accessible={false} />
               </View>
-              <Text style={[styles.itemLabel, { color: colors.green }]}>Add Vehicle</Text>
+              <Text style={[styles.itemLabel, { color: colors.amber }]}>Add Vehicle</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -615,7 +635,7 @@ export default function ProfileScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemLabel}>Settings</Text>
                 <Text style={styles.itemHint}>
-                  Notifications, work & tax, tracking, exports, and more
+                  Notifications, tracking, work and tax
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.text3} />
@@ -632,13 +652,16 @@ export default function ProfileScreen() {
               onPress={handleResetLayout}
               activeOpacity={0.6}
               accessibilityRole="button"
-              accessibilityLabel="Reset Layout"
-              accessibilityHint="Restores the default layout for all screens"
+              accessibilityLabel="Reset home screen"
+              accessibilityHint="Put your home screen cards back how they started"
             >
               <View style={styles.iconCircle}>
                 <Ionicons name="refresh-outline" size={18} color={colors.text2} />
               </View>
-              <Text style={styles.itemLabel}>Reset Layout</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.itemLabel}>Reset home screen</Text>
+                <Text style={styles.itemHint}>Put your home screen cards back how they started</Text>
+              </View>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.accountItem, styles.itemBorder]}
@@ -845,6 +868,7 @@ const styles = StyleSheet.create({
   vehicleMeta: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: spacing.sm,
     marginTop: 2,
   },

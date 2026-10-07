@@ -33,6 +33,8 @@ import {
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
 import { TripMapWidget } from "../components/map/TripMapWidget";
+import { TripSummaryView } from "../components/trip/TripSummaryView";
+import { ErrorState } from "../components/ErrorState";
 import {
   syncCreateTrip,
   syncUpdateTrip,
@@ -43,7 +45,6 @@ import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance
 import { fetchServerRouteDistance, fetchProjectLabels, type RouteDistanceResult } from "../lib/api/trips";
 import { describeError } from "../lib/api/apiError";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle, CazTripAssessment } from "@mileclear/shared";
-import { formatPence } from "@mileclear/shared";
 import { createExpense } from "../lib/api/expenses";
 import { getDatabase } from "../lib/db/index";
 import {
@@ -160,7 +161,31 @@ function isConsecutiveDay(dateA: string, dateB: string): boolean {
   return b.getTime() - a.getTime() === 24 * 60 * 60 * 1000;
 }
 
-type TripMode = "ready" | "driving" | "arrived" | "saving" | "manual" | "editing";
+type TripMode = "ready" | "driving" | "arrived" | "saving" | "manual" | "editing" | "viewing";
+
+/** Everything the edit form can change, captured when "Edit trip" is tapped so
+ *  Cancel can tell whether anything moved and put it back. */
+interface EditFormValues {
+  classification: TripClassification;
+  platformTag: PlatformTag | undefined;
+  businessPurpose: BusinessPurpose | undefined;
+  category: TripCategory | undefined;
+  vehicleId: string | undefined;
+  startLat: number | null;
+  startLng: number | null;
+  startAddress: string | null;
+  endLat: number | null;
+  endLng: number | null;
+  endAddress: string | null;
+  distanceMiles: number | null;
+  startedAt: Date;
+  endedAt: Date | null;
+  notes: string;
+  projectLabel: string;
+  odometerStart: string;
+  odometerEnd: string;
+  startMoved: boolean;
+}
 
 const QUICK_TRIP_KEY = "quick_trip_start";
 
@@ -790,9 +815,26 @@ export default function TripFormScreen() {
   // than the live "Start Trip" flow. Live-tracking effects are gated on
   // driving/arrived, so starting in manual is inert for them.
   const [mode, setMode] = useState<TripMode>(
-    isEditing ? "editing" : modeParam === "manual" || hasMissedPrefill ? "manual" : "ready"
+    isEditing ? "viewing" : modeParam === "manual" || hasMissedPrefill ? "manual" : "ready"
   );
   const [loading, setLoading] = useState(true);
+  // An existing trip opens as a summary (viewing); "Edit trip" reveals the form.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  // Loaded from the phone because the server fetch failed (not synced yet).
+  const [loadedLocally, setLoadedLocally] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const odometerYRef = useRef(0);
+  const editSnapshotRef = useRef<EditFormValues | null>(null);
+  // Short confirmations on the summary: one-tap saves, and a finished edit.
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [changesSaved, setChangesSaved] = useState(false);
+  const savedNoteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const changesSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (savedNoteTimerRef.current) clearTimeout(savedNoteTimerRef.current);
+    if (changesSavedTimerRef.current) clearTimeout(changesSavedTimerRef.current);
+  }, []);
 
   // Location data
   const [startLat, setStartLat] = useState<number | null>(null);
@@ -1318,6 +1360,9 @@ export default function TripFormScreen() {
   // Load existing trip for editing
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadFailed(false);
     const populateTrip = (t: {
       classification: string; platformTag?: string | null; businessPurpose?: string | null;
       category?: string | null; vehicleId?: string | null;
@@ -1393,13 +1438,32 @@ export default function TripFormScreen() {
     };
 
     fetchTrip(id)
-      .then((res) => populateTrip(res.data))
-      .catch(async () => {
-        const local = await getLocalTrip(id);
-        if (local) populateTrip(local);
+      .then((res) => {
+        if (cancelled) return;
+        populateTrip(res.data);
+        setLoadedLocally(false);
       })
-      .finally(() => setLoading(false));
-  }, [id]);
+      .catch(async () => {
+        if (cancelled) return;
+        try {
+          const local = await getLocalTrip(id);
+          if (local) {
+            populateTrip(local);
+            setLoadedLocally((local as { _isLocal?: boolean })._isLocal === true);
+            return;
+          }
+        } catch {
+          // Fall through to the error state.
+        }
+        setLoadFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, loadAttempt]);
 
   // Fetch community alerts and nudges for the ready state
   useEffect(() => {
@@ -1500,6 +1564,8 @@ export default function TripFormScreen() {
     if (startLat == null || startLng == null || endLat == null || endLng == null) return;
     // In driving/arrived modes, distance is tracked via GPS breadcrumbs
     if (mode === "driving" || mode === "arrived") return;
+    // Flipping between the summary and the edit form must never re-route.
+    if (mode === "viewing") return;
     // When opening a saved trip, the loaded distance came from the original
     // GPS breadcrumb trail and is more accurate than a point-to-point road
     // route. Only recalc if the user has actually changed start or end coords.
@@ -2711,6 +2777,18 @@ export default function TripFormScreen() {
           learnedMatchCount: createLearnedSuggestion?.matchCount ?? null,
           routeSourceLabel: routeSource ? provenanceLabel(routeSource) : null,
         });
+      } else if (isEditing) {
+        // An edit returns to the summary, now showing what was just saved.
+        setStartMoved(false);
+        loadedStartedAtRef.current = startedAt.getTime();
+        loadedCoordsRef.current = { startLat, startLng, endLat, endLng };
+        setEditedAt(new Date().toISOString());
+        editSnapshotRef.current = null;
+        setMode("viewing");
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+        setChangesSaved(true);
+        if (changesSavedTimerRef.current) clearTimeout(changesSavedTimerRef.current);
+        changesSavedTimerRef.current = setTimeout(() => setChangesSaved(false), 2000);
       } else {
         router.back();
       }
@@ -2874,6 +2952,149 @@ export default function TripFormScreen() {
     Alert.alert("Select Vehicle", undefined, [...options, { text: "Cancel", onPress: () => {} }]);
   }, [vehicles]);
 
+  // ── Summary (viewing) and the edit form it opens ─────────────────────────
+
+  const captureForm = useCallback((): EditFormValues => ({
+    classification, platformTag, businessPurpose, category, vehicleId,
+    startLat, startLng, startAddress, endLat, endLng, endAddress,
+    distanceMiles, startedAt, endedAt, notes, projectLabel,
+    odometerStart, odometerEnd, startMoved,
+  }), [
+    classification, platformTag, businessPurpose, category, vehicleId,
+    startLat, startLng, startAddress, endLat, endLng, endAddress,
+    distanceMiles, startedAt, endedAt, notes, projectLabel,
+    odometerStart, odometerEnd, startMoved,
+  ]);
+
+  const handleEditTrip = useCallback((scrollToOdometer = false) => {
+    editSnapshotRef.current = captureForm();
+    // Vehicle, note and project are why most people tap Edit.
+    setShowDetails(true);
+    if (scrollToOdometer) setOdometerOpen(true);
+    setMode("editing");
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: scrollToOdometer ? odometerYRef.current : 0, animated: false });
+    });
+  }, [captureForm]);
+
+  const handleCancelEdit = useCallback(() => {
+    const snap = editSnapshotRef.current;
+    const back = () => {
+      if (snap) {
+        setClassification(snap.classification);
+        setPlatformTag(snap.platformTag);
+        setBusinessPurpose(snap.businessPurpose);
+        setCategory(snap.category);
+        setVehicleId(snap.vehicleId);
+        setStartLat(snap.startLat);
+        setStartLng(snap.startLng);
+        setStartAddress(snap.startAddress);
+        setEndLat(snap.endLat);
+        setEndLng(snap.endLng);
+        setEndAddress(snap.endAddress);
+        setDistanceMiles(snap.distanceMiles);
+        setStartedAt(snap.startedAt);
+        setEndedAt(snap.endedAt);
+        setNotes(snap.notes);
+        setProjectLabel(snap.projectLabel);
+        setOdometerStart(snap.odometerStart);
+        setOdometerEnd(snap.odometerEnd);
+        setStartMoved(snap.startMoved);
+        setManualDistanceMode(false);
+      }
+      editSnapshotRef.current = null;
+      setMode("viewing");
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    };
+    const changed = !!snap && JSON.stringify(snap) !== JSON.stringify(captureForm());
+    if (!changed) {
+      back();
+      return;
+    }
+    Alert.alert("Discard your changes?", "Your edits to this trip will not be saved.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: back },
+    ]);
+  }, [captureForm]);
+
+  /**
+   * One-tap change from the summary (Business / Personal, category, app,
+   * purpose). Same update path as the form's Save: SQLite first, then the sync
+   * queue, so it works offline. State moves first and rolls back on failure.
+   */
+  const quickValuesRef = useRef({ classification, category, platformTag, businessPurpose });
+  quickValuesRef.current = { classification, category, platformTag, businessPurpose };
+  const quickChainRef = useRef<Promise<void>>(Promise.resolve());
+  const quickSeqRef = useRef(0);
+  const applyQuickChange = useCallback((patch: {
+    classification?: TripClassification;
+    category?: TripCategory | null;
+    platformTag?: PlatformTag | null;
+    businessPurpose?: BusinessPurpose | null;
+  }) => {
+    if (!id) return;
+    const seq = ++quickSeqRef.current;
+    // Values as they stand before this tap, to restore if the local write fails.
+    const before = { ...quickValuesRef.current };
+    if (patch.classification !== undefined) setClassification(patch.classification);
+    if (patch.category !== undefined) setCategory(patch.category ?? undefined);
+    if (patch.platformTag !== undefined) setPlatformTag(patch.platformTag ?? undefined);
+    if (patch.businessPurpose !== undefined) setBusinessPurpose(patch.businessPurpose ?? undefined);
+    // Route learning reads the platform tag, which the old Save always sent.
+    const payload = {
+      ...patch,
+      ...(patch.classification !== undefined && patch.platformTag === undefined
+        ? { platformTag: quickValuesRef.current.platformTag ?? null }
+        : {}),
+    };
+    // One save at a time, in tap order.
+    quickChainRef.current = quickChainRef.current.then(async () => {
+      let result: unknown = null;
+      let failed = false;
+      try {
+        result = await syncUpdateTrip(id, payload);
+      } catch {
+        failed = true;
+      }
+      if (failed) {
+        // syncUpdateTrip writes SQLite and queues before it calls the API, so
+        // an API error leaves the change saved here and queued. Only undo the
+        // screen when the local write itself did not happen.
+        let queued = false;
+        try {
+          const db = await getDatabase();
+          const row = await db.getFirstAsync<Record<string, string | null>>(
+            "SELECT classification, platform_tag, category, business_purpose FROM trips WHERE id = ?",
+            [id]
+          );
+          const col = { classification: "classification", platformTag: "platform_tag", category: "category", businessPurpose: "business_purpose" } as const;
+          queued = !!row && (Object.keys(patch) as (keyof typeof col)[]).every(
+            (k) => (row[col[k]] ?? null) === ((patch[k] as string | null | undefined) ?? null)
+          );
+        } catch {
+          queued = false;
+        }
+        if (!queued) {
+          if (seq === quickSeqRef.current) {
+            setClassification(before.classification);
+            setCategory(before.category);
+            setPlatformTag(before.platformTag);
+            setBusinessPurpose(before.businessPurpose);
+          }
+          Alert.alert("Couldn't save that", "Check your connection and try again.");
+          return;
+        }
+      }
+      if (patch.classification === "business" || patch.classification === "personal") {
+        markLiveActivityClassified().catch(() => {});
+      }
+      // Null or a queued failure means it is saved here and waiting to sync.
+      setSavedNote(result && !failed ? "Saved" : "Saved on this phone. It will sync when you're back online.");
+      if (savedNoteTimerRef.current) clearTimeout(savedNoteTimerRef.current);
+      savedNoteTimerRef.current = setTimeout(() => setSavedNote(null), 2000);
+    });
+  }, [id]);
+
   // ── Derived values ───────────────────────────────────────────────────────
 
   const distance =
@@ -2897,20 +3118,109 @@ export default function TripFormScreen() {
   const isQuickMode = mode === "ready" || mode === "driving" || mode === "arrived" || mode === "saving";
   const showMap = isQuickMode && !isEditing;
 
+  // The "Speed and stops" content on the summary: the Trip Insights card, as
+  // it was in the edit form.
+  const speedAndStopsCard = insights ? (
+    <View style={styles.insightsCard}>
+      <View style={styles.insightsGrid}>
+        <View style={styles.insightItem}>
+          <Text style={styles.insightValue}>{insights.topSpeedMph}</Text>
+          <Text style={styles.insightLabel}>Top mph</Text>
+        </View>
+        <View style={styles.insightItem}>
+          <Text style={styles.insightValue}>{insights.avgMovingSpeedMph}</Text>
+          <Text style={styles.insightLabel}>Avg mph</Text>
+        </View>
+        <View style={styles.insightItem}>
+          <Text style={styles.insightValue}>
+            {insights.timeStoppedSecs >= 60
+              ? `${Math.round(insights.timeStoppedSecs / 60)}m`
+              : `${insights.timeStoppedSecs}s`}
+          </Text>
+          <Text style={styles.insightLabel}>Stopped</Text>
+        </View>
+        <View style={styles.insightItem}>
+          <Text style={styles.insightValue}>{insights.numberOfStops}</Text>
+          <Text style={styles.insightLabel}>Stops</Text>
+        </View>
+      </View>
+
+      <View style={styles.insightNotes}>
+        {getTimeOfDayNote(startedAt.toISOString()) && (
+          <View style={styles.insightNoteRow}>
+            <Ionicons name="time-outline" size={13} color={TEXT_2} />
+            <Text style={styles.insightNote}>{getTimeOfDayNote(startedAt.toISOString())}</Text>
+          </View>
+        )}
+        {getRouteDirectnessNote(insights.routeEfficiency) && (
+          <View style={styles.insightNoteRow}>
+            <Ionicons name="compass-outline" size={13} color={TEXT_2} />
+            <Text style={styles.insightNote}>{getRouteDirectnessNote(insights.routeEfficiency)}</Text>
+          </View>
+        )}
+        {insights.longestNonStopMiles > 0.1 && (
+          <View style={styles.insightNoteRow}>
+            <Ionicons name="trending-up-outline" size={13} color={TEXT_2} />
+            <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
+          </View>
+        )}
+        {insights.timeStoppedSecs > 60 && (
+          <View style={styles.insightNoteRow}>
+            <Ionicons name="pie-chart-outline" size={13} color={TEXT_2} />
+            <Text style={styles.insightNote}>
+              {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was moving
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {(getSpeedFunFact(insights.topSpeedMph) || (distance != null && getDistanceFunFact(distance))) && (
+        <View style={styles.funFactBox}>
+          {getSpeedFunFact(insights.topSpeedMph) && (
+            <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
+          )}
+          {distance != null && getDistanceFunFact(distance) && (
+            <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
+          )}
+        </View>
+      )}
+    </View>
+  ) : null;
+
+  // A saved trip's header is solid, so the summary never scrolls under the back button.
+  const solidHeader = isEditing
+    ? { headerTransparent: false, headerBlurEffect: "none" as const, headerStyle: { backgroundColor: colors.bg } }
+    : {};
+
   const screenTitle = isEditing
-    ? "Edit Trip"
+    ? mode === "editing" ? "Edit trip" : "Trip"
     : mode === "driving"
-    ? "Trip In Progress"
-    : mode === "arrived"
-    ? "Trip Complete"
-    : "Add Trip";
+    ? "Trip in progress"
+    : mode === "arrived" || mode === "saving"
+    ? "Trip complete"
+    : mode === "manual"
+    ? "Add a past trip"
+    : "Start a trip";
 
   // ── Loading state ────────────────────────────────────────────────────────
 
-  if (loading && (mode === "ready" || mode === "editing")) {
+  if (isEditing && loadFailed) {
     return (
       <View style={[styles.container, styles.centered]}>
-        <Stack.Screen options={{ title: screenTitle }} />
+        <Stack.Screen options={{ title: screenTitle, ...solidHeader }} />
+        <ErrorState
+          title="We couldn't open this trip"
+          description="It may have been deleted, or your connection dropped."
+          onRetry={() => setLoadAttempt((n) => n + 1)}
+        />
+      </View>
+    );
+  }
+
+  if (loading && (mode === "ready" || mode === "editing" || mode === "viewing")) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Stack.Screen options={{ title: screenTitle, ...solidHeader }} />
         <ActivityIndicator size="large" color={AMBER} />
         <Text style={styles.loadingText}>
           {isEditing ? "Loading trip..." : "Getting your location..."}
@@ -2923,7 +3233,7 @@ export default function TripFormScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: screenTitle }} />
+      <Stack.Screen options={{ title: screenTitle, ...solidHeader }} />
 
       {/* === Full-screen immersive driving mode === */}
       {mode === "driving" && (
@@ -2993,14 +3303,11 @@ export default function TripFormScreen() {
               <Animated.View
                 style={[
                   styles.drivingPulse,
-                  isPersonal && { backgroundColor: "rgba(16, 185, 129, 0.3)" },
                   { transform: [{ scale: pulseAnim }] },
                 ]}
               />
-              <View style={[styles.drivingPulseCore, isPersonal && { backgroundColor: GREEN }]} />
-              <Text style={[styles.drivingLiveText, isPersonal && { color: GREEN }]}>
-                {isPersonal ? "JOURNEY" : "TRACKING"}
-              </Text>
+              <View style={styles.drivingPulseCore} />
+              <Text style={styles.drivingLiveText}>RECORDING</Text>
             </View>
             <Text style={styles.drivingTopTimer}>{formatTimer(elapsed)}</Text>
           </View>
@@ -3016,7 +3323,7 @@ export default function TripFormScreen() {
           <View style={styles.drivingDash}>
             {/* Speed hero */}
             <View style={styles.speedHero}>
-              <Text style={[styles.speedValue, isPersonal && { color: GREEN }]}>
+              <Text style={styles.speedValue}>
                 {liveSpeed}
               </Text>
               <Text style={styles.speedUnit}>mph</Text>
@@ -3025,7 +3332,7 @@ export default function TripFormScreen() {
             {/* Stats strip */}
             <View style={styles.dashStatsRow}>
               <View style={styles.dashStat}>
-                <Text style={[styles.dashStatValue, isPersonal && { color: GREEN }]}>
+                <Text style={styles.dashStatValue}>
                   {liveDistance.toFixed(1)}
                 </Text>
                 <Text style={styles.dashStatLabel}>MILES</Text>
@@ -3061,7 +3368,7 @@ export default function TripFormScreen() {
                 <>
                   <View style={styles.dashDivider} />
                   <View style={[styles.dashStat, { flex: 1.5 }]}>
-                    <Text style={[styles.dashStatValue, { color: GREEN, fontSize: 14 }]} numberOfLines={1}>
+                    <Text style={[styles.dashStatValue, { fontSize: 14 }]} numberOfLines={1}>
                       {currentArea}
                     </Text>
                     <Text style={styles.dashStatLabel}>AREA</Text>
@@ -3157,7 +3464,7 @@ export default function TripFormScreen() {
                             { latitude: endLat, longitude: endLng },
                           ]
                     }
-                    strokeColor={isPersonal ? GREEN : AMBER}
+                    strokeColor={AMBER}
                     strokeWidth={3}
                   />
                 </>
@@ -3177,6 +3484,7 @@ export default function TripFormScreen() {
 
       {/* Bottom panel - hidden during driving (UI overlays the map) */}
       {mode !== "driving" && <ScrollView
+        ref={scrollRef}
         style={styles.panel}
         contentContainerStyle={styles.panelContent}
         keyboardShouldPersistTaps="handled"
@@ -3258,7 +3566,7 @@ export default function TripFormScreen() {
               <Text style={styles.celebTitle}>
                 {restoredArrived ? "Trip not saved yet" : "Trip complete!"}
               </Text>
-              <Text style={[styles.celebDistance, isPersonal && { color: GREEN }]}>
+              <Text style={styles.celebDistance}>
                 {distance != null ? `${distance} mi` : "--"}
               </Text>
               <Text style={styles.celebDuration}>
@@ -3697,6 +4005,74 @@ export default function TripFormScreen() {
           </View>
         )}
 
+        {/* ── Saved trip summary ── */}
+        {mode === "viewing" && (
+          <TripSummaryView
+            startedAt={startedAt}
+            endedAt={endedAt}
+            startAddress={startAddress}
+            endAddress={endAddress}
+            startLat={startLat}
+            startLng={startLng}
+            endLat={endLat}
+            endLng={endLng}
+            distanceMiles={distance}
+            isManual={editingIsManual}
+            waitingToSync={loadedLocally}
+            editedAt={editedAt}
+            diversionText={diversion ? diversionLabel(diversion) : null}
+            routeCoords={routeCoords}
+            routeMatched={routeMatched}
+            classification={classification}
+            category={category}
+            platformTag={platformTag}
+            businessPurpose={businessPurpose}
+            isGigDriver={isGigDriver}
+            isEmployeeDriver={isEmployeeDriver}
+            onClassify={(value) => applyQuickChange({ classification: value })}
+            onCategory={(value) => applyQuickChange({ category: value ?? null })}
+            onPlatform={(value) => applyQuickChange({ platformTag: value ?? null })}
+            onPurpose={(value) => applyQuickChange({ businessPurpose: value ?? null })}
+            savedNote={savedNote}
+            changesSaved={changesSaved}
+            notes={notes}
+            projectLabel={projectLabel}
+            vehicleName={
+              vehicles.length > 1 && selectedVehicle
+                ? `${selectedVehicle.make} ${selectedVehicle.model}`
+                : null
+            }
+            confidenceLevel={confidence?.level ?? null}
+            confidenceBadge={
+              confidence ? <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} /> : null
+            }
+            mergeSuggestion={mergeSuggestion}
+            merging={merging}
+            onMerge={handleAcceptMerge}
+            cleanAirZones={cleanAirZones}
+            loggedCazZones={loggedCazZones}
+            loggingCaz={loggingCaz}
+            onLogCaz={handleLogCazCharge}
+            speedAndStops={insights ? speedAndStopsCard : null}
+            onEdit={() => handleEditTrip()}
+            onEditOdometer={() => handleEditTrip(true)}
+            hasOdometer={!!(odometerStart || odometerEnd)}
+            canSplit={canSplit}
+            onSplit={() => router.push(`/trip-split?id=${id}`)}
+            onFine={() =>
+              router.push({ pathname: "/ticket-defender", params: { at: startedAt.toISOString() } } as never)
+            }
+            showProChip={!!currentUser && !currentUser.isPremium}
+            recalculating={recalculating}
+            onRecalculate={() => id && handleRecalculate(id)}
+            onSavePlace={openSaveAsPlace}
+            onNewTripFrom={(lat, lng, addr) => openNewTripWith("from", lat, lng, addr)}
+            onNewTripTo={(lat, lng, addr) => openNewTripWith("to", lat, lng, addr)}
+            deleting={deleting}
+            onDelete={handleDelete}
+          />
+        )}
+
         {/* ── Manual Entry / Edit Mode ── */}
         {(mode === "manual" || mode === "editing") && (
           <>
@@ -3731,41 +4107,6 @@ export default function TripFormScreen() {
                 setStartAddress(null);
               }}
             />
-            {isEditing && startLat != null && startLng != null && (
-              <View style={styles.placeLinkRow}>
-                <TouchableOpacity
-                  style={styles.savePlaceLink}
-                  onPress={() => openSaveAsPlace(startLat, startLng, startAddress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Save the start location as a place"
-                >
-                  <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
-                  <Text style={styles.savePlaceText}>Save as place</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.savePlaceLink}
-                  onPress={() => openNewTripWith("from", startLat, startLng, startAddress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a new trip starting from the start location"
-                >
-                  <Ionicons name="arrow-up-circle-outline" size={14} color={AMBER} accessible={false} />
-                  <Text style={styles.savePlaceText}>Start from here</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.savePlaceLink}
-                  onPress={() => openNewTripWith("to", startLat, startLng, startAddress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a new trip going to the start location"
-                >
-                  <Ionicons name="flag-outline" size={14} color={AMBER} accessible={false} />
-                  <Text style={styles.savePlaceText}>Go to here</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Distance card */}
             <View style={styles.distanceCard}>
               <Text style={styles.distanceLabel}>Distance</Text>
@@ -3826,29 +4167,14 @@ export default function TripFormScreen() {
                 </TouchableOpacity>
               )}
 
-              {isEditing && id && (
-                <TouchableOpacity
-                  style={styles.recalcButton}
-                  onPress={() => handleRecalculate(id)}
-                  disabled={recalculating}
-                  accessibilityRole="button"
-                  accessibilityLabel="Recalculate distance"
-                >
-                  {recalculating ? (
-                    <ActivityIndicator color={AMBER} size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="refresh" size={14} color={AMBER} />
-                      <Text style={styles.recalcButtonText}>Recalculate distance</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              )}
             </View>
 
             {/* Odometer (optional) — a trust primitive: readings corroborate the
                 GPS distance and are auditable for HMRC. Collapsed by default. */}
-            <View style={styles.odometerSection}>
+            <View
+              style={styles.odometerSection}
+              onLayout={(e) => { odometerYRef.current = e.nativeEvent.layout.y; }}
+            >
               {!odometerOpen ? (
                 <TouchableOpacity
                   onPress={() => setOdometerOpen(true)}
@@ -3893,194 +4219,6 @@ export default function TripFormScreen() {
               )}
             </View>
 
-            {/* Confidence badge — auditable quality signal for HMRC defence */}
-            {isEditing && confidence && (
-              <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} />
-            )}
-
-            {/* Diversion label: longer than the usual route because of a road
-                closure on it. Explains the miles; never changes them. */}
-            {isEditing && diversion && (
-              <View style={styles.diversionCard}>
-                <Ionicons name="git-branch-outline" size={18} color={AMBER} />
-                <Text style={styles.diversionText}>{diversionLabel(diversion)}</Text>
-              </View>
-            )}
-
-            {/* Edit audit trail */}
-            {isEditing && editedAt && (
-              <Text style={styles.editedAt}>
-                Edited {new Date(editedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-              </Text>
-            )}
-
-            {/* Merge suggestion — adjacent trip looks like a fuel-stop continuation */}
-            {isEditing && mergeSuggestion && (
-              <View style={styles.mergeSuggestionCard}>
-                <Ionicons name="git-merge-outline" size={18} color={AMBER} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.mergeSuggestionTitle}>
-                    Looks like a quick stop?
-                  </Text>
-                  <Text style={styles.mergeSuggestionBody}>
-                    There's another trip {mergeSuggestion.direction === "after" ? "right after" : "right before"} this one
-                    {" — "}only {mergeSuggestion.gapMinutes < 1 ? "<1" : mergeSuggestion.gapMinutes.toFixed(0)} min
-                    {" and "}{mergeSuggestion.gapMeters < 100 ? "<100" : mergeSuggestion.gapMeters.toFixed(0)} m
-                    {" "}apart. Merge them into one trip?
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.mergeSuggestionButton}
-                  onPress={() => handleAcceptMerge(mergeSuggestion.otherTripId)}
-                  disabled={merging}
-                  accessibilityRole="button"
-                  accessibilityLabel="Merge with adjacent trip"
-                >
-                  {merging ? (
-                    <ActivityIndicator color="#000" size="small" />
-                  ) : (
-                    <Text style={styles.mergeSuggestionButtonText}>Merge</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Clean Air Zone / ULEZ charge — this trip's route crossed a
-                charging zone in a non-compliant vehicle. Offer to log the
-                daily charge as a deductible expense. Guidance, user confirms. */}
-            {isEditing && cleanAirZones && cleanAirZones.charges.length > 0 && (
-              <View style={styles.cazTripCard}>
-                <View style={styles.cazTripHeader}>
-                  <Ionicons name="alert-circle" size={18} color={AMBER} />
-                  <Text style={styles.cazTripTitle}>Clean Air Zone charge may apply</Text>
-                </View>
-                <Text style={styles.cazTripBody}>
-                  This trip looks like it entered a charging zone in a vehicle that may not
-                  be exempt. If you paid, log it as a deductible expense.
-                </Text>
-                {cleanAirZones.charges.map((c) => {
-                  const logged = loggedCazZones.has(c.zoneId);
-                  return (
-                    <View key={c.zoneId} style={styles.cazTripRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.cazTripZone}>{c.name}</Text>
-                        <Text style={styles.cazTripCharge}>{formatPence(c.chargePence)} daily charge</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={[styles.cazLogBtn, logged && styles.cazLogBtnDone]}
-                        onPress={() => !logged && handleLogCazCharge(c)}
-                        disabled={logged || loggingCaz === c.zoneId}
-                        accessibilityRole="button"
-                        accessibilityLabel={logged ? `${c.name} charge logged` : `Log the ${c.name} charge as an expense`}
-                      >
-                        {loggingCaz === c.zoneId ? (
-                          <ActivityIndicator color={AMBER} size="small" />
-                        ) : logged ? (
-                          <>
-                            <Ionicons name="checkmark" size={14} color="#10b981" />
-                            <Text style={[styles.cazLogBtnText, { color: "#10b981" }]}>Logged</Text>
-                          </>
-                        ) : (
-                          <Text style={styles.cazLogBtnText}>Log charge</Text>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-                <Text style={styles.cazTripDisclaimer}>
-                  Based on your vehicle&apos;s emissions and the zone boundary — confirm with the
-                  official checker if unsure. Zone boundaries © OpenStreetMap contributors,
-                  Transport for London &amp; local authorities.
-                </Text>
-              </View>
-            )}
-
-            {/* Ticket defender (Pro, Oct 2026): a fine that names this trip's
-                time opens the lookup with the trip's start time filled in. */}
-            {isEditing && !editingIsManual && (
-              <TouchableOpacity
-                style={styles.ticketDefenderLink}
-                onPress={() =>
-                  router.push({ pathname: "/ticket-defender", params: { at: startedAt.toISOString() } } as never)
-                }
-                accessibilityRole="link"
-                accessibilityLabel="Got a fine for this trip? Check what MileClear recorded"
-              >
-                <Ionicons name="shield-checkmark-outline" size={16} color={AMBER} />
-                <Text style={styles.ticketDefenderLinkText}>Got a fine for this trip?</Text>
-                <Ionicons name="chevron-forward" size={14} color={AMBER} />
-              </TouchableOpacity>
-            )}
-
-            {/* Trip Insights (from GPS data - editing mode) */}
-            {isEditing && insights && (
-              <View style={styles.insightsCard}>
-                <Text style={styles.insightsTitle}>Trip Insights</Text>
-                <View style={styles.insightsGrid}>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightValue}>{insights.topSpeedMph}</Text>
-                    <Text style={styles.insightLabel}>Top mph</Text>
-                  </View>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightValue}>{insights.avgMovingSpeedMph}</Text>
-                    <Text style={styles.insightLabel}>Avg mph</Text>
-                  </View>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightValue}>
-                      {insights.timeStoppedSecs >= 60
-                        ? `${Math.round(insights.timeStoppedSecs / 60)}m`
-                        : `${insights.timeStoppedSecs}s`}
-                    </Text>
-                    <Text style={styles.insightLabel}>Stopped</Text>
-                  </View>
-                  <View style={styles.insightItem}>
-                    <Text style={styles.insightValue}>{insights.numberOfStops}</Text>
-                    <Text style={styles.insightLabel}>Stops</Text>
-                  </View>
-                </View>
-
-                <View style={styles.insightNotes}>
-                  {getTimeOfDayNote(startedAt.toISOString()) && (
-                    <View style={styles.insightNoteRow}>
-                      <Ionicons name="time-outline" size={13} color={TEXT_2} />
-                      <Text style={styles.insightNote}>{getTimeOfDayNote(startedAt.toISOString())}</Text>
-                    </View>
-                  )}
-                  {getRouteDirectnessNote(insights.routeEfficiency) && (
-                    <View style={styles.insightNoteRow}>
-                      <Ionicons name="compass-outline" size={13} color={TEXT_2} />
-                      <Text style={styles.insightNote}>{getRouteDirectnessNote(insights.routeEfficiency)}</Text>
-                    </View>
-                  )}
-                  {insights.longestNonStopMiles > 0.1 && (
-                    <View style={styles.insightNoteRow}>
-                      <Ionicons name="trending-up-outline" size={13} color={TEXT_2} />
-                      <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
-                    </View>
-                  )}
-                  {insights.timeStoppedSecs > 60 && (
-                    <View style={styles.insightNoteRow}>
-                      <Ionicons name="pie-chart-outline" size={13} color={TEXT_2} />
-                      <Text style={styles.insightNote}>
-                        {Math.round((insights.timeMovingSecs / (insights.timeMovingSecs + insights.timeStoppedSecs)) * 100)}% of your trip was moving
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {(getSpeedFunFact(insights.topSpeedMph) || (distance != null && getDistanceFunFact(distance))) && (
-                  <View style={styles.funFactBox}>
-                    {getSpeedFunFact(insights.topSpeedMph) && (
-                      <Text style={styles.insightFunFact}>{getSpeedFunFact(insights.topSpeedMph)}</Text>
-                    )}
-                    {distance != null && getDistanceFunFact(distance) && (
-                      <Text style={styles.insightFunFact}>{getDistanceFunFact(distance)}</Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
             {/* End Location */}
             <LocationPickerField
               label="End Location"
@@ -4098,41 +4236,6 @@ export default function TripFormScreen() {
                 setEndAddress(null);
               }}
             />
-            {isEditing && endLat != null && endLng != null && (
-              <View style={styles.placeLinkRow}>
-                <TouchableOpacity
-                  style={styles.savePlaceLink}
-                  onPress={() => openSaveAsPlace(endLat, endLng, endAddress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Save the end location as a place"
-                >
-                  <Ionicons name="bookmark-outline" size={14} color={AMBER} accessible={false} />
-                  <Text style={styles.savePlaceText}>Save as place</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.savePlaceLink}
-                  onPress={() => openNewTripWith("from", endLat, endLng, endAddress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a new trip starting from the end location"
-                >
-                  <Ionicons name="arrow-up-circle-outline" size={14} color={AMBER} accessible={false} />
-                  <Text style={styles.savePlaceText}>Start from here</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.savePlaceLink}
-                  onPress={() => openNewTripWith("to", endLat, endLng, endAddress)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a new trip going to the end location"
-                >
-                  <Ionicons name="flag-outline" size={14} color={AMBER} accessible={false} />
-                  <Text style={styles.savePlaceText}>Go to here</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             {/* Start Time */}
             <DateTimePickerField
               label="Start Time"
@@ -4174,19 +4277,6 @@ export default function TripFormScreen() {
               }}
               maximumDate={new Date()}
             />
-
-            {/* Where the trip actually went, shown above the Business/Personal
-                choice because that is the question the route answers. This is
-                the path the classify inbox opens; the arrived step has its own. */}
-            {isEditing && routeCoords.length >= 2 && (
-              <View style={{ marginBottom: 16 }}>
-                <TripMapWidget
-                  coordinates={routeCoords}
-                  matchedCoordinates={routeMatched.length >= 2 ? routeMatched : null}
-                  height={160}
-                />
-              </View>
-            )}
 
             {/* Classification */}
             <Text style={styles.label}>Classification</Text>
@@ -4445,38 +4535,20 @@ export default function TripFormScreen() {
 
             {/* Save */}
             <Button
-              title={isEditing ? "Save Changes" : "Add Trip"}
+              title={isEditing ? "Save changes" : "Add Trip"}
               icon="checkmark"
               onPress={() => handleSave()}
               loading={saving}
               disabled={deleting}
               style={{ marginTop: 28 }}
             />
-
-            {/* Split - tracked trips with a GPS trail only. Was this "one
-                trip" really several delivery drops? The split screen scans
-                the trail for stops and lets the user cut it up. */}
-            {isEditing && canSplit && (
-              <Button
-                variant="ghost"
-                title="Split into multiple trips"
-                icon="git-branch-outline"
-                onPress={() => router.push(`/trip-split?id=${id}`)}
-                disabled={saving || deleting}
-                style={{ marginTop: 12 }}
-              />
-            )}
-
-            {/* Delete - edit mode only */}
             {isEditing && (
               <Button
                 variant="ghost"
-                danger
-                title="Delete Trip"
-                onPress={handleDelete}
-                loading={deleting}
+                title="Cancel"
+                onPress={handleCancelEdit}
                 disabled={saving}
-                style={{ marginTop: 12 }}
+                style={{ marginTop: 8 }}
               />
             )}
           </>
@@ -4783,7 +4855,7 @@ const styles = StyleSheet.create({
   speedValue: {
     fontSize: 56,
     fontFamily: fonts.light,
-    color: AMBER,
+    color: TEXT_1,
     fontVariant: ["tabular-nums"],
   },
   speedUnit: {
@@ -4808,7 +4880,7 @@ const styles = StyleSheet.create({
   dashStatValue: {
     fontSize: 16,
     fontFamily: fonts.bold,
-    color: AMBER,
+    color: TEXT_1,
   },
   dashStatLabel: {
     fontSize: 11,
@@ -5363,7 +5435,7 @@ const styles = StyleSheet.create({
   celebDistance: {
     fontSize: 32,
     fontFamily: fonts.bold,
-    color: AMBER,
+    color: TEXT_1,
     marginBottom: 2,
   },
   celebDuration: {

@@ -1,7 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { usePersonalStats } from "../../hooks/usePersonalStats";
 import { consumeLastSavedTrip, type LastSavedTrip } from "../../lib/events/lastTrip";
 import { DrivingSummaryCard } from "./DrivingSummaryCard";
@@ -17,18 +16,16 @@ import { PremiumGate } from "../PremiumGate";
 import { MilestoneTracker } from "./MilestoneTracker";
 import { DrivingPatternsCard } from "./DrivingPatternsCard";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
-import { colors, fonts } from "../../lib/theme";
+import { colors } from "../../lib/theme";
+import { Button } from "../Button";
+import { QuickActionRow } from "../QuickActionRow";
 import { PauseRecordingRow } from "../PauseRecordingRow";
 import type { PauseChoice } from "../../lib/tracking/pauseRule";
 
 // Local theme aliases — same pattern as the (tabs) screens.
-const TEXT_2 = colors.text2;
-const BG = colors.bg;
 const GREEN = colors.green;
 
 const EMERALD = GREEN;
-const CARD_BG = colors.surface;
-const CARD_BORDER = "rgba(255,255,255,0.05)";
 
 interface PersonalDashboardProps {
   avatarId?: string | null;
@@ -124,76 +121,30 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
       case "personal_cta":
         return (
           <View key={key}>
-            {/* Primary CTA — Start Trip */}
-            <TouchableOpacity
-              style={styles.startTripBtn}
+            {/* Primary CTA: Start Trip, amber in both modes */}
+            <Button
+              variant="primary"
+              size="lg"
+              icon="navigate"
+              title="Start Trip"
               onPress={() => router.push("/trip-form")}
-              activeOpacity={0.7}
-              accessibilityRole="button"
               accessibilityLabel="Start a new trip"
-            >
-              <Ionicons name="navigate" size={20} color={BG} />
-              <Text style={styles.startTripBtnText}>Start Trip</Text>
-            </TouchableOpacity>
+              style={{ marginBottom: 10 }}
+            />
             {onPause && onResume && (
               <PauseRecordingRow pausedUntil={pausedUntil ?? null} now={Date.now()} onPause={onPause} onResume={onResume} />
             )}
 
-            {/* Quick actions row */}
-            <View style={styles.quickActions}>
-              <TouchableOpacity
-                style={styles.quickAction}
-                onPress={() => router.replace("/(tabs)/trips" as any)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="View trips"
-              >
-                <Ionicons name="list-outline" size={20} color={EMERALD} accessible={false} />
-                <Text style={styles.quickActionLabel}>Trips</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.quickAction}
-                onPress={() => router.push("/vehicles")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="View vehicles"
-              >
-                <Ionicons name="car-outline" size={20} color={EMERALD} accessible={false} />
-                <Text style={styles.quickActionLabel}>Vehicles</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.quickAction}
-                onPress={() => router.push("/insights")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="View insights"
-              >
-                <Ionicons name="analytics-outline" size={20} color={EMERALD} accessible={false} />
-                <Text style={styles.quickActionLabel}>Insights</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.quickAction}
-                onPress={() => router.push("/achievements")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="View badges and achievements"
-              >
-                <Ionicons name="trophy-outline" size={20} color={EMERALD} accessible={false} />
-                <Text style={styles.quickActionLabel}>Badges</Text>
-              </TouchableOpacity>
-              {/* Save the spot the driver is parked at right now, without
-                  typing a postcode. */}
-              <TouchableOpacity
-                style={styles.quickAction}
-                onPress={() => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } })}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Save this spot as a place"
-              >
-                <Ionicons name="bookmark-outline" size={20} color={EMERALD} accessible={false} />
-                <Text style={styles.quickActionLabel}>Save spot</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Quick actions. Trips and Insights are tabs now. */}
+            <QuickActionRow
+              actions={[
+                { key: "vehicles", icon: "car-outline", label: "Vehicles", a11yLabel: "View vehicles", onPress: () => router.push("/vehicles") },
+                { key: "fuel", icon: "water-outline", label: "Fuel", a11yLabel: "View fuel", onPress: () => router.push("/(tabs)/fuel" as any) },
+                { key: "badges", icon: "trophy-outline", label: "Badges", a11yLabel: "View badges and achievements", onPress: () => router.push("/achievements") },
+                // Save the spot the driver is parked at right now, without typing a postcode.
+                { key: "spot", icon: "bookmark-outline", label: "Save spot", a11yLabel: "Save this spot as a place", onPress: () => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } }) },
+              ]}
+            />
           </View>
         );
       case "personal_summary": {
@@ -309,42 +260,6 @@ export function PersonalDashboard({ avatarId: _avatarId, stats, visibleKeys, rec
 }
 
 const styles = StyleSheet.create({
-  startTripBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: EMERALD,
-    borderRadius: 14,
-    paddingVertical: 16,
-    marginBottom: 10,
-  },
-  startTripBtnText: {
-    fontSize: 17,
-    fontFamily: fonts.bold,
-    color: BG,
-  },
-  quickActions: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 14,
-  },
-  quickAction: {
-    flex: 1,
-    backgroundColor: CARD_BG,
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-    gap: 4,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  quickActionLabel: {
-    fontSize: 10,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    letterSpacing: 0.2,
-  },
   loading: {
     paddingVertical: 40,
     alignItems: "center",

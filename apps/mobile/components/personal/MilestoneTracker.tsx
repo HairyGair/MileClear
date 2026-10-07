@@ -87,7 +87,7 @@ export function MilestoneTracker({ totalMiles }: MilestoneTrackerProps) {
         <View style={styles.achievedRow}>
           <Ionicons name="checkmark-circle" size={14} color="rgba(16, 185, 129, 0.6)" />
           <Text style={styles.achievedText}>
-            {lastAchieved.label} — {lastAchieved.funFact}
+            {lastAchieved.label}: {lastAchieved.funFact}
           </Text>
         </View>
       )}

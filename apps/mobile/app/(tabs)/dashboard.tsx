@@ -102,6 +102,7 @@ import {
 import { fetchSelfAssessmentSummary } from "../../lib/api/selfAssessment";
 import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
 import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
+import { QuickActionRow } from "../../components/QuickActionRow";
 import { PauseRecordingRow } from "../../components/PauseRecordingRow";
 import { askAboutPauseBeforeStart } from "../../lib/tracking/pausePrompt";
 import { type PauseChoice } from "../../lib/tracking/pauseRule";
@@ -2285,7 +2286,7 @@ export default function DashboardScreen() {
               return (
                 <View key={key} style={s.heroCard}>
                   <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Miles tracked {"\u00B7"} {stats.taxYear}</Text>
+                    <Text style={s.heroLabel}>Since 6 April {"\u00B7"} {stats.taxYear}</Text>
                     {stats.currentStreakDays > 0 && (
                       <View style={s.streakBadgeInline}>
                         <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
@@ -2295,10 +2296,12 @@ export default function DashboardScreen() {
                   <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
                     {formatWholeMiles(heroChoice.miles)} miles
                   </Text>
-                  <Text style={s.heroSavedLabel}>tracked since {stats.taxYear} started on 6 April</Text>
+                  <Text style={[s.heroSavedLabel, { color: colors.text2 }]}>All your driving, work and personal</Text>
                   <View style={s.heroMeta}>
                     <Text style={s.heroMetaText}>
-                      Business mileage to claim: {thisYearSoFar}
+                      {stats.deductionPence > 0
+                        ? `${formatPence(stats.deductionPence)} to claim for business miles so far`
+                        : "No business miles to claim yet"}
                     </Text>
                   </View>
                   {unclassifiedNudge}
@@ -2472,72 +2475,22 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               </View>
               <PauseRecordingRow pausedUntil={pausedUntil} now={Date.now()} onPause={pauseRecording} onResume={resumeRecording} />
+              {/* Quick actions, same row as Personal. Tax has its own tab. */}
+              <QuickActionRow
+                actions={[
+                  { key: "shifts", icon: "time-outline", label: "Shifts", a11yLabel: "View shifts", onPress: () => router.push("/shifts" as never) },
+                  { key: "expenses", icon: "receipt-outline", label: "Expenses", a11yLabel: "Expenses", onPress: () => router.push("/expenses" as never) },
+                  { key: "insights", icon: "stats-chart-outline", label: "Insights", a11yLabel: "Insights", onPress: () => router.push("/insights" as never) },
+                  // Save the spot the driver is parked at right now, so a
+                  // customer's door becomes a saved place without typing a
+                  // postcode (Chris, 16 Sep 2026).
+                  { key: "spot", icon: "bookmark-outline", label: "Save spot", a11yLabel: "Save this spot as a place", onPress: () => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } }) },
+                ]}
+              />
               </View>
             );
           case "work_shift":
             return null;
-          case "work_quicknav":
-            // Tax, invoices and expenses are the screens drivers most often
-            // could not find (they lived three taps deep under Settings >
-            // Work & Tax). Trips has its own tab and Badges its carousel, so
-            // those tiles gave way. Exports stays one tap away inside Tax.
-            return (
-              <View key={key} style={s.quickActions}>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push("/self-assessment" as never)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Self Assessment and tax summary"
-                >
-                  <Ionicons name="calculator-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Tax</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push("/invoices" as never)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Invoices"
-                >
-                  <Ionicons name="document-text-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Invoices</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push("/expenses" as never)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Expenses"
-                >
-                  <Ionicons name="receipt-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Expenses</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push("/insights" as never)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Business Insights"
-                >
-                  <Ionicons name="analytics-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Insights</Text>
-                </TouchableOpacity>
-                {/* Save the spot the driver is parked at right now, so a
-                    customer's door becomes a saved place without typing a
-                    postcode (Chris, 16 Sep 2026). */}
-                <TouchableOpacity
-                  style={s.quickAction}
-                  onPress={() => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } })}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Save this spot as a place"
-                >
-                  <Ionicons name="bookmark-outline" size={22} color="#f5a623" style={{ marginBottom: 4 }} accessible={false} />
-                  <Text style={s.quickActionLabel}>Save spot</Text>
-                </TouchableOpacity>
-              </View>
-            );
           case "journey_map":
             return recentTrips.length > 0 ? (
               <View key={key}>

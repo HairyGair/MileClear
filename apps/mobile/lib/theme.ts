@@ -35,7 +35,21 @@ export const colors = {
   // Overlays
   overlay: "rgba(0, 0, 0, 0.6)",
   subtleBorder: "rgba(255, 255, 255, 0.06)",
+  // Tab bar top edge and strip dividers; survives a 0.33pt hairline.
+  hairline: "rgba(255,255,255,0.08)",
+
+  // Personal classification (the trips list slate), and the border that
+  // marks it selected so "selected" never rests on fill alone.
+  personal: "#374151",
+  personalEdge: "#94a3b8",
 } as const;
+
+// Recent Journeys route colours, newest first. Five, never cycled; older
+// trips use mapOlder. Picked to stay apart under colour blindness.
+export const mapPalette = ["#f5a623", "#a78bfa", "#2fbf9a", "#ff7a59", "#e2e8f0"] as const;
+export const mapOlder = "#64748b";
+
+export const tabBar = { contentHeight: 56, icon: 24, label: 12 } as const;
 
 // ── Spacing ─────────────────────────────────────────────────────────
 

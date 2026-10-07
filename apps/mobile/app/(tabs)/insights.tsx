@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,8 @@ import {
   Share,
   RefreshControl,
 } from "react-native";
-import { AppModal } from "../components/AppModal";
-import { Stack, useRouter } from "expo-router";
+import { AppModal } from "../../components/AppModal";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { formatPence } from "@mileclear/shared";
@@ -18,24 +18,28 @@ import type {
   AchievementWithMeta,
   PeriodRecap,
 } from "@mileclear/shared";
-import { fetchGamificationStats, fetchAchievements, fetchRecap } from "../lib/api/gamification";
-import { useMode } from "../lib/mode/context";
-import { usePersonalStats } from "../hooks/usePersonalStats";
-import { useRecentTripsWithCoords } from "../hooks/useRecentTripsWithCoords";
-import { BusinessInsightsCard } from "../components/business/BusinessInsightsCard";
-import { BusinessRecapCard } from "../components/business/BusinessRecapCard";
-import { PlatformPnLCard } from "../components/business/PlatformPnLCard";
-import { PremiumGate, useIsPremium } from "../components/PremiumGate";
-import { usePaywall } from "../components/paywall";
-import { MilestoneTracker } from "../components/personal/MilestoneTracker";
-import { WeeklyActivity, buildWeekDays } from "../components/personal/WeeklyActivity";
-import { DrivingGoals } from "../components/personal/DrivingGoals";
-import { FuelSummaryCard } from "../components/personal/FuelSummaryCard";
-import { ChargingSummaryCard } from "../components/personal/ChargingSummaryCard";
-import { PersonalRecapCard } from "../components/personal/PersonalRecapCard";
-import { JourneyTimeline } from "../components/personal/JourneyTimeline";
-import { Button } from "../components/Button";
-import { colors, fonts } from "../lib/theme";
+import { fetchGamificationStats, fetchAchievements, fetchRecap } from "../../lib/api/gamification";
+import { useMode } from "../../lib/mode/context";
+import { usePersonalStats } from "../../hooks/usePersonalStats";
+import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
+import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
+import { BusinessRecapCard } from "../../components/business/BusinessRecapCard";
+import { PlatformPnLCard } from "../../components/business/PlatformPnLCard";
+import { useUser } from "../../lib/user/context";
+import { PremiumGate } from "../../components/PremiumGate";
+import AppHeader from "../../components/AppHeader";
+import { ErrorState } from "../../components/ErrorState";
+import { TrendsView } from "../../components/insights/TrendsView";
+import { isOnline } from "../../lib/network";
+import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
+import { WeeklyActivity, buildWeekDays } from "../../components/personal/WeeklyActivity";
+import { DrivingGoals } from "../../components/personal/DrivingGoals";
+import { FuelSummaryCard } from "../../components/personal/FuelSummaryCard";
+import { ChargingSummaryCard } from "../../components/personal/ChargingSummaryCard";
+import { PersonalRecapCard } from "../../components/personal/PersonalRecapCard";
+import { JourneyTimeline } from "../../components/personal/JourneyTimeline";
+import { Button } from "../../components/Button";
+import { colors, fonts } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -48,13 +52,24 @@ const BG = colors.bg;
 export default function InsightsScreen() {
   const router = useRouter();
   const { isWork, isPersonal } = useMode();
-  const isPremium = useIsPremium();
-  const { showPaywall } = usePaywall();
+  // Company drivers cannot log earnings, so earnings-based cards are only noise.
+  const { isCompanyDriver } = useUser();
+  const { view } = useLocalSearchParams<{ view?: string }>();
+  const [segment, setSegment] = useState<"overview" | "trends">(
+    view === "trends" ? "trends" : "overview"
+  );
+  // A link to /insights?view=trends while this tab is already mounted.
+  useEffect(() => {
+    if (view === "trends") setSegment("trends");
+  }, [view]);
+  const [trendsToken, setTrendsToken] = useState(0);
 
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
   const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   // Recap modal
   const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
@@ -82,12 +97,30 @@ export default function InsightsScreen() {
         fetchAchievements().catch(() => null),
         fetchRecap("daily").catch(() => null),
       ]);
+      setLoadFailed(!statsRes && !achievementsRes && !dailyRes);
+      setLoaded(true);
       if (statsRes) setStats(statsRes.data);
       if (achievementsRes) setAchievements(achievementsRes.data);
       if (dailyRes) setDailyRecap(dailyRes.data);
-    } catch {}
+    } catch {
+      setLoadFailed(true);
+      setLoaded(true);
+    }
     setRefreshing(false);
   }, []);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    if (segment === "trends") {
+      setTrendsToken((n) => n + 1);
+      // TrendsView never reports back behind the Pro gate, so don't wait for it.
+      setTimeout(() => setRefreshing(false), 1500);
+    } else {
+      loadData();
+    }
+  }, [segment, loadData]);
+
+  const handleTrendsRefreshed = useCallback(() => setRefreshing(false), []);
 
   useFocusEffect(
     useCallback(() => {
@@ -124,7 +157,9 @@ export default function InsightsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Insights & Analytics" }} />
+      {/* Work mode reaches Insights from More or Home, so it gets a back
+          arrow; in Personal mode it is a tab. */}
+      <AppHeader title="Insights" showBack={isWork} />
 
       {/* Recap Modal */}
       <AppModal
@@ -172,8 +207,49 @@ export default function InsightsScreen() {
 
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={AMBER} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={AMBER} />}
       >
+        {/* Overview | Trends */}
+        <View style={styles.segmented} accessibilityRole="tablist">
+          {(["overview", "trends"] as const).map((key) => {
+            const active = segment === key;
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[styles.segment, active && styles.segmentActive]}
+                onPress={() => setSegment(key)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 2, bottom: 2 }}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={key === "overview" ? "Overview" : "Trends"}
+              >
+                <Text
+                  style={[styles.segmentLabel, active && styles.segmentLabelActive]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.3}
+                >
+                  {key === "overview" ? "Overview" : "Trends"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {segment === "trends" ? (
+          <TrendsView refreshToken={trendsToken} onRefreshed={handleTrendsRefreshed} />
+        ) : loadFailed ? (
+          <ErrorState
+            title="Couldn't load your insights"
+            description={
+              isOnline()
+                ? "Check your connection and pull down to try again."
+                : "You're offline. Pull down to try again when you're back online."
+            }
+            onRetry={loadData}
+          />
+        ) : (
+          <>
         {/* Recaps */}
         <View style={styles.recapRow}>
           <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("daily")} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="View today's recap">
@@ -203,7 +279,7 @@ export default function InsightsScreen() {
         </View>
 
         {/* Business Insights (work mode) — premium */}
-        {isWork && (
+        {isWork && !isCompanyDriver && (
           <PremiumGate feature="Business Insights">
             <BusinessInsightsCard />
             <PlatformPnLCard days={30} />
@@ -257,50 +333,8 @@ export default function InsightsScreen() {
           </PremiumGate>
         )}
 
-        {/* Driving Analytics link */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: CARD_BG,
-            borderRadius: 14,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.05)",
-            padding: 16,
-            marginBottom: 12,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-          }}
-          onPress={() => isPremium ? router.push("/analytics") : showPaywall("Driving Analytics")}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel={isPremium ? "Go to Driving Analytics" : "Driving Analytics, Pro feature. Tap to upgrade"}
-        >
-          <View style={{
-            width: 40, height: 40, borderRadius: 12,
-            backgroundColor: isPremium ? "rgba(245,166,35,0.12)" : "rgba(255,255,255,0.04)",
-            justifyContent: "center", alignItems: "center",
-          }}>
-            <Ionicons name={isPremium ? "bar-chart-outline" : "lock-closed"} size={20} color={isPremium ? AMBER : TEXT_3} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: isPremium ? TEXT_1 : TEXT_2, fontSize: 15, fontFamily: fonts.semibold }}>
-              Driving Analytics
-            </Text>
-            <Text style={{ color: TEXT_2, fontSize: 12.5, fontFamily: fonts.regular }}>
-              Routes, costs, earnings patterns, commute timing
-            </Text>
-          </View>
-          {isPremium ? (
-            <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
-          ) : (
-            <View style={{ backgroundColor: AMBER, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-              <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: BG }}>PRO</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
         {/* Achievements (both modes) */}
-        {achievements.length > 0 && (
+        {(achievements.length > 0 || loaded) && (
           <View style={styles.section}>
             <View style={styles.sectionHead}>
               <Text style={styles.sectionTitle}>Achievements</Text>
@@ -308,6 +342,13 @@ export default function InsightsScreen() {
                 <Text style={styles.seeAll}>See all</Text>
               </TouchableOpacity>
             </View>
+            {achievements.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyCardText}>
+                  No badges yet. Your first one comes with your first trip.
+                </Text>
+              </View>
+            ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgeScroll}>
               {achievements.slice(0, 8).map((a) => (
                 <View key={a.id} style={styles.badge}>
@@ -316,6 +357,7 @@ export default function InsightsScreen() {
                 </View>
               ))}
             </ScrollView>
+            )}
           </View>
         )}
 
@@ -340,6 +382,8 @@ export default function InsightsScreen() {
               ))}
             </View>
           </View>
+        )}
+          </>
         )}
 
         <View style={{ height: 40 }} />
@@ -377,6 +421,34 @@ const styles = StyleSheet.create({
   recapBtnLabelLocked: {
     color: TEXT_3,
   },
+  // Overview | Trends control
+  segmented: {
+    flexDirection: "row",
+    backgroundColor: CARD_BG,
+    borderRadius: 999,
+    padding: 3,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  segment: {
+    flex: 1,
+    height: 40,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentActive: { backgroundColor: AMBER },
+  segmentLabel: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_2 },
+  segmentLabelActive: { color: BG },
+  emptyCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  emptyCardText: { fontSize: 14, fontFamily: fonts.regular, color: TEXT_2, lineHeight: 20 },
   // Sections
   section: { marginBottom: 16 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
