@@ -33,6 +33,21 @@ const VARIANTS: Record<CreativeKind, Record<string, CreativeVariant>> = {
       subline: "Automatic mileage tracking for UK drivers.",
       phones: [`${OCT}/trips-all.png`, `${OCT}/journey-map.png`, `${OCT}/home-work.png`],
     },
+    gig: {
+      headline: "Every drop,\nevery mile.",
+      subline: "Mileage tracking for delivery drivers.",
+      phones: [`${OCT}/d-tabsearnings.png`, `${OCT}/journey-map.png`, `${OCT}/d-trips-biz.png`],
+    },
+    tax: {
+      headline: "Your tax,\nworked out.",
+      subline: "Mileage and Self Assessment, in plain English.",
+      phones: [`${OCT}/d-sa6.png`, `${OCT}/d-sa2.png`, `${OCT}/d-tax.png`],
+    },
+    employee: {
+      headline: "Paid under\n55p a mile?",
+      subline: "Work out the tax relief on your work miles.",
+      phones: [`${OCT}/e-project-totals.png`, `${OCT}/e-home.png`, `${OCT}/e-mileage-relief.png`],
+    },
     personal: {
       headline: "Every mile,\nmapped.",
       subline: "See where your driving goes.",
@@ -44,6 +59,21 @@ const VARIANTS: Record<CreativeKind, Record<string, CreativeVariant>> = {
       headline: "Mileage tracker\nfor UK drivers",
       subline: "Records your drives on its own.\nWorks out your mileage claim.",
       phones: [`${OCT}/trips-all.png`, `${OCT}/home-work.png`],
+    },
+    gig: {
+      headline: "Mileage tracker\nfor delivery\ndrivers",
+      subline: "Every drop recorded.\nEarnings by app.",
+      phones: [`${OCT}/d-tabsearnings.png`, `${OCT}/d-trips-biz.png`],
+    },
+    tax: {
+      headline: "Mileage and\ntax return,\nsorted",
+      subline: "Your claim worked out.\nPlain English, step by step.",
+      phones: [`${OCT}/d-sa2.png`, `${OCT}/d-tax.png`],
+    },
+    employee: {
+      headline: "Mileage for\nwork drivers",
+      subline: "Track your work miles.\nSee the relief you can claim.",
+      phones: [`${OCT}/e-project-totals.png`, `${OCT}/e-mileage-relief.png`],
     },
     personal: {
       headline: "Track every\njourney",

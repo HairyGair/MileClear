@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PERSONAL_SLOTS, SLOTS, TEST_SLOTS } from "@/components/screenshot/slots";
+import { EMPLOYEE_SLOTS, GIG_SLOTS, PERSONAL_SLOTS, SLOTS, TAX_SLOTS, TEST_SLOTS } from "@/components/screenshot/slots";
 import { creativeVariants } from "@/components/screenshot/CreativeFrame";
 
 // Index of every screenshot slot at every device size, with capture
@@ -100,7 +100,7 @@ export default function ComposerIndex() {
       <h2 style={{ fontSize: 28, fontWeight: 800, margin: "60px 0 16px" }}>Custom pages, test and creative assets (Oct 2026)</h2>
       <p style={{ color: "#94a3b8", marginBottom: 20 }}>See docs/app-store-pages-oct2026/PLAN.md. iPhone 1320×2868; header 3840×1646; search 3840×2560.</p>
       <ul style={{ lineHeight: 2, color: "#cbd5e1" }}>
-        {[...PERSONAL_SLOTS, ...TEST_SLOTS].map((slot) => (
+        {[...PERSONAL_SLOTS, ...GIG_SLOTS, ...TAX_SLOTS, ...EMPLOYEE_SLOTS, ...TEST_SLOTS].map((slot) => (
           <li key={slot.slug}>
             <Link href={`/screenshot-composer/iphone/${slot.slug}`} target="_blank" style={{ color: "#fbbf24" }}>
               {slot.set} {slot.slot}: {slot.slug}

@@ -29,7 +29,7 @@ export interface ScreenshotSlot {
   // product page; the others are custom product pages and product page
   // tests (docs/app-store-pages-oct2026/PLAN.md). Slugs are unique
   // across every set.
-  set?: "main" | "personal" | "test";
+  set?: "main" | "personal" | "test" | "gig" | "tax" | "employee";
   // Eyebrow text above the headline (small uppercase)
   eyebrow?: string;
   headline: string;
@@ -323,7 +323,246 @@ export const TEST_SLOTS: ScreenshotSlot[] = [
   },
 ];
 
-export const ALL_SLOTS: ScreenshotSlot[] = [...SLOTS, ...PERSONAL_SLOTS, ...TEST_SLOTS];
+
+// "Delivery & gig drivers" custom product page. Demo account captures
+// (d-*) plus the map and fuel shots from the personal set. Platform names
+// as text only: Apple's rules ban other platforms' logos.
+export const GIG_SLOTS: ScreenshotSlot[] = [
+  {
+    slot: 1,
+    slug: "g-trips",
+    set: "gig",
+    eyebrow: "Delivery drivers",
+    headline: "Every drop,\nevery mile.",
+    subline: "Trips sorted business or personal and tagged by app: Uber, Deliveroo, Just Eat, Amazon Flex.",
+    iphoneSrc: `${OCT}/d-trips-biz.png`,
+    accent: "amber",
+    layout: "stack",
+  },
+  {
+    slot: 2,
+    slug: "g-earnings",
+    set: "gig",
+    eyebrow: "Earnings",
+    headline: "What each app\npaid you.",
+    subline: "Log your earnings by platform and see the total at a glance.",
+    iphoneSrc: `${OCT}/d-tabsearnings.png`,
+    accent: "emerald",
+    layout: "centered",
+  },
+  {
+    slot: 3,
+    slug: "g-map",
+    set: "gig",
+    eyebrow: "Including the miles between orders",
+    headline: "Your whole\nshift, mapped.",
+    subline: "MileClear records the whole drive, so the miles between orders count too.",
+    iphoneSrc: `${OCT}/journey-map.png`,
+    accent: "amber",
+    layout: "tilted",
+  },
+  {
+    slot: 4,
+    slug: "g-income",
+    set: "gig",
+    eyebrow: "Self Assessment",
+    headline: "Every app,\none total.",
+    subline: "Your income from each platform, added up for your tax return.",
+    iphoneSrc: `${OCT}/d-sa2.png`,
+    accent: "sky",
+    layout: "tilted-right",
+  },
+  {
+    slot: 5,
+    slug: "g-reconcile",
+    set: "gig",
+    eyebrow: "Platform reporting",
+    headline: "Check the apps'\nfigures.",
+    subline: "Platforms now report your earnings to HMRC. Compare their figure with yours, app by app.",
+    iphoneSrc: `${OCT}/d-reconcile.png`,
+    accent: "violet",
+    layout: "centered",
+  },
+  {
+    slot: 6,
+    slug: "g-tax",
+    set: "gig",
+    eyebrow: "Tax",
+    headline: "Know what\nto set aside.",
+    subline: "A running estimate of your tax and National Insurance as the year goes on.",
+    iphoneSrc: `${OCT}/d-tax.png`,
+    accent: "emerald",
+    layout: "tilted",
+  },
+  {
+    slot: 7,
+    slug: "g-fuel",
+    set: "gig",
+    eyebrow: "Fuel nearby",
+    headline: "Cheaper fuel\nbetween drops.",
+    subline: "Today's prices from stations around you, on a map or as a list.",
+    iphoneSrc: `${OCT}/fuel-map-full.png`,
+    accent: "emerald",
+    layout: "tilted-right",
+  },
+];
+
+// "Self-employed & tax return" custom product page.
+export const TAX_SLOTS: ScreenshotSlot[] = [
+  {
+    slot: 1,
+    slug: "x-tax",
+    set: "tax",
+    eyebrow: "Self-employed",
+    headline: "Your tax,\nworked out.",
+    subline: "Earnings, mileage and an estimate of what you'll owe, all in one place.",
+    iphoneSrc: `${OCT}/d-tax.png`,
+    accent: "amber",
+    layout: "stack",
+  },
+  {
+    slot: 2,
+    slug: "x-income",
+    set: "tax",
+    eyebrow: "First tax return?",
+    headline: "Plain English,\nstep by step.",
+    subline: "Six short steps from your trips and earnings to the figures your return needs.",
+    iphoneSrc: `${OCT}/d-sa2.png`,
+    accent: "amber",
+    layout: "centered",
+  },
+  {
+    slot: 3,
+    slug: "x-mileage",
+    set: "tax",
+    eyebrow: "Mileage claim",
+    headline: "The right rate,\nevery trip.",
+    subline: "HMRC's approved mileage rates applied to every business mile, by tax year.",
+    iphoneSrc: `${OCT}/d-sa3.png`,
+    accent: "sky",
+    layout: "tilted",
+  },
+  {
+    slot: 4,
+    slug: "x-boxes",
+    set: "tax",
+    eyebrow: "Self Assessment",
+    headline: "Know which\nbox it goes in.",
+    subline: "Each figure matched to its box on the self-employment pages.",
+    iphoneSrc: `${OCT}/d-sa6.png`,
+    accent: "emerald",
+    layout: "tilted-right",
+  },
+  {
+    slot: 5,
+    slug: "x-trips",
+    set: "tax",
+    eyebrow: "Every trip",
+    headline: "Business or\npersonal, sorted.",
+    subline: "Trips record by themselves. One tap to mark the ones that count.",
+    iphoneSrc: `${OCT}/d-trips-biz.png`,
+    accent: "sky",
+    layout: "centered",
+  },
+  {
+    slot: 6,
+    slug: "x-reconcile",
+    set: "tax",
+    eyebrow: "Platform reporting",
+    headline: "Match HMRC's\nfigures.",
+    subline: "Enter what each platform reported and see any gap before you file.",
+    iphoneSrc: `${OCT}/d-reconcile.png`,
+    accent: "violet",
+    layout: "tilted",
+  },
+  {
+    slot: 7,
+    slug: "x-invoices",
+    set: "tax",
+    eyebrow: "Sole traders",
+    headline: "Invoices,\npaid or chased.",
+    subline: "See who owes you, mark invoices paid, and send a reminder when one's late.",
+    iphoneSrc: `${OCT}/d-invoices.png`,
+    accent: "amber",
+    badge: "PRO",
+    layout: "tilted-right",
+  },
+];
+
+// "Employees claiming mileage" custom product page. Demo account with six
+// employee-style business trips (no gig platform, Project / client set)
+// added 7 Oct 2026. Relief is TAX RELIEF on the gap below 55p, never the
+// gap itself: the copy must not say "claim the difference back".
+export const EMPLOYEE_SLOTS: ScreenshotSlot[] = [
+  {
+    slot: 1,
+    slug: "e-relief",
+    set: "employee",
+    eyebrow: "Driving for work",
+    headline: "Paid under\n55p a mile?",
+    subline: "You may be able to claim tax relief on the gap. MileClear works out how much.",
+    iphoneSrc: `${OCT}/e-mileage-relief.png`,
+    accent: "amber",
+    layout: "stack",
+  },
+  {
+    slot: 2,
+    slug: "e-home",
+    set: "employee",
+    eyebrow: "Your work mileage",
+    headline: "Your claim,\nalways current.",
+    subline: "Your business miles this tax year and what they're worth, updated as you drive.",
+    iphoneSrc: `${OCT}/e-home.png`,
+    accent: "amber",
+    layout: "centered",
+  },
+  {
+    slot: 3,
+    slug: "e-projects",
+    set: "employee",
+    eyebrow: "Clients and projects",
+    headline: "Miles by client,\nadded up.",
+    subline: "Tag a trip with a client or project and see the totals for each.",
+    iphoneSrc: `${OCT}/e-project-totals.png`,
+    accent: "sky",
+    layout: "tilted",
+  },
+  {
+    slot: 4,
+    slug: "e-trips",
+    set: "employee",
+    eyebrow: "Every work trip",
+    headline: "Every work\ntrip, logged.",
+    subline: "Drives record by themselves, or add one you forgot in a few taps.",
+    iphoneSrc: `${OCT}/e-trips.png`,
+    accent: "sky",
+    layout: "tilted-right",
+  },
+  {
+    slot: 5,
+    slug: "e-trip",
+    set: "employee",
+    eyebrow: "One tap",
+    headline: "Work or\npersonal?",
+    subline: "Open any trip to see the route and mark it business or personal.",
+    iphoneSrc: `${OCT}/trip-summary.png`,
+    accent: "emerald",
+    layout: "centered",
+  },
+  {
+    slot: 6,
+    slug: "e-costs",
+    set: "employee",
+    eyebrow: "Running costs",
+    headline: "What your\ndriving costs.",
+    subline: "Miles by day, and an estimate of what the fuel cost you this month.",
+    iphoneSrc: `${OCT}/insights.png`,
+    accent: "emerald",
+    layout: "tilted",
+  },
+];
+
+export const ALL_SLOTS: ScreenshotSlot[] = [...SLOTS, ...PERSONAL_SLOTS, ...TEST_SLOTS, ...GIG_SLOTS, ...TAX_SLOTS, ...EMPLOYEE_SLOTS];
 
 export function getSlot(slugOrNumber: string): ScreenshotSlot | undefined {
   const asNumber = parseInt(slugOrNumber, 10);
