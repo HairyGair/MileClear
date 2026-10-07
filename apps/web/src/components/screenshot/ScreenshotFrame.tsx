@@ -11,7 +11,7 @@ const DEVICE_DIMENSIONS = {
   ipad: { width: 2064, height: 2752 },
 } as const;
 
-const ACCENT_THEMES: Record<
+export const ACCENT_THEMES: Record<
   AccentTheme,
   { primary: string; glow: string; tint: string; chipBg: string; chipText: string }
 > = {
@@ -462,7 +462,7 @@ function IpadSplitFrame({
   );
 }
 
-function BrandMark({
+export function BrandMark({
   theme,
   isIpad,
 }: {
@@ -519,7 +519,7 @@ function BrandMark({
   );
 }
 
-function DeviceMockup({
+export function DeviceMockup({
   src,
   device,
   accent,

@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { SLOTS } from "@/components/screenshot/slots";
+import { PERSONAL_SLOTS, SLOTS, TEST_SLOTS } from "@/components/screenshot/slots";
+import { creativeVariants } from "@/components/screenshot/CreativeFrame";
 
 // Index of every screenshot slot at every device size, with capture
 // instructions. The composer route itself renders one slot at one size;
@@ -94,6 +95,29 @@ export default function ComposerIndex() {
           ))}
         </tbody>
       </table>
+
+
+      <h2 style={{ fontSize: 28, fontWeight: 800, margin: "60px 0 16px" }}>Custom pages, test and creative assets (Oct 2026)</h2>
+      <p style={{ color: "#94a3b8", marginBottom: 20 }}>See docs/app-store-pages-oct2026/PLAN.md. iPhone 1320×2868; header 3840×1646; search 3840×2560.</p>
+      <ul style={{ lineHeight: 2, color: "#cbd5e1" }}>
+        {[...PERSONAL_SLOTS, ...TEST_SLOTS].map((slot) => (
+          <li key={slot.slug}>
+            <Link href={`/screenshot-composer/iphone/${slot.slug}`} target="_blank" style={{ color: "#fbbf24" }}>
+              {slot.set} {slot.slot}: {slot.slug}
+            </Link>{" "}
+            {slot.headline.replace("\n", " ")}
+          </li>
+        ))}
+        {(["header", "search"] as const).flatMap((kind) =>
+          creativeVariants(kind).map((v) => (
+            <li key={`${kind}-${v}`}>
+              <Link href={`/screenshot-composer/${kind}/${v}`} target="_blank" style={{ color: "#fbbf24" }}>
+                {kind}: {v}
+              </Link>
+            </li>
+          )),
+        )}
+      </ul>
 
       <div style={{ marginTop: 60, padding: 24, background: "rgba(255,255,255,0.03)", borderRadius: 12, maxWidth: 800 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>

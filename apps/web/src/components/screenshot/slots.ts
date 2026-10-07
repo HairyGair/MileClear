@@ -25,6 +25,11 @@ export interface Callout {
 export interface ScreenshotSlot {
   slot: number;
   slug: string;
+  // Which App Store page the slot belongs to. "main" is the default
+  // product page; the others are custom product pages and product page
+  // tests (docs/app-store-pages-oct2026/PLAN.md). Slugs are unique
+  // across every set.
+  set?: "main" | "personal" | "test";
   // Eyebrow text above the headline (small uppercase)
   eyebrow?: string;
   headline: string;
@@ -216,10 +221,114 @@ export const SLOTS: ScreenshotSlot[] = [
   },
 ];
 
+// Captured 7 Oct 2026 on the new tab-bar UI (iPhone 17 simulator,
+// Anthony's own account at his request; no demo seed needed).
+const OCT = "/screenshot-source/iphone-oct";
+
+// "Everyday personal drivers" custom product page. Leads with the map,
+// no tax talk. Apple's rules: no prices, no other platforms' logos.
+export const PERSONAL_SLOTS: ScreenshotSlot[] = [
+  {
+    slot: 1,
+    slug: "p-map",
+    set: "personal",
+    eyebrow: "Everyday driving",
+    headline: "Every mile,\nmapped.",
+    subline: "Today, this week or this month. All your routes in one view.",
+    iphoneSrc: `${OCT}/journey-map.png`,
+    accent: "amber",
+    layout: "stack",
+  },
+  {
+    slot: 2,
+    slug: "p-home",
+    set: "personal",
+    eyebrow: "Hands off",
+    headline: "It records.\nYou drive.",
+    subline: "MileClear notices when you drive and saves the journey on its own.",
+    iphoneSrc: `${OCT}/home-personal.png`,
+    accent: "amber",
+    layout: "centered",
+  },
+  {
+    slot: 3,
+    slug: "p-trip",
+    set: "personal",
+    eyebrow: "Every journey",
+    headline: "Tap a trip.\nSee the lot.",
+    subline: "Route, times and miles for every drive. One tap to mark it business or personal.",
+    iphoneSrc: `${OCT}/trip-summary.png`,
+    accent: "sky",
+    layout: "tilted",
+  },
+  {
+    slot: 4,
+    slug: "p-trips",
+    set: "personal",
+    eyebrow: "Your trips",
+    headline: "Everywhere\nyou've been.",
+    subline: "A tidy list of your drives, newest first, with a map for each one.",
+    iphoneSrc: `${OCT}/trips-all.png`,
+    accent: "sky",
+    layout: "tilted-right",
+  },
+  {
+    slot: 5,
+    slug: "p-routes",
+    set: "personal",
+    eyebrow: "Regular runs",
+    headline: "Know your\nusual routes.",
+    subline: "How often you drive them, how long they take, and your best time.",
+    iphoneSrc: `${OCT}/insights-trends.png`,
+    accent: "violet",
+    layout: "centered",
+  },
+  {
+    slot: 6,
+    slug: "p-costs",
+    set: "personal",
+    eyebrow: "Running costs",
+    headline: "What your\ndriving costs.",
+    subline: "Miles by day, and an estimate of what the fuel cost you this month.",
+    iphoneSrc: `${OCT}/insights.png`,
+    accent: "emerald",
+    layout: "tilted",
+  },
+  {
+    slot: 7,
+    slug: "p-fuel",
+    set: "personal",
+    eyebrow: "Fuel nearby",
+    headline: "Find cheaper\nfuel nearby.",
+    subline: "Today's prices from stations around you, on a map or as a list.",
+    iphoneSrc: `${OCT}/fuel-map-full.png`,
+    accent: "emerald",
+    layout: "tilted-right",
+  },
+];
+
+// Product page test (first test, Oct 2026): the default page's first
+// screenshot replaced by this one, everything else unchanged.
+export const TEST_SLOTS: ScreenshotSlot[] = [
+  {
+    slot: 1,
+    slug: "t-hero",
+    set: "test",
+    eyebrow: "Mileage tracker for the UK",
+    headline: "Every mile,\ncounted.",
+    subline: "MileClear records your drives on its own and works out your mileage claim at HMRC rates.",
+    iphoneSrc: `${OCT}/home-work.png`,
+    accent: "amber",
+    layout: "stack",
+  },
+];
+
+export const ALL_SLOTS: ScreenshotSlot[] = [...SLOTS, ...PERSONAL_SLOTS, ...TEST_SLOTS];
+
 export function getSlot(slugOrNumber: string): ScreenshotSlot | undefined {
   const asNumber = parseInt(slugOrNumber, 10);
   if (!Number.isNaN(asNumber)) {
     return SLOTS.find((s) => s.slot === asNumber);
   }
-  return SLOTS.find((s) => s.slug === slugOrNumber);
+  return ALL_SLOTS.find((s) => s.slug === slugOrNumber);
 }

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import ScreenshotFrame from "@/components/screenshot/ScreenshotFrame";
 import { getSlot } from "@/components/screenshot/slots";
+import CreativeFrame, { getCreative } from "@/components/screenshot/CreativeFrame";
 
 // Renders a single App Store screenshot composition at the exact pixel
 // dimensions Apple requires. Open the URL in Chrome at 100% zoom, then
@@ -12,6 +13,8 @@ import { getSlot } from "@/components/screenshot/slots";
 // /screenshot-composer/iphone/1   → 1320×2868
 // /screenshot-composer/ipad/3     → 2064×2752
 // /screenshot-composer/iphone/hero → resolves slot by slug
+// /screenshot-composer/header/main  → 3840×1646 product page header
+// /screenshot-composer/search/main  → 3840×2560 search result image
 
 export default async function SlotPage({
   params,
@@ -19,6 +22,15 @@ export default async function SlotPage({
   params: Promise<{ size: string; slot: string }>;
 }) {
   const { size, slot: slotParam } = await params;
+  if (size === "header" || size === "search") {
+    const variant = getCreative(size, slotParam);
+    if (!variant) notFound();
+    return (
+      <main style={{ background: "#000", minHeight: "100vh", margin: 0, padding: 0 }}>
+        <CreativeFrame kind={size} variant={variant} />
+      </main>
+    );
+  }
   if (size !== "iphone" && size !== "ipad") notFound();
 
   const slot = getSlot(slotParam);

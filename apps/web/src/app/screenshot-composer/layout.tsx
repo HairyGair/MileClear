@@ -12,7 +12,8 @@ export default function ComposerLayout({ children }: { children: React.ReactNode
         .release-banner,
         nav, header, footer,
         [class*="navbar"], [class*="Navbar"],
-        [class*="Footer"], [class*="footer"] { display: none !important; }
+        [class*="Footer"], [class*="footer"],
+        nextjs-portal { display: none !important; }
       `}</style>
       {children}
     </>
