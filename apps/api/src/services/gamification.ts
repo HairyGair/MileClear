@@ -1,11 +1,11 @@
 import { prisma } from "../lib/prisma.js";
+import { claimRatesFor } from "../lib/mileageRates.js";
 import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
 import {
   getTaxYear,
   parseTaxYear,
   calculateMileageDeduction,
-  resolveMileageRates,
   formatPence,
   formatMiles,
   ACHIEVEMENT_META,
@@ -522,7 +522,6 @@ export async function getShiftScorecard(
   let totalMiles = 0;
   let businessMiles = 0;
   let deductionPence = 0;
-  const scorecardRateOpts = scorecardUser ? resolveMileageRates(scorecardUser) : {};
 
   for (const trip of trips) {
     totalMiles += trip.distanceMiles;
@@ -535,7 +534,8 @@ export async function getShiftScorecard(
         | "van"
         | "motorbike";
       deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
-        ...scorecardRateOpts,
+        // Gig-app trips at the approved rates, work trips at the employer's (lib/mileageRates)
+        ...claimRatesFor(scorecardUser, trip.platformTag),
         taxYear: getTaxYear(trip.startedAt),
       }).deductionPence;
     }
@@ -665,7 +665,6 @@ export async function getPeriodRecap(
   let deductionPence = 0;
   let longestTripMiles = 0;
   let longestTripDate: string | null = null;
-  const recapRateOpts = recapUser ? resolveMileageRates(recapUser) : {};
 
   // Group by day for busiest day
   const milesByDay: Record<string, number> = {};
@@ -681,7 +680,7 @@ export async function getPeriodRecap(
         | "van"
         | "motorbike";
       deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
-        ...recapRateOpts,
+        ...claimRatesFor(recapUser, trip.platformTag),
         taxYear: getTaxYear(trip.startedAt),
       }).deductionPence;
     }

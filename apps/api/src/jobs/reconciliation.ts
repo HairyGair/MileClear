@@ -19,12 +19,8 @@
 // quarterly figure submitted to HMRC carries fines. This is the safety net.
 
 import { prisma } from "../lib/prisma.js";
-import {
-  calculateMileageDeduction,
-  resolveMileageRates,
-  parseTaxYear,
-  type VehicleType,
-} from "@mileclear/shared";
+import { parseTaxYear } from "@mileclear/shared";
+import { claimValuePence, type RatedTrip } from "../lib/mileageRates.js";
 import { logEvent } from "../services/appEvents.js";
 import { fallbackVehicleTypeForUsers } from "../services/vehicleDefaults.js";
 
@@ -108,6 +104,7 @@ export async function runReconciliationJob(): Promise<void> {
         },
         select: {
           distanceMiles: true,
+          platformTag: true,
           vehicle: { select: { vehicleType: true, providedByOthers: true } },
         },
       }),
@@ -122,24 +119,21 @@ export async function runReconciliationJob(): Promise<void> {
     ]);
 
     let expectedMiles = 0;
-    const milesByType = new Map<VehicleType, number>();
+    const claimable: RatedTrip[] = [];
     for (const t of trips) {
       expectedMiles += t.distanceMiles;
       // Same split as upsertMileageSummary: miles count every business trip,
       // the deduction leaves out vehicles someone else pays for.
       if (t.vehicle?.providedByOthers) continue;
-      const type = (t.vehicle?.vehicleType ?? fallbackType) as VehicleType;
-      milesByType.set(type, (milesByType.get(type) ?? 0) + t.distanceMiles);
+      claimable.push({
+        distanceMiles: t.distanceMiles,
+        vehicleType: (t.vehicle?.vehicleType ?? fallbackType) as RatedTrip["vehicleType"],
+        platformTag: t.platformTag,
+      });
     }
 
-    const reconRateOpts = reconUser ? resolveMileageRates(reconUser) : {};
-    let expectedPence = 0;
-    for (const [type, miles] of milesByType) {
-      expectedPence += calculateMileageDeduction(type, miles, {
-        ...reconRateOpts,
-        taxYear: summary.taxYear,
-      }).deductionPence;
-    }
+    // Same rule as upsertMileageSummary (lib/mileageRates).
+    const expectedPence = claimValuePence(claimable, reconUser, summary.taxYear);
 
     const milesDrift = Math.abs(expectedMiles - summary.businessMiles);
     const penceDrift = Math.abs(expectedPence - summary.deductionPence);

@@ -94,7 +94,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
       const validatedTaxYear = parsed.data;
       const { start, end } = parseTaxYear(validatedTaxYear);
 
-      const [summary, expenseSummary, trips, earnings, primaryVehicle] =
+      const [summary, expenseSummary, trips, earnings, primaryVehicle, saUser] =
         await Promise.all([
           fetchExportSummary(userId, validatedTaxYear),
           fetchExpenseSummary(userId, validatedTaxYear),
@@ -124,6 +124,15 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
             where: { userId },
             orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
             select: { id: true, make: true, model: true, vehicleType: true },
+          }),
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              workType: true,
+              employerMileageRatePence: true,
+              employerMileageRatePenceAfter10k: true,
+              otherAnnualIncomePence: true,
+            },
           }),
         ]);
 
@@ -221,7 +230,13 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         totalEarningsPence - mileageDeductionPence - allowableExpensesPence
       );
 
-      const taxEstimate = estimateUkTax(taxableProfitPence);
+      // Other income (a salary, a pension) sets the rate the profit is taxed
+      // at, the same as the Tax tab. Without it a small profit showed £0 tax
+      // for a driver whose job already uses their personal allowance (7 Oct
+      // 2026: demo, £509 profit on a £50k salary showed £0 vs £155 on Tax).
+      const taxEstimate = estimateUkTax(taxableProfitPence, {
+        otherIncomePence: saUser?.otherAnnualIncomePence ?? null,
+      });
       const totalTaxPence =
         taxEstimate.incomeTaxPence +
         taxEstimate.class2NiPence +
@@ -233,7 +248,8 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
 
       const taxBandBreakdown = buildTaxBandBreakdown(
         taxableProfitPence,
-        taxEstimate
+        taxEstimate,
+        saUser?.otherAnnualIncomePence ?? null,
       );
 
       // SA103S box values - consumed by clients via SA103_BOXES[i].dataKey.
@@ -258,7 +274,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         netLossTotal: Math.max(0, -netPence),
         netBusinessProfit: taxableProfitPence,
         totalEarnings: totalEarningsPence,
-        otherIncome: 0,
+        otherIncome: 0, // SA103S box 10, other BUSINESS income; never the salary
         totalExpenses: allowableExpensesPence,
         netProfit: Math.max(0, netProfitBeforeMileage),
         allowableExpenses: allowableExpensesPence,
@@ -303,56 +319,66 @@ function buildTaxBandBreakdown(
     incomeTaxPence: number;
     class2NiPence: number;
     class4NiPence: number;
-  }
+  },
+  otherIncomePence: number | null = null,
 ): TaxBandRow[] {
   const T = UK_TAX_2025_26;
   const profit = Math.max(0, taxableProfitPence);
+  const other = Math.max(0, otherIncomePence ?? 0);
   const rows: TaxBandRow[] = [];
+  const gbp = (p: number) => `£${Math.round(p / 100).toLocaleString("en-GB")}`;
 
-  const paUsed = Math.min(profit, T.personalAllowancePence);
+  // The profit sits on top of any other income (salary, pension): each band
+  // row is the part of the profit that falls in that band. With no other
+  // income this is the profit on its own, as before 7 Oct 2026.
+  const inBand = (lo: number, hi: number) =>
+    Math.max(0, Math.min(other + profit, hi) - Math.max(other, lo));
+
+  const paUsed = inBand(0, T.personalAllowancePence);
   rows.push({
     band: "Personal Allowance",
     type: "income_tax",
     ratePct: 0,
     amountPence: 0,
-    description: `First £${(T.personalAllowancePence / 100).toLocaleString(
-      "en-GB"
-    )} of profit is tax-free (£${(paUsed / 100).toLocaleString("en-GB")} used)`,
+    description:
+      other > 0
+        ? `First ${gbp(T.personalAllowancePence)} of income is tax-free. Your other income (${gbp(other)}) uses ${gbp(Math.min(other, T.personalAllowancePence))} of it; ${gbp(paUsed)} of profit falls in it`
+        : `First £${(T.personalAllowancePence / 100).toLocaleString(
+            "en-GB"
+          )} of profit is tax-free (£${(paUsed / 100).toLocaleString("en-GB")} used)`,
   });
 
   // ratePct is a decimal (0.20 = 20%). Clients multiply by 100 for display.
-  if (profit > T.personalAllowancePence) {
-    const basicTaxed =
-      Math.min(profit, T.basicRateThresholdPence) - T.personalAllowancePence;
+  const bands: [string, number, number, number, string][] = [
+    ["Basic Rate", T.personalAllowancePence, T.basicRateThresholdPence, T.basicRate, "20% on income between £12,570 and £50,270"],
+    ["Higher Rate", T.basicRateThresholdPence, T.higherRateThresholdPence, T.higherRate, "40% on income between £50,270 and £125,140"],
+    ["Additional Rate", T.higherRateThresholdPence, Number.MAX_SAFE_INTEGER, T.additionalRate, "45% on income above £125,140"],
+  ];
+  let bandTax = 0;
+  for (const [band, lo, hi, rate, description] of bands) {
+    const taxed = inBand(lo, hi);
+    if (taxed <= 0) continue;
+    const amountPence = Math.round(taxed * rate);
+    bandTax += amountPence;
     rows.push({
-      band: "Basic Rate",
+      band,
       type: "income_tax",
-      ratePct: T.basicRate,
-      amountPence: Math.round(basicTaxed * T.basicRate),
-      description: "20% on profit between £12,570 and £50,270",
+      ratePct: rate,
+      amountPence,
+      description: other > 0 ? `${description}: ${gbp(taxed)} of profit` : description.replace("income", "profit"),
     });
   }
 
-  if (profit > T.basicRateThresholdPence) {
-    const higherTaxed =
-      Math.min(profit, T.higherRateThresholdPence) - T.basicRateThresholdPence;
+  // Anything the bands don't explain (the Personal Allowance shrinking on
+  // income over £100,000) so the rows always add up to the total.
+  const unexplained = taxEstimate.incomeTaxPence - bandTax;
+  if (Math.abs(unexplained) > 100) {
     rows.push({
-      band: "Higher Rate",
+      band: "Personal Allowance reduced",
       type: "income_tax",
-      ratePct: T.higherRate,
-      amountPence: Math.round(higherTaxed * T.higherRate),
-      description: "40% on profit between £50,270 and £125,140",
-    });
-  }
-
-  if (profit > T.higherRateThresholdPence) {
-    const additionalTaxed = profit - T.higherRateThresholdPence;
-    rows.push({
-      band: "Additional Rate",
-      type: "income_tax",
-      ratePct: T.additionalRate,
-      amountPence: Math.round(additionalTaxed * T.additionalRate),
-      description: "45% on profit above £125,140",
+      ratePct: null,
+      amountPence: unexplained,
+      description: "The tax-free allowance shrinks by £1 for every £2 of income over £100,000",
     });
   }
 

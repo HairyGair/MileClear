@@ -31,6 +31,10 @@ export interface ProjectMileageTrip {
   /** In a vehicle someone else pays for: counts as miles, adds no value and
    *  does not use up the 10,000-mile threshold. */
   notClaimed?: boolean;
+  /** A work trip for the driver's employer (an untagged business trip): valued
+   *  at `employerRates` with its own 10,000-mile threshold when those are set
+   *  (7 Oct 2026). Gig-app trips are self-employed and use `rates`. */
+  employerTrip?: boolean;
 }
 
 export interface ProjectMileageOptions {
@@ -43,6 +47,12 @@ export interface ProjectMileageOptions {
   };
   /** Rate class for trips with no vehicle. Defaults to "car". */
   fallbackVehicleType?: ProjectVehicleType;
+  /** The driver's employer rates, applied to `employerTrip` trips. Omit or
+   *  null when the driver has none: every trip then uses `rates`. */
+  employerRates?: {
+    customRateFirst10kPence?: number | null;
+    customRateAfter10kPence?: number | null;
+  } | null;
 }
 
 export interface ProjectMileageRow {
@@ -94,11 +104,27 @@ export function computeProjectMileageTotals(
     .filter(({ t }) => Number.isFinite(t.distanceMiles) && t.distanceMiles > 0)
     .sort((a, b) => a.time - b.time || a.i - b.i);
 
-  const deduction = (cls: "car" | "motorbike", miles: number) =>
-    miles > 0 ? calculateMileageDeduction(cls, miles, { ...rates, taxYear }).deductionPence : 0;
+  const employerRates = options.employerRates ?? null;
 
-  const runningMiles: Record<"car" | "motorbike", number> = { car: 0, motorbike: 0 };
-  const runningPence: Record<"car" | "motorbike", number> = { car: 0, motorbike: 0 };
+  // Employer trips and self-employed trips are separate engagements, each
+  // with its own 10,000-mile threshold, so each keeps its own running total.
+  type Pool = "self" | "employer";
+  const deduction = (pool: Pool, cls: "car" | "motorbike", miles: number) =>
+    miles > 0
+      ? calculateMileageDeduction(cls, miles, {
+          ...(pool === "employer" && employerRates ? employerRates : rates),
+          taxYear,
+        }).deductionPence
+      : 0;
+
+  const runningMiles: Record<Pool, Record<"car" | "motorbike", number>> = {
+    self: { car: 0, motorbike: 0 },
+    employer: { car: 0, motorbike: 0 },
+  };
+  const runningPence: Record<Pool, Record<"car" | "motorbike", number>> = {
+    self: { car: 0, motorbike: 0 },
+    employer: { car: 0, motorbike: 0 },
+  };
 
   interface Group {
     trips: number;
@@ -112,10 +138,11 @@ export function computeProjectMileageTotals(
     let value = 0;
     if (!t.notClaimed) {
       const cls = rateClass(t.vehicleType, fallback);
-      const before = runningPence[cls];
-      runningMiles[cls] += t.distanceMiles;
-      const after = deduction(cls, runningMiles[cls]);
-      runningPence[cls] = after;
+      const pool: Pool = t.employerTrip && employerRates ? "employer" : "self";
+      const before = runningPence[pool][cls];
+      runningMiles[pool][cls] += t.distanceMiles;
+      const after = deduction(pool, cls, runningMiles[pool][cls]);
+      runningPence[pool][cls] = after;
       value = after - before;
     }
 
@@ -169,7 +196,9 @@ export function computeProjectMileageTotals(
     totals: {
       trips: ordered.length,
       miles: roundMiles(totalMiles),
-      valuePence: runningPence.car + runningPence.motorbike,
+      valuePence:
+        runningPence.self.car + runningPence.self.motorbike +
+        runningPence.employer.car + runningPence.employer.motorbike,
     },
   };
 }

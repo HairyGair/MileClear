@@ -5,7 +5,6 @@ import {
   getTaxYear,
   parseTaxYear,
   calculateMileageDeduction,
-  resolveMileageRates,
   type BusinessInsights,
   type PlatformPerformance,
   type ShiftPerformance,
@@ -488,14 +487,14 @@ export async function getWeeklyPnL(
   const estimatedFuelCostPence = fuelLogs.reduce((sum, l) => sum + l.costPence, 0);
   const estimatedWearCostPence = Math.round(businessMiles * WEAR_COST_PENCE_PER_MILE);
 
-  const pnlRateOpts = pnlUser ? resolveMileageRates(pnlUser) : {};
+  // The self-employment deduction: approved rates, the same as the Tax tab
+  // and Self Assessment wizard (before 7 Oct 2026, the employer rate).
   let hmrcDeductionPence = 0;
   for (const trip of trips) {
     if (!isClaimableTrip(trip)) continue;
     const vType = (trip.vehicle?.vehicleType ?? pnlFallbackType) as "car" | "van" | "motorbike";
     const tripTaxYear = getTaxYear(trip.startedAt);
     hmrcDeductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
-      ...pnlRateOpts,
       taxYear: tripTaxYear,
     }).deductionPence;
   }

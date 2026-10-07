@@ -24,7 +24,6 @@ import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
 import {
   calculateMileageDeduction,
-  resolveMileageRates,
   parseTaxYear,
   EXPENSE_CATEGORIES,
 } from "@mileclear/shared";
@@ -58,15 +57,10 @@ export async function buildMileageItems(
   taxYear: string
 ): Promise<SyncItem[]> {
   const { start, end } = parseTaxYear(taxYear);
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      workType: true,
-      employerMileageRatePence: true,
-      employerMileageRatePenceAfter10k: true,
-    },
-  });
-  const rateOpts = { ...(user ? resolveMileageRates(user) : {}), taxYear };
+  // The business books get the self-employment figure at the approved rates,
+  // as the Tax tab and Self Assessment wizard (before 7 Oct 2026, the
+  // employer rate).
+  const rateOpts = { taxYear };
 
   const trips = await prisma.trip.findMany({
     where: claimableWhere({

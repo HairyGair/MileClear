@@ -102,8 +102,13 @@ export function billFromProfit(
 ): { billPence: number; deductedAtSourcePence: number } {
   const t = estimateUkTax(taxableProfitPence, { otherIncomePence: opts.otherIncomePence ?? null });
   const deducted = Math.max(0, opts.payeDeductedPence ?? 0);
+  // With other income set, estimateUkTax already returns only the EXTRA tax
+  // the profit adds on top of it, and PAYE pays the tax on that income, so
+  // PAYE is not taken off the bill again (7 Oct 2026). It still counts as
+  // tax deducted at source for the payments-on-account test.
+  const offset = (opts.otherIncomePence ?? 0) > 0 ? 0 : deducted;
   return {
-    billPence: Math.max(0, t.incomeTaxPence + t.class4NiPence - deducted),
+    billPence: Math.max(0, t.incomeTaxPence + t.class4NiPence - offset),
     deductedAtSourcePence: deducted,
   };
 }

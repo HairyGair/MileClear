@@ -5,7 +5,6 @@ import { claimableWhere } from "../lib/claimableTrips.js";
 import {
   estimateUkTax,
   calculateMileageDeduction,
-  resolveMileageRates,
   getTaxYear,
   parseTaxYear,
   formatPence,
@@ -172,9 +171,13 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     // Nudge: actively tracking trips but not logging earnings.
     const earningsNudge = recentBusinessTripCount >= 3 && recentEarningsCount === 0;
 
-  // Mileage deduction: group business miles by vehicle type so the right AMAP
-  // rate is applied. Trips without a linked vehicle take the user's primary
-  // vehicle's type, or the one type they own, before assuming car.
+  // Mileage deduction: the self-employment figure, so the approved rates, the
+  // same as the Self Assessment wizard and PDF (never an employer's rate:
+  // Anthony, 23 Sep 2026). Before 7 Oct 2026 this applied a driver's
+  // employer rate here, so the Tax tab and the wizard disagreed.
+  // Group miles by vehicle type so the right AMAP rate is applied. Trips
+  // without a linked vehicle take the user's primary vehicle's type, or the
+  // one type they own, before assuming car.
   const fallbackVehicleType = fallbackVehicleTypeFromList(vehicles);
   const milesByType = new Map<VehicleType, number>();
   for (const trip of businessTrips) {
@@ -183,13 +186,9 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     const type: VehicleType = raw === "van" ? "car" : raw;
     milesByType.set(type, (milesByType.get(type) ?? 0) + trip.distanceMiles);
   }
-  const rateOpts = user ? resolveMileageRates(user) : {};
   let mileageDeductionPence = 0;
   for (const [type, miles] of milesByType) {
-    mileageDeductionPence += calculateMileageDeduction(type, miles, {
-      ...rateOpts,
-      taxYear,
-    }).deductionPence;
+    mileageDeductionPence += calculateMileageDeduction(type, miles, { taxYear }).deductionPence;
   }
 
   // Sole-trader invoices (Laura Joyce feature, 10 May 2026): basis-aware
@@ -268,7 +267,14 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   // headline figure represents what's STILL owed, not the gross
   // liability. Floored at 0 — if PAYE has somehow over-paid we still
   // show 0 owed rather than a negative number.
-  const payeAlreadyPaidPence = user?.payeAnnualPaidTaxPence ?? 0;
+  //
+  // Not when other income is set (7 Oct 2026): estimateUkTax then already
+  // works out only the EXTRA tax the profit adds on top of that income, and
+  // PAYE pays the tax on the income itself, so subtracting PAYE as well
+  // counted it twice and showed too little owed.
+  const payeAlreadyPaidPence = user?.otherAnnualIncomePence
+    ? 0
+    : (user?.payeAnnualPaidTaxPence ?? 0);
   const estimatedTaxPence = Math.max(
     0,
     grossTaxLiabilityPence - payeAlreadyPaidPence
@@ -357,7 +363,6 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
     now,
     taxYear,
     thisYearTotalPence: mileageDeductionPence,
-    rateOpts,
     fallbackVehicleType,
   });
 
@@ -562,9 +567,6 @@ interface AcrossWindowsInput {
   /** Already-computed deduction for the current tax year, reused so we
    *  don't redo the full aggregation. */
   thisYearTotalPence: number;
-  /** Resolved mileage-rate options from the parent snapshot, so all four
-   *  windows apply the same rate set the user is set up to claim under. */
-  rateOpts: { customRateFirst10kPence?: number | null; customRateAfter10kPence?: number | null };
   /** Rate class for trips with no vehicle, resolved once by the parent. */
   fallbackVehicleType: VehicleType;
 }
@@ -580,7 +582,7 @@ interface AcrossWindowsInput {
 async function buildMileageDeductionAcrossWindows(
   input: AcrossWindowsInput
 ): Promise<NumberAcrossWindows> {
-  const { userId, now, taxYear, thisYearTotalPence, rateOpts, fallbackVehicleType } = input;
+  const { userId, now, taxYear, thisYearTotalPence, fallbackVehicleType } = input;
 
   // Window bounds. "This week" runs from Monday 00:00 UK time, the same
   // boundary the set-aside figure uses (Sonia, 15 Sep 2026).
@@ -646,10 +648,7 @@ async function buildMileageDeductionAcrossWindows(
     }
     let pence = 0;
     for (const [type, miles] of milesByTypeLocal) {
-      pence += calculateMileageDeduction(type, miles, {
-        ...rateOpts,
-        taxYear: windowTaxYear,
-      }).deductionPence;
+      pence += calculateMileageDeduction(type, miles, { taxYear: windowTaxYear }).deductionPence;
     }
     return pence;
   };

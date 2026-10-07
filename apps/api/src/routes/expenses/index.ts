@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
+import { fetchExportSummary } from "../../services/export-data.js";
 import {
   EXPENSE_CATEGORIES,
   getTaxYear,
@@ -201,7 +202,7 @@ export async function expenseRoutes(app: FastifyInstance) {
     const ty = taxYear || getTaxYear(new Date());
     const { start, end } = parseTaxYear(ty);
 
-    const [earningsAgg, expenseRows, mileageSummaries] = await Promise.all([
+    const [earningsAgg, expenseRows, exportSummary, taxUser] = await Promise.all([
       prisma.earning.aggregate({
         where: { userId, periodStart: { gte: start, lt: end } },
         _sum: { amountPence: true },
@@ -210,15 +211,20 @@ export async function expenseRoutes(app: FastifyInstance) {
         where: { userId, date: { gte: start, lt: end } },
         select: { category: true, amountPence: true },
       }),
-      prisma.mileageSummary.findMany({
-        where: { userId, taxYear: ty },
+      // The self-employment mileage figure (approved rates), the same as the
+      // Self Assessment wizard and Tax tab.
+      // Before 7 Oct 2026 this used the Home claim figure, which values an
+      // employed driver's work trips at their employer's rate.
+      fetchExportSummary(userId, ty),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { otherAnnualIncomePence: true },
       }),
     ]);
 
     const grossEarningsPence = earningsAgg._sum?.amountPence ?? 0;
 
-    // HMRC mileage deduction from stored summaries
-    const mileageDeductionPence = mileageSummaries.reduce((s, m) => s + m.deductionPence, 0);
+    const mileageDeductionPence = exportSummary.totalDeductionPence;
 
     // Split expenses by deductibility
     const categoryMap = new Map<string, typeof EXPENSE_CATEGORIES[number]>(EXPENSE_CATEGORIES.map((c) => [c.value, c]));
@@ -245,7 +251,9 @@ export async function expenseRoutes(app: FastifyInstance) {
       grossEarningsPence - mileageDeductionPence - allowableExpensesPence
     );
 
-    const { incomeTaxPence, class2NiPence, class4NiPence } = estimateUkTax(taxableProfitPence);
+    const { incomeTaxPence, class2NiPence, class4NiPence } = estimateUkTax(taxableProfitPence, {
+      otherIncomePence: taxUser?.otherAnnualIncomePence ?? null,
+    });
     const totalTaxOwedPence = incomeTaxPence + class2NiPence + class4NiPence;
     const effectiveRatePercent = grossEarningsPence > 0
       ? Math.round((totalTaxOwedPence / grossEarningsPence) * 1000) / 10

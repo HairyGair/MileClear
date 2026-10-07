@@ -240,4 +240,15 @@ describe("projectToYearEnd and billFromProfit", () => {
     expect(billFromProfit(2_000_000)).toEqual({ billPence: 148_600 + 44_580, deductedAtSourcePence: 0 });
     expect(billFromProfit(2_000_000, { payeDeductedPence: 50_000 }).billPence).toBe(148_600 + 44_580 - 50_000);
   });
+
+  it("does not take PAYE off again when other income is set (7 Oct 2026)", () => {
+    // £5,000 profit on a £50,000 salary: the profit straddles the higher-rate
+    // line (£270 at 20%, £4,730 at 40%) = £1,946 tax, plus Class 4 on £5,000.
+    const withPaye = billFromProfit(500_000, { otherIncomePence: 5_000_000, payeDeductedPence: 748_600 });
+    const withoutPaye = billFromProfit(500_000, { otherIncomePence: 5_000_000 });
+    expect(withPaye.billPence).toBe(withoutPaye.billPence);
+    expect(withPaye.billPence).toBeGreaterThan(0);
+    // Still reported as deducted at source, for the payments-on-account test.
+    expect(withPaye.deductedAtSourcePence).toBe(748_600);
+  });
 });

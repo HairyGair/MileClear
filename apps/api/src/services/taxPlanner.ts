@@ -25,7 +25,6 @@ import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import { pushPrefEnabled } from "./pushPrefs.js";
 import {
   calculateMileageDeduction,
-  resolveMileageRates,
   parseTaxYear,
   ukDateParts,
   type TaxPlan,
@@ -127,6 +126,8 @@ async function yearProfit(
     fetchExpenseSummary(userId, taxYear),
   ]);
 
+  // The approved rates, the same as the Tax tab and the Self Assessment
+  // wizard; before 7 Oct 2026 this used the driver's employer rate.
   const milesByType = new Map<VehicleType, number>();
   for (const t of trips) {
     const raw = (t.vehicle?.vehicleType ?? fallbackVehicleType) as VehicleType;
@@ -135,10 +136,9 @@ async function yearProfit(
     const type: VehicleType = raw === "van" ? "car" : raw;
     milesByType.set(type, (milesByType.get(type) ?? 0) + t.distanceMiles);
   }
-  const rateOpts = resolveMileageRates(user);
   let mileagePence = 0;
   for (const [type, miles] of milesByType) {
-    mileagePence += calculateMileageDeduction(type, miles, { ...rateOpts, taxYear }).deductionPence;
+    mileagePence += calculateMileageDeduction(type, miles, { taxYear }).deductionPence;
   }
 
   const invoiceIds = new Set(invoices.map((i) => i.id));

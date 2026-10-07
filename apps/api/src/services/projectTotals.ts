@@ -1,10 +1,10 @@
 import { prisma } from "../lib/prisma.js";
 import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
+import { employerRatesFor } from "../lib/mileageRates.js";
 import {
   computeProjectMileageTotals,
   distinctProjectLabels,
   parseTaxYear,
-  resolveMileageRates,
   type ProjectMileageTotals,
 } from "@mileclear/shared";
 
@@ -13,8 +13,9 @@ import {
  *
  * Business trips only, phantoms excluded, valued in date order by the shared
  * computeProjectMileageTotals so the 10,000-mile threshold lands on the right
- * trips. Same rate rules as upsertMileageSummary: the driver's employer rate
- * when they have one, the vehicle-less fallback type from vehicleDefaults.
+ * trips. Same rate rules as upsertMileageSummary (lib/mileageRates): gig-app
+ * trips at the approved rates, other work trips at the driver's employer rate
+ * when they have one; the vehicle-less fallback type from vehicleDefaults.
  */
 export async function loadProjectTotals(
   userId: string,
@@ -43,6 +44,7 @@ export async function loadProjectTotals(
         startedAt: true,
         distanceMiles: true,
         projectLabel: true,
+        platformTag: true,
         vehicle: { select: { vehicleType: true, providedByOthers: true } },
       },
       orderBy: { startedAt: "asc" },
@@ -56,10 +58,12 @@ export async function loadProjectTotals(
       vehicleType: t.vehicle?.vehicleType ?? null,
       projectLabel: t.projectLabel,
       notClaimed: t.vehicle?.providedByOthers ?? false,
+      employerTrip: !t.platformTag,
     })),
     {
       taxYear,
-      rates: user ? resolveMileageRates(user) : {},
+      rates: {},
+      employerRates: employerRatesFor(user),
       fallbackVehicleType: fallbackType,
     },
   );

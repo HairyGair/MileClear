@@ -1,10 +1,9 @@
 import { prisma } from "../lib/prisma.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
+import { claimValuePence } from "../lib/mileageRates.js";
 import {
   getTaxYear,
   parseTaxYear,
-  calculateMileageDeduction,
-  resolveMileageRates,
   type WeeklyReport,
   type FrequentRoute,
   type ShiftSweetSpot,
@@ -169,13 +168,18 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   // Deduction (employer-rate aware). Trips here are weekly aggregate so we
   // pass total business miles as "car" - a tier crossing inside one week is
   // unusual but the function still handles it correctly.
-  const dvrRateOpts = dvrUser ? resolveMileageRates(dvrUser) : {};
   // Vehicles someone else pays for are business miles but claim nothing.
-  const claimableMiles = trips.filter(isClaimableTrip).reduce((s, t) => s + t.distanceMiles, 0);
-  const deductionPence = calculateMileageDeduction("car", claimableMiles, {
-    ...dvrRateOpts,
-    taxYear: getTaxYear(start),
-  }).deductionPence;
+  // Gig-app trips at the approved rates, work trips at the employer's
+  // (lib/mileageRates, the same as Home).
+  const deductionPence = claimValuePence(
+    trips.filter(isClaimableTrip).map((t) => ({
+      distanceMiles: t.distanceMiles,
+      vehicleType: "car" as const,
+      platformTag: t.platformTag,
+    })),
+    dvrUser,
+    getTaxYear(start),
+  );
 
   return {
     weekLabel: label,

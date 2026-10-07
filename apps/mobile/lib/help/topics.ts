@@ -94,7 +94,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "paye-offset",
         q: "I have a day job too - does MileClear handle that?",
-        a: "Yes. Settings → Work & Tax → enter what your employer has already deducted in PAYE this year (it's on your most recent payslip, year-to-date tax line). Tax Readiness then shows what you STILL owe on top of PAYE, rather than the full gross liability.",
+        a: "Yes. Settings → Work & Tax → enter what your employer has already deducted in PAYE this year (it's on your most recent payslip, year-to-date tax line). Tax Readiness then shows what you STILL owe on top of PAYE, rather than the full gross liability.\n\nIf you've entered your other income (salary or pension) instead, you don't need this: MileClear already works out only the extra tax your self-employed profit adds on top of it.",
         goTo: "/settings/work-tax",
       },
       {

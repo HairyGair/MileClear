@@ -424,9 +424,13 @@ export default function WorkTaxSettings() {
             icon="receipt-outline"
             label="Tax already deducted"
             hint={
-              payeTaxPaidPence != null
-                ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} subtracted from "still owed"`
-                : "Enter PAYE deductions so Tax Readiness is honest"
+              // With other income set, the estimate is already only the extra
+              // tax your profit adds, so PAYE isn't taken off again (7 Oct 2026).
+              otherIncomePence != null && otherIncomePence > 0
+                ? "Not needed: your other income above already covers this"
+                : payeTaxPaidPence != null
+                  ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} subtracted from "still owed"`
+                  : "Enter PAYE deductions so Tax Readiness is honest"
             }
             badge={payeTaxPaidPence != null ? "Edit" : "Set"}
             onPress={handlePayeTaxPaid}

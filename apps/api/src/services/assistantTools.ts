@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { claimValuePence, employerRatesFor, type RatedTrip } from "../lib/mileageRates.js";
 import { messageTheTeam } from "./assistantMessage.js";
 import { lookupExpense } from "./expenseBank.js";
 import { fetchExpenseSummary } from "./export-data.js";
@@ -21,7 +22,6 @@ import { buildTaxSnapshot } from "./taxSnapshot.js";
 import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import {
   calculateMileageDeduction,
-  resolveMileageRates,
   getTaxYear,
   parseTaxYear,
   formatPence,
@@ -533,7 +533,7 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
     prisma.vehicle.findMany({ where: { userId }, select: { id: true, vehicleType: true, isPrimary: true, providedByOthers: true } }),
     prisma.trip.findMany({
       where: { userId, isPhantomTrip: false, classification: "business", startedAt: { gte: bounds.start, lte: bounds.end } },
-      select: { distanceMiles: true, vehicleId: true },
+      select: { distanceMiles: true, vehicleId: true, platformTag: true },
     }),
     prisma.earning.aggregate({
       where: { userId, periodStart: { gte: bounds.start, lte: bounds.end } },
@@ -551,6 +551,7 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
   let carVan = 0;
   let motorbike = 0;
   let provided = 0;
+  const rated: RatedTrip[] = [];
   for (const t of trips) {
     // Vehicles someone else pays for: business miles, but no allowance.
     if (t.vehicleId && providedIds.has(t.vehicleId)) {
@@ -560,10 +561,15 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
     const vt = (t.vehicleId && typeOf.get(t.vehicleId)) || fallback;
     if (vt === "motorbike") motorbike += t.distanceMiles;
     else carVan += t.distanceMiles;
+    rated.push({ distanceMiles: t.distanceMiles, vehicleType: vt as RatedTrip["vehicleType"], platformTag: t.platformTag });
   }
-  const rateOpts = user ? resolveMileageRates(user) : {};
-  const carCalc = calculateMileageDeduction("car", carVan, { ...rateOpts, taxYear });
-  const bikeCalc = calculateMileageDeduction("motorbike", motorbike, { ...rateOpts, taxYear });
+  // The rate table to describe, and the allowance worked out the same way as
+  // Home: gig-app trips at the approved rates, other work trips at the
+  // employer's rate when one is set (lib/mileageRates).
+  const employer = employerRatesFor(user);
+  const carCalc = calculateMileageDeduction("car", carVan, { ...(employer ?? {}), taxYear });
+  const bikeCalc = calculateMileageDeduction("motorbike", motorbike, { ...(employer ?? {}), taxYear });
+  const allowancePence = claimValuePence(rated, user, taxYear);
 
   const result: Record<string, unknown> = {
     taxYear,
@@ -581,11 +587,13 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
         : {}),
     },
     mileageRates: {
-      source: carCalc.source === "employer" ? "your employer's rate" : "HMRC approved mileage rates",
+      source: carCalc.source === "employer"
+        ? "your employer's rate for work trips; HMRC approved mileage rates for trips tagged with a gig app (self-employed)"
+        : "HMRC approved mileage rates",
       carAndVan: `${carCalc.rateFirst10kPence}p a mile for the first 10,000 business miles (cars and vans together), ${carCalc.rateAfter10kPence}p after`,
       motorbike: `${bikeCalc.rateFirst10kPence}p a mile`,
     },
-    mileageAllowance: money(carCalc.deductionPence + bikeCalc.deductionPence),
+    mileageAllowance: money(allowancePence),
     earningsRecorded: { entries: earnings._count, ...money(earnings._sum.amountPence ?? 0) },
     expenses: {
       claimableOnTopOfMileageRate: money(expenses.totalAllowablePence),

@@ -165,3 +165,32 @@ describe("distinctProjectLabels", () => {
     ).toEqual(["Y"]);
   });
 });
+
+describe("computeProjectMileageTotals with employer rates (7 Oct 2026)", () => {
+  const employerRates = { customRateFirst10kPence: 40, customRateAfter10kPence: 25 };
+  const trips = [
+    { startedAt: "2026-09-30", distanceMiles: 100, vehicleType: "car", projectLabel: "Hartley & Co", employerTrip: true },
+    { startedAt: "2026-10-01", distanceMiles: 100, vehicleType: "car", projectLabel: null, employerTrip: false },
+  ];
+
+  it("values work trips at the employer's rate and gig trips at the approved rate", () => {
+    const r = computeProjectMileageTotals(trips, { taxYear: "2026-27", employerRates });
+    expect(r.projects.find((p) => p.label === "Hartley & Co")?.valuePence).toBe(4000);
+    expect(r.projects.find((p) => p.label === null)?.valuePence).toBe(5500);
+    expect(r.totals.valuePence).toBe(9500);
+  });
+
+  it("ignores employerTrip when the driver has no employer rate", () => {
+    const r = computeProjectMileageTotals(trips, { taxYear: "2026-27" });
+    expect(r.totals.valuePence).toBe(11000);
+  });
+
+  it("gives each pool its own 10,000-mile threshold", () => {
+    const big = [
+      { startedAt: "2026-05-01", distanceMiles: 9000, vehicleType: "car", projectLabel: "A", employerTrip: true },
+      { startedAt: "2026-06-01", distanceMiles: 9000, vehicleType: "car", projectLabel: "B", employerTrip: false },
+    ];
+    const r = computeProjectMileageTotals(big, { taxYear: "2026-27", employerRates });
+    expect(r.totals.valuePence).toBe(9000 * 40 + 9000 * 55);
+  });
+});
