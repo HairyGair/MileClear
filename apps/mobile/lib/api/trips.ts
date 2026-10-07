@@ -574,7 +574,7 @@ export function resolveMissedJourney(
 
 // Tell the server a background drive just started so it can push-to-start the
 // Live Activity (iOS blocks Activity.request() from the background). Best-effort.
-export function signalTripStart(data: {
+export async function signalTripStart(data: {
   activityType?: "trip" | "shift";
   vehicleName?: string;
   isBusinessMode?: boolean;
@@ -585,9 +585,21 @@ export function signalTripStart(data: {
   tripCount?: number;
   dailyTotalMiles?: number;
 }) {
+  // The battery at the start of the drive (7 Oct 2026): the morning briefing
+  // tells a phone that went quiet on a nearly flat battery to open the app
+  // once, since after a restart it won't wake for drives until it's opened.
+  let battery: { batteryPercent?: number; charging?: boolean } = {};
+  try {
+    const { getBatterySnapshot } = await import("../tracking/batteryAware");
+    const snap = await getBatterySnapshot();
+    if (snap.level != null) battery.batteryPercent = Math.round(snap.level * 100);
+    if (snap.charging != null) battery.charging = snap.charging;
+  } catch {
+    battery = {};
+  }
   return apiRequest<{ sent: boolean; reason?: string }>("/trips/signal-start", {
     method: "POST",
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, ...battery }),
   });
 }
 

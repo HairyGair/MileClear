@@ -54,6 +54,7 @@ import {
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert } from "../services/discord.js";
 import { CLEARTRACK_QUIET_DAYS, planClearTrackAlert } from "../services/clearTrackAlertRule.js";
+import { findPhonesQuietAfterLowBattery, PHONE_QUIET_BODY, PHONE_QUIET_TITLE } from "../services/phoneQuiet.js";
 import {
   runFirstTripCelebrationJob,
   runMileageMilestoneCelebrationJob,
@@ -638,6 +639,10 @@ async function runMorningBriefingJob(): Promise<void> {
     },
   });
 
+  // Phones that went quiet on a nearly flat battery get "open MileClear
+  // before you drive" instead of the summary (services/phoneQuiet.ts).
+  const quietPhones = await findPhonesQuietAfterLowBattery(now).catch(() => new Set<string>());
+
   let sent = 0;
   for (const user of users) {
     if (!user.pushToken) continue;
@@ -645,6 +650,15 @@ async function runMorningBriefingJob(): Promise<void> {
 
     // Dedup: check if we already sent today
     if (await wasNotifiedToday(user.id, "notification.morning_briefing")) continue;
+
+    if (quietPhones.has(user.id)) {
+      try {
+        await sendPushToUser(user.id, PHONE_QUIET_TITLE, PHONE_QUIET_BODY, { action: "open_dashboard" });
+        logEvent("notification.morning_briefing", user.id, { kind: "phone_quiet" });
+        sent++;
+      } catch {}
+      continue;
+    }
 
     // Yesterday's stats
     const [yesterdayTrips, yesterdayEarnings, unclassifiedCount, weekEarnings] = await Promise.all([

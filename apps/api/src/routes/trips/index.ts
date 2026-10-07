@@ -434,6 +434,10 @@ export async function tripRoutes(app: FastifyInstance) {
     speedMph: z.number().min(0).default(0),
     tripCount: z.number().int().min(0).default(0),
     dailyTotalMiles: z.number().min(0).default(0),
+    // The phone's battery when the drive started (7 Oct 2026), so the
+    // morning briefing can tell a phone that ran flat from one that's fine.
+    batteryPercent: z.number().int().min(0).max(100).optional(),
+    charging: z.boolean().optional(),
   });
   app.post("/signal-start", async (request, reply) => {
     const userId = request.userId!;
@@ -465,7 +469,11 @@ export async function tripRoutes(app: FastifyInstance) {
     // doesn't double-log.
     const startedAtMs = d.startedAtMs ?? now;
     signalStartCooldown.set(userId, now);
-    logEvent("trip.signal_start", userId, { activityType: d.activityType });
+    logEvent("trip.signal_start", userId, {
+      activityType: d.activityType,
+      ...(d.batteryPercent !== undefined ? { batteryPercent: d.batteryPercent } : {}),
+      ...(d.charging !== undefined ? { charging: d.charging } : {}),
+    });
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
