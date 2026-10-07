@@ -1504,7 +1504,10 @@ export default function TripFormScreen() {
           const best = d.areaEarnings.find((e) => e.platform === d.bestPlatformNearby);
           if (best) {
             const rate = (best.earningsPerMilePence / 100).toFixed(2);
-            nudges.push(`${best.platform.charAt(0).toUpperCase() + best.platform.slice(1)} drivers earn ~\u00A3${rate}/mi nearby`);
+            // Platform's display name ("Amazon Flex"), not its value ("amazon_flex")
+            const name = GIG_PLATFORMS.find((p) => p.value === best.platform)?.label
+              ?? best.platform.charAt(0).toUpperCase() + best.platform.slice(1);
+            nudges.push(`${name} drivers earn ~\u00A3${rate}/mi nearby`);
           }
         }
         if (d.bestTimeNearby && isWork) {

@@ -115,7 +115,7 @@ export default function ProjectTotalsScreen() {
         }
       >
         <Text style={styles.subtitle}>
-          Business trips this tax year, by the Project / client you gave them. Value is at the approved mileage rates.
+          Business trips this tax year, by the Project / client you gave them. Value is at your employer's rate if you've set one, otherwise the approved mileage rates.
         </Text>
 
         <TouchableOpacity
