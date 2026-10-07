@@ -235,4 +235,22 @@ describe("resolveWakeLagStart", () => {
     expect(resolveWakeLagStart({ prevTrip: prev({ endLat: null }), newTrip: next(), savedLocations, routeMiles: 0.3 }))
       .toMatchObject({ ok: false, reason: "prev_end_missing" });
   });
+
+  describe("a drive signalled in between that was never saved", () => {
+    it("skips: the previous end is not where this trip began", () => {
+      expect(
+        resolveWakeLagStart({ prevTrip: prev(), newTrip: next(), savedLocations, routeMiles: 0.36, driveSignals: [minutes(12)] })
+      ).toMatchObject({ ok: false, reason: "unrecorded_drive_between" });
+    });
+    it("ignores the new trip's own signal and the previous trip's tail", () => {
+      const d = resolveWakeLagStart({
+        prevTrip: prev(),
+        newTrip: next(),
+        savedLocations,
+        routeMiles: 0.36,
+        driveSignals: [minutes(1), minutes(27), minutes(29)],
+      });
+      expect(d.ok).toBe(true);
+    });
+  });
 });

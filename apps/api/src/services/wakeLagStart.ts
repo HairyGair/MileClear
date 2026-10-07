@@ -54,10 +54,25 @@ export const WAKE_LAG_MIN_MILES = 0.15;
 // failed once - which is our most common defect, not a rare one.
 //
 // Reopening this needs a way to tell "drove off from where they parked" from
-// "drove somewhere unrecorded first", which the server does not have today.
-// Neither distance nor elapsed time separates them: of the four extensions that
-// bridged an overnight gap, three were correct.
+// "drove somewhere unrecorded first". Neither distance nor elapsed time
+// separates them: of the four extensions that bridged an overnight gap, three
+// were correct.
+//
+// Part of that way now exists (7 Oct 2026). The phone sends trip.signal_start
+// when a drive begins, so a signal between the previous end and this start
+// with no trip saved for it means a drive went unrecorded in between, and the
+// previous end is not where this trip began. Louise: Work -> school at 15:12
+// signalled but was never saved; the 15:43 school -> home trip was "extended"
+// back to the morning's last stop, adding 0.73 mi she had not driven.
 export const WAKE_LAG_MAX_MILES = 0.6;
+
+/**
+ * A drive signal this soon after the previous end belongs to the previous
+ * trip's tail, and this close before the new start belongs to the new trip
+ * itself (the signal fires about when the engine arms, at the wake lag).
+ */
+export const UNRECORDED_SIGNAL_AFTER_PREV_END_MS = 2 * 60 * 1000;
+export const UNRECORDED_SIGNAL_BEFORE_START_MS = 5 * 60 * 1000;
 export const WAKE_LAG_MIN_GAP_MS = 5 * 60 * 1000;
 export const WAKE_LAG_MAX_GAP_MS = 24 * 60 * 60 * 1000;
 
@@ -112,7 +127,8 @@ export type WakeLagSkipReason =
   | "same_saved_location"
   | "prev_end_not_a_stop"
   | "route_unavailable"
-  | "route_implausible";
+  | "route_implausible"
+  | "unrecorded_drive_between";
 
 export interface WakeLagExtension {
   ok: true;
@@ -172,8 +188,10 @@ export function resolveWakeLagStart(args: {
   savedLocations: WakeLagSavedLocation[];
   routeMiles: number | null;
   routeSecs?: number | null;
+  /** When the phone signalled a drive starting (trip.signal_start), any order. */
+  driveSignals?: Date[];
 }): WakeLagDecision {
-  const { prevTrip, newTrip, savedLocations, routeMiles, routeSecs } = args;
+  const { prevTrip, newTrip, savedLocations, routeMiles, routeSecs, driveSignals = [] } = args;
 
   if (newTrip.isManualEntry) return { ok: false, reason: "manual_entry" };
   if (!newTrip.hasCoordinates) return { ok: false, reason: "no_coordinates" };
@@ -191,6 +209,12 @@ export function resolveWakeLagStart(args: {
   const crowMiles = round2(crow);
   if (crow < WAKE_LAG_MIN_MILES) return { ok: false, reason: "gap_below_min", crowMiles, gapMin };
   if (crow >= WAKE_LAG_MAX_MILES) return { ok: false, reason: "gap_above_max", crowMiles, gapMin };
+
+  const from = prevTrip.endedAt.getTime() + UNRECORDED_SIGNAL_AFTER_PREV_END_MS;
+  const to = newTrip.startedAt.getTime() - UNRECORDED_SIGNAL_BEFORE_START_MS;
+  if (driveSignals.some((d) => d.getTime() > from && d.getTime() < to)) {
+    return { ok: false, reason: "unrecorded_drive_between", crowMiles, gapMin };
+  }
 
   // The previous end has to be somewhere the driver actually stopped.
   const prevEndLocation =
@@ -278,10 +302,22 @@ export async function reconcileWakeLagStart(args: {
     });
     if (!prevTrip) return null;
 
-    const savedLocations = await prisma.savedLocation.findMany({
-      where: { userId },
-      select: { id: true, name: true, latitude: true, longitude: true, radiusMeters: true },
-    });
+    const [savedLocations, signals] = await Promise.all([
+      prisma.savedLocation.findMany({
+        where: { userId },
+        select: { id: true, name: true, latitude: true, longitude: true, radiusMeters: true },
+      }),
+      prisma.appEvent.findMany({
+        where: {
+          userId,
+          type: "trip.signal_start",
+          createdAt: { gt: prevTrip.endedAt!, lt: newTrip.startedAt },
+        },
+        select: { createdAt: true },
+        take: 20,
+      }),
+    ]);
+    const driveSignals = signals.map((e) => e.createdAt);
 
     // Cheap pass first (no routing). Only pay for a route when geometry and
     // timing already say this is a wake-lag start.
@@ -290,6 +326,7 @@ export async function reconcileWakeLagStart(args: {
       newTrip,
       savedLocations,
       routeMiles: Number.POSITIVE_INFINITY,
+      driveSignals,
     });
     // routeMiles is deliberately Infinity here, which the guard reports as
     // "route_unavailable". That is the pass-through signal, not a failure:
@@ -312,6 +349,7 @@ export async function reconcileWakeLagStart(args: {
       savedLocations,
       routeMiles: route?.distanceMiles ?? null,
       routeSecs: route?.durationSecs ?? null,
+      driveSignals,
     });
 
     if (!decision.ok) {
