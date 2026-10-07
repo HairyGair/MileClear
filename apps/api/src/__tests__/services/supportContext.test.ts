@@ -17,7 +17,7 @@ const dump: DumpLike = {
     motionPermission: "denied",
     enabled: true,
     activeShiftId: "__quick_trip__",
-    device: { lowPowerMode: true },
+    device: { lowPowerMode: true, modelName: "iPhone 13 mini", screenWidth: 375, screenHeight: 812, fontScale: 1.24 },
   },
 };
 
@@ -36,6 +36,10 @@ describe("shapeDeviceContext", () => {
       motionPermission: "denied",
       autoDetectEnabled: true,
       lowPowerMode: true,
+      modelName: "iPhone 13 mini",
+      screenWidth: 375,
+      screenHeight: 812,
+      fontScale: 1.24,
       activeShiftId: "__quick_trip__",
       isPro: true,
     });

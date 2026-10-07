@@ -187,7 +187,14 @@ function permissionWords(v: string | null | undefined, granted: string): string 
 /** The phone details attached to an in-app report, in plain words. */
 function PhoneDetails({ ctx, at }: { ctx: SupportDeviceContext; at: string }) {
   const device =
-    ctx.platform === "ios" ? "iPhone" : ctx.platform === "android" ? "Android" : ctx.platform ?? null;
+    ctx.modelName ??
+    (ctx.platform === "ios" ? "iPhone" : ctx.platform === "android" ? "Android" : ctx.platform ?? null);
+  const screen =
+    ctx.screenWidth && ctx.screenHeight
+      ? `${ctx.screenWidth} x ${ctx.screenHeight}${ctx.screenWidth <= 375 ? " (small)" : ""}`
+      : null;
+  const textSize =
+    ctx.fontScale == null ? null : ctx.fontScale > 1.05 ? `Larger (${ctx.fontScale}x)` : ctx.fontScale < 0.95 ? `Smaller (${ctx.fontScale}x)` : "Standard";
   const app = ctx.appVersion
     ? `${ctx.appVersion}${ctx.buildNumber ? ` (build ${ctx.buildNumber})` : ""}`
     : null;
@@ -204,6 +211,8 @@ function PhoneDetails({ ctx, at }: { ctx: SupportDeviceContext; at: string }) {
 
   const rows: Array<[string, string | null]> = [
     ["Phone", device ? `${device}${ctx.osVersion ? ` ${ctx.platform === "ios" ? "iOS " : ""}${ctx.osVersion}` : ""}` : null],
+    ["Screen", screen],
+    ["Text size", textSize],
     ["App", app],
     [
       "App update",

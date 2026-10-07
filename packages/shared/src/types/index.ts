@@ -1574,6 +1574,12 @@ export interface SupportDeviceContext {
   motionPermission?: string | null;
   autoDetectEnabled?: boolean | null;
   lowPowerMode?: boolean | null;
+  /** Phone model, e.g. "iPhone 13 mini" (null on binaries without expo-device). */
+  modelName?: string | null;
+  /** Screen size in points and the text-size setting (1 = default). */
+  screenWidth?: number | null;
+  screenHeight?: number | null;
+  fontScale?: number | null;
   verdict?: string | null;
   activeShiftId?: string | null;
   isPro?: boolean | null;

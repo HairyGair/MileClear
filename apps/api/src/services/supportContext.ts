@@ -56,6 +56,10 @@ export function shapeDeviceContext(
       motionPermission: str(st.motionPermission),
       autoDetectEnabled: bool(st.enabled),
       lowPowerMode: bool(device.lowPowerMode),
+      modelName: str(device.modelName),
+      screenWidth: typeof device.screenWidth === "number" ? device.screenWidth : null,
+      screenHeight: typeof device.screenHeight === "number" ? device.screenHeight : null,
+      fontScale: typeof device.fontScale === "number" ? device.fontScale : null,
       activeShiftId: asid && asid !== "null" ? asid : null,
     });
   }

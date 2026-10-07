@@ -2,8 +2,9 @@
 // Sends the current drive detection state + recent events to the server
 // so admin can see each user's diagnostics without asking for screenshots.
 
-import { Platform } from "react-native";
+import { Dimensions, PixelRatio, Platform } from "react-native";
 import Constants from "expo-constants";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import * as Updates from "expo-updates";
 import { scrubCoordinates, scrubDiagnosticEventData } from "@mileclear/shared";
 import { apiRequest } from "./index";
@@ -182,6 +183,27 @@ const DUMP_EVENT_COUNT = 200;
  * Upload the current diagnostics dump to the server. Called once per app
  * startup from _layout.tsx. Fire-and-forget — never throws, never blocks.
  */
+/** Model + screen size + text size for the dump. Never throws. */
+function screenDetails(): { modelName: string | null; screenWidth: number; screenHeight: number; fontScale: number } {
+  // By name through expo-modules-core, never require("expo-device"): a
+  // package require puts its JS in the OTA bundle, and that crashed release
+  // builds at launch when the native side was missing (see clientContext.ts).
+  // Null when the module isn't in the binary.
+  let modelName: string | null = null;
+  try {
+    modelName = requireOptionalNativeModule<{ modelName?: string | null }>("ExpoDevice")?.modelName ?? null;
+  } catch {
+    modelName = null;
+  }
+  const { width, height } = Dimensions.get("window");
+  return {
+    modelName,
+    screenWidth: Math.round(width),
+    screenHeight: Math.round(height),
+    fontScale: Math.round(PixelRatio.getFontScale() * 100) / 100,
+  };
+}
+
 export async function uploadDiagnosticDump(): Promise<void> {
   try {
     const [
@@ -352,6 +374,9 @@ export async function uploadDiagnosticDump(): Promise<void> {
             batterySeries,
             isPad: Platform.OS === "ios" && Platform.isPad,
             isTV: Platform.isTV,
+            // Phone model, screen and text size (7 Oct 2026): "the form hid
+            // the button" can't be answered without them (John Cheridjian).
+            ...screenDetails(),
             constants: {
               deviceName: Constants.deviceName ?? null,
               installationId: Constants.installationId ?? null,
