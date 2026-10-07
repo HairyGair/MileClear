@@ -1,13 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { PLAY_LIVE } from "@/data/android";
 import { clientIp, isCrawlerIp, playUrlFor, sourceFrom, storeFor } from "@/lib/storeRedirect";
+import { appStoreUrl, pageForChannel } from "@/data/appStorePages";
 
 // One link for every store: mileclear.com/app sends an iPhone or iPad to the
 // App Store, an Android phone to Google Play, and anything else to the home
 // page. Made for the Tyne Tunnel billboard's QR code (1 Oct 2026), where one
 // code has to work whichever phone scans it.
-
-const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear-mileage-tracker-uk/id6759671005";
 
 // The API on this same server, called directly (not through Apache) so the
 // scan endpoint can tell it is us. See apps/api/src/routes/marketing.
@@ -44,7 +43,9 @@ export async function GET(request: NextRequest) {
   if (!BOT_UA.test(ua) && !isCrawlerIp(ip)) await reportScan(store, from);
   const target =
     store === "ios"
-      ? APP_STORE_URL
+      ? // The channel picks a custom product page: ?from=flex-group opens the
+        // delivery drivers page, ?page=employee forces one (Oct 2026).
+        appStoreUrl(pageForChannel(from, params.get("page")))
       : store === "android" && PLAY_LIVE
         ? playUrlFor(from)
         : "https://mileclear.com/"; // absolute: behind the proxy request.url is localhost

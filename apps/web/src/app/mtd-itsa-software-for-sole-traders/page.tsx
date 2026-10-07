@@ -686,7 +686,7 @@ export default function MtdItsaSoftwarePage() {
               quarterly submission is in the app in beta and goes live once
               HMRC grants production credentials.
             </p>
-            <StoreButtons align="center" />
+            <StoreButtons align="center" page="tax" />
             <div style={{ marginTop: "0.5rem" }}>
               <Link
                 href="/updates"

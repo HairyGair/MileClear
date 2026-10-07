@@ -753,7 +753,7 @@ export default function EmployeeMileageTracker() {
               records built in.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-              <StoreButtons align="center" />
+              <StoreButtons align="center" page="employee" />
               <a
                 href="/app?from=seo-employee"
                 style={{

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ANDROID_HREF, PLAY_LIVE } from "@/data/android";
+import { appStoreUrl, type AppStorePage } from "@/data/appStorePages";
 
 export const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
@@ -10,6 +11,8 @@ interface StoreButtonsProps {
   align?: "start" | "center";
   /** Hide the Android button (e.g. inside iOS-only copy). */
   iosOnly?: boolean;
+  /** App Store custom product page for this audience (data/appStorePages). */
+  page?: AppStorePage;
   className?: string;
 }
 
@@ -38,6 +41,7 @@ export default function StoreButtons({
   size = "md",
   align = "start",
   iosOnly = false,
+  page,
   className,
 }: StoreButtonsProps) {
   const cls = ["store-btns", `store-btns--${size}`, `store-btns--${align}`, className]
@@ -46,7 +50,7 @@ export default function StoreButtons({
   return (
     <div className={cls}>
       <a
-        href={APP_STORE_URL}
+        href={page ? appStoreUrl(page) : APP_STORE_URL}
         target="_blank"
         rel="noopener noreferrer"
         className="store-btn store-btn--apple"

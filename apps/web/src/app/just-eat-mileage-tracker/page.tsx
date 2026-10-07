@@ -805,7 +805,7 @@ export default function JustEatMileageTracker() {
               Just Eat is reporting to HMRC.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
-              <StoreButtons align="center" />
+              <StoreButtons align="center" page="gig" />
               <a
                 href="/#pricing"
                 style={{

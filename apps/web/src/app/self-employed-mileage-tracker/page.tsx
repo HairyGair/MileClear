@@ -168,7 +168,7 @@ export default function SelfEmployedMileageTracker() {
               coming soon.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
-              <StoreButtons align="start" />
+              <StoreButtons align="start" page="tax" />
               <a
                 href="/mtd-itsa-software-for-sole-traders"
                 style={{
@@ -483,7 +483,7 @@ export default function SelfEmployedMileageTracker() {
             <p style={{ color: "#94a3b8", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1.75rem", maxWidth: 520, margin: "0 auto 1.75rem" }}>
               Free to download. HMRC AMAP rates from your first trip. MTD ITSA support on the way.
             </p>
-            <StoreButtons align="center" />
+            <StoreButtons align="center" page="tax" />
           </section>
 
         </div>
