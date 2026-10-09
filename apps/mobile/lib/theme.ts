@@ -51,6 +51,31 @@ export const mapOlder = "#64748b";
 
 export const tabBar = { contentHeight: 56, icon: 24, label: 12 } as const;
 
+// ── Insights redesign (docs/insights-oct2026/SPEC-VISUAL.md section 3) ──
+// Charts use solid hexes pre-blended on surface so bars never stack
+// translucency and screenshots match the device.
+export const chart = {
+  current: "#f5a623", // = colors.amber. This week / this month.
+  past: "#8b6322", // amber 55% on surface. 3.5:1 on surface.
+  comparison: "#5d697b", // "Last week" ghost bar, personal segment. 3.4:1.
+  track: "#191f2d", // empty bar stub, medal rims.
+  trackOnHero: "#2c2e35", // dial unlit ticks on heroCard.tint.
+  heat: ["#191f2d", "#342c21", "#684d21", "#a37222", "#f5a623"], // levels 0..4
+  barRadius: 6,
+  barMaxHeight: 96,
+} as const;
+
+export const heroCard = {
+  tint: "#181a20", // amber 6% on surface.
+  border: "rgba(245,166,35,0.35)", // = colors.amberGlow
+  radius: 20,
+} as const;
+
+// Numbers on Insights only; deliberately off the fontSizes scale.
+export const numberSizes = { hero: 44, stat: 28, small: 18 } as const;
+
+export const motion = { quick: 180, settle: 420, celebrate: 700, stagger: 40 } as const;
+
 // ── Spacing ─────────────────────────────────────────────────────────
 
 export const spacing = {
