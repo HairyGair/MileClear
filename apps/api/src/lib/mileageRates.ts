@@ -1,4 +1,4 @@
-import { calculateMileageDeduction, resolveMileageRates } from "@mileclear/shared";
+import { calculateMileageDeduction, getTaxYear, resolveMileageRates } from "@mileclear/shared";
 
 // What a business trip is worth on the "to claim" screens (Home, recaps,
 // scorecard, weekly analytics, Miles by project, EmSee). One rule (7 Oct
@@ -80,4 +80,41 @@ export function claimValuePence(
   const selfEmployed = trips.filter((t) => !!t.platformTag);
   const employerTrips = trips.filter((t) => !t.platformTag);
   return deductionFor(selfEmployed, {}, taxYear) + deductionFor(employerTrips, employer, taxYear);
+}
+
+export interface DatedRatedTrip extends RatedTrip {
+  startedAt: Date;
+}
+
+/** What the trips in a period (a week, a month, a shift) add to the claim:
+ *  the claim with them minus the claim without them, inside each tax year.
+ *  `before` is every claimable business trip earlier in the same tax
+ *  year(s), so a driver past 10,000 miles sees the week at 25p, not 55p.
+ *  Before 9 Oct 2026 recaps, the weekly report, Weekly P&L and the shift
+ *  scorecard each valued a period from zero, two of them ignoring the
+ *  employer's rate (demo week: £72.68 vs £99.94). The one period claim
+ *  figure; tax year to date is MileageSummary.deductionPence. */
+export function periodClaimPence(
+  before: DatedRatedTrip[],
+  during: DatedRatedTrip[],
+  user: RateUser | null | undefined,
+): number {
+  const years = new Map<string, { before: RatedTrip[]; during: RatedTrip[] }>();
+  const slot = (t: DatedRatedTrip) => {
+    const ty = getTaxYear(t.startedAt);
+    let s = years.get(ty);
+    if (!s) {
+      s = { before: [], during: [] };
+      years.set(ty, s);
+    }
+    return s;
+  };
+  for (const t of before) slot(t).before.push(t);
+  for (const t of during) slot(t).during.push(t);
+  let pence = 0;
+  for (const [taxYear, s] of years) {
+    if (s.during.length === 0) continue;
+    pence += claimValuePence([...s.before, ...s.during], user, taxYear) - claimValuePence(s.before, user, taxYear);
+  }
+  return pence;
 }

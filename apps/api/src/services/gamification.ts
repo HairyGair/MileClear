@@ -1,11 +1,13 @@
 import { prisma } from "../lib/prisma.js";
-import { claimRatesFor } from "../lib/mileageRates.js";
+import { periodClaimPence } from "../lib/mileageRates.js";
 import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
+import { percentChange, toRated } from "../lib/insightsMath.js";
+import { periodBounds, previousBounds, ukDayBounds, ukParts, ukWeekBounds } from "../lib/ukTime.js";
+import { loadPeriodFigures, rateUserSelect } from "./periodFigures.js";
 import {
   getTaxYear,
   parseTaxYear,
-  calculateMileageDeduction,
   formatPence,
   formatMiles,
   ACHIEVEMENT_META,
@@ -23,37 +25,17 @@ import {
   detectUkRegion,
 } from "@mileclear/shared";
 
-// ── UK date helpers ─────────────────────────────────────────────────
-// The server may run in any timezone. All date boundaries must be
-// computed relative to Europe/London so "today" matches the user's day.
-
-function ukNow(): Date {
-  // Get current wall-clock time in Europe/London
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-  const p = (type: string) => parts.find((x) => x.type === type)?.value ?? "0";
-  return new Date(`${p("year")}-${p("month")}-${p("day")}T${p("hour")}:${p("minute")}:${p("second")}.000Z`);
-}
-
-function ukDayStart(ref?: Date): Date {
-  const d = ref ? new Date(ref) : ukNow();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-function ukDayEnd(ref?: Date): Date {
-  const d = ref ? new Date(ref) : ukNow();
-  d.setUTCHours(23, 59, 59, 999);
-  return d;
-}
+// UK day, week and month boundaries come from lib/ukTime (real instants,
+// whatever timezone the server runs in). Before 9 Oct 2026 this file kept
+// "UK wall clock in the UTC fields", which put the start of every day and
+// week an hour late in BST.
 
 // ── Streak computation ──────────────────────────────────────────────
 
-function computeStreak(sortedDatesDesc: string[]): {
+export function computeStreak(
+  sortedDatesDesc: string[],
+  now: Date = new Date(),
+): {
   current: number;
   longest: number;
 } {
@@ -62,14 +44,12 @@ function computeStreak(sortedDatesDesc: string[]): {
   // Deduplicate dates (already YYYY-MM-DD strings)
   const unique = [...new Set(sortedDatesDesc)];
 
-  // Check if the streak is still active (today or yesterday)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const todayStr = today.toISOString().slice(0, 10);
-  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+  // Check if the streak is still active (today or yesterday, UK dates).
+  // Before 9 Oct 2026 "today" was server-local midnight printed in UTC,
+  // which in BST is yesterday's date, so a streak stayed "current" a day
+  // after it had ended.
+  const todayStr = ukParts(now).dateKey;
+  const yesterdayStr = new Date(Date.parse(todayStr + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
 
   let current = 0;
   let longest = 0;
@@ -116,7 +96,7 @@ async function getPersonalRecords(userId: string): Promise<PersonalRecords> {
     SELECT CAST(SUM(distanceMiles) AS DECIMAL(12,2)) as totalMiles,
            DATE(startedAt) as tripDate
     FROM trips
-    WHERE userId = ${userId}
+    WHERE userId = ${userId} AND isPhantomTrip = false
     GROUP BY DATE(startedAt)
     ORDER BY totalMiles DESC
     LIMIT 1
@@ -130,7 +110,7 @@ async function getPersonalRecords(userId: string): Promise<PersonalRecords> {
            DATE(s.startedAt) as shiftDate
     FROM trips t
     JOIN shifts s ON t.shiftId = s.id
-    WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL
+    WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL AND t.isPhantomTrip = false
     GROUP BY t.shiftId, DATE(s.startedAt)
     ORDER BY tripCount DESC
     LIMIT 1
@@ -142,7 +122,7 @@ async function getPersonalRecords(userId: string): Promise<PersonalRecords> {
   >`
     SELECT distanceMiles, DATE(startedAt) as startedAt
     FROM trips
-    WHERE userId = ${userId}
+    WHERE userId = ${userId} AND isPhantomTrip = false
     ORDER BY distanceMiles DESC
     LIMIT 1
   `;
@@ -151,7 +131,7 @@ async function getPersonalRecords(userId: string): Promise<PersonalRecords> {
   const tripDates = await prisma.$queryRaw<{ tripDate: string }[]>`
     SELECT DISTINCT DATE(startedAt) as tripDate
     FROM trips
-    WHERE userId = ${userId}
+    WHERE userId = ${userId} AND isPhantomTrip = false
     ORDER BY tripDate DESC
   `;
 
@@ -193,8 +173,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   });
 
   // Today's miles (UK timezone)
-  const todayStart = ukDayStart();
-  const todayEnd = ukDayEnd();
+  const { start: todayStart, end: todayEnd } = ukDayBounds(now);
 
   const [todayAgg, todayTrips] = await Promise.all([
     prisma.trip.aggregate({
@@ -214,13 +193,9 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     }),
   ]);
 
-  // This week's miles (Monday-based, UK timezone)
-  const ukToday = ukNow();
-  const dayOfWeek = ukToday.getUTCDay();
-  const diffToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const weekStart = new Date(ukToday);
-  weekStart.setUTCDate(weekStart.getUTCDate() - diffToMon);
-  weekStart.setUTCHours(0, 0, 0, 0);
+  // This week's miles (Monday-based, UK timezone): the same week as
+  // /gamification/recap?period=weekly.
+  const { start: weekStart } = ukWeekBounds(now);
 
   const weekAgg = await prisma.trip.aggregate({
     where: {
@@ -235,7 +210,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   // mobile dashboard can detect "lots of trips, none business" and show
   // a review-classifications nudge.
   const taxYearRange = parseTaxYear(taxYear);
-  const [totalTrips, totalShifts, unclassifiedTrips] = await Promise.all([
+  const [totalTrips, totalShifts, unclassifiedTrips, lifetimeAgg] = await Promise.all([
     prisma.trip.count({ where: { userId, isPhantomTrip: false } }),
     prisma.shift.count({ where: { userId, status: "completed" } }),
     prisma.trip.count({
@@ -246,6 +221,9 @@ export async function getStats(userId: string): Promise<GamificationStats> {
         startedAt: { gte: taxYearRange.start, lte: taxYearRange.end },
       },
     }),
+    // Every mile ever recorded: lifetime milestones (totalMiles is this
+    // tax year only and resets each April).
+    prisma.trip.aggregate({ where: { userId, isPhantomTrip: false }, _sum: { distanceMiles: true } }),
   ]);
 
   // Streak from distinct trip dates (excluding phantoms — a walking
@@ -340,6 +318,7 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     todayMiles: todayAgg._sum.distanceMiles ?? 0,
     todayTrips,
     weekMiles: weekAgg._sum.distanceMiles ?? 0,
+    lifetimeMiles: Math.round((lifetimeAgg._sum.distanceMiles ?? 0) * 10) / 10,
     personalRecords,
     region,
     drivingPatterns,
@@ -501,45 +480,50 @@ export async function getShiftScorecard(
 
   if (!shift) return null;
 
-  // Get trips in this shift
-  const [trips, scorecardUser, scorecardFallbackType] = await Promise.all([
+  // Get trips in this shift, and the business trips earlier in the tax
+  // year (the claim's 10,000-mile threshold).
+  const { start: shiftTaxStart } = parseTaxYear(getTaxYear(shift.startedAt));
+  const [trips, earlierTrips, scorecardUser, scorecardFallbackType] = await Promise.all([
     prisma.trip.findMany({
       where: { shiftId: shift.id, userId, isPhantomTrip: false },
       include: { vehicle: true },
     }),
-    prisma.user.findUnique({
-      where: { id: userId },
+    prisma.trip.findMany({
+      where: {
+        userId,
+        isPhantomTrip: false,
+        classification: "business",
+        startedAt: { gte: shiftTaxStart, lt: shift.startedAt },
+        OR: [{ shiftId: null }, { shiftId: { not: shift.id } }],
+      },
       select: {
-        workType: true,
-        employerMileageRatePence: true,
-        employerMileageRatePenceAfter10k: true,
+        distanceMiles: true,
+        classification: true,
+        platformTag: true,
+        startedAt: true,
+        vehicle: { select: { vehicleType: true, providedByOthers: true } },
       },
     }),
+    prisma.user.findUnique({ where: { id: userId }, select: rateUserSelect }),
     fallbackVehicleTypeForUser(userId),
   ]);
 
   const tripsCompleted = trips.length;
   let totalMiles = 0;
   let businessMiles = 0;
-  let deductionPence = 0;
-
   for (const trip of trips) {
     totalMiles += trip.distanceMiles;
     if (trip.classification === "business") {
       businessMiles += trip.distanceMiles;
     }
-    if (isClaimableTrip(trip)) {
-      const vType = (trip.vehicle?.vehicleType ?? scorecardFallbackType) as
-        | "car"
-        | "van"
-        | "motorbike";
-      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
-        // Gig-app trips at the approved rates, work trips at the employer's (lib/mileageRates)
-        ...claimRatesFor(scorecardUser, trip.platformTag),
-        taxYear: getTaxYear(trip.startedAt),
-      }).deductionPence;
-    }
   }
+  // The same claim rule as every other period (lib/mileageRates).
+  const fallback = scorecardFallbackType as "car" | "van" | "motorbike";
+  const deductionPence = periodClaimPence(
+    earlierTrips.filter(isClaimableTrip).map((t) => toRated(t, fallback)),
+    trips.filter(isClaimableTrip).map((t) => toRated(t, fallback)),
+    scorecardUser,
+  );
 
   // Check personal bests — most miles in a single shift, most trips in a single shift
   // Exclude current shift so we compare against previous bests only
@@ -600,101 +584,56 @@ export async function getShiftScorecard(
 }
 
 // ── getPeriodRecap ──────────────────────────────────────────────────
+//
+// The one source for a period's miles, trips, claim and earnings on
+// Insights (docs/insights-oct2026/NUMBERS.md). Boundaries are UK calendar
+// days, weeks (Monday to Sunday) and months (lib/ukTime); the claim is
+// lib/mileageRates periodClaimPence; phantom trips never count.
 
 export async function getPeriodRecap(
   userId: string,
   period: "daily" | "weekly" | "monthly",
-  referenceDate?: Date
+  referenceDate?: Date,
+  opts: { withPrevious?: boolean } = {},
 ): Promise<PeriodRecap> {
-  // Use UK timezone for all date boundary calculations
-  const ref = referenceDate ? referenceDate : ukNow();
-  let start: Date;
-  let end: Date;
+  const ref = referenceDate ?? new Date();
+  const bounds = periodBounds(period, ref);
+  const startDay = ukParts(bounds.start);
+  const endDay = ukParts(bounds.end);
+  const asUtcDate = (p: { year: number; month: number; day: number }) =>
+    new Date(Date.UTC(p.year, p.month - 1, p.day, 12));
+  const fmt = (d: Date, o: Intl.DateTimeFormatOptions) =>
+    d.toLocaleDateString("en-GB", { ...o, timeZone: "UTC" });
+
   let label: string;
-
-  const fmt = (d: Date, opts: Intl.DateTimeFormatOptions) =>
-    d.toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
-
   if (period === "daily") {
-    start = ukDayStart(ref);
-    end = ukDayEnd(ref);
-    label = fmt(start, { weekday: "long", day: "numeric", month: "long" });
+    label = fmt(asUtcDate(startDay), { weekday: "long", day: "numeric", month: "long" });
   } else if (period === "weekly") {
-    // Monday-based week
-    const dayOfWeek = ref.getUTCDay();
-    const diffToMon = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    start = new Date(ref);
-    start.setUTCDate(start.getUTCDate() - diffToMon);
-    start.setUTCHours(0, 0, 0, 0);
-    end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 6);
-    end.setUTCHours(23, 59, 59, 999);
-
-    const startStr = fmt(start, { day: "numeric", month: "short" });
-    const endStr = fmt(end, { day: "numeric", month: "short" });
-    label = `Week of ${startStr} – ${endStr}`;
+    label = `Week of ${fmt(asUtcDate(startDay), { day: "numeric", month: "short" })} to ${fmt(asUtcDate(endDay), { day: "numeric", month: "short" })}`;
   } else {
-    start = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1));
-    end = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 0, 23, 59, 59, 999));
-    label = fmt(start, { month: "long", year: "numeric" });
+    label = fmt(asUtcDate(startDay), { month: "long", year: "numeric" });
   }
 
-  const [trips, recapUser, recapFallbackType] = await Promise.all([
-    prisma.trip.findMany({
-      where: {
-        userId,
-        isPhantomTrip: false,
-        startedAt: { gte: start, lte: end },
-      },
-      include: { vehicle: true },
-      orderBy: { startedAt: "asc" },
-    }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        workType: true,
-        employerMileageRatePence: true,
-        employerMileageRatePenceAfter10k: true,
-      },
-    }),
-    fallbackVehicleTypeForUser(userId),
+  const [figures, previous] = await Promise.all([
+    loadPeriodFigures(userId, bounds),
+    opts.withPrevious ? loadPeriodFigures(userId, previousBounds(period, ref)) : Promise.resolve(null),
   ]);
+  const { trips } = figures;
 
-  let totalMiles = 0;
-  let businessMiles = 0;
-  let deductionPence = 0;
   let longestTripMiles = 0;
   let longestTripDate: string | null = null;
-
-  // Group by day for busiest day
+  let longestTripId: string | null = null;
   const milesByDay: Record<string, number> = {};
-
   for (const trip of trips) {
-    totalMiles += trip.distanceMiles;
-    if (trip.classification === "business") {
-      businessMiles += trip.distanceMiles;
-    }
-    if (isClaimableTrip(trip)) {
-      const vType = (trip.vehicle?.vehicleType ?? recapFallbackType) as
-        | "car"
-        | "van"
-        | "motorbike";
-      deductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
-        ...claimRatesFor(recapUser, trip.platformTag),
-        taxYear: getTaxYear(trip.startedAt),
-      }).deductionPence;
-    }
-
     if (trip.distanceMiles > longestTripMiles) {
       longestTripMiles = trip.distanceMiles;
       longestTripDate = trip.startedAt.toISOString();
+      longestTripId = trip.id;
     }
-
-    const dayKey = trip.startedAt.toISOString().slice(0, 10);
+    const dayKey = ukParts(trip.startedAt).dateKey;
     milesByDay[dayKey] = (milesByDay[dayKey] ?? 0) + trip.distanceMiles;
   }
 
-  // Find busiest day
   let busiestDayLabel: string | null = null;
   let busiestDayMiles = 0;
   for (const [day, miles] of Object.entries(milesByDay)) {
@@ -709,32 +648,59 @@ export async function getPeriodRecap(
     }
   }
 
-  // Generate share text
   const shareLines: string[] = [
     `📊 My ${period === "daily" ? "Daily" : period === "weekly" ? "Weekly" : "Monthly"} MileClear Recap`,
     label,
     "",
-    `🚗 ${formatMiles(totalMiles)} total`,
-    `💼 ${formatMiles(businessMiles)} business`,
-    `💰 ${formatPence(deductionPence)} tax deduction`,
-    `📍 ${trips.length} trips`,
+    `🚗 ${formatMiles(figures.totalMiles)} total`,
+    `💼 ${formatMiles(figures.businessMiles)} business`,
+    `💰 ${formatPence(figures.claimPence)} mileage claim`,
+    `📍 ${figures.totalTrips} trips`,
   ];
   if (busiestDayLabel) {
     shareLines.push(`🔥 Busiest: ${busiestDayLabel} (${formatMiles(busiestDayMiles)})`);
   }
   shareLines.push("", "Track your miles with MileClear 🏁");
 
+  const totalsOf = (f: typeof figures) => ({
+    totalMiles: f.totalMiles,
+    businessMiles: f.businessMiles,
+    personalMiles: f.personalMiles,
+    totalTrips: f.totalTrips,
+    businessTrips: f.businessTrips,
+    deductionPence: f.claimPence,
+    earningsPence: f.earningsPence,
+  });
+
   return {
     period,
     label,
-    totalMiles,
-    businessMiles,
-    deductionPence,
-    totalTrips: trips.length,
+    startsAt: bounds.start.toISOString(),
+    endsAt: bounds.end.toISOString(),
+    totalMiles: figures.totalMiles,
+    businessMiles: figures.businessMiles,
+    personalMiles: figures.personalMiles,
+    deductionPence: figures.claimPence,
+    totalTrips: figures.totalTrips,
+    businessTrips: figures.businessTrips,
+    earningsPence: figures.earningsPence,
+    earningsCount: figures.earningsCount,
     busiestDayLabel,
     busiestDayMiles,
     longestTripMiles,
     longestTripDate,
+    longestTripId,
     shareText: shareLines.join("\n"),
+    ...(previous
+      ? {
+          previous: totalsOf(previous),
+          change: {
+            totalMilesPercent: percentChange(figures.totalMiles, previous.totalMiles),
+            businessMilesPercent: percentChange(figures.businessMiles, previous.businessMiles),
+            totalTripsPercent: percentChange(figures.totalTrips, previous.totalTrips),
+            earningsPercent: percentChange(figures.earningsPence, previous.earningsPence),
+          },
+        }
+      : {}),
   };
 }

@@ -1,10 +1,16 @@
 import { prisma } from "../lib/prisma.js";
-import { isClaimableTrip } from "../lib/claimableTrips.js";
-import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
+import {
+  allocateEarningsToHours,
+  goldenHoursFromSlots,
+  percentChange,
+  rankPlatforms,
+} from "../lib/insightsMath.js";
+import { WEEKDAY_NAMES, ukParts, ukWeekBounds } from "../lib/ukTime.js";
+import { boundsLabel, loadPeriodFigures } from "./periodFigures.js";
+import { taxYearRunningCost } from "./runningCost.js";
 import {
   getTaxYear,
   parseTaxYear,
-  calculateMileageDeduction,
   type BusinessInsights,
   type PlatformPerformance,
   type ShiftPerformance,
@@ -144,100 +150,37 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
     : 0;
 
   // ── Platform comparison ─────────────────────────────────────────
-  const platformMap = new Map<string, { earningsPence: number; trips: number; miles: number }>();
-
-  for (const e of earnings) {
-    const key = e.platform.toLowerCase();
-    const existing = platformMap.get(key) ?? { earningsPence: 0, trips: 0, miles: 0 };
-    existing.earningsPence += e.amountPence;
-    platformMap.set(key, existing);
-  }
-
-  // Match trips to platforms
-  for (const t of businessTrips) {
-    if (!t.platformTag) continue;
-    const key = t.platformTag.toLowerCase();
-    const existing = platformMap.get(key) ?? { earningsPence: 0, trips: 0, miles: 0 };
-    existing.trips += 1;
-    existing.miles += t.distanceMiles;
-    platformMap.set(key, existing);
-  }
-
-  const platformPerformance: PlatformPerformance[] = [];
-  for (const [platform, data] of platformMap) {
-    if (data.earningsPence === 0 && data.trips === 0) continue;
-    platformPerformance.push({
-      platform,
-      totalEarningsPence: data.earningsPence,
-      tripCount: data.trips,
-      totalMiles: Math.round(data.miles * 10) / 10,
-      earningsPerMilePence: data.miles > 0 ? Math.round(data.earningsPence / data.miles) : 0,
-      earningsPerTripPence: data.trips > 0 ? Math.round(data.earningsPence / data.trips) : 0,
-      avgTripMiles: data.trips > 0 ? Math.round((data.miles / data.trips) * 10) / 10 : 0,
-    });
-  }
-
-  // Sort by earnings per mile descending
-  platformPerformance.sort((a, b) => b.earningsPerMilePence - a.earningsPerMilePence);
-
-  const bestPlatform = platformPerformance.length > 0
-    ? platformPerformance[0].platform
-    : null;
+  // The one league (lib/insightsMath rankPlatforms), by pay per mile; the
+  // same function feeds /business-insights/platform-pnl.
+  const league = rankPlatforms(earnings, businessTrips);
+  const platformPerformance: PlatformPerformance[] = league.map((r) => ({
+    platform: r.platform,
+    totalEarningsPence: r.earningsPence,
+    tripCount: r.trips,
+    totalMiles: r.businessMiles,
+    earningsPerMilePence: r.earningsPerMilePence ?? 0,
+    earningsPerTripPence: r.trips > 0 ? Math.round(r.earningsPence / r.trips) : 0,
+    avgTripMiles: r.trips > 0 ? Math.round((r.businessMiles / r.trips) * 10) / 10 : 0,
+  }));
+  const bestPlatform = league.length > 0 && league[0].earningsPerMilePence != null ? league[0].platform : null;
 
   // ── Golden hours ────────────────────────────────────────────────
-  // Aggregate earnings by day-of-week + hour
-  const hourSlots = new Map<string, { totalPence: number; count: number }>();
+  // Earnings are dates with no time. A one-day earning is spread over the
+  // hours worked that day (shifts, else that platform's trips, else all
+  // business trips); earnings over several days or on days with no
+  // recorded work are left out. Before 9 Oct 2026 every earning counted at
+  // midnight, so "Sunday 1-2 AM" topped the list.
+  const { slots } = allocateEarningsToHours({
+    earnings,
+    shifts: qualifyingShifts.map((sh) => ({ start: sh.startedAt, end: sh.endedAt })),
+    businessTrips: businessTrips.map((t) => ({ start: t.startedAt, end: t.endedAt, platformTag: t.platformTag })),
+  });
+  const topGoldenHours: GoldenHour[] = goldenHoursFromSlots(slots, 3);
 
-  for (const e of earnings) {
-    // Use periodStart as the earning time
-    const d = new Date(e.periodStart);
-    const dayOfWeek = d.toLocaleDateString("en-GB", { weekday: "long" });
-    const hour = d.getHours();
-    const key = `${dayOfWeek}_${hour}`;
-    const existing = hourSlots.get(key) ?? { totalPence: 0, count: 0 };
-    existing.totalPence += e.amountPence;
-    existing.count += 1;
-    hourSlots.set(key, existing);
-  }
-
-  // Also use trip start times for trip-level density
-  for (const t of businessTrips) {
-    const d = new Date(t.startedAt);
-    const dayOfWeek = d.toLocaleDateString("en-GB", { weekday: "long" });
-    const hour = d.getHours();
-    const key = `${dayOfWeek}_${hour}`;
-    if (!hourSlots.has(key)) {
-      hourSlots.set(key, { totalPence: 0, count: 0 });
-    }
-  }
-
-  const goldenHours: GoldenHour[] = [];
-  for (const [key, data] of hourSlots) {
-    if (data.totalPence === 0) continue;
-    const [dayOfWeek, hourStr] = key.split("_");
-    const hour = parseInt(hourStr, 10);
-    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    const nextHour = (hour + 1) % 24;
-    const nextPeriod = nextHour >= 12 ? "PM" : "AM";
-    const nextDisplayHour = nextHour === 0 ? 12 : nextHour > 12 ? nextHour - 12 : nextHour;
-
-    goldenHours.push({
-      dayOfWeek,
-      hour,
-      label: `${dayOfWeek} ${displayHour}–${nextDisplayHour} ${nextPeriod}`,
-      avgEarningsPence: Math.round(data.totalPence / data.count),
-      tripCount: data.count,
-    });
-  }
-
-  // Sort by avg earnings and take top 3
-  goldenHours.sort((a, b) => b.avgEarningsPence - a.avgEarningsPence);
-  const topGoldenHours = goldenHours.slice(0, 3);
-
-  // Busiest day of week
+  // Busiest day of week (UK time)
   const dayMiles = new Map<string, number>();
   for (const t of businessTrips) {
-    const day = new Date(t.startedAt).toLocaleDateString("en-GB", { weekday: "long" });
+    const day = WEEKDAY_NAMES[ukParts(t.startedAt).dow];
     dayMiles.set(day, (dayMiles.get(day) ?? 0) + t.distanceMiles);
   }
   let busiestDay: string | null = null;
@@ -250,45 +193,15 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
   }
 
   // ── Fuel economy ────────────────────────────────────────────────
-  let actualMpg: number | null = null;
-  let fuelCostPerMilePence: number | null = null;
-  let estimatedFuelCostPence: number | null = null;
-
-  // Try to compute real MPG from consecutive odometer readings
-  const logsWithOdometer = fuelLogs.filter((l) => l.odometerReading !== null && l.odometerReading > 0);
-  if (logsWithOdometer.length >= 2) {
-    // Sort by odometer reading
-    logsWithOdometer.sort((a, b) => a.odometerReading! - b.odometerReading!);
-    const first = logsWithOdometer[0];
-    const last = logsWithOdometer[logsWithOdometer.length - 1];
-    const milesDriven = last.odometerReading! - first.odometerReading!;
-    // Sum litres between first and last (excluding first fill-up)
-    const litresUsed = logsWithOdometer.slice(1).reduce((sum, l) => sum + l.litres, 0);
-    if (litresUsed > 0 && milesDriven > 0) {
-      // 1 gallon = 4.54609 litres
-      const gallonsUsed = litresUsed / 4.54609;
-      actualMpg = Math.round((milesDriven / gallonsUsed) * 10) / 10;
-    }
-  }
-
-  // Cost per mile from total fuel spend
-  const totalFuelCostPence = fuelLogs.reduce((sum, l) => sum + l.costPence, 0);
-  const totalAllMiles = mileageSummary?.totalMiles ?? totalBusinessMiles;
-  if (totalFuelCostPence > 0 && totalAllMiles > 0) {
-    fuelCostPerMilePence = Math.round(totalFuelCostPence / totalAllMiles);
-  }
-
-  // Estimate total fuel cost for business miles if we have cost-per-mile
-  if (fuelCostPerMilePence !== null && totalBusinessMiles > 0) {
-    estimatedFuelCostPence = Math.round(fuelCostPerMilePence * totalBusinessMiles);
-  } else if (actualMpg && totalBusinessMiles > 0) {
-    // Fallback: estimate from MPG + average fuel price (~145p/litre)
-    const primaryVehicle = vehicles.find((v) => v.isPrimary) ?? vehicles[0];
-    const avgPricePerLitre = primaryVehicle?.fuelType === "diesel" ? 150 : 140; // rough pence/litre
-    const gallonsNeeded = totalBusinessMiles / actualMpg;
-    const litresNeeded = gallonsNeeded * 4.54609;
-    estimatedFuelCostPence = Math.round(litresNeeded * avgPricePerLitre);
-  }
+  // One running cost per mile (services/runningCost): the same figure as
+  // the Overview fuel card and Trends.
+  const runningCost = await taxYearRunningCost(userId, now);
+  const fuelCostPerMilePence = runningCost.pencePerMile;
+  const actualMpg = runningCost.mpgSource === "odometer" ? runningCost.mpg : null;
+  const estimatedFuelCostPence =
+    fuelCostPerMilePence != null && totalBusinessMiles > 0
+      ? Math.round(fuelCostPerMilePence * totalBusinessMiles)
+      : null;
 
   // ── Recent shift performance ────────────────────────────────────
   const recentShiftsRaw = qualifyingShifts.slice(0, 10);
@@ -368,44 +281,15 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
   }
 
   // ── Week-on-week trends ─────────────────────────────────────────
-  const now2 = new Date();
-  const thisWeekStart = new Date(now2);
-  const dow = thisWeekStart.getDay();
-  thisWeekStart.setDate(thisWeekStart.getDate() - (dow === 0 ? 6 : dow - 1));
-  thisWeekStart.setHours(0, 0, 0, 0);
-
-  const lastWeekStart = new Date(thisWeekStart);
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-  const lastWeekEnd = new Date(thisWeekStart);
-  lastWeekEnd.setMilliseconds(-1);
-
-  const thisWeekEarnings = earnings
-    .filter((e) => new Date(e.periodStart) >= thisWeekStart)
-    .reduce((sum, e) => sum + e.amountPence, 0);
-  const lastWeekEarnings = earnings
-    .filter((e) => {
-      const d = new Date(e.periodStart);
-      return d >= lastWeekStart && d < thisWeekStart;
-    })
-    .reduce((sum, e) => sum + e.amountPence, 0);
-
-  const earningsTrendPercent = lastWeekEarnings > 0
-    ? Math.round(((thisWeekEarnings - lastWeekEarnings) / lastWeekEarnings) * 100)
-    : null;
-
-  const thisWeekMiles = businessTrips
-    .filter((t) => new Date(t.startedAt) >= thisWeekStart)
-    .reduce((sum, t) => sum + t.distanceMiles, 0);
-  const lastWeekMiles = businessTrips
-    .filter((t) => {
-      const d = new Date(t.startedAt);
-      return d >= lastWeekStart && d < thisWeekStart;
-    })
-    .reduce((sum, t) => sum + t.distanceMiles, 0);
-
-  const mileTrendPercent = lastWeekMiles > 0
-    ? Math.round(((thisWeekMiles - lastWeekMiles) / lastWeekMiles) * 100)
-    : null;
+  // Same weeks and totals as /gamification/recap?period=weekly&compare=1
+  // (services/periodFigures). The redesigned Insights shows only the
+  // recap's comparison; these stay for older app versions.
+  const [thisWeek, lastWeek] = await Promise.all([
+    loadPeriodFigures(userId, ukWeekBounds(now)),
+    loadPeriodFigures(userId, ukWeekBounds(now, 1)),
+  ]);
+  const earningsTrendPercent = percentChange(thisWeek.earningsPence, lastWeek.earningsPence);
+  const mileTrendPercent = percentChange(thisWeek.businessMiles, lastWeek.businessMiles);
 
   return {
     totalEarningsPence,
@@ -435,78 +319,35 @@ export async function getWeeklyPnL(
   userId: string,
   weeksBack: number = 0
 ): Promise<WeeklyPnL> {
-  const now = new Date();
-  const start = new Date(now);
-  const dow = start.getDay();
-  start.setDate(start.getDate() - (dow === 0 ? 6 : dow - 1) - weeksBack * 7);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-
-  const startStr = start.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const endStr = end.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const periodLabel = `${startStr} – ${endStr}`;
-
-  const [earnings, trips, fuelLogs, pnlUser, pnlFallbackType] = await Promise.all([
-    prisma.earning.findMany({
-      where: {
-        userId,
-        periodStart: { gte: start, lte: end },
-      },
-    }),
-    prisma.trip.findMany({
-      where: {
-        userId,
-        isPhantomTrip: false,
-        classification: "business",
-        startedAt: { gte: start, lte: end },
-      },
-      include: { vehicle: true },
-    }),
+  // The same week, miles, earnings and claim as
+  // /gamification/recap?period=weekly (services/periodFigures).
+  const week = ukWeekBounds(new Date(), weeksBack);
+  const [figures, fuelLogs] = await Promise.all([
+    loadPeriodFigures(userId, week),
     prisma.fuelLog.findMany({
-      where: {
-        userId,
-        loggedAt: { gte: start, lte: end },
-      },
+      where: { userId, loggedAt: { gte: week.start, lte: week.end } },
+      select: { costPence: true },
     }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        workType: true,
-        employerMileageRatePence: true,
-        employerMileageRatePenceAfter10k: true,
-      },
-    }),
-    fallbackVehicleTypeForUser(userId),
   ]);
 
-  const grossEarningsPence = earnings.reduce((sum, e) => sum + e.amountPence, 0);
-  const businessMiles = trips.reduce((sum, t) => sum + t.distanceMiles, 0);
+  const grossEarningsPence = figures.earningsPence;
+  const businessMiles = figures.businessMiles;
   const estimatedFuelCostPence = fuelLogs.reduce((sum, l) => sum + l.costPence, 0);
   const estimatedWearCostPence = Math.round(businessMiles * WEAR_COST_PENCE_PER_MILE);
 
-  // The self-employment deduction: approved rates, the same as the Tax tab
-  // and Self Assessment wizard (before 7 Oct 2026, the employer rate).
-  let hmrcDeductionPence = 0;
-  for (const trip of trips) {
-    if (!isClaimableTrip(trip)) continue;
-    const vType = (trip.vehicle?.vehicleType ?? pnlFallbackType) as "car" | "van" | "motorbike";
-    const tripTaxYear = getTaxYear(trip.startedAt);
-    hmrcDeductionPence += calculateMileageDeduction(vType, trip.distanceMiles, {
-      taxYear: tripTaxYear,
-    }).deductionPence;
-  }
-
   return {
-    periodLabel,
+    periodLabel: boundsLabel(week),
     grossEarningsPence,
     estimatedFuelCostPence,
     estimatedWearCostPence,
     netProfitPence: grossEarningsPence - estimatedFuelCostPence - estimatedWearCostPence,
-    hmrcDeductionPence,
-    businessMiles: Math.round(businessMiles * 10) / 10,
-    totalTrips: trips.length,
+    // The week's mileage claim (lib/mileageRates periodClaimPence): gig
+    // trips at the approved rates, other work trips at the employer's rate.
+    // Before 9 Oct 2026 this was approved rates on every trip, so the demo
+    // week showed £99.94 here and £72.68 on Trends.
+    hmrcDeductionPence: figures.claimPence,
+    businessMiles,
+    totalTrips: figures.businessTrips,
+    earningsCount: figures.earningsCount,
   };
 }

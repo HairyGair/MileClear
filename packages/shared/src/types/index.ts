@@ -1264,6 +1264,9 @@ export interface GamificationStats {
   todayMiles: number;
   todayTrips: number;
   weekMiles: number;
+  /** Every mile ever recorded (phantoms excluded). Use for lifetime
+   *  milestones; totalMiles/businessMiles are this tax year only. */
+  lifetimeMiles?: number;
   personalRecords: PersonalRecords;
   region?: string;
   drivingPatterns?: DrivingPatterns;
@@ -1300,18 +1303,55 @@ export interface ShiftScorecard {
   newAchievements: AchievementWithMeta[];
 }
 
+/** Totals for one period, from the same calculation as PeriodRecap. */
+export interface PeriodRecapTotals {
+  totalMiles: number;
+  businessMiles: number;
+  personalMiles: number;
+  totalTrips: number;
+  businessTrips: number;
+  /** Mileage claim the period's business trips add (lib/mileageRates periodClaimPence). */
+  deductionPence: number;
+  earningsPence: number;
+}
+
+/**
+ * GET /gamification/recap: the ONE source for a period's miles, trips,
+ * mileage claim and earnings on Insights (docs/insights-oct2026/NUMBERS.md).
+ * UK calendar periods; phantom trips excluded.
+ */
 export interface PeriodRecap {
   period: "daily" | "weekly" | "monthly";
   label: string;
+  /** Period start/end instants (UK midnight), ISO. */
+  startsAt?: string;
+  endsAt?: string;
   totalMiles: number;
   businessMiles: number;
+  personalMiles?: number;
+  /** The mileage claim built in this period: gig trips at the approved
+   *  rates, other work trips at the employer's rate when set, threshold
+   *  aware. Named "deduction" for old clients; show it as "mileage claim". */
   deductionPence: number;
   totalTrips: number;
+  businessTrips?: number;
+  /** Earnings dated in the period. */
+  earningsPence?: number;
+  earningsCount?: number;
   busiestDayLabel: string | null;
   busiestDayMiles: number;
   longestTripMiles: number;
   longestTripDate: string | null;
+  longestTripId?: string | null;
   shareText: string;
+  /** Present when requested with compare=1: the period before. */
+  previous?: PeriodRecapTotals;
+  change?: {
+    totalMilesPercent: number | null;
+    businessMilesPercent: number | null;
+    totalTripsPercent: number | null;
+    earningsPercent: number | null;
+  };
 }
 
 // Business Insights types
@@ -1320,9 +1360,32 @@ export interface PlatformPerformance {
   totalEarningsPence: number;
   tripCount: number;
   totalMiles: number;
-  earningsPerMilePence: number;   // £/mile
+  earningsPerMilePence: number;   // £/mile (0 when no miles)
   earningsPerTripPence: number;   // £/trip
   avgTripMiles: number;
+}
+
+/**
+ * GET /business-insights/platform-pnl: the ONE platform league, ranked by
+ * pay per mile (earnings / business miles on that platform's trips).
+ */
+export interface PlatformLeagueEntry {
+  platform: string;
+  grossEarningsPence: number;
+  expensesPence: number;
+  fuelPence: number;
+  netPence: number;
+  trips: number;
+  businessMiles: number;
+  /** Start-to-end time on that platform's trips, hours. */
+  drivingHours: number;
+  /** Null when there are no miles (or no earnings) to divide. */
+  earningsPerMilePence: number | null;
+  earningsPerHourPence: number | null;
+  /** Fewer than 5 trips in the window: ranked after the others. */
+  fewTrips: boolean;
+  /** 1-based position in the league. */
+  rank: number;
 }
 
 export interface ShiftPerformance {
@@ -1359,7 +1422,8 @@ export interface BusinessInsights {
   busiestDay: string | null;       // day of week
   avgShiftGrade: string | null;
 
-  // Fuel economy
+  // Fuel economy (fuelCostPerMilePence: lib/insightsMath runningCostPerMile,
+  // the same as /business-insights/running-cost and /analytics/fuel-cost)
   fuelCostPerMilePence: number | null;
   actualMpg: number | null;
   estimatedFuelCostPence: number | null;  // estimated total fuel spend
@@ -1386,9 +1450,15 @@ export interface WeeklyPnL {
   estimatedFuelCostPence: number;
   estimatedWearCostPence: number; // industry standard ~8p/mile
   netProfitPence: number;
+  /** The week's mileage claim: the same figure as
+   *  /gamification/recap?period=weekly deductionPence (from 9 Oct 2026; it
+   *  was approved rates on every trip, ignoring an employer's rate). */
   hmrcDeductionPence: number;
   businessMiles: number;
   totalTrips: number;
+  /** Earnings dated this week (count), so "none this week" can be told
+   *  apart from "never added". */
+  earningsCount?: number;
 }
 
 // ── Driving Analytics ────────────────────────────────────────────────
@@ -1454,7 +1524,9 @@ export interface ShiftSweetSpot {
 export interface FuelCostBreakdown {
   actualMpg: number | null;
   estimatedMpg: number | null;
+  /** lib/insightsMath runningCostPerMile, tax year to date, 1 dp. */
   fuelCostPerMilePence: number | null;
+  fuelCostSource?: "fill_ups" | "estimate" | null;
   totalFuelCostPence: number;
   totalMilesDriven: number;
   perVehicle: {
@@ -2349,4 +2421,26 @@ export interface TaxPlan {
   remindersOn: boolean;
   /** Has said they drive as an employee, or is in Personal mode. */
   mayNotApply: boolean;
+}
+
+/** GET /business-insights/running-cost: the one running cost per mile (9 Oct 2026). */
+export interface RunningCostSummary {
+  /** Pence per mile, 1 dp, tax year to date. Null for electric. */
+  pencePerMile: number | null;
+  /** "fill_ups": fuel spend / miles driven this tax year; "estimate": MPG x price per litre. */
+  source: "fill_ups" | "estimate" | null;
+  mpg: number | null;
+  mpgSource: "odometer" | "vehicle" | "typical" | null;
+  pencePerLitre: number | null;
+  /** The requested period (default this calendar month, UK). */
+  period: {
+    startsAt: string;
+    endsAt: string;
+    miles: number;
+    /** miles x pencePerMile, pence. */
+    estimatedCostPence: number | null;
+    /** Fill-ups logged in the period. */
+    fillUps: number;
+    fillUpSpendPence: number;
+  };
 }

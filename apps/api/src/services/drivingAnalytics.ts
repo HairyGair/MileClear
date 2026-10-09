@@ -1,6 +1,8 @@
 import { prisma } from "../lib/prisma.js";
-import { isClaimableTrip } from "../lib/claimableTrips.js";
-import { claimValuePence } from "../lib/mileageRates.js";
+import { percentChange } from "../lib/insightsMath.js";
+import { dateOnlyParts, ukParts, ukWeekBounds } from "../lib/ukTime.js";
+import { boundsLabel, loadPeriodFigures } from "./periodFigures.js";
+import { taxYearRunningCost } from "./runningCost.js";
 import {
   getTaxYear,
   parseTaxYear,
@@ -16,20 +18,9 @@ import {
 // ── Helpers ───────────────────────────────────────────────────────
 
 function weekBounds(weeksBack = 0): { start: Date; end: Date; label: string } {
-  const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon...
-  const diff = (day === 0 ? 6 : day - 1); // days since Monday
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - diff - weeksBack * 7);
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  const label = `${fmt(monday)} – ${fmt(sunday)} ${sunday.getFullYear()}`;
-  return { start: monday, end: sunday, label };
+  // UK Monday-to-Sunday weeks: the same weeks as /gamification/recap.
+  const b = ukWeekBounds(new Date(), weeksBack);
+  return { ...b, label: `${boundsLabel(b)} ${ukParts(b.end).year}` };
 }
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -50,59 +41,35 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   const { start, end, label } = weekBounds(weeksBack);
   const prev = weekBounds(weeksBack + 1);
 
-  const [trips, shifts, earnings, achievements, stats, dvrUser] = await Promise.all([
-    prisma.trip.findMany({
-      where: { userId, startedAt: { gte: start, lte: end } },
-      include: { vehicle: { select: { providedByOthers: true } } },
-    }),
+  // Miles, trips, claim and earnings for both weeks from the one period
+  // calculation (services/periodFigures), so this card, the recap and
+  // Weekly P&L agree. Phantom trips are left out (they were counted here
+  // before 9 Oct 2026).
+  const [figures, prevFigures, shifts, achievements, stats, fuelLogs] = await Promise.all([
+    loadPeriodFigures(userId, { start, end }),
+    loadPeriodFigures(userId, { start: prev.start, end: prev.end }),
     prisma.shift.findMany({
       where: { userId, status: "completed", startedAt: { gte: start, lte: end } },
-    }),
-    prisma.earning.findMany({
-      where: { userId, periodStart: { gte: start, lte: end } },
     }),
     prisma.achievement.findMany({
       where: { userId, achievedAt: { gte: start, lte: end } },
     }),
     // For streak — get all trip dates up to now
     prisma.trip.findMany({
-      where: { userId, startedAt: { lte: end } },
+      where: { userId, isPhantomTrip: false, startedAt: { lte: end } },
       select: { startedAt: true },
       orderBy: { startedAt: "desc" },
       take: 365,
     }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        workType: true,
-        employerMileageRatePence: true,
-        employerMileageRatePenceAfter10k: true,
-      },
+    prisma.fuelLog.findMany({
+      where: { userId, loggedAt: { gte: start, lte: end } },
+      select: { costPence: true },
     }),
   ]);
 
-  // Previous week data for deltas
-  const [prevTrips, prevEarnings] = await Promise.all([
-    prisma.trip.findMany({
-      where: { userId, startedAt: { gte: prev.start, lte: prev.end } },
-      select: { distanceMiles: true },
-    }),
-    prisma.earning.findMany({
-      where: { userId, periodStart: { gte: prev.start, lte: prev.end } },
-      select: { amountPence: true },
-    }),
-  ]);
-
-  const businessTrips = trips.filter((t) => t.classification === "business");
+  const { trips, earnings } = figures;
   const personalTrips = trips.filter((t) => t.classification === "personal");
-  const businessMiles = businessTrips.reduce((s, t) => s + t.distanceMiles, 0);
-  const personalMiles = personalTrips.reduce((s, t) => s + t.distanceMiles, 0);
-  const totalEarnings = earnings.reduce((s, e) => s + e.amountPence, 0);
-
-  // Fuel cost estimate
-  const fuelLogs = await prisma.fuelLog.findMany({
-    where: { userId, loggedAt: { gte: start, lte: end } },
-  });
+  const totalEarnings = figures.earningsPence;
   const weekFuelCost = fuelLogs.reduce((s, l) => s + l.costPence, 0);
 
   // Shift stats
@@ -129,14 +96,13 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
     if (amt > topPlatformAmount) { topPlatform = p; topPlatformAmount = amt; }
   }
 
-  // Streak calculation (simple: count consecutive days with trips ending at week end)
-  const tripDates = new Set(stats.map((t) => t.startedAt.toISOString().slice(0, 10)));
+  // Streak: consecutive UK days with trips, ending at the week's end.
+  const tripDates = new Set(stats.map((t) => ukParts(t.startedAt).dateKey));
   let streakDays = 0;
-  const checkDate = new Date(Math.min(end.getTime(), Date.now()));
+  const checkFrom = Date.parse(ukParts(new Date(Math.min(end.getTime(), Date.now()))).dateKey + "T12:00:00Z");
   for (let i = 0; i < 365; i++) {
-    const d = new Date(checkDate);
-    d.setDate(checkDate.getDate() - i);
-    if (tripDates.has(d.toISOString().slice(0, 10))) {
+    const key = new Date(checkFrom - i * 86_400_000).toISOString().slice(0, 10);
+    if (tripDates.has(key)) {
       streakDays++;
     } else if (i > 0) break; // allow today to be missing
     else continue;
@@ -149,15 +115,6 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
     return meta?.label ?? a.type;
   });
 
-  // Deltas
-  const prevMiles = prevTrips.reduce((s, t) => s + t.distanceMiles, 0);
-  const prevEarningsTotal = prevEarnings.reduce((s, e) => s + e.amountPence, 0);
-  const totalMiles = businessMiles + personalMiles;
-  const prevTripCount = prevTrips.length;
-
-  const pctDelta = (curr: number, prev: number) =>
-    prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null;
-
   const longestPersonalTrip = personalTrips.length > 0
     ? Math.max(...personalTrips.map((t) => t.distanceMiles))
     : 0;
@@ -165,28 +122,13 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
     ? personalTrips.reduce((s, t) => s + t.distanceMiles, 0) / personalTrips.length
     : 0;
 
-  // Deduction (employer-rate aware). Trips here are weekly aggregate so we
-  // pass total business miles as "car" - a tier crossing inside one week is
-  // unusual but the function still handles it correctly.
-  // Vehicles someone else pays for are business miles but claim nothing.
-  // Gig-app trips at the approved rates, work trips at the employer's
-  // (lib/mileageRates, the same as Home).
-  const deductionPence = claimValuePence(
-    trips.filter(isClaimableTrip).map((t) => ({
-      distanceMiles: t.distanceMiles,
-      vehicleType: "car" as const,
-      platformTag: t.platformTag,
-    })),
-    dvrUser,
-    getTaxYear(start),
-  );
-
   return {
     weekLabel: label,
     business: {
-      miles: Math.round(businessMiles * 10) / 10,
-      trips: businessTrips.length,
-      deductionPence,
+      miles: figures.businessMiles,
+      trips: figures.businessTrips,
+      // The week's mileage claim (lib/mileageRates periodClaimPence).
+      deductionPence: figures.claimPence,
       earningsPence: totalEarnings,
       shifts: shifts.length,
       avgShiftHours: shifts.length > 0 ? Math.round((shiftHours / shifts.length) * 10) / 10 : 0,
@@ -195,18 +137,18 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
       topPlatform,
     },
     personal: {
-      miles: Math.round(personalMiles * 10) / 10,
-      trips: personalTrips.length,
+      miles: figures.personalMiles,
+      trips: figures.personalTrips,
       avgTripMiles: Math.round(avgPersonalTrip * 10) / 10,
       longestTripMiles: Math.round(longestPersonalTrip * 10) / 10,
     },
-    totalMiles: Math.round(totalMiles * 10) / 10,
-    totalTrips: trips.length,
+    totalMiles: figures.totalMiles,
+    totalTrips: figures.totalTrips,
     streakDays,
     newAchievements: newAchLabels,
-    milesDelta: pctDelta(totalMiles, prevMiles),
-    tripsDelta: pctDelta(trips.length, prevTripCount),
-    earningsDelta: pctDelta(totalEarnings, prevEarningsTotal),
+    milesDelta: percentChange(figures.totalMiles, prevFigures.totalMiles),
+    tripsDelta: percentChange(figures.totalTrips, prevFigures.totalTrips),
+    earningsDelta: percentChange(totalEarnings, prevFigures.earningsPence),
   };
 }
 
@@ -371,27 +313,26 @@ export async function getShiftSweetSpots(userId: string): Promise<ShiftSweetSpot
     }),
   ]);
 
-  // Map earnings to closest shift by date
+  // Earnings are dates (no time). A one-day earning goes to the shifts
+  // that started that UK day, split by shift length; earnings covering
+  // several days, or days with no shift, are left out. (Before 9 Oct 2026
+  // the date was read as midnight and matched to the nearest shift.)
+  const shiftsByDay = new Map<string, typeof shifts>();
+  for (const s of shifts) {
+    if (!s.endedAt) continue;
+    const key = ukParts(s.startedAt).dateKey;
+    shiftsByDay.set(key, [...(shiftsByDay.get(key) ?? []), s]);
+  }
   const shiftEarnings = new Map<string, number>();
   for (const e of earnings) {
-    // Find shift that overlaps with this earning's period
-    const earningDate = new Date(e.periodStart);
-    let bestShift: string | null = null;
-    let bestDist = Infinity;
-    for (const s of shifts) {
-      if (!s.endedAt) continue;
-      if (earningDate >= s.startedAt && earningDate <= s.endedAt) {
-        bestShift = s.id;
-        break;
-      }
-      const dist = Math.abs(earningDate.getTime() - s.startedAt.getTime());
-      if (dist < bestDist && dist < 12 * 3600000) { // within 12 hours
-        bestDist = dist;
-        bestShift = s.id;
-      }
-    }
-    if (bestShift) {
-      shiftEarnings.set(bestShift, (shiftEarnings.get(bestShift) ?? 0) + e.amountPence);
+    const day = dateOnlyParts(e.periodStart).dateKey;
+    if (dateOnlyParts(e.periodEnd).dateKey !== day) continue;
+    const dayShifts = shiftsByDay.get(day) ?? [];
+    const totalMs = dayShifts.reduce((sum, s) => sum + (s.endedAt!.getTime() - s.startedAt.getTime()), 0);
+    if (totalMs <= 0) continue;
+    for (const s of dayShifts) {
+      const share = (s.endedAt!.getTime() - s.startedAt.getTime()) / totalMs;
+      shiftEarnings.set(s.id, (shiftEarnings.get(s.id) ?? 0) + Math.round(e.amountPence * share));
     }
   }
 
@@ -454,13 +395,15 @@ export async function getFuelCostBreakdown(userId: string): Promise<FuelCostBrea
     }),
     prisma.vehicle.findMany({ where: { userId } }),
     prisma.trip.findMany({
-      where: { userId, startedAt: { gte: start, lte: end } },
+      where: { userId, isPhantomTrip: false, startedAt: { gte: start, lte: end } },
       select: { vehicleId: true, distanceMiles: true },
     }),
   ]);
 
   const totalFuelCost = fuelLogs.reduce((s, l) => s + l.costPence, 0);
   const totalMiles = trips.reduce((s, t) => s + t.distanceMiles, 0);
+  // The one running cost per mile (services/runningCost).
+  const runningCost = await taxYearRunningCost(userId);
 
   // Overall MPG from odometer readings
   const logsWithOdo = fuelLogs.filter((l) => l.odometerReading && l.odometerReading > 0);
@@ -526,7 +469,8 @@ export async function getFuelCostBreakdown(userId: string): Promise<FuelCostBrea
   return {
     actualMpg,
     estimatedMpg,
-    fuelCostPerMilePence: totalMiles > 0 ? Math.round(totalFuelCost / totalMiles) : null,
+    fuelCostPerMilePence: runningCost.pencePerMile,
+    fuelCostSource: runningCost.source,
     totalFuelCostPence: totalFuelCost,
     totalMilesDriven: Math.round(totalMiles * 10) / 10,
     perVehicle,
@@ -554,8 +498,9 @@ export async function getEarningsByDay(userId: string): Promise<EarningsDayPatte
   }));
 
   for (const e of earnings) {
-    const d = new Date(e.periodStart);
-    const jsDay = d.getDay(); // 0=Sun, 1=Mon...
+    // A DATE column: read the day in UTC (getDay() on a server west of
+    // London would say the day before).
+    const jsDay = dateOnlyParts(e.periodStart).dow; // 0=Sun, 1=Mon...
     const idx = jsDay === 0 ? 6 : jsDay - 1;
     buckets[idx].totalPence += e.amountPence;
     buckets[idx].entryCount++;
@@ -563,13 +508,13 @@ export async function getEarningsByDay(userId: string): Promise<EarningsDayPatte
 
   // Also count business trips per day for trip count
   const trips = await prisma.trip.findMany({
-    where: { userId, classification: "business", startedAt: { gte: start, lte: end } },
+    where: { userId, isPhantomTrip: false, classification: "business", startedAt: { gte: start, lte: end } },
     select: { startedAt: true },
   });
 
   const tripCounts = new Array(7).fill(0);
   for (const t of trips) {
-    const jsDay = new Date(t.startedAt).getDay();
+    const jsDay = ukParts(t.startedAt).dow;
     tripCounts[jsDay === 0 ? 6 : jsDay - 1]++;
   }
 

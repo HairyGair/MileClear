@@ -7,6 +7,9 @@ import { buildTaxSnapshot } from "../../services/taxSnapshot.js";
 import { buildActivityHeatmap } from "../../services/activityHeatmap.js";
 import { buildBenchmarkSnapshot } from "../../services/benchmarks.js";
 import { buildLocalBenchmark } from "../../services/localBenchmark.js";
+import { getRunningCostSummary } from "../../services/runningCost.js";
+import { ukMonthBounds, ukWeekBounds } from "../../lib/ukTime.js";
+import { getTaxYear, parseTaxYear } from "@mileclear/shared";
 import {
   getPlatformPnL,
   getProjectPnL,
@@ -39,6 +42,21 @@ export async function businessInsightRoutes(app: FastifyInstance) {
   app.get("/tax-snapshot", async (request, reply) => {
     const snapshot = await buildTaxSnapshot(request.userId!);
     return reply.send({ data: snapshot });
+  });
+
+  // GET /business-insights/running-cost?period=week|month&date= (free).
+  // The one running cost per mile (services/runningCost) plus the period's
+  // miles and fill-ups. Default: this calendar month.
+  app.get("/running-cost", async (request, reply) => {
+    const q = z
+      .object({
+        period: z.enum(["week", "month"]).default("month"),
+        date: z.coerce.date().optional(),
+      })
+      .parse(request.query);
+    const ref = q.date ?? new Date();
+    const bounds = q.period === "week" ? ukWeekBounds(ref) : ukMonthBounds(ref);
+    return reply.send({ data: await getRunningCostSummary(request.userId!, bounds) });
   });
 
   // GET /business-insights/heatmap?weeksBack=12&platform=uber — activity
@@ -82,13 +100,32 @@ export async function businessInsightRoutes(app: FastifyInstance) {
   // Per-platform / per-project / per-shift P&L. All Pro-gated.
 
   // GET /business-insights/platform-pnl?days=30
+  // GET /business-insights/platform-pnl?period=week|month|tax_year&date=
+  // The one platform league (ranked by pay per mile). `period` follows the
+  // Insights period switch (UK weeks/months, the same as /gamification/
+  // recap); without it, the last `days` days (default 30) as before.
   app.get("/platform-pnl", { preHandler: premiumMiddleware }, async (request, reply) => {
-    const { days } = z
-      .object({ days: z.coerce.number().int().min(1).max(365).default(30) })
+    const q = z
+      .object({
+        days: z.coerce.number().int().min(1).max(365).default(30),
+        period: z.enum(["week", "month", "tax_year"]).optional(),
+        date: z.coerce.date().optional(),
+      })
       .parse(request.query);
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(from.getDate() - days);
+    let from: Date;
+    let to: Date;
+    if (q.period) {
+      const ref = q.date ?? new Date();
+      if (q.period === "week") ({ start: from, end: to } = ukWeekBounds(ref));
+      else if (q.period === "month") ({ start: from, end: to } = ukMonthBounds(ref));
+      else {
+        ({ start: from, end: to } = parseTaxYear(getTaxYear(ref)));
+      }
+    } else {
+      to = new Date();
+      from = new Date(to);
+      from.setDate(from.getDate() - q.days);
+    }
     const rows = await getPlatformPnL({ userId: request.userId!, from, to });
     return reply.send({ data: rows });
   });
