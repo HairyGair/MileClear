@@ -1,23 +1,22 @@
 // The one running cost per mile (9 Oct 2026). Rules in lib/insightsMath
-// runningCostPerMile. Read by /business-insights/running-cost (Overview fuel card),
-// /analytics/fuel-cost (Trends) and /business-insights (Fuel Economy).
+// runningCostPerMile (fill-up window, else an MPG estimate). Read by
+// /business-insights/running-cost (Overview fuel card), /analytics/fuel-cost
+// (Trends) and /business-insights (Fuel Economy).
 
 import { prisma } from "../lib/prisma.js";
 import { getTaxYear, parseTaxYear, type RunningCostSummary } from "@mileclear/shared";
-import { odometerMpg, round1, runningCostPerMile, type RunningCost } from "../lib/insightsMath.js";
+import { fillUpWindow, odometerMpg, round1, runningCostPerMile, type RunningCost } from "../lib/insightsMath.js";
 import { ukMonthBounds, type Bounds } from "../lib/ukTime.js";
 
-/** Tax year to date rate for a driver's primary vehicle. */
+/** Rate for a driver's primary vehicle from this tax year's fill-ups.
+ *  Two to three small queries; the trip-miles one only when the window has
+ *  no odometer readings. */
 export async function taxYearRunningCost(userId: string, now: Date = new Date()): Promise<RunningCost> {
   const { start } = parseTaxYear(getTaxYear(now));
-  const [fuelLogs, milesAgg, vehicles] = await Promise.all([
+  const [fuelLogs, vehicles] = await Promise.all([
     prisma.fuelLog.findMany({
       where: { userId, loggedAt: { gte: start, lte: now } },
-      select: { costPence: true, litres: true, odometerReading: true },
-    }),
-    prisma.trip.aggregate({
-      where: { userId, isPhantomTrip: false, startedAt: { gte: start, lte: now } },
-      _sum: { distanceMiles: true },
+      select: { costPence: true, litres: true, odometerReading: true, loggedAt: true },
     }),
     prisma.vehicle.findMany({
       where: { userId },
@@ -25,10 +24,25 @@ export async function taxYearRunningCost(userId: string, now: Date = new Date())
     }),
   ]);
   const primary = vehicles.find((v) => v.isPrimary) ?? vehicles[0] ?? null;
+
+  const w = fillUpWindow(fuelLogs);
+  let window: { spendPence: number; miles: number } | null = null;
+  if (w) {
+    let miles = w.odometerMiles;
+    if (miles == null) {
+      const agg = await prisma.trip.aggregate({
+        where: { userId, isPhantomTrip: false, startedAt: { gte: w.start, lte: w.end } },
+        _sum: { distanceMiles: true },
+      });
+      miles = agg._sum.distanceMiles ?? 0;
+    }
+    window = { spendPence: w.spendPence, miles };
+  }
+
   return runningCostPerMile({
-    fuelSpendPence: fuelLogs.reduce((s, l) => s + l.costPence, 0),
-    litres: fuelLogs.reduce((s, l) => s + l.litres, 0),
-    milesDriven: milesAgg._sum.distanceMiles ?? 0,
+    window,
+    allSpendPence: fuelLogs.reduce((s, l) => s + l.costPence, 0),
+    allLitres: fuelLogs.reduce((s, l) => s + l.litres, 0),
     odometerMpg: odometerMpg(fuelLogs) ?? primary?.actualMpg ?? null,
     vehicleMpg: primary?.estimatedMpg ?? null,
     fuelType: primary?.fuelType ?? null,

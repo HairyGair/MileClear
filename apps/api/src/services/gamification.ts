@@ -1,10 +1,9 @@
 import { prisma } from "../lib/prisma.js";
 import { periodClaimPence } from "../lib/mileageRates.js";
-import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
-import { percentChange, toRated } from "../lib/insightsMath.js";
+import { percentChange, toRated, ukDailyMiles } from "../lib/insightsMath.js";
 import { periodBounds, previousBounds, ukDayBounds, ukParts, ukWeekBounds } from "../lib/ukTime.js";
-import { loadPeriodFigures, rateUserSelect } from "./periodFigures.js";
+import { loadEarlierClaimable, loadPeriodFigures, loadPeriodFiguresSeries, loadRateContext } from "./periodFigures.js";
 import {
   getTaxYear,
   parseTaxYear,
@@ -86,77 +85,58 @@ export function computeStreak(
   return { current, longest };
 }
 
-// ── Personal records via raw SQL ────────────────────────────────────
+// ── Personal records ────────────────────────────────────────────────
+//
+// Days are UK calendar days, worked out in JS from each trip's start
+// (9 Oct 2026). MySQL DATE() gave the UTC date, so a trip at 00:30 BST
+// counted on the day before for the best day and for streaks.
 
-async function getPersonalRecords(userId: string): Promise<PersonalRecords> {
-  // Most miles in a single day
-  const dayMiles = await prisma.$queryRaw<
-    { totalMiles: number; tripDate: string }[]
-  >`
-    SELECT CAST(SUM(distanceMiles) AS DECIMAL(12,2)) as totalMiles,
-           DATE(startedAt) as tripDate
-    FROM trips
-    WHERE userId = ${userId} AND isPhantomTrip = false
-    GROUP BY DATE(startedAt)
-    ORDER BY totalMiles DESC
-    LIMIT 1
-  `;
+/** Every non-phantom trip's start and miles: one query, shared by the
+ *  streak and the best-day record. */
+async function loadTripDays(userId: string) {
+  const rows = await prisma.trip.findMany({
+    where: { userId, isPhantomTrip: false },
+    select: { startedAt: true, distanceMiles: true },
+  });
+  return ukDailyMiles(rows);
+}
 
+async function getPersonalRecords(
+  userId: string,
+  days: ReturnType<typeof ukDailyMiles>,
+): Promise<PersonalRecords> {
   // Most trips in a single shift
   const shiftTrips = await prisma.$queryRaw<
-    { tripCount: number; shiftDate: string }[]
+    { tripCount: number; shiftStartedAt: Date }[]
   >`
     SELECT COUNT(*) as tripCount,
-           DATE(s.startedAt) as shiftDate
+           s.startedAt as shiftStartedAt
     FROM trips t
     JOIN shifts s ON t.shiftId = s.id
     WHERE t.userId = ${userId} AND t.shiftId IS NOT NULL AND t.isPhantomTrip = false
-    GROUP BY t.shiftId, DATE(s.startedAt)
+    GROUP BY t.shiftId, s.startedAt
     ORDER BY tripCount DESC
     LIMIT 1
   `;
 
   // Longest single trip
-  const longestTrip = await prisma.$queryRaw<
-    { distanceMiles: number; startedAt: string }[]
-  >`
-    SELECT distanceMiles, DATE(startedAt) as startedAt
-    FROM trips
-    WHERE userId = ${userId} AND isPhantomTrip = false
-    ORDER BY distanceMiles DESC
-    LIMIT 1
-  `;
+  const longestTrip = await prisma.trip.findFirst({
+    where: { userId, isPhantomTrip: false },
+    orderBy: { distanceMiles: "desc" },
+    select: { distanceMiles: true, startedAt: true },
+  });
 
-  // Get all distinct trip dates for streak calculation
-  const tripDates = await prisma.$queryRaw<{ tripDate: string }[]>`
-    SELECT DISTINCT DATE(startedAt) as tripDate
-    FROM trips
-    WHERE userId = ${userId} AND isPhantomTrip = false
-    ORDER BY tripDate DESC
-  `;
-
-  const { longest: longestStreakDays } = computeStreak(
-    tripDates.map((r) => {
-      const d = r.tripDate;
-      return typeof d === "string" ? d : new Date(d).toISOString().slice(0, 10);
-    })
-  );
+  const { longest: longestStreakDays } = computeStreak(days.datesDesc);
 
   return {
-    mostMilesInDay: dayMiles[0] ? Number(dayMiles[0].totalMiles) : 0,
-    mostMilesInDayDate: dayMiles[0]
-      ? new Date(dayMiles[0].tripDate).toISOString()
-      : null,
+    mostMilesInDay: days.best ? Math.round(days.best.miles * 100) / 100 : 0,
+    mostMilesInDayDate: days.best ? `${days.best.dateKey}T00:00:00.000Z` : null,
     mostTripsInShift: shiftTrips[0] ? Number(shiftTrips[0].tripCount) : 0,
     mostTripsInShiftDate: shiftTrips[0]
-      ? new Date(shiftTrips[0].shiftDate).toISOString()
+      ? new Date(shiftTrips[0].shiftStartedAt).toISOString()
       : null,
-    longestSingleTrip: longestTrip[0]
-      ? Number(longestTrip[0].distanceMiles)
-      : 0,
-    longestSingleTripDate: longestTrip[0]
-      ? new Date(longestTrip[0].startedAt).toISOString()
-      : null,
+    longestSingleTrip: longestTrip ? Number(longestTrip.distanceMiles) : 0,
+    longestSingleTripDate: longestTrip ? longestTrip.startedAt.toISOString() : null,
     longestStreakDays,
   };
 }
@@ -226,23 +206,12 @@ export async function getStats(userId: string): Promise<GamificationStats> {
     prisma.trip.aggregate({ where: { userId, isPhantomTrip: false }, _sum: { distanceMiles: true } }),
   ]);
 
-  // Streak from distinct trip dates (excluding phantoms — a walking
-  // misfire shouldn't extend a driving streak).
-  const tripDates = await prisma.$queryRaw<{ tripDate: string }[]>`
-    SELECT DISTINCT DATE(startedAt) as tripDate
-    FROM trips
-    WHERE userId = ${userId} AND isPhantomTrip = false
-    ORDER BY tripDate DESC
-  `;
+  // Streak from UK trip dates (excluding phantoms — a walking misfire
+  // shouldn't extend a driving streak).
+  const tripDays = await loadTripDays(userId);
+  const { current, longest } = computeStreak(tripDays.datesDesc, now);
 
-  const { current, longest } = computeStreak(
-    tripDates.map((r) => {
-      const d = r.tripDate;
-      return typeof d === "string" ? d : new Date(d).toISOString().slice(0, 10);
-    })
-  );
-
-  const personalRecords = await getPersonalRecords(userId);
+  const personalRecords = await getPersonalRecords(userId, tripDays);
 
   // Detect user's home region from most recent trips
   const recentTrips = await prisma.trip.findMany({
@@ -482,30 +451,14 @@ export async function getShiftScorecard(
 
   // Get trips in this shift, and the business trips earlier in the tax
   // year (the claim's 10,000-mile threshold).
-  const { start: shiftTaxStart } = parseTaxYear(getTaxYear(shift.startedAt));
-  const [trips, earlierTrips, scorecardUser, scorecardFallbackType] = await Promise.all([
+  const ctx = await loadRateContext(userId);
+  const [trips, earlier] = await Promise.all([
     prisma.trip.findMany({
       where: { shiftId: shift.id, userId, isPhantomTrip: false },
       include: { vehicle: true },
     }),
-    prisma.trip.findMany({
-      where: {
-        userId,
-        isPhantomTrip: false,
-        classification: "business",
-        startedAt: { gte: shiftTaxStart, lt: shift.startedAt },
-        OR: [{ shiftId: null }, { shiftId: { not: shift.id } }],
-      },
-      select: {
-        distanceMiles: true,
-        classification: true,
-        platformTag: true,
-        startedAt: true,
-        vehicle: { select: { vehicleType: true, providedByOthers: true } },
-      },
-    }),
-    prisma.user.findUnique({ where: { id: userId }, select: rateUserSelect }),
-    fallbackVehicleTypeForUser(userId),
+    // One grouped aggregate of the business miles before the shift.
+    loadEarlierClaimable(userId, shift.startedAt, ctx.vehicleTypeById, ctx.fallbackType),
   ]);
 
   const tripsCompleted = trips.length;
@@ -518,11 +471,10 @@ export async function getShiftScorecard(
     }
   }
   // The same claim rule as every other period (lib/mileageRates).
-  const fallback = scorecardFallbackType as "car" | "van" | "motorbike";
   const deductionPence = periodClaimPence(
-    earlierTrips.filter(isClaimableTrip).map((t) => toRated(t, fallback)),
-    trips.filter(isClaimableTrip).map((t) => toRated(t, fallback)),
-    scorecardUser,
+    earlier,
+    trips.filter(isClaimableTrip).map((t) => toRated(t, ctx.fallbackType)),
+    ctx.user,
   );
 
   // Check personal bests — most miles in a single shift, most trips in a single shift
@@ -614,10 +566,10 @@ export async function getPeriodRecap(
     label = fmt(asUtcDate(startDay), { month: "long", year: "numeric" });
   }
 
-  const [figures, previous] = await Promise.all([
-    loadPeriodFigures(userId, bounds),
-    opts.withPrevious ? loadPeriodFigures(userId, previousBounds(period, ref)) : Promise.resolve(null),
-  ]);
+  // With compare: both periods in one series (one earlier-miles aggregate).
+  const [figures, previous] = opts.withPrevious
+    ? await loadPeriodFiguresSeries(userId, [bounds, previousBounds(period, ref)])
+    : [await loadPeriodFigures(userId, bounds), null];
   const { trips } = figures;
 
   let longestTripMiles = 0;

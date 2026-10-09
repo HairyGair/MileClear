@@ -12,6 +12,7 @@ import { ukMonthBounds, ukWeekBounds } from "../../lib/ukTime.js";
 import { getTaxYear, parseTaxYear } from "@mileclear/shared";
 import {
   getPlatformPnL,
+  getPlatformPnLLegacy,
   getProjectPnL,
   getShiftPnL,
 } from "../../services/profitabilityRollups.js";
@@ -112,20 +113,17 @@ export async function businessInsightRoutes(app: FastifyInstance) {
         date: z.coerce.date().optional(),
       })
       .parse(request.query);
-    let from: Date;
-    let to: Date;
-    if (q.period) {
-      const ref = q.date ?? new Date();
-      if (q.period === "week") ({ start: from, end: to } = ukWeekBounds(ref));
-      else if (q.period === "month") ({ start: from, end: to } = ukMonthBounds(ref));
-      else {
-        ({ start: from, end: to } = parseTaxYear(getTaxYear(ref)));
-      }
-    } else {
-      to = new Date();
-      from = new Date(to);
+    if (!q.period) {
+      // Old clients (?days=): the old shape and order, unchanged.
+      const to = new Date();
+      const from = new Date(to);
       from.setDate(from.getDate() - q.days);
+      const rows = await getPlatformPnLLegacy({ userId: request.userId!, from, to });
+      return reply.send({ data: rows });
     }
+    const ref = q.date ?? new Date();
+    const { start: from, end: to } =
+      q.period === "week" ? ukWeekBounds(ref) : q.period === "month" ? ukMonthBounds(ref) : parseTaxYear(getTaxYear(ref));
     const rows = await getPlatformPnL({ userId: request.userId!, from, to });
     return reply.send({ data: rows });
   });

@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma.js";
-import { percentChange } from "../lib/insightsMath.js";
+import { legacyFuelFields, percentChange } from "../lib/insightsMath.js";
 import { dateOnlyParts, ukParts, ukWeekBounds } from "../lib/ukTime.js";
-import { boundsLabel, loadPeriodFigures } from "./periodFigures.js";
+import { boundsLabel, loadPeriodFiguresSeries } from "./periodFigures.js";
 import { taxYearRunningCost } from "./runningCost.js";
 import {
   getTaxYear,
@@ -45,9 +45,8 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
   // calculation (services/periodFigures), so this card, the recap and
   // Weekly P&L agree. Phantom trips are left out (they were counted here
   // before 9 Oct 2026).
-  const [figures, prevFigures, shifts, achievements, stats, fuelLogs] = await Promise.all([
-    loadPeriodFigures(userId, { start, end }),
-    loadPeriodFigures(userId, { start: prev.start, end: prev.end }),
+  const [[prevFigures, figures], shifts, achievements, stats, fuelLogs] = await Promise.all([
+    loadPeriodFiguresSeries(userId, [{ start: prev.start, end: prev.end }, { start, end }]),
     prisma.shift.findMany({
       where: { userId, status: "completed", startedAt: { gte: start, lte: end } },
     }),
@@ -469,8 +468,8 @@ export async function getFuelCostBreakdown(userId: string): Promise<FuelCostBrea
   return {
     actualMpg,
     estimatedMpg,
-    fuelCostPerMilePence: runningCost.pencePerMile,
-    fuelCostSource: runningCost.source,
+    // From real fill-up figures, else null (old meaning); estimate apart.
+    ...legacyFuelFields(runningCost),
     totalFuelCostPence: totalFuelCost,
     totalMilesDriven: Math.round(totalMiles * 10) / 10,
     perVehicle,

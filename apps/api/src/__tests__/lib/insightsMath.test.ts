@@ -1,16 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
   allocateEarningsToHours,
+  fillUpWindow,
   goldenHoursFromSlots,
+  legacyFuelFields,
   odometerMpg,
   percentChange,
   rankPlatforms,
+  ratedFromGroups,
   runningCostPerMile,
   summarisePeriod,
+  ukDailyMiles,
   type PeriodTrip,
 } from "../../lib/insightsMath.js";
 import { periodClaimPence } from "../../lib/mileageRates.js";
-import { buildPlatformLeague } from "../../services/profitabilityRollups.js";
+import { ukWeekBounds } from "../../lib/ukTime.js";
+import { buildLegacyPlatformPnL, buildPlatformLeague } from "../../services/profitabilityRollups.js";
 import { computeStreak } from "../../services/gamification.js";
 
 // The demo account (demo@mileclear.com): works for an employer at 40p/25p
@@ -35,7 +40,7 @@ describe("item 1: one weekly mileage claim", () => {
   const week = [trip(80, "2026-10-05T08:00:00Z"), trip(60, "2026-10-06T08:00:00Z"), trip(41.7, "2026-10-07T08:00:00Z")];
 
   it("values untagged work trips at the employer's rate (the £72.68 figure)", () => {
-    const totals = summarisePeriod({ trips: week, earlierThisTaxYear: [], earnings: [], user: demoUser, fallbackType: "car" });
+    const totals = summarisePeriod({ trips: week, earlier: [], earnings: [], user: demoUser, fallbackType: "car" });
     expect(totals.claimPence).toBe(7268);
     expect(totals.businessMiles).toBe(181.7);
   });
@@ -43,7 +48,7 @@ describe("item 1: one weekly mileage claim", () => {
   it("values gig trips at the approved rate, whatever the employer pays", () => {
     const totals = summarisePeriod({
       trips: [trip(10, "2026-10-05T08:00:00Z", { platformTag: "uber" }), trip(10, "2026-10-05T09:00:00Z")],
-      earlierThisTaxYear: [],
+      earlier: [],
       earnings: [],
       user: demoUser,
       fallbackType: "car",
@@ -71,7 +76,7 @@ describe("item 1: one weekly mileage claim", () => {
         trip(5, "2026-10-05T10:00:00Z", { classification: "personal" }),
         trip(20, "2026-10-05T11:00:00Z", { vehicle: { vehicleType: "van", providedByOthers: true } }),
       ],
-      earlierThisTaxYear: [],
+      earlier: [],
       earnings: [{ amountPence: 1000 }],
       user: gigOnly,
       fallbackType: "car",
@@ -94,28 +99,134 @@ describe("item 3: vs last week", () => {
 });
 
 describe("item 4: running cost per mile", () => {
-  it("uses fill-up spend over miles driven when both exist (demo: 23p)", () => {
-    const r = runningCostPerMile({ fuelSpendPence: 7355, litres: 54.5, milesDriven: 320, odometerMpg: 45.3, vehicleMpg: 60, fuelType: "hybrid" });
+  const base = { allSpendPence: 0, allLitres: 0, odometerMpg: null, vehicleMpg: null, fuelType: "petrol" as string | null };
+  const fill = (iso: string, costPence: number, litres: number, odometerReading: number | null = null) => ({
+    loggedAt: new Date(iso),
+    costPence,
+    litres,
+    odometerReading,
+  });
+
+  it("uses fill-ups 2..n over the miles between the first and last fill-up", () => {
+    // Demo: £35.20 on 30 Sep, £38.35 on 7 Oct, odometer 41,250 to 41,510.
+    const w = fillUpWindow([fill("2026-10-07T16:00:00Z", 3835, 28.4, 41510), fill("2026-09-30T09:00:00Z", 3520, 26.1, 41250)]);
+    expect(w).toMatchObject({ spendPence: 3835, odometerMiles: 260 });
+    const r = runningCostPerMile({ ...base, window: { spendPence: w!.spendPence, miles: w!.odometerMiles! }, allSpendPence: 7355, allLitres: 54.5, odometerMpg: 45.3, fuelType: "hybrid" });
     expect(r.source).toBe("fill_ups");
-    expect(r.pencePerMile).toBe(23);
-    expect(r.mpgSource).toBe("odometer");
+    expect(r.pencePerMile).toBe(14.8);
   });
-  it("estimates from MPG and price per litre below 100 miles", () => {
-    const r = runningCostPerMile({ fuelSpendPence: 4000, litres: 28.4, milesDriven: 20, odometerMpg: null, vehicleMpg: 50, fuelType: "petrol" });
+
+  it("one £60 fill-up after 5,000 miles is not 1.2p a mile", () => {
+    expect(fillUpWindow([fill("2026-10-07T16:00:00Z", 6000, 42)])).toBeNull();
+    const r = runningCostPerMile({ ...base, window: null, allSpendPence: 6000, allLitres: 42, vehicleMpg: 45 });
     expect(r.source).toBe("estimate");
-    // 140.8p/l x 4.54609 l/gal / 50 mpg
-    expect(r.pencePerMile).toBe(12.8);
+    // 142.9p/l x 4.54609 / 45
+    expect(r.pencePerMile).toBe(14.4);
   });
+
+  it("does not trust a fill-up rate far from the MPG estimate (a forgotten fill-up)", () => {
+    const r = runningCostPerMile({ ...base, window: { spendPence: 6000, miles: 5000 }, allSpendPence: 12000, allLitres: 84, vehicleMpg: 45 });
+    expect(r.source).toBe("estimate");
+  });
+
+  it("needs 100 miles between the fill-ups", () => {
+    const r = runningCostPerMile({ ...base, window: { spendPence: 1500, miles: 60 }, allSpendPence: 3000, allLitres: 21, vehicleMpg: 45 });
+    expect(r.source).toBe("estimate");
+  });
+
   it("estimates with no fill-ups at a typical pump price", () => {
-    const r = runningCostPerMile({ fuelSpendPence: 0, litres: 0, milesDriven: 500, odometerMpg: null, vehicleMpg: null, fuelType: "diesel" });
+    const r = runningCostPerMile({ ...base, window: null, fuelType: "diesel" });
     expect(r).toMatchObject({ source: "estimate", mpg: 35, mpgSource: "typical", pencePerLitre: 145 });
   });
-  it("has no fuel rate for an electric vehicle", () => {
-    expect(runningCostPerMile({ fuelSpendPence: 0, litres: 0, milesDriven: 500, odometerMpg: null, vehicleMpg: null, fuelType: "electric" }).pencePerMile).toBeNull();
+
+  it("old fuelCostPerMilePence is null without fill-up figures; the estimate has its own field", () => {
+    const est = runningCostPerMile({ ...base, window: null, vehicleMpg: 50 });
+    expect(legacyFuelFields(est)).toEqual({ fuelCostPerMilePence: null, estimatedFuelCostPerMilePence: est.pencePerMile, fuelCostSource: "estimate" });
+    const real = runningCostPerMile({ ...base, window: { spendPence: 4000, miles: 300 }, allSpendPence: 8000, allLitres: 57, vehicleMpg: 45 });
+    expect(legacyFuelFields(real)).toEqual({ fuelCostPerMilePence: 13.3, estimatedFuelCostPerMilePence: null, fuelCostSource: "fill_ups" });
   });
+
+  it("has no fuel rate for an electric vehicle", () => {
+    expect(runningCostPerMile({ ...base, window: null, fuelType: "electric" }).pencePerMile).toBeNull();
+  });
+
   it("reads MPG from odometer readings (demo: 45.3)", () => {
     expect(odometerMpg([{ odometerReading: 41250, litres: 28.4 }, { odometerReading: 41510, litres: 26.1 }])).toBe(45.3);
     expect(odometerMpg([{ odometerReading: 41250, litres: 28.4 }])).toBeNull();
+  });
+});
+
+describe("earlier miles for the threshold come from one grouped aggregate", () => {
+  const taxStart = new Date("2026-04-05T23:00:00Z");
+  const types = new Map([["v-car", "car"], ["v-bike", "motorbike"]]);
+  const groups = [
+    { vehicleId: "v-car", platformTag: "uber", _sum: { distanceMiles: 6000 } },
+    { vehicleId: null, platformTag: null, _sum: { distanceMiles: 3950 } },
+    { vehicleId: "v-bike", platformTag: null, _sum: { distanceMiles: 500 } },
+    { vehicleId: "v-car", platformTag: "deliveroo", _sum: { distanceMiles: null } },
+  ];
+
+  it("maps vehicle ids to types, vehicle-less miles to the fallback, and drops empty groups", () => {
+    const rated = ratedFromGroups(groups, types, "car", taxStart);
+    expect(rated).toEqual([
+      { distanceMiles: 6000, vehicleType: "car", platformTag: "uber", startedAt: taxStart },
+      { distanceMiles: 3950, vehicleType: "car", platformTag: null, startedAt: taxStart },
+      { distanceMiles: 500, vehicleType: "motorbike", platformTag: null, startedAt: taxStart },
+    ]);
+  });
+
+  it("places a week past the 10,000 line for a gig-only driver (cars share one threshold)", () => {
+    const earlier = ratedFromGroups(groups, types, "car", taxStart);
+    const totals = summarisePeriod({
+      trips: [trip(100, "2026-10-05T08:00:00Z", { platformTag: "uber" })],
+      earlier,
+      earnings: [],
+      user: gigOnly,
+      fallbackType: "car",
+    });
+    // 9,950 car miles before: 50 at 55p, 50 at 25p.
+    expect(totals.claimPence).toBe(50 * 55 + 50 * 25);
+  });
+});
+
+describe("a week across 5 and 6 April 2027", () => {
+  // Monday 5 Apr 2027 is in 2026-27; Tuesday 6 Apr onwards is 2027-28.
+  const earlier2026 = [{ distanceMiles: 9990, vehicleType: "car" as const, platformTag: "uber", startedAt: new Date("2026-04-05T23:00:00Z") }];
+
+  it("counts Monday against last tax year's threshold and the rest from zero in the new year", () => {
+    const totals = summarisePeriod({
+      trips: [
+        trip(20, "2027-04-05T08:00:00Z", { platformTag: "uber" }),
+        trip(20, "2027-04-06T08:00:00Z", { platformTag: "uber" }),
+      ],
+      earlier: earlier2026,
+      earnings: [],
+      user: gigOnly,
+      fallbackType: "car",
+    });
+    // Monday: 10 mi at 55p + 10 mi at 25p (2026-27). Tuesday: 20 mi at the
+    // 2027-28 first-10,000 rate.
+    const tuesday = periodClaimPence([], [{ distanceMiles: 20, vehicleType: "car", platformTag: "uber", startedAt: new Date("2027-04-06T08:00:00Z") }], gigOnly);
+    expect(totals.claimPence).toBe(10 * 55 + 10 * 25 + tuesday);
+    expect(tuesday).toBe(20 * 55);
+  });
+
+  it("the UK week runs Monday 5 to Sunday 11 April 2027", () => {
+    const w = ukWeekBounds(new Date("2027-04-07T12:00:00Z"));
+    expect(w.start.toISOString()).toBe("2027-04-04T23:00:00.000Z");
+    expect(w.end.toISOString()).toBe("2027-04-11T22:59:59.999Z");
+  });
+});
+
+describe("days driven use the UK date", () => {
+  it("a trip at 00:30 BST counts on that day, not the day before", () => {
+    const d = ukDailyMiles([
+      { startedAt: new Date("2026-10-08T23:30:00Z"), distanceMiles: 30 },
+      { startedAt: new Date("2026-10-08T10:00:00Z"), distanceMiles: 20 },
+    ]);
+    expect(d.datesDesc).toEqual(["2026-10-09", "2026-10-08"]);
+    expect(d.best).toEqual({ dateKey: "2026-10-09", miles: 30 });
+    expect(computeStreak(d.datesDesc, new Date("2026-10-09T12:00:00Z")).current).toBe(2);
   });
 });
 
@@ -155,6 +266,20 @@ describe("item 5: one platform league, by pay per mile", () => {
     expect(rows.map((r) => [r.rank, r.platform])).toEqual([[1, "deliveroo"], [2, "uber"]]);
     expect(rows[1].netPence).toBe(14250 - Math.round(1000 * (14250 / 23070)));
     expect(rows[0].earningsPerMilePence).toBe(684);
+  });
+
+  it("without a period, platform-pnl keeps the old shape and order (net £, untagged row)", () => {
+    const rows = buildLegacyPlatformPnL(
+      earnings,
+      [...trips.map(({ platformTag, distanceMiles }) => ({ platformTag, distanceMiles })), { platformTag: null, distanceMiles: 7 }],
+      [{ costPence: 1000 }],
+      [],
+    );
+    expect(rows.map((r) => r.platform)).toEqual(["uber", "deliveroo", "untagged"]);
+    expect(Object.keys(rows[0]).sort()).toEqual(
+      ["businessMiles", "expensesPence", "fuelPence", "grossEarningsPence", "netPence", "platform", "trips"],
+    );
+    expect(rows[2]).toMatchObject({ trips: 1, businessMiles: 7, grossEarningsPence: 0, netPence: 0 });
   });
 
   it("puts platforms with 5+ trips first, then few-trip ones, then ones with no miles", () => {
