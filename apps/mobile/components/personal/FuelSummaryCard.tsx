@@ -7,6 +7,7 @@ import { fetchRunningCost } from "../../lib/api/businessInsights";
 import { formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle, RunningCostSummary } from "@mileclear/shared";
 import { colors, fonts } from "../../lib/theme";
+import { cachedFuelLogs, cachedRunningCost } from "../../lib/insights/api";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -16,13 +17,26 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const GREEN = colors.green;
 
+/** Insights passes the window it is showing; Home leaves it out and gets this month. */
+export interface FuelWindow {
+  period: "week" | "month";
+  start: Date;
+  end: Date;
+  /** "this week", "this month", "September 2026". */
+  label: string;
+  /** YYYY-MM-DD inside the window, for the running-cost endpoint. */
+  date: string;
+}
+
 interface FuelSummaryCardProps {
+  window?: FuelWindow;
   monthMiles: number;
   estimatedMpg: number | null;
   fuelType: "petrol" | "diesel" | "electric" | "hybrid" | null;
 }
 
-export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSummaryCardProps) {
+export function FuelSummaryCard({ window: win, monthMiles, estimatedMpg, fuelType }: FuelSummaryCardProps) {
+  const when = win ? win.label : "this month";
   const router = useRouter();
   const [logs, setLogs] = useState<FuelLogWithVehicle[]>([]);
   const [cost, setCost] = useState<RunningCostSummary | null>(null);
@@ -30,25 +44,29 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
   useFocusEffect(
     useCallback(() => {
       const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      const monthStart = win ? win.start : new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthEnd = win ? new Date(win.end.getTime() - 1000) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
       // The three most recent fill-ups, for the list only.
-      fetchFuelLogs({
-        from: monthStart.toISOString(),
-        to: monthEnd.toISOString(),
-        pageSize: 3,
-      })
+      // On Insights both calls go through the shared cache (one request each,
+      // reused for 60 s); Home keeps asking fresh.
+      const logsPromise = win
+        ? cachedFuelLogs(monthStart.toISOString(), monthEnd.toISOString())
+        : fetchFuelLogs({ from: monthStart.toISOString(), to: monthEnd.toISOString(), pageSize: 3 });
+      logsPromise
         .then((res) => setLogs(res.data))
         .catch(() => {});
       // Spend, cost per mile and MPG: the one running cost
       // (docs/insights-oct2026/NUMBERS.md). Before 9 Oct 2026 this card
       // added up only the first page (3) of the month's fill-ups and
       // divided by the month's miles, so it disagreed with Trends.
-      fetchRunningCost("month")
-        .then((res) => setCost(res.data))
+      const costPromise = win
+        ? cachedRunningCost(win.period, win.date)
+        : fetchRunningCost("month").then((res) => res.data);
+      costPromise
+        .then((data) => setCost(data))
         .catch(() => {});
-    }, [])
+    }, [win?.period, win?.date, win?.start.getTime()])
   );
 
   if (fuelType === "electric") return null;
@@ -58,7 +76,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
   const mpg = cost?.mpg ?? estimatedMpg ?? null;
   const ppl = cost?.pencePerLitre ?? null;
 
-  // Spend: what the fill-ups this month cost; with none, miles x rate.
+  // Spend: what the fill-ups in the window cost; with none, miles x rate.
   let displayCost: number;
   let isEstimate: boolean;
   if (hasRealData && cost) {
@@ -81,7 +99,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
       onPress={() => router.push("/(tabs)/fuel")}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`Fuel and running costs. ${isEstimate ? "Estimated" : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""}`} this month. Tap to view fuel logs`}
+      accessibilityLabel={`Fuel and running costs. ${isEstimate ? "Estimated" : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""}`} ${when}. Tap to view fuel logs`}
     >
       {/* Header */}
       <View style={styles.header}>
@@ -91,7 +109,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Fuel & Running Costs</Text>
           <Text style={styles.subtitle}>
-            {isEstimate ? "Estimated this month" : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""} this month`}
+            {isEstimate ? `Estimated ${when}` : `${fillUpCount} fill-up${fillUpCount !== 1 ? "s" : ""} ${when}`}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
@@ -112,7 +130,7 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
           <>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{costPerMile}</Text>
-              <Text style={styles.statLabel}>per mile</Text>
+              <Text style={styles.statLabel}>{cost?.source === "estimate" ? "per mile, estimate" : "per mile"}</Text>
             </View>
             <View style={styles.statDot} />
           </>

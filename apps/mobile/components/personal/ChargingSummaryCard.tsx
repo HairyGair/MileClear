@@ -21,12 +21,14 @@ const FALLBACK_MILES_PER_KWH = 3.5; // typical UK EV
 const FALLBACK_PENCE_PER_KWH = 24.5;
 
 interface ChargingSummaryCardProps {
+  /** Insights passes the window it shows ("this week", "September 2026"); default "this month". */
+  whenLabel?: string;
   monthMiles: number;
   milesPerKwh: number | null;
   fuelType: "petrol" | "diesel" | "electric" | "hybrid" | null;
 }
 
-export function ChargingSummaryCard({ monthMiles, milesPerKwh, fuelType }: ChargingSummaryCardProps) {
+export function ChargingSummaryCard({ whenLabel = "this month", monthMiles, milesPerKwh, fuelType }: ChargingSummaryCardProps) {
   const router = useRouter();
   const [pencePerKwh, setPencePerKwh] = useState(FALLBACK_PENCE_PER_KWH);
   const [rateSource, setRateSource] = useState<string>("default");
@@ -61,7 +63,7 @@ export function ChargingSummaryCard({ monthMiles, milesPerKwh, fuelType }: Charg
       onPress={() => router.push("/charging-nearby")}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`Charging and running costs. Estimated ${formatPence(monthCost)} this month. Tap to find nearby chargers.`}
+      accessibilityLabel={`Charging and running costs. Estimated ${formatPence(monthCost)} ${whenLabel}. Tap to find nearby chargers.`}
     >
       <View style={styles.header}>
         <View style={styles.iconWrap}>
@@ -69,7 +71,7 @@ export function ChargingSummaryCard({ monthMiles, milesPerKwh, fuelType }: Charg
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Charging & Running Costs</Text>
-          <Text style={styles.subtitle}>Estimated home charging this month</Text>
+          <Text style={styles.subtitle}>Estimated home charging {whenLabel}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={TEXT_3} />
       </View>

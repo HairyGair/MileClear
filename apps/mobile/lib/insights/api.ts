@@ -16,6 +16,7 @@ import {
 import { fetchDrivingAnalytics } from "../api/analytics";
 import { fetchVehicles } from "../api/vehicles";
 import { fetchEarnings } from "../api/earnings";
+import { fetchFuelLogs } from "../api/fuel";
 import { fetchTripSummary, fetchTrips } from "../api/trips";
 import type { LocalBenchmarkMode, PlatformTag } from "@mileclear/shared";
 
@@ -79,3 +80,6 @@ export const cachedDrivingAnalytics = () =>
   insightsCache.get("analytics", () => fetchDrivingAnalytics().then((r) => r.data));
 
 export const cachedScorecard = () => insightsCache.get("scorecard", () => fetchScorecard().then((r) => r.data));
+
+export const cachedFuelLogs = (fromIso: string, toIso: string) =>
+  insightsCache.get(`fuel-logs|${fromIso}|${toIso}`, () => fetchFuelLogs({ from: fromIso, to: toIso, pageSize: 3 }));
