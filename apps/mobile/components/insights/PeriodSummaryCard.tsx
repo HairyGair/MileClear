@@ -16,11 +16,10 @@ import { PeriodBars } from "./PeriodBars";
 import { RecapShareCard, captureAndShareRecap, type RecapShareCardProps } from "../personal/ShareableRecap";
 import type { PeriodSummaryState, PeriodTripsState } from "../../hooks/useInsightsData";
 import type { Celebration } from "../../hooks/useInsightsCelebration";
+import { shareHeading, sharePeriodTotalLabel } from "../../lib/insights/shareLabels";
 import {
   bucketTrips,
   summaryTitle,
-  taxYearName,
-  taxYearStartYear,
   type InsightsPeriod,
   type PeriodRange,
 } from "../../lib/insights/period";
@@ -178,12 +177,9 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
 
   const shareData: RecapShareCardProps = {
     period: period === "tax_year" ? "yearly" : "monthly",
-    monthLabel:
-      period === "tax_year"
-        ? `Tax Year ${taxYearName(taxYearStartYear(new Date()) + offset)}`
-        : period === "week"
-          ? title === "Your week" ? "This week" : title
-          : range.start.toLocaleDateString("en-GB", { month: "long" }),
+    monthLabel: shareHeading(period, offset, range),
+    heading: shareHeading(period, offset, range),
+    totalLabel: sharePeriodTotalLabel(period, offset, range),
     monthMiles: current.miles,
     monthTrips: current.trips,
     avgTripMiles: current.trips > 0 ? current.miles / current.trips : 0,

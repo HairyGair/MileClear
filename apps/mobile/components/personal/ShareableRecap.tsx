@@ -26,6 +26,10 @@ export interface RecapShareCardProps {
   prevMonthMiles: number | null;
   deductionPence: number;
   region?: string;
+  /** Full heading for the period shown ("Week of 5 Oct 2026"). Replaces month + current year. */
+  heading?: string;
+  /** Line under the card in place of "total miles tracked" ("miles in September 2026"). */
+  totalLabel?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -61,6 +65,8 @@ export function RecapShareCard({
   prevMonthMiles,
   deductionPence,
   region,
+  heading,
+  totalLabel,
 }: RecapShareCardProps) {
   const year = new Date().getFullYear();
   const milesStr = formatMilesReadable(monthMiles);
@@ -118,7 +124,7 @@ export function RecapShareCard({
 
       {/* Period heading */}
       <Text style={s.monthYear}>
-        {period === "daily" ? monthLabel.toUpperCase() : period === "yearly" ? monthLabel.toUpperCase() : `${monthLabel.toUpperCase()} ${year}`}
+        {heading ? heading.toUpperCase() : period === "daily" ? monthLabel.toUpperCase() : period === "yearly" ? monthLabel.toUpperCase() : `${monthLabel.toUpperCase()} ${year}`}
       </Text>
 
       {/* Hero miles — the big number */}
@@ -179,7 +185,7 @@ export function RecapShareCard({
 
       {/* Lifetime total */}
       <Text style={s.lifetimeText}>
-        {totalStr} total miles tracked
+        {totalStr} {totalLabel ?? "total miles tracked"}
       </Text>
 
       {/* Bottom accent line */}
@@ -208,7 +214,7 @@ export async function captureAndShareRecap(
       format: "png",
       quality: 1,
     });
-    const dialogLabel = data.period === "daily" ? "Daily" : data.monthLabel;
+    const dialogLabel = data.period === "daily" ? "Daily" : (data.heading ?? data.monthLabel);
     await Sharing.shareAsync(uri, {
       mimeType: "image/png",
       dialogTitle: `My ${dialogLabel} Driving Recap`,
@@ -227,7 +233,7 @@ async function textFallbackShare(data: RecapShareCardProps): Promise<void> {
   const avgStr = avgTripMiles < 10 ? avgTripMiles.toFixed(1) : String(Math.round(avgTripMiles));
   const totalStr = Math.round(totalMiles).toLocaleString("en-GB");
   const tripWord = monthTrips === 1 ? "trip" : "trips";
-  const recapLabel = period === "daily" ? "today's" : monthLabel;
+  const recapLabel = period === "daily" ? "today's" : (data.heading ?? monthLabel);
 
   const lines = [
     `My ${recapLabel} driving recap:`,
@@ -238,7 +244,7 @@ async function textFallbackShare(data: RecapShareCardProps): Promise<void> {
     lines.push(`- \u00A3${(deductionPence / 100).toFixed(2)} HMRC deduction`);
   }
   lines.push(
-    `- ${totalStr} total miles tracked!`,
+    `- ${totalStr} ${data.totalLabel ?? "total miles tracked"}!`,
     "",
     "Tracked with MileClear - your mileage journal",
     "https://apps.apple.com/app/mileclear/id6759671005",
