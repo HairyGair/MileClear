@@ -8,6 +8,8 @@ import { ToggleRow } from "../../components/settings/ToggleRow";
 import {
   getJourneyEndMinutes,
   setJourneyEndMinutes,
+  getStartTripUntilArrived,
+  setStartTripUntilArrived,
 } from "../../lib/tracking/detection";
 import { readAutomaticTrips, setAutomaticTrips } from "../../lib/tracking/automaticTrips";
 import { JOURNEY_END_CHOICES } from "../../lib/tracking/journeyBoundary";
@@ -26,6 +28,7 @@ export default function TrackingSettings() {
   const [driveDetection, setDriveDetection] = useState(true);
   const [batterySaver, setBatterySaver] = useState(true);
   const [journeyEnd, setJourneyEnd] = useState(30);
+  const [untilArrived, setUntilArrived] = useState(false);
 
   // Automatic trips is also on the dashboard (28 Sep 2026), so re-read it
   // every time this screen shows rather than once.
@@ -38,6 +41,12 @@ export default function TrackingSettings() {
   useEffect(() => {
     isBatterySaverEnabled().then(setBatterySaver).catch(() => {});
     getJourneyEndMinutes().then(setJourneyEnd).catch(() => {});
+    getStartTripUntilArrived().then(setUntilArrived).catch(() => {});
+  }, []);
+
+  const toggleUntilArrived = useCallback((next: boolean) => {
+    setUntilArrived(next);
+    setStartTripUntilArrived(next).catch(() => {});
   }, []);
 
   // How long stopped before one journey becomes the next. A visiting
@@ -121,6 +130,17 @@ export default function TrackingSettings() {
             `${journeyEnd} minutes`
           } stopped. Longer stops split your trips.`}
           onPress={chooseJourneyEnd}
+        />
+        <ToggleRow
+          icon="flag-outline"
+          label="Start Trip runs until I tap Arrived"
+          hint={
+            untilArrived
+              ? "Waits and stops stay in the same trip. Tap Arrived when you finish, or it keeps using GPS."
+              : "Start Trip saves by itself after 15 minutes parked."
+          }
+          value={untilArrived}
+          onToggle={toggleUntilArrived}
         />
         <SettingsRow
           icon="battery-charging-outline"

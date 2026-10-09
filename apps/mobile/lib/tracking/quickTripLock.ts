@@ -53,6 +53,17 @@ export const QUICK_TRIP_PARKED_MS = 15 * 60 * 1000;
 /** A Start Trip that has recorded no driving at all is let go after this. */
 export const QUICK_TRIP_NEVER_DROVE_MS = 60 * 60 * 1000;
 
+/**
+ * "Keep Start Trip going until I tap Arrived" (Settings > Tracking). Kada, an
+ * Amazon Flex driver, 9 Oct 2026: a 36-minute wait at the delivery station
+ * ended her Start Trip by the parked rule above and the rest of the block came
+ * in as separate trips. With the setting on, neither the parked nor the
+ * never-drove rule applies, and the lock counts as freshly started for this
+ * long instead of QUICK_TRIP_STALE_MS. The 18-hour span cap still applies, so
+ * a forgotten Start Trip cannot hold the GPS forever.
+ */
+export const QUICK_TRIP_UNTIL_ARRIVED_MS = 12 * 60 * 60 * 1000;
+
 export type QuickTripLockAction =
   /** A real recording owns the GPS. Yield; change nothing. */
   | "suppress"
@@ -98,8 +109,11 @@ export function quickTripLockDecision(args: {
   /** Latest breadcrumb that shows driving (staleShiftRule.lastDrivingFixMs);
    *  null = none recorded. Omitted by callers that predate the parked rule. */
   lastDrivingMs?: number | null;
+  /** The driver's "keep Start Trip going until I tap Arrived" setting. */
+  untilArrived?: boolean;
 }): QuickTripLockDecision {
   const { nowMs, firstCoordMs, lastCoordMs, quickTripStartMs, lockStartedAtMs, appActive } = args;
+  const untilArrived = args.untilArrived === true;
 
   const anchors = [firstCoordMs, quickTripStartMs, lockStartedAtMs].filter(
     (v): v is number => v != null && Number.isFinite(v)
@@ -115,7 +129,7 @@ export function quickTripLockDecision(args: {
   // A real Start Trip, with the app off screen (the open form owns its own
   // Arrive, so never finish from under it): judge it by DRIVING, not by any
   // fix, because walking fixes keep the breadcrumb test below forever live.
-  if (quickTripStartMs != null && !appActive && args.lastDrivingMs !== undefined) {
+  if (quickTripStartMs != null && !appActive && !untilArrived && args.lastDrivingMs !== undefined) {
     const drove = args.lastDrivingMs;
     if (drove != null && Number.isFinite(drove) && drove >= quickTripStartMs) {
       if (nowMs - drove >= QUICK_TRIP_PARKED_MS) return { action: "finish", reason: "parked" };
@@ -128,7 +142,8 @@ export function quickTripLockDecision(args: {
   if (lastCoordMs != null && nowMs - lastCoordMs < QUICK_TRIP_LIVE_COORD_MS) {
     return { action: "suppress", reason: "live_breadcrumb" };
   }
-  if (quickTripStartMs != null && nowMs - quickTripStartMs < QUICK_TRIP_STALE_MS) {
+  const staleMs = untilArrived ? QUICK_TRIP_UNTIL_ARRIVED_MS : QUICK_TRIP_STALE_MS;
+  if (quickTripStartMs != null && nowMs - quickTripStartMs < staleMs) {
     return { action: "suppress", reason: "recently_started" };
   }
 

@@ -15,6 +15,7 @@ import {
   QUICK_TRIP_NO_START_MAX_SPAN_MS,
   QUICK_TRIP_PARKED_MS,
   QUICK_TRIP_NEVER_DROVE_MS,
+  QUICK_TRIP_UNTIL_ARRIVED_MS,
 } from "../quickTripLock";
 
 const NOW = Date.parse("2026-09-14T11:56:54Z");
@@ -284,5 +285,94 @@ describe("a Start Trip left running after parking finishes itself (Samantha Birc
         lastDrivingMs: START + mins(16),
       }).action
     ).not.toBe("finish");
+  });
+});
+
+describe("\"Start Trip runs until I tap Arrived\" (Kada, 9 Oct 2026)", () => {
+  // Amazon Flex: Start Trip 05:42 BST, drove to the station, then a 36-minute
+  // wait with the app in the background. The parked rule ended the trip.
+  const START = Date.parse("2026-10-09T04:42:00Z");
+  const base = {
+    firstCoordMs: START + mins(1),
+    quickTripStartMs: START,
+    lockStartedAtMs: START,
+    appActive: false,
+  };
+
+  it("does not finish a parked Start Trip when the setting is on", () => {
+    const now = START + mins(105);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        lastDrivingMs: START + mins(69), // last drove 36 minutes ago
+        untilArrived: true,
+      })
+    ).toEqual({ action: "suppress", reason: "live_breadcrumb" });
+  });
+
+  it("the same wait still finishes it with the setting off", () => {
+    const now = START + mins(105);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        lastDrivingMs: START + mins(69),
+      })
+    ).toEqual({ action: "finish", reason: "parked" });
+  });
+
+  it("keeps the lock through a long silent wait well past three hours", () => {
+    const now = START + hours(5);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(45), // phone silent while parked
+        lastDrivingMs: now - mins(45),
+        untilArrived: true,
+      })
+    ).toEqual({ action: "suppress", reason: "recently_started" });
+  });
+
+  it("does not let go of a Start Trip that has not driven yet", () => {
+    const now = START + QUICK_TRIP_NEVER_DROVE_MS + mins(30);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(2),
+        lastDrivingMs: null,
+        untilArrived: true,
+      }).action
+    ).toBe("suppress");
+  });
+
+  it("a forgotten one is still recovered after the until-Arrived window", () => {
+    const now = START + QUICK_TRIP_UNTIL_ARRIVED_MS + mins(5);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(30),
+        lastDrivingMs: now - mins(30),
+        untilArrived: true,
+      })
+    ).toEqual({ action: "recover", reason: "orphan" });
+  });
+
+  it("the 18-hour span cap still applies", () => {
+    const now = START + QUICK_TRIP_MAX_SPAN_MS + mins(1);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        lastDrivingMs: now - mins(1),
+        untilArrived: true,
+      })
+    ).toEqual({ action: "recover", reason: "span_cap" });
   });
 });

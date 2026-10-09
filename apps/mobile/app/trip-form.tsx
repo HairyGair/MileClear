@@ -2535,6 +2535,20 @@ export default function TripFormScreen() {
         const userNote = notes.trim();
         const finalNote = [leadGapNote, userNote].filter(Boolean).join("\n\n");
 
+        // The one exception to the gpsQuality rule above: a driver who chose
+        // "Keep Start Trip going until I tap Arrived" has told us the stops
+        // inside it are part of the job, so the server's visit splitter must
+        // leave it whole (driverKeptGoing). Only set with that setting on.
+        let keptGoing = false;
+        if (coords) {
+          try {
+            const { getStartTripUntilArrived } = await import("../lib/tracking/detection");
+            keptGoing = await getStartTripUntilArrived();
+          } catch {
+            keptGoing = false;
+          }
+        }
+
         const data: CreateTripData = {
           startLat,
           startLng,
@@ -2552,6 +2566,7 @@ export default function TripFormScreen() {
           ...(projectLabel.trim() && { projectLabel: projectLabel.trim() }),
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
+          ...(keptGoing && { gpsQuality: { driverKeptGoing: true } }),
           ...(odometerStart.trim() && { odometerStart: parseFloat(odometerStart) }),
           ...(odometerEnd.trim() && { odometerEnd: parseFloat(odometerEnd) }),
         };

@@ -944,6 +944,7 @@ export async function shiftSuppressesAutoDetection(
     lockStartedAtMs: finite(lockStartedAtMs),
     appActive,
     lastDrivingMs,
+    untilArrived: qts ? await getStartTripUntilArrived().catch(() => false) : false,
   });
 
   if (decision.action === "finish") {
@@ -5129,6 +5130,24 @@ export async function setJourneyEndMinutes(minutes: number): Promise<void> {
     [String(clamped)]
   );
   logDetectionEvent("journey_end_minutes_set", { minutes: clamped }).catch(() => {});
+}
+
+/** "Keep Start Trip going until I tap Arrived" (QUICK_TRIP_UNTIL_ARRIVED_MS). Off by default. */
+export async function getStartTripUntilArrived(): Promise<boolean> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'start_trip_until_arrived'"
+  );
+  return row?.value === "1";
+}
+
+export async function setStartTripUntilArrived(on: boolean): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('start_trip_until_arrived', ?)",
+    [on ? "1" : "0"]
+  );
+  logDetectionEvent("start_trip_until_arrived_set", { on }).catch(() => {});
 }
 
 export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> {
