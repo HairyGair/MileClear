@@ -1,355 +1,66 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
-import { PageHeader } from "../../../components/dashboard/PageHeader";
-import { Card } from "../../../components/ui/Card";
-import { Badge } from "../../../components/ui/Badge";
-import { Select } from "../../../components/ui/Select";
-import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import { SaChecklistPanel } from "../../../components/dashboard/SaChecklistPanel";
-import { getHmrcRatesForTaxYear } from "@mileclear/shared";
+import { api } from "@/lib/api";
+import { PageHeader, SettingsGroup, SettingsRow, useData, useMe } from "@/components/dashboard/kit";
+import { TaxReadinessCard } from "@/components/dashboard/tax/TaxReadinessCard";
+import "@/components/dashboard/tax/tax.css";
 
-interface GamificationStats {
-  taxYear: string;
-  deductionPence: number;
-  businessMiles: number;
-  totalTrips: number;
-  totalShifts: number;
+interface HmrcStatus {
+  connected: boolean;
 }
 
-interface Trip {
-  id: string;
-  distanceMiles: number;
-  classification: string;
-  startedAt: string;
-  platformTag: string | null;
-}
-
-interface Vehicle {
-  id: string;
-  make: string;
-  model: string;
-  vehicleType: string;
-}
-
-function formatPence(pence: number): string {
-  return `\u00A3${(pence / 100).toFixed(2)}`;
-}
-
-function formatMiles(miles: number): string {
-  return miles.toLocaleString("en-GB", { maximumFractionDigits: 1 });
-}
-
-function calculateDeduction(
-  miles: number,
-  vehicleType: string = "car",
-  taxYear?: string,
-): number {
-  const rates = getHmrcRatesForTaxYear(taxYear ?? "");
-  if (vehicleType === "motorbike") {
-    return Math.round(miles * rates.motorbike.flat);
-  }
-  const threshold = 10000;
-  if (miles <= threshold) {
-    return Math.round(miles * rates.car.first10000);
-  }
-  const firstPortion = threshold * rates.car.first10000;
-  const remainder = (miles - threshold) * rates.car.after10000;
-  return Math.round(firstPortion + remainder);
-}
-
-// UK tax year months: April through March
-const TAX_MONTHS = [
-  "April", "May", "June", "July", "August", "September",
-  "October", "November", "December", "January", "February", "March",
-];
-
-function getTaxYearOptions(): { value: string; label: string }[] {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const currentTaxStartYear = month >= 3 ? year : year - 1; // April = month 3
-  const options = [];
-  for (let i = 0; i < 4; i++) {
-    const startYear = currentTaxStartYear - i;
-    const endYear = startYear + 1;
-    options.push({
-      value: `${startYear}-${String(endYear).slice(2)}`,
-      label: `${startYear}/${endYear}`,
-    });
-  }
-  return options;
-}
-
-interface MonthData {
-  month: string;
-  trips: number;
-  businessMiles: number;
-  personalMiles: number;
-  deductionPence: number;
-}
-
-export default function TaxPage() {
-  const [, setStats] = useState<GamificationStats | null>(null);
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [taxYear, setTaxYear] = useState(getTaxYearOptions()[0]?.value || "");
-
-  // Free for everyone: this page only reads free endpoints (stats, trips,
-  // vehicles), and the mileage deduction is free in the app too.
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Parse tax year to date range
-      const startYear = parseInt(taxYear.split("-")[0]);
-      const from = new Date(startYear, 3, 6); // April 6
-      const to = new Date(startYear + 1, 3, 5, 23, 59, 59); // April 5 next year
-
-      const [statsRes, tripsRes, vehiclesRes] = await Promise.all([
-        api.get<{ data: GamificationStats }>("/gamification/stats"),
-        api.get<{ data: Trip[]; total: number }>(
-          `/trips/?pageSize=100&from=${from.toISOString()}&to=${to.toISOString()}`
-        ),
-        api.get<{ data: Vehicle[] }>("/vehicles/"),
-      ]);
-      setStats(statsRes.data);
-      setTrips(tripsRes.data);
-      setVehicles(vehiclesRes.data);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [taxYear]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  // Aggregate by month
-  const startYear = parseInt(taxYear.split("-")[0]);
-  const monthlyData: MonthData[] = TAX_MONTHS.map((month, i) => {
-    const monthNum = (i + 3) % 12; // April=3, May=4, ..., March=2
-    const year = monthNum >= 3 ? startYear : startYear + 1;
-
-    const monthTrips = trips.filter((t) => {
-      const d = new Date(t.startedAt);
-      return d.getMonth() === monthNum && d.getFullYear() === year;
-    });
-
-    const businessMiles = monthTrips
-      .filter((t) => t.classification === "business")
-      .reduce((sum, t) => sum + (t.distanceMiles || 0), 0);
-    const personalMiles = monthTrips
-      .filter((t) => t.classification === "personal")
-      .reduce((sum, t) => sum + (t.distanceMiles || 0), 0);
-
-    return {
-      month,
-      trips: monthTrips.length,
-      businessMiles,
-      personalMiles,
-      deductionPence: calculateDeduction(businessMiles, "car", taxYear),
-    };
-  });
-
-  // Totals
-  const totalBusinessMiles = trips
-    .filter((t) => t.classification === "business")
-    .reduce((sum, t) => sum + (t.distanceMiles || 0), 0);
-  const totalPersonalMiles = trips
-    .filter((t) => t.classification === "personal")
-    .reduce((sum, t) => sum + (t.distanceMiles || 0), 0);
-  const totalDeduction = calculateDeduction(totalBusinessMiles, "car", taxYear);
-
-  // Platform breakdown
-  const platformMap = new Map<string, { trips: number; miles: number }>();
-  for (const trip of trips.filter((t) => t.classification === "business")) {
-    const platform = trip.platformTag || "Untagged";
-    const existing = platformMap.get(platform) || { trips: 0, miles: 0 };
-    existing.trips++;
-    existing.miles += trip.distanceMiles || 0;
-    platformMap.set(platform, existing);
-  }
-  const platformBreakdown = Array.from(platformMap.entries())
-    .sort((a, b) => b[1].miles - a[1].miles);
-
-  // HMRC rate info (per the selected tax year - rate rose from 45p to 55p
-  // from 2026-27 onwards).
-  const yearRates = getHmrcRatesForTaxYear(taxYear);
-  const firstTierLabel = `${yearRates.car.first10000}p`;
-  const afterTierLabel = `${yearRates.car.after10000}p`;
-  const rateInfo = totalBusinessMiles <= 10000
-    ? `${firstTierLabel} per mile (first 10,000)`
-    : `${firstTierLabel} first 10,000 + ${afterTierLabel} thereafter`;
+/** Tax hub: the readiness card, then links grouped by what the driver needs. */
+export default function TaxHubPage() {
+  const { isCompanyDriver, isGigDriver, isEmployee } = useMe();
+  // 200 + connected shows the quarterly row. Any error (503 not configured, 404) hides it.
+  const { data: hmrc } = useData<HmrcStatus | null>("hmrc-status", () =>
+    api
+      .get<{ data: HmrcStatus }>("/hmrc/status")
+      .then((r) => r.data)
+      .catch(() => null)
+  );
 
   return (
     <>
-      <PageHeader
-        title="Tax Summary"
-        subtitle="HMRC mileage deduction overview"
-        action={
-          <div style={{ maxWidth: 180 }}>
-            <Select
-              id="taxYear"
-              value={taxYear}
-              onChange={(e) => setTaxYear(e.target.value)}
-              options={getTaxYearOptions()}
-            />
-          </div>
-        }
-      />
+      <PageHeader title="Tax" />
+      <div className="mc-tax-page">
+        <TaxReadinessCard mode="work" hub />
 
-      {/* "Ready for 31 January?" 1 Dec to 31 Jan only; renders nothing otherwise. */}
-      <SaChecklistPanel />
+        <div className="mc-tax-groups">
+          <SettingsGroup title="Your tax return">
+            <SettingsRow icon="calculator-outline" label="Self Assessment" hint="Your figures, box by box" href="/dashboard/tax/self-assessment" />
+            {!isCompanyDriver && (
+              <SettingsRow icon="calendar-outline" label="Tax payment plan" hint="What to pay and when" href="/dashboard/tax/payment-plan" />
+            )}
+            {isGigDriver && (
+              <SettingsRow icon="help-circle-outline" label="First Self Assessment?" hint="A short guide to filing for the first time" href="/dashboard/tax/first-return" />
+            )}
+            {isGigDriver && (
+              <SettingsRow icon="checkmark-circle-outline" label="Ready for 31 January?" hint="A checklist for your return" href="/dashboard/tax/checklist" />
+            )}
+          </SettingsGroup>
 
-      {error && (
-        <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
-          {error}
+          <SettingsGroup title="Records">
+            <SettingsRow icon="download-outline" label="Tax exports" hint="PDF, CSV and odometer log" href="/dashboard/tax/exports" badge="pro" />
+            <SettingsRow icon="shield-checkmark-outline" label="Mileage certificate" hint="Share your miles with an insurer or employer" href="/dashboard/tax/certificate" badge="pro" />
+            <SettingsRow icon="swap-vertical-outline" label="Check against HMRC's figures" hint="Compare what platforms reported" href="/dashboard/tax/reconciliation" />
+            <SettingsRow icon="people-outline" label="Your accountant" hint="Details and sharing" href="/dashboard/tax/accountant" />
+            {hmrc?.connected && (
+              <SettingsRow icon="document-text-outline" label="Quarterly Self Assessment" hint="Connected to the test service" href="/dashboard/tax/mtd" />
+            )}
+          </SettingsGroup>
+
+          {isEmployee && (
+            <SettingsGroup title="Claims (employee)">
+              <SettingsRow icon="cash-outline" label="Mileage Allowance Relief" hint="Claim back what your employer didn't pay" href="/dashboard/tax/mileage-relief" />
+            </SettingsGroup>
+          )}
+
+          <SettingsGroup title="Settings">
+            <SettingsRow icon="settings-outline" label="Work and tax" hint="Work type, employer rate, other income" href="/dashboard/settings/work-tax" />
+          </SettingsGroup>
         </div>
-      )}
-
-      {loading ? (
-        <LoadingSkeleton variant="card" count={3} style={{ marginBottom: 12 }} />
-      ) : (
-        <>
-          {/* Hero */}
-          <div className="hero-card" style={{ marginBottom: "var(--dash-gap)" }}>
-            <div className="hero-card__label">Tax Deduction ({taxYear})</div>
-            <div className="hero-card__value">{formatPence(totalDeduction)}</div>
-            <div className="hero-card__meta">
-              <span>{formatMiles(totalBusinessMiles)} business miles</span>
-              <span>{rateInfo}</span>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="stats-grid" style={{ marginBottom: "var(--dash-gap)" }}>
-            <div className="stat-card">
-              <div className="stat-card__value stat-card__value--amber">{formatMiles(totalBusinessMiles)} mi</div>
-              <div className="stat-card__label">Business Miles</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card__value">{formatMiles(totalPersonalMiles)} mi</div>
-              <div className="stat-card__label">Personal Miles</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card__value">{trips.length}</div>
-              <div className="stat-card__label">Total Trips</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card__value stat-card__value--emerald">{formatMiles(totalBusinessMiles + totalPersonalMiles)} mi</div>
-              <div className="stat-card__label">All Miles</div>
-            </div>
-          </div>
-
-          {/* Monthly Breakdown */}
-          <Card title="Monthly Breakdown" style={{ marginBottom: "var(--dash-gap)" }}>
-            <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>Trips</th>
-                    <th>Business</th>
-                    <th className="hide-mobile">Personal</th>
-                    <th>Deduction</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monthlyData.map((m) => (
-                    <tr key={m.month}>
-                      <td style={{ fontWeight: 500 }}>{m.month}</td>
-                      <td>{m.trips}</td>
-                      <td>{formatMiles(m.businessMiles)} mi</td>
-                      <td className="hide-mobile">{formatMiles(m.personalMiles)} mi</td>
-                      <td style={{ fontWeight: 600, color: m.deductionPence > 0 ? "var(--amber-400)" : undefined }}>
-                        {m.deductionPence > 0 ? formatPence(m.deductionPence) : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                  {/* Totals row */}
-                  <tr style={{ borderTop: "2px solid var(--border-default)" }}>
-                    <td style={{ fontWeight: 700 }}>Total</td>
-                    <td style={{ fontWeight: 700 }}>{trips.length}</td>
-                    <td style={{ fontWeight: 700 }}>{formatMiles(totalBusinessMiles)} mi</td>
-                    <td className="hide-mobile" style={{ fontWeight: 700 }}>{formatMiles(totalPersonalMiles)} mi</td>
-                    <td style={{ fontWeight: 700, color: "var(--amber-400)" }}>{formatPence(totalDeduction)}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          {/* Platform Breakdown */}
-          {platformBreakdown.length > 0 && (
-            <Card title="By Platform" style={{ marginBottom: "var(--dash-gap)" }}>
-              <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Platform</th>
-                      <th>Trips</th>
-                      <th>Miles</th>
-                      <th>Deduction</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {platformBreakdown.map(([platform, data]) => (
-                      <tr key={platform}>
-                        <td>
-                          <Badge variant="source">{platform}</Badge>
-                        </td>
-                        <td>{data.trips}</td>
-                        <td>{formatMiles(data.miles)} mi</td>
-                        <td style={{ fontWeight: 600, color: "var(--amber-400)" }}>
-                          {formatPence(calculateDeduction(data.miles, "car", taxYear))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
-
-          {/* Vehicle Breakdown */}
-          {vehicles.length > 0 && (
-            <Card title="Your Vehicles">
-              <div className="table-wrap" style={{ border: "none", background: "transparent" }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Vehicle</th>
-                      <th>Type</th>
-                      <th>HMRC Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {vehicles.map((v) => (
-                      <tr key={v.id}>
-                        <td style={{ fontWeight: 500 }}>{v.make} {v.model}</td>
-                        <td>
-                          <Badge variant="source">{v.vehicleType}</Badge>
-                        </td>
-                        <td>
-                          {v.vehicleType === "motorbike"
-                            ? `${yearRates.motorbike.flat}p/mi flat`
-                            : `${firstTierLabel}/${afterTierLabel} per mile`}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
-        </>
-      )}
+      </div>
     </>
   );
 }

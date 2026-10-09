@@ -531,7 +531,11 @@ export async function earningRoutes(app: FastifyInstance) {
   <div id="success" class="hidden">
     <h1 class="success">Bank Connected!</h1>
     <p>Your bank has been linked successfully. You can now sync your transactions.</p>
-    <p style="margin-bottom: 16px;">You can close this window and return to the MileClear app.</p>
+    <p id="returnApp" style="margin-bottom: 16px;">You can close this window and return to the MileClear app.</p>
+    <div id="returnWeb" class="hidden">
+      <p style="margin-bottom: 16px;">You can close this tab and go back to MileClear.</p>
+      <a class="btn" href="https://mileclear.com/dashboard/bank">Back to MileClear</a>
+    </div>
   </div>
   <div id="error" class="hidden">
     <h1>Connection Failed</h1>
@@ -568,9 +572,16 @@ export async function earningRoutes(app: FastifyInstance) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.error || "Exchange failed");
     }
+    // A link started from the website says "return=web" on /link; send those
+    // drivers back to the website instead of telling them to open the app.
+    if (sessionStorage.getItem("mc_ob_return") === "web") {
+      document.getElementById("returnApp").classList.add("hidden");
+      document.getElementById("returnWeb").classList.remove("hidden");
+    }
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("success").classList.remove("hidden");
     sessionStorage.removeItem("mc_ob_token");
+    sessionStorage.removeItem("mc_ob_return");
   } catch (e) {
     document.getElementById("loading").classList.add("hidden");
     document.getElementById("errorMsg").textContent = e.message || "Failed to save connection.";
@@ -586,9 +597,10 @@ export async function earningRoutes(app: FastifyInstance) {
   // ── Pre-auth page (stores JWT in sessionStorage before redirect) ──
 
   app.get("/open-banking/link", async (request, reply) => {
-    const { authLink, token } = request.query as {
+    const { authLink, token, return: returnTo } = request.query as {
       authLink?: string;
       token?: string;
+      return?: string;
     };
 
     if (!authLink) {
@@ -597,6 +609,8 @@ export async function earningRoutes(app: FastifyInstance) {
 
     const safeAuthLink = JSON.stringify(authLink);
     const safeToken = JSON.stringify(token || "");
+    // "web" when the link was started from the website dashboard (see callback).
+    const safeReturn = JSON.stringify(returnTo === "web" ? "web" : "");
 
     const html = `<!DOCTYPE html>
 <html><head>
@@ -610,6 +624,7 @@ export async function earningRoutes(app: FastifyInstance) {
 <script>
   // Store the auth token so the callback page can use it
   sessionStorage.setItem("mc_ob_token", ${safeToken});
+  sessionStorage.setItem("mc_ob_return", ${safeReturn});
   // Redirect to TrueLayer auth dialog
   window.location.href = ${safeAuthLink};
 </script>

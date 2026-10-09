@@ -83,14 +83,15 @@ input, select { font-family: inherit; font-size: 1rem; }
    Anything in a paragraph or list that's a coloured link gets an underline
    so it remains distinguishable for users who can't perceive colour. Nav
    chrome (.nav__link, .footer__link, button-styled links) keeps the
-   reset above because their visual context already signals interactivity. */
-p a, li a:not(.footer__link):not(.nav__link) {
+   reset above because their visual context already signals interactivity.
+   Not inside the dashboard (.mc-app): its list rows are whole links. */
+p a:not(.mc-app a), li a:not(.footer__link):not(.nav__link):not(.mc-app a) {
   text-decoration: underline;
   text-decoration-color: rgba(251, 191, 36, 0.55);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
 }
-p a:hover, li a:not(.footer__link):not(.nav__link):hover {
+p a:not(.mc-app a):hover, li a:not(.footer__link):not(.nav__link):not(.mc-app a):hover {
   text-decoration-color: var(--amber-400);
 }
 

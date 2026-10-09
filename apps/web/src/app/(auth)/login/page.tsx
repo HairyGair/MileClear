@@ -8,7 +8,7 @@ import { setTokens } from "../../../lib/api";
 import { safeRedirectPath } from "../../../lib/safeRedirect";
 import { Input } from "../../../components/ui/Input";
 import { Button } from "../../../components/ui/Button";
-import { OAuthButtons } from "../../../components/ui/OAuthButtons";
+import { OAuthButtons, OAUTH_NEXT_KEY } from "../../../components/ui/OAuthButtons";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,8 +37,17 @@ export default function LoginPage() {
       window.history.replaceState(null, "", window.location.pathname);
       if (accessToken && refreshToken) {
         setTokens(accessToken, refreshToken);
+        // The Apple redirect drops ?next, so it was parked in sessionStorage.
+        let target = next;
+        try {
+          const parked = safeRedirectPath(window.sessionStorage.getItem(OAUTH_NEXT_KEY));
+          if (parked) target = parked;
+          window.sessionStorage.removeItem(OAUTH_NEXT_KEY);
+        } catch {
+          // fall back to the dashboard
+        }
         fetchProfile()
-          .then(() => router.push(next))
+          .then(() => router.push(target))
           .catch(() => setError("Apple sign-in failed"));
       }
     }

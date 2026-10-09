@@ -1,599 +1,106 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
-import { PageHeader } from "../../../components/dashboard/PageHeader";
-import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
-import { Select } from "../../../components/ui/Select";
-import { Modal } from "../../../components/ui/Modal";
-import { ConfirmModal } from "../../../components/ui/ConfirmModal";
-import { EmptyState } from "../../../components/ui/EmptyState";
-import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { Vehicle, CazAssessment } from "@mileclear/shared";
-import { FUEL_TYPES, VEHICLE_TYPES, formatPence } from "@mileclear/shared";
+import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/dashboard/kit/Button";
+import { Card } from "@/components/dashboard/kit/Card";
+import { StatusChip } from "@/components/dashboard/kit/Controls";
+import { EmptyState, ErrorState, Skeleton } from "@/components/dashboard/kit/States";
+import { Icon } from "@/components/dashboard/kit/Icon";
+import { PageHeader } from "@/components/dashboard/kit/PageHeader";
+import { useMe } from "@/lib/dashboard/useMe";
+import { useData } from "@/lib/dashboard/useData";
+import { formatDay } from "@/lib/dashboard/dates";
+import { formatPence } from "@mileclear/shared";
+import { fetchVehicles, vehicleName, type VehicleRow } from "@/components/dashboard/driving/api";
+import { ProDialog } from "@/components/dashboard/driving/ProDialog";
+import { vehicleCardMeta, vehicleCardMetaA11y } from "@/components/dashboard/driving/odometerLogic";
+import styles from "@/components/dashboard/driving/driving.module.css";
 
-type VehicleWithCaz = Vehicle & { cleanAirZones?: CazAssessment };
-import { useAuth } from "../../../lib/auth-context";
-import { useToast } from "../../../components/ui/Toast";
-
-const FUEL_OPTIONS = FUEL_TYPES.map((f) => ({
-  value: f,
-  label: f.charAt(0).toUpperCase() + f.slice(1),
-}));
-
-const VEHICLE_TYPE_OPTIONS = VEHICLE_TYPES.map((v) => ({
-  value: v,
-  label: v.charAt(0).toUpperCase() + v.slice(1),
-}));
-
-export default function VehiclesPage() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const isPremium = user?.isPremium ?? false;
-  const [vehicles, setVehicles] = useState<VehicleWithCaz[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Add/Edit modal
-  const [showModal, setShowModal] = useState(false);
-  const [editVehicle, setEditVehicle] = useState<Vehicle | null>(null);
-  const [form, setForm] = useState({
-    make: "",
-    model: "",
-    year: "",
-    fuelType: "petrol",
-    vehicleType: "car",
-    registrationPlate: "",
-    estimatedMpg: "",
-    milesPerKwh: "",
-    isPrimary: true,
-    providedByOthers: false,
-    euroStatus: null as string | null,
-    firstRegistration: null as string | null,
-  });
-  const [formLoading, setFormLoading] = useState(false);
-
-  // DVLA lookup
-  const [regLookup, setRegLookup] = useState("");
-  const [lookupLoading, setLookupLoading] = useState(false);
-
-  // Delete
-  const [deleteVehicle, setDeleteVehicle] = useState<Vehicle | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  const loadVehicles = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get<{ data: Vehicle[] }>("/vehicles/");
-      const list = res.data ?? res;
-      setVehicles(Array.isArray(list) ? list : []);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadVehicles();
-  }, [loadVehicles]);
-
-  const openAdd = () => {
-    if (!isPremium && vehicles.length >= 1) {
-      setError("Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.");
-      return;
-    }
-    setEditVehicle(null);
-    setForm({
-      make: "",
-      model: "",
-      year: "",
-      fuelType: "petrol",
-      vehicleType: "car",
-      registrationPlate: "",
-      estimatedMpg: "",
-      milesPerKwh: "",
-      isPrimary: vehicles.length === 0,
-      providedByOthers: false,
-      euroStatus: null,
-      firstRegistration: null,
-    });
-    setRegLookup("");
-    setShowModal(true);
-  };
-
-  const openEdit = (v: VehicleWithCaz) => {
-    setEditVehicle(v);
-    setForm({
-      make: v.make,
-      model: v.model,
-      year: v.year ? String(v.year) : "",
-      fuelType: v.fuelType,
-      vehicleType: v.vehicleType,
-      registrationPlate: v.registrationPlate || "",
-      estimatedMpg: v.estimatedMpg ? String(v.estimatedMpg) : "",
-      milesPerKwh: v.milesPerKwh != null ? String(v.milesPerKwh) : "",
-      isPrimary: v.isPrimary,
-      providedByOthers: v.providedByOthers ?? false,
-      // Preserve stored emissions data through an edit so compliance survives.
-      euroStatus: null,
-      firstRegistration: null,
-    });
-    setShowModal(true);
-  };
-
-  const handleLookup = async () => {
-    if (!regLookup) return;
-    setLookupLoading(true);
-    try {
-      const res = await api.post<any>("/vehicles/lookup", {
-        registrationNumber: regLookup.replace(/\s/g, "").toUpperCase(),
-      });
-      const v = res.data ?? res;
-      setForm((f) => ({
-        ...f,
-        make: v.make || f.make,
-        model: "",
-        year: v.yearOfManufacture ? String(v.yearOfManufacture) : f.year,
-        fuelType: v.fuelType?.toLowerCase() || f.fuelType,
-        registrationPlate: regLookup.replace(/\s/g, "").toUpperCase(),
-        euroStatus: v.euroStatus ?? null,
-        firstRegistration: v.firstRegistration ?? null,
-      }));
-    } catch (err: any) {
-      setError(err.message || "DVLA lookup failed");
-    } finally {
-      setLookupLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    setFormLoading(true);
-    try {
-      const body = {
-        make: form.make,
-        model: form.model,
-        year: form.year ? parseInt(form.year) : undefined,
-        fuelType: form.fuelType,
-        vehicleType: form.vehicleType,
-        registrationPlate: form.registrationPlate || undefined,
-        estimatedMpg: form.estimatedMpg ? parseFloat(form.estimatedMpg) : undefined,
-        milesPerKwh: form.milesPerKwh ? parseFloat(form.milesPerKwh) : undefined,
-        isPrimary: form.isPrimary,
-        providedByOthers: form.providedByOthers,
-        euroStatus: form.euroStatus ?? undefined,
-        firstRegistration: form.firstRegistration ?? undefined,
-      };
-
-      if (editVehicle) {
-        await api.patch(`/vehicles/${editVehicle.id}`, body);
-      } else {
-        await api.post("/vehicles/", body);
-      }
-      setShowModal(false);
-      loadVehicles();
-      toast(editVehicle ? "Vehicle updated" : "Vehicle added");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleSetPrimary = async (v: Vehicle) => {
-    try {
-      await api.patch(`/vehicles/${v.id}`, { isPrimary: true });
-      loadVehicles();
-      toast("Primary vehicle updated");
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteVehicle) return;
-    setDeleteLoading(true);
-    try {
-      await api.delete(`/vehicles/${deleteVehicle.id}`);
-      setDeleteVehicle(null);
-      loadVehicles();
-      toast("Vehicle deleted");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
+function VehicleCard({ v }: { v: VehicleRow }) {
+  const caz = v.cleanAirZones;
+  const charging = caz && caz.verdict === "non_compliant" ? caz.zones.filter((z) => z.chargesThisVehicle).slice(0, 3) : [];
+  const odo = vehicleCardMeta(v.odometer);
   return (
-    <>
-      <PageHeader
-        title="Vehicles"
-        subtitle="Manage your registered vehicles"
-        action={
-          <Button variant="primary" size="sm" onClick={openAdd}>
-            + Add vehicle
-          </Button>
-        }
-      />
-
-      {error && (
-        <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
-          {error}
+    <Link href={`/dashboard/vehicles/${v.id}`} className={`mc-card mc-card--link ${styles.vehicleCard}`} aria-label={`${vehicleName(v)}${v.registrationPlate ? `, ${v.registrationPlate}` : ""}`}>
+      <div className={styles.vehicleHead}>
+        <span className={styles.vehicleIcon}>
+          <Icon name="car-outline" size={22} />
+        </span>
+        <div>
+          <p className={styles.vehicleTitle}>{vehicleName(v)}</p>
+          {v.year && <p className={styles.hint}>{v.year}</p>}
         </div>
+      </div>
+      {v.registrationPlate && <span className={styles.plate}>{v.registrationPlate}</span>}
+      <div className={styles.chipRow}>
+        {v.isPrimary && <StatusChip tone="amber" label="Primary" />}
+        {v.providedByOthers && <StatusChip tone="neutral" label="Someone else pays" />}
+        {caz && caz.verdict === "non_compliant" && <StatusChip tone="amber" icon="warning-outline" label="Clean air zone: may be charged" />}
+        {caz && caz.verdict === "compliant" && <StatusChip tone="green" icon="checkmark-circle-outline" label="Clean air zone: ready" />}
+      </div>
+      {charging.length > 0 && (
+        <p className={styles.hint}>{charging.map((z) => `${z.city} ${formatPence(z.chargePence ?? 0)} a day`).join(", ")}</p>
       )}
-
-      {loading ? (
-        <LoadingSkeleton variant="card" count={2} style={{ marginBottom: 12 }} />
-      ) : vehicles.length === 0 ? (
-        <EmptyState
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M3 15l2-7a1 1 0 01.96-.73h12.08a1 1 0 01.96.73L21 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <rect x="2" y="15" width="20" height="5" rx="1.5" stroke="currentColor" strokeWidth="2" />
-              <circle cx="7" cy="20" r="1.5" fill="currentColor" />
-              <circle cx="17" cy="20" r="1.5" fill="currentColor" />
-            </svg>
-          }
-          title="No vehicles yet"
-          description="Add your vehicle to get accurate HMRC mileage rates."
-          action={
-            <Button variant="primary" size="sm" onClick={openAdd}>
-              Add your vehicle
-            </Button>
-          }
-        />
-      ) : (
-        <div className="grid-auto">
-          {vehicles.map((v) => (
-            <div key={v.id} className={`vehicle-card${v.isPrimary ? " vehicle-card--primary" : ""}`}>
-              {v.isPrimary && <div className="vehicle-card__primary-tag">Primary</div>}
-
-              <div className="vehicle-card__head">
-                <div className="vehicle-card__icon">
-                  {v.vehicleType === "motorbike" ? (
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="5" cy="17" r="3" />
-                      <circle cx="19" cy="17" r="3" />
-                      <path d="M9 17h6" />
-                      <path d="M12 17V9l4-2" />
-                      <path d="M16 7l2 3h1" />
-                    </svg>
-                  ) : v.vehicleType === "van" ? (
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h1" />
-                      <path d="M15 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-1.923-.641a1 1 0 0 1-.684-.949V8h4.868a1 1 0 0 1 .868.504l1.637 2.867A1 1 0 0 1 23 12v5a1 1 0 0 1-1 1h-1" />
-                      <circle cx="7" cy="18" r="2" />
-                      <circle cx="19" cy="18" r="2" />
-                    </svg>
-                  ) : (
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 15l2-7a1 1 0 01.96-.73h12.08a1 1 0 01.96.73L21 15" />
-                      <rect x="2" y="15" width="20" height="5" rx="1.5" />
-                      <circle cx="7" cy="20" r="1.5" fill="currentColor" />
-                      <circle cx="17" cy="20" r="1.5" fill="currentColor" />
-                    </svg>
-                  )}
-                </div>
-                <div className="vehicle-card__title">
-                  <span className="vehicle-card__name">{v.make} {v.model}</span>
-                  {v.year && <span className="vehicle-card__year">{v.year}</span>}
-                </div>
-              </div>
-
-              {v.registrationPlate && (
-                <div className="vehicle-card__reg">
-                  <span className="vehicle-card__reg-text">{v.registrationPlate}</span>
-                </div>
-              )}
-              {v.registrationPlate && v.dvlaPlateProblem && (
-                <PlateProblemNote problem={v.dvlaPlateProblem} suggestion={v.dvlaPlateSuggestion ?? null} />
-              )}
-
-              <div className="vehicle-card__specs">
-                <div className="vehicle-card__spec">
-                  <span className="vehicle-card__spec-label">Type</span>
-                  <span className="vehicle-card__spec-value">{v.vehicleType.charAt(0).toUpperCase() + v.vehicleType.slice(1)}</span>
-                </div>
-                <div className="vehicle-card__spec">
-                  <span className="vehicle-card__spec-label">Fuel</span>
-                  <span className="vehicle-card__spec-value">{v.fuelType.charAt(0).toUpperCase() + v.fuelType.slice(1)}</span>
-                </div>
-                {v.estimatedMpg && (
-                  <div className="vehicle-card__spec">
-                    <span className="vehicle-card__spec-label">Economy</span>
-                    <span className="vehicle-card__spec-value">{v.estimatedMpg} mpg</span>
-                  </div>
-                )}
-                {v.providedByOthers && (
-                  <div className="vehicle-card__spec">
-                    <span className="vehicle-card__spec-label">Paid for by</span>
-                    <span className="vehicle-card__spec-value">Someone else (not in your claim)</span>
-                  </div>
-                )}
-              </div>
-
-              {v.cleanAirZones && v.cleanAirZones.verdict !== "unknown" && (() => {
-                const caz = v.cleanAirZones;
-                const ok = caz.verdict === "compliant";
-                const accent = ok ? "#10b981" : "#f59e0b";
-                const charging = caz.zones.filter((z) => z.chargesThisVehicle && !ok);
-                return (
-                  <div
-                    style={{
-                      marginTop: "0.75rem",
-                      padding: "0.625rem 0.75rem",
-                      borderRadius: 10,
-                      border: `1px solid ${accent}33`,
-                      background: `${accent}14`,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ color: accent, fontWeight: 600, fontSize: "0.8125rem" }}>
-                        {ok ? "✓ ULEZ / Clean Air Zone ready" : "⚠ May be charged in Clean Air Zones"}
-                      </span>
-                      {caz.confidence === "estimated" && (
-                        <span style={{ color: "#94a3b8", fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: 0.4 }}>
-                          estimated
-                        </span>
-                      )}
-                    </div>
-                    {!ok && charging.length > 0 && (
-                      <div style={{ color: "#94a3b8", fontSize: "0.75rem", marginTop: 4, lineHeight: 1.5 }}>
-                        {charging.slice(0, 4).map((z) => `${z.city} ${formatPence(z.chargePence ?? 0)}/day`).join(" · ")}
-                      </div>
-                    )}
-                    <a
-                      href="https://www.gov.uk/clean-air-zones"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: "var(--amber-400)", fontSize: "0.75rem", textDecoration: "none", marginTop: 4, display: "inline-block" }}
-                    >
-                      Check official gov.uk status →
-                    </a>
-                  </div>
-                );
-              })()}
-
-              <div className="vehicle-card__actions">
-                <Button variant="ghost" size="sm" onClick={() => openEdit(v)}>
-                  Edit
-                </Button>
-                {!v.isPrimary && (
-                  <Button variant="ghost" size="sm" onClick={() => handleSetPrimary(v)}>
-                    Set primary
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setDeleteVehicle(v)}
-                  style={{ color: "var(--dash-red)" }}
-                >
-                  Delete
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Add/Edit Modal */}
-      <Modal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        title={editVehicle ? "Edit Vehicle" : "Add Vehicle"}
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setShowModal(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleSave} disabled={formLoading}>
-              {formLoading ? "Saving..." : editVehicle ? "Save changes" : "Add vehicle"}
-            </Button>
-          </>
-        }
-      >
-        {/* DVLA Lookup */}
-        {!editVehicle && (
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
-            <div style={{ flex: 1 }}>
-              <Input
-                id="regLookup"
-                label="DVLA Reg Lookup (optional)"
-                value={regLookup}
-                onChange={(e) => setRegLookup(e.target.value)}
-                placeholder="e.g. AB12 CDE"
-              />
-            </div>
-            <Button
-              variant="secondary"
-              size="md"
-              onClick={handleLookup}
-              disabled={lookupLoading || !regLookup}
-            >
-              {lookupLoading ? "Looking up..." : "Lookup"}
-            </Button>
-          </div>
-        )}
-
-        <div className="section-divider" />
-
-        <div className="form-row">
-          <Input
-            id="make"
-            label="Make"
-            value={form.make}
-            onChange={(e) => setForm((f) => ({ ...f, make: e.target.value }))}
-            placeholder="e.g. Toyota"
-            required
-          />
-          <Input
-            id="model"
-            label="Model"
-            value={form.model}
-            onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-            placeholder="e.g. Prius"
-            required
-          />
-        </div>
-        <div className="form-row">
-          <Input
-            id="year"
-            label="Year"
-            type="number"
-            value={form.year}
-            onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
-            placeholder="e.g. 2020"
-          />
-          <div>
-            <Input
-              id="regPlate"
-              label="Registration plate"
-              value={form.registrationPlate}
-              onChange={(e) => setForm((f) => ({ ...f, registrationPlate: e.target.value }))}
-              placeholder="e.g. AB12 CDE"
-            />
-            {editVehicle?.dvlaPlateProblem &&
-              editVehicle.registrationPlate &&
-              form.registrationPlate.replace(/\s+/g, "").toUpperCase() === editVehicle.registrationPlate && (
-                <PlateProblemNote
-                  problem={editVehicle.dvlaPlateProblem}
-                  suggestion={editVehicle.dvlaPlateSuggestion ?? null}
-                  onUseSuggestion={(plate) => setForm((f) => ({ ...f, registrationPlate: plate }))}
-                />
-              )}
-          </div>
-        </div>
-        <div className="form-row">
-          <Select
-            id="fuelType"
-            label="Fuel type"
-            value={form.fuelType}
-            onChange={(e) => setForm((f) => ({ ...f, fuelType: e.target.value }))}
-            options={FUEL_OPTIONS}
-          />
-          <Select
-            id="vehicleType"
-            label="Vehicle type"
-            value={form.vehicleType}
-            onChange={(e) => setForm((f) => ({ ...f, vehicleType: e.target.value }))}
-            options={VEHICLE_TYPE_OPTIONS}
-          />
-        </div>
-        {form.fuelType !== "electric" ? (
-          <Input
-            id="mpg"
-            label="Estimated MPG"
-            type="number"
-            step="0.1"
-            value={form.estimatedMpg}
-            onChange={(e) => setForm((f) => ({ ...f, estimatedMpg: e.target.value }))}
-            placeholder="e.g. 45.0"
-          />
-        ) : (
-          <Input
-            id="milesPerKwh"
-            label="Efficiency (miles per kWh)"
-            type="number"
-            step="0.1"
-            value={form.milesPerKwh}
-            onChange={(e) => setForm((f) => ({ ...f, milesPerKwh: e.target.value }))}
-            placeholder="e.g. 3.5"
-          />
-        )}
-        <div className="form-group">
-          <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
-            <input
-              id="providedByOthers"
-              type="checkbox"
-              checked={form.providedByOthers}
-              onChange={(e) => setForm((f) => ({ ...f, providedByOthers: e.target.checked }))}
-              style={{ width: 18, height: 18, marginTop: 2, accentColor: "var(--amber-400)" }}
-            />
-            <span>
-              <span style={{ fontSize: "0.875rem", color: "var(--text-primary)" }}>Someone else pays for this vehicle</span>
-              <span style={{ display: "block", fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: 2 }}>
-                For a client&apos;s or employer&apos;s van. Its miles still count, but its business trips are left out of your mileage claim.
-              </span>
-            </span>
-          </label>
-        </div>
-      </Modal>
-
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        open={!!deleteVehicle}
-        onClose={() => setDeleteVehicle(null)}
-        onConfirm={handleDelete}
-        title="Delete Vehicle"
-        message={`Are you sure you want to delete ${deleteVehicle?.make} ${deleteVehicle?.model}?`}
-        loading={deleteLoading}
-      />
-    </>
+      <div className={styles.metaRow}>
+        {v.vehicleType && <span>{v.vehicleType.charAt(0).toUpperCase() + v.vehicleType.slice(1)}</span>}
+        {v.fuelType && <span>{v.fuelType.charAt(0).toUpperCase() + v.fuelType.slice(1)}</span>}
+        {odo && <span className={styles.num} aria-label={vehicleCardMetaA11y(v.odometer) ?? undefined}>{odo}</span>}
+        {v.motExpiryDate && <span>MOT due {formatDay(v.motExpiryDate)}</span>}
+        {v.taxDueDate && <span>Tax due {formatDay(v.taxDueDate)}</span>}
+      </div>
+    </Link>
   );
 }
 
-/** "DL74ONT" -> "DL74 ONT" for a current-format plate; others as stored. */
-function formatPlate(plate: string): string {
-  return /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(plate) ? `${plate.slice(0, 4)} ${plate.slice(4)}` : plate;
-}
+export default function VehiclesPage() {
+  const { isPro } = useMe();
+  const { data, error, loading, reload } = useData("vehicles", fetchVehicles);
+  const [proOpen, setProOpen] = useState(false);
+  const vehicles = data ?? [];
+  const ownCount = vehicles.filter((v) => !v.providedByOthers).length;
+  const atLimit = !isPro && ownCount >= 1;
 
-/**
- * The weekly DVLA check could not find this plate, so MOT and tax reminders
- * are off. With a suggestion (a look-alike the DVLA does know, such as DL74 ONT
- * for DL740NT) the edit form offers it in one click.
- */
-function PlateProblemNote({
-  problem,
-  suggestion,
-  onUseSuggestion,
-}: {
-  problem: "not_found" | "invalid";
-  suggestion: string | null;
-  onUseSuggestion?: (plate: string) => void;
-}) {
+  const add = atLimit ? (
+    <Button variant="primary" onClick={() => setProOpen(true)}>Add vehicle</Button>
+  ) : (
+    <Button variant="primary" href="/dashboard/vehicles/new">Add vehicle</Button>
+  );
+
   return (
-    <div
-      role="alert"
-      style={{
-        marginTop: "0.5rem",
-        padding: "0.625rem 0.75rem",
-        borderRadius: 10,
-        border: "1px solid #f59e0b33",
-        background: "#f59e0b14",
-        color: "#fcd34d",
-        fontSize: "0.8125rem",
-        lineHeight: 1.5,
-      }}
-    >
-      {problem === "not_found"
-        ? "The DVLA has no record of this plate, so we can't remind you about MOT and tax. Check it matches your logbook."
-        : "The DVLA doesn't recognise this as a UK number plate, so we can't remind you about MOT and tax."}
-      {suggestion &&
-        (onUseSuggestion ? (
-          <button
-            type="button"
-            onClick={() => onUseSuggestion(suggestion)}
-            style={{
-              display: "block",
-              marginTop: 6,
-              padding: "4px 10px",
-              borderRadius: 8,
-              border: "none",
-              background: "var(--amber-400)",
-              color: "#030712",
-              fontWeight: 600,
-              fontSize: "0.8125rem",
-              cursor: "pointer",
-            }}
-          >
-            Use {formatPlate(suggestion)} instead
-          </button>
-        ) : (
-          <div style={{ marginTop: 4, fontWeight: 600 }}>Did you mean {formatPlate(suggestion)}? Edit the vehicle to change it.</div>
-        ))}
-    </div>
+    <>
+      <PageHeader title="Vehicles" back={{ href: "/dashboard/more", label: "More" }} primary={vehicles.length > 0 ? add : undefined} />
+      {loading && !data ? (
+        <Skeleton variant="card" count={2} />
+      ) : error && !data ? (
+        <ErrorState title="Couldn't load your vehicles" onRetry={reload} />
+      ) : vehicles.length === 0 ? (
+        <EmptyState
+          icon="car-outline"
+          title="Add your vehicle"
+          body="We use it for the right mileage rate and your odometer."
+          action={{ label: "Add vehicle", href: "/dashboard/vehicles/new" }}
+        />
+      ) : (
+        <div className={styles.stack}>
+          <div className={styles.vehicleGrid}>
+            {vehicles.map((v) => (
+              <VehicleCard key={v.id} v={v} />
+            ))}
+          </div>
+          {!isPro && (
+            <Card tone="quiet">
+              <p className={styles.muted}>Free accounts have 1 vehicle of their own. Pro has no limit.</p>
+            </Card>
+          )}
+        </div>
+      )}
+      <ProDialog
+        open={proOpen}
+        reason="vehicles"
+        onClose={() => setProOpen(false)}
+        body="Free accounts can have 1 vehicle. Pro has no limit. £4.99 a month, cancel any time."
+      />
+    </>
   );
 }

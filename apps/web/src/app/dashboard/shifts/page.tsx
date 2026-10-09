@@ -1,219 +1,147 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
-import { PageHeader } from "../../../components/dashboard/PageHeader";
-import { Badge } from "../../../components/ui/Badge";
-import { Pagination } from "../../../components/ui/Pagination";
-import { EmptyState } from "../../../components/ui/EmptyState";
-import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-
-const PAGE_SIZE = 20;
-
-interface Shift {
-  id: string;
-  status: string;
-  startedAt: string;
-  endedAt: string | null;
-  createdAt: string;
-  vehicle?: { make: string; model: string } | null;
-  tripCount?: number;
-  tripMiles?: number;
-}
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { Button } from "@/components/dashboard/kit/Button";
+import { Card } from "@/components/dashboard/kit/Card";
+import { DataTable } from "@/components/dashboard/kit/DataTable";
+import { StatusChip } from "@/components/dashboard/kit/Controls";
+import { StatTile } from "@/components/dashboard/kit/Figure";
+import { PageHeader } from "@/components/dashboard/kit/PageHeader";
+import { EmptyState, ErrorState, Skeleton } from "@/components/dashboard/kit/States";
+import { useMe } from "@/lib/dashboard/useMe";
+import { useData } from "@/lib/dashboard/useData";
+import { formatDay, formatRange } from "@/lib/dashboard/dates";
+import { formatMiles } from "@mileclear/shared";
+import { fetchShiftSuggestions, SuggestionRow } from "@/components/dashboard/driving/ShiftSuggestions";
+import { durationText, type ShiftListRow } from "@/components/dashboard/driving/shiftUtils";
+import styles from "@/components/dashboard/driving/driving.module.css";
 
 interface ShiftsResponse {
-  data: Shift[];
+  data: ShiftListRow[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
 }
-
-function formatDuration(start: string, end: string | null): string {
-  if (!end) return "Active";
-  const ms = new Date(end).getTime() - new Date(start).getTime();
-  const hours = Math.floor(ms / 3600000);
-  const minutes = Math.floor((ms % 3600000) / 60000);
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  return `${minutes}m`;
+interface InsightsShift {
+  shiftId: string;
+  earningsPence: number;
+  grade: string;
 }
 
-function formatMiles(miles: number): string {
-  return miles.toLocaleString("en-GB", { maximumFractionDigits: 1 });
-}
+const PAGE_SIZE = 20;
 
 export default function ShiftsPage() {
-  const [shifts, setShifts] = useState<Shift[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "completed" | "active">("all");
+  const router = useRouter();
+  const { isPro } = useMe();
+  const first = useData("shifts-1", () => api.get<ShiftsResponse>(`/shifts?page=1&pageSize=${PAGE_SIZE}`));
+  const suggestions = useData("shift-suggestions", () => fetchShiftSuggestions().catch(() => []));
+  // Grades come from the business insights (Pro). A shift with no earnings gets none, never an F.
+  const grades = useData(isPro ? "shift-grades" : null, () =>
+    api
+      .get<{ data: { recentShifts?: InsightsShift[] } }>("/business-insights")
+      .then((r) => r.data?.recentShifts ?? [])
+      .catch(() => [] as InsightsShift[])
+  );
+  const [more, setMore] = useState<ShiftListRow[]>([]);
+  const [nextPage, setNextPage] = useState(2);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const firstRows = first.data?.data ?? [];
+  const rows = [...firstRows, ...more];
+  const total = first.data?.total ?? 0;
+  const canLoadMore = rows.length < total;
+  const gradeFor = new Map((grades.data ?? []).filter((g) => g.earningsPence > 0).map((g) => [g.shiftId, g.grade]));
+  const showGrades = isPro && gradeFor.size > 0;
+
+  // Stats cover the latest 20 shifts, the page the server returned first, and say so.
+  const statRows = firstRows;
+  const statTrips = statRows.reduce((s, r) => s + (r.tripCount ?? 0), 0);
+  const statMiles = statRows.reduce((s, r) => s + (r.tripMiles ?? 0), 0);
+  const done = statRows.filter((r) => r.endedAt);
+  const avgMs = done.length ? done.reduce((s, r) => s + (new Date(r.endedAt!).getTime() - new Date(r.startedAt).getTime()), 0) / done.length : 0;
+  const statLabel = total > PAGE_SIZE ? `Last ${PAGE_SIZE} shifts` : "All your shifts";
+
+  async function loadMore() {
+    setLoadingMore(true);
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-      });
-      if (filter !== "all") params.set("status", filter);
-      const res = await api.get<ShiftsResponse>(`/shifts/?${params}`);
-      setShifts(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
-    } catch (err: any) {
-      setError(err.message);
+      const res = await api.get<ShiftsResponse>(`/shifts?page=${nextPage}&pageSize=${PAGE_SIZE}`);
+      setMore((m) => [...m, ...res.data]);
+      setNextPage((p) => p + 1);
     } finally {
-      setLoading(false);
+      setLoadingMore(false);
     }
-  }, [page, filter]);
-
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const handleFilterChange = (f: "all" | "completed" | "active") => {
-    setFilter(f);
-    setPage(1);
-  };
-
-  // Stats from current page data
-  const completedShifts = shifts.filter((s) => s.status === "completed");
-  const totalDurationMs = completedShifts.reduce((sum, s) => {
-    if (!s.endedAt) return sum;
-    return sum + (new Date(s.endedAt).getTime() - new Date(s.startedAt).getTime());
-  }, 0);
-  const avgDurationMs = completedShifts.length > 0 ? totalDurationMs / completedShifts.length : 0;
-  const avgHours = Math.floor(avgDurationMs / 3600000);
-  const avgMins = Math.floor((avgDurationMs % 3600000) / 60000);
-  const totalShiftTrips = shifts.reduce((sum, s) => sum + (s.tripCount ?? 0), 0);
-  const totalShiftMiles = shifts.reduce((sum, s) => sum + (s.tripMiles ?? 0), 0);
+  }
 
   return (
     <>
-      <PageHeader
-        title="Shifts"
-        subtitle={`${total} shift${total !== 1 ? "s" : ""} recorded`}
-      />
+      <PageHeader title="Shifts" back={{ href: "/dashboard/more", label: "More" }} />
+      <div className={styles.stack}>
+        {(suggestions.data ?? []).length > 0 && (
+          <Card title="Is this a shift?">
+            <div className={styles.stack}>
+              {(suggestions.data ?? []).map((s) => (
+                <SuggestionRow
+                  key={s.id}
+                  s={s}
+                  onDone={() => {
+                    suggestions.reload();
+                    first.reload();
+                    setMore([]);
+                    setNextPage(2);
+                  }}
+                />
+              ))}
+            </div>
+          </Card>
+        )}
 
-      {/* Stats */}
-      <div className="stats-grid" style={{ marginBottom: "var(--dash-gap)" }}>
-        <div className="stat-card">
-          <div className="stat-card__value">{total}</div>
-          <div className="stat-card__label">Total Shifts</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__value">{avgHours > 0 ? `${avgHours}h ${avgMins}m` : avgMins > 0 ? `${avgMins}m` : "-"}</div>
-          <div className="stat-card__label">Avg Duration</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__value">{totalShiftTrips}</div>
-          <div className="stat-card__label">Page Trips</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__value stat-card__value--amber">{formatMiles(totalShiftMiles)} mi</div>
-          <div className="stat-card__label">Page Miles</div>
-        </div>
+        {first.loading && !first.data ? (
+          <Skeleton variant="row" count={5} />
+        ) : first.error && !first.data ? (
+          <ErrorState title="Couldn't load your shifts" onRetry={first.reload} />
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon="time-outline"
+            title="No shifts yet"
+            body="Start a shift in the app when you start work. Your trips are grouped here."
+          />
+        ) : (
+          <>
+            <div>
+              <p className={styles.hint}>{statLabel}</p>
+              <div className={`${styles.statGrid} ${styles.statGrid3}`}>
+                <StatTile label="Average length" value={done.length ? durationText(avgMs) : null} />
+                <StatTile label="Trips" value={String(statTrips)} />
+                <StatTile label="Miles" value={formatMiles(statMiles)} />
+              </div>
+            </div>
+            <DataTable
+              rows={rows}
+              rowKey={(r) => r.id}
+              onRowClick={(r) => router.push(`/dashboard/shifts/${r.id}`)}
+              columns={[
+                { key: "date", label: "Date", render: (r) => formatDay(r.startedAt) },
+                { key: "time", label: "Time", render: (r) => (r.endedAt ? formatRange(r.startedAt, r.endedAt) : "In progress") },
+                { key: "duration", label: "Length", hideBelow: 768, render: (r) => (r.endedAt ? durationText(new Date(r.endedAt).getTime() - new Date(r.startedAt).getTime()) : "In progress") },
+                { key: "trips", label: "Trips", align: "right", hideBelow: 768, render: (r) => String(r.tripCount ?? 0) },
+                ...(showGrades
+                  ? [{ key: "grade", label: "Grade", align: "right" as const, hideBelow: 768 as const, render: (r: ShiftListRow) => gradeFor.get(r.id) ?? "No grade" }]
+                  : []),
+                { key: "miles", label: "Miles", align: "right", render: (r) => `${formatMiles(r.tripMiles ?? 0)}` },
+              ]}
+            />
+            {rows.some((r) => !r.endedAt) && <StatusChip tone="green" label="A shift is in progress" />}
+            {canLoadMore && (
+              <div>
+                <Button variant="secondary" loading={loadingMore} onClick={loadMore}>Show older shifts</Button>
+              </div>
+            )}
+          </>
+        )}
       </div>
-
-      {/* Filter */}
-      <div className="filter-chips" style={{ marginBottom: "1.25rem" }}>
-        {(["all", "completed", "active"] as const).map((f) => (
-          <button
-            key={f}
-            className={`filter-chip ${filter === f ? "filter-chip--active" : ""}`}
-            onClick={() => handleFilterChange(f)}
-          >
-            {f === "all" ? "All" : f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
-
-      {error && (
-        <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <LoadingSkeleton variant="row" count={5} style={{ marginBottom: 8 }} />
-      ) : shifts.length === 0 ? (
-        <EmptyState
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-              <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          }
-          title="No shifts yet"
-          description="Start a shift from the mobile app to track your work sessions."
-        />
-      ) : (
-        <>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Time</th>
-                  <th>Duration</th>
-                  <th>Trips</th>
-                  <th>Miles</th>
-                  <th className="hide-mobile">Vehicle</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shifts.map((shift) => (
-                  <tr key={shift.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(shift.startedAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "2-digit",
-                      })}
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(shift.startedAt).toLocaleTimeString("en-GB", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                      {shift.endedAt && (
-                        <>
-                          {" – "}
-                          {new Date(shift.endedAt).toLocaleTimeString("en-GB", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </>
-                      )}
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{formatDuration(shift.startedAt, shift.endedAt)}</td>
-                    <td>{shift.tripCount ?? 0}</td>
-                    <td>{formatMiles(shift.tripMiles ?? 0)} mi</td>
-                    <td className="hide-mobile">
-                      {shift.vehicle ? (
-                        `${shift.vehicle.make} ${shift.vehicle.model}`
-                      ) : (
-                        <span style={{ color: "var(--text-faint)" }}>-</span>
-                      )}
-                    </td>
-                    <td>
-                      <Badge variant={shift.status === "active" ? "success" : "source"}>
-                        {shift.status}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-        </>
-      )}
     </>
   );
 }

@@ -1,1574 +1,501 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { api } from "../../../lib/api";
-import { PageHeader } from "../../../components/dashboard/PageHeader";
-import { Button } from "../../../components/ui/Button";
-import { Badge } from "../../../components/ui/Badge";
-import { Input } from "../../../components/ui/Input";
-import { Select } from "../../../components/ui/Select";
-import { Modal } from "../../../components/ui/Modal";
-import { ConfirmModal } from "../../../components/ui/ConfirmModal";
-import { Pagination } from "../../../components/ui/Pagination";
-import { EmptyState } from "../../../components/ui/EmptyState";
-import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import type { Trip, TripInsights, TripCoordinate, PaginatedResponse, PlatformTag } from "@mileclear/shared";
-import { GIG_PLATFORMS, BUSINESS_PURPOSES, fetchRouteDistance, getTaxYear, parseTaxYear, formatPence } from "@mileclear/shared";
-import { useAuth } from "../../../lib/auth-context";
-import { useToast } from "../../../components/ui/Toast";
-import { ImportTripsModal } from "../../../components/dashboard/ImportTripsModal";
-import { addDarkBasemap } from "@/lib/basemap";
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { SavedLocation } from "@mileclear/shared";
+import { api } from "@/lib/api";
+import {
+  Button,
+  Card,
+  DateRangeField,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  FilterChips,
+  Icon,
+  Menu,
+  PageHeader,
+  Segmented,
+  Skeleton,
+  useData,
+  useMe,
+  useToast,
+  useUnclassifiedCount,
+} from "@/components/dashboard/kit";
+import { formatDay, formatMiles } from "@/lib/dashboard";
+import { TripRow } from "@/components/dashboard/trips/TripRow";
+import { TripsReviewStrip } from "@/components/dashboard/trips/TripsReviewStrip";
+import { ReportMissingDialog } from "@/components/dashboard/trips/ReportMissingDialog";
+import { InboxView } from "@/components/dashboard/trips/InboxView";
+import { dayKeyToDate, groupByDay } from "@/components/dashboard/trips/lib/days";
+import {
+  EMPTY_FILTERS,
+  PAGE_SIZE,
+  activeFilterCount,
+  filterQuery,
+  pageUrlParams,
+  parseFilters,
+  parseView,
+  rangeLabel,
+  type TripFilters,
+  type TripsView,
+} from "@/components/dashboard/trips/lib/filters";
+import { odometerLineFor, type OdometerDayRow } from "@/components/dashboard/trips/lib/odometerLine";
+import { PLATFORM_OPTIONS, errorText, platformLabel } from "@/components/dashboard/trips/lib/labels";
+import type { MissedProposal, PagedTrips, TripItem } from "@/components/dashboard/trips/lib/types";
+import "@/components/dashboard/trips/trips.css";
 
-interface DetailTrip extends Trip {
-  insights?: TripInsights | null;
-  coordinates?: TripCoordinate[];
-  cleanAirZones?: import("@mileclear/shared").CazTripAssessment | null;
+interface Summary {
+  totalTrips: number;
+  totalMiles: number;
+  businessTrips: number;
+  businessMiles: number;
+  personalTrips: number;
+  personalMiles: number;
 }
 
-const PAGE_SIZE = 20;
-
-const PLATFORM_OPTIONS = GIG_PLATFORMS.map((p) => ({
-  value: p.value,
-  label: p.label,
-}));
-
-const PURPOSE_OPTIONS = BUSINESS_PURPOSES.map((bp) => ({
-  value: bp.value,
-  label: bp.label,
-}));
-
-const PLATFORM_LABEL_MAP: Record<string, string> = Object.fromEntries(
-  GIG_PLATFORMS.map((p) => [p.value, p.label])
-);
-
-type DateRange = "all" | "week" | "month" | "lastMonth" | "taxYear" | "lastTaxYear" | "custom";
-
-const DATE_RANGES: { value: DateRange; label: string }[] = [
-  { value: "all", label: "All time" },
-  { value: "week", label: "This week" },
-  { value: "month", label: "This month" },
-  { value: "lastMonth", label: "Last month" },
-  { value: "taxYear", label: "This tax year" },
-  { value: "lastTaxYear", label: "Last tax year" },
-  { value: "custom", label: "Custom" },
-];
-
-function previousTaxYear(taxYear: string): string {
-  const [start] = taxYear.split("-").map((s) => parseInt(s, 10));
-  const prevStart = start - 1;
-  return `${prevStart}-${String(prevStart + 1).slice(2)}`;
-}
-
-function rangeBounds(
-  r: DateRange,
-  customFrom: string,
-  customTo: string,
-): { from?: string; to?: string } {
-  const now = new Date();
-  switch (r) {
-    case "all":
-      return {};
-    case "week": {
-      const d = new Date(now);
-      const dow = d.getDay();
-      const offset = dow === 0 ? 6 : dow - 1;
-      d.setDate(d.getDate() - offset);
-      d.setHours(0, 0, 0, 0);
-      return { from: d.toISOString(), to: now.toISOString() };
-    }
-    case "month": {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: start.toISOString(), to: now.toISOString() };
-    }
-    case "lastMonth": {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-      return { from: start.toISOString(), to: end.toISOString() };
-    }
-    case "taxYear": {
-      const { start, end } = parseTaxYear(getTaxYear(now));
-      return { from: start.toISOString(), to: end.toISOString() };
-    }
-    case "lastTaxYear": {
-      const { start, end } = parseTaxYear(previousTaxYear(getTaxYear(now)));
-      return { from: start.toISOString(), to: end.toISOString() };
-    }
-    case "custom": {
-      if (!customFrom && !customTo) return {};
-      const out: { from?: string; to?: string } = {};
-      if (customFrom) out.from = new Date(customFrom).toISOString();
-      if (customTo) {
-        const end = new Date(customTo);
-        end.setHours(23, 59, 59, 999);
-        out.to = end.toISOString();
-      }
-      return out;
-    }
-  }
-}
-
-function rangeLabel(r: DateRange, customFrom: string, customTo: string): string {
-  switch (r) {
-    case "all":
-      return "All time";
-    case "week":
-      return "This week";
-    case "month":
-      return "This month";
-    case "lastMonth":
-      return "Last month";
-    case "taxYear":
-      return `Tax year ${getTaxYear(new Date())}`;
-    case "lastTaxYear":
-      return `Tax year ${previousTaxYear(getTaxYear(new Date()))}`;
-    case "custom": {
-      if (customFrom && customTo) {
-        const fmt = (s: string) =>
-          new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-        return `${fmt(customFrom)} – ${fmt(customTo)}`;
-      }
-      return "Custom";
-    }
-  }
-}
-
-function computeRangeStats(trips: Trip[]) {
-  let totalMiles = 0;
-  let businessMiles = 0;
-  let personalMiles = 0;
-  let businessTrips = 0;
-  let personalTrips = 0;
-  for (const t of trips) {
-    totalMiles += t.distanceMiles;
-    if (t.classification === "business") {
-      businessMiles += t.distanceMiles;
-      businessTrips++;
-    } else if (t.classification === "personal") {
-      personalMiles += t.distanceMiles;
-      personalTrips++;
-    }
-  }
-  return { totalMiles, businessMiles, personalMiles, businessTrips, personalTrips, totalTrips: trips.length };
-}
-
-// Extract UK postcode (full or partial outcode) from a free-text address.
-function extractPostcode(addr: string): { code: string; partial: boolean } | null {
-  const full = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
-  if (full) return { code: full[1].replace(/\s+/g, ""), partial: false };
-  const partial = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\b/i);
-  if (partial) return { code: partial[1], partial: true };
-  return null;
-}
-
-// UK-first geocoder: try postcodes.io for partial/full postcodes, fall
-// back to Nominatim with countrycodes=gb. Stable function - no closure.
-async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
-  const pc = extractPostcode(addr);
-  if (pc) {
-    try {
-      const endpoint = pc.partial
-        ? `https://api.postcodes.io/outcodes/${pc.code}`
-        : `https://api.postcodes.io/postcodes/${pc.code}`;
-      const res = await fetch(endpoint);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 200 && data.result) {
-          return { lat: data.result.latitude, lng: data.result.longitude };
-        }
-      }
-    } catch { /* fall through to Nominatim */ }
-  }
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=gb`,
-      { headers: { "User-Agent": "MileClear/1.0" } }
-    );
-    const data = await res.json();
-    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-  } catch { /* give up */ }
-  return null;
-}
+const MAX_RESTORED_PAGES = 10;
+const NO_PARAMS = new URLSearchParams();
 
 export default function TripsPage() {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const searchParams = useSearchParams();
-  const workType = (user as any)?.workType ?? "gig";
-  const isGigDriver = workType === "gig" || workType === "both";
-  const isEmployeeDriver = workType === "employee" || workType === "both";
+  return (
+    <Suspense fallback={<Skeleton variant="row" count={6} />}>
+      <TripsInner />
+    </Suspense>
+  );
+}
 
-  const initialFilter = (searchParams?.get("filter") as "all" | "business" | "personal" | "unclassified") || "all";
-  // Calendar drill-through: ?from=YYYY-MM-DD&to=YYYY-MM-DD opens the
-  // trips list pre-filtered to that range with the custom date picker
-  // populated. Anything before today's date works; an invalid pair just
-  // falls through to "all".
-  const qpFrom = searchParams?.get("from") ?? "";
-  const qpTo = searchParams?.get("to") ?? "";
-  const initialDateRange: DateRange = qpFrom && qpTo ? "custom" : "all";
+function TripsInner() {
+  const router = useRouter();
+  const sp = useSearchParams() ?? NO_PARAMS;
+  const toast = useToast();
+  const me = useMe();
+  const unclassified = useUnclassifiedCount();
 
-  const [trips, setTrips] = useState<Trip[]>([]);
+  const view = parseView(sp.get("view"));
+  const filters = useMemo(() => parseFilters((k) => sp.get(k)), [sp]);
+  const wantedPages = useRef(Math.min(Math.max(parseInt(sp.get("page") ?? "1", 10) || 1, 1), MAX_RESTORED_PAGES));
+
+  const [items, setItems] = useState<TripItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  // Server-side aggregate for the stats card. Stays accurate across pages.
-  const [summary, setSummary] = useState<{
-    totalTrips: number;
-    totalMiles: number;
-    businessTrips: number;
-    businessMiles: number;
-    personalTrips: number;
-    personalMiles: number;
-  } | null>(null);
-  const [page, setPage] = useState(1);
-  const [filter, setFilter] = useState<"all" | "business" | "personal" | "unclassified">(initialFilter);
-  const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
-  const [dateRange, setDateRange] = useState<DateRange>(initialDateRange);
-  // Custom-range pickers - only consulted when dateRange === "custom".
-  const [customFrom, setCustomFrom] = useState(qpFrom);
-  const [customTo, setCustomTo] = useState(qpTo);
-  const [vehicleFilter, setVehicleFilter] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchDebounced, setSearchDebounced] = useState("");
-  const [filterVehicles, setFilterVehicles] = useState<{ id: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [pages, setPages] = useState(0);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [moreBusy, setMoreBusy] = useState(false);
+  const [nonce, setNonce] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  // Edit modal
-  const [editTrip, setEditTrip] = useState<Trip | null>(null);
-  const [editClass, setEditClass] = useState("business");
-  const [editPlatform, setEditPlatform] = useState("");
-  const [editBusinessPurpose, setEditBusinessPurpose] = useState("");
-  const [editNotes, setEditNotes] = useState("");
-  const [editLoading, setEditLoading] = useState(false);
+  const showFilterBits = view !== "inbox";
+  const fcount = activeFilterCount(filters);
+  const queryKey = `${view}|${filters.platform}|${filters.from}|${filters.to}`;
 
-  // Merge state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [showMerge, setShowMerge] = useState(false);
-  const [mergeClass, setMergeClass] = useState("business");
-  const [mergePlatform, setMergePlatform] = useState("");
-  const [mergeLoading, setMergeLoading] = useState(false);
+  // Saved places name the ends of each trip.
+  const placesData = useData<SavedLocation[]>("trips:places", () =>
+    api.get<{ data: SavedLocation[] }>("/saved-locations").then((r) => r.data ?? [])
+  );
+  const places = useMemo(
+    () =>
+      (placesData.data ?? []).map((p) => ({ name: p.name, lat: p.latitude, lng: p.longitude, radiusMeters: p.radiusMeters })),
+    [placesData.data]
+  );
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const missed = useData<MissedProposal[]>("trips:missed", () =>
+    api.get<{ proposals?: MissedProposal[] }>("/trips/missed-journeys").then((r) => r.proposals ?? [])
+  );
+  const journeys = missed.data ?? [];
 
-  const handleMerge = async () => {
-    if (selectedIds.size < 2) return;
-    setMergeLoading(true);
-    try {
-      const sorted = trips
-        .filter((t) => selectedIds.has(t.id))
-        .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
-      await api.post("/trips/merge", {
-        tripIds: sorted.map((t) => t.id),
-        classification: mergeClass,
-        platformTag: mergePlatform || null,
-      });
-      setShowMerge(false);
-      setSelectedIds(new Set());
-      setMergeClass("business");
-      setMergePlatform("");
-      toast("Trips merged successfully", "success");
-      loadTrips();
-    } catch (err: any) {
-      toast(err.message || "Failed to merge trips", "error");
-    } finally {
-      setMergeLoading(false);
-    }
-  };
-
-  // Add manual trip modal
-  const [showAdd, setShowAdd] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [addForm, setAddForm] = useState({
-    startAddress: "",
-    endAddress: "",
-    distanceMiles: "",
-    classification: "business",
-    platformTag: "",
-    businessPurpose: "",
-    notes: "",
-    projectLabel: "",
-    startedAt: new Date().toISOString().slice(0, 16),
-    // Optional. Left blank, the server estimates it from the road route so the
-    // trip still counts toward duration-based figures instead of being skipped.
-    endedAt: "",
-  });
-  const [addLoading, setAddLoading] = useState(false);
-  const [addCoords, setAddCoords] = useState<{
-    startLat: number; startLng: number; endLat: number; endLng: number;
-  } | null>(null);
-  const [routeCalcStatus, setRouteCalcStatus] = useState<"idle" | "calculating" | "done" | "error">("idle");
-  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Geocode via Postcodes.io (UK postcode/outcode) or Nominatim (fallback)
-  // Geocode addresses and calculate route distance (debounced)
+  // First page(s) of the list. Runs again when the segment or a filter changes.
   useEffect(() => {
-    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-    const start = addForm.startAddress.trim();
-    const end = addForm.endAddress.trim();
-    if (!start || !end || start.length < 3 || end.length < 3) {
-      setAddCoords(null);
-      setRouteCalcStatus("idle");
-      return;
-    }
-    geocodeTimerRef.current = setTimeout(async () => {
-      setRouteCalcStatus("calculating");
-      try {
-        const [startGeo, endGeo] = await Promise.all([
-          geocodeAddress(start),
-          geocodeAddress(end),
-        ]);
-        if (!startGeo || !endGeo) {
-          setRouteCalcStatus("error");
-          return;
-        }
-        const coords = {
-          startLat: startGeo.lat,
-          startLng: startGeo.lng,
-          endLat: endGeo.lat,
-          endLng: endGeo.lng,
-        };
-        setAddCoords(coords);
-        const route = await fetchRouteDistance(coords.startLat, coords.startLng, coords.endLat, coords.endLng);
-        if (route) {
-          setAddForm((f) => ({ ...f, distanceMiles: String(route.distanceMiles) }));
-          setRouteCalcStatus("done");
-        } else {
-          setRouteCalcStatus("error");
-        }
-      } catch {
-        setRouteCalcStatus("error");
-      }
-    }, 800);
-    return () => { if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current); };
-  }, [addForm.startAddress, addForm.endAddress]);
-
-  // Delete modal
-  const [deleteTrip, setDeleteTrip] = useState<Trip | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  // Detail modal (view trip + insights)
-  const [detailTrip, setDetailTrip] = useState<DetailTrip | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [showMap, setShowMap] = useState(false);
-  const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
-  const [loggingCaz, setLoggingCaz] = useState<string | null>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-
-  const loadTrips = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Always 20 per page. The stats card is sourced from /trips/summary
-      // (server aggregate) so accuracy doesn't depend on which page the
-      // user is on.
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-      });
-      if (filter !== "all") params.set("classification", filter);
-      if (platformFilter !== "all") params.set("platformTag", platformFilter);
-      if (vehicleFilter !== "all") params.set("vehicleId", vehicleFilter);
-      if (searchDebounced.trim()) params.set("q", searchDebounced.trim());
-      const bounds = rangeBounds(dateRange, customFrom, customTo);
-      if (bounds.from) params.set("from", bounds.from);
-      if (bounds.to) params.set("to", bounds.to);
-      const res = await api.get<PaginatedResponse<Trip>>(`/trips/?${params}`);
-      setTrips(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, filter, platformFilter, vehicleFilter, searchDebounced, dateRange, customFrom, customTo]);
-
-  // Server-side stats. Re-runs on every filter change but ignores page so
-  // the totals stay stable as the user paginates through the list.
-  const loadSummary = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filter !== "all") params.set("classification", filter);
-      if (platformFilter !== "all") params.set("platformTag", platformFilter);
-      const bounds = rangeBounds(dateRange, customFrom, customTo);
-      if (bounds.from) params.set("from", bounds.from);
-      if (bounds.to) params.set("to", bounds.to);
-      const qs = params.toString();
-      const res = await api.get<{ data: typeof summary }>(`/trips/summary${qs ? `?${qs}` : ""}`);
-      setSummary((res as any).data ?? res);
-    } catch {
-      setSummary(null);
-    }
-  }, [filter, platformFilter, dateRange, customFrom, customTo]);
-
-  useEffect(() => {
-    loadTrips();
-  }, [loadTrips]);
-
-  useEffect(() => {
-    loadSummary();
-  }, [loadSummary]);
-
-  // Load the user's vehicles for the filter dropdown (once).
-  useEffect(() => {
+    if (view === "inbox") return;
+    let cancelled = false;
+    const n = wantedPages.current;
+    wantedPages.current = 1;
+    setStatus("loading");
+    const q = filterQuery(view, filters);
+    q.set("page", "1");
+    q.set("pageSize", String(PAGE_SIZE * n));
     api
-      .get<{ data: { id: string; make: string; model: string }[] }>("/vehicles/")
+      .get<PagedTrips>(`/trips?${q.toString()}`)
       .then((res) => {
-        const list = (res.data ?? []).map((v) => ({ id: v.id, label: `${v.make} ${v.model}` }));
-        setFilterVehicles(list);
+        if (cancelled) return;
+        setItems(res.data);
+        setTotal(res.total);
+        setPages(n);
+        setStatus("ready");
       })
-      .catch(() => {});
-  }, []);
-
-  // Debounce the search box so we don't query on every keystroke.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setSearchDebounced(searchQuery);
-      setPage(1);
-    }, 350);
-    return () => clearTimeout(t);
-  }, [searchQuery]);
-
-  const handleFilterChange = (f: "all" | "business" | "personal" | "unclassified") => {
-    setFilter(f);
-    setPage(1);
-  };
-
-  // Edit
-  const openEdit = (trip: Trip) => {
-    setEditTrip(trip);
-    setEditClass(trip.classification);
-    setEditPlatform(trip.platformTag || "");
-    setEditBusinessPurpose((trip as any).businessPurpose || "");
-    setEditNotes(trip.notes || "");
-  };
-
-  const handleEdit = async () => {
-    if (!editTrip) return;
-    setEditLoading(true);
-    try {
-      await api.patch(`/trips/${editTrip.id}`, {
-        classification: editClass,
-        platformTag: editPlatform || null,
-        businessPurpose: editBusinessPurpose || null,
-        notes: editNotes || null,
+      .catch(() => {
+        if (!cancelled) setStatus("error");
       });
-      setEditTrip(null);
-      toast("Trip updated");
-      loadTrips();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  // Add
-  const handleAdd = async () => {
-    if (!addForm.startAddress.trim()) {
-      setError("Start address is required");
-      return;
-    }
-    if (!addForm.endAddress.trim()) {
-      setError("End address is required");
-      return;
-    }
-    const distance = parseFloat(addForm.distanceMiles);
-    if (!addForm.distanceMiles || isNaN(distance) || distance <= 0) {
-      setError("Please enter a valid distance");
-      return;
-    }
-    if (addForm.endedAt && new Date(addForm.endedAt) < new Date(addForm.startedAt)) {
-      setError("Arrival time cannot be before the departure time");
-      return;
-    }
-    setAddLoading(true);
-    setError(null);
-    try {
-      await api.post("/trips/", {
-        startAddress: addForm.startAddress.trim(),
-        endAddress: addForm.endAddress.trim(),
-        distanceMiles: distance,
-        classification: addForm.classification,
-        platformTag: addForm.platformTag || undefined,
-        businessPurpose: addForm.businessPurpose || undefined,
-        notes: addForm.notes || undefined,
-        projectLabel: addForm.projectLabel.trim() || undefined,
-        startedAt: new Date(addForm.startedAt).toISOString(),
-        endedAt: addForm.endedAt ? new Date(addForm.endedAt).toISOString() : undefined,
-        startLat: addCoords?.startLat ?? 0,
-        startLng: addCoords?.startLng ?? 0,
-        endLat: addCoords?.endLat,
-        endLng: addCoords?.endLng,
-      });
-      setShowAdd(false);
-      setAddCoords(null);
-      setRouteCalcStatus("idle");
-      setAddForm({
-        startAddress: "",
-        endAddress: "",
-        distanceMiles: "",
-        classification: "business",
-        platformTag: "",
-        businessPurpose: "",
-        notes: "",
-        projectLabel: "",
-        startedAt: new Date().toISOString().slice(0, 16),
-        endedAt: "",
-      });
-      toast("Trip added");
-      loadTrips();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setAddLoading(false);
-    }
-  };
-
-  // Delete
-  const handleDelete = async () => {
-    if (!deleteTrip) return;
-    setDeleteLoading(true);
-    try {
-      await api.delete(`/trips/${deleteTrip.id}`);
-      setDeleteTrip(null);
-      toast("Trip deleted");
-      loadTrips();
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  // Detail
-  const openDetail = async (trip: Trip) => {
-    setDetailLoading(true);
-    setDetailTrip(trip);
-    setShowMap(false);
-    try {
-      const res = await api.get<{ data: DetailTrip }>(`/trips/${trip.id}`);
-      setDetailTrip(res.data);
-    } catch {
-      // Still show basic trip info without insights
-    } finally {
-      setDetailLoading(false);
-    }
-  };
-
-  // Log a Clean Air Zone / ULEZ daily charge as a deductible expense
-  // (category "congestion" = SA103S box 12), dated to the trip.
-  const logCazCharge = async (charge: { zoneId: string; name: string; chargePence: number }) => {
-    if (!detailTrip || loggingCaz) return;
-    setLoggingCaz(charge.zoneId);
-    try {
-      await api.post("/expenses", {
-        category: "congestion",
-        amountPence: charge.chargePence,
-        date: detailTrip.startedAt.slice(0, 10),
-        vehicleId: detailTrip.vehicleId ?? undefined,
-        description: `${charge.name} daily charge`,
-        notes: "Logged from a recorded trip that entered the zone.",
-      });
-      setLoggedCazZones((prev) => new Set(prev).add(charge.zoneId));
-      toast("Charge logged as an expense", "success");
-    } catch (err: any) {
-      toast(err.message || "Couldn't log the charge", "error");
-    } finally {
-      setLoggingCaz(null);
-    }
-  };
-
-  // Cleanup map on modal close
-  const closeDetail = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-      mapInstanceRef.current = null;
-    }
-    setShowMap(false);
-    setDetailTrip(null);
-    setLoggedCazZones(new Set());
-  };
-
-  // Load Leaflet and render map
-  useEffect(() => {
-    if (!showMap || !detailTrip || !mapContainerRef.current) return;
-    if (mapInstanceRef.current) return; // Already rendered
-
-    const hasCoords = detailTrip.coordinates && detailTrip.coordinates.length >= 2;
-    const hasStartEnd = detailTrip.startLat && detailTrip.startLng;
-    if (!hasCoords && !hasStartEnd) return;
-
-    function renderMap() {
-      const L = (window as any).L;
-      if (!L || !mapContainerRef.current) return;
-
-      const map = L.map(mapContainerRef.current, {
-        zoomControl: true,
-        attributionControl: false,
-      });
-
-      // Dark tile layer
-      addDarkBasemap(L, map);
-
-      const coords = detailTrip!.coordinates || [];
-      const startIcon = L.divIcon({
-        className: "trip-map-marker trip-map-marker--start",
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      });
-      const endIcon = L.divIcon({
-        className: "trip-map-marker trip-map-marker--end",
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      });
-
-      if (coords.length >= 2) {
-        // Draw GPS trail
-        const latlngs = coords.map((c: TripCoordinate) => [c.lat, c.lng]);
-        const polyline = L.polyline(latlngs, {
-          color: "#fbbf24",
-          weight: 3,
-          opacity: 0.85,
-          smoothFactor: 1.5,
-        }).addTo(map);
-
-        L.marker(latlngs[0], { icon: startIcon }).addTo(map);
-        L.marker(latlngs[latlngs.length - 1], { icon: endIcon }).addTo(map);
-        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
-      } else if (detailTrip!.startLat && detailTrip!.startLng) {
-        // Just start/end markers with straight line
-        const start: [number, number] = [detailTrip!.startLat, detailTrip!.startLng];
-        L.marker(start, { icon: startIcon }).addTo(map);
-
-        if (detailTrip!.endLat && detailTrip!.endLng) {
-          const end: [number, number] = [detailTrip!.endLat, detailTrip!.endLng];
-          L.marker(end, { icon: endIcon }).addTo(map);
-          L.polyline([start, end], {
-            color: "#fbbf24",
-            weight: 2,
-            opacity: 0.6,
-            dashArray: "8, 8",
-          }).addTo(map);
-          map.fitBounds(L.latLngBounds(start, end), { padding: [30, 30] });
-        } else {
-          map.setView(start, 14);
-        }
-      }
-
-      mapInstanceRef.current = map;
-    }
-
-    // Check if Leaflet is already loaded
-    if ((window as any).L) {
-      renderMap();
-      return;
-    }
-
-    // Load Leaflet CSS
-    if (!document.querySelector('link[href*="leaflet"]')) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(link);
-    }
-
-    // Load Leaflet JS
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-    script.onload = () => renderMap();
-    document.head.appendChild(script);
-
     return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
+      cancelled = true;
     };
-  }, [showMap, detailTrip]);
+    // filters is derived from the URL; queryKey covers it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryKey, nonce]);
+
+  function go(nextView: TripsView, nextFilters: TripFilters, nextPages = 1, mode: "push" | "replace" = "push") {
+    const url = `/dashboard/trips${pageUrlParams(nextView, nextFilters, nextPages)}`;
+    if (mode === "push") router.push(url);
+    else router.replace(url, { scroll: false });
+  }
+
+  async function loadMore() {
+    setMoreBusy(true);
+    try {
+      const q = filterQuery(view, filters);
+      q.set("page", String(pages + 1));
+      q.set("pageSize", String(PAGE_SIZE));
+      const res = await api.get<PagedTrips>(`/trips?${q.toString()}`);
+      setItems((prev) => {
+        const seen = new Set(prev.map((t) => t.id));
+        return [...prev, ...res.data.filter((t) => !seen.has(t.id))];
+      });
+      setTotal(res.total);
+      setPages(pages + 1);
+      go(view, filters, pages + 1, "replace");
+    } catch (e) {
+      toast.show(errorText(e, "Couldn't load more trips. Try again."), "error");
+    } finally {
+      setMoreBusy(false);
+    }
+  }
+
+  // Summary only while a filter is on.
+  const summary = useData<Summary | null>(
+    fcount > 0 && showFilterBits ? `trips:summary:${queryKey}` : null,
+    () => {
+      const q = filterQuery(view, filters);
+      return api.get<{ data: Summary }>(`/trips/summary?${q.toString()}`).then((r) => r.data);
+    }
+  );
+
+  // Odometer day lines: one request for the dates on screen. Failure is silent.
+  const range = useMemo(() => {
+    if (items.length === 0) return null;
+    const days = groupByDay(items).map((g) => g.key).filter(Boolean);
+    if (days.length === 0) return null;
+    const to = days[0];
+    let from = days[days.length - 1];
+    const maxSpan = 365 * 86_400_000;
+    if (dayKeyToDate(to).getTime() - dayKeyToDate(from).getTime() > maxSpan) {
+      const d = new Date(dayKeyToDate(to).getTime() - maxSpan);
+      from = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    return { from, to };
+  }, [items]);
+  const odo = useData<OdometerDayRow[]>(range ? `odo:${range.from}:${range.to}` : null, () =>
+    api
+      .get<{ data: OdometerDayRow[] }>(`/odometer/days?from=${range!.from}&to=${range!.to}`)
+      .then((r) => r.data ?? [])
+      .catch(() => [])
+  );
+
+  const groups = useMemo(() => groupByDay(items), [items]);
+
+  // Row actions
+  const undoAuto = useCallback(
+    async (t: TripItem) => {
+      setBusyId(t.id);
+      try {
+        await api.post(`/trips/${t.id}/undo-classification`);
+        toast.show("Back in your Inbox");
+        unclassified.refresh();
+        setNonce((n) => n + 1);
+      } catch (e) {
+        toast.show(errorText(e, "Couldn't undo that. Try again."), "error");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [toast, unclassified]
+  );
+  const mergeDuplicate = useCallback(
+    async (t: TripItem, other: TripItem) => {
+      setBusyId(t.id);
+      try {
+        await api.post("/trips/merge", {
+          tripIds: [t.id, other.id],
+          classification: t.classification,
+          platformTag: t.platformTag ?? null,
+        });
+        toast.show("Trips merged");
+        unclassified.refresh();
+        setNonce((n) => n + 1);
+      } catch (e) {
+        toast.show(errorText(e, "Couldn't merge the trips. Try again."), "error");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [toast, unclassified]
+  );
+  const keepBoth = useCallback(
+    async (t: TripItem) => {
+      setBusyId(t.id);
+      try {
+        await api.patch(`/trips/${t.id}`, { possibleDuplicateOfId: null });
+        setItems((prev) => prev.map((x) => (x.id === t.id ? { ...x, possibleDuplicateOfId: null } : x)));
+      } catch (e) {
+        toast.show(errorText(e), "error");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [toast]
+  );
+
+  const journeyCount = journeys.length;
+  const inboxCount = unclassified.count + journeyCount;
+  const emptyAll = view === "all" && fcount === 0 && status === "ready" && items.length === 0;
+  const showPlatform = me.mode !== "personal" && !me.isCompanyDriver;
+
+  const segments = [
+    { value: "all" as const, label: "All" },
+    { value: "inbox" as const, label: "Inbox", count: inboxCount },
+    { value: "business" as const, label: "Business" },
+    { value: "personal" as const, label: "Personal" },
+  ];
 
   return (
     <>
       <PageHeader
         title="Trips"
-        subtitle={`${total} trip${total !== 1 ? "s" : ""} recorded`}
-        action={
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <Button variant="ghost" size="sm" onClick={() => setShowImport(true)}>
-              Import CSV
+        primary={
+          emptyAll ? undefined : (
+            <Button variant="primary" href="/dashboard/trips/new">
+              Add a trip
             </Button>
-            <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
-              + Add trip
-            </Button>
-          </div>
+          )
         }
       />
 
-      {/* Classification filters */}
-      <div className="filter-chips" style={{ marginBottom: "0.75rem" }}>
-        {(["all", "unclassified", "business", "personal"] as const).map((f) => (
-          <button
-            key={f}
-            className={`filter-chip ${filter === f ? "filter-chip--active" : ""}`}
-            onClick={() => handleFilterChange(f)}
-          >
-            {f === "all" ? "All" : f === "unclassified" ? "Inbox" : f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
+      <TripsReviewStrip
+        unclassified={unclassified.count}
+        journeys={journeyCount}
+        ready={!missed.loading}
+        onReport={() => setReportOpen(true)}
+      />
 
-      {/* Platform filter - orthogonal to classification + date filters. */}
-      <div className="filter-chips" style={{ marginBottom: "0.75rem" }}>
-        <button
-          className={`filter-chip ${platformFilter === "all" ? "filter-chip--active" : ""}`}
-          onClick={() => { setPlatformFilter("all"); setPage(1); }}
-        >
-          Any platform
-        </button>
-        {GIG_PLATFORMS.map((p) => (
-          <button
-            key={p.value}
-            className={`filter-chip ${platformFilter === p.value ? "filter-chip--active" : ""}`}
-            onClick={() => { setPlatformFilter(p.value as PlatformTag); setPage(1); }}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Date range presets - matches mobile. Custom reveals From/To inputs. */}
-      <div className="filter-chips" style={{ marginBottom: dateRange === "custom" ? "0.75rem" : "1.25rem" }}>
-        {DATE_RANGES.map((r) => (
-          <button
-            key={r.value}
-            className={`filter-chip ${dateRange === r.value ? "filter-chip--active" : ""}`}
-            onClick={() => { setDateRange(r.value); setPage(1); }}
-          >
-            {r.value === "taxYear"
-              ? `Tax year ${getTaxYear(new Date())}`
-              : r.value === "lastTaxYear"
-                ? `Tax year ${previousTaxYear(getTaxYear(new Date()))}`
-                : r.label}
-          </button>
-        ))}
-      </div>
-
-      {dateRange === "custom" && (
-        <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", alignItems: "flex-end" }}>
-          <Input
-            id="dateFrom"
-            label="From"
-            type="date"
-            value={customFrom}
-            onChange={(e) => { setCustomFrom(e.target.value); setPage(1); }}
-            style={{ maxWidth: 180 }}
-          />
-          <Input
-            id="dateTo"
-            label="To"
-            type="date"
-            value={customTo}
-            onChange={(e) => { setCustomTo(e.target.value); setPage(1); }}
-            style={{ maxWidth: 180 }}
-          />
-          {(customFrom || customTo) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { setCustomFrom(""); setCustomTo(""); setPage(1); }}
-            >
-              Clear
+      <div className="mc-tripsbar">
+        <Segmented ariaLabel="Show trips" options={segments} value={view} onChange={(v) => go(v, v === "inbox" ? EMPTY_FILTERS : filters)} />
+        <div className="mc-tripsbar__tools">
+          {showFilterBits && (
+            <Button variant="secondary" size="sm" icon="filter-outline" onClick={() => setFiltersOpen(true)}>
+              {fcount > 0 ? `Filters (${fcount})` : "Filters"}
             </Button>
+          )}
+          <Menu
+            ariaLabel="More"
+            triggerClassName="mc-btn mc-btn--secondary mc-btn--sm"
+            trigger={
+              <>
+                <Icon name="ellipsis-horizontal" size={16} /> More
+              </>
+            }
+            items={[
+              { label: "Miles by project", href: "/dashboard/trips/projects" },
+              { label: "Import trips from CSV", href: "/dashboard/trips/import" },
+              { label: "Download trips", href: "/dashboard/tax/exports" },
+            ]}
+          />
+        </div>
+      </div>
+
+      {showFilterBits && fcount > 0 && (
+        <div className="mc-activechips">
+          {filters.platform && (
+            <button
+              type="button"
+              className="mc-activechip"
+              aria-label={`Remove filter ${platformLabel(filters.platform)}`}
+              onClick={() => go(view, { ...filters, platform: "" })}
+            >
+              {platformLabel(filters.platform) || filters.platform} <Icon name="close" size={14} />
+            </button>
+          )}
+          {(filters.from || filters.to) && (
+            <button
+              type="button"
+              className="mc-activechip"
+              aria-label={`Remove filter ${rangeLabel(filters)}`}
+              onClick={() => go(view, { ...filters, from: "", to: "" })}
+            >
+              {rangeLabel(filters)} <Icon name="close" size={14} />
+            </button>
           )}
         </div>
       )}
 
-      {/* Vehicle filter + free-text search over addresses/notes */}
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.25rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-        <Input
-          id="tripSearch"
-          label="Search"
-          type="search"
-          placeholder="Address or note…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          style={{ maxWidth: 260 }}
-        />
-        {filterVehicles.length > 1 && (
-          <Select
-            id="vehicleFilter"
-            label="Vehicle"
-            value={vehicleFilter}
-            onChange={(e) => { setVehicleFilter(e.target.value); setPage(1); }}
-            options={[{ value: "all", label: "All vehicles" }, ...filterVehicles.map((v) => ({ value: v.id, label: v.label }))]}
-            style={{ maxWidth: 200 }}
-          />
-        )}
-      </div>
-
-      {/* Stats summary - shown whenever the user has narrowed the list.
-          Sourced from /trips/summary so totals stay accurate as the user
-          paginates. Falls back to the loaded page if the aggregate failed. */}
-      {(dateRange !== "all" || platformFilter !== "all" || filter !== "all") && (summary || trips.length > 0) && (() => {
-        const stats = summary ?? computeRangeStats(trips);
-        const platformLabel = platformFilter === "all" ? null : (PLATFORM_LABEL_MAP[platformFilter] ?? platformFilter);
-        const classLabel =
-          filter === "all" ? null : filter.charAt(0).toUpperCase() + filter.slice(1);
-        const headerLabel = [
-          dateRange !== "all" ? rangeLabel(dateRange, customFrom, customTo) : null,
-          platformLabel,
-          classLabel,
-        ]
-          .filter(Boolean)
-          .join(" · ")
-          .toUpperCase();
-        return (
-          <div
-            style={{
-              background: "var(--surface-1, #0a1120)",
-              border: "1px solid var(--border-default, rgba(255,255,255,0.06))",
-              borderRadius: "12px",
-              padding: "1rem 1.25rem",
-              marginBottom: "1.25rem",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.5rem",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "0.6875rem",
-                fontWeight: 600,
-                letterSpacing: "0.08em",
-                color: "var(--text-muted, #9ca3af)",
-              }}
-            >
-              {headerLabel}
-            </div>
-            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "baseline" }}>
-              <div>
-                <div style={{ fontSize: "1.375rem", fontWeight: 700 }}>{stats.totalMiles.toFixed(1)}</div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>miles</div>
-              </div>
-              <div>
-                <div style={{ fontSize: "1.375rem", fontWeight: 700 }}>{stats.totalTrips}</div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>
-                  {stats.totalTrips === 1 ? "trip" : "trips"}
-                </div>
-              </div>
-              {stats.businessMiles > 0 && (
-                <div>
-                  <div style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--amber-400, #fbbf24)" }}>
-                    {stats.businessMiles.toFixed(1)}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>business mi</div>
-                </div>
-              )}
-              {stats.personalMiles > 0 && (
-                <div>
-                  <div style={{ fontSize: "1.125rem", fontWeight: 600, color: "var(--text-secondary, #cbd5e1)" }}>
-                    {stats.personalMiles.toFixed(1)}
-                  </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted, #9ca3af)" }}>personal mi</div>
-                </div>
-              )}
-            </div>
+      {showFilterBits && fcount > 0 && summary.data && (
+        <Card className="mc-tripsummary" data-testid="trip-summary">
+          <div>
+            <p className="mc-tripsummary__label">Trips</p>
+            <p className="mc-tripsummary__value mc-num">{summary.data.totalTrips.toLocaleString("en-GB")}</p>
           </div>
-        );
-      })()}
-
-      {error && (
-        <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
-          {error}
-        </div>
+          <div>
+            <p className="mc-tripsummary__label">Miles</p>
+            <p className="mc-tripsummary__value mc-num">{formatMiles(summary.data.totalMiles)}</p>
+          </div>
+          <div>
+            <p className="mc-tripsummary__label">Business miles</p>
+            <p className="mc-tripsummary__value mc-num">{formatMiles(summary.data.businessMiles)}</p>
+          </div>
+        </Card>
       )}
 
-      {loading ? (
-        <LoadingSkeleton variant="row" count={5} style={{ marginBottom: 8 }} />
-      ) : trips.length === 0 ? (
-        <EmptyState
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M3 12h18M12 3v18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          }
-          title="No trips yet"
-          description="Your trips will appear here once you start tracking or add them manually."
-          action={
-            <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
-              Add your first trip
-            </Button>
-          }
+      {view === "inbox" ? (
+        <InboxView
+          places={places}
+          journeys={journeys}
+          journeysLoading={missed.loading}
+          journeysError={!!missed.error}
+          onReloadJourneys={missed.reload}
+          onSorted={unclassified.refresh}
         />
+      ) : status === "loading" ? (
+        <Skeleton variant="row" count={6} />
+      ) : status === "error" ? (
+        <ErrorState title="Couldn't load your trips" onRetry={() => setNonce((n) => n + 1)} />
+      ) : items.length === 0 ? (
+        emptyAll ? (
+          <EmptyState
+            icon="car-outline"
+            title="No trips yet"
+            body="Trips record by themselves on your phone. You can also add one you made."
+            action={{ label: "Add a trip", href: "/dashboard/trips/new" }}
+          />
+        ) : (
+          <EmptyState
+            size="card"
+            icon="search-outline"
+            title="No trips match"
+            body="Try other dates or clear the filters."
+            action={{ label: "Clear filters", onClick: () => go("all", EMPTY_FILTERS) }}
+          />
+        )
       ) : (
         <>
-          {/* Merge controls */}
-          {selectedIds.size > 0 && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              padding: "0.75rem 1rem",
-              marginBottom: "0.75rem",
-              background: "rgba(96, 165, 250, 0.08)",
-              border: "1px solid rgba(96, 165, 250, 0.25)",
-              borderRadius: "var(--radius-lg, 12px)",
-              fontSize: "0.875rem",
-            }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round">
-                <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" />
-                <path d="M6 21V9a9 9 0 009 9" />
-              </svg>
-              <span style={{ color: "#93c5fd", fontWeight: 600 }}>
-                {selectedIds.size} trip{selectedIds.size !== 1 ? "s" : ""} selected
-              </span>
-              <span style={{ flex: 1 }} />
-              <button
-                style={{
-                  color: "var(--text-muted)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "0.8125rem",
-                  padding: "0.375rem 0.75rem",
-                }}
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Clear
-              </button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setShowMerge(true)}
-                disabled={selectedIds.size < 2}
-              >
-                Merge {selectedIds.size} Trips
+          {groups.map((g) => {
+            const line = odometerLineFor(g.key, g.items, odo.data ?? []);
+            return (
+              <section key={g.key} className="mc-day" aria-label={formatDay(dayKeyToDate(g.key))}>
+                <div className="mc-day__head">
+                  <h2 className="mc-day__title">{formatDay(dayKeyToDate(g.key))}</h2>
+                  <span className="mc-day__miles mc-num">{formatMiles(g.miles)}</span>
+                </div>
+                {line && (
+                  <Link
+                    href={`/dashboard/odometer?date=${line.date}&vehicleId=${line.vehicleId}`}
+                    className="mc-day__odo"
+                    aria-label={line.label}
+                  >
+                    {line.text}
+                  </Link>
+                )}
+                <Card padded={false}>
+                  <ul className="mc-day__list">
+                    {g.items.map((t) => {
+                      const idx = items.findIndex((x) => x.id === t.id);
+                      const otherIdx = t.possibleDuplicateOfId ? items.findIndex((x) => x.id === t.possibleDuplicateOfId) : -1;
+                      return (
+                        <TripRow
+                          key={t.id}
+                          trip={t}
+                          places={places}
+                          showPlatform={showPlatform}
+                          duplicateOther={otherIdx >= 0 ? items[otherIdx] : null}
+                          duplicateBelow={otherIdx > idx}
+                          busy={busyId === t.id}
+                          onUndoAuto={undoAuto}
+                          onMerge={mergeDuplicate}
+                          onKeepBoth={keepBoth}
+                        />
+                      );
+                    })}
+                  </ul>
+                </Card>
+              </section>
+            );
+          })}
+          {items.length < total && (
+            <div style={{ textAlign: "center" }}>
+              <Button variant="secondary" loading={moreBusy} onClick={loadMore}>
+                Load more
               </Button>
             </div>
           )}
-
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th style={{ width: 40 }}></th>
-                  <th>Date</th>
-                  <th>Route</th>
-                  <th>Distance</th>
-                  <th>Type</th>
-                  <th className="hide-mobile">Platform</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {trips.map((trip) => (
-                  <tr key={trip.id} style={selectedIds.has(trip.id) ? { background: "rgba(96, 165, 250, 0.06)" } : undefined}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(trip.id)}
-                        onChange={() => toggleSelect(trip.id)}
-                        style={{ accentColor: "#60a5fa", width: 16, height: 16, cursor: "pointer" }}
-                      />
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(trip.startedAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "2-digit",
-                      })}
-                    </td>
-                    <td style={{ maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {trip.startAddress || "Unknown"} → {trip.endAddress || "Unknown"}
-                    </td>
-                    <td>{trip.distanceMiles?.toFixed(1) || "0"} mi</td>
-                    <td>
-                      <Badge variant={trip.classification === "business" ? "business" : trip.classification === "personal" ? "personal" : "warning"}>
-                        {trip.classification === "unclassified" ? "Unclassified" : trip.classification}
-                      </Badge>
-                    </td>
-                    <td className="hide-mobile">
-                      {trip.platformTag ? (
-                        <Badge variant="source">{trip.platformTag}</Badge>
-                      ) : (
-                        <span style={{ color: "var(--text-faint)" }}>-</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="table__actions">
-                        <button
-                          className="table__action-btn"
-                          onClick={() => openDetail(trip)}
-                        >
-                          View
-                        </button>
-                        <button
-                          className="table__action-btn"
-                          onClick={() => openEdit(trip)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="table__action-btn table__action-btn--danger"
-                          onClick={() => setDeleteTrip(trip)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
 
-      <ImportTripsModal
-        open={showImport}
-        onClose={() => setShowImport(false)}
-        onImported={(result) => {
-          const skipped = result.skippedDuplicates
-            ? `, ${result.skippedDuplicates} already on your account`
-            : "";
-          toast(
-            `Imported ${result.imported} trip${result.imported === 1 ? "" : "s"} (${result.totalMiles} miles)${skipped}`,
-            "success"
-          );
-          loadTrips();
-          loadSummary();
+      <FiltersDialog
+        open={filtersOpen}
+        initial={filters}
+        showPlatform={!me.isCompanyDriver}
+        onClose={() => setFiltersOpen(false)}
+        onApply={(f) => {
+          setFiltersOpen(false);
+          go(view, f);
         }}
       />
-
-      {/* Edit Modal */}
-      <Modal
-        open={!!editTrip}
-        onClose={() => setEditTrip(null)}
-        title="Edit Trip"
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setEditTrip(null)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleEdit} disabled={editLoading}>
-              {editLoading ? "Saving..." : "Save changes"}
-            </Button>
-          </>
-        }
-      >
-        <Select
-          id="editClass"
-          label="Classification"
-          value={editClass}
-          onChange={(e) => setEditClass(e.target.value)}
-          options={[
-            { value: "business", label: "Business" },
-            { value: "personal", label: "Personal" },
-            { value: "unclassified", label: "Unclassified" },
-          ]}
-        />
-        {isGigDriver && (
-          <Select
-            id="editPlatform"
-            label="Platform"
-            value={editPlatform}
-            onChange={(e) => setEditPlatform(e.target.value)}
-            options={[{ value: "", label: "None" }, ...PLATFORM_OPTIONS]}
-          />
-        )}
-        {isEmployeeDriver && (
-          <Select
-            id="editBusinessPurpose"
-            label="Business Purpose"
-            value={editBusinessPurpose}
-            onChange={(e) => setEditBusinessPurpose(e.target.value)}
-            options={[{ value: "", label: "None" }, ...PURPOSE_OPTIONS]}
-          />
-        )}
-        <Input
-          id="editNotes"
-          label="Notes"
-          value={editNotes}
-          onChange={(e) => setEditNotes(e.target.value)}
-          placeholder="Optional notes"
-        />
-      </Modal>
-
-      {/* Add Trip Modal */}
-      <Modal
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        title="Add Manual Trip"
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleAdd} disabled={addLoading}>
-              {addLoading ? "Adding..." : "Add trip"}
-            </Button>
-          </>
-        }
-      >
-        <div className="form-row">
-          <Input
-            id="addStart"
-            label="Start address"
-            value={addForm.startAddress}
-            onChange={(e) => setAddForm((f) => ({ ...f, startAddress: e.target.value }))}
-            placeholder="e.g. 10 Downing Street"
-          />
-          <Input
-            id="addEnd"
-            label="End address"
-            value={addForm.endAddress}
-            onChange={(e) => setAddForm((f) => ({ ...f, endAddress: e.target.value }))}
-            placeholder="e.g. Buckingham Palace"
-          />
-        </div>
-        <div className="form-row">
-          <div style={{ flex: 1 }}>
-            <Input
-              id="addDistance"
-              label={
-                routeCalcStatus === "calculating"
-                  ? "Distance (calculating route...)"
-                  : routeCalcStatus === "done"
-                    ? "Distance (road route)"
-                    : "Distance (miles)"
-              }
-              type="number"
-              step="0.1"
-              min="0"
-              value={addForm.distanceMiles}
-              onChange={(e) => setAddForm((f) => ({ ...f, distanceMiles: e.target.value }))}
-              placeholder={routeCalcStatus === "calculating" ? "Calculating..." : "e.g. 12.5"}
-            />
-            {routeCalcStatus === "done" && (
-              <span style={{ fontSize: "0.75rem", color: "var(--text-tertiary)", marginTop: "0.25rem", display: "block" }}>
-                Auto-calculated via road - you can override
-              </span>
-            )}
-            {routeCalcStatus === "error" && (
-              <span style={{ fontSize: "0.75rem", color: "var(--amber-400)", marginTop: "0.25rem", display: "block" }}>
-                Could not calculate route - enter distance manually
-              </span>
-            )}
-          </div>
-          <Input
-            id="addDate"
-            label="Date & time"
-            type="datetime-local"
-            value={addForm.startedAt}
-            onChange={(e) => setAddForm((f) => ({ ...f, startedAt: e.target.value }))}
-          />
-        </div>
-        <div className="form-row">
-          <div>
-            <Input
-              id="addEnd"
-              label="Arrived (optional)"
-              type="datetime-local"
-              value={addForm.endedAt}
-              min={addForm.startedAt}
-              onChange={(e) => setAddForm((f) => ({ ...f, endedAt: e.target.value }))}
-            />
-            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem", display: "block" }}>
-              Leave blank and we will estimate the drive time from the route.
-            </span>
-          </div>
-        </div>
-        <div className="form-row">
-          <Select
-            id="addClass"
-            label="Classification"
-            value={addForm.classification}
-            onChange={(e) => setAddForm((f) => ({ ...f, classification: e.target.value }))}
-            options={[
-              { value: "business", label: "Business" },
-              { value: "personal", label: "Personal" },
-            ]}
-          />
-          {isGigDriver && (
-            <Select
-              id="addPlatform"
-              label="Platform"
-              value={addForm.platformTag}
-              onChange={(e) => setAddForm((f) => ({ ...f, platformTag: e.target.value }))}
-              options={[{ value: "", label: "None" }, ...PLATFORM_OPTIONS]}
-            />
-          )}
-          {isEmployeeDriver && (
-            <Select
-              id="addBusinessPurpose"
-              label="Business Purpose"
-              value={addForm.businessPurpose}
-              onChange={(e) => setAddForm((f) => ({ ...f, businessPurpose: e.target.value }))}
-              options={[{ value: "", label: "None" }, ...PURPOSE_OPTIONS]}
-            />
-          )}
-        </div>
-        <Input
-          id="addNotes"
-          label="Notes"
-          value={addForm.notes}
-          onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
-          placeholder="Optional notes"
-        />
-        <Input
-          id="addProjectLabel"
-          label="Project / client (optional)"
-          value={addForm.projectLabel}
-          onChange={(e) => setAddForm((f) => ({ ...f, projectLabel: e.target.value }))}
-          placeholder="e.g. Theatre Royal tour, Acme Ltd"
-        />
-      </Modal>
-
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        open={!!deleteTrip}
-        onClose={() => setDeleteTrip(null)}
-        onConfirm={handleDelete}
-        title="Delete Trip"
-        message={`Are you sure you want to delete this trip? This action cannot be undone.`}
-        loading={deleteLoading}
-      />
-
-      {/* Trip Detail Modal */}
-      <Modal
-        open={!!detailTrip}
-        onClose={closeDetail}
-        title="Trip Details"
-        footer={
-          <Button variant="ghost" size="sm" onClick={closeDetail}>
-            Close
-          </Button>
-        }
-      >
-        {detailTrip && (
-          <div className="trip-detail">
-            {/* Route visualization - clickable to show map */}
-            <button
-              className={`trip-detail__route trip-detail__route--clickable${showMap ? " trip-detail__route--active" : ""}`}
-              onClick={() => {
-                if (showMap && mapInstanceRef.current) {
-                  mapInstanceRef.current.remove();
-                  mapInstanceRef.current = null;
-                }
-                setShowMap(!showMap);
-              }}
-            >
-              <div className="trip-detail__route-dots">
-                <div className="trip-detail__route-dot trip-detail__route-dot--start" />
-                <div className="trip-detail__route-line" />
-                <div className="trip-detail__route-dot trip-detail__route-dot--end" />
-              </div>
-              <div className="trip-detail__route-addrs">
-                <span className={`trip-detail__route-addr${!detailTrip.startAddress ? " trip-detail__route-addr--muted" : ""}`}>
-                  {detailTrip.startAddress || "Unknown start"}
-                </span>
-                <span className={`trip-detail__route-addr${!detailTrip.endAddress ? " trip-detail__route-addr--muted" : ""}`}>
-                  {detailTrip.endAddress || "Unknown end"}
-                </span>
-              </div>
-              <div className="trip-detail__route-toggle">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {showMap ? (
-                    <polyline points="18 15 12 9 6 15" />
-                  ) : (
-                    <>
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
-                      <circle cx="12" cy="10" r="3" />
-                    </>
-                  )}
-                </svg>
-              </div>
-            </button>
-
-            {/* Map container */}
-            {showMap && (
-              <div className="trip-detail__map-wrap">
-                <div ref={mapContainerRef} className="trip-detail__map" />
-              </div>
-            )}
-
-            {/* Stats strip */}
-            <div className="trip-detail__stats">
-              <div className="trip-detail__stat">
-                <div className="trip-detail__stat-value">
-                  {detailTrip.distanceMiles?.toFixed(1) || "0"} mi
-                </div>
-                <div className="trip-detail__stat-label">Distance</div>
-              </div>
-              <div className="trip-detail__stat">
-                <div className="trip-detail__stat-value">
-                  {detailTrip.endedAt && detailTrip.startedAt
-                    ? (() => {
-                        const secs = Math.floor((new Date(detailTrip.endedAt).getTime() - new Date(detailTrip.startedAt).getTime()) / 1000);
-                        const m = Math.floor(secs / 60);
-                        return `${m} min`;
-                      })()
-                    : "--"}
-                </div>
-                <div className="trip-detail__stat-label">Duration</div>
-              </div>
-              <div className="trip-detail__stat">
-                <Badge variant={detailTrip.classification === "business" ? "business" : detailTrip.classification === "personal" ? "personal" : "warning"}>
-                  {detailTrip.classification === "unclassified" ? "Unclassified" : detailTrip.classification}
-                </Badge>
-                <div className="trip-detail__stat-label">Type</div>
-              </div>
-            </div>
-
-            {/* Odometer + edit audit - trust primitives for HMRC defence */}
-            {(detailTrip.odometerStart != null || detailTrip.odometerEnd != null || detailTrip.updatedAt) && (
-              <div style={{ marginTop: "0.75rem", display: "flex", gap: "1.25rem", flexWrap: "wrap", color: "#94a3b8", fontSize: "0.8125rem" }}>
-                {detailTrip.odometerStart != null && detailTrip.odometerEnd != null && (
-                  <span>
-                    Odometer: {detailTrip.odometerStart.toLocaleString()} → {detailTrip.odometerEnd.toLocaleString()} mi
-                    {" "}<span style={{ color: "#cbd5e1" }}>({(detailTrip.odometerEnd - detailTrip.odometerStart).toFixed(1)} mi)</span>
-                  </span>
-                )}
-                {detailTrip.updatedAt && detailTrip.createdAt &&
-                  new Date(detailTrip.updatedAt).getTime() - new Date(detailTrip.createdAt).getTime() > 60_000 && (
-                    <span>Edited {new Date(detailTrip.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
-                  )}
-              </div>
-            )}
-
-            {/* Clean Air Zone / ULEZ charge - route crossed a charging zone in
-                a non-compliant vehicle. Offer to log it as a deductible expense. */}
-            {detailTrip.cleanAirZones && detailTrip.cleanAirZones.charges.length > 0 && (
-              <div
-                style={{
-                  marginTop: "1rem",
-                  padding: "0.875rem 1rem",
-                  borderRadius: 10,
-                  border: "1px solid rgba(245,158,11,0.3)",
-                  background: "rgba(245,158,11,0.08)",
-                }}
-              >
-                <div style={{ color: "#f59e0b", fontWeight: 600, fontSize: "0.875rem", marginBottom: 4 }}>
-                  ⚠ Clean Air Zone charge may apply
-                </div>
-                <div style={{ color: "#94a3b8", fontSize: "0.8125rem", marginBottom: 10, lineHeight: 1.5 }}>
-                  This trip looks like it entered a charging zone in a vehicle that may not be exempt.
-                  If you paid, log it as a deductible expense.
-                </div>
-                {detailTrip.cleanAirZones.charges.map((c) => {
-                  const logged = loggedCazZones.has(c.zoneId);
-                  return (
-                    <div key={c.zoneId} style={{ display: "flex", alignItems: "center", gap: 8, padding: "0.375rem 0" }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: "#e2e8f0", fontWeight: 600, fontSize: "0.8125rem" }}>{c.name}</div>
-                        <div style={{ color: "#f59e0b", fontSize: "0.75rem" }}>{formatPence(c.chargePence)} daily charge</div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={logged || loggingCaz === c.zoneId}
-                        onClick={() => logCazCharge(c)}
-                      >
-                        {logged ? "✓ Logged" : loggingCaz === c.zoneId ? "Logging…" : "Log charge"}
-                      </Button>
-                    </div>
-                  );
-                })}
-                <div style={{ color: "#64748b", fontSize: "0.6875rem", marginTop: 8, lineHeight: 1.5 }}>
-                  Based on your vehicle&apos;s emissions and the zone boundary - confirm with the official checker if unsure. Zone boundaries © OpenStreetMap contributors, Transport for London &amp; local authorities.
-                </div>
-              </div>
-            )}
-
-            {/* Trip Insights */}
-            {detailLoading ? (
-              <div className="trip-detail__loading">
-                <span className="trip-detail__loading-dot">Loading insights</span>
-              </div>
-            ) : detailTrip.insights ? (
-              <div className="trip-detail__insights">
-                <div className="trip-detail__insights-header">
-                  <div className="trip-detail__insights-icon">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                    </svg>
-                  </div>
-                  <span className="trip-detail__insights-title">Trip Insights</span>
-                </div>
-
-                <div className="trip-detail__insights-grid">
-                  <div className="trip-detail__insight">
-                    <div className="trip-detail__insight-value">{detailTrip.insights.topSpeedMph}</div>
-                    <div className="trip-detail__insight-label">Top mph</div>
-                  </div>
-                  <div className="trip-detail__insight">
-                    <div className="trip-detail__insight-value">{detailTrip.insights.avgMovingSpeedMph}</div>
-                    <div className="trip-detail__insight-label">Avg mph</div>
-                  </div>
-                  <div className="trip-detail__insight">
-                    <div className="trip-detail__insight-value">
-                      {detailTrip.insights.timeStoppedSecs >= 60
-                        ? `${Math.round(detailTrip.insights.timeStoppedSecs / 60)}m`
-                        : `${detailTrip.insights.timeStoppedSecs}s`}
-                    </div>
-                    <div className="trip-detail__insight-label">Stopped</div>
-                  </div>
-                  <div className="trip-detail__insight">
-                    <div className="trip-detail__insight-value">{detailTrip.insights.numberOfStops ?? 0}</div>
-                    <div className="trip-detail__insight-label">Stops</div>
-                  </div>
-                </div>
-
-                <div className="trip-detail__insights-notes">
-                  {detailTrip.insights.routeDirectnessNote && (
-                    <span className="trip-detail__insights-note">
-                      {detailTrip.insights.routeDirectnessNote}
-                    </span>
-                  )}
-                  {detailTrip.insights.longestNonStopMiles > 0.1 && (
-                    <span className="trip-detail__insights-note">
-                      Longest non-stop: {detailTrip.insights.longestNonStopMiles} mi
-                    </span>
-                  )}
-                  {detailTrip.insights.timeStoppedSecs > 60 && detailTrip.insights.timeMovingSecs > 0 && (
-                    <span className="trip-detail__insights-note">
-                      {Math.round((detailTrip.insights.timeMovingSecs / (detailTrip.insights.timeMovingSecs + detailTrip.insights.timeStoppedSecs)) * 100)}% of your trip was moving
-                    </span>
-                  )}
-                </div>
-
-                {(detailTrip.insights.speedFunFact || detailTrip.insights.distanceFunFact) && (
-                  <div className="trip-detail__fun-fact">
-                    <span className="trip-detail__fun-fact-icon">&#9889;</span>
-                    <span>{detailTrip.insights.speedFunFact || detailTrip.insights.distanceFunFact}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="trip-detail__no-insights">
-                No GPS data recorded - insights are available for tracked trips
-              </div>
-            )}
-
-            {/* Meta info */}
-            <div className="trip-detail__meta">
-              <span className="trip-detail__meta-item">
-                <span className="trip-detail__meta-label">Started</span>
-                {new Date(detailTrip.startedAt).toLocaleString("en-GB", {
-                  day: "numeric", month: "short", year: "numeric",
-                  hour: "2-digit", minute: "2-digit",
-                })}
-              </span>
-              {detailTrip.endedAt && (
-                <span className="trip-detail__meta-item">
-                  <span className="trip-detail__meta-label">Ended</span>
-                  {new Date(detailTrip.endedAt).toLocaleString("en-GB", {
-                    hour: "2-digit", minute: "2-digit",
-                  })}
-                </span>
-              )}
-              {detailTrip.platformTag && (
-                <span className="trip-detail__meta-item">
-                  <Badge variant="source">{detailTrip.platformTag}</Badge>
-                </span>
-              )}
-              {(detailTrip as any).businessPurpose && (
-                <span className="trip-detail__meta-item">
-                  <Badge variant="primary">{(detailTrip as any).businessPurpose.replace(/_/g, " ")}</Badge>
-                </span>
-              )}
-              {detailTrip.notes && (
-                <span className="trip-detail__meta-item" style={{ flexBasis: "100%" }}>
-                  <span className="trip-detail__meta-label">Notes:</span>
-                  {detailTrip.notes}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Merge Modal */}
-      <Modal
-        open={showMerge}
-        onClose={() => setShowMerge(false)}
-        title={`Merge ${selectedIds.size} Trips`}
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setShowMerge(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleMerge} disabled={mergeLoading}>
-              {mergeLoading ? "Merging..." : "Merge Trips"}
-            </Button>
-          </>
-        }
-      >
-        {(() => {
-          const selected = trips
-            .filter((t) => selectedIds.has(t.id))
-            .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
-          const first = selected[0];
-          const last = selected[selected.length - 1];
-          const totalMiles = selected.reduce((sum, t) => sum + (t.distanceMiles ?? 0), 0);
-          if (!first || !last) return null;
-          return (
-            <div style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 10,
-              padding: "0.875rem",
-              marginBottom: "1.25rem",
-              fontSize: "0.8125rem",
-              color: "var(--text-secondary, #9ca3af)",
-              lineHeight: 1.7,
-            }}>
-              <div><strong style={{ color: "var(--emerald-500)" }}>Start:</strong> {first.startAddress || "Unknown"}</div>
-              <div><strong style={{ color: "var(--dash-red)" }}>End:</strong> {last.endAddress || "Unknown"}</div>
-              <div style={{ marginTop: 6, display: "flex", gap: "1.5rem" }}>
-                <span><strong>{totalMiles.toFixed(1)}</strong> mi total</span>
-                <span>
-                  {new Date(first.startedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-                  {" - "}
-                  {last.endedAt ? new Date(last.endedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "ongoing"}
-                </span>
-              </div>
-            </div>
-          );
-        })()}
-
-        <Select
-          id="mergeClass"
-          label="Classification"
-          value={mergeClass}
-          onChange={(e) => setMergeClass(e.target.value)}
-          options={[
-            { value: "business", label: "Business" },
-            { value: "personal", label: "Personal" },
-          ]}
-        />
-        {mergeClass === "business" && (
-          <Select
-            id="mergePlatform"
-            label="Platform (optional)"
-            value={mergePlatform}
-            onChange={(e) => setMergePlatform(e.target.value)}
-            options={[
-              { value: "", label: "None" },
-              ...GIG_PLATFORMS.map((p) => ({ value: p.value, label: p.label })),
-            ]}
-          />
-        )}
-      </Modal>
+      <ReportMissingDialog open={reportOpen} onClose={() => setReportOpen(false)} savedPlaces={placesData.data ?? []} />
     </>
+  );
+}
+
+function FiltersDialog({
+  open,
+  initial,
+  showPlatform,
+  onClose,
+  onApply,
+}: {
+  open: boolean;
+  initial: TripFilters;
+  showPlatform: boolean;
+  onClose: () => void;
+  onApply: (f: TripFilters) => void;
+}) {
+  const [draft, setDraft] = useState<TripFilters>(initial);
+  useEffect(() => {
+    if (open) setDraft(initial);
+  }, [open, initial]);
+
+  return (
+    <Dialog
+      open={open}
+      title="Filters"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => setDraft(EMPTY_FILTERS)}>
+            Clear
+          </Button>
+          <Button variant="primary" onClick={() => onApply(draft)}>
+            Show trips
+          </Button>
+        </>
+      }
+    >
+      <div className="mc-filterpanel">
+        {showPlatform && (
+          <div>
+            <p className="mc-filterpanel__label">Platform</p>
+            <FilterChips
+              single
+              ariaLabel="Platform"
+              options={PLATFORM_OPTIONS}
+              value={draft.platform ? [draft.platform] : []}
+              onChange={(v) => setDraft((d) => ({ ...d, platform: v[0] ?? "" }))}
+            />
+          </div>
+        )}
+        <div>
+          <p className="mc-filterpanel__label">Date</p>
+          <DateRangeField from={draft.from} to={draft.to} onChange={(r) => setDraft((d) => ({ ...d, ...r }))} />
+        </div>
+      </div>
+    </Dialog>
   );
 }
