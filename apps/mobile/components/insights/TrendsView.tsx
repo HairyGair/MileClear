@@ -18,10 +18,7 @@ import type {
   EarningsDayPattern,
   CommuteTiming,
 } from "@mileclear/shared";
-import {
-  fetchDrivingAnalytics,
-  fetchWeeklyReport,
-} from "../../lib/api/analytics";
+import { fetchDrivingAnalytics } from "../../lib/api/analytics";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { ErrorState } from "../ErrorState";
@@ -44,12 +41,6 @@ const DAY_FULL = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const SCREEN_W = Dimensions.get("window").width;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-function deltaBadge(delta: number | null): { label: string; positive: boolean } | null {
-  if (delta == null) return null;
-  const sign = delta >= 0 ? "+" : "";
-  return { label: `${sign}${delta.toFixed(0)}%`, positive: delta >= 0 };
-}
-
 function fmtMinutes(mins: number): string {
   if (mins < 60) return `${Math.round(mins)} min`;
   const h = Math.floor(mins / 60);
@@ -66,236 +57,8 @@ function fmtHour(hour: number): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function DeltaBadge({ delta }: { delta: number | null }) {
-  const info = deltaBadge(delta);
-  if (!info) return null;
-  return (
-    <View
-      style={[
-        s.deltaBadge,
-        info.positive ? s.deltaBadgeGreen : s.deltaBadgeRed,
-      ]}
-    >
-      <Ionicons
-        name={info.positive ? "trending-up" : "trending-down"}
-        size={10}
-        color={info.positive ? GREEN : RED}
-        accessible={false}
-      />
-      <Text
-        style={[
-          s.deltaBadgeText,
-          { color: info.positive ? GREEN : RED },
-        ]}
-      >
-        {info.label}
-      </Text>
-    </View>
-  );
-}
-
-// ─── Weekly Report Card ───────────────────────────────────────────────────────
-function WeeklyReportCard({
-  report,
-  weeksBack,
-  onPrev,
-  onNext,
-  isPersonal,
-  loading,
-  hideEarnings,
-}: {
-  report: WeeklyReport | null;
-  weeksBack: number;
-  onPrev: () => void;
-  onNext: () => void;
-  isPersonal: boolean;
-  loading: boolean;
-  hideEarnings: boolean;
-}) {
-  return (
-    <View style={s.card}>
-      {/* Header row */}
-      <View style={s.cardHeaderRow}>
-        <View style={s.cardTitleRow}>
-          <Ionicons name="calendar-outline" size={16} color={AMBER} accessible={false} />
-          <Text style={s.cardTitle}>This Week</Text>
-          {report && (
-            <View style={s.weekLabelChip}>
-              <Text style={s.weekLabelText}>{report.weekLabel}</Text>
-            </View>
-          )}
-        </View>
-        <View style={s.navRow}>
-          <TouchableOpacity
-            onPress={onPrev}
-            style={s.navBtn}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Previous week"
-          >
-            <Ionicons name="chevron-back" size={18} color={TEXT_2} accessible={false} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={onNext}
-            style={[s.navBtn, weeksBack === 0 && s.navBtnDisabled]}
-            activeOpacity={weeksBack === 0 ? 1 : 0.7}
-            disabled={weeksBack === 0}
-            accessibilityRole="button"
-            accessibilityLabel="Next week"
-            accessibilityState={{ disabled: weeksBack === 0 }}
-          >
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={weeksBack === 0 ? TEXT_3 : TEXT_2}
-              accessible={false}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {loading || !report ? (
-        <View style={s.cardLoading}>
-          <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading weekly report" />
-        </View>
-      ) : report.totalTrips === 0 ? (
-        <Text style={s.emptyBody}>
-          {weeksBack === 0 ? "No driving this week" : "No driving that week"}
-        </Text>
-      ) : (
-        <>
-          {/* Columns */}
-          <View style={s.weekColumns}>
-            {/* Business column */}
-            <View
-              style={[
-                s.weekCol,
-                isPersonal && s.weekColMuted,
-              ]}
-            >
-              <Text style={s.weekColTitle}>Business</Text>
-              {report.business.trips === 0 && report.business.miles === 0 ? (
-                <Text style={s.emptyBody}>No business trips</Text>
-              ) : (
-                <>
-                  <WeekStatRow label="Miles" value={report.business.miles.toFixed(1)} />
-                  <WeekStatRow label="Trips" value={String(report.business.trips)} />
-                  {!hideEarnings && report.business.earningsPence > 0 && (
-                    <WeekStatRow label="Earnings" value={formatPence(report.business.earningsPence)} />
-                  )}
-                  {report.business.deductionPence > 0 && (
-                    <WeekStatRow label="Deduction" value={formatPence(report.business.deductionPence)} />
-                  )}
-                  {report.business.shifts > 0 && (
-                    <WeekStatRow label="Shifts" value={String(report.business.shifts)} />
-                  )}
-                </>
-              )}
-              {report.business.topPlatform && (
-                <WeekStatRow
-                  label="Top Platform"
-                  value={report.business.topPlatform}
-                />
-              )}
-            </View>
-
-            <View style={s.weekDivider} />
-
-            {/* Personal column */}
-            <View
-              style={[
-                s.weekCol,
-                !isPersonal && s.weekColMuted,
-              ]}
-            >
-              <Text style={s.weekColTitle}>Personal</Text>
-              <WeekStatRow label="Miles" value={report.personal.miles.toFixed(1)} />
-              <WeekStatRow label="Trips" value={String(report.personal.trips)} />
-              <WeekStatRow
-                label="Avg Trip"
-                value={`${report.personal.avgTripMiles.toFixed(1)} mi`}
-              />
-              <WeekStatRow
-                label="Longest"
-                value={`${report.personal.longestTripMiles.toFixed(1)} mi`}
-              />
-            </View>
-          </View>
-
-          {/* Combined totals row */}
-          <View style={s.weekTotalsRow}>
-            <View style={s.weekTotal}>
-              <Text style={s.weekTotalValue}>{report.totalMiles.toFixed(1)}</Text>
-              <Text style={s.weekTotalLabel}>total mi</Text>
-            </View>
-            <View style={s.weekTotal}>
-              <Text style={s.weekTotalValue}>{report.totalTrips}</Text>
-              <Text style={s.weekTotalLabel}>trips</Text>
-            </View>
-            {report.streakDays > 0 && (
-              <View style={[s.weekTotal, s.weekTotalStreak]}>
-                <Text style={s.streakValue}>
-                  <Ionicons name="flame" size={14} color={AMBER} accessible={false} />{" "}
-                  {report.streakDays}d
-                </Text>
-                <Text style={s.weekTotalLabel}>streak</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Delta badges */}
-          {(report.milesDelta != null ||
-            report.tripsDelta != null ||
-            report.earningsDelta != null) && (
-            <View style={s.deltaRow}>
-              <Text style={s.deltaRowLabel}>vs last week</Text>
-              <DeltaBadge delta={report.milesDelta} />
-              <Text style={s.deltaRowSep}>mi</Text>
-              <DeltaBadge delta={report.tripsDelta} />
-              <Text style={s.deltaRowSep}>trips</Text>
-              {report.earningsDelta != null && (
-                <>
-                  <DeltaBadge delta={report.earningsDelta} />
-                  <Text style={s.deltaRowSep}>earn</Text>
-                </>
-              )}
-            </View>
-          )}
-
-          {/* New achievements earned this week */}
-          {report.newAchievements.length > 0 && (
-            <View style={s.achievementRow}>
-              <Ionicons name="trophy-outline" size={13} color={AMBER} accessible={false} />
-              <Text style={s.achievementRowLabel}>New this week:</Text>
-              {report.newAchievements.slice(0, 3).map((label, i) => (
-                <View key={i} style={s.achievementChip}>
-                  <Text style={s.achievementChipText}>{label}</Text>
-                </View>
-              ))}
-              {report.newAchievements.length > 3 && (
-                <Text style={s.achievementChipText}>
-                  +{report.newAchievements.length - 3}
-                </Text>
-              )}
-            </View>
-          )}
-        </>
-      )}
-    </View>
-  );
-}
-
-function WeekStatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={s.weekStatRow}>
-      <Text style={s.weekStatLabel}>{label}</Text>
-      <Text style={s.weekStatValue}>{value}</Text>
-    </View>
-  );
-}
-
 // ─── Frequent Routes Card ─────────────────────────────────────────────────────
-function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
+export function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? routes : routes.slice(0, 5);
 
@@ -348,7 +111,7 @@ function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
               </Text>
             </View>
             <View style={s.routeStatChip}>
-              <Ionicons name="flash-outline" size={11} color={GREEN} accessible={false} />
+              <Ionicons name="flash-outline" size={11} color={TEXT_2} accessible={false} />
               <Text style={s.routeStatText}>
                 {fmtMinutes(route.fastestDurationMinutes)} best
               </Text>
@@ -413,7 +176,7 @@ function FrequentRoutesCard({ routes }: { routes: FrequentRoute[] }) {
 }
 
 // ─── Shift Sweet Spots Card ───────────────────────────────────────────────────
-function ShiftSweetSpotsCard({ spots }: { spots: ShiftSweetSpot[] }) {
+export function ShiftSweetSpotsCard({ spots }: { spots: ShiftSweetSpot[] }) {
   if (spots.length === 0) return null;
 
   const maxRate = Math.max(...spots.map((s) => s.avgEarningsPerHourPence), 1);
@@ -483,7 +246,7 @@ function ShiftSweetSpotsCard({ spots }: { spots: ShiftSweetSpot[] }) {
 }
 
 // ─── Fuel Cost Card ───────────────────────────────────────────────────────────
-function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
+export function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
   if (fuel.recentFillUps.length === 0) {
     return (
       <View style={s.card}>
@@ -610,7 +373,7 @@ function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
 }
 
 // ─── Earnings by Day Card ─────────────────────────────────────────────────────
-function EarningsByDayCard({ patterns }: { patterns: EarningsDayPattern[] }) {
+export function EarningsByDayCard({ patterns }: { patterns: EarningsDayPattern[] }) {
   const hasEarnings = patterns.some((p) => p.totalEarningsPence > 0);
   if (patterns.length === 0 || !hasEarnings) {
     return (
@@ -691,7 +454,7 @@ function EarningsByDayCard({ patterns }: { patterns: EarningsDayPattern[] }) {
 }
 
 // ─── Commute Timing Card ──────────────────────────────────────────────────────
-function CommuteTimingCard({ commutes }: { commutes: CommuteTiming[] }) {
+export function CommuteTimingCard({ commutes }: { commutes: CommuteTiming[] }) {
   if (commutes.length === 0) return null;
 
   return (
@@ -728,13 +491,13 @@ function CommuteTimingCard({ commutes }: { commutes: CommuteTiming[] }) {
                 <Text style={s.commuteDurationLabel}>avg</Text>
               </View>
               <View style={s.commuteDurationStat}>
-                <Text style={[s.commuteDurationValue, { color: GREEN }]}>
+                <Text style={[s.commuteDurationValue, { color: TEXT_1 }]}>
                   {fmtMinutes(commute.bestDurationMinutes)}
                 </Text>
                 <Text style={s.commuteDurationLabel}>best</Text>
               </View>
               <View style={s.commuteDurationStat}>
-                <Text style={[s.commuteDurationValue, { color: RED }]}>
+                <Text style={[s.commuteDurationValue, { color: TEXT_2 }]}>
                   {fmtMinutes(commute.worstDurationMinutes)}
                 </Text>
                 <Text style={s.commuteDurationLabel}>worst</Text>
@@ -794,91 +557,58 @@ function CommuteTimingCard({ commutes }: { commutes: CommuteTiming[] }) {
 }
 
 
-// ─── Main view ────────────────────────────────────────────────────────────────
+// ─── Data hook ────────────────────────────────────────────────────────────────
 
 /**
- * The "Trends" half of the Insights screen (this was the standalone Driving
- * Analytics screen until 7 Oct 2026). No header or ScrollView of its own: the
- * Insights screen owns both. Bump `refreshToken` to reload.
+ * One fetch of GET /analytics (Pro). Pass enabled=false for free drivers so
+ * the Pro endpoint is never called. Bump `refreshToken` to reload.
  */
-export function TrendsView({
-  refreshToken,
-  onRefreshed,
-}: {
-  refreshToken: number;
-  onRefreshed?: () => void;
-}) {
-  return (
-    <PremiumGate feature="Driving Analytics">
-      <TrendsContent refreshToken={refreshToken} onRefreshed={onRefreshed} />
-    </PremiumGate>
-  );
-}
-
-function TrendsContent({
-  refreshToken,
-  onRefreshed,
-}: {
-  refreshToken: number;
-  onRefreshed?: () => void;
-}) {
-  const { isWork } = useMode();
-  const { user, isCompanyDriver } = useUser();
-  const workType = user?.workType ?? "gig";
-  const isGigDriver = (workType === "gig" || workType === "both") && !isCompanyDriver;
-
+export function useDrivingAnalytics(enabled: boolean, refreshToken = 0) {
   const [analytics, setAnalytics] = useState<DrivingAnalytics | null>(null);
-  const [weeklyReport, setWeeklyReport] = useState<WeeklyReport | null>(null);
-  const [weeksBack, setWeeksBack] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
   const [failed, setFailed] = useState(false);
-  const [weekLoading, setWeekLoading] = useState(false);
 
-  const loadAnalytics = useCallback(async () => {
+  const load = useCallback(async () => {
+    if (!enabled) return;
     try {
       const res = await fetchDrivingAnalytics();
       setAnalytics(res.data);
-      setWeeklyReport(res.data.weeklyReport);
       setFailed(false);
     } catch {
       setFailed(true);
     } finally {
       setLoading(false);
-      onRefreshed?.();
     }
-  }, [onRefreshed]);
+  }, [enabled]);
 
-  // First load, and every pull-to-refresh from the Insights screen.
   useEffect(() => {
-    setWeeksBack(0);
-    loadAnalytics();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshToken]);
+    load();
+  }, [load, refreshToken]);
 
-  const loadWeeklyReport = useCallback(async (wb: number) => {
-    setWeekLoading(true);
-    try {
-      const res = await fetchWeeklyReport(wb);
-      setWeeklyReport(res.data);
-    } catch {
-      // Keep existing report on failure
-    } finally {
-      setWeekLoading(false);
-    }
-  }, []);
+  return { analytics, loading, failed, reload: load };
+}
 
-  const handlePrevWeek = useCallback(() => {
-    const next = weeksBack + 1;
-    setWeeksBack(next);
-    loadWeeklyReport(next);
-  }, [weeksBack, loadWeeklyReport]);
+// ─── Main view ────────────────────────────────────────────────────────────────
 
-  const handleNextWeek = useCallback(() => {
-    if (weeksBack === 0) return;
-    const next = weeksBack - 1;
-    setWeeksBack(next);
-    loadWeeklyReport(next);
-  }, [weeksBack, loadWeeklyReport]);
+/**
+ * The old "Trends" tab content, now just the Pro cards that survive (the
+ * weekly report was replaced by the Insights summary card). GoDeeper is the
+ * Insights entry point; this stays for any caller that wants the plain list.
+ */
+export function TrendsView({ refreshToken = 0 }: { refreshToken?: number; onRefreshed?: () => void }) {
+  return (
+    <PremiumGate feature="Driving Analytics">
+      <TrendsContent refreshToken={refreshToken} />
+    </PremiumGate>
+  );
+}
+
+function TrendsContent({ refreshToken }: { refreshToken: number }) {
+  const { isWork } = useMode();
+  const { user, isCompanyDriver } = useUser();
+  const workType = user?.workType ?? "gig";
+  const isGigDriver = (workType === "gig" || workType === "both") && !isCompanyDriver;
+  const { analytics, loading, failed, reload } = useDrivingAnalytics(true, refreshToken);
 
   if (loading) {
     return (
@@ -892,69 +622,26 @@ function TrendsContent({
   if (failed && !analytics) {
     return (
       <ErrorState
-        title="Couldn't load your trends"
+        title="Couldn't load this"
         description="Check your connection and pull down to try again."
-        onRetry={() => {
-          setLoading(true);
-          loadAnalytics();
-        }}
+        onRetry={reload}
       />
     );
   }
+  if (!analytics) return null;
 
   return (
     <View>
-      {/* 1. Weekly Report */}
-      <WeeklyReportCard
-        report={weeklyReport}
-        weeksBack={weeksBack}
-        onPrev={handlePrevWeek}
-        onNext={handleNextWeek}
-        isPersonal={!isWork}
-        loading={weekLoading}
-        hideEarnings={isCompanyDriver}
-      />
-
-      {/* 2. Frequent Routes */}
-      {analytics && analytics.frequentRoutes.length > 0 && (
-        <FrequentRoutesCard routes={analytics.frequentRoutes} />
-      )}
-
-      {/* 3. Shift Sweet Spots (work mode only) */}
-      {isWork && analytics && analytics.shiftSweetSpots.length > 0 && (
+      {analytics.frequentRoutes.length > 0 && <FrequentRoutesCard routes={analytics.frequentRoutes} />}
+      {isWork && analytics.shiftSweetSpots.length > 0 && (
         <ShiftSweetSpotsCard spots={analytics.shiftSweetSpots} />
       )}
-
-      {/* 4. Fuel Cost */}
-      {analytics && <FuelCostCard fuel={analytics.fuelCost} />}
-
-      {/* 5. Earnings by Day (work mode, gig drivers only) */}
-      {isWork && isGigDriver && analytics && (
-        <EarningsByDayCard patterns={analytics.earningsByDay} />
-      )}
-
-      {/* 6. Commute Timing */}
-      {analytics && analytics.commuteTiming.length > 0 && (
-        <CommuteTimingCard commutes={analytics.commuteTiming} />
-      )}
-
-      {/* Empty state */}
-      {analytics &&
-        analytics.frequentRoutes.length === 0 &&
-        analytics.commuteTiming.length === 0 &&
-        analytics.fuelCost.recentFillUps.length === 0 && (
-          <View style={s.emptyState}>
-            <Ionicons name="analytics-outline" size={40} color={TEXT_3} accessible={false} />
-            <Text style={s.emptyTitle}>No patterns yet</Text>
-            <Text style={s.emptySubtitle}>
-              After a week or two of driving, your regular routes and best times show here.
-            </Text>
-          </View>
-        )}
+      <FuelCostCard fuel={analytics.fuelCost} />
+      {isWork && isGigDriver && <EarningsByDayCard patterns={analytics.earningsByDay} />}
+      {analytics.commuteTiming.length > 0 && <CommuteTimingCard commutes={analytics.commuteTiming} />}
     </View>
   );
 }
-
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
