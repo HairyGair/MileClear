@@ -22,6 +22,8 @@ export interface WorkCardProps {
   offset: number;
   mode: "work" | "personal";
   isPro: boolean;
+  /** Bumped on focus and pull to refresh so every card reloads with the frame. */
+  refreshToken?: number;
 }
 
 interface WorkSectionProps extends WorkCardProps {
@@ -34,7 +36,7 @@ interface WorkSectionProps extends WorkCardProps {
 
 /** Cards between the summary and the end of the screen, in Work order. */
 export function WorkSection(p: WorkSectionProps) {
-  const card: WorkCardProps = { period: p.period, offset: p.offset, mode: p.mode, isPro: p.isPro };
+  const card: WorkCardProps = { period: p.period, offset: p.offset, mode: p.mode, isPro: p.isPro, refreshToken: p.refreshToken };
   return (
     <>
       <TaxYearProgressCard {...card} />
@@ -50,7 +52,7 @@ export function WorkSection(p: WorkSectionProps) {
 
 /** Personal order: Coming up, Running costs, When you drive, Drivers near you, Records, Badges, Go deeper. */
 export function PersonalSection(p: Omit<WorkSectionProps, "isCompanyDriver"> & { runningCosts: ReactNode }) {
-  const card: WorkCardProps = { period: p.period, offset: p.offset, mode: p.mode, isPro: p.isPro };
+  const card: WorkCardProps = { period: p.period, offset: p.offset, mode: p.mode, isPro: p.isPro, refreshToken: p.refreshToken };
   return (
     <>
       {p.comingUp}

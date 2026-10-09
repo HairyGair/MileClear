@@ -260,6 +260,7 @@ export default function InsightsScreen() {
                   offset={offset}
                   mode={mode}
                   isPro={isPro}
+                  refreshToken={refreshKey}
                   isCompanyDriver={isCompanyDriver}
                   comingUp={comingUp}
                   recordsAndBadges={recordsAndBadges}
@@ -270,6 +271,7 @@ export default function InsightsScreen() {
                   offset={offset}
                   mode={mode}
                   isPro={isPro}
+                  refreshToken={refreshKey}
                   comingUp={comingUp}
                   runningCosts={
                     <>
