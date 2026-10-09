@@ -15,7 +15,7 @@ import {
   AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams, useNavigation, Stack } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect, Stack } from "expo-router";
 import { usePreventRemove } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
@@ -60,6 +60,16 @@ import {
   reportPendingArrivedDiscard,
 } from "../lib/tracking";
 import { askAboutPauseBeforeStart } from "../lib/tracking/pausePrompt";
+import {
+  startTripFinishedAlert,
+  startTripFinishedListenerAction,
+} from "../lib/tracking/parkedReminderRule";
+import {
+  onParkedReminderFinished,
+  setStartTripFormArriving,
+  setStartTripScreenVisible,
+  waitForParkedReminderFinish,
+} from "../lib/tracking/parkedReminder";
 import {
   pendingArrivedAction,
   qualifiesForDiscardReport,
@@ -1720,6 +1730,80 @@ export default function TripFormScreen() {
     return () => { if (sub) sub.remove(); locationSubRef.current = null; };
   }, [mode, followUser]);
 
+  // The Start Trip was finished and saved somewhere else: parked with the app
+  // away for 15 minutes (QUICK_TRIP_PARKED_MS), or Arrived on the "Still on
+  // your trip?" notification. Both delete the trip's rows. This screen must
+  // then let go of its own copy of the route: an Arrive from here would save
+  // the same drive a second time. True when it let go.
+  const letGoIfFinishedElsewhere = useCallback(async (): Promise<boolean> => {
+    const db = await getDatabase();
+    const finished = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'quick_trip_auto_finished_at'"
+    );
+    const finishedAtMs = finished ? Number(finished.value) : NaN;
+    const startedAtMs = startedAt ? new Date(startedAt).getTime() : NaN;
+    if (
+      !Number.isFinite(finishedAtMs) ||
+      !Number.isFinite(startedAtMs) ||
+      finishedAtMs <= startedAtMs
+    ) {
+      return false;
+    }
+    // Conditional, so the listener and Arrived running together alert once.
+    const consumed = await db.runAsync(
+      "DELETE FROM tracking_state WHERE key = 'quick_trip_auto_finished_at' AND value = ?",
+      [finished?.value ?? ""]
+    );
+    if (consumed.changes === 0) return true;
+    const reasonRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'quick_trip_finished_reason'"
+    );
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_finished_reason'");
+    const tripsRow = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'quick_trip_finished_trips'"
+    );
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_finished_trips'");
+    const fromReminder = reasonRow?.value === "reminder_arrived";
+    breadcrumbsRef.current = [];
+    runningDistanceRef.current = 0;
+    setLiveDistance(0);
+    setDrivingTrail([]);
+    setMode("ready");
+    const alert = startTripFinishedAlert({
+      fromReminder,
+      tripsSaved: tripsRow ? Number(tripsRow.value) : null,
+    });
+    Alert.alert(alert.title, alert.body);
+    return true;
+  }, [startedAt]);
+
+  // "Still on your trip?" stays quiet while this screen is up in driving mode,
+  // and an Arrived tapped on it while the app is open (notification centre)
+  // must reach this screen at once: there is no AppState change to notice.
+  useEffect(() => {
+    if (mode !== "driving") return;
+    return onParkedReminderFinished(() => {
+      // Tapped from the lock screen with the app in the background: an alert
+      // raised now is lost (simulator test, 9 Oct), so leave it to the
+      // AppState "active" handler below, which lets go and alerts on return.
+      // Arrived on this screen also lets go first, so nothing saves twice.
+      if (startTripFinishedListenerAction(AppState.currentState) === "wait_for_foreground") return;
+      letGoIfFinishedElsewhere().catch(() => {});
+    });
+  }, [mode, letGoIfFinishedElsewhere]);
+
+  // Only while this screen is focused: another screen pushed over it (a
+  // notification tap opening Trips, say) leaves it mounted, and the reminder
+  // must then show, not be swallowed (it would not reach the notification
+  // centre either).
+  useFocusEffect(
+    useCallback(() => {
+      if (mode !== "driving") return;
+      setStartTripScreenVisible(true);
+      return () => setStartTripScreenVisible(false);
+    }, [mode])
+  );
+
   // Sync live distance from background coordinates when returning from another app
   // (e.g. user was using Google Maps / Waze as SatNav)
   useEffect(() => {
@@ -1727,33 +1811,9 @@ export default function TripFormScreen() {
     const handleAppState = async (nextState: string) => {
       if (nextState !== "active") return;
       try {
-        // Parked with the app away for 15 minutes, the Start Trip finishes and
-        // saves itself (QUICK_TRIP_PARKED_MS) and deletes this row. This screen
-        // must then let go of its own copy of the route: an Arrive from here
-        // would save the same drive a second time.
-        const db = await getDatabase();
-        const finished = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'quick_trip_auto_finished_at'"
-        );
-        const finishedAtMs = finished ? Number(finished.value) : NaN;
-        const startedAtMs = startedAt ? new Date(startedAt).getTime() : NaN;
-        if (
-          Number.isFinite(finishedAtMs) &&
-          Number.isFinite(startedAtMs) &&
-          finishedAtMs > startedAtMs
-        ) {
-          await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_auto_finished_at'");
-          breadcrumbsRef.current = [];
-          runningDistanceRef.current = 0;
-          setLiveDistance(0);
-          setDrivingTrail([]);
-          setMode("ready");
-          Alert.alert(
-            "Trip saved",
-            "You'd parked, so your trip was finished and saved while the app was closed. You'll find it in Trips."
-          );
-          return;
-        }
+        // Finished while the app was away (the 15-minute parked finish, or
+        // Arrived on the "Still on your trip?" notification).
+        if (await letGoIfFinishedElsewhere()) return;
         const bgCoords = await peekBackgroundCoordinates();
         if (bgCoords.length < 2) return;
 
@@ -1806,7 +1866,7 @@ export default function TripFormScreen() {
     };
     const sub = AppState.addEventListener("change", handleAppState);
     return () => sub.remove();
-  }, [mode, startedAt]);
+  }, [mode, startedAt, letGoIfFinishedElsewhere]);
 
   // Pulsing live dot
   useEffect(() => {
@@ -1931,8 +1991,14 @@ export default function TripFormScreen() {
   }, [isWork]);
 
   const handleArrived = useCallback(async () => {
+    // From here on the notification's Arrived stands aside (this screen owns
+    // the save); one already running is waited for, and if it saved the
+    // drive this screen lets go of its copy rather than saving it twice.
+    setStartTripFormArriving(true);
     setLoading(true);
     try {
+      await waitForParkedReminderFinish();
+      if (await letGoIfFinishedElsewhere().catch(() => false)) return;
       const loc = await getCurrentLocation();
       if (!loc) {
         Alert.alert("Location unavailable", "Couldn't read your current location. Check GPS and try again.");
@@ -2212,9 +2278,10 @@ export default function TripFormScreen() {
     } catch {
       Alert.alert("Couldn't get your location", "Check that location is enabled and try again.");
     } finally {
+      setStartTripFormArriving(false);
       setLoading(false);
     }
-  }, [startLat, startLng, startAddress, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim]);
+  }, [startLat, startLng, startAddress, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim, letGoIfFinishedElsewhere]);
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);

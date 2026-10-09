@@ -99,3 +99,19 @@ export function segmentTrips<T extends SegmentCoordinate>(
 
   return trips;
 }
+
+/**
+ * The pieces of a trail to save as trips. Normally the stop and silence rules
+ * above cut it up. `whole` keeps one piece: a Start Trip finished from the
+ * "Still on your trip?" reminder is the driver saying the waits were part of
+ * the job (a 36-minute wait at a depot split Kada's Amazon Flex block, 9 Oct
+ * 2026), so it must not be cut at a long stop.
+ */
+export function segmentsToSave<T extends SegmentCoordinate>(
+  coords: T[],
+  silenceSplitMs: number,
+  whole: boolean
+): T[][] {
+  if (!whole) return segmentTrips(coords, silenceSplitMs);
+  return coords.length >= 2 ? [coords] : [];
+}

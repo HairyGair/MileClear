@@ -1,19 +1,42 @@
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import { Linking, Platform } from "react-native";
+import { AppState, Linking, Platform } from "react-native";
 import { cancelAutoRecording, clearNotDrivingCooldown, upgradeDetectionAccuracy, logDetectionEvent } from "../tracking/detection";
 import { canPlatformRunJsEngine } from "../tracking/jsEngineRule";
+import {
+  PARKED_ACTION_ARRIVED,
+  PARKED_ACTION_KEEP_GOING,
+  PARKED_COPY,
+  PARKED_REMINDER_CATEGORY,
+  parkedActionKind,
+  parkedReminderForegroundDecision,
+} from "../tracking/parkedReminderRule";
+import {
+  handleParkedReminderResponse,
+  isStartTripScreenVisible,
+  noteParkedReminderOpened,
+} from "../tracking/parkedReminder";
 
 try {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
+    handleNotification: async (notification) => {
+      // "Still on your trip?" stays quiet while the Start Trip screen is open
+      // and on screen: its own Arrived button is already in front of the driver.
+      const hide =
+        notification?.request?.content?.data?.type === "start_trip_parked" &&
+        parkedReminderForegroundDecision({
+          appActive: AppState.currentState === "active",
+          startTripScreenVisible: isStartTripScreenVisible(),
+        }) === "suppress";
+      return {
+        shouldShowAlert: !hide,
+        shouldShowBanner: !hide,
+        shouldShowList: !hide,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    },
   });
 } catch (err) {
   console.warn("Notifications.setNotificationHandler failed:", err);
@@ -54,6 +77,20 @@ export async function registerNotificationCategories(): Promise<void> {
       {
         identifier: "classify_personal",
         buttonTitle: "Personal",
+        options: { opensAppToForeground: false },
+      },
+    ]);
+    // start_trip_parked: "Still on your trip?" after 10 minutes stopped on a
+    // Start Trip that runs until Arrived (tracking/parkedReminder.ts).
+    await Notifications.setNotificationCategoryAsync(PARKED_REMINDER_CATEGORY, [
+      {
+        identifier: PARKED_ACTION_ARRIVED,
+        buttonTitle: PARKED_COPY.arrivedLabel,
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: PARKED_ACTION_KEEP_GOING,
+        buttonTitle: PARKED_COPY.keepGoingLabel,
         options: { opensAppToForeground: false },
       },
     ]);
@@ -493,6 +530,14 @@ export function setupNotificationResponseHandler(): void {
       return;
     }
 
+    // "Still on your trip?" buttons (Arrived / Keep going), handled in the
+    // background with the app closed. The body tap falls through to
+    // open_start_trip below.
+    if (data?.type === "start_trip_parked" && parkedActionKind(actionId)) {
+      await handleParkedReminderResponse(actionId, data as Record<string, unknown>);
+      return;
+    }
+
     // Handle geofence trip-confirmation responses from the lock screen.
     // Same three actions as classify_trip below — share the classification
     // + learnFromClassification + delete paths but key off the
@@ -654,6 +699,13 @@ export function setupNotificationResponseHandler(): void {
         }
         break;
       }
+
+      case "open_start_trip":
+        // The reminder's body tap (and its "still recording" follow-up): the
+        // Start Trip screen resumes from quick_trip_start and has Arrived.
+        if (data?.type === "start_trip_parked") noteParkedReminderOpened();
+        router.push("/trip-form" as never);
+        break;
 
       case "open_active_recording":
         // Persistent recording notification + diagnostic stuck-recording alert.

@@ -11,6 +11,7 @@ import { issueVerificationCode } from "../../services/verificationCodes.js";
 import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup.js";
 import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
+import { shouldSendStuckRecordingAlert } from "../../services/stuckRecordingRule.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { formatInvoiceNumber, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
 
@@ -233,18 +234,26 @@ async function analyzeDiagnosticAndAlert(
     );
   }
 
-  // Alert 3: Stuck recording (active but no driving for >30 min)
+  // Alert 3: Stuck recording (active but no driving for >30 min). Skipped for
+  // a Start Trip: the phone's own "Still on your trip?" reminder covers it.
   if (autoRecording === true && lastDrivingStr) {
-    const lastDrivingMs = parseInt(lastDrivingStr, 10);
-    const elapsed = Date.now() - lastDrivingMs;
-    if (elapsed > 30 * 60 * 1000) {
+    const trackingState = statusJson.trackingState as Array<{ key: string; value: string }> | undefined;
+    if (
+      shouldSendStuckRecordingAlert({
+        autoRecording,
+        lastDrivingStr,
+        nowMs: Date.now(),
+        trackingState,
+        minElapsedMs: 30 * 60 * 1000,
+      })
+    ) {
       await sendAlertWithAdminNotify(
         userId,
         "alert.stuck_recording",
         "A trip is waiting to save",
         "It looks like a recording is still running. Open MileClear to save the trip.",
         { action: "open_trips" },
-        { elapsedMs: elapsed },
+        { elapsedMs: Date.now() - parseInt(lastDrivingStr, 10) },
       );
     }
   }

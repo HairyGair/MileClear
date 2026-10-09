@@ -53,6 +53,7 @@ import {
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert } from "../services/discord.js";
+import { shouldSendStuckRecordingAlert } from "../services/stuckRecordingRule.js";
 import { CLEARTRACK_QUIET_DAYS, planClearTrackAlert } from "../services/clearTrackAlertRule.js";
 import { findPhonesQuietAfterLowBattery, PHONE_QUIET_BODY, PHONE_QUIET_TITLE } from "../services/phoneQuiet.js";
 import {
@@ -889,17 +890,25 @@ async function runDiagnosticScanJob(): Promise<void> {
     // the "stopped at destination, recording stuck because background JS is
     // suspended" case sooner. Upper bound stays 24h to ignore stale dumps
     // (user may have already resolved by reopening the app).
-    if (autoRecording === true && lastDrivingStr) {
-      const elapsed = Date.now() - parseInt(lastDrivingStr, 10);
-      if (elapsed > 15 * 60 * 1000 && elapsed < 24 * 60 * 60 * 1000) {
-        checks.push({
-          condition: true,
-          alertType: "alert.stuck_recording",
-          title: "Trip still recording",
-          body: "Looks like you've stopped driving. Open MileClear to save the trip.",
-          data: { action: "open_active_recording" },
-        });
-      }
+    // Skipped for a Start Trip: the phone's own "Still on your trip?" reminder
+    // covers it (services/stuckRecordingRule.ts).
+    if (
+      shouldSendStuckRecordingAlert({
+        autoRecording,
+        lastDrivingStr,
+        nowMs: Date.now(),
+        trackingState,
+        minElapsedMs: 15 * 60 * 1000,
+        maxElapsedMs: 24 * 60 * 60 * 1000,
+      })
+    ) {
+      checks.push({
+        condition: true,
+        alertType: "alert.stuck_recording",
+        title: "Trip still recording",
+        body: "Looks like you've stopped driving. Open MileClear to save the trip.",
+        data: { action: "open_active_recording" },
+      });
     }
 
     for (const check of checks) {
