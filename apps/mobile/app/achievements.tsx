@@ -14,6 +14,7 @@ import {
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { maybeRequestReview } from "../lib/rating/index";
 import { colors, fonts } from "../lib/theme";
+import { Medal } from "../components/insights/BadgesRow";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const BG = colors.bg;
@@ -106,9 +107,9 @@ export default function AchievementsScreen() {
                   : `${meta.label}: ${meta.description}. Not yet earned`
               }
             >
-              <Text style={[s.badgeEmoji, !isEarned && s.emojiLocked]}>
-                {meta.emoji}
-              </Text>
+              <View style={s.badgeMedal}>
+                <Medal type={type} state={isEarned ? "earned" : "next"} size={40} />
+              </View>
               <Text
                 style={[s.badgeLabel, !isEarned && s.textLocked]}
                 numberOfLines={1}
@@ -219,9 +220,8 @@ const s = StyleSheet.create({
   badgePremium: {
     opacity: 0.25,
   },
-  badgeEmoji: {
-    fontSize: 30,
-    marginBottom: 6,
+  badgeMedal: {
+    marginBottom: 2,
   },
   emojiLocked: {
     opacity: 0.5,

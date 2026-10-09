@@ -130,6 +130,7 @@ import {
 } from "../../lib/tracking/batteryOptimisationRule";
 import { haptic } from "../../lib/haptics";
 import AppHeader from "../../components/AppHeader";
+import { Medal } from "../../components/insights/BadgesRow";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -1715,7 +1716,7 @@ export default function DashboardScreen() {
                   <Text style={s.unlockTitle}>Unlocked</Text>
                   {scorecard.newAchievements.map((a) => (
                     <View key={a.id} style={s.unlockRow}>
-                      <Text style={s.unlockEmoji}>{a.emoji}</Text>
+                      <Medal type={a.type} state="earned" size={32} />
                       <View style={{ flex: 1 }}>
                         <Text style={s.unlockLabel}>{a.label}</Text>
                         <Text style={s.unlockDesc}>{a.description}</Text>
@@ -3602,7 +3603,6 @@ const s = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
-  unlockEmoji: { fontSize: 24 },
   unlockLabel: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
   unlockDesc: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2 },
 

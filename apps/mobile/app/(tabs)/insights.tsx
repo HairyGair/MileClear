@@ -1,159 +1,208 @@
-import { useCallback, useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Share,
-  RefreshControl,
-} from "react-native";
-import { AppModal } from "../../components/AppModal";
-import { useLocalSearchParams, useRouter } from "expo-router";
+// Insights: one scrolling screen with a Week | Month | Tax year switch.
+// This file is only the frame; each card is its own component under
+// components/insights/. Spec: docs/insights-oct2026/SPEC-UX.md and
+// DECISIONS.md. Reached from the Personal tab bar and from More > Insights
+// in Work mode.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
-import { formatPence } from "@mileclear/shared";
-import type {
-  GamificationStats,
-  AchievementWithMeta,
-  PeriodRecap,
-} from "@mileclear/shared";
-import { fetchGamificationStats, fetchAchievements, fetchRecap } from "../../lib/api/gamification";
-import { useMode } from "../../lib/mode/context";
-import { usePersonalStats } from "../../hooks/usePersonalStats";
-import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
-import { BusinessInsightsCard } from "../../components/business/BusinessInsightsCard";
-import { BusinessRecapCard } from "../../components/business/BusinessRecapCard";
-import { PlatformPnLCard } from "../../components/business/PlatformPnLCard";
-import { useUser } from "../../lib/user/context";
-import { PremiumGate } from "../../components/PremiumGate";
 import AppHeader from "../../components/AppHeader";
 import { ErrorState } from "../../components/ErrorState";
-import { TrendsView } from "../../components/insights/TrendsView";
-import { isOnline } from "../../lib/network";
-import { MilestoneTracker } from "../../components/personal/MilestoneTracker";
-import { WeeklyActivity, buildWeekDays } from "../../components/personal/WeeklyActivity";
-import { DrivingGoals } from "../../components/personal/DrivingGoals";
+import { usePaywall } from "../../components/paywall";
 import { FuelSummaryCard } from "../../components/personal/FuelSummaryCard";
 import { ChargingSummaryCard } from "../../components/personal/ChargingSummaryCard";
-import { PersonalRecapCard } from "../../components/personal/PersonalRecapCard";
-import { JourneyTimeline } from "../../components/personal/JourneyTimeline";
-import { Button } from "../../components/Button";
-import { colors, fonts } from "../../lib/theme";
-
-// Local theme aliases — same pattern as the (tabs) screens.
-const AMBER = colors.amber;
-const CARD_BG = colors.surface;
-const TEXT_1 = colors.text1;
-const TEXT_2 = colors.text2;
-const TEXT_3 = colors.text3;
-const BG = colors.bg;
+import { BadgesRow } from "../../components/insights/BadgesRow";
+import { ComingUpCard } from "../../components/insights/ComingUpCard";
+import { PeriodSummaryCard } from "../../components/insights/PeriodSummaryCard";
+import { PeriodSwitch } from "../../components/insights/PeriodSwitch";
+import { RecordsCard } from "../../components/insights/RecordsCard";
+import { PersonalSection, WorkSection } from "../../components/insights/WorkSection";
+import {
+  useInsightsProfile,
+  usePeriodSummary,
+  usePeriodTrips,
+  useRecentTripDates,
+  useRunningCostInputs,
+} from "../../hooks/useInsightsData";
+import { useInsightsCelebration } from "../../hooks/useInsightsCelebration";
+import { useMode } from "../../lib/mode/context";
+import { useUser } from "../../lib/user/context";
+import { isOnline } from "../../lib/network";
+import { useReducedMotion } from "../../lib/accessibility";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { getPeriodRange, isInsightsPeriod, PERIOD_KEY, type InsightsPeriod } from "../../lib/insights/period";
+import { getMilestoneRoadOrStart } from "../../lib/insights/milestones";
+import { getInsightsValue, setInsightsValue, WEEKLY_GOAL_KEY } from "../../lib/insights/store";
 
 export default function InsightsScreen() {
   const router = useRouter();
   const { isWork, isPersonal } = useMode();
-  // Company drivers cannot log earnings, so earnings-based cards are only noise.
-  const { isCompanyDriver } = useUser();
+  const { user, isCompanyDriver } = useUser();
+  const { showPaywall } = usePaywall();
+  const reducedMotion = useReducedMotion();
   const { view } = useLocalSearchParams<{ view?: string }>();
-  const [segment, setSegment] = useState<"overview" | "trends">(
-    view === "trends" ? "trends" : "overview"
-  );
-  // A link to /insights?view=trends while this tab is already mounted.
+  const mode: "work" | "personal" = isWork ? "work" : "personal";
+  const isPro = !!user?.isPremium;
+
+  // Period: remembered on this phone only.
+  const [period, setPeriod] = useState<InsightsPeriod>("week");
+  const [offset, setOffset] = useState(0);
   useEffect(() => {
-    if (view === "trends") setSegment("trends");
-  }, [view]);
-  const [trendsToken, setTrendsToken] = useState(0);
-
-  const [stats, setStats] = useState<GamificationStats | null>(null);
-  const [achievements, setAchievements] = useState<AchievementWithMeta[]>([]);
-  const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
-
-  // Recap modal
-  const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
-  const [showRecap, setShowRecap] = useState(false);
-
-  // Personal stats
-  const {
-    monthMiles,
-    monthTrips,
-    monthLabel,
-    weekTrips,
-    primaryVehicle,
-    prevMonthMiles,
-    prevMonthTrips,
-    busiestDay,
-    avgTripMiles,
-    yearBusiestMonth,
-  } = usePersonalStats();
-  const { trips } = useRecentTripsWithCoords(5);
-
-  const loadData = useCallback(async () => {
-    try {
-      const [statsRes, achievementsRes, dailyRes] = await Promise.all([
-        fetchGamificationStats().catch(() => null),
-        fetchAchievements().catch(() => null),
-        fetchRecap("daily").catch(() => null),
-      ]);
-      setLoadFailed(!statsRes && !achievementsRes && !dailyRes);
-      setLoaded(true);
-      if (statsRes) setStats(statsRes.data);
-      if (achievementsRes) setAchievements(achievementsRes.data);
-      if (dailyRes) setDailyRecap(dailyRes.data);
-    } catch {
-      setLoadFailed(true);
-      setLoaded(true);
-    }
-    setRefreshing(false);
+    getInsightsValue(PERIOD_KEY).then((v) => {
+      if (isInsightsPeriod(v)) setPeriod(v);
+    });
+  }, []);
+  const changePeriod = useCallback((p: InsightsPeriod) => {
+    setPeriod(p);
+    setOffset(0);
+    setInsightsValue(PERIOD_KEY, p);
   }, []);
 
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    if (segment === "trends") {
-      setTrendsToken((n) => n + 1);
-      // TrendsView never reports back behind the Pro gate, so don't wait for it.
-      setTimeout(() => setRefreshing(false), 1500);
-    } else {
-      loadData();
-    }
-  }, [segment, loadData]);
-
-  const handleTrendsRefreshed = useCallback(() => setRefreshing(false), []);
-
+  // Reload on focus (not on the first focus: the hooks already load on mount).
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const firstFocus = useRef(true);
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData])
+      if (firstFocus.current) {
+        firstFocus.current = false;
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    }, [])
   );
 
-  const handleRecap = useCallback(async (period: "daily" | "weekly" | "monthly") => {
-    try {
-      const res = await fetchRecap(period);
-      setRecapData(res.data);
-      setShowRecap(true);
-    } catch {}
+  const range = useMemo(() => getPeriodRange(period, offset), [period, offset]);
+  const summary = usePeriodSummary(period, offset, isPro, refreshKey);
+  const bars = usePeriodTrips(period, offset, refreshKey);
+  const profile = useInsightsProfile(refreshKey);
+  const weekDates = useRecentTripDates(isPersonal && !isCompanyDriver, refreshKey);
+  const running = useRunningCostInputs(isPersonal, refreshKey);
+
+  const [goal, setGoal] = useState<number | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      getInsightsValue(WEEKLY_GOAL_KEY).then((v) => {
+        const n = v ? parseFloat(v) : NaN;
+        setGoal(isFinite(n) && n > 0 ? n : null);
+      });
+    }, [])
+  );
+
+  const stats = profile.stats;
+  const records = stats ? stats.personalRecords : null;
+  const celebration = useInsightsCelebration(
+    profile.lifetimeMiles,
+    records ? { bestDay: records.mostMilesInDay, longestTrip: records.longestSingleTrip } : null
+  );
+
+  // Pull to refresh: stop the spinner once the summary has come back.
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    setRefreshKey((k) => k + 1);
   }, []);
+  useEffect(() => {
+    if (refreshing && summary.status !== "loading" && profile.status !== "loading") setRefreshing(false);
+  }, [refreshing, summary.status, profile.status]);
+  useEffect(() => {
+    if (!refreshing) return;
+    const t = setTimeout(() => setRefreshing(false), 6000);
+    return () => clearTimeout(t);
+  }, [refreshing]);
 
-  const handleShareRecap = useCallback(async () => {
-    if (!recapData) return;
-    try {
-      await Share.share({ message: recapData.shareText });
-    } catch {}
-  }, [recapData]);
+  // Old links to /insights?view=trends land on Go deeper at the bottom.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    if (view !== "trends" || summary.status === "loading") return;
+    const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 400);
+    return () => clearTimeout(t);
+  }, [view, summary.status]);
 
-  // Personal derived data
-  const weekMiles = weekTrips.reduce((sum, t) => sum + t.distanceMiles, 0);
-  const weekDays = buildWeekDays(weekTrips);
-  const mpg = primaryVehicle?.estimatedMpg ?? primaryVehicle?.actualMpg ?? null;
+  const everythingFailed = summary.status === "error" && profile.status === "error";
 
-  // Today's stats derived from weekTrips (reliable client-side dates)
-  const todayStr = new Date().toDateString();
-  const todayTripsArr = weekTrips.filter((t) => new Date(t.startedAt).toDateString() === todayStr);
-  const todayMiles = todayTripsArr.reduce((sum, t) => sum + t.distanceMiles, 0);
-  const todayTripsCount = todayTripsArr.length;
-  const todayDeductionPence = dailyRecap?.deductionPence ?? 0;
+  // The dial: this week's goal if one is set, else the road to the next milestone.
+  const road = profile.lifetimeMiles !== null ? getMilestoneRoadOrStart(profile.lifetimeMiles) : null;
+  let dialProgress = road ? road.progress : 0;
+  let dialLabel: string | null = road ? `${Math.max(1, Math.round(road.milesToGo)).toLocaleString("en-GB")} miles to ${road.next.label}` : null;
+  if (goal && period === "week" && offset === 0 && summary.current) {
+    dialProgress = summary.current.miles / goal;
+    dialLabel =
+      dialProgress >= 1
+        ? "Goal reached"
+        : `${Math.round(dialProgress * 100)}% of ${Math.round(goal).toLocaleString("en-GB")} mi goal`;
+  }
+
+  const earnedTypes = useMemo(() => new Set(profile.achievements.map((a) => a.type)), [profile.achievements]);
+  const tripsEver = profile.lifetimeTrips ?? stats?.totalTrips ?? null;
+  const firstWeek = tripsEver !== null && tripsEver < 10;
+
+  const summaryCard = (
+    <PeriodSummaryCard
+      mode={mode}
+      period={period}
+      offset={offset}
+      range={range}
+      summary={summary}
+      bars={bars}
+      tripsEver={tripsEver}
+      isPro={isPro}
+      avatarId={user?.avatarId}
+      region={stats?.region}
+      dialProgress={dialProgress}
+      dialLabel={dialLabel}
+      celebration={celebration}
+      reducedMotion={reducedMotion}
+      onUpsell={() => showPaywall("insights_compare")}
+      onHelp={() => router.push("/help" as never)}
+    />
+  );
+
+  const comingUp = (
+    <ComingUpCard
+      mode={mode}
+      loading={profile.status === "loading"}
+      lifetimeMiles={profile.lifetimeMiles}
+      lifetimeTrips={profile.lifetimeTrips}
+      stats={stats}
+      earnedTypes={earnedTypes}
+      tripDates={weekDates.status === "ready" ? weekDates.dates : null}
+      hideStreak={isCompanyDriver}
+      hasWeeklyGoal={goal !== null}
+      avatarId={user?.avatarId}
+      reducedMotion={reducedMotion}
+      onOpenAchievements={() => router.push("/achievements")}
+      onSetGoal={() => router.push("/settings/work-tax" as never)}
+    />
+  );
+
+  // Records and badges wait for 10 trips (first-week rule); badges show sooner.
+  const recordsAndBadges = (
+    <>
+      {!firstWeek && (
+        <RecordsCard mode={mode} records={records} loading={profile.status === "loading"} range={range} />
+      )}
+      <BadgesRow
+        achievements={profile.achievements}
+        stats={
+          stats
+            ? {
+                totalMiles: profile.lifetimeMiles ?? stats.totalMiles,
+                totalTrips: profile.lifetimeTrips ?? stats.totalTrips,
+                totalShifts: stats.totalShifts,
+                longestStreakDays: stats.longestStreakDays,
+              }
+            : null
+        }
+        mode={mode}
+        loading={profile.status === "loading"}
+        onSeeAll={() => router.push("/achievements")}
+      />
+    </>
+  );
+
+  const toSort = isWork && isCompanyDriver && stats && (stats.unclassifiedTrips ?? 0) > 0 ? stats.unclassifiedTrips ?? 0 : 0;
 
   return (
     <View style={styles.container}>
@@ -161,336 +210,107 @@ export default function InsightsScreen() {
           arrow; in Personal mode it is a tab. */}
       <AppHeader title="Insights" showBack={isWork} />
 
-      {/* Recap Modal */}
-      <AppModal
-        visible={showRecap}
-        animationType="slide"
-        onRequestClose={() => setShowRecap(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet} accessibilityViewIsModal={true}>
-            <View style={styles.modalHandle} accessible={false} />
-            <Text style={styles.modalTitle}>
-              {recapData?.period === "daily" ? "Daily" : recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
-            </Text>
-            {recapData && (
-              <>
-                <Text style={styles.recapSubtitle}>{recapData.label}</Text>
-                <View style={styles.recapGrid}>
-                  <View style={styles.recapCell}>
-                    <Text style={styles.recapNum}>{recapData.totalMiles.toFixed(1)}</Text>
-                    <Text style={styles.recapUnit}>miles</Text>
-                  </View>
-                  <View style={styles.recapCell}>
-                    <Text style={styles.recapNum}>{recapData.totalTrips}</Text>
-                    <Text style={styles.recapUnit}>trips</Text>
-                  </View>
-                  <View style={styles.recapCell}>
-                    <Text style={styles.recapNum}>{formatPence(recapData.deductionPence)}</Text>
-                    <Text style={styles.recapUnit}>deduction</Text>
-                  </View>
-                </View>
-                {recapData.busiestDayLabel && (
-                  <Text style={styles.recapDetail}>
-                    Busiest day: {recapData.busiestDayLabel} ({recapData.busiestDayMiles.toFixed(1)} mi)
-                  </Text>
-                )}
-                <View style={styles.recapBtnRow}>
-                  <Button variant="secondary" title="Share" icon="share-outline" onPress={handleShareRecap} />
-                  <Button title="Close" icon="checkmark" onPress={() => setShowRecap(false)} />
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </AppModal>
-
       <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={AMBER} />}
+        ref={scrollRef}
+        stickyHeaderIndices={[0]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.amber} />}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Overview | Trends */}
-        <View style={styles.segmented} accessibilityRole="tablist">
-          {(["overview", "trends"] as const).map((key) => {
-            const active = segment === key;
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[styles.segment, active && styles.segmentActive]}
-                onPress={() => setSegment(key)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 2, bottom: 2 }}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={key === "overview" ? "Overview" : "Trends"}
-              >
-                <Text
-                  style={[styles.segmentLabel, active && styles.segmentLabelActive]}
-                  numberOfLines={1}
-                  maxFontSizeMultiplier={1.3}
+        <PeriodSwitch
+          period={period}
+          onPeriodChange={changePeriod}
+          offset={offset}
+          onOffsetChange={setOffset}
+          range={range}
+        />
+
+        <View style={styles.content}>
+          {everythingFailed ? (
+            <ErrorState
+              title="Couldn't load your insights"
+              description={
+                isOnline()
+                  ? "Check your connection and pull down to try again."
+                  : "You're offline. Pull down to try again when you're back online."
+              }
+              onRetry={handleRefresh}
+            />
+          ) : (
+            <>
+              {summaryCard}
+
+              {toSort > 0 && (
+                <TouchableOpacity
+                  style={styles.toSort}
+                  onPress={() => router.push("/(tabs)/trips")}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${toSort} ${toSort === 1 ? "trip" : "trips"} to sort. Opens trips`}
                 >
-                  {key === "overview" ? "Overview" : "Trends"}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
+                  <Ionicons name="funnel-outline" size={16} color={colors.text2} />
+                  <Text style={styles.toSortText} maxFontSizeMultiplier={fontScaleCap.body}>
+                    {toSort} {toSort === 1 ? "trip" : "trips"} to sort
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={colors.text3} />
+                </TouchableOpacity>
+              )}
+
+              {isWork ? (
+                <WorkSection
+                  period={period}
+                  offset={offset}
+                  mode={mode}
+                  isPro={isPro}
+                  isCompanyDriver={isCompanyDriver}
+                  comingUp={comingUp}
+                  recordsAndBadges={recordsAndBadges}
+                />
+              ) : (
+                <PersonalSection
+                  period={period}
+                  offset={offset}
+                  mode={mode}
+                  isPro={isPro}
+                  comingUp={comingUp}
+                  runningCosts={
+                    <>
+                      <FuelSummaryCard
+                        monthMiles={running.monthMiles}
+                        estimatedMpg={running.vehicle?.estimatedMpg ?? running.vehicle?.actualMpg ?? null}
+                        fuelType={running.vehicle?.fuelType ?? null}
+                      />
+                      <ChargingSummaryCard
+                        monthMiles={running.monthMiles}
+                        milesPerKwh={(running.vehicle as { milesPerKwh?: number | null } | null)?.milesPerKwh ?? null}
+                        fuelType={running.vehicle?.fuelType ?? null}
+                      />
+                    </>
+                  }
+                  recordsAndBadges={recordsAndBadges}
+                />
+              )}
+            </>
+          )}
+          <View style={{ height: 40 }} />
         </View>
-
-        {segment === "trends" ? (
-          <TrendsView refreshToken={trendsToken} onRefreshed={handleTrendsRefreshed} />
-        ) : loadFailed ? (
-          <ErrorState
-            title="Couldn't load your insights"
-            description={
-              isOnline()
-                ? "Check your connection and pull down to try again."
-                : "You're offline. Pull down to try again when you're back online."
-            }
-            onRetry={loadData}
-          />
-        ) : (
-          <>
-        {/* Recaps */}
-        <View style={styles.recapRow}>
-          <TouchableOpacity style={styles.recapBtn} onPress={() => handleRecap("daily")} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="View today's recap">
-            <Ionicons name="today-outline" size={16} color={AMBER} />
-            <Text style={styles.recapBtnLabel}>Today</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.recapBtn}
-            onPress={() => handleRecap("weekly")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="View this week's recap"
-          >
-            <Ionicons name="calendar-outline" size={16} color={AMBER} />
-            <Text style={styles.recapBtnLabel}>Week</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.recapBtn}
-            onPress={() => handleRecap("monthly")}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="View this month's recap"
-          >
-            <Ionicons name="calendar-outline" size={16} color={AMBER} />
-            <Text style={styles.recapBtnLabel}>Month</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Business Insights (work mode) — premium */}
-        {isWork && !isCompanyDriver && (
-          <PremiumGate feature="Business Insights">
-            <BusinessInsightsCard />
-            <PlatformPnLCard days={30} />
-            <BusinessRecapCard />
-          </PremiumGate>
-        )}
-
-        {/* Personal Insights (personal mode) */}
-        {isPersonal && <WeeklyActivity days={weekDays} />}
-        {isPersonal && <DrivingGoals weekMiles={weekMiles} />}
-        {isPersonal && (
-          <FuelSummaryCard
-            monthMiles={monthMiles}
-            estimatedMpg={mpg}
-            fuelType={primaryVehicle?.fuelType ?? null}
-          />
-        )}
-        {isPersonal && (
-          <ChargingSummaryCard
-            monthMiles={monthMiles}
-            milesPerKwh={(primaryVehicle as { milesPerKwh?: number | null })?.milesPerKwh ?? null}
-            fuelType={primaryVehicle?.fuelType ?? null}
-          />
-        )}
-        {isPersonal && (
-          <PersonalRecapCard
-            monthMiles={monthMiles}
-            monthTrips={monthTrips}
-            prevMonthMiles={prevMonthMiles}
-            prevMonthTrips={prevMonthTrips}
-            busiestDay={busiestDay}
-            avgTripMiles={avgTripMiles}
-            monthLabel={monthLabel}
-            totalMiles={stats?.totalMiles ?? 0}
-            deductionPence={stats?.deductionPence ?? 0}
-            yearMiles={stats?.totalMiles ?? 0}
-            yearTrips={stats?.totalTrips ?? 0}
-            yearDeductionPence={stats?.deductionPence ?? 0}
-            yearBusinessMiles={stats?.businessMiles ?? 0}
-            taxYear={stats?.taxYear ?? ""}
-            yearBusiestMonth={yearBusiestMonth}
-            todayMiles={todayMiles}
-            todayTrips={todayTripsCount}
-            todayDeductionPence={todayDeductionPence}
-            region={stats?.region}
-          />
-        )}
-        {isPersonal && trips.length > 0 && (
-          <PremiumGate feature="Journey Timeline">
-            <JourneyTimeline trips={trips} />
-          </PremiumGate>
-        )}
-
-        {/* Achievements (both modes) */}
-        {(achievements.length > 0 || loaded) && (
-          <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <Text style={styles.sectionTitle}>Achievements</Text>
-              <TouchableOpacity onPress={() => router.push("/achievements")} accessibilityRole="button" accessibilityLabel="See all achievements">
-                <Text style={styles.seeAll}>See all</Text>
-              </TouchableOpacity>
-            </View>
-            {achievements.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyCardText}>
-                  No badges yet. Your first one comes with your first trip.
-                </Text>
-              </View>
-            ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.badgeScroll}>
-              {achievements.slice(0, 8).map((a) => (
-                <View key={a.id} style={styles.badge}>
-                  <Text style={styles.badgeEmoji}>{a.emoji}</Text>
-                  <Text style={styles.badgeLabel} numberOfLines={1}>{a.label}</Text>
-                </View>
-              ))}
-            </ScrollView>
-            )}
-          </View>
-        )}
-
-        {/* Milestones */}
-        {stats && <MilestoneTracker totalMiles={stats.totalMiles} />}
-
-        {/* Personal Records */}
-        {stats && stats.personalRecords.mostMilesInDay > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Personal Records</Text>
-            <View style={styles.recordGrid}>
-              {[
-                { v: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi`, l: "Best day" },
-                { v: `${stats.personalRecords.mostTripsInShift}`, l: "Trips / shift" },
-                { v: `${stats.personalRecords.longestSingleTrip.toFixed(1)} mi`, l: "Longest trip" },
-                { v: `${stats.personalRecords.longestStreakDays}d`, l: "Best streak" },
-              ].map((r) => (
-                <View key={r.l} style={styles.recordCell}>
-                  <Text style={styles.recordValue}>{r.v}</Text>
-                  <Text style={styles.recordLabel}>{r.l}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-          </>
-        )}
-
-        <View style={{ height: 40 }} />
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+  container: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16 },
-  // Recap row
-  recapRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  recapBtn: {
-    flex: 1,
+  toSort: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: CARD_BG,
+    gap: 8,
+    minHeight: 44,
+    backgroundColor: colors.surface,
     borderRadius: 12,
-    paddingVertical: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  recapBtnLabel: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: "#c9d1d9",
-  },
-  recapBtnLocked: {
-    opacity: 0.45,
-    borderColor: "rgba(255,255,255,0.03)",
-  },
-  recapBtnLabelLocked: {
-    color: TEXT_3,
-  },
-  // Overview | Trends control
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: CARD_BG,
-    borderRadius: 999,
-    padding: 3,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  segment: {
-    flex: 1,
-    height: 40,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  segmentActive: { backgroundColor: AMBER },
-  segmentLabel: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_2 },
-  segmentLabelActive: { color: BG },
-  emptyCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  emptyCardText: { fontSize: 14, fontFamily: fonts.regular, color: TEXT_2, lineHeight: 20 },
-  // Sections
-  section: { marginBottom: 16 },
-  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-  sectionTitle: { fontSize: 16, fontFamily: fonts.bold, color: TEXT_1 },
-  seeAll: { fontSize: 13, fontFamily: fonts.semibold, color: AMBER },
-  // Badges
-  badgeScroll: { gap: 10 },
-  badge: {
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderColor: colors.surfaceBorder,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    alignItems: "center",
-    minWidth: 72,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
+    marginBottom: 12,
   },
-  badgeEmoji: { fontSize: 22, marginBottom: 4 },
-  badgeLabel: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_2, textAlign: "center" },
-  // Records
-  recordGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
-  recordCell: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  recordValue: { fontSize: 18, fontFamily: fonts.bold, color: AMBER, marginBottom: 2 },
-  recordLabel: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_3 },
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalSheet: { backgroundColor: CARD_BG, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
-  modalHandle: { width: 36, height: 4, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 2, alignSelf: "center", marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontFamily: fonts.bold, color: TEXT_1, textAlign: "center", marginBottom: 8 },
-  recapSubtitle: { fontSize: 14, fontFamily: fonts.medium, color: TEXT_2, textAlign: "center", marginBottom: 16 },
-  recapGrid: { flexDirection: "row", justifyContent: "space-around", marginBottom: 16 },
-  recapCell: { alignItems: "center" },
-  recapNum: { fontSize: 22, fontFamily: fonts.bold, color: AMBER },
-  recapUnit: { fontSize: 11, fontFamily: fonts.medium, color: TEXT_3, textTransform: "uppercase", letterSpacing: 0.3, marginTop: 2 },
-  recapDetail: { fontSize: 13, fontFamily: fonts.medium, color: TEXT_2, textAlign: "center", marginBottom: 16 },
-  recapBtnRow: { flexDirection: "row", gap: 10 },
+  toSortText: { flex: 1, fontSize: 14, fontFamily: fonts.semibold, color: colors.text1 },
 });

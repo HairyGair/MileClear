@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../../lib/theme";
+import { MILESTONES, type Milestone } from "../../lib/insights/milestones";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -12,26 +13,6 @@ const TEXT_3 = colors.text3;
 interface MilestoneTrackerProps {
   totalMiles: number;
 }
-
-interface Milestone {
-  miles: number;
-  label: string;
-  funFact: string;
-}
-
-const MILESTONES: Milestone[] = [
-  { miles: 10, label: "First Steps", funFact: "London to Brighton (almost!)" },
-  { miles: 50, label: "Getting Going", funFact: "London to Canterbury" },
-  { miles: 100, label: "Century Club", funFact: "London to Bristol" },
-  { miles: 250, label: "Road Warrior", funFact: "London to Manchester" },
-  { miles: 500, label: "Explorer", funFact: "London to Edinburgh" },
-  { miles: 1000, label: "Mile Master", funFact: "Land's End to John o' Groats" },
-  { miles: 2500, label: "Distance King", funFact: "London to Marrakech" },
-  { miles: 5000, label: "Globe Trotter", funFact: "London to New York (by air)" },
-  { miles: 10000, label: "Legend", funFact: "Halfway around the world" },
-  { miles: 25000, label: "Orbital", funFact: "Around the entire Earth" },
-  { miles: 50000, label: "Cosmic", funFact: "Twice around the Earth" },
-];
 
 export function MilestoneTracker({ totalMiles }: MilestoneTrackerProps) {
   if (totalMiles < 5) return null;
