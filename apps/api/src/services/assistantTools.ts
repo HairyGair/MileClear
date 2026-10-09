@@ -16,6 +16,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { claimValuePence, employerRatesFor, type RatedTrip } from "../lib/mileageRates.js";
 import { messageTheTeam } from "./assistantMessage.js";
+import { HELP_AREAS, helpForArea } from "./assistantHelp.js";
+import { getProEntitlement, PERSONAL_PRO_SELECT } from "./proEntitlement.js";
 import { lookupExpense } from "./expenseBank.js";
 import { fetchExpenseSummary } from "./export-data.js";
 import { buildTaxSnapshot } from "./taxSnapshot.js";
@@ -694,6 +696,104 @@ async function canIClaim(userId: string, raw: unknown, now: Date) {
   return result;
 }
 
+// ── trips_list ─────────────────────────────────────────────────────────────
+
+/** Short enough for "did my trip on Tuesday record?" without dumping a month. */
+const TRIPS_LIST_MAX_DAYS = 7;
+const TRIPS_LIST_MAX_ROWS = 60;
+
+const tripsListSchema = checkRange(
+  z.object({ ...rangeShape }).strict()
+).superRefine((v, ctx) => {
+  if (isRealDay(v.from) && isRealDay(v.to) && (dayToUtc(v.to) - dayToUtc(v.from)) / 86_400_000 >= TRIPS_LIST_MAX_DAYS) {
+    ctx.addIssue({ code: "custom", message: `List at most ${TRIPS_LIST_MAX_DAYS} days at a time. Use mileage_summary for longer periods.` });
+  }
+});
+
+/** "14:05" in London time. */
+function londonTime(d: Date): string {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+}
+
+async function tripsList(userId: string, raw: unknown) {
+  const input = tripsListSchema.parse(raw);
+  const rows = await prisma.trip.findMany({
+    where: { userId, isPhantomTrip: false, startedAt: instantBounds(input.from, input.to) },
+    select: { startedAt: true, endedAt: true, distanceMiles: true, classification: true, platformTag: true, isManualEntry: true },
+    orderBy: { startedAt: "asc" },
+    take: TRIPS_LIST_MAX_ROWS + 1,
+  });
+  const shown = rows.slice(0, TRIPS_LIST_MAX_ROWS);
+  return {
+    period: periodOf(input.from, input.to),
+    trip_count: shown.length,
+    trips: shown.map((t) => ({
+      day: dayLabel(londonDayKey(t.startedAt)),
+      start: londonTime(t.startedAt),
+      end: t.endedAt ? londonTime(t.endedAt) : null,
+      miles: miles(t.distanceMiles),
+      classification: t.classification === "unclassified" ? "not sorted yet" : t.classification,
+      platform: t.platformTag ? PLATFORM_LABEL.get(t.platformTag) ?? t.platformTag : null,
+      added_by_hand: t.isManualEntry,
+    })),
+    ...(rows.length > TRIPS_LIST_MAX_ROWS ? { note: `Only the first ${TRIPS_LIST_MAX_ROWS} trips are shown. Ask about fewer days.` } : {}),
+    about:
+      "Only trips saved to the driver's account are listed. A drive can still be on their phone waiting to upload, or arrive later; places and routes are not available here.",
+  };
+}
+
+// ── account_status ─────────────────────────────────────────────────────────
+
+const FREE_VEHICLES = 1;
+const FREE_SAVED_PLACES = 2;
+
+const accountStatusSchema = z.object({}).strict();
+
+async function accountStatus(userId: string, raw: unknown) {
+  accountStatusSchema.parse(raw);
+  const [user, vehicles, places, toSort, lastTrip, firstTrip] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { ...PERSONAL_PRO_SELECT, workType: true, dashboardMode: true, createdAt: true } }),
+    prisma.vehicle.count({ where: { userId } }),
+    prisma.savedLocation.count({ where: { userId } }),
+    prisma.trip.count({ where: { userId, isPhantomTrip: false, classification: "unclassified" } }),
+    prisma.trip.findFirst({ where: { userId, isPhantomTrip: false }, orderBy: { startedAt: "desc" }, select: { startedAt: true } }),
+    prisma.trip.findFirst({ where: { userId, isPhantomTrip: false }, orderBy: { startedAt: "asc" }, select: { startedAt: true } }),
+  ]);
+  if (!user) throw new ToolInputError("No account found.");
+  const pro = await getProEntitlement(userId, user);
+  const sourceText: Record<string, string> = {
+    subscription: "their own subscription",
+    referral: "free months from inviting friends",
+    team: "their employer's team",
+    partner: "a partner offer",
+    none: "not Pro",
+  };
+  return {
+    pro: {
+      active: pro.isPro,
+      from: sourceText[pro.source] ?? pro.source,
+      until: pro.until ? dayLabel(londonDayKey(pro.until)) : null,
+      note: "If Pro comes from a subscription, the date is when the paid period ends or renews.",
+    },
+    work_type: user.workType,
+    dashboard_mode: user.dashboardMode,
+    joined: dayLabel(londonDayKey(user.createdAt)),
+    vehicles: { count: vehicles, free_plan_limit: FREE_VEHICLES },
+    saved_places: { count: places, free_plan_limit: FREE_SAVED_PLACES },
+    trips_not_sorted_yet: toSort,
+    first_trip: firstTrip ? dayLabel(londonDayKey(firstTrip.startedAt)) : null,
+    latest_trip: lastTrip ? `${dayLabel(londonDayKey(lastTrip.startedAt))} at ${londonTime(lastTrip.startedAt)}` : null,
+  };
+}
+
+// ── mileclear_help ─────────────────────────────────────────────────────────
+
+const helpSchema = z.object({ area: z.enum(HELP_AREAS) }).strict();
+
+async function mileclearHelp(raw: unknown) {
+  return helpForArea(helpSchema.parse(raw).area);
+}
+
 // ── Registry ───────────────────────────────────────────────────────────────
 
 export class ToolInputError extends Error {}
@@ -789,6 +889,41 @@ export const ASSISTANT_TOOLS = [
     },
   },
   {
+    name: "trips_list",
+    description:
+      "The driver's individual trips between two dates (at most 7 days): day, start and end time (UK), miles, Business/Personal/not sorted yet, platform, and whether it was added by hand. Use it for questions about particular trips, such as whether a drive was recorded. No places or routes.",
+    input_schema: {
+      type: "object",
+      properties: { ...dateProps },
+      required: ["from", "to"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "account_status",
+    description:
+      "The driver's account: whether Pro is on, where it comes from and until when, work type, number of vehicles and saved places against the free plan limits, how many trips are not sorted yet, and the dates of their first and latest trips.",
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "mileclear_help",
+    description:
+      "How MileClear works: where things are in the app, what each feature does, what is free or Pro, and what to do when something goes wrong (missing trips, permissions, billing, account). Returns the written answers for one area. Use it for every question about using the app; never describe a screen, setting or feature that it does not return.",
+    input_schema: {
+      type: "object",
+      properties: {
+        area: {
+          type: "string",
+          enum: HELP_AREAS,
+          description:
+            "getting_started; recording_trips (automatic trips, Start Trip, shifts, pause, battery, permissions); missing_or_wrong_trips; managing_trips (classify, add, edit, merge, split, delete, odometer); tax_and_claims; money (earnings, expenses, receipts, bank, invoices, fuel, fines); vehicles_and_places; pro_and_billing; account_and_app (sign-in, deleting, data, updates, website, contacting the team, EmSee); insights_and_alerts.",
+        },
+      },
+      required: ["area"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "message_the_team",
     description:
       "Pass a message from the driver to Anthony and the MileClear team: a suggestion for the app, a problem or bug they have hit, or anything they ask you to pass on. Write it in the driver's own words, with the details they gave. The team replies by email. Only use it when the driver makes a suggestion, reports a problem, or asks you to pass something on.",
@@ -816,6 +951,9 @@ const EXECUTORS: Record<AssistantToolName, Executor> = {
   best_worst_week: (u, i) => bestWorstWeek(u, i),
   tax_year_figures: taxYearFigures,
   can_i_claim: canIClaim,
+  trips_list: (u, i) => tripsList(u, i),
+  account_status: (u, i) => accountStatus(u, i),
+  mileclear_help: (_u, i) => mileclearHelp(i),
   message_the_team: messageTheTeam,
 };
 
