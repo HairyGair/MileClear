@@ -50,7 +50,11 @@ export function Row({ main, sub, figure }: { main: ReactNode; sub?: ReactNode; f
 /** Whole pounds for big money figures, pence for small ones. */
 export function pounds(pence: number): string {
   const v = (Number.isFinite(pence) ? pence : 0) / 100;
-  return `£${v.toLocaleString("en-GB", { minimumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2, maximumFractionDigits: Math.abs(v) >= 1000 ? 0 : 2 })}`;
+  const abs = Math.abs(v);
+  const digits = abs >= 1000 ? 0 : 2;
+  const text = abs.toLocaleString("en-GB", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  // Negatives read "-£14.54", never "£-14.54"; a value that rounds to nothing has no sign.
+  return Math.round(v * 100) < 0 && Number(text.replace(/,/g, "")) !== 0 ? `-£${text}` : `£${text}`;
 }
 
 export function miles(value: number): string {

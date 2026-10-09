@@ -2,6 +2,7 @@
 
 import type { SaChecklist, SaChecklistAction } from "@mileclear/shared";
 import { api } from "@/lib/api";
+import { fixRangeText } from "@/components/dashboard/tax/tax-utils";
 import { Button, Card, EmptyState, ErrorState, Icon, PageHeader, Skeleton, StatusChip, useData } from "@/components/dashboard/kit";
 import "@/components/dashboard/tax/tax.css";
 
@@ -52,10 +53,10 @@ export default function ChecklistPage() {
                   </strong>{" "}
                   for your {data.taxYear} return ({data.taxYearLabel}).
                 </p>
-                <p className="mc-tax-text">{data.headline}</p>
+                <p className="mc-tax-text">{fixRangeText(data.headline)}</p>
                 <p className="mc-tax-note">
                   {data.daysToDeadline > 0
-                    ? `${data.daysToDeadline} ${data.daysToDeadline === 1 ? "day" : "days"} until 31 January.`
+                    ? `${data.daysToDeadline} ${data.daysToDeadline === 1 ? "day" : "days"} until 31 January for your ${data.taxYear} return.`
                     : data.daysToDeadline === 0
                       ? "The deadline is today."
                       : "The 31 January deadline has passed."}
@@ -79,7 +80,7 @@ export default function ChecklistPage() {
                           {item.status === "optional" && <StatusChip tone="neutral" label="Optional" />}
                           {item.status === "attention" && <StatusChip tone="amber" label="Needs a look" />}
                         </p>
-                        <p className="mc-tax-text">{item.detail}</p>
+                        <p className="mc-tax-text">{fixRangeText(item.detail)}</p>
                         {!done && item.action && item.actionLabel && (
                           <Button variant="link" size="sm" href={ACTION_HREF[item.action]}>
                             {item.actionLabel}

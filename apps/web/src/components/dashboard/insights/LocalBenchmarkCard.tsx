@@ -27,8 +27,8 @@ function LocalBenchmarkCardImpl({ mode }: { mode: "work" | "personal" }): React.
       <Takeaway>
         {data.peerCount} drivers{data.scopeLabel ? ` in ${data.scopeLabel}` : ""}, the last {data.window.weeks} full weeks.
       </Takeaway>
-      <Row main="Your miles a week" figure={w.you === null ? "Not ranked yet" : miles(w.you)} />
-      <Row main="Typical driver" sub={w.low !== null && w.high !== null ? `Middle half: ${miles(w.low)} to ${miles(w.high)}` : undefined} figure={miles(w.median)} />
+      <Row main={`Your typical week, last ${data.window.weeks} full weeks`} sub={mode === "work" ? "Business miles" : "All miles"} figure={w.you === null ? "Not ranked yet" : miles(w.you)} />
+      <Row main="Typical driver nearby" sub={w.low !== null && w.high !== null ? `Middle half: ${miles(w.low)} to ${miles(w.high)}` : undefined} figure={miles(w.median)} />
       {ahead !== null && (
         <>
           <div className={s.dots} aria-hidden="true">

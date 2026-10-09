@@ -5,7 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
 // fixtures (e2e/fixtures/api.ts), and anything unmocked fails to connect, so
 // the suite can never reach the real API or database.
 export const FAKE_API = "http://127.0.0.1:3999";
-const PORT = 3100;
+const PORT = Number(process.env.PW_PORT ?? 3100);
 
 export default defineConfig({
   testDir: ".",

@@ -191,7 +191,7 @@ function PlanPage() {
       <Card>
         <div className={styles.fields}>
           <StatusChip tone="green" label="Pro" />
-          <p className={styles.lead}>You&apos;re on Pro.</p>
+          <p className={styles.lead}>{periodEnd ? `You're on Pro until ${formatDay(periodEnd)}.` : "You're on Pro."}</p>
         </div>
       </Card>
     );

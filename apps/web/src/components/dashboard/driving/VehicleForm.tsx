@@ -82,6 +82,8 @@ export function VehicleForm({
   const [lookingUp, setLookingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lookupMsg, setLookupMsg] = useState<string | null>(null);
+  // The DVLA warning waits until the driver has pressed Look up.
+  const [lookedUp, setLookedUp] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((s) => ({ ...s, [k]: v }));
@@ -97,6 +99,7 @@ export function VehicleForm({
     }
     setLookingUp(true);
     setLookupMsg(null);
+    setLookedUp(true);
     try {
       const res = await api.post<{ data: Record<string, unknown> }>("/vehicles/lookup", { registrationNumber: reg });
       const v = res.data ?? {};
@@ -206,7 +209,7 @@ export function VehicleForm({
             </Button>
             {lookupMsg && <span className={styles.hint} role="status">{lookupMsg}</span>}
           </div>
-          {editing && vehicle?.dvlaPlateProblem && !plateChanged && f.plate && (
+          {editing && lookedUp && vehicle?.dvlaPlateProblem && !plateChanged && f.plate && (
             <div className={`${styles.notice} ${styles.noticeWarn}`} role="alert">
               {vehicle.dvlaPlateProblem === "not_found"
                 ? "The DVLA has no record of this plate, so we can't remind you about MOT and tax. Check it matches your logbook."

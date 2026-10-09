@@ -377,11 +377,11 @@ test.describe("desktop 1440", () => {
     await dialog.getByRole("button", { name: "Delete my account" }).click();
     await expect(dialog.getByText("Password is required")).toBeVisible();
     await dialog.getByLabel("Your password").fill("right-pass");
-    await page.route("http://localhost:3100/", (r) => r.fulfill({ contentType: "text/html", body: "<p>home</p>" }));
+    await page.route(`http://localhost:${process.env.PW_PORT ?? 3100}/`, (r) => r.fulfill({ contentType: "text/html", body: "<p>home</p>" }));
     await dialog.getByRole("button", { name: "Delete my account" }).click();
     await expect.poll(() => seen.filter((r) => r.path === "/user/account").length).toBe(2);
     expect(seen[1].body).toEqual({ password: "right-pass" });
-    await expect(page).toHaveURL("http://localhost:3100/");
+    await expect(page).toHaveURL(`http://localhost:${process.env.PW_PORT ?? 3100}/`);
   });
 
   test("copy sweep over the settings pages", async ({ page }) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { ACHIEVEMENT_META, ACHIEVEMENT_TYPES, formatMiles } from "@mileclear/shared";
+import { ACHIEVEMENT_META, ACHIEVEMENT_TYPES } from "@mileclear/shared";
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { Card, SectionHeader } from "@/components/dashboard/kit/Card";
@@ -13,6 +13,9 @@ import { useData } from "@/lib/dashboard/useData";
 import { formatDay } from "@/lib/dashboard/dates";
 import { noDashes } from "@/components/dashboard/driving/api";
 import styles from "@/components/dashboard/driving/driving.module.css";
+
+/** "168.9": the number only, the tile adds the unit. */
+const miles1 = (v: number) => v.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 
 type Kind = "miles" | "trips" | "shifts" | "streak" | "earned" | "first";
 
@@ -59,7 +62,8 @@ export default function AchievementsPage() {
   const stats = useData("gamification-stats", () => api.get<{ data: GamificationStats }>("/gamification/stats").then((r) => r.data).catch(() => null));
 
   const earnedByType = useMemo(() => new Map((earned.data?.data ?? []).map((a) => [a.type, a])), [earned.data]);
-  const count = earnedByType.size;
+  // Same count as the app: earned badges that are still in the list, out of the whole list.
+  const count = ACHIEVEMENT_TYPES.filter((t) => earnedByType.has(t)).length;
   const total = ACHIEVEMENT_TYPES.length;
   const records = stats.data?.personalRecords;
 
@@ -83,8 +87,8 @@ export default function AchievementsPage() {
             <div className={`${styles.statGrid} ${styles.statGrid4}`}>
               <StatTile label="Current streak" value={`${stats.data.currentStreakDays}`} unit={stats.data.currentStreakDays === 1 ? "day" : "days"} />
               <StatTile label="Best streak" value={`${records?.longestStreakDays ?? stats.data.longestStreakDays}`} unit="days" />
-              <StatTile label="Best day" value={records && records.mostMilesInDay > 0 ? formatMiles(records.mostMilesInDay) : null} unit="mi" note={records?.mostMilesInDayDate ? formatDay(records.mostMilesInDayDate) : undefined} />
-              <StatTile label="Longest trip" value={records && records.longestSingleTrip > 0 ? formatMiles(records.longestSingleTrip) : null} unit="mi" note={records?.longestSingleTripDate ? formatDay(records.longestSingleTripDate) : undefined} />
+              <StatTile label="Best day" value={records && records.mostMilesInDay > 0 ? miles1(records.mostMilesInDay) : null} unit="mi" note={records?.mostMilesInDayDate ? formatDay(records.mostMilesInDayDate) : undefined} />
+              <StatTile label="Longest trip" value={records && records.longestSingleTrip > 0 ? miles1(records.longestSingleTrip) : null} unit="mi" note={records?.longestSingleTripDate ? formatDay(records.longestSingleTripDate) : undefined} />
             </div>
           )}
 

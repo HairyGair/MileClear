@@ -15,7 +15,7 @@ export default function PlacePage({ params }: { params: Promise<{ id: string }> 
   const place = useData(`place-${id}`, () => api.get<{ data: SavedLocation }>(`/saved-locations/${id}`));
   return (
     <>
-      <PageHeader title="Saved places" back={{ href: "/dashboard/places", label: "Saved places" }} />
+      <PageHeader title={place.data?.data.name ?? "Saved place"} back={{ href: "/dashboard/places", label: "Saved places" }} />
       {place.loading && !place.data ? (
         <Skeleton variant="card" />
       ) : place.error && !place.data ? (

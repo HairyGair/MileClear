@@ -21,6 +21,8 @@ export interface TripRowProps {
   onKeepBoth: (trip: TripItem) => void;
 }
 
+const CHECK_HINT = "MileClear is less sure whether this was business or personal. Open the trip to check it.";
+
 /** One trip in the list. The row opens the trip; the small actions underneath never navigate. */
 export function TripRow({
   trip,
@@ -38,7 +40,7 @@ export function TripRow({
   const word = CLASSIFICATION_WORD[trip.classification];
   const hasNote = !!trip.notes && trip.notes.trim().length > 0;
   const level = trip.confidence?.level;
-  const check = level === "low" || level === "medium";
+  const check = level === "low";
   const platform = showPlatform && trip.classification === "business" ? platformLabel(trip.platformTag) : "";
   const times = trip.endedAt ? `${formatTime(trip.startedAt)} to ${formatTime(trip.endedAt)}` : formatTime(trip.startedAt);
   const undo = canUndoAuto(trip);
@@ -67,7 +69,12 @@ export function TripRow({
               <span className="mc-sr-only">Has a note</span>
             </span>
           )}
-          {check && <StatusChip tone="amber" label="Check this" />}
+          {check && (
+            <span title={CHECK_HINT} className="mc-trip__check">
+              <StatusChip tone="amber" label="Check this" />
+              <span className="mc-sr-only">. {CHECK_HINT}</span>
+            </span>
+          )}
         </span>
       </Link>
       {(undo || trip.possibleDuplicateOfId) && (

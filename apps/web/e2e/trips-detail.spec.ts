@@ -375,7 +375,11 @@ test.describe("split", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Split trip");
     await expect(page.getByText("Stopped 14 min")).toBeVisible();
     await expect(page.getByRole("button", { name: "Split into 3 trips" })).toBeVisible();
-    await page.getByLabel(/Stopped 5 min/).uncheck();
+    // Retry until the page has hydrated: under a loaded test machine the
+    // first click can land before React owns the checkbox.
+    await expect(async () => {
+      await page.getByLabel(/Stopped 5 min/).uncheck({ timeout: 2000 });
+    }).toPass({ timeout: 15000 });
     const go = page.getByRole("button", { name: "Split into 2 trips" });
     await go.click();
     const dialog = page.getByRole("dialog", { name: "Split into 2 trips?" });

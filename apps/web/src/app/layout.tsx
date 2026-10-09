@@ -89,7 +89,9 @@ export default function RootLayout({
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
   return (
-    <html lang="en-GB" className={`${sora.variable} ${outfit.variable}`}>
+    // suppressHydrationWarning: the inline script below adds "js-reveal" to
+    // <html> before React hydrates; that difference is expected.
+    <html lang="en-GB" className={`${sora.variable} ${outfit.variable}`} suppressHydrationWarning>
       <body>
         {/* Runs before the rest of the page is parsed, so there is no flash of
             visible-then-hidden content. It does two jobs:

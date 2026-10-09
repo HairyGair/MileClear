@@ -12,6 +12,12 @@ import { OdometerSection } from "@/components/dashboard/driving/OdometerSection"
 import { MotHistory } from "@/components/dashboard/driving/MotHistory";
 import styles from "@/components/dashboard/driving/driving.module.css";
 
+function vehicleName(v: { make?: string | null; model?: string | null; registrationPlate?: string | null; nickname?: string | null } | null): string {
+  if (!v) return "Vehicle";
+  const name = [v.make, v.model].filter(Boolean).join(" ").trim();
+  return name || v.registrationPlate || "Vehicle";
+}
+
 export default function VehiclePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { isPro } = useMe();
@@ -20,7 +26,7 @@ export default function VehiclePage({ params }: { params: Promise<{ id: string }
 
   return (
     <>
-      <PageHeader title="Vehicle" back={{ href: "/dashboard/vehicles", label: "Vehicles" }}>
+      <PageHeader title={vehicleName(vehicle)} back={{ href: "/dashboard/vehicles", label: "Vehicles" }}>
         {vehicle && (vehicle.motExpiryDate || vehicle.taxDueDate) && (
           <span className={styles.muted}>
             {[

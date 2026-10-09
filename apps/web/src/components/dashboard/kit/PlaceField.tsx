@@ -6,7 +6,6 @@ import { api } from "../../../lib/api";
 import { Button } from "./Button";
 import { Dialog } from "./Dialog";
 import { MapView } from "./MapView";
-import { cx } from "./cx";
 
 export interface PlaceValue {
   label: string;
@@ -157,9 +156,9 @@ export function PlaceField({
         </ul>
       )}
       {allowMap && (
-        <button type="button" className={cx("mc-textlink", "mc-place__map")} onClick={() => setMapOpen(true)}>
+        <Button variant="secondary" size="sm" className="mc-place__map" onClick={() => setMapOpen(true)}>
           Pick on map
-        </button>
+        </Button>
       )}
       <Dialog
         open={mapOpen}

@@ -45,7 +45,7 @@ export default function HomePage() {
       <PageHeader title={title} primary={<Button variant="primary" href="/dashboard/trips/new">Add a trip</Button>} />
       <DataQualityBanner />
       <SetupChecklist />
-      <NominateManagerCard />
+      {mode === "work" && <NominateManagerCard />}
       <ProNudge />
 
       {mode === "work" ? (

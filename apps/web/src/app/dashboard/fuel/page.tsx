@@ -18,6 +18,7 @@ import { formatDay } from "@/lib/dashboard/dates";
 import { safeGet, safeSet } from "@/lib/dashboard/mode";
 import { fetchVehicles, fromInputs, toDateInput, toTimeInput, vehicleName } from "@/components/dashboard/driving/api";
 import styles from "@/components/dashboard/driving/driving.module.css";
+import { dedupeStations, stationLabel } from "./stations";
 
 const PAGE_SIZE = 20;
 const POSTCODE_KEY = "mc_fuel_postcode";
@@ -116,7 +117,7 @@ function FuelLogDialog({
       footer={
         <>
           {log && onDelete && (
-            <Button variant="ghost" onClick={() => onDelete(log)}>Delete</Button>
+            <Button variant="destructive" onClick={() => onDelete(log)}>Delete</Button>
           )}
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="primary" loading={saving} onClick={save}>Save</Button>
@@ -196,7 +197,7 @@ function PricesNearYou({ hasEv }: { hasEv: boolean }) {
     }
   }
 
-  const stations = useMemo(() => [...(state?.stations ?? [])].sort((a, b) => a.distanceMiles - b.distanceMiles).slice(0, 20), [state]);
+  const stations = useMemo(() => dedupeStations(state?.stations ?? []).sort((a, b) => a.distanceMiles - b.distanceMiles).slice(0, 20), [state]);
 
   return (
     <div className={styles.stack}>
@@ -236,9 +237,9 @@ function PricesNearYou({ hasEv }: { hasEv: boolean }) {
               rows={stations}
               rowKey={(s) => s.siteId}
               columns={[
-                { key: "stationName", label: "Station", render: (s) => `${s.stationName}${s.brand ? ` (${s.brand})` : ""}` },
-                { key: "petrol", label: "Petrol", align: "right", render: (s) => (s.prices.E10 != null ? `Petrol ${ppl(s.prices.E10)}` : "Petrol no price") },
-                { key: "diesel", label: "Diesel", align: "right", render: (s) => (s.prices.B7 != null ? `Diesel ${ppl(s.prices.B7)}` : "Diesel no price") },
+                { key: "stationName", label: "Station", render: (s) => stationLabel(s) },
+                { key: "petrol", label: "Petrol, a litre", align: "right", render: (s) => (s.prices.E10 != null ? ppl(s.prices.E10) : "No price") },
+                { key: "diesel", label: "Diesel, a litre", align: "right", render: (s) => (s.prices.B7 != null ? ppl(s.prices.B7) : "No price") },
                 { key: "distanceMiles", label: "Distance", align: "right", render: (s) => `${s.distanceMiles.toFixed(1)} mi` },
               ]}
             />

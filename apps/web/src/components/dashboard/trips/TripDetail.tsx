@@ -67,7 +67,18 @@ export function TripDetail({ id }: { id: string }) {
   const toast = useToast();
   const me = useMe();
   const unclassified = useUnclassifiedCount();
-  const trip = useData<TripDetailData>(`trip:${id}`, () => api.get<{ data: TripDetailData }>(`/trips/${id}`).then((r) => r.data));
+  const trip = useData<TripDetailData>(`trip:${id}`, async () => {
+    // The trip can briefly 503 right after it is saved. Try again before showing an error.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return (await api.get<{ data: TripDetailData }>(`/trips/${id}`)).data;
+      } catch (e) {
+        const transient = isApiError(e) && (e.statusCode === 502 || e.statusCode === 503 || e.statusCode === 504);
+        if (!transient || attempt >= 2) throw e;
+        await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      }
+    }
+  });
   const places = useData<SavedLocation[]>("trips:places", () =>
     api.get<{ data: SavedLocation[] }>("/saved-locations").then((r) => r.data ?? [])
   );
@@ -318,7 +329,7 @@ export function TripDetail({ id }: { id: string }) {
             </dl>
           </Card>
 
-          {caz.length > 0 && <CazNotice tripId={t.id} charges={caz} startedAt={t.startedAt} vehicleId={t.vehicleId} isPro={me.isPro} />}
+          {caz.length > 0 && <CazNotice tripId={t.id} charges={caz} startedAt={t.startedAt} vehicleId={t.vehicleId} isPro={me.isPro} canLog={t.classification !== "personal"} />}
 
           {merge && (
             <MergeNotice
@@ -513,12 +524,15 @@ function CazNotice({
   startedAt,
   vehicleId,
   isPro,
+  canLog = true,
 }: {
   tripId: string;
   charges: CazCharge[];
   startedAt: string;
   vehicleId: string | null;
   isPro: boolean;
+  /** A charge on a Personal trip is not an allowable expense, so there is nothing to log. */
+  canLog?: boolean;
 }) {
   const toast = useToast();
   const [logged, setLogged] = useState<string[]>([]);
@@ -567,7 +581,7 @@ function CazNotice({
             You drove through {c.name}. Charge <span className="mc-num">{formatPence(c.chargePence)}</span>.
           </p>
           <div className="mc-notice__row">
-            {logged.includes(c.zoneId) ? (
+            {!canLog ? null : logged.includes(c.zoneId) ? (
               <Button variant="secondary" icon="checkmark-circle-outline" disabled>
                 Charge logged
               </Button>

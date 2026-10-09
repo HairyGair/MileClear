@@ -31,7 +31,7 @@ export function MotHistory({ vehicle }: { vehicle: VehicleRow }) {
       ) : error ? (
         <CardError onRetry={reload} />
       ) : tests.length === 0 ? (
-        <EmptyState size="card" icon="document-text-outline" title="No MOT history found" body="New cars don't need an MOT for 3 years." />
+        <EmptyState size="card" icon="document-text-outline" title="No MOT history found for this vehicle" body="New cars don't need an MOT for 3 years." />
       ) : (
         <div>
           {tests.map((t) => {

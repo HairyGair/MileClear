@@ -15,6 +15,7 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+  title: { absolute: "MileClear" },
   robots: {
     index: false,
     follow: false,

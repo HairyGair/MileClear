@@ -38,7 +38,7 @@ const PRESETS: PeriodPreset[] = ["thisWeek", "thisMonth", "lastMonth", "thisTaxY
 
 function shortYmd(ymd: string): string {
   const d = new Date(`${ymd}T12:00:00`);
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }).replace(/\bSept\b/g, "Sep");
 }
 
 /** "Last tax year" when the range is a preset, otherwise "9 Oct to 20 Oct". */

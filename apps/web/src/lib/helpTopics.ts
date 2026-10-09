@@ -293,6 +293,11 @@ export const HELP_SECTIONS: HelpSection[] = [
         a: "Once you've added a vehicle by plate, MileClear refreshes the DVLA / DVSA data weekly. Push notification 14 days before either expires, with the exact date and a deep link to gov.uk to renew. Free feature.\n\nWorks for both MOT (annual roadworthiness test) and road tax (vehicle excise duty). If we get the dates wrong, tap the notification → Report issue → Anthony reads them and updates the cache.",
       },
       {
+        id: "odometer-log",
+        q: "What is the Odometer log?",
+        a: "Your odometer reading at the start and end of each driving day, with the business and personal miles between them. Open it from a vehicle (Vehicles → tap a vehicle → Odometer) or from the Odometer page on the website. Exports → Odometer log (Pro) gives you the same thing as a CSV.\n\nEach figure is labelled \"Recorded\" or \"est.\". Recorded means it came from a reading you typed in, or an odometer figure on a trip or a fuel log. Estimated means we worked it out from your last reading plus the trips MileClear has recorded since.\n\nA new reading resets the estimate. Add a reading from the vehicle screen (Update reading) and everything after it is counted from there, so small errors from GPS or a short drive that wasn't recorded don't build up. If a day shows \"Readings differ from trips\", your odometer moved by a different amount to the trips we recorded.\n\nA reading can't be lower than an earlier one for the same vehicle. If an earlier reading was wrong, delete it first.",
+      },
+      {
         id: "mpg-tracking",
         q: "What's MPG used for?",
         a: "Two things. First, the Personal dashboard estimates your fuel cost per mile from MPG + current fuel prices, so you can see total driving costs at a glance. Second, the per-shift fuel-cost estimate (when you haven't logged actual fuel) uses MPG to apportion fuel by miles driven.\n\nMPG entry is rough on day one. As you log fuel fill-ups with odometer readings, MileClear refines it from the actual miles-per-litre maths.",

@@ -50,12 +50,12 @@ export function PlaceForm({
   const [type, setType] = useState<LocationType>(place?.locationType ?? initial?.type ?? "home");
   const [spot, setSpot] = useState<PlaceValue | null>(
     place
-      ? { label: "Saved spot", lat: place.latitude, lng: place.longitude }
+      ? { label: `${place.latitude.toFixed(5)}, ${place.longitude.toFixed(5)}`, lat: place.latitude, lng: place.longitude }
       : initial?.lat != null && initial?.lng != null
         ? { label: initial.name ?? "Chosen spot", lat: initial.lat, lng: initial.lng }
         : null
   );
-  const [radius, setRadius] = useState(place?.radiusMeters ?? 150);
+  const [radius, setRadius] = useState(place?.radiusMeters ?? 200);
   const [mapRadius, setMapRadius] = useState(radius);
   const [geofence, setGeofence] = useState(place?.geofenceEnabled ?? true);
   const [rec, setRec] = useState<Recommendation | null>(null);
@@ -189,7 +189,7 @@ export function PlaceForm({
           fitTo="markers"
           markers={hasPoint ? [{ lat: spot!.lat!, lng: spot!.lng!, kind: "place" }] : []}
           circles={hasPoint ? [{ lat: spot!.lat!, lng: spot!.lng!, radiusM: mapRadius }] : []}
-          onClick={(lat, lng) => setSpot({ label: spot?.label && spot.lat != null ? spot.label : "Pin on map", lat, lng })}
+          onClick={(lat, lng) => setSpot({ label: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, lat, lng })}
         />
         <p className={styles.hint}>Your phone uses these to sort trips and name them.</p>
       </div>

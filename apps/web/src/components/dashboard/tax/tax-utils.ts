@@ -15,12 +15,14 @@ export function longDate(iso: string): string {
 
 /** "31 Jan 2028" from an ISO instant, in UK time. */
 export function shortDateYear(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "Europe/London",
-  });
+  return new Date(iso)
+    .toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "Europe/London",
+    })
+    .replace(/\bSept\b/g, "Sep");
 }
 
 export function messageOf(err: unknown, fallback = "Something went wrong. Try again."): string {
@@ -47,4 +49,9 @@ export async function downloadFile(path: string, filename: string): Promise<void
 
 export function todayStamp(): string {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+/** The API writes "between 6 April 2025 to 5 April 2026". Read it as "from ... to ...". */
+export function fixRangeText(text: string): string {
+  return text.replace(/\bbetween (\d{1,2} [A-Z][a-z]+ \d{4}) to /gi, "from $1 to ");
 }

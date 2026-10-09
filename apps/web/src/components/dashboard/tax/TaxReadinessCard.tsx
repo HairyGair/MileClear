@@ -5,7 +5,7 @@ import type { TaxSnapshot } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { Card, CardError, EmptyState, ErrorState, Figure, Skeleton, formatPence, useData, useMe } from "@/components/dashboard/kit";
 import { Derivation } from "./Derivation";
-import { shortDateYear } from "./tax-utils";
+import { fixRangeText, shortDateYear } from "./tax-utils";
 import "./tax.css";
 
 /**
@@ -107,7 +107,7 @@ export function TaxReadinessCard({ mode, hub = false }: { mode: "work" | "person
               {left.accountantWeeklyFeePence ? `, plus ${formatPence(left.accountantWeeklyFeePence)} for your accountant` : ""}
             </p>
             <p className="mc-tax-note">
-              Due {shortDateYear(data.filingDeadline)}
+              {data.taxYear} return due {shortDateYear(data.filingDeadline)}
               {days >= 0 ? `, ${days} ${days === 1 ? "day" : "days"} to go` : `, ${-days} ${days === -1 ? "day" : "days"} ago`}
             </p>
           </div>
@@ -162,7 +162,7 @@ export function TaxReadinessCard({ mode, hub = false }: { mode: "work" | "person
         <ul className="mc-tax-todo" aria-label="Still to do">
           {todo.map((i) => (
             <li key={i.id}>
-              <strong>{i.label}.</strong> {i.hint}
+              <strong>{i.label}.</strong> {fixRangeText(i.hint ?? "")}
             </li>
           ))}
         </ul>

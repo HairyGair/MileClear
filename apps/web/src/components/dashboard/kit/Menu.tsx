@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { ProChip } from "./Pro";
 import { cx } from "./cx";
 
@@ -38,6 +38,26 @@ export function Menu({
   const wrap = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const id = useId();
+  const pop = useRef<HTMLDivElement>(null);
+  const [place, setPlace] = useState<{ up: boolean; maxH?: number }>({ up: false });
+
+  // Keep the popover inside the viewport: flip upward when there is more room
+  // above, and cap the height (the menu scrolls) when neither side fits it.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const p = pop.current;
+    const b = btn.current;
+    if (!p || !b) return;
+    const margin = 12;
+    const gap = 8;
+    const h = p.scrollHeight + 2;
+    const r = b.getBoundingClientRect();
+    const below = window.innerHeight - r.bottom - gap - margin;
+    const above = r.top - gap - margin;
+    const up = h > below && above > below;
+    const room = up ? above : below;
+    setPlace({ up, maxH: h > room ? Math.max(120, room) : undefined });
+  }, [open]);
 
   const focusables = () =>
     Array.from(wrap.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
@@ -98,7 +118,14 @@ export function Menu({
         {trigger}
       </button>
       {open && (
-        <div id={id} role="menu" aria-label={ariaLabel} className={cx("mc-menu__pop", align === "left" && "is-left")}>
+        <div
+          id={id}
+          ref={pop}
+          role="menu"
+          aria-label={ariaLabel}
+          className={cx("mc-menu__pop", align === "left" && "is-left", place.up && "is-up")}
+          style={place.maxH ? { maxHeight: place.maxH, overflowY: "auto" } : undefined}
+        >
           {header && <div className="mc-menu__head">{header}</div>}
           {items.map((it) => {
             const cls = cx("mc-menu__item", it.danger && "is-danger");

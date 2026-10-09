@@ -15,7 +15,7 @@ test.describe("Tax hub", () => {
     await expect(page.getByText("£1,240.00").first()).toBeVisible();
     await expect(page.getByText("Put by about")).toBeVisible();
     await expect(page.getByText("£31.00")).toBeVisible();
-    await expect(page.getByText(/Due 31 Jan 2028/)).toBeVisible();
+    await expect(page.getByText(/return due 31 Jan 2028/)).toBeVisible();
 
     // Workings are the server's words, shown on demand.
     await page.getByText("How we worked this out").click();

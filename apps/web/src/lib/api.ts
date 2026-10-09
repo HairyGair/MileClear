@@ -20,11 +20,13 @@ export function getRefreshToken(): string | null {
 }
 
 export function setTokens(access: string, refresh: string) {
+  sharedGets.clear();
   localStorage.setItem(TOKEN_KEY, access);
   localStorage.setItem(REFRESH_KEY, refresh);
 }
 
 export function clearTokens() {
+  sharedGets.clear();
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
 }
@@ -83,6 +85,7 @@ async function request<T>(
   options: RequestInit = {},
   retry = true
 ): Promise<T> {
+  if (options.method && options.method !== "GET") sharedGets.clear();
   const token = getAccessToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -98,6 +101,7 @@ async function request<T>(
     ...options,
     headers,
   });
+  if (options.method && options.method !== "GET") sharedGets.clear();
 
   if (res.status === 401 && retry) {
     const refreshed = await refreshTokens();
@@ -146,9 +150,33 @@ export async function fetchWithAuth(
   return res;
 }
 
+// The profile and the unclassified count are asked for by many components and
+// on every focus. Share one request and reuse the answer for a minute. Any
+// write (PATCH /user/profile, sorting a trip, ...) clears it so the next read is fresh.
+const SHARED_GET_TTL_MS = 60_000;
+const SHARED_GET_PATHS = new Set(["/user/profile", "/trips/unclassified/count"]);
+const sharedGets = new Map<string, { at: number; p: Promise<unknown> }>();
+
+export function clearSharedGets() {
+  sharedGets.clear();
+}
+
+function sharedGet<T>(path: string, options?: RequestInit): Promise<T> {
+  const hit = sharedGets.get(path);
+  if (hit && Date.now() - hit.at < SHARED_GET_TTL_MS) return hit.p as Promise<T>;
+  const p = request<T>(path, { ...options, method: "GET" });
+  sharedGets.set(path, { at: Date.now(), p });
+  p.catch(() => {
+    if (sharedGets.get(path)?.p === p) sharedGets.delete(path);
+  });
+  return p;
+}
+
 export const api = {
   get: <T>(path: string, options?: RequestInit) =>
-    request<T>(path, { ...options, method: "GET" }),
+    SHARED_GET_PATHS.has(path) && !options?.signal
+      ? sharedGet<T>(path, options)
+      : request<T>(path, { ...options, method: "GET" }),
 
   post: <T>(path: string, body?: unknown, options?: RequestInit) =>
     request<T>(path, {

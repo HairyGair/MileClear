@@ -8,7 +8,15 @@ import { getData } from "./data";
 import { CardFailed, CardLoading, Row, Takeaway, pounds, withBoundary } from "./ui";
 import s from "./insights.module.css";
 
-const platformLabel = (v: string) => GIG_PLATFORMS.find((p) => p.value === v)?.label ?? v;
+const platformLabel = (v: string) => (v === "untagged" ? "No platform" : GIG_PLATFORMS.find((p) => p.value === v)?.label ?? v);
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Earnings added by date only are stored at midnight, which lands at 00:00 or 01:00 in
+ * UK summer time. Those are not real times of day, so they never count as a "best time".
+ */
+const isRealHour = (g: { hour: number }) => g.hour > 1;
 
 interface PnlRow {
   grossEarningsPence: number;
@@ -59,19 +67,20 @@ function Loaded() {
   }
 
   const platforms = d.platformPerformance.slice(0, 5);
+  const bestTimes = d.goldenHours.filter(isRealHour);
   return (
     <div className={s.grid}>
       <Card title="Business insights">
         <div className={`${s.figures} ${s.three}`}>
           <Figure label="Per mile" value={perMile(d.earningsPerMilePence)} />
-          <Figure label="Per hour" value={perMile(d.earningsPerHourPence)} />
+          <Figure label="Per hour" value={d.earningsPerHourPence > 0 ? perMile(d.earningsPerHourPence) : "Not enough yet"} sub={d.earningsPerHourPence > 0 ? undefined : "Needs shift hours"} />
           <Figure label="Earned this tax year" value={pounds(d.totalEarningsPence)} />
         </div>
-        {d.goldenHours.length > 0 && (
+        {bestTimes.length > 0 && (
           <>
             <p className={s.note}>Your best times to work</p>
-            {d.goldenHours.map((g) => (
-              <Row key={g.label} main={g.label} sub={`${g.tripCount} trips`} figure={pounds(g.avgEarningsPence)} />
+            {bestTimes.map((g) => (
+              <Row key={g.label} main={g.label} sub={plural(g.tripCount, "earning", "earnings")} figure={pounds(g.avgEarningsPence)} />
             ))}
           </>
         )}
@@ -107,9 +116,21 @@ function Loaded() {
         <Card title="Weekly profit and loss">
           <Takeaway>{weekly.data.periodLabel}</Takeaway>
           <Row main="Earned" figure={pounds(weekly.data.grossEarningsPence)} />
-          <Row main="Fuel (estimate)" figure={`-${pounds(weekly.data.estimatedFuelCostPence)}`} />
-          <Row main="Wear and tear (estimate)" figure={`-${pounds(weekly.data.estimatedWearCostPence)}`} />
-          <Row main="Left over" figure={pounds(weekly.data.netProfitPence)} />
+          {(() => {
+            const w = weekly.data;
+            // The week's own fill-ups when there are any, otherwise your usual fuel cost a mile over this week's miles.
+            const logged = w.estimatedFuelCostPence > 0;
+            const perMileFuel = d.fuelCostPerMilePence ?? 0;
+            const fuel = logged ? w.estimatedFuelCostPence : Math.round(perMileFuel * w.businessMiles);
+            const left = w.grossEarningsPence - fuel - w.estimatedWearCostPence;
+            return (
+              <>
+                <Row main={logged ? "Fuel (logged)" : "Fuel (estimate)"} sub={!logged && fuel === 0 ? "Log a fill-up to see this" : undefined} figure={fuel > 0 ? `-${pounds(fuel)}` : "Not known yet"} />
+                <Row main="Wear and tear (estimate)" figure={`-${pounds(w.estimatedWearCostPence)}`} />
+                <Row main="Left over" figure={pounds(left)} />
+              </>
+            );
+          })()}
         </Card>
       ) : null}
 

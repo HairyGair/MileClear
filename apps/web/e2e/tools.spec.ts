@@ -86,7 +86,7 @@ test.describe("saved places", () => {
     await page.getByRole("button", { name: "Add place" }).click();
     await expect(page).toHaveURL(/\/dashboard\/places$/);
     const post = callsTo(state, "POST", "/saved-locations");
-    expect(post[0][2]).toMatchObject({ name: "Office", locationType: "home", latitude: 51.5034, longitude: -0.1276, radiusMeters: 150 });
+    expect(post[0][2]).toMatchObject({ name: "Office", locationType: "home", latitude: 51.5034, longitude: -0.1276, radiusMeters: 200 });
   });
 
   test("no unpkg, postcodes.io or nominatim requests from the places pages", async ({ page }) => {
@@ -226,8 +226,8 @@ test.describe("fuel", () => {
     await expect(page.getByText("Enter a postcode")).toBeVisible();
     await page.getByLabel("Postcode").fill("NE3 1AA");
     await page.getByRole("button", { name: "Show prices" }).click();
-    await expect(page.getByRole("row").filter({ hasText: "Asda Gosforth (Asda)" })).toContainText("139.9p");
-    await expect(page.getByRole("row").filter({ hasText: "Asda Gosforth (Asda)" })).toContainText("146.9p");
+    await expect(page.getByRole("row").filter({ hasText: "Asda Gosforth" }).filter({ hasText: "139.9p" }).last()).toContainText("139.9p");
+    await expect(page.getByRole("row").filter({ hasText: "Asda Gosforth" }).filter({ hasText: "139.9p" }).last()).toContainText("146.9p");
     await expect(page.getByText("UK average today: petrol 143.2p, diesel 150.1p a litre.")).toBeVisible();
     await copySweep(page);
   });

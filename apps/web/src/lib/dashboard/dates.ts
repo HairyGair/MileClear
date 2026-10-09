@@ -2,6 +2,11 @@
 
 const DAY_NO_YEAR: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" };
 
+/** Some engines print "Sept" for en-GB September. The app and API say "Sep". */
+export function fixSep(text: string): string {
+  return text.replace(/\bSept\b/g, "Sep");
+}
+
 function toDate(d: Date | string | number): Date {
   return d instanceof Date ? d : new Date(d);
 }
@@ -13,7 +18,7 @@ export function formatDay(d: Date | string | number, now: Date = new Date()): st
   const sameYear = date.getFullYear() === now.getFullYear();
   const text = date.toLocaleDateString("en-GB", sameYear ? DAY_NO_YEAR : { ...DAY_NO_YEAR, year: "numeric" });
   // en-GB prints "Thu, 9 Oct" in some engines. The spec wants no comma.
-  return text.replace(",", "");
+  return fixSep(text.replace(",", ""));
 }
 
 /** "18:40" (24 hour). */

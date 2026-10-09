@@ -10,7 +10,7 @@ import type {
   Vehicle,
   VehicleOdometerResponse,
 } from "@mileclear/shared";
-import { api, fetchWithAuth } from "../../../lib/api";
+import { api, fetchWithAuth, isApiError } from "../../../lib/api";
 
 export type VehicleRow = Vehicle & {
   cleanAirZones?: CazAssessment;
@@ -37,8 +37,14 @@ export async function fetchVehicleOdometer(id: string): Promise<VehicleOdometerR
 }
 
 export async function fetchMotHistory(id: string): Promise<MotHistoryResult | null> {
-  const res = await api.get<{ data: MotHistoryResult | null }>(`/vehicles/${id}/mot-history`);
-  return res.data ?? null;
+  try {
+    const res = await api.get<{ data: MotHistoryResult | null }>(`/vehicles/${id}/mot-history`);
+    return res.data ?? null;
+  } catch (e) {
+    // No DVSA record for the plate comes back as 404 or 502: that is "no history", not a failure.
+    if (isApiError(e) && (e.statusCode === 404 || e.statusCode === 502)) return null;
+    throw e;
+  }
 }
 
 export async function fetchOdometerDays(params: { vehicleId?: string; from: string; to: string }) {

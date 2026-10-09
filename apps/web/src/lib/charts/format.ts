@@ -17,12 +17,12 @@ export function percentChange(current: number, previous: number): number | null 
 
 /** "Mon 28 Sep" from "YYYY-MM-DD". Noon UTC so no timezone flips the day. */
 export function formatDay(isoDay: string, opts: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" }): string {
-  return new Date(`${isoDay}T12:00:00Z`).toLocaleDateString("en-GB", opts);
+  return new Date(`${isoDay}T12:00:00Z`).toLocaleDateString("en-GB", opts).replace(/\bSept\b/g, "Sep");
 }
 
 /** "Sep 2026" from "YYYY-MM". */
 export function formatMonth(isoMonth: string, opts: Intl.DateTimeFormatOptions = { month: "short", year: "numeric" }): string {
-  return new Date(`${isoMonth}-15T12:00:00Z`).toLocaleDateString("en-GB", opts);
+  return new Date(`${isoMonth}-15T12:00:00Z`).toLocaleDateString("en-GB", opts).replace(/\bSept\b/g, "Sep");
 }
 
 /** Local calendar day "YYYY-MM-DD" for a Date (UK admin, so local time). */

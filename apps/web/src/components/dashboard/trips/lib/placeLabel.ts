@@ -34,15 +34,21 @@ function isPlaceName(part: string): boolean {
   return true;
 }
 
+// A bare town or country says nothing about where on the map: "London to London".
+// Prefer a street, a venue or a postcode, and only use one of these as a last resort.
+const GENERIC_AREA = /^(london|greater london|england|uk|united kingdom|great britain|scotland|wales|northern ireland)$/i;
+
 export function shortPlaceLabel(address: string | null | undefined, maxLength = 28): string {
   if (!address) return "";
   const parts = address.split(",").map((p) => p.trim()).filter(Boolean);
   for (const part of parts) {
     const cleaned = cleanPart(part);
-    if (isPlaceName(cleaned)) return truncate(cleaned, maxLength);
+    if (isPlaceName(cleaned) && !GENERIC_AREA.test(cleaned)) return truncate(cleaned, maxLength);
   }
-  const postcode = parts.find((p) => POSTCODE.test(p));
-  return postcode ? postcode.toUpperCase() : "";
+  const postcode = parts.find((p) => POSTCODE.test(p)) ?? parts.map((p) => p.match(/[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i)?.[0]).find(Boolean);
+  if (postcode) return postcode.toUpperCase();
+  const area = parts.map(cleanPart).find((p) => isPlaceName(p));
+  return area ? truncate(area, maxLength) : "";
 }
 
 export function metresBetween(lat1: number, lng1: number, lat2: number, lng2: number): number {

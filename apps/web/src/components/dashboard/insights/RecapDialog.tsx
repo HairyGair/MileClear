@@ -20,7 +20,9 @@ const SHARE_URL = "https://mileclear.com/app";
 
 /** The API's share text ends with a sign-off; swap it for the store chooser link. */
 export function shareTextWithLink(text: string): string {
-  const base = text.replace(/\n*Track your miles with MileClear[^\n]*$/u, "").trimEnd();
+  // The server words the figure "tax deduction"; it can be at the employer rate, so say "to claim".
+  const neutral = text.replace(/(£[\d,]+(?:\.\d+)?) tax deduction/gu, "$1 to claim");
+  const base = neutral.replace(/\n*Track your miles with MileClear[^\n]*$/u, "").trimEnd();
   return `${base}\n\nTrack your miles with MileClear: ${SHARE_URL}`;
 }
 
