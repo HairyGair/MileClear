@@ -656,7 +656,7 @@ async function releaseQuickTripLock(
 const QUICK_TRIP_TRAIL_MAX_FIXES = 20000;
 
 /** When the current Start Trip last drove, from its own breadcrumbs. */
-async function quickTripLastDrivingMs(
+export async function quickTripLastDrivingMs(
   db: Awaited<ReturnType<typeof getDatabase>>
 ): Promise<number | null> {
   try {
@@ -691,19 +691,26 @@ async function quickTripLastDrivingMs(
  * Arrive had been tapped when the driving stopped, then hand the phone back
  * to automatic trips. Runs inside engine callbacks, so it never throws.
  */
-async function finishParkedQuickTrip(
+export async function finishParkedQuickTrip(
   db: Awaited<ReturnType<typeof getDatabase>>,
   reason: string,
-  lastDrivingMs: number | null
-): Promise<void> {
+  lastDrivingMs: number | null,
+  options: {
+    /** Save one trip, never cut at a long stop (the "Still on your trip?" Arrived). */
+    whole?: boolean;
+    /** Mark the trip driverKeptGoing so the server's visit splitter leaves it whole. */
+    keptGoing?: boolean;
+  } = {}
+): Promise<{ claimed: boolean; tripsSaved: number }> {
   // 1. Claim the lock first: once it is gone the Start Trip's location task
   //    stops writing breadcrumbs, so nothing lands after the trim below.
   const claimed = await db.runAsync(
     "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
     [QUICK_TRIP_SHIFT_ID]
   );
-  if (claimed.changes === 0) return; // another caller won the claim
+  if (claimed.changes === 0) return { claimed: false, tripsSaved: 0 }; // another caller won the claim
   let tripsSaved = 0;
+  let liveMiles = 0;
   let trimmed = 0;
   try {
     // 2. The engine's own copy of these hours is a second copy of the drive
@@ -720,6 +727,14 @@ async function finishParkedQuickTrip(
       "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('quick_trip_auto_finished_at', ?)",
       [String(Date.now())]
     );
+    // Lets the Start Trip screen say WHY it was finished (the reminder's
+    // Arrived and the 15-minute auto-finish read differently).
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('quick_trip_finished_reason', ?)",
+      [reason]
+    );
+    // An earlier finish's count must not stand in for this one's.
+    await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_finished_trips'");
 
     // 3. Keep the trail up to a minute past the last driving fix. The walking
     //    after it is not part of the trip. Never drove: nothing is kept.
@@ -737,13 +752,57 @@ async function finishParkedQuickTrip(
         ]);
     trimmed = del.changes;
 
+    // The Live Activity's summary needs a distance; the trail is about to be
+    // consumed by the save.
+    try {
+      const trail = await db.getAllAsync<{ lat: number; lng: number }>(
+        "SELECT lat, lng FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+        [QUICK_TRIP_SHIFT_ID]
+      );
+      for (let i = 1; i < trail.length; i++) {
+        liveMiles += haversineMiles(trail[i - 1].lat, trail[i - 1].lng, trail[i].lat, trail[i].lng);
+      }
+    } catch {
+      liveMiles = 0;
+    }
+
     // 4. Save it the way every recovered Start Trip is saved, then stop its GPS.
     const { processShiftTrips, stopQuickTripLocationTask } = await import("./index");
-    tripsSaved = await processShiftTrips(QUICK_TRIP_SHIFT_ID);
+    tripsSaved = await processShiftTrips(
+      QUICK_TRIP_SHIFT_ID,
+      undefined,
+      options.whole || options.keptGoing
+        ? { whole: options.whole === true, driverKeptGoing: options.keptGoing === true }
+        : undefined
+    );
     await stopQuickTripLocationTask();
     await applyNativeEnginePower("quick_trip_auto_finished");
   } catch {
     // The lock is already released, so automatic trips resume regardless.
+  }
+  // How many trips it saved, so the Start Trip screen never says "Trip saved"
+  // when nothing was.
+  try {
+    await db.runAsync(
+      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('quick_trip_finished_trips', ?)",
+      [String(tripsSaved)]
+    );
+  } catch {
+    // the screen falls back to its usual message
+  }
+  // A background finish used to leave the Start Trip's Live Activity up,
+  // showing a trip that was no longer running.
+  try {
+    if (tripsSaved > 0) {
+      await endLiveActivityWithSummary({
+        distanceMiles: Math.round(liveMiles * 10) / 10,
+        tripCount: tripsSaved,
+      });
+    } else {
+      await endLiveActivity();
+    }
+  } catch {
+    // no Live Activity (Android, Expo Go, switched off): nothing to end
   }
   logDetectionEvent("quick_trip_auto_finished", {
     reason,
@@ -754,6 +813,8 @@ async function finishParkedQuickTrip(
         ? Math.round((Date.now() - lastDrivingMs) / 60_000)
         : null,
   }).catch(() => {});
+  // The reminder's Arrived posts its own result notification.
+  if (reason === "reminder_arrived") return { claimed: true, tripsSaved };
   try {
     await Notifications.scheduleNotificationAsync({
       content:
@@ -775,6 +836,7 @@ async function finishParkedQuickTrip(
   } catch {
     // a missing notification permission must not undo the finish
   }
+  return { claimed: true, tripsSaved };
 }
 
 /**
@@ -953,6 +1015,12 @@ export async function shiftSuppressesAutoDetection(
   }
 
   if (decision.action === "suppress") {
+    // Backstop for the "Still on your trip?" reminder: if the Start Trip's own
+    // location task was starved, a native-engine wake still re-arms it from
+    // the whole trail (a no-op when nothing changed).
+    if (qts && !appActive && typeof lastDrivingMs === "number" && Number.isFinite(lastDrivingMs)) {
+      import("./parkedReminder").then((m) => m.reconcileParkedReminder(lastDrivingMs)).catch(() => {});
+    }
     logDetectionEvent("detection_skipped", { reason: "active_quick_trip" }).catch(() => {});
     return true;
   }
@@ -5148,6 +5216,19 @@ export async function setStartTripUntilArrived(on: boolean): Promise<void> {
     [on ? "1" : "0"]
   );
   logDetectionEvent("start_trip_until_arrived_set", { on }).catch(() => {});
+  if (!on) {
+    // Setting off: the phone's reminder goes with it (the 15-minute auto-finish takes over).
+    import("./parkedReminder").then((m) => m.cancelParkedReminder("setting_off")).catch(() => {});
+  } else {
+    // Switched on mid-trip: arm from what the trail already shows.
+    import("./parkedReminder")
+      .then(async (m) => {
+        const d = await getDatabase();
+        const drove = await quickTripLastDrivingMs(d);
+        if (drove != null && !Number.isNaN(drove)) await m.reconcileParkedReminder(drove);
+      })
+      .catch(() => {});
+  }
 }
 
 export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> {

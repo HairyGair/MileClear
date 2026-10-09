@@ -20,7 +20,9 @@ import { reverseGeocode } from "../location/geocoding";
 import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
-import { segmentTrips } from "./shiftSegments";
+import { segmentsToSave } from "./shiftSegments";
+import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
+import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
 import {
@@ -168,6 +170,8 @@ export async function stopQuickTripLocationTask(): Promise<void> {
   } catch {
     // best-effort: the caller has already released the lock
   }
+  // The deadman reminder belongs to this Start Trip; it ends with it.
+  await cancelParkedReminder("lock_released");
   // Every caller has just released the __quick_trip__ lock (the self-heals in
   // detection.ts, the trip form's save), so the automatic engine can leave
   // low power. Reads the lock fresh, so a lock still held keeps it low.
@@ -302,6 +306,8 @@ export async function startQuickTripTracking(): Promise<void> {
 }
 
 export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
+  // Form Arrived / discard: the deadman reminder ends with the trip.
+  await cancelParkedReminder("arrived");
   // Stopping the OS subscription is best-effort and MUST NOT be able to skip
   // the cleanup below. It used to throw straight out of this function, so a
   // rejection left active_shift_id in place — a lock nobody could see and
@@ -614,10 +620,21 @@ export async function promoteDetectionToQuickTrip(): Promise<{
 // same breadcrumbs again.
 const shiftRunsInFlight = new Map<string, Promise<number>>();
 
-export function processShiftTrips(shiftId: string, vehicleId?: string): Promise<number> {
+export interface ProcessShiftTripsOptions {
+  /** Save the trail as ONE trip, never cut at a long stop. */
+  whole?: boolean;
+  /** Mark the trips driverKeptGoing so the server's visit splitter leaves them whole. */
+  driverKeptGoing?: boolean;
+}
+
+export function processShiftTrips(
+  shiftId: string,
+  vehicleId?: string,
+  options?: ProcessShiftTripsOptions
+): Promise<number> {
   const running = shiftRunsInFlight.get(shiftId);
   if (running) return running;
-  const run = processShiftTripsOnce(shiftId, vehicleId).finally(() => {
+  const run = processShiftTripsOnce(shiftId, vehicleId, options).finally(() => {
     shiftRunsInFlight.delete(shiftId);
   });
   shiftRunsInFlight.set(shiftId, run);
@@ -667,7 +684,8 @@ export async function processLeftoverShiftBreadcrumbs(reason: string): Promise<v
 
 async function processShiftTripsOnce(
   shiftId: string,
-  vehicleId?: string
+  vehicleId?: string,
+  options?: ProcessShiftTripsOptions
 ): Promise<number> {
   const db = await getDatabase();
 
@@ -695,7 +713,11 @@ async function processShiftTripsOnce(
   // any failure (API error, crash, memory pressure on long shifts) permanently
   // lost all GPS data with no way to recover.
 
-  const segments = segmentTrips(coords, journeyBoundaryMs(await getJourneyEndMinutes()).splitMs);
+  const segments = segmentsToSave(
+    coords,
+    journeyBoundaryMs(await getJourneyEndMinutes()).splitMs,
+    options?.whole === true
+  );
   // The lock ids are not shifts the server knows. Sending "__quick_trip__"
   // as shiftId failed validation, so every trip the quick-trip recovery
   // rebuilt was rejected and deleted (28 Sep 2026).
@@ -793,7 +815,9 @@ async function processShiftTripsOnce(
           accuracy: c.accuracy,
           recordedAt: c.recorded_at,
         })),
-        gpsQuality: tripQuality,
+        gpsQuality: options?.driverKeptGoing
+          ? { ...tripQuality, driverKeptGoing: true }
+          : tripQuality,
       });
       created++;
     } catch (err) {
@@ -853,6 +877,34 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
     // QUICK_TRIP_PARKED_MS). The fixes that arrive while the driver walks
     // about are the wakes this check needs; throttled so a stream of them
     // costs one look a minute.
+    // "Still on your trip?": every driving fix pushes the OS-held reminder 10
+    // minutes out (parkedReminderRule.ts). Reads the batch plus the fix before
+    // it, so implied speed works across batch edges. Never breaks storage.
+    if (shiftId === QUICK_TRIP_SHIFT_ID) {
+      try {
+        const recent = await db.getAllAsync<{
+          lat: number;
+          lng: number;
+          speed: number | null;
+          accuracy: number | null;
+          recorded_at: string;
+        }>(
+          "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at DESC LIMIT ?",
+          [shiftId, locations.length + 1]
+        );
+        const fixes: ShiftFix[] = recent.map((r) => ({
+          lat: r.lat,
+          lng: r.lng,
+          speed: r.speed,
+          accuracy: r.accuracy,
+          recordedAtMs: new Date(r.recorded_at).getTime(),
+        }));
+        const drove = lastDrivingFixMs(fixes);
+        if (drove != null) await reconcileParkedReminder(drove);
+      } catch {
+        // the reminder is optional; breadcrumbs are already stored
+      }
+    }
     if (shiftId === QUICK_TRIP_SHIFT_ID && Date.now() - lastQuickTripParkCheckMs > 60_000) {
       lastQuickTripParkCheckMs = Date.now();
       await shiftSuppressesAutoDetection(db).catch(() => true);

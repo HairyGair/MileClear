@@ -823,6 +823,9 @@ export default function RootLayout() {
   useEffect(() => {
     registerNotificationCategories();
     setupNotificationResponseHandler();
+    import("../lib/tracking/parkedReminder")
+      .then((m) => m.replayParkedReminderOnLaunch())
+      .catch(() => {});
     setupNotificationChannels().catch(console.error);
   }, []);
 

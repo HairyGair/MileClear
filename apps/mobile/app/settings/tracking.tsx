@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert } from "react-native";
+import { Alert, Linking } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
@@ -11,6 +11,11 @@ import {
   getStartTripUntilArrived,
   setStartTripUntilArrived,
 } from "../../lib/tracking/detection";
+import {
+  getNotificationPermissionStatus,
+  requestNotificationPermissions,
+} from "../../lib/notifications";
+import { PARKED_COPY } from "../../lib/tracking/parkedReminderRule";
 import { readAutomaticTrips, setAutomaticTrips } from "../../lib/tracking/automaticTrips";
 import { JOURNEY_END_CHOICES } from "../../lib/tracking/journeyBoundary";
 import {
@@ -29,12 +34,14 @@ export default function TrackingSettings() {
   const [batterySaver, setBatterySaver] = useState(true);
   const [journeyEnd, setJourneyEnd] = useState(30);
   const [untilArrived, setUntilArrived] = useState(false);
+  const [notifState, setNotifState] = useState<"granted" | "denied" | "undetermined">("granted");
 
   // Automatic trips is also on the dashboard (28 Sep 2026), so re-read it
   // every time this screen shows rather than once.
   useFocusEffect(
     useCallback(() => {
       readAutomaticTrips().then(setDriveDetection).catch(() => {});
+      getNotificationPermissionStatus().then(setNotifState).catch(() => {});
     }, [])
   );
 
@@ -43,6 +50,16 @@ export default function TrackingSettings() {
     getJourneyEndMinutes().then(setJourneyEnd).catch(() => {});
     getStartTripUntilArrived().then(setUntilArrived).catch(() => {});
   }, []);
+
+  // Asks if the system prompt is still available, otherwise opens iOS Settings.
+  const fixNotifications = useCallback(async () => {
+    if (notifState === "undetermined") {
+      const ok = await requestNotificationPermissions().catch(() => false);
+      setNotifState(ok ? "granted" : "denied");
+    } else {
+      Linking.openSettings().catch(() => {});
+    }
+  }, [notifState]);
 
   const toggleUntilArrived = useCallback((next: boolean) => {
     setUntilArrived(next);
@@ -136,12 +153,19 @@ export default function TrackingSettings() {
           label="Start Trip runs until I tap Arrived"
           hint={
             untilArrived
-              ? "Waits and stops stay in the same trip. Tap Arrived when you finish, or it keeps using GPS."
+              ? PARKED_COPY.settingsHintOn
               : "Start Trip saves by itself after 15 minutes parked."
           }
           value={untilArrived}
           onToggle={toggleUntilArrived}
         />
+        {untilArrived && notifState !== "granted" && (
+          <SettingsRow
+            icon="notifications-off-outline"
+            label={PARKED_COPY.settingsHintNoPermission}
+            onPress={fixNotifications}
+          />
+        )}
         <SettingsRow
           icon="battery-charging-outline"
           label="Battery & low-power"
