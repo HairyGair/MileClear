@@ -149,8 +149,9 @@ describe("POST /assistant/ask", () => {
     expect(headers["x-api-key"]).toBe("test-key-not-real");
     expect(headers["anthropic-version"]).toBe("2023-06-01");
     const body = JSON.parse(init.body as string);
-    expect(body.model).toBe("claude-haiku-4-5");
-    expect(body.max_tokens).toBeLessThanOrEqual(600);
+    expect(body.model).toBe("claude-haiku-5-5");
+    expect(body.output_config).toEqual({ effort: "low" });
+    expect(body.max_tokens).toBeLessThanOrEqual(2000);
     expect(body.tools.map((t: { name: string }) => t.name)).toContain("earnings_summary");
 
     // Second call carries the tool_result for the tool_use, in one user turn.

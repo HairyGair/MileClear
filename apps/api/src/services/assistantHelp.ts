@@ -46,7 +46,7 @@ export const HELP_AREA_LABELS: Record<HelpArea, string> = {
   recording_trips: "Automatic trips, Start Trip, shifts, pausing, battery, permissions",
   missing_or_wrong_trips: "A trip is missing, late, split, too long, or wasn't a real drive",
   managing_trips: "Classifying, adding a past trip, editing, merging, splitting, deleting, odometer readings",
-  tax_and_claims: "Mileage rates, the Self Assessment wizard, exports, tax estimate, payment plan, employees, MTD",
+  tax_and_claims: "Mileage rates, the Self Assessment wizard, exports, accountant access, tax estimate, payment plan, employees, MTD, mileage certificate",
   money: "Earnings, expenses, receipts, statements, bank import, invoices, fuel, fines",
   vehicles_and_places: "Vehicles, MOT and road tax reminders, saved places, work schedule",
   pro_and_billing: "What's free, what's Pro, price, cancelling, restoring, inviting friends",
@@ -299,6 +299,12 @@ export const HELP_ENTRIES: HelpEntry[] = [
     a: "Tax > Tax exports gives you a CSV or PDF trip log and the Self Assessment PDF for any tax year. Exports are Pro. You can also give your accountant read-only access with Pro (Tax > Your accountant, set up on mileclear.com).",
   },
   {
+    id: "accountant-access",
+    area: "tax_and_claims",
+    q: "Can my accountant see my records?",
+    a: "Yes, with Pro. Sign in at mileclear.com, open Your accountant on the Tax page and enter their email. They get read-only access to your mileage and tax figures without your password, and you can stop it at any time. In the app, Tax > Your accountant takes you there.",
+  },
+  {
     id: "tax-estimate",
     area: "tax_and_claims",
     q: "How is the tax estimate worked out?",
@@ -339,6 +345,12 @@ export const HELP_ENTRIES: HelpEntry[] = [
     area: "tax_and_claims",
     q: "Can I prove my mileage to an insurer or employer?",
     a: "With Pro, Tax > Mileage certificate makes a PDF of the miles you recorded for a period, with a link anyone can use to check it at mileclear.com/verify.",
+  },
+  {
+    id: "hmrc-approved",
+    area: "tax_and_claims",
+    q: "Is MileClear approved by HMRC?",
+    a: "No. HMRC doesn't approve or endorse mileage apps, and MileClear isn't endorsed by HMRC. MileClear uses HMRC's approved mileage rates and keeps a record of each business trip (date, distance, start and end), which is the kind of record HMRC asks you to keep. You or your accountant are responsible for your tax return.",
   },
   {
     id: "mtd",
@@ -544,7 +556,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "privacy",
     area: "account_and_app",
     q: "Who can see my data?",
-    a: "Only you, plus anyone you choose to share with, such as your accountant or your employer's team. Community figures like \"drivers near you\" only show when at least 5 drivers contribute, so no one can be picked out. The privacy policy is on mileclear.com.",
+    a: "Only you, plus anyone you choose to share with: your accountant (Pro, through Tax > Your accountant) or your employer's team if you join one. Community figures like \"drivers near you\" only show when at least 5 drivers contribute, so no one can be picked out. The privacy policy is on mileclear.com.",
   },
 
   // ── Insights and alerts ──────────────────────────────────────────────────

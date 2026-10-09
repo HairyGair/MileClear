@@ -51,7 +51,7 @@ const BANK: ExpenseEntry[] = [
     status: "depends",
     category: "running-costs",
     explanation:
-      "Depends on your chosen method. If you claim AMAP rates (55p/25p per mile for cars/vans in 2026-27), fuel is ALREADY in that figure — you can't claim it separately. If you claim actual vehicle costs, you split fuel by business-use percentage.",
+      "Depends on your chosen method. If you claim the mileage rates (for cars and vans in 2026-27, 55p a mile for the first 10,000 business miles and 25p after), fuel is ALREADY in that figure, so you can't claim it separately. If you claim actual vehicle costs, you split fuel by business-use percentage.",
     note: "Most drivers stick with AMAP because it's higher per mile than actual costs.",
   },
   {

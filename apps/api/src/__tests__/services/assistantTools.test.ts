@@ -192,6 +192,25 @@ describe("figures", () => {
     expect(out.estimateSoFar).toBeUndefined();
   });
 
+  it("keeps the approved rates apart from an employer's rate (an employee's 40p is not 'the rate')", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      workType: "both",
+      employerMileageRatePence: 40,
+      employerMileageRatePenceAfter10k: 25,
+    } as never);
+    vi.mocked(prisma.vehicle.findMany).mockResolvedValue([{ id: "car", vehicleType: "car", isPrimary: true }] as never);
+    const out = JSON.parse((await runAssistantTool(ME, "tax_year_figures", {}, NOW)).content);
+    expect(out.mileageRates.approved.carAndVan).toMatch(/^55p a mile for the first 10,000.*25p after$/);
+    expect(out.mileageRates.approved.motorbike).toBe("24p a mile");
+    expect(out.mileageRates.employer.rate).toMatch(/^40p a mile/);
+  });
+
+  it("has no employer rate for a self-employed driver", async () => {
+    const out = JSON.parse((await runAssistantTool(ME, "tax_year_figures", {}, NOW)).content);
+    expect(out.mileageRates.approved.carAndVan).toMatch(/^55p/);
+    expect(out.mileageRates.employer).toBeUndefined();
+  });
+
   it("finds the best and worst week, leaving empty weeks out", async () => {
     vi.mocked(prisma.earning.findMany).mockResolvedValue([
       { amountPence: 30000, periodStart: new Date("2026-09-07T00:00:00Z") },

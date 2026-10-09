@@ -570,7 +570,8 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
   // employer's rate when one is set (lib/mileageRates).
   const employer = employerRatesFor(user);
   const carCalc = calculateMileageDeduction("car", carVan, { ...(employer ?? {}), taxYear });
-  const bikeCalc = calculateMileageDeduction("motorbike", motorbike, { ...(employer ?? {}), taxYear });
+  const approvedCar = calculateMileageDeduction("car", carVan, { taxYear });
+  const approvedBike = calculateMileageDeduction("motorbike", motorbike, { taxYear });
   const allowancePence = claimValuePence(rated, user, taxYear);
 
   const result: Record<string, unknown> = {
@@ -589,11 +590,19 @@ async function taxYearFigures(userId: string, raw: unknown, now: Date) {
         : {}),
     },
     mileageRates: {
-      source: carCalc.source === "employer"
-        ? "your employer's rate for work trips; HMRC approved mileage rates for trips tagged with a gig app (self-employed)"
-        : "HMRC approved mileage rates",
-      carAndVan: `${carCalc.rateFirst10kPence}p a mile for the first 10,000 business miles (cars and vans together), ${carCalc.rateAfter10kPence}p after`,
-      motorbike: `${bikeCalc.rateFirst10kPence}p a mile`,
+      approved: {
+        carAndVan: `${approvedCar.rateFirst10kPence}p a mile for the first 10,000 business miles (cars and vans together), ${approvedCar.rateAfter10kPence}p after`,
+        motorbike: `${approvedBike.rateFirst10kPence}p a mile`,
+        note: "The HMRC approved mileage rates for this tax year. Self-employed drivers claim at these rates.",
+      },
+      ...(carCalc.source === "employer"
+        ? {
+            employer: {
+              rate: `${carCalc.rateFirst10kPence}p a mile for the first 10,000 business miles, ${carCalc.rateAfter10kPence}p after`,
+              note: "The rate this driver entered for their employer. Work trips not tagged with a gig app are valued at it; trips tagged with a gig app use the approved rates.",
+            },
+          }
+        : {}),
     },
     mileageAllowance: money(allowancePence),
     earningsRecorded: { entries: earnings._count, ...money(earnings._sum.amountPence ?? 0) },

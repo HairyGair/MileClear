@@ -21,7 +21,7 @@ vi.mock("../../lib/prisma.js", () => ({
 import { prisma } from "../../lib/prisma.js";
 import { HELP_AREAS, HELP_ENTRIES, helpForArea, type HelpArea } from "../../services/assistantHelp.js";
 import { ASSISTANT_TOOLS, runAssistantTool } from "../../services/assistantTools.js";
-import { SYSTEM_PROMPT } from "../../services/assistant.js";
+import { SYSTEM_PROMPT, plainAnswer } from "../../services/assistant.js";
 
 const ME = "11111111-1111-1111-1111-111111111111";
 const NOW = new Date("2026-10-09T12:00:00Z");
@@ -71,6 +71,7 @@ export const QUESTION_BANK: [string, HelpArea, string][] = [
   ["How do I fill in my tax return with this?", "tax_and_claims", "sa-wizard"],
   ["Does MileClear submit my tax return?", "tax_and_claims", "sa-wizard"],
   ["How do I send my mileage to my accountant?", "tax_and_claims", "exports"],
+  ["Can my accountant log in?", "tax_and_claims", "accountant-access"],
   ["How is my tax estimate worked out?", "tax_and_claims", "tax-estimate"],
   ["When do I pay my tax bill?", "tax_and_claims", "payment-plan"],
   ["This is my first tax return, help", "tax_and_claims", "first-return"],
@@ -78,6 +79,7 @@ export const QUESTION_BANK: [string, HelpArea, string][] = [
   ["I have a full-time job too", "tax_and_claims", "other-income"],
   ["Uber sent my earnings to HMRC, how do I check them?", "tax_and_claims", "hmrc-check"],
   ["My insurer wants proof of my business miles", "tax_and_claims", "certificate"],
+  ["Is MileClear HMRC approved?", "tax_and_claims", "hmrc-approved"],
   ["Does it do Making Tax Digital?", "tax_and_claims", "mtd"],
   ["When does the tax year end?", "tax_and_claims", "tax-year"],
   ["How do I add my Deliveroo earnings?", "money", "earnings"],
@@ -257,5 +259,15 @@ describe("account_status tool", () => {
     const r = await runAssistantTool(ME, "account_status", { userId: "someone-else" }, NOW);
     expect(r.ok).toBe(false);
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("plainAnswer", () => {
+  it("removes markdown and dashes the app would show as symbols", () => {
+    expect(plainAnswer("Tap **I've Arrived** to save.")).toBe("Tap I've Arrived to save.");
+    expect(plainAnswer("## Steps\n1. Open it")).toBe("Steps\n1. Open it");
+    expect(plainAnswer("Fuel is included \u2014 you can't claim it")).toBe("Fuel is included, you can't claim it");
+    expect(plainAnswer("- a list line stays")).toBe("- a list line stays");
+    expect(plainAnswer("about 2\u20134% a shift")).toBe("about 2 to 4% a shift");
   });
 });
