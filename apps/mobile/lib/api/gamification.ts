@@ -19,9 +19,17 @@ export function fetchScorecard(shiftId?: string) {
   return apiRequest<{ data: ShiftScorecard }>(`/gamification/scorecard${query}`);
 }
 
-export function fetchRecap(period: "daily" | "weekly" | "monthly", date?: string) {
+/** The one source for a period's miles, trips, claim and earnings
+ *  (docs/insights-oct2026/NUMBERS.md). `compare` adds `previous` and
+ *  `change` (vs the period before) from the same calculation. */
+export function fetchRecap(
+  period: "daily" | "weekly" | "monthly",
+  date?: string,
+  opts?: { compare?: boolean },
+) {
   const params = new URLSearchParams({ period });
   if (date) params.set("date", date);
+  if (opts?.compare) params.set("compare", "1");
   return apiRequest<{ data: PeriodRecap }>(
     `/gamification/recap?${params.toString()}`
   );
