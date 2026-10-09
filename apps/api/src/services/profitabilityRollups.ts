@@ -39,6 +39,13 @@ export interface PnlBreakdown {
   businessMiles: number;
 }
 
+/** Old-shape row: what /platform-pnl?days= returns (app builds 90/93,
+ *  Android 6 and the web dashboard read row 0 as "Best: X netted £Y"). */
+export interface PlatformPnLLegacy extends PnlBreakdown {
+  platform: string;
+}
+
+/** League row: what /platform-pnl?period= returns. */
 export type PlatformPnL = PlatformLeagueEntry;
 
 export interface ProjectPnL extends PnlBreakdown {
@@ -88,6 +95,82 @@ export async function getPlatformPnL(args: RangeArgs): Promise<PlatformPnL[]> {
     }),
   ]);
   return buildPlatformLeague(earnings, trips, fuelLogs, expenses);
+}
+
+// ── Per-platform, old shape (no `period` sent) ───────────────────────
+// Kept exactly as before 9 Oct 2026 for clients already in the field:
+// sorted by net £, an "untagged" row for trips with no platform, phantom
+// trips included, earnings compared by instant.
+
+export async function getPlatformPnLLegacy(args: RangeArgs): Promise<PlatformPnLLegacy[]> {
+  const { userId, from, to } = args;
+
+  const [earnings, trips, fuelLogs, expenses] = await Promise.all([
+    prisma.earning.findMany({
+      where: { userId, periodStart: { gte: from, lte: to } },
+      select: { platform: true, amountPence: true },
+    }),
+    prisma.trip.findMany({
+      where: {
+        userId,
+        classification: "business",
+        startedAt: { gte: from, lte: to },
+      },
+      select: { distanceMiles: true, platformTag: true },
+    }),
+    prisma.fuelLog.findMany({
+      where: { userId, loggedAt: { gte: from, lte: to } },
+      select: { costPence: true },
+    }),
+    prisma.expense.findMany({
+      where: { userId, date: { gte: from, lte: to } },
+      select: { amountPence: true, category: true },
+    }),
+  ]);
+  return buildLegacyPlatformPnL(earnings, trips, fuelLogs, expenses);
+}
+
+export function buildLegacyPlatformPnL(
+  earnings: { platform: string; amountPence: number }[],
+  trips: { distanceMiles: number; platformTag: string | null }[],
+  fuelLogs: { costPence: number }[],
+  expenses: { amountPence: number; category: string }[],
+): PlatformPnLLegacy[] {
+  const totalEarningsPence = earnings.reduce((s, e) => s + e.amountPence, 0);
+  const allowableExpensePence = expenses
+    .filter((e) => ALLOWABLE_EXPENSE_CATEGORIES.has(e.category))
+    .reduce((s, e) => s + e.amountPence, 0);
+  const totalFuelPence = fuelLogs.reduce((s, l) => s + l.costPence, 0);
+
+  const blank = (platform: string): PlatformPnLLegacy => ({
+    platform,
+    grossEarningsPence: 0,
+    expensesPence: 0,
+    fuelPence: 0,
+    netPence: 0,
+    trips: 0,
+    businessMiles: 0,
+  });
+  const byPlatform = new Map<string, PlatformPnLLegacy>();
+  for (const e of earnings) {
+    const cur = byPlatform.get(e.platform) ?? blank(e.platform);
+    cur.grossEarningsPence += e.amountPence;
+    byPlatform.set(e.platform, cur);
+  }
+  for (const t of trips) {
+    const platform = t.platformTag ?? "untagged";
+    const cur = byPlatform.get(platform) ?? blank(platform);
+    cur.trips += 1;
+    cur.businessMiles += t.distanceMiles;
+    byPlatform.set(platform, cur);
+  }
+  for (const row of byPlatform.values()) {
+    const share = totalEarningsPence > 0 ? row.grossEarningsPence / totalEarningsPence : 0;
+    row.expensesPence = Math.round(allowableExpensePence * share);
+    row.fuelPence = Math.round(totalFuelPence * share);
+    row.netPence = row.grossEarningsPence - row.expensesPence - row.fuelPence;
+  }
+  return Array.from(byPlatform.values()).sort((a, b) => b.netPence - a.netPence);
 }
 
 /** The one platform league (9 Oct 2026): ranked by pay per mile via

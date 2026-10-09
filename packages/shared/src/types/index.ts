@@ -1422,9 +1422,13 @@ export interface BusinessInsights {
   busiestDay: string | null;       // day of week
   avgShiftGrade: string | null;
 
-  // Fuel economy (fuelCostPerMilePence: lib/insightsMath runningCostPerMile,
-  // the same as /business-insights/running-cost and /analytics/fuel-cost)
+  // Fuel economy. fuelCostPerMilePence: from real fill-up figures, else
+  // null (lib/insightsMath runningCostPerMile, the same rate as
+  // /business-insights/running-cost when its source is "fill_ups").
   fuelCostPerMilePence: number | null;
+  /** MPG estimate when there is no fill-up figure, else null. */
+  estimatedFuelCostPerMilePence?: number | null;
+  fuelCostSource?: "fill_ups" | "estimate" | null;
   actualMpg: number | null;
   estimatedFuelCostPence: number | null;  // estimated total fuel spend
 
@@ -1524,8 +1528,11 @@ export interface ShiftSweetSpot {
 export interface FuelCostBreakdown {
   actualMpg: number | null;
   estimatedMpg: number | null;
-  /** lib/insightsMath runningCostPerMile, tax year to date, 1 dp. */
+  /** From real fill-up figures (lib/insightsMath runningCostPerMile), 1 dp;
+   *  null when there are none. */
   fuelCostPerMilePence: number | null;
+  /** MPG estimate when there is no fill-up figure, else null. */
+  estimatedFuelCostPerMilePence?: number | null;
   fuelCostSource?: "fill_ups" | "estimate" | null;
   totalFuelCostPence: number;
   totalMilesDriven: number;
@@ -2427,7 +2434,8 @@ export interface TaxPlan {
 export interface RunningCostSummary {
   /** Pence per mile, 1 dp, tax year to date. Null for electric. */
   pencePerMile: number | null;
-  /** "fill_ups": fuel spend / miles driven this tax year; "estimate": MPG x price per litre. */
+  /** "fill_ups": cost of fill-ups 2..n / miles between the first and last
+   *  fill-up this tax year; "estimate": MPG x price per litre. */
   source: "fill_ups" | "estimate" | null;
   mpg: number | null;
   mpgSource: "odometer" | "vehicle" | "typical" | null;

@@ -41,12 +41,31 @@ export function toRated(trip: PeriodTrip, fallbackType: VehicleType): DatedRated
   };
 }
 
-/** Totals for one period. `earlierThisTaxYear` are the business trips
- *  earlier in the same tax year(s), for the 10,000-mile threshold. Phantom
- *  trips are always left out. */
+/** Turn a grouped aggregate of earlier claimable business miles (sum by
+ *  vehicle and platform tag) into rated entries for the threshold. They all
+ *  carry `startedAt` (the tax year start) so they land in that tax year. */
+export function ratedFromGroups(
+  groups: { vehicleId: string | null; platformTag: string | null; _sum: { distanceMiles: number | null } }[],
+  vehicleTypeById: Map<string, string>,
+  fallbackType: VehicleType,
+  startedAt: Date,
+): DatedRatedTrip[] {
+  return groups
+    .filter((g) => (g._sum.distanceMiles ?? 0) > 0)
+    .map((g) => ({
+      distanceMiles: g._sum.distanceMiles ?? 0,
+      vehicleType: ((g.vehicleId ? vehicleTypeById.get(g.vehicleId) : null) ?? fallbackType) as VehicleType,
+      platformTag: g.platformTag,
+      startedAt,
+    }));
+}
+
+/** Totals for one period. `earlier` are the claimable business miles
+ *  earlier in the same tax year(s), already rated, for the 10,000-mile
+ *  threshold. Phantom trips are always left out. */
 export function summarisePeriod(args: {
   trips: PeriodTrip[];
-  earlierThisTaxYear: PeriodTrip[];
+  earlier: DatedRatedTrip[];
   earnings: { amountPence: number }[];
   user: RateUser | null | undefined;
   fallbackType: VehicleType;
@@ -56,7 +75,7 @@ export function summarisePeriod(args: {
   const personal = trips.filter((t) => t.classification === "personal");
   const sum = (ts: PeriodTrip[]) => ts.reduce((s, t) => s + t.distanceMiles, 0);
   const claimPence = periodClaimPence(
-    args.earlierThisTaxYear.filter((t) => !t.isPhantomTrip && isClaimableTrip(t)).map((t) => toRated(t, args.fallbackType)),
+    args.earlier,
     business.filter(isClaimableTrip).map((t) => toRated(t, args.fallbackType)),
     args.user,
   );
@@ -80,6 +99,28 @@ export function percentChange(current: number, previous: number): number | null 
 
 export function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+// ── Days driven ──────────────────────────────────────────────────────
+
+/** Miles per UK calendar day: dates newest first (for streaks) and the
+ *  best day. Ties keep the earlier day. */
+export function ukDailyMiles(trips: { startedAt: Date; distanceMiles: number }[]): {
+  datesDesc: string[];
+  best: { dateKey: string; miles: number } | null;
+} {
+  const byDay = new Map<string, number>();
+  for (const t of trips) {
+    const key = ukParts(t.startedAt).dateKey;
+    byDay.set(key, (byDay.get(key) ?? 0) + t.distanceMiles);
+  }
+  const datesDesc = [...byDay.keys()].sort().reverse();
+  let best: { dateKey: string; miles: number } | null = null;
+  for (const key of [...datesDesc].reverse()) {
+    const miles = byDay.get(key)!;
+    if (!best || miles > best.miles) best = { dateKey: key, miles };
+  }
+  return { datesDesc, best };
 }
 
 // ── Platform league ──────────────────────────────────────────────────
@@ -309,23 +350,64 @@ export function goldenHoursFromSlots(slots: HourSlot[], limit = 3): {
 
 // ── Running cost per mile ────────────────────────────────────────────
 //
-// One definition (9 Oct 2026). The Overview fuel card summed only the
-// first page (3) of this month's fill-ups over this month's miles (£0.14);
-// Trends and Fuel Economy divided tax-year spend by tax-year miles (23p).
+// One definition (9 Oct 2026, revised after review). The Overview fuel
+// card summed only the first page (3) of this month's fill-ups over this
+// month's miles (£0.14); Trends and Fuel Economy divided tax-year spend by
+// tax-year miles (23p), which collapses when a driver logs one fill-up
+// after months of driving (£60 over 5,000 miles = 1.2p).
 //
-//  - With fill-ups logged this tax year and at least 100 miles driven over
-//    the same dates: fuel spend / miles driven (all trips, not just work),
-//    tax year to date. A shorter window swings with when you happen to
-//    fill up, so every period uses this one rate.
-//  - Otherwise an estimate: the vehicle's MPG (from odometer readings when
-//    there are two, else the MPG on the vehicle, else 35) at the average
-//    price paid per litre (else a typical pump price).
-// A period's fuel cost is then its miles times this rate.
+// From fill-ups: the fill-up window, first to last fill-up logged this
+// tax year. Fuel bought at the first fill-up is burned AFTER it and the
+// fuel burned before it was never logged, so the first fill-up's cost is
+// left out; fill-ups 2..n replace the fuel used between fill-up 1 and
+// fill-up n. Rate = cost of fill-ups 2..n / miles between fill-up 1 and
+// fill-up n (odometer readings when both ends have one, else the trips
+// recorded between them). Needs 2+ fill-ups and 100+ miles in the window.
+// A fill-up the driver forgot to log makes this read low, so a rate
+// outside half to double the MPG estimate is not trusted.
+//
+// Otherwise an estimate: MPG (odometer readings, else the vehicle's MPG,
+// else 35) at the average price paid per litre (else a typical price).
+// A period's fuel cost is its miles times this rate.
 
 export const LITRES_PER_GALLON = 4.54609;
 export const MIN_MILES_FOR_FILL_UP_RATE = 100;
 const FALLBACK_MPG = 35;
 const FALLBACK_PENCE_PER_LITRE: Record<string, number> = { petrol: 138, diesel: 145, hybrid: 138 };
+
+export interface FillUp {
+  loggedAt: Date;
+  costPence: number;
+  litres: number;
+  odometerReading: number | null;
+}
+
+export interface FillUpWindow {
+  start: Date;
+  end: Date;
+  /** Cost of the fill-ups after the first. */
+  spendPence: number;
+  /** Odometer miles between the first and last fill-up, when both have a reading. */
+  odometerMiles: number | null;
+}
+
+/** First to last fill-up; null with fewer than two. */
+export function fillUpWindow(fills: FillUp[]): FillUpWindow | null {
+  if (fills.length < 2) return null;
+  const sorted = [...fills].sort((a, b) => a.loggedAt.getTime() - b.loggedAt.getTime());
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  const odo =
+    first.odometerReading != null && last.odometerReading != null && last.odometerReading > first.odometerReading
+      ? last.odometerReading - first.odometerReading
+      : null;
+  return {
+    start: first.loggedAt,
+    end: last.loggedAt,
+    spendPence: sorted.slice(1).reduce((s, f) => s + f.costPence, 0),
+    odometerMiles: odo,
+  };
+}
 
 export interface RunningCost {
   /** Pence per mile, 1 dp. Null for electric vehicles (see charging). */
@@ -337,9 +419,11 @@ export interface RunningCost {
 }
 
 export function runningCostPerMile(args: {
-  fuelSpendPence: number;
-  litres: number;
-  milesDriven: number;
+  /** From fillUpWindow, with `miles` = odometerMiles or the trip miles between start and end. */
+  window: { spendPence: number; miles: number } | null;
+  /** All fill-ups this tax year, for the average price per litre. */
+  allSpendPence: number;
+  allLitres: number;
   odometerMpg: number | null;
   vehicleMpg: number | null;
   fuelType: string | null;
@@ -350,24 +434,31 @@ export function runningCostPerMile(args: {
   const mpgSource = args.odometerMpg ? "odometer" : args.vehicleMpg ? "vehicle" : "typical";
   const mpg = args.odometerMpg || args.vehicleMpg || FALLBACK_MPG;
   const pencePerLitre =
-    args.litres > 0 && args.fuelSpendPence > 0
-      ? round1(args.fuelSpendPence / args.litres)
+    args.allLitres > 0 && args.allSpendPence > 0
+      ? round1(args.allSpendPence / args.allLitres)
       : FALLBACK_PENCE_PER_LITRE[args.fuelType ?? "petrol"] ?? FALLBACK_PENCE_PER_LITRE.petrol;
-  if (args.fuelSpendPence > 0 && args.milesDriven >= MIN_MILES_FOR_FILL_UP_RATE) {
-    return {
-      pencePerMile: round1(args.fuelSpendPence / args.milesDriven),
-      source: "fill_ups",
-      mpg,
-      mpgSource,
-      pencePerLitre,
-    };
+  const estimate = (pencePerLitre * LITRES_PER_GALLON) / mpg;
+  const w = args.window;
+  if (w && w.spendPence > 0 && w.miles >= MIN_MILES_FOR_FILL_UP_RATE) {
+    const rate = w.spendPence / w.miles;
+    if (rate >= estimate / 2 && rate <= estimate * 2) {
+      return { pencePerMile: round1(rate), source: "fill_ups", mpg, mpgSource, pencePerLitre };
+    }
   }
+  return { pencePerMile: round1(estimate), source: "estimate", mpg, mpgSource, pencePerLitre };
+}
+
+/** The old-client fields: `fuelCostPerMilePence` keeps its meaning (from
+ *  real fill-up figures, else null); the estimate goes in a new field. */
+export function legacyFuelFields(r: RunningCost): {
+  fuelCostPerMilePence: number | null;
+  estimatedFuelCostPerMilePence: number | null;
+  fuelCostSource: "fill_ups" | "estimate" | null;
+} {
   return {
-    pencePerMile: round1((pencePerLitre * LITRES_PER_GALLON) / mpg),
-    source: "estimate",
-    mpg,
-    mpgSource,
-    pencePerLitre,
+    fuelCostPerMilePence: r.source === "fill_ups" ? r.pencePerMile : null,
+    estimatedFuelCostPerMilePence: r.source === "estimate" ? r.pencePerMile : null,
+    fuelCostSource: r.source,
   };
 }
 

@@ -63,8 +63,12 @@ export interface PnlRow {
   trips: number;
   businessMiles: number;
 }
-/** One row of the platform league (ranked by pay per mile). */
-export type PlatformPnLRow = PlatformLeagueEntry;
+/** Old-shape row (`days`): sorted by net £, includes "untagged". */
+export interface PlatformPnLRow extends PnlRow {
+  platform: string;
+}
+/** One row of the platform league (`period`): ranked by pay per mile. */
+export type PlatformLeagueRow = PlatformLeagueEntry;
 export interface ProjectPnLRow extends PnlRow {
   projectLabel: string;
 }
@@ -75,18 +79,19 @@ export interface ShiftPnLRow extends PnlRow {
   durationSeconds: number;
 }
 
-/** The one platform league. Pass a number for the last N days (old
- *  behaviour), or an Insights period ("week" | "month" | "tax_year") with an
- *  optional date inside it (YYYY-MM-DD). */
-export function fetchPlatformPnL(
-  daysOrPeriod: number | "week" | "month" | "tax_year" = 30,
-  date?: string,
-) {
-  const params = new URLSearchParams();
-  if (typeof daysOrPeriod === "number") params.set("days", String(daysOrPeriod));
-  else params.set("period", daysOrPeriod);
-  if (date) params.set("date", date);
+/** Old table: last N days, sorted by net £. */
+export function fetchPlatformPnL(days: number = 30) {
   return apiRequest<{ data: PlatformPnLRow[] }>(
+    `/business-insights/platform-pnl?days=${days}`
+  );
+}
+
+/** The one platform league for an Insights period, ranked by pay per mile
+ *  (docs/insights-oct2026/NUMBERS.md). `date`: any day in it, YYYY-MM-DD. */
+export function fetchPlatformLeague(period: "week" | "month" | "tax_year", date?: string) {
+  const params = new URLSearchParams({ period });
+  if (date) params.set("date", date);
+  return apiRequest<{ data: PlatformLeagueRow[] }>(
     `/business-insights/platform-pnl?${params.toString()}`
   );
 }

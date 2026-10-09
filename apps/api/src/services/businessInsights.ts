@@ -1,12 +1,13 @@
 import { prisma } from "../lib/prisma.js";
 import {
   allocateEarningsToHours,
+  legacyFuelFields,
   goldenHoursFromSlots,
   percentChange,
   rankPlatforms,
 } from "../lib/insightsMath.js";
 import { WEEKDAY_NAMES, ukParts, ukWeekBounds } from "../lib/ukTime.js";
-import { boundsLabel, loadPeriodFigures } from "./periodFigures.js";
+import { boundsLabel, loadPeriodFigures, loadPeriodFiguresSeries } from "./periodFigures.js";
 import { taxYearRunningCost } from "./runningCost.js";
 import {
   getTaxYear,
@@ -72,8 +73,6 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
     earnings,
     businessTrips,
     shifts,
-    fuelLogs,
-    vehicles,
     mileageSummary,
   ] = await Promise.all([
     // All earnings in this tax year
@@ -104,18 +103,7 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
       },
       orderBy: { startedAt: "desc" },
     }),
-    // Fuel logs in this tax year
-    prisma.fuelLog.findMany({
-      where: {
-        userId,
-        loggedAt: { gte: taxStart, lte: taxEnd },
-      },
-      orderBy: { loggedAt: "asc" },
-    }),
-    // User's vehicles (for MPG)
-    prisma.vehicle.findMany({
-      where: { userId },
-    }),
+    // (Fuel logs and vehicles: read by services/runningCost.)
     // Mileage summary
     prisma.mileageSummary.findUnique({
       where: { userId_taxYear: { userId, taxYear } },
@@ -195,12 +183,15 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
   // ── Fuel economy ────────────────────────────────────────────────
   // One running cost per mile (services/runningCost): the same figure as
   // the Overview fuel card and Trends.
+  // fuelCostPerMilePence keeps its old meaning for apps in the field:
+  // from real fill-up figures, else null. The estimate is a new field.
   const runningCost = await taxYearRunningCost(userId, now);
-  const fuelCostPerMilePence = runningCost.pencePerMile;
+  const fuelFields = legacyFuelFields(runningCost);
+  const fuelCostPerMilePence = fuelFields.fuelCostPerMilePence;
   const actualMpg = runningCost.mpgSource === "odometer" ? runningCost.mpg : null;
   const estimatedFuelCostPence =
-    fuelCostPerMilePence != null && totalBusinessMiles > 0
-      ? Math.round(fuelCostPerMilePence * totalBusinessMiles)
+    runningCost.pencePerMile != null && totalBusinessMiles > 0
+      ? Math.round(runningCost.pencePerMile * totalBusinessMiles)
       : null;
 
   // ── Recent shift performance ────────────────────────────────────
@@ -284,10 +275,7 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
   // Same weeks and totals as /gamification/recap?period=weekly&compare=1
   // (services/periodFigures). The redesigned Insights shows only the
   // recap's comparison; these stay for older app versions.
-  const [thisWeek, lastWeek] = await Promise.all([
-    loadPeriodFigures(userId, ukWeekBounds(now)),
-    loadPeriodFigures(userId, ukWeekBounds(now, 1)),
-  ]);
+  const [lastWeek, thisWeek] = await loadPeriodFiguresSeries(userId, [ukWeekBounds(now, 1), ukWeekBounds(now)]);
   const earningsTrendPercent = percentChange(thisWeek.earningsPence, lastWeek.earningsPence);
   const mileTrendPercent = percentChange(thisWeek.businessMiles, lastWeek.businessMiles);
 
@@ -305,6 +293,8 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
     busiestDay,
     avgShiftGrade,
     fuelCostPerMilePence,
+    estimatedFuelCostPerMilePence: fuelFields.estimatedFuelCostPerMilePence,
+    fuelCostSource: fuelFields.fuelCostSource,
     actualMpg,
     estimatedFuelCostPence,
     recentShifts,

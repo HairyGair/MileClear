@@ -46,11 +46,11 @@ Not the same fact: the Home HMRC card's "£171.38 mileage deduction" (`/business
 | Price per litre | `pencePerLitre` |
 | Fuel cost for the period | `period.fillUpSpendPence` when `period.fillUps > 0`, else `period.estimatedCostPence` (miles x rate, show with "~") |
 
-Definition (`runningCostPerMile` in `apps/api/src/lib/insightsMath.ts`): with fill-ups logged this tax year and at least 100 miles driven, fuel spend / miles driven, tax year to date (every period uses this one rate; a week's fill-ups swing with when you happen to fill up). Otherwise MPG (odometer, else the vehicle's, else 35) at the average price paid per litre (else a typical pump price). Electric: `null` (use the charging card). `/analytics/fuel-cost` `fuelCostPerMilePence` and `/business-insights` `fuelCostPerMilePence` return the same number.
+Definition (`runningCostPerMile` in `apps/api/src/lib/insightsMath.ts`): from fill-ups when there are two or more this tax year: the cost of fill-ups 2..n over the miles between the first and last fill-up (odometer when both ends have a reading, else recorded trips). The first fill-up's fuel is burned after it, so its cost is left out. Needs 100+ miles in that window, and a rate within half to double the MPG estimate (a forgotten fill-up makes it read low). Otherwise an estimate: MPG (odometer, else the vehicle's, else 35) at the average price paid per litre (else a typical pump price). Every period uses this one rate. Electric: `null` (use the charging card). For old app builds, `/analytics/fuel-cost` and `/business-insights` keep `fuelCostPerMilePence` = the fill-up rate or null, with the estimate in `estimatedFuelCostPerMilePence` and `fuelCostSource`; the new screen reads only `/business-insights/running-cost`.
 
 ## Platform league (Work, gig)
 
-`fetchPlatformPnL("week" | "month" | "tax_year", date)` → `GET /business-insights/platform-pnl?period=&date=`. Rows come back ranked; do not re-sort.
+`fetchPlatformLeague("week" | "month" | "tax_year", date)` → `GET /business-insights/platform-pnl?period=&date=`. Rows come back ranked; do not re-sort. Without `period` (`?days=`, `fetchPlatformPnL`) the endpoint returns the old shape and order (by net £, with an "untagged" row) for app builds already in the field: do not use that on Insights.
 
 | Figure | Field |
 |---|---|
