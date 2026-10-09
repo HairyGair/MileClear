@@ -5,8 +5,22 @@ import type { NextConfig } from "next";
 // Load .env from monorepo root so NEXT_PUBLIC_* vars are available at build time
 config({ path: resolve(__dirname, "../../.env") });
 
+// The API origin the browser talks to, so connect-src matches wherever the web
+// app is pointed (production, a local API, or the test server).
+function apiOrigin(): string {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_API_URL || "https://api.mileclear.com").origin;
+  } catch {
+    return "https://api.mileclear.com";
+  }
+}
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // `pnpm lint` (the repo's eslint.config.mjs, with the react-hooks plugin)
+  // is the lint gate, in CI and pre-push. next build's own lint pass uses a
+  // config without that plugin and fails on react-hooks disable comments.
+  eslint: { ignoreDuringBuilds: true },
   transpilePackages: ["@mileclear/shared"],
   async redirects() {
     return [
@@ -32,6 +46,20 @@ const nextConfig: NextConfig = {
       { source: "/teams", destination: "/milesheet", permanent: true },
       { source: "/dashboard/team", destination: "/milesheet/portal", permanent: true },
       { source: "/team/invite/:token", destination: "/milesheet/invite/:token", permanent: true },
+
+      // Dashboard rebuild (Oct 2026). Old driver dashboard URLs keep working
+      // because emails and bookmarks point at them. 307 (permanent: false) so
+      // nothing is cached by browsers if a destination moves again.
+      // The query-matched one must come first.
+      { source: "/dashboard/trips", has: [{ type: "query", key: "filter", value: "unclassified" }], destination: "/dashboard/trips?view=inbox", permanent: false },
+      { source: "/dashboard/business", destination: "/dashboard/insights", permanent: false },
+      { source: "/dashboard/personal", destination: "/dashboard/insights", permanent: false },
+      { source: "/dashboard/analytics", destination: "/dashboard/insights?view=trends", permanent: false },
+      { source: "/dashboard/inbox", destination: "/dashboard/bank/inbox", permanent: false },
+      { source: "/dashboard/exports", destination: "/dashboard/tax/exports", permanent: false },
+      { source: "/dashboard/self-assessment", destination: "/dashboard/tax/self-assessment", permanent: false },
+      { source: "/dashboard/accountant", destination: "/dashboard/tax/accountant", permanent: false },
+      { source: "/dashboard/locations", destination: "/dashboard/places", permanent: false },
     ];
   },
   async headers() {
@@ -68,11 +96,13 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com",
+              // unpkg stays only while the admin UserDetailModal still loads Leaflet from it.
+              // Driver pages bundle Leaflet from npm. GA4 loads (after cookie consent) from googletagmanager.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.googletagmanager.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com",
-              "connect-src 'self' https://api.mileclear.com https://exp.host",
+              "img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com",
+              `connect-src 'self' https://api.mileclear.com ${apiOrigin()} https://exp.host https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com`,
               "frame-ancestors 'none'",
             ].join("; "),
           },

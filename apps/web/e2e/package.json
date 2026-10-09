@@ -1,0 +1,8 @@
+{
+  "name": "mileclear-web-e2e",
+  "private": true,
+  "description": "Isolated Playwright install. Not a pnpm workspace package; does not touch pnpm-lock.yaml.",
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

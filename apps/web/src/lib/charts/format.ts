@@ -1,6 +1,6 @@
-// Number and date formatting for the admin kit. Money is always pence.
+// Number and date formatting for the admin kit and the driver dashboard. Money is always pence.
 
-export { formatNumber, formatPence } from "../format";
+export { formatNumber, formatPence } from "@/components/admin/format";
 
 /** "12%" from a ratio of two counts; "-" when there is no denominator. */
 export function formatShare(n: number, of: number): string {

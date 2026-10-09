@@ -1,90 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { loginWithGoogle } from "../../lib/auth";
+import { useCallback } from "react";
 
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: any) => void;
-          renderButton: (el: HTMLElement, config: any) => void;
-          prompt: () => void;
-        };
-      };
-    };
-  }
-}
+/** Where to send the driver after the Apple redirect returns (it drops the query string). */
+export const OAUTH_NEXT_KEY = "mc_oauth_next";
 
 interface OAuthButtonsProps {
   onSuccess: () => void;
   onError: (error: string) => void;
 }
 
-export function OAuthButtons({ onSuccess, onError }: OAuthButtonsProps) {
-  const googleRef = useRef<HTMLDivElement>(null);
-  const [googleReady, setGoogleReady] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-
-  // Stable callback ref for Google
-  const handleGoogleRef = useRef<(response: { credential: string }) => void>(undefined);
-  handleGoogleRef.current = async (response) => {
-    setGoogleLoading(true);
-    try {
-      await loginWithGoogle(response.credential, true);
-      onSuccess();
-    } catch (err: any) {
-      onError(err.message || "Google sign-in failed");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  // Load Google Identity Services script
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) return;
-    if (window.google?.accounts) {
-      setGoogleReady(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => setGoogleReady(true);
-    document.head.appendChild(script);
-  }, []);
-
-  // Initialize Google button once script is loaded
-  useEffect(() => {
-    if (!googleReady || !GOOGLE_CLIENT_ID || !googleRef.current) return;
-
-    window.google!.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: (response: { credential: string }) => {
-        handleGoogleRef.current?.(response);
-      },
-    });
-
-    window.google!.accounts.id.renderButton(googleRef.current, {
-      theme: "filled_black",
-      size: "large",
-      shape: "rectangular",
-      width: 352,
-      text: "continue_with",
-    });
-  }, [googleReady]);
-
-  // Apple Sign-In: redirect to API server (full page, not popup)
+// Google Sign-In is disabled (iOS-only clearance for now), and its Identity
+// Services code has been removed. Bring it back from git history if it returns.
+export function OAuthButtons(_props: OAuthButtonsProps) {
+  // Apple Sign-In: redirect to API server (full page, not popup). The page
+  // they were heading for is parked in sessionStorage because the callback
+  // returns with tokens in the URL hash and no query string.
   const handleApple = useCallback(() => {
+    try {
+      const next = new URLSearchParams(window.location.search).get("next");
+      if (next) window.sessionStorage.setItem(OAUTH_NEXT_KEY, next);
+      else window.sessionStorage.removeItem(OAUTH_NEXT_KEY);
+    } catch {
+      // Private windows can throw. They land on the dashboard instead.
+    }
     window.location.href = `${API_URL}/auth/apple/web`;
   }, []);
-
-  // Google Sign-In temporarily disabled - iOS-only clearance for now
-  const showGoogle = false;
 
   return (
     <div className="oauth">
@@ -93,15 +36,6 @@ export function OAuthButtons({ onSuccess, onError }: OAuthButtonsProps) {
       </div>
 
       <div className="oauth__buttons">
-        {showGoogle && (
-          <div className="oauth__google-wrap">
-            <div ref={googleRef} className="oauth__google-btn" />
-            {googleLoading && (
-              <div className="oauth__loading">Signing in with Google...</div>
-            )}
-          </div>
-        )}
-
         <button
           className="oauth__btn oauth__btn--apple"
           onClick={handleApple}

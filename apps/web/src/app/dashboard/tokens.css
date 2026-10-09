@@ -1,0 +1,115 @@
+/* Dashboard design tokens. 1:1 from the app's theme (apps/mobile/lib/theme.ts).
+   Scoped to .mc-app so they cannot collide with the marketing tokens in
+   globals.css or the legacy dashboard.css. Dark only, like the app. */
+
+.mc-app {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --mc-bg: #030712;
+  --mc-surface: #0a1120;
+  --mc-border: rgba(255, 255, 255, 0.06);
+  --mc-hairline: rgba(255, 255, 255, 0.08);
+  --mc-icon-tile: rgba(255, 255, 255, 0.04);
+  --mc-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Brand */
+  --mc-amber: #f5a623;
+  --mc-amber-dim: rgba(245, 166, 35, 0.12);
+  --mc-amber-glow: rgba(245, 166, 35, 0.35);
+
+  /* Text */
+  --mc-text-1: #f0f2f5;
+  --mc-text-2: #8494a7;
+  --mc-text-3: #94a3b8;
+
+  /* Semantic */
+  --mc-green: #10b981;
+  --mc-green-dim: rgba(16, 185, 129, 0.12);
+  --mc-live: #34c759;
+  --mc-red: #ef4444;
+  --mc-red-dim: rgba(239, 68, 68, 0.12);
+  --mc-red-text: #f87171;
+
+  /* Classification */
+  --mc-personal: #374151;
+  --mc-personal-edge: #94a3b8;
+
+  /* Map palette, newest first, never cycled */
+  --mc-map-1: #f5a623;
+  --mc-map-2: #a78bfa;
+  --mc-map-3: #2fbf9a;
+  --mc-map-4: #ff7a59;
+  --mc-map-5: #e2e8f0;
+  --mc-map-older: #64748b;
+
+  /* Spacing */
+  --mc-s-xs: 4px;
+  --mc-s-sm: 8px;
+  --mc-s-md: 12px;
+  --mc-s-lg: 16px;
+  --mc-s-xl: 20px;
+  --mc-s-2xl: 24px;
+  --mc-s-3xl: 32px;
+  --mc-s-4xl: 48px;
+
+  /* Radii */
+  --mc-r-xs: 6px;
+  --mc-r-sm: 8px;
+  --mc-r-md: 12px;
+  --mc-r-lg: 16px;
+  --mc-r-pill: 20px;
+  --mc-r-sheet: 20px;
+
+  /* Type. --mc-font is set by next/font (Plus Jakarta Sans) on the same element. */
+  --mc-font-family: var(--mc-font), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mc-fs-caption: 12px;
+  --mc-fs-body: 14px;
+  --mc-fs-body-lg: 16px;
+  --mc-fs-title: 18px;
+  --mc-fs-heading: 22px;
+  --mc-fs-display: 28px;
+  --mc-fs-badge: 11px;
+  --mc-fs-row: 15px;
+  --mc-fs-hint: 13px;
+  --mc-fs-hero: 44px;
+  --mc-lh-tight: 1.15;
+  --mc-lh-snug: 1.35;
+  --mc-lh-body: 1.5;
+
+  /* Elevation, motion, layers */
+  --mc-shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45);
+  --mc-ease: cubic-bezier(0.2, 0, 0, 1);
+  --mc-dur-fast: 120ms;
+  --mc-dur: 180ms;
+  --mc-z-rail: 20;
+  --mc-z-topbar: 30;
+  --mc-z-tabbar: 30;
+  --mc-z-menu: 40;
+  --mc-z-modal: 50;
+  --mc-z-toast: 60;
+
+  /* Layout */
+  --mc-rail-w: 240px;
+  --mc-rail-w-collapsed: 72px;
+  --mc-topbar-h: 56px;
+  --mc-tabbar-h: 56px;
+  --mc-content-max: 1120px;
+  --mc-content-narrow: 720px;
+  --mc-gutter: 16px;
+  --mc-tap: 44px;
+}
+
+@media (min-width: 768px) {
+  .mc-app {
+    --mc-topbar-h: 64px;
+    --mc-gutter: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mc-app {
+    --mc-gutter: 32px;
+    --mc-fs-hero: 56px;
+  }
+}

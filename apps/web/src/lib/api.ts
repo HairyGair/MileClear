@@ -63,6 +63,19 @@ async function refreshTokens(): Promise<boolean> {
   return refreshPromise;
 }
 
+/** Send the browser to /login, keeping the page they were on as ?next. */
+function redirectToLogin() {
+  if (typeof window === "undefined") return;
+  const path = window.location.pathname;
+  // Already on an auth page (e.g. a wrong password): don't reload it.
+  if (path === "/login" || path === "/register" || path === "/verify" || path === "/forgot-password") return;
+  if (path.startsWith("/dashboard")) {
+    window.location.href = `/login?next=${encodeURIComponent(path + window.location.search)}`;
+  } else {
+    window.location.href = "/login";
+  }
+}
+
 // --- Core request function ---
 
 async function request<T>(
@@ -92,9 +105,7 @@ async function request<T>(
       return request<T>(path, options, false);
     }
     clearTokens();
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+    redirectToLogin();
     throw new Error("Session expired");
   }
 
@@ -128,9 +139,7 @@ export async function fetchWithAuth(
       return fetchWithAuth(path, options);
     }
     clearTokens();
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
+    redirectToLogin();
     throw new Error("Session expired");
   }
 
