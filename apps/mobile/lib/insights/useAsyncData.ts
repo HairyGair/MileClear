@@ -27,6 +27,7 @@ export function useAsyncData<T>(
   const [nonce, setNonce] = useState(0);
   const loadRef = useRef(load);
   loadRef.current = load;
+  const dataKey = useRef(key);
 
   useEffect(() => {
     if (!enabled) {
@@ -34,6 +35,13 @@ export function useAsyncData<T>(
       return;
     }
     let cancelled = false;
+    // A new key (e.g. Work to Personal) must not show the old key's data while
+    // loading; a reload of the same key keeps it on screen.
+    if (dataKey.current !== key) {
+      dataKey.current = key;
+      setData(null);
+      setFailed(false);
+    }
     setLoading(true);
     loadRef
       .current()
