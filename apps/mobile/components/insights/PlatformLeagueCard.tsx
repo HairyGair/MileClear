@@ -17,8 +17,10 @@ import { usePaywall } from "../paywall";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
 import { loadLeague } from "../../lib/insights/platformLeagueData";
 import { getPeriodRange, summaryTitle } from "../../lib/insights/period";
+import { useRouter } from "expo-router";
 import {
   hasLeague,
+  leagueHasNoEarnings,
   formatPerMile,
   leagueSubline,
   type LeagueRow,
@@ -29,6 +31,7 @@ import { InsightCard, CardSkeleton, CardError, type InsightCardProps } from "./w
 export default function PlatformLeagueCard({ period, offset, mode, isPro, refreshToken }: InsightCardProps) {
   const { user, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
+  const router = useRouter();
   const workType = user?.workType ?? "gig";
   const isGig = (workType === "gig" || workType === "both") && !isCompanyDriver;
   const hidden = mode !== "work" || !isGig;
@@ -46,7 +49,27 @@ export default function PlatformLeagueCard({ period, offset, mode, isPro, refres
   if (hidden) return null;
   if (loading && !rows) return <CardSkeleton lines={4} />;
   if (failed && !rows) return <CardError onRetry={reload} />;
-  if (!rows || !hasLeague(rows)) return null;
+  if (!rows) return null;
+  if (!hasLeague(rows)) {
+    if (!leagueHasNoEarnings(rows)) return null;
+    return (
+      <InsightCard title="Your platforms, ranked" meta={range.isCurrent && period === "tax_year" ? "Tax year so far" : summaryTitle(period, offset, range)}>
+        <Text style={styles.emptyText} maxFontSizeMultiplier={fontScaleCap.body}>
+          Add what you were paid to rank your platforms.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.push("/earning-form")}
+          style={styles.proLink}
+          accessibilityRole="button"
+          accessibilityLabel="Add earnings"
+        >
+          <Text style={styles.proLinkText} maxFontSizeMultiplier={fontScaleCap.body}>
+            Add earnings
+          </Text>
+        </TouchableOpacity>
+      </InsightCard>
+    );
+  }
 
   return (
     <InsightCard title="Your platforms, ranked" meta={range.isCurrent && period === "tax_year" ? "Tax year so far" : summaryTitle(period, offset, range)}>
@@ -147,6 +170,7 @@ const styles = StyleSheet.create({
   figure: { fontSize: 16, fontFamily: fonts.bold, color: colors.text1 },
   sub: { fontSize: 12, fontFamily: fonts.medium, color: colors.text2, textAlign: "right" },
   placeholder: { width: 56, height: 12, borderRadius: 6, backgroundColor: chart.track },
+  emptyText: { fontSize: 14, fontFamily: fonts.regular, color: colors.text2, lineHeight: 20 },
   footnote: { marginTop: spacing.sm, fontSize: 12, fontFamily: fonts.regular, color: colors.text3, lineHeight: 17 },
   proLink: { marginTop: spacing.xs, minHeight: 44, justifyContent: "center", alignSelf: "flex-start" },
   proLinkText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.amber },

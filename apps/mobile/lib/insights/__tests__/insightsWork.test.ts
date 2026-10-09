@@ -180,3 +180,28 @@ describe("platform league: free order matches Pro order", () => {
     expect(rows[0].hours).toBe(8);
   });
 });
+
+import { leagueHasNoEarnings } from "../platformLeague";
+
+describe("platform league: no earnings in the window", () => {
+  it("free: no rows means no earnings", () => {
+    expect(leagueHasNoEarnings([])).toBe(true);
+  });
+  it("Pro: platforms driven for but none paid is the empty state", () => {
+    const league = buildLeague([
+      { platform: "uber", grossPence: 0, trips: 3, miles: 20 },
+      { platform: "deliveroo", grossPence: 0, trips: 1, miles: 5 },
+    ]);
+    expect(leagueHasNoEarnings(league)).toBe(true);
+  });
+  it("not when one platform was paid, or a paid platform has no tagged trips", () => {
+    const paid = buildLeague([{ platform: "uber", grossPence: 3000, trips: 3, miles: 20 }]);
+    expect(leagueHasNoEarnings(paid)).toBe(false);
+    const untagged = buildLeague([{ platform: "uber", grossPence: 3000, trips: 0, miles: 0 }]);
+    expect(leagueHasNoEarnings(untagged)).toBe(false);
+  });
+  it("never for masked free rows (they only exist with earnings)", () => {
+    const masked = maskLeagueForFree(buildLeague([{ platform: "uber", grossPence: 3000, trips: 3, miles: 20 }]));
+    expect(leagueHasNoEarnings(masked)).toBe(false);
+  });
+});

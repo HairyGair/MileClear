@@ -25,6 +25,7 @@ import {
   ShiftSweetSpotsCard,
   EarningsByDayCard,
 } from "./TrendsView";
+import { fuelPerMile } from "../../lib/insights/fuelPerMile";
 import { CardSkeleton, CardError, type InsightCardProps } from "./work/InsightCardUi";
 import { colors, fonts, fontScaleCap, radii, shared, spacing } from "../../lib/theme";
 
@@ -112,13 +113,15 @@ export default function GoDeeper({ mode, isPro, refreshToken }: InsightCardProps
     });
   }
   const fuel = analytics.fuelCost;
-  if (fuel.fuelCostPerMilePence != null || fuel.recentFillUps.length > 0) {
+  const perMile = fuelPerMile(fuel);
+  if (perMile || fuel.recentFillUps.length > 0) {
     rows.push({
       key: "fuel",
       icon: "speedometer-outline",
       title: "Running costs",
-      headline:
-        fuel.fuelCostPerMilePence != null ? `${fuel.fuelCostPerMilePence.toFixed(1)}p a mile` : "Recent fill-ups",
+      headline: perMile
+        ? `${perMile.pence.toFixed(1)}p a mile${perMile.isEstimate ? ", estimate" : ""}`
+        : "Recent fill-ups",
       card: <FuelCostCard fuel={fuel} />,
     });
   }

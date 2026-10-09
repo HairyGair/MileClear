@@ -6,7 +6,7 @@ import { fetchFuelLogs } from "../../lib/api/fuel";
 import { fetchRunningCost } from "../../lib/api/businessInsights";
 import { formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle, RunningCostSummary } from "@mileclear/shared";
-import { colors, fonts } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
 import { cachedFuelLogs, cachedRunningCost } from "../../lib/insights/api";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -118,10 +118,10 @@ export function FuelSummaryCard({ window: win, monthMiles, estimatedMpg, fuelTyp
       {/* Stats row */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>
+          <Text style={styles.statValue} maxFontSizeMultiplier={fontScaleCap.display}>
             {isEstimate ? "~" : ""}{formatPence(displayCost)}
           </Text>
-          <Text style={styles.statLabel}>
+          <Text style={styles.statLabel} maxFontSizeMultiplier={fontScaleCap.display}>
             {isEstimate ? "est. cost" : "spent"}
           </Text>
         </View>
@@ -129,22 +129,22 @@ export function FuelSummaryCard({ window: win, monthMiles, estimatedMpg, fuelTyp
         {costPerMile && (
           <>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{costPerMile}</Text>
-              <Text style={styles.statLabel}>{cost?.source === "estimate" ? "per mile, estimate" : "per mile"}</Text>
+              <Text style={styles.statValue} maxFontSizeMultiplier={fontScaleCap.display}>{costPerMile}</Text>
+              <Text style={styles.statLabel} maxFontSizeMultiplier={fontScaleCap.display}>{cost?.source === "estimate" ? "per mile, estimate" : "per mile"}</Text>
             </View>
             <View style={styles.statDot} />
           </>
         )}
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{mpg ?? "-"}</Text>
-          <Text style={styles.statLabel}>MPG</Text>
+          <Text style={styles.statValue} maxFontSizeMultiplier={fontScaleCap.display}>{mpg ?? "-"}</Text>
+          <Text style={styles.statLabel} maxFontSizeMultiplier={fontScaleCap.display}>MPG</Text>
         </View>
         {hasRealData && ppl != null && (
           <>
             <View style={styles.statDot} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{ppl.toFixed(1)}p</Text>
-              <Text style={styles.statLabel}>per litre</Text>
+              <Text style={styles.statValue} maxFontSizeMultiplier={fontScaleCap.display}>{ppl.toFixed(1)}p</Text>
+              <Text style={styles.statLabel} maxFontSizeMultiplier={fontScaleCap.display}>per litre</Text>
             </View>
           </>
         )}
@@ -234,6 +234,7 @@ const styles = StyleSheet.create({
   statItem: {
     alignItems: "center",
     paddingHorizontal: 12,
+    flexShrink: 1,
   },
   statValue: {
     fontSize: 15,
@@ -245,6 +246,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: TEXT_3,
     marginTop: 2,
+    textAlign: "center",
   },
   statDot: {
     width: 3,

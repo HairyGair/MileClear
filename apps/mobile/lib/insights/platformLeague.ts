@@ -122,6 +122,17 @@ export function hasLeague(rows: LeagueRow[]): boolean {
   return rows.length >= 2;
 }
 
+/**
+ * No earnings in the window, so nothing can be ranked (SPEC-UX 3.4 empty
+ * state: "Add what you were paid to rank your platforms."). Free rows only
+ * exist for platforms with earnings, so none means none; Pro rows with trips
+ * but no pay per mile are platforms driven for but not paid in the window.
+ * A row with earnings but no tagged trips is not this case.
+ */
+export function leagueHasNoEarnings(rows: LeagueRow[]): boolean {
+  return rows.every((r) => r.perMilePence == null && r.trips != null && r.trips > 0);
+}
+
 /** Free preview: keep rank, name and the few-trips flag, drop every figure. */
 export function maskLeagueForFree(rows: LeagueRow[]): LeagueRow[] {
   return rows.map((r) => ({

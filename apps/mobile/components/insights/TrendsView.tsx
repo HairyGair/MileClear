@@ -19,6 +19,7 @@ import type {
   CommuteTiming,
 } from "@mileclear/shared";
 import { cachedDrivingAnalytics } from "../../lib/insights/api";
+import { fuelPerMile } from "../../lib/insights/fuelPerMile";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { ErrorState } from "../ErrorState";
@@ -262,6 +263,7 @@ export function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
       </View>
     );
   }
+  const perMile = fuelPerMile(fuel);
   return (
     <View style={s.card}>
       <View style={s.cardHeaderRow}>
@@ -271,15 +273,13 @@ export function FuelCostCard({ fuel }: { fuel: FuelCostBreakdown }) {
         </View>
       </View>
 
-      {/* Hero stat */}
-      <View style={s.fuelHero}>
-        <Text style={s.fuelHeroValue}>
-          {fuel.fuelCostPerMilePence != null
-            ? `${fuel.fuelCostPerMilePence.toFixed(1)}p`
-            : "—"}
-        </Text>
-        <Text style={s.fuelHeroLabel}>per mile</Text>
-      </View>
+      {/* Hero stat: the fill-up figure, else the same estimate the Fuel card shows */}
+      {perMile && (
+        <View style={s.fuelHero}>
+          <Text style={s.fuelHeroValue}>{`${perMile.pence.toFixed(1)}p`}</Text>
+          <Text style={s.fuelHeroLabel}>{perMile.isEstimate ? "per mile, estimate" : "per mile"}</Text>
+        </View>
+      )}
 
       {/* MPG */}
       <View style={s.fuelMpgRow}>
