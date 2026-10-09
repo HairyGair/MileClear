@@ -23,6 +23,9 @@ import {
 import type { FuelType, VehicleType, CazAssessment } from "@mileclear/shared";
 import { Button } from "../components/Button";
 import { CleanAirZoneCard } from "../components/CleanAirZoneCard";
+import { OdometerSection } from "../components/odometer/OdometerSection";
+import { addOdometerReading } from "../lib/api/odometer";
+import { parseReadingInput, sanitiseReadingInput } from "../lib/odometer/logic";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
@@ -80,6 +83,9 @@ export default function VehicleFormScreen() {
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
+  // Optional odometer reading when adding a vehicle (SPEC-UX 1.2).
+  const [odometerNow, setOdometerNow] = useState("");
+  const [vehicleCreatedAt, setVehicleCreatedAt] = useState<string | null>(null);
   const [vehicleType, setVehicleType] = useState<VehicleType>("car");
   const [fuelType, setFuelType] = useState<FuelType>("petrol");
   const [estimatedMpg, setEstimatedMpg] = useState("");
@@ -108,6 +114,7 @@ export default function VehicleFormScreen() {
               : ""
           );
           setIsPrimary(vehicle.isPrimary);
+          setVehicleCreatedAt((vehicle as { createdAt?: string }).createdAt ?? null);
           setProvidedByOthers(vehicle.providedByOthers ?? false);
           setRegistrationPlate(vehicle.registrationPlate || "");
           setCleanAirZones(vehicle.cleanAirZones ?? null);
@@ -163,6 +170,20 @@ export default function VehicleFormScreen() {
       return;
     }
 
+    // The optional odometer reading is checked before anything is saved.
+    let odometerMiles: number | null = null;
+    if (!isEditing && odometerNow.trim()) {
+      const parsed = parseReadingInput(odometerNow);
+      if (parsed.kind !== "ok") {
+        Alert.alert(
+          "Check the odometer",
+          "That doesn't look like an odometer reading. Check it and try again."
+        );
+        return;
+      }
+      odometerMiles = parsed.miles;
+    }
+
     // Free users limited to 1 vehicle of their own + 1 someone else pays for
     if (!isEditing && !user?.isPremium) {
       try {
@@ -212,7 +233,23 @@ export default function VehicleFormScreen() {
       if (isEditing) {
         await updateVehicle(id, payload);
       } else {
-        await createVehicle(payload);
+        const created = await createVehicle(payload);
+        if (odometerMiles != null) {
+          try {
+            await addOdometerReading(created.data.id, {
+              readingMiles: odometerMiles,
+              readAt: new Date().toISOString(),
+            });
+          } catch {
+            // The vehicle is kept; the reading can be added from its screen.
+            Alert.alert(
+              "Vehicle saved",
+              "We couldn't save the odometer reading. Add it from the vehicle screen.",
+              [{ text: "OK", onPress: () => router.back() }]
+            );
+            return;
+          }
+        }
       }
       router.back();
     } catch (err: unknown) {
@@ -220,7 +257,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, registrationPlate, euroStatus, firstRegistration, isEditing, id, router, user?.isPremium, showPaywall]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -359,6 +396,27 @@ export default function VehicleFormScreen() {
           accessibilityLabel="Year of manufacture"
         />
 
+        {/* Odometer now (add mode only; edit mode has the Odometer section) */}
+        {!isEditing && (
+          <>
+            <Text style={styles.label}>Odometer now (optional)</Text>
+            <View style={styles.odoInputWrap}>
+              <TextInput
+                style={styles.odoInput}
+                value={odometerNow}
+                onChangeText={(t) => setOdometerNow(sanitiseReadingInput(t))}
+                placeholder="e.g. 45100"
+                placeholderTextColor={TEXT_3}
+                keyboardType="decimal-pad"
+                maxLength={9}
+                accessibilityLabel="Odometer reading now, optional, in miles"
+              />
+              <Text style={styles.odoSuffix}>miles</Text>
+            </View>
+            <Text style={styles.odoHint}>The number on your dashboard. We add your trips to it.</Text>
+          </>
+        )}
+
         {/* Vehicle Type */}
         <Text style={styles.label}>Vehicle Type</Text>
         <View style={styles.segmentRow}>
@@ -488,6 +546,18 @@ export default function VehicleFormScreen() {
         {/* Clean Air Zone / ULEZ compliance — edit mode, when we have data */}
         {isEditing && cleanAirZones && <CleanAirZoneCard assessment={cleanAirZones} />}
 
+        {/* Running odometer, edit mode only */}
+        {isEditing && make.trim() ? (
+          <OdometerSection
+            vehicle={{
+              id: id as string,
+              name: `${make.trim()} ${model.trim()}`.trim(),
+              registrationPlate: registrationPlate.trim() || null,
+              createdAt: vehicleCreatedAt,
+            }}
+          />
+        ) : null}
+
         {/* MOT History — edit mode + has plate */}
         {isEditing && registrationPlate.trim() && (
           <Button
@@ -561,6 +631,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
+  odoInputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CARD_BG,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 14,
+  },
+  odoInput: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    fontFamily: fonts.regular,
+    color: "#fff",
+    fontVariant: ["tabular-nums"],
+  },
+  odoSuffix: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_2, marginLeft: 8 },
+  odoHint: { fontSize: 13, fontFamily: fonts.regular, color: TEXT_3, marginTop: 6 },
   lookupRow: {
     flexDirection: "row",
     gap: 10,

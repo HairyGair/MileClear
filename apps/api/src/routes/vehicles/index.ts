@@ -491,7 +491,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
         weekday: "short",
         day: "numeric",
         month: "short",
-      }).format(new Date(later.readAt));
+      }).format(new Date(later.readAt)).replace("Sept", "Sep");
       return reply.status(409).send({
         code: "HIGHER_THAN_LATER",
         error: `That's higher than your reading of ${Math.round(later.readingMiles).toLocaleString("en-GB")} on ${when}, which was taken later. Check the reading or the time.`,

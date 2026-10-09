@@ -17,6 +17,9 @@ export interface SectionDef {
   label: string;
   icon: string;
   locked?: boolean;
+  // Not listed in Customise or Settings > What You See: a card that renders
+  // itself only when its own conditions hold (e.g. the odometer prompt).
+  hiddenInCustomise?: boolean;
   description?: string;
   // Sections a device has never seen (new install, or a registry entry
   // added after the device last loaded prefs) default to visible: true.
@@ -67,6 +70,17 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
       label: "Tax Deduction",
       icon: "cash-outline",
       description: "Tax year deduction summary",
+    },
+    // One-time "Need odometer readings for work?" prompt (9 Oct 2026), directly
+    // under the hero on new and saved layouts alike (SPEC-UX 1.4). Not
+    // listed in Customise; renders nothing unless every condition holds.
+    {
+      key: "odometer_prompt",
+      label: "Odometer Prompt",
+      icon: "speedometer-outline",
+      locked: true,
+      hiddenInCustomise: true,
+      insertAfter: "work_hero",
     },
     {
       key: "work_cta",
@@ -391,6 +405,26 @@ function defaultPrefs(screen: ScreenKey): LayoutPref[] {
   }));
 }
 
+/**
+ * The index to swap with when moving `idx` one step up (-1) or down (1),
+ * stepping over sections that are not listed in Customise. -1 when there is
+ * nothing to swap with.
+ */
+export function neighbourIndex(
+  screen: ScreenKey,
+  prefs: readonly LayoutPref[],
+  idx: number,
+  dir: 1 | -1
+): number {
+  const hidden = new Set(
+    SECTION_REGISTRY[screen].filter((s) => s.hiddenInCustomise).map((s) => s.key)
+  );
+  for (let i = idx + dir; i >= 0 && i < prefs.length; i += dir) {
+    if (!hidden.has(prefs[i].key)) return i;
+  }
+  return -1;
+}
+
 async function loadPrefs(screen: ScreenKey): Promise<LayoutPref[]> {
   const db = await getDatabase();
   const rows = await db.getAllAsync<{
@@ -535,12 +569,13 @@ export function useLayoutPrefs(screen: ScreenKey) {
   const moveUp = useCallback(
     async (key: string) => {
       const idx = prefs.findIndex((p) => p.key === key);
-      if (idx <= 0) return;
+      const target = neighbourIndex(screen, prefs, idx, -1);
+      if (idx <= 0 || target < 0) return;
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
       const updated = [...prefs];
-      [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+      [updated[target], updated[idx]] = [updated[idx], updated[target]];
       const reindexed = updated.map((p, i) => ({ ...p, position: i }));
       setPrefs(reindexed);
       await savePrefs(screen, reindexed);
@@ -551,12 +586,13 @@ export function useLayoutPrefs(screen: ScreenKey) {
   const moveDown = useCallback(
     async (key: string) => {
       const idx = prefs.findIndex((p) => p.key === key);
-      if (idx < 0 || idx >= prefs.length - 1) return;
+      const target = neighbourIndex(screen, prefs, idx, 1);
+      if (idx < 0 || target < 0) return;
 
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
       const updated = [...prefs];
-      [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+      [updated[idx], updated[target]] = [updated[target], updated[idx]];
       const reindexed = updated.map((p, i) => ({ ...p, position: i }));
       setPrefs(reindexed);
       await savePrefs(screen, reindexed);

@@ -14,6 +14,7 @@ import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { Button } from "../components/Button";
 import { EmptyState } from "../components/EmptyState";
+import { vehicleCardMeta, vehicleCardMetaA11y } from "../lib/odometer/logic";
 import { colors, fonts, radii, spacing } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -50,6 +51,8 @@ function VehicleCard({
 }) {
   const typeLabel = VEHICLE_TYPE_LABELS[item.vehicleType] ?? item.vehicleType;
   const fuelLabel = FUEL_TYPE_LABELS[item.fuelType] ?? item.fuelType;
+  const odoMeta = vehicleCardMeta(item.odometer);
+  const odoA11y = vehicleCardMetaA11y(item.odometer);
 
   return (
     <TouchableOpacity
@@ -57,7 +60,7 @@ function VehicleCard({
       onPress={onPress}
       activeOpacity={0.7}
       accessibilityRole="button"
-      accessibilityLabel={`${item.make} ${item.model}${item.isPrimary ? ", primary vehicle" : ""}, ${typeLabel}, ${fuelLabel}${item.year ? `, ${item.year}` : ""}${item.dvlaPlateProblem ? ", number plate needs checking" : ""}. Tap to edit.`}
+      accessibilityLabel={`${item.make} ${item.model}${item.isPrimary ? ", primary vehicle" : ""}, ${typeLabel}, ${fuelLabel}${item.year ? `, ${item.year}` : ""}${odoA11y ? `, ${odoA11y}` : ""}${item.dvlaPlateProblem ? ", number plate needs checking" : ""}. Tap to edit.`}
     >
       <View style={styles.cardIconWrap}>
         <Ionicons name="car-outline" size={22} color={AMBER} />
@@ -80,6 +83,7 @@ function VehicleCard({
           </View>
           <Text style={styles.metaText}>{fuelLabel}</Text>
           {item.year && <Text style={styles.metaText}>{item.year}</Text>}
+          {odoMeta ? <Text style={[styles.metaText, { fontVariant: ["tabular-nums"] }]}>{odoMeta}</Text> : null}
           {item.providedByOthers && <Text style={styles.metaText}>Not in your claim</Text>}
           {item.dvlaPlateProblem && (
             <View style={[styles.cazChip, styles.cazChipWarn]}>

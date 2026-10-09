@@ -235,7 +235,8 @@ function reasonDate(ms: number, timeZone: string): string {
     });
     reasonDateFormatters.set(timeZone, fmt);
   }
-  return fmt.format(new Date(ms));
+  // Some ICU versions say "Sept"; the app says "Sep" everywhere.
+  return fmt.format(new Date(ms)).replace("Sept", "Sep");
 }
 
 function wholeMiles(n: number): string {

@@ -1,4 +1,5 @@
 import { apiRequest } from "./index";
+import type { VehicleListOdometer } from "./odometer";
 import type {
   Vehicle,
   FuelType,
@@ -11,7 +12,12 @@ import type {
 // Vehicle responses now carry the server-computed Clean Air Zone / ULEZ
 // assessment (apps/api withCleanAirZones). The base Vehicle type stays clean;
 // the API rows add this derived field.
-export type VehicleWithCaz = Vehicle & { cleanAirZones?: CazAssessment };
+export type VehicleWithCaz = Vehicle & {
+  cleanAirZones?: CazAssessment;
+  // Running odometer figure for the list card (null or absent: no reading yet).
+  odometer?: VehicleListOdometer | null;
+  createdAt?: string;
+};
 
 export interface CreateVehicleData {
   make: string;

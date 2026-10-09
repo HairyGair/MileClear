@@ -83,6 +83,7 @@ export default function MoreScreen() {
 
         <SettingsGroup title="YOUR DRIVING">
           <SettingsRow icon="key-outline" label="Vehicles" hint="Your cars, MOT and tax dates" onPress={go("/vehicles")} />
+          <SettingsRow icon="speedometer-outline" label="Odometer log" hint="Start and end readings for each day" onPress={go("/odometer-log")} />
           <SettingsRow icon="time-outline" label="Shifts" hint="Your work sessions" onPress={go("/shifts")} />
           <SettingsRow icon="location-outline" label="Saved places" hint="Home, work and other places you go" onPress={go("/saved-locations")} />
           <SettingsRow icon="water-outline" label="Fuel" hint="Fill-ups and prices near you" onPress={go("/(tabs)/fuel")} />

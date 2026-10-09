@@ -19,6 +19,8 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripRouteCard } from "../../components/map/TripRouteCard";
+import { fetchOdometerDays, type OdometerDay } from "../../lib/api/odometer";
+import { dayLineA11y, dayLineText, loadedRange, selectDayLines } from "../../lib/odometer/logic";
 import { fetchTrips, fetchTripSummary, fetchProjectLabels, fetchUnclassifiedCount, fetchMissedJourneys, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
@@ -322,8 +324,10 @@ export default function TripsScreen() {
   // nothing read it, so every one of those taps landed on All instead.
   // "&range=lastTaxYear" narrows it to the tax year the 31 January Self
   // Assessment deadline is for (the "Ready for 31 January?" checklist).
-  const params = useLocalSearchParams<{ filter?: string; range?: string }>();
+  const params = useLocalSearchParams<{ filter?: string; range?: string; day?: string }>();
   const [trips, setTrips] = useState<TripItem[]>([]);
+  // Bumped to refetch the odometer day lines (focus, pull to refresh).
+  const [odoTick, setOdoTick] = useState(0);
   const [filter, setFilter] = useState<TripClassification | "all">(() =>
     params.filter === "unclassified" ? "unclassified" : "all"
   );
@@ -570,6 +574,7 @@ export default function TripsScreen() {
       loadTrips(1);
       loadSummary();
       loadUnclassifiedCount();
+      setOdoTick((n) => n + 1);
       if (filterRef.current !== "unclassified") loadMissedCount();
       loadSavedPlaces().then(setSavedPlaces);
       fetchProjectLabels()
@@ -588,6 +593,7 @@ export default function TripsScreen() {
     loadTrips(1);
     loadSummary();
     loadUnclassifiedCount();
+    setOdoTick((n) => n + 1);
     if (filterRef.current !== "unclassified") loadMissedCount();
   }, [loadTrips, loadSummary, loadUnclassifiedCount, loadMissedCount]);
 
@@ -621,9 +627,21 @@ export default function TripsScreen() {
   // to All) is seen as a change too.
   useEffect(() => {
     const wantsRange = params.range === "lastTaxYear";
-    if (params.filter !== "unclassified" && !wantsRange) return;
+    // "?day=2026-10-09" is how the Odometer log opens one day of trips.
+    const dayMatch = typeof params.day === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(params.day) : null;
+    const wantsDay = !!dayMatch;
+    if (params.filter !== "unclassified" && !wantsRange && !wantsDay) return;
     let reload = false;
-    if (wantsRange && dateRangeRef.current !== "lastTaxYear") {
+    if (wantsDay && dayMatch) {
+      const day = new Date(Number(dayMatch[1]), Number(dayMatch[2]) - 1, Number(dayMatch[3]));
+      setDateRange("custom");
+      dateRangeRef.current = "custom";
+      setCustomFrom(day);
+      setCustomTo(day);
+      customFromRef.current = day;
+      customToRef.current = day;
+      reload = true;
+    } else if (wantsRange && dateRangeRef.current !== "lastTaxYear") {
       setDateRange("lastTaxYear");
       dateRangeRef.current = "lastTaxYear";
       setCustomFrom(null);
@@ -642,8 +660,8 @@ export default function TripsScreen() {
       loadTrips(1);
       loadSummary();
     }
-    router.setParams({ filter: undefined, range: undefined });
-  }, [params.filter, params.range, handleFilterChange, loadTrips, loadSummary, router]);
+    router.setParams({ filter: undefined, range: undefined, day: undefined });
+  }, [params.filter, params.range, params.day, handleFilterChange, loadTrips, loadSummary, router]);
 
   const handlePlatformChange = useCallback(
     (value: PlatformTag | "all") => {
@@ -1403,12 +1421,53 @@ export default function TripsScreen() {
   // next page loads.
   const dayRows = useMemo<DayRow<TripItem>[]>(() => groupTripsByDay(trips), [trips]);
 
+  // Odometer line under each day header (SPEC-UX 2.3). One request covers the
+  // days on screen; a failure just means no lines, never an error.
+  const [odoDays, setOdoDays] = useState<OdometerDay[]>([]);
+  const dayKeys = useMemo(
+    () => dayRows.filter((r): r is Extract<DayRow<TripItem>, { kind: "header" }> => r.kind === "header").map((r) => r.dayKey),
+    [dayRows]
+  );
+  const odoRange = useMemo(() => loadedRange(dayKeys), [dayKeys]);
+  const odoRangeKey = odoRange ? `${odoRange.from}|${odoRange.to}` : "";
+  useEffect(() => {
+    if (!odoRange) return;
+    let cancelled = false;
+    fetchOdometerDays(odoRange)
+      .then((res) => {
+        if (!cancelled) setOdoDays(res.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // odoRange is derived from odoRangeKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [odoRangeKey, odoTick]);
+  const odoLines = useMemo(() => selectDayLines(odoDays, dayKeys), [odoDays, dayKeys]);
+
   const renderDayRow = ({ item }: { item: DayRow<TripItem> }) => {
     if (item.kind === "header") {
+      const odo = odoLines.get(item.dayKey);
       return (
-        <Text style={styles.dayHeader} accessibilityRole="header">
-          {item.label}
-        </Text>
+        <View>
+          <Text style={[styles.dayHeader, odo ? { marginBottom: 0 } : null]} accessibilityRole="header">
+            {item.label}
+          </Text>
+          {odo ? (
+            <TouchableOpacity
+              style={styles.odoLine}
+              onPress={() =>
+                router.push(`/odometer-log?date=${item.dayKey}&vehicleId=${odo.vehicleId}` as never)
+              }
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={dayLineA11y(odo)}
+            >
+              <Text style={styles.odoLineText} maxFontSizeMultiplier={1.4}>{dayLineText(odo)}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       );
     }
     return renderTrip({ item: item.trip });
@@ -2301,6 +2360,16 @@ const styles = StyleSheet.create({
   },
   // Day header in the flat list. Matches the month header on the shifts
   // screen: small, muted, tracked, sitting just above its first card.
+  odoLine: {
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  odoLineText: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+    fontVariant: ["tabular-nums"],
+  },
   dayHeader: {
     fontSize: 12,
     fontFamily: fonts.semibold,

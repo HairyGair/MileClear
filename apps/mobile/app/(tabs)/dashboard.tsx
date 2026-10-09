@@ -90,6 +90,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, recoverLiveActivity } from "../../lib/liveActivity";
 import { getLiveActivityContext } from "../../lib/liveActivity/context";
 import { useLayoutPrefs, SECTION_REGISTRY } from "../../lib/layout/index";
+import { OdometerPromptCard } from "../../components/odometer/OdometerPromptCard";
 import { DashboardMoreSection, moreSummary } from "../../components/DashboardMoreSection";
 import {
   chooseHeroFigure,
@@ -2508,6 +2509,10 @@ export default function DashboardScreen() {
             // Filters for business trips; empty calendar without them.
             if (!hasBusinessDeduction) return null;
             return <WorkCalendarCard key={key} />;
+          case "odometer_prompt":
+            // One-time prompt for drivers with no odometer reading; renders
+            // nothing unless every condition holds (SPEC-UX 1.4).
+            return <OdometerPromptCard key={key} isWork={isWork} totalTrips={totalTrips} />;
           case "road_alerts":
             // Road alerts trial: renders nothing unless something is on the
             // driver's usual roads, or the one-time opt-in offer.

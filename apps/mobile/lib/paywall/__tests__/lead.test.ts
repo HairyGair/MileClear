@@ -27,6 +27,7 @@ const LEAD_SOURCES = [
   "vehicle_limit",
   "saved_locations_suggest",
   "mileage_certificate",
+  "odometer_log_csv",
   "Driving Analytics",
   "Business Insights",
   "Journey Map",

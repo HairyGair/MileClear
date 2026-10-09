@@ -12,9 +12,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { getTaxYear } from "@mileclear/shared";
+import { getTaxYear, parseTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
+import { fetchVehicles } from "../lib/api/vehicles";
+import { odometerLogCsvPath } from "../lib/api/odometer";
+import { dayKeyOf } from "../lib/odometer/logic";
 import { usePaywall } from "../components/paywall";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts } from "../lib/theme";
@@ -36,7 +39,7 @@ function generateTaxYears(count: number): string[] {
   });
 }
 
-type LoadingKey = "csv" | "pdf" | "self-assessment" | null;
+type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | null;
 
 export default function ExportsScreen() {
   const { showPaywall } = usePaywall();
@@ -116,6 +119,68 @@ export default function ExportsScreen() {
     },
     [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly]
   );
+
+  // Odometer log CSV (Pro): the same tax year or date range as the other
+  // downloads, for the default vehicle, or a chosen one when there are 2+.
+  const downloadOdometerLog = useCallback(
+    async (vehicleId?: string) => {
+      setLoadingKey("odometer");
+      try {
+        const today = new Date();
+        let from: Date;
+        let to: Date;
+        if (rangeMode === "dateRange") {
+          from = fromDate;
+          to = toDate;
+        } else {
+          const { start, end } = parseTaxYear(selectedYear);
+          from = start;
+          to = end.getTime() > today.getTime() ? today : end;
+        }
+        const fromKey = dayKeyOf(from);
+        const toKey = dayKeyOf(to);
+        await downloadAndShareExport(
+          odometerLogCsvPath({ vehicleId, from: fromKey, to: toKey }),
+          `mileclear-odometer-log-${fromKey}-to-${toKey}.csv`,
+          "text/csv"
+        );
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Download failed";
+        if (msg === "Premium subscription required") {
+          showPaywall("odometer_log_csv");
+          return;
+        }
+        Alert.alert("Export failed", msg);
+      } finally {
+        setLoadingKey(null);
+      }
+    },
+    [rangeMode, fromDate, toDate, selectedYear, showPaywall]
+  );
+
+  const handleOdometerLog = useCallback(async () => {
+    if (isPremium === false) {
+      showPaywall("odometer_log_csv");
+      return;
+    }
+    let vehicles: { id: string; make: string; model: string }[] = [];
+    try {
+      vehicles = (await fetchVehicles()).data;
+    } catch {
+      // No list: fall through to the default vehicle.
+    }
+    if (vehicles.length > 1) {
+      Alert.alert("Which vehicle?", undefined, [
+        ...vehicles.map((v) => ({
+          text: `${v.make} ${v.model}`.trim(),
+          onPress: () => downloadOdometerLog(v.id),
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ]);
+      return;
+    }
+    downloadOdometerLog(vehicles[0]?.id);
+  }, [isPremium, showPaywall, downloadOdometerLog]);
 
   return (
     <View style={styles.container}>
@@ -328,6 +393,29 @@ export default function ExportsScreen() {
             </Text>
           </View>
           {loadingKey === "csv" ? (
+            <ActivityIndicator color={AMBER} accessibilityLabel="Loading" />
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={handleOdometerLog}
+          disabled={loadingKey !== null}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Download Odometer log CSV"
+          accessibilityState={{ disabled: loadingKey !== null }}
+        >
+          <View style={styles.rowIconWrap}>
+            <Ionicons name="speedometer-outline" size={20} color={TEXT_3} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>Odometer log (CSV)</Text>
+            <Text style={styles.rowDesc}>Start and end readings for each day you drove.</Text>
+          </View>
+          {loadingKey === "odometer" ? (
             <ActivityIndicator color={AMBER} accessibilityLabel="Loading" />
           ) : (
             <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />

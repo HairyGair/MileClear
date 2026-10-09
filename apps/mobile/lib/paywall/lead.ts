@@ -215,6 +215,14 @@ export function paywallLeadFor(source: string | null | undefined): PaywallLead |
         icon: "ribbon-outline",
         highlightFeature: "mileage_certificate",
       };
+    case "odometer_log_csv":
+      return {
+        headline: "Download your odometer log",
+        subline:
+          "Pro turns the start and end reading for each day you drove into a CSV, ready for your employer's mileage form.",
+        icon: "speedometer-outline",
+        highlightFeature: "mileage_exports",
+      };
     case "saved_locations_suggest":
       return {
         headline: "Save every place you stop",

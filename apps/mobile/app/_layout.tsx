@@ -684,6 +684,7 @@ function RootNavigator() {
         <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
         <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Vehicles" }} />
+        <Stack.Screen name="odometer-log" options={{ headerShown: true, title: "Odometer log" }} />
         <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />

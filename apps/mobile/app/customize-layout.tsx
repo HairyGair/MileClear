@@ -17,6 +17,7 @@ import {
   SCREEN_LABELS,
   resetAllLayouts,
   type ScreenKey,
+  neighbourIndex,
 } from "../lib/layout/index";
 import { colors, fonts } from "../lib/theme";
 
@@ -150,10 +151,10 @@ function SectionList({ screen }: { screen: ScreenKey }) {
 
       {prefs.map((pref, idx) => {
         const section = registry.find((s) => s.key === pref.key);
-        if (!section) return null;
+        if (!section || section.hiddenInCustomise) return null;
 
-        const isFirst = idx === 0;
-        const isLast = idx === prefs.length - 1;
+        const isFirst = neighbourIndex(screen, prefs, idx, -1) < 0;
+        const isLast = neighbourIndex(screen, prefs, idx, 1) < 0;
         const isLocked = section.locked === true;
 
         return (
