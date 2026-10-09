@@ -10,7 +10,7 @@ import { safeGet, safeSet } from "./mode";
 export const TOUR_KEY_PREFIX = "mc_web_tour_v1:";
 
 /** Day the rebuilt dashboard went live. Accounts created before it get the "new look" opening. */
-export const NEW_DASHBOARD_LIVE_AT = "2026-10-12T00:00:00.000Z";
+export const NEW_DASHBOARD_LIVE_AT = "2026-10-09T21:00:00.000Z";
 
 /** Automatic starts allowed per account and browser before it stays out of the way. */
 export const MAX_AUTO_STARTS = 2;
