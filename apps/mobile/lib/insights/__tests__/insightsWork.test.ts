@@ -69,10 +69,10 @@ describe("platform league", () => {
     { platform: "evri", grossPence: 0, trips: 9, miles: 50 },
     { platform: "dpd", grossPence: 900, trips: 9, miles: 0 },
   ];
-  it("ranks by pay per mile, few-trip platforms last, drops unrankable ones", () => {
+  it("ranks by pay per mile, few-trip platforms next, rows with no pay per mile last (as the server does)", () => {
     const league = buildLeague(rows);
-    expect(league.map((r) => r.platform)).toEqual(["deliveroo", "uber", "stuart"]);
-    expect(league.map((r) => r.rank)).toEqual([1, 2, 3]);
+    expect(league.map((r) => r.platform)).toEqual(["deliveroo", "uber", "stuart", "dpd", "evri"]);
+    expect(league.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5]);
     expect(league[0].perMilePence).toBe(200);
     expect(league[2].fewTrips).toBe(true);
     expect(league[0].barFraction).toBe(1);
@@ -83,8 +83,8 @@ describe("platform league", () => {
   });
   it("free preview keeps order and names and leaks no figure", () => {
     const masked = maskLeagueForFree(buildLeague(rows));
-    expect(masked.map((r) => r.label)).toEqual(["Deliveroo", "Uber / Uber Eats", "Stuart"]);
-    expect(masked.map((r) => r.rank)).toEqual([1, 2, 3]);
+    expect(masked.map((r) => r.label)).toEqual(["Deliveroo", "Uber / Uber Eats", "Stuart", "DPD", "Evri"]);
+    expect(masked.map((r) => r.rank)).toEqual([1, 2, 3, 4, 5]);
     for (const r of masked) {
       expect(r.perMilePence).toBeNull();
       expect(r.trips).toBeNull();
@@ -137,5 +137,46 @@ describe("when you drive", () => {
     expect(levelFor(5, 10)).toBe(2);
     expect(levelFor(7, 10)).toBe(3);
     expect(levelFor(10, 10)).toBe(4);
+  });
+});
+
+import { leagueFromEntries } from "../platformLeague";
+
+describe("platform league: free order matches Pro order", () => {
+  // The same platforms as the server would rank them (rankPlatforms).
+  const server = [
+    { platform: "deliveroo", rank: 1, earningsPerMilePence: 200, trips: 30, businessMiles: 100, drivingHours: 8, fewTrips: false },
+    { platform: "uber", rank: 2, earningsPerMilePence: 150, trips: 40, businessMiles: 100, drivingHours: 9, fewTrips: false },
+    { platform: "stuart", rank: 3, earningsPerMilePence: 400, trips: 2, businessMiles: 10, drivingHours: 1, fewTrips: true },
+    { platform: "amazon_flex", rank: 4, earningsPerMilePence: null, trips: 0, businessMiles: 0, drivingHours: 0, fewTrips: true },
+  ];
+  const raw = [
+    { platform: "amazon_flex", grossPence: 5000, trips: 0, miles: 0 },
+    { platform: "stuart", grossPence: 4000, trips: 2, miles: 10 },
+    { platform: "uber", grossPence: 15000, trips: 40, miles: 100 },
+    { platform: "deliveroo", grossPence: 20000, trips: 30, miles: 100 },
+  ];
+  it("ranks from raw totals in the server's order", () => {
+    expect(buildLeague(raw).map((r) => r.platform)).toEqual(server.map((s) => s.platform));
+    expect(leagueFromEntries(server).map((r) => r.platform)).toEqual(server.map((s) => s.platform));
+  });
+  it("a platform with no miles goes last and has no pay per mile", () => {
+    const last = buildLeague(raw)[3];
+    expect(last.platform).toBe("amazon_flex");
+    expect(last.perMilePence).toBeNull();
+  });
+  it("breaks pay-per-mile ties by earnings, then name", () => {
+    const tie = buildLeague([
+      { platform: "uber", grossPence: 10000, trips: 10, miles: 100 },
+      { platform: "bolt", grossPence: 20000, trips: 10, miles: 200 },
+    ]);
+    expect(tie.map((r) => r.platform)).toEqual(["bolt", "uber"]);
+  });
+  it("keeps the server order as sent and scales bars to the best ranked platform", () => {
+    const rows = leagueFromEntries(server);
+    expect(rows[0].barFraction).toBe(1);
+    expect(rows[1].barFraction).toBeCloseTo(0.75);
+    expect(rows[3].barFraction).toBeNull();
+    expect(rows[0].hours).toBe(8);
   });
 });

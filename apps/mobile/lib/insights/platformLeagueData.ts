@@ -1,36 +1,35 @@
-// Data for the platform league. Built from endpoints that are free for every
-// driver (earnings list + trip summary per platform) so free drivers can see
-// the ORDER; the figures are masked in the card (maskLeagueForFree), not
-// withheld here. One function, so the source is easy to swap once
-// docs/insights-oct2026/NUMBERS.md names a single pay-per-mile calculation.
+// Where the platform league comes from.
+//
+//  Pro:  GET /business-insights/platform-pnl?period=&date= (the one league,
+//        ranked by the server). Pro-gated.
+//  Free: the same ranking rule applied to endpoints every driver can call
+//        (earnings list + trip summary per platform) for the SAME window, so
+//        the order a free driver sees is the order Pro would see (decision C:
+//        names and order only; the card masks every figure). See
+//        buildLeague in platformLeague.ts for the rule.
 
-import type { PlatformTag } from "@mileclear/shared";
-import { fetchEarnings } from "../api/earnings";
-import { fetchTripSummary } from "../api/trips";
-import type { LeagueInput } from "./platformLeague";
+import type { LeagueInput, LeagueRow } from "./platformLeague";
+import { buildLeague, leagueFromEntries, maskLeagueForFree } from "./platformLeague";
+import {
+  cachedBusinessTripSummary,
+  cachedEarnings,
+  cachedPlatformPnL,
+  dateParam,
+} from "./api";
+import type { PeriodRange } from "./period";
+import type { InsightsPeriod } from "./period";
 
 const MAX_PLATFORMS = 6;
-const PAGE_SIZE = 100;
-const MAX_PAGES = 5;
+const MAX_PAGES = 3;
 
-/** Start of the window as an ISO string. `sinceIso` wins over `days`. */
-export function windowStart(days: number, sinceIso?: string): string {
-  if (sinceIso) return sinceIso;
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-}
-
-export async function loadLeagueInputs(from: string): Promise<LeagueInput[]> {
-  // 1. Earnings by platform in the window.
+export async function loadFreeLeagueInputs(fromIso: string, toIso: string): Promise<LeagueInput[]> {
   const gross = new Map<string, number>();
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const res = await fetchEarnings({ from, page, pageSize: PAGE_SIZE });
-    for (const e of res.data) {
-      gross.set(e.platform, (gross.get(e.platform) ?? 0) + e.amountPence);
-    }
+    const res = await cachedEarnings(fromIso, toIso, page);
+    for (const e of res.data) gross.set(e.platform, (gross.get(e.platform) ?? 0) + e.amountPence);
     if (page >= res.totalPages) break;
   }
 
-  // 2. Business trips and miles for each platform that earned something.
   const platforms = [...gross.entries()]
     .filter(([, pence]) => pence > 0)
     .sort((a, b) => b[1] - a[1])
@@ -40,16 +39,12 @@ export async function loadLeagueInputs(from: string): Promise<LeagueInput[]> {
   const rows = await Promise.all(
     platforms.map(async (platform): Promise<LeagueInput | null> => {
       try {
-        const res = await fetchTripSummary({
-          classification: "business",
-          platformTag: platform as PlatformTag,
-          from,
-        });
+        const res = await cachedBusinessTripSummary(platform, fromIso, toIso);
         return {
           platform,
           grossPence: gross.get(platform) ?? 0,
-          trips: res.data.businessTrips,
-          miles: res.data.businessMiles,
+          trips: res.businessTrips,
+          miles: res.businessMiles,
           hours: null,
         };
       } catch {
@@ -59,4 +54,18 @@ export async function loadLeagueInputs(from: string): Promise<LeagueInput[]> {
     })
   );
   return rows.filter((r): r is LeagueInput => r !== null);
+}
+
+/** The rows the card draws, already masked for free drivers. */
+export async function loadLeague(
+  period: InsightsPeriod,
+  range: PeriodRange,
+  isPro: boolean
+): Promise<LeagueRow[]> {
+  if (isPro) {
+    const entries = await cachedPlatformPnL(period, dateParam(range.anchor));
+    return leagueFromEntries(entries);
+  }
+  const inputs = await loadFreeLeagueInputs(range.start.toISOString(), range.end.toISOString());
+  return maskLeagueForFree(buildLeague(inputs));
 }

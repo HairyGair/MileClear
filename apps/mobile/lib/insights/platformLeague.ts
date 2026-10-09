@@ -36,33 +36,84 @@ export function platformLabel(platform: string): string {
   return LABELS[platform] ?? platform;
 }
 
+/** Same grouping as the server's rankPlatforms (apps/api/src/lib/insightsMath.ts):
+ *  ranked rows first, then "few trips", then rows with no pay per mile. */
+function group(perMile: number | null, few: boolean): number {
+  return perMile == null ? 2 : few ? 1 : 0;
+}
+
+/** Bars scale to the best ranked platform, so a few-trip outlier can't flatten the rest. */
+function barFractions(rows: Array<{ perMile: number | null; few: boolean }>): Array<number | null> {
+  const withPay = rows.filter((r) => r.perMile != null) as Array<{ perMile: number; few: boolean }>;
+  const ranked = withPay.filter((r) => !r.few);
+  const scaleSet = ranked.length > 0 ? ranked : withPay;
+  const top = scaleSet.length > 0 ? Math.max(...scaleSet.map((r) => r.perMile)) : 0;
+  return rows.map((r) => (r.perMile == null || top <= 0 ? null : Math.min(1, r.perMile / top)));
+}
+
+/**
+ * Builds the league from raw per-platform totals. This is the FREE source
+ * (earnings list + trip summary per platform). It applies the server's own
+ * ranking rule, so a free driver's order matches what Pro sees from
+ * GET /business-insights/platform-pnl: pay per mile rounded to the penny
+ * (earnings over business miles, needs 0.1 mile and some pay), few trips
+ * (under 5) after the others, rows with no pay per mile last, ties by
+ * earnings then name. Platforms that only have tagged trips and no earnings
+ * can't be listed from this source; the server lists them last.
+ */
 export function buildLeague(inputs: LeagueInput[]): LeagueRow[] {
   const usable = inputs
-    .filter((r) => r.grossPence > 0 && r.miles > 0)
+    .filter((r) => r.grossPence > 0 || r.trips > 0)
     .map((r) => ({
       ...r,
-      perMile: r.grossPence / r.miles,
+      perMile: r.miles >= 0.1 && r.grossPence > 0 ? Math.round(r.grossPence / r.miles) : null,
       few: r.trips < MIN_TRIPS_TO_RANK,
     }));
-  // Enough-trips platforms first, then the few-trips ones; each group by pay per mile.
-  usable.sort((a, b) => {
-    if (a.few !== b.few) return a.few ? 1 : -1;
-    return b.perMile - a.perMile;
-  });
-  // Bars scale to the best ranked platform, so a few-trip outlier can't flatten the rest.
-  const ranked = usable.filter((r) => !r.few);
-  const scaleSet = ranked.length > 0 ? ranked : usable;
-  const top = scaleSet.length > 0 ? Math.max(...scaleSet.map((r) => r.perMile)) : 0;
+  usable.sort(
+    (a, b) =>
+      group(a.perMile, a.few) - group(b.perMile, b.few) ||
+      (b.perMile ?? 0) - (a.perMile ?? 0) ||
+      b.grossPence - a.grossPence ||
+      a.platform.localeCompare(b.platform)
+  );
+  const bars = barFractions(usable);
   return usable.map((r, i) => ({
     rank: i + 1,
     platform: r.platform,
     label: platformLabel(r.platform),
-    perMilePence: Math.round(r.perMile),
+    perMilePence: r.perMile,
     trips: r.trips,
     miles: r.miles,
     hours: r.hours ?? null,
     fewTrips: r.few,
-    barFraction: top > 0 ? Math.min(1, r.perMile / top) : 0,
+    barFraction: bars[i],
+  }));
+}
+
+/** The server's league (Pro): already ranked, so the order is kept as sent. */
+export interface LeagueEntryInput {
+  platform: string;
+  rank: number;
+  earningsPerMilePence: number | null;
+  trips: number;
+  businessMiles: number;
+  drivingHours: number;
+  fewTrips: boolean;
+}
+
+export function leagueFromEntries(entries: LeagueEntryInput[]): LeagueRow[] {
+  const sorted = [...entries].sort((a, b) => a.rank - b.rank);
+  const bars = barFractions(sorted.map((e) => ({ perMile: e.earningsPerMilePence, few: e.fewTrips })));
+  return sorted.map((e, i) => ({
+    rank: e.rank,
+    platform: e.platform,
+    label: platformLabel(e.platform),
+    perMilePence: e.earningsPerMilePence,
+    trips: e.trips,
+    miles: e.businessMiles,
+    hours: e.drivingHours > 0 ? e.drivingHours : null,
+    fewTrips: e.fewTrips,
+    barFraction: bars[i],
   }));
 }
 
