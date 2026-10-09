@@ -86,7 +86,7 @@ Earnings are stored with a date only (`Earning.periodStart` is a DATE column; th
 | Longest trip | `personalRecords.longestSingleTrip`, `longestSingleTripDate` (no trip id yet: cell not a button) |
 | Most trips in a shift (Work) | `personalRecords.mostTripsInShift`, `mostTripsInShiftDate` |
 
-Records and streak days group trips by the database's calendar date (UTC), so a trip between 00:00 and 01:00 BST counts on the day before. The "today" check for the current streak now uses the UK date. Phantom trips are excluded from records (they were not before).
+Best day and streaks use the UK date of each trip's start (a trip at 00:30 BST counts on that day; before 9 Oct 2026 it counted on the day before). `longestSingleTripDate` and `mostTripsInShiftDate` are now the trip's or shift's start instant (was UTC midnight of its date). Phantom trips are excluded from records (they were not before).
 
 ## Shift
 
