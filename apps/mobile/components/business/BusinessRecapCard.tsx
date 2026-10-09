@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Platform, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessInsights";
+import { fetchRecap } from "../../lib/api/gamification";
 import { formatPence } from "@mileclear/shared";
-import type { BusinessInsights, WeeklyPnL } from "@mileclear/shared";
+import type { BusinessInsights, PeriodRecap, WeeklyPnL } from "@mileclear/shared";
 import {
   BusinessRecapShareCard,
   captureAndShareBusinessRecap,
@@ -35,18 +36,21 @@ export function BusinessRecapCard() {
   const shareCardRef = useRef<View>(null);
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
   const [pnl, setPnl] = useState<WeeklyPnL | null>(null);
+  const [month, setMonth] = useState<PeriodRecap | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"week" | "month">("month");
 
   useEffect(() => {
     async function load() {
       try {
-        const [insRes, pnlRes] = await Promise.all([
+        const [insRes, pnlRes, monthRes] = await Promise.all([
           fetchBusinessInsights(),
           fetchWeeklyPnL(0),
+          fetchRecap("monthly").catch(() => null),
         ]);
         setInsights(insRes.data);
         setPnl(pnlRes.data);
+        setMonth(monthRes?.data ?? null);
       } catch {
         // Silent
       } finally {
@@ -65,10 +69,13 @@ export function BusinessRecapCard() {
   const now = new Date();
   const monthLabel = now.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
-  // Monthly data from insights, weekly from P&L
-  const displayEarnings = isWeek ? (pnl?.grossEarningsPence ?? 0) : insights.totalEarningsPence;
-  const displayMiles = isWeek ? (pnl?.businessMiles ?? 0) : insights.totalBusinessMiles;
-  const displayTrips = isWeek ? (pnl?.totalTrips ?? 0) : Math.round(insights.avgTripsPerShift * insights.recentShifts.length) || insights.recentShifts.reduce((sum, sh) => sum + sh.tripsCompleted, 0);
+  // Weekly from P&L, monthly from the month recap: both the same period
+  // calculation (docs/insights-oct2026/NUMBERS.md). Before 9 Oct 2026 the
+  // month view showed this tax year's earnings and miles under the month's
+  // name (£562.85 "October" next to a week saying "Not added").
+  const displayEarnings = isWeek ? (pnl?.grossEarningsPence ?? 0) : (month?.earningsPence ?? 0);
+  const displayMiles = isWeek ? (pnl?.businessMiles ?? 0) : (month?.businessMiles ?? 0);
+  const displayTrips = isWeek ? (pnl?.totalTrips ?? 0) : (month?.businessTrips ?? 0);
   const displayHours = isWeek
     ? (pnl ? pnl.businessMiles / (insights.earningsPerHourPence > 0 ? (pnl.grossEarningsPence / insights.earningsPerHourPence) : 1) : 0)
     : insights.totalShiftHours;
@@ -79,12 +86,14 @@ export function BusinessRecapCard() {
   const shareData: BusinessRecapShareData = {
     periodLabel: displayLabel,
     grossEarningsPence: displayEarnings,
-    netProfitPence: isWeek ? (pnl?.netProfitPence ?? 0) : insights.totalEarningsPence - (insights.estimatedFuelCostPence ?? 0),
+    netProfitPence: isWeek
+      ? (pnl?.netProfitPence ?? 0)
+      : displayEarnings - (insights.fuelCostPerMilePence != null ? Math.round(insights.fuelCostPerMilePence * displayMiles) : 0),
     businessMiles: displayMiles,
     totalTrips: displayTrips,
     earningsPerMilePence: insights.earningsPerMilePence,
     earningsPerHourPence: insights.earningsPerHourPence,
-    hmrcDeductionPence: isWeek ? (pnl?.hmrcDeductionPence ?? 0) : insights.deductionPence,
+    hmrcDeductionPence: isWeek ? (pnl?.hmrcDeductionPence ?? 0) : (month?.deductionPence ?? 0),
     avgShiftGrade: insights.avgShiftGrade,
     bestPlatform: insights.bestPlatform ? platformLabel(insights.bestPlatform) : null,
     totalShiftHours: isWeek ? Math.round(displayHours) : insights.totalShiftHours,
@@ -159,7 +168,7 @@ export function BusinessRecapCard() {
           <View style={styles.heroDivider} />
           <View style={styles.heroStat}>
             <Text style={styles.heroValue}>{displayTrips}</Text>
-            <Text style={styles.heroUnit}>{isWeek ? (displayTrips === 1 ? "trip" : "trips") : (displayTrips === 1 ? "trip on shifts" : "trips on shifts")}</Text>
+            <Text style={styles.heroUnit}>{displayTrips === 1 ? "work trip" : "work trips"}</Text>
           </View>
         </View>
 

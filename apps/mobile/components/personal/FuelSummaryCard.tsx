@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { fetchFuelLogs } from "../../lib/api/fuel";
+import { fetchRunningCost } from "../../lib/api/businessInsights";
 import { formatPence } from "@mileclear/shared";
-import type { FuelLogWithVehicle } from "@mileclear/shared";
+import type { FuelLogWithVehicle, RunningCostSummary } from "@mileclear/shared";
 import { colors, fonts } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -21,16 +22,10 @@ interface FuelSummaryCardProps {
   fuelType: "petrol" | "diesel" | "electric" | "hybrid" | null;
 }
 
-const LITRES_PER_GALLON = 4.54609;
-const FALLBACK_MPG = 35;
-const FALLBACK_PPL = { petrol: 138, diesel: 145, electric: 0, hybrid: 138 };
-
 export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSummaryCardProps) {
   const router = useRouter();
   const [logs, setLogs] = useState<FuelLogWithVehicle[]>([]);
-  const [totalSpend, setTotalSpend] = useState(0);
-  const [totalLitres, setTotalLitres] = useState(0);
-  const [fillUpCount, setFillUpCount] = useState(0);
+  const [cost, setCost] = useState<RunningCostSummary | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,51 +33,44 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
+      // The three most recent fill-ups, for the list only.
       fetchFuelLogs({
         from: monthStart.toISOString(),
         to: monthEnd.toISOString(),
         pageSize: 3,
       })
-        .then((res) => {
-          setLogs(res.data);
-          setFillUpCount(res.total);
-          // Use total from all pages, but compute spend from what we have
-          // For accurate total, we'd need all pages — use total count as indicator
-          const spend = res.data.reduce((s, l) => s + l.costPence, 0);
-          const litres = res.data.reduce((s, l) => s + l.litres, 0);
-          setTotalSpend(spend);
-          setTotalLitres(litres);
-        })
+        .then((res) => setLogs(res.data))
+        .catch(() => {});
+      // Spend, cost per mile and MPG: the one running cost
+      // (docs/insights-oct2026/NUMBERS.md). Before 9 Oct 2026 this card
+      // added up only the first page (3) of the month's fill-ups and
+      // divided by the month's miles, so it disagreed with Trends.
+      fetchRunningCost("month")
+        .then((res) => setCost(res.data))
         .catch(() => {});
     }, [])
   );
 
   if (fuelType === "electric") return null;
 
-  const mpg = estimatedMpg || FALLBACK_MPG;
-  const hasRealData = logs.length > 0;
-  const ppl = totalLitres > 0
-    ? Math.round(totalSpend / totalLitres)
-    : FALLBACK_PPL[fuelType || "petrol"];
+  const fillUpCount = cost?.period.fillUps ?? logs.length;
+  const hasRealData = fillUpCount > 0;
+  const mpg = cost?.mpg ?? estimatedMpg ?? null;
+  const ppl = cost?.pencePerLitre ?? null;
 
-  // Cost display: use real data if available, otherwise estimate
+  // Spend: what the fill-ups this month cost; with none, miles x rate.
   let displayCost: number;
   let isEstimate: boolean;
-  if (hasRealData) {
-    displayCost = totalSpend;
+  if (hasRealData && cost) {
+    displayCost = cost.period.fillUpSpendPence;
     isEstimate = false;
-  } else if (monthMiles > 0) {
-    const gallons = monthMiles / mpg;
-    const litres = gallons * LITRES_PER_GALLON;
-    displayCost = Math.round(litres * ppl);
-    isEstimate = true;
   } else {
-    displayCost = 0;
+    displayCost = cost?.period.estimatedCostPence ?? 0;
     isEstimate = true;
   }
 
-  const costPerMile = monthMiles > 0 && displayCost > 0
-    ? (displayCost / monthMiles / 100).toFixed(2)
+  const costPerMile = cost?.pencePerMile != null && cost.pencePerMile > 0
+    ? `${cost.pencePerMile.toFixed(1)}p`
     : null;
 
   if (monthMiles < 1 && !hasRealData) return null;
@@ -123,21 +111,21 @@ export function FuelSummaryCard({ monthMiles, estimatedMpg, fuelType }: FuelSumm
         {costPerMile && (
           <>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{"\u00A3"}{costPerMile}</Text>
+              <Text style={styles.statValue}>{costPerMile}</Text>
               <Text style={styles.statLabel}>per mile</Text>
             </View>
             <View style={styles.statDot} />
           </>
         )}
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{mpg}</Text>
+          <Text style={styles.statValue}>{mpg ?? "-"}</Text>
           <Text style={styles.statLabel}>MPG</Text>
         </View>
-        {hasRealData && (
+        {hasRealData && ppl != null && (
           <>
             <View style={styles.statDot} />
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{(ppl / 100).toFixed(1)}p</Text>
+              <Text style={styles.statValue}>{ppl.toFixed(1)}p</Text>
               <Text style={styles.statLabel}>per litre</Text>
             </View>
           </>

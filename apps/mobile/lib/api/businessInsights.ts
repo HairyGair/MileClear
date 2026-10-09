@@ -7,6 +7,8 @@ import type {
   BenchmarkSnapshot,
   LocalBenchmark,
   LocalBenchmarkMode,
+  PlatformLeagueEntry,
+  RunningCostSummary,
 } from "@mileclear/shared";
 
 export function fetchBusinessInsights() {
@@ -61,9 +63,8 @@ export interface PnlRow {
   trips: number;
   businessMiles: number;
 }
-export interface PlatformPnLRow extends PnlRow {
-  platform: string;
-}
+/** One row of the platform league (ranked by pay per mile). */
+export type PlatformPnLRow = PlatformLeagueEntry;
 export interface ProjectPnLRow extends PnlRow {
   projectLabel: string;
 }
@@ -74,9 +75,29 @@ export interface ShiftPnLRow extends PnlRow {
   durationSeconds: number;
 }
 
-export function fetchPlatformPnL(days: number = 30) {
+/** The one platform league. Pass a number for the last N days (old
+ *  behaviour), or an Insights period ("week" | "month" | "tax_year") with an
+ *  optional date inside it (YYYY-MM-DD). */
+export function fetchPlatformPnL(
+  daysOrPeriod: number | "week" | "month" | "tax_year" = 30,
+  date?: string,
+) {
+  const params = new URLSearchParams();
+  if (typeof daysOrPeriod === "number") params.set("days", String(daysOrPeriod));
+  else params.set("period", daysOrPeriod);
+  if (date) params.set("date", date);
   return apiRequest<{ data: PlatformPnLRow[] }>(
-    `/business-insights/platform-pnl?days=${days}`
+    `/business-insights/platform-pnl?${params.toString()}`
+  );
+}
+
+/** Free. The one running cost per mile (tax year to date) plus a period's
+ *  miles and fill-ups (default this month). */
+export function fetchRunningCost(period: "week" | "month" = "month", date?: string) {
+  const params = new URLSearchParams({ period });
+  if (date) params.set("date", date);
+  return apiRequest<{ data: RunningCostSummary }>(
+    `/business-insights/running-cost?${params.toString()}`
   );
 }
 export function fetchProjectPnL(days: number = 90) {
