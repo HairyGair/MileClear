@@ -41,20 +41,21 @@ const stateSecret = () =>
 
 interface StatePayload {
   uid: string; // MileClear user ID
+  client?: "web"; // set when the link was started from the website
   iat: number;
   exp: number;
 }
 
-async function signState(userId: string): Promise<string> {
+export async function signState(userId: string, client?: "web"): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  return new SignJWT({ uid: userId })
+  return new SignJWT(client === "web" ? { uid: userId, client } : { uid: userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt(now)
     .setExpirationTime(now + STATE_TTL_SECONDS)
     .sign(stateSecret());
 }
 
-async function verifyState(token: string): Promise<StatePayload | null> {
+export async function verifyState(token: string): Promise<StatePayload | null> {
   try {
     const { payload } = await jwtVerify(token, stateSecret());
     if (!payload.uid || typeof payload.uid !== "string") return null;
@@ -62,6 +63,27 @@ async function verifyState(token: string): Promise<StatePayload | null> {
   } catch {
     return null;
   }
+}
+
+const WEB_RETURN_URL = "https://mileclear.com/dashboard/settings/community";
+
+/**
+ * Where the browser goes after the callback. The phone app gets its deep link;
+ * a link started from the website (`client: "web"` in the state) comes back to
+ * the website's Discord settings page with the same outcome in the query.
+ */
+export function discordReturnUrl(
+  client: "web" | undefined,
+  outcome: { ok: true; username: string } | { ok: false; reason: string }
+): string {
+  if (client === "web") {
+    return outcome.ok
+      ? `${WEB_RETURN_URL}?discord=linked&username=${encodeURIComponent(outcome.username)}`
+      : `${WEB_RETURN_URL}?discord=failed&reason=${encodeURIComponent(outcome.reason)}`;
+  }
+  return outcome.ok
+    ? `mileclear://discord-linked?ok=true&username=${encodeURIComponent(outcome.username)}`
+    : `mileclear://discord-linked?ok=false&reason=${encodeURIComponent(outcome.reason)}`;
 }
 
 interface DiscordTokenResponse {
@@ -129,7 +151,8 @@ export async function discordAuthRoutes(app: FastifyInstance) {
           error: "Discord OAuth is not configured on this server.",
         });
       }
-      const state = await signState(request.userId!);
+      const client = (request.query as { client?: string } | undefined)?.client === "web" ? "web" : undefined;
+      const state = await signState(request.userId!, client);
       const params = new URLSearchParams({
         client_id: clientId,
         response_type: "code",
@@ -157,21 +180,22 @@ export async function discordAuthRoutes(app: FastifyInstance) {
       })
       .safeParse(request.query);
     if (!query.success) {
-      return reply.redirect("mileclear://discord-linked?ok=false&reason=bad_request");
+      return reply.redirect(discordReturnUrl(undefined, { ok: false, reason: "bad_request" }));
     }
     const { code, state, error } = query.data;
+
+    // The state says where the link started. Without a valid one, assume the phone app.
+    const statePayload = state ? await verifyState(state) : null;
+    const client = statePayload?.client;
 
     // User declined / Discord errored
     if (error || !code || !state) {
       const reason = error ? `denied_${error}` : "missing_params";
-      return reply.redirect(
-        `mileclear://discord-linked?ok=false&reason=${encodeURIComponent(reason)}`
-      );
+      return reply.redirect(discordReturnUrl(client, { ok: false, reason }));
     }
 
-    const statePayload = await verifyState(state);
     if (!statePayload) {
-      return reply.redirect("mileclear://discord-linked?ok=false&reason=bad_state");
+      return reply.redirect(discordReturnUrl(undefined, { ok: false, reason: "bad_state" }));
     }
 
     let discordUser: DiscordUserMe;
@@ -180,9 +204,7 @@ export async function discordAuthRoutes(app: FastifyInstance) {
       discordUser = await fetchDiscordUser(token.access_token);
     } catch (err) {
       app.log.error({ err }, "Discord OAuth exchange failed");
-      return reply.redirect(
-        "mileclear://discord-linked?ok=false&reason=exchange_failed"
-      );
+      return reply.redirect(discordReturnUrl(client, { ok: false, reason: "exchange_failed" }));
     }
 
     // Already linked to a DIFFERENT MileClear account? Refuse the
@@ -192,9 +214,7 @@ export async function discordAuthRoutes(app: FastifyInstance) {
       select: { id: true },
     });
     if (existingLink && existingLink.id !== statePayload.uid) {
-      return reply.redirect(
-        `mileclear://discord-linked?ok=false&reason=already_linked_elsewhere`
-      );
+      return reply.redirect(discordReturnUrl(client, { ok: false, reason: "already_linked_elsewhere" }));
     }
 
     // Persist link + sync Pro role.
@@ -226,9 +246,7 @@ export async function discordAuthRoutes(app: FastifyInstance) {
       }
     })();
 
-    return reply.redirect(
-      `mileclear://discord-linked?ok=true&username=${encodeURIComponent(discordUser.username)}`
-    );
+    return reply.redirect(discordReturnUrl(client, { ok: true, username: discordUser.username }));
   });
 
   // POST /auth/discord/unlink — drops the link and revokes the Pro role.
