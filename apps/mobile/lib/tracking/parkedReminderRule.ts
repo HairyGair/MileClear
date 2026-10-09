@@ -203,6 +203,16 @@ export function parkedReminderForegroundDecision(args: {
   return args.appActive && args.startTripScreenVisible ? "suppress" : "show";
 }
 
+/**
+ * The Start Trip screen hears that the notification's Arrived saved its trip.
+ * With the app in the background (Arrived tapped on the lock screen) an alert
+ * raised now is lost, so the screen waits for the app to come back, where its
+ * "active" handler lets go and shows the alert. Found on the simulator, 9 Oct.
+ */
+export function startTripFinishedListenerAction(appState: string): "let_go_now" | "wait_for_foreground" {
+  return appState === "background" ? "wait_for_foreground" : "let_go_now";
+}
+
 /** Which of the two buttons, if either. */
 export function parkedActionKind(actionId: string): "arrived" | "keep_going" | null {
   if (actionId === PARKED_ACTION_ARRIVED) return "arrived";

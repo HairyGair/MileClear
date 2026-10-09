@@ -15,7 +15,7 @@ import {
   AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams, useNavigation, Stack } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect, Stack } from "expo-router";
 import { usePreventRemove } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
@@ -60,10 +60,14 @@ import {
   reportPendingArrivedDiscard,
 } from "../lib/tracking";
 import { askAboutPauseBeforeStart } from "../lib/tracking/pausePrompt";
-import { startTripFinishedAlert } from "../lib/tracking/parkedReminderRule";
+import {
+  startTripFinishedAlert,
+  startTripFinishedListenerAction,
+} from "../lib/tracking/parkedReminderRule";
 import {
   onParkedReminderFinished,
   setStartTripFormArriving,
+  setStartTripScreenVisible,
   waitForParkedReminderFinish,
 } from "../lib/tracking/parkedReminder";
 import {
@@ -1779,26 +1783,26 @@ export default function TripFormScreen() {
   useEffect(() => {
     if (mode !== "driving") return;
     return onParkedReminderFinished(() => {
+      // Tapped from the lock screen with the app in the background: an alert
+      // raised now is lost (simulator test, 9 Oct), so leave it to the
+      // AppState "active" handler below, which lets go and alerts on return.
+      // Arrived on this screen also lets go first, so nothing saves twice.
+      if (startTripFinishedListenerAction(AppState.currentState) === "wait_for_foreground") return;
       letGoIfFinishedElsewhere().catch(() => {});
     });
   }, [mode, letGoIfFinishedElsewhere]);
 
-  useEffect(() => {
-    if (mode !== "driving") return;
-    let setVisible: ((v: boolean) => void) | null = null;
-    import("../lib/tracking/parkedReminder")
-      .then((m) => {
-        setVisible = m.setStartTripScreenVisible;
-        m.setStartTripScreenVisible(true);
-      })
-      .catch(() => {});
-    return () => {
-      setVisible?.(false);
-      import("../lib/tracking/parkedReminder")
-        .then((m) => m.setStartTripScreenVisible(false))
-        .catch(() => {});
-    };
-  }, [mode]);
+  // Only while this screen is focused: another screen pushed over it (a
+  // notification tap opening Trips, say) leaves it mounted, and the reminder
+  // must then show, not be swallowed (it would not reach the notification
+  // centre either).
+  useFocusEffect(
+    useCallback(() => {
+      if (mode !== "driving") return;
+      setStartTripScreenVisible(true);
+      return () => setStartTripScreenVisible(false);
+    }, [mode])
+  );
 
   // Sync live distance from background coordinates when returning from another app
   // (e.g. user was using Google Maps / Waze as SatNav)

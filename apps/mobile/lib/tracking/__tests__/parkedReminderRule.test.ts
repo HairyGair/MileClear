@@ -6,6 +6,7 @@ import {
   parkedArrivedDecision,
   parkedArrivedMayFinish,
   startTripFinishedAlert,
+  startTripFinishedListenerAction,
   parkedArrivedNotification,
   parkedReminderForegroundDecision,
   parkedReminderPlan,
@@ -297,6 +298,13 @@ describe("foreground presentation", () => {
     expect(parkedReminderForegroundDecision({ appActive: false, startTripScreenVisible: true })).toBe(
       "show"
     );
+  });
+
+  it("leaves the alert to the return to the app when Arrived was tapped from the lock screen", () => {
+    expect(startTripFinishedListenerAction("background")).toBe("wait_for_foreground");
+    expect(startTripFinishedListenerAction("active")).toBe("let_go_now");
+    // Notification centre pulled down over the open app: still "inactive", alert shows on dismiss.
+    expect(startTripFinishedListenerAction("inactive")).toBe("let_go_now");
   });
 });
 

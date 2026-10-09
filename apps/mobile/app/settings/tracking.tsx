@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Linking } from "react-native";
+import { Alert, AppState, Linking } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
@@ -42,6 +42,14 @@ export default function TrackingSettings() {
     useCallback(() => {
       readAutomaticTrips().then(setDriveDetection).catch(() => {});
       getNotificationPermissionStatus().then(setNotifState).catch(() => {});
+      // The notifications row sends the driver to iOS Settings; coming back
+      // does not refocus this screen, so re-read the permission on return.
+      const sub = AppState.addEventListener("change", (next) => {
+        if (next === "active") {
+          getNotificationPermissionStatus().then(setNotifState).catch(() => {});
+        }
+      });
+      return () => sub.remove();
     }, [])
   );
 
