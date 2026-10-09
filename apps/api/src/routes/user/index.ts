@@ -759,7 +759,7 @@ export async function userRoutes(app: FastifyInstance) {
       return rows;
     };
 
-    const [user, userExtra, vehicles, shifts, tripRows, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies, clients, invoices, logo] =
+    const [user, userExtra, vehicles, odometerReadings, shifts, tripRows, fuelLogs, earnings, achievements, mileageSummaries, tripAnomalies, clients, invoices, logo] =
       await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
@@ -800,6 +800,7 @@ export async function userRoutes(app: FastifyInstance) {
           },
         }),
         prisma.vehicle.findMany({ where: { userId } }),
+        prisma.odometerReading.findMany({ where: { userId } }),
         prisma.shift.findMany({ where: { userId } }),
         fetchAllRows((args) => prisma.trip.findMany({ where: { userId }, orderBy: { id: "asc" }, ...args })),
         prisma.fuelLog.findMany({ where: { userId } }),
@@ -1061,6 +1062,7 @@ export async function userRoutes(app: FastifyInstance) {
           }
         : null,
       vehicles,
+      odometerReadings,
       shifts,
       trips,
       fuelLogs,

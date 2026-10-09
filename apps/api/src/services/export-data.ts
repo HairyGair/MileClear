@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { postcodesFor } from "./postcodeLookup.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
+import { odometerForExportTrips } from "./odometer.js";
 import {
   HMRC_THRESHOLD_MILES,
   getHmrcRatesForTaxYear,
@@ -26,6 +27,8 @@ interface FetchTripsOpts {
   classification?: "business" | "personal";
   /** Look up each trip's start and end postcode (CSV export). */
   withPostcodes?: boolean;
+  /** Add the running odometer at the start and end of each trip (CSV and PDF). */
+  withOdometer?: boolean;
 }
 
 export async function fetchExportTrips(
@@ -149,6 +152,19 @@ export async function fetchExportTrips(
       deductionPence,
     };
   });
+
+  if (opts.withOdometer && trips.length > 0) {
+    const odo = await odometerForExportTrips(
+      opts.userId,
+      trips.map((t) => ({ id: t.id, vehicleId: t.vehicleId }))
+    );
+    rows.forEach((r, i) => {
+      const fig = odo.get(trips[i].id);
+      r.odometerStart = fig?.start ?? null;
+      r.odometerEnd = fig?.end ?? null;
+      r.odometerSource = fig?.source ?? null;
+    });
+  }
 
   if (opts.withPostcodes && trips.length > 0) {
     const codes = await postcodesFor(

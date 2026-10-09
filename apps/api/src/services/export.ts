@@ -418,6 +418,21 @@ function escapeCsvField(value: string | number | null | undefined): string {
   return str;
 }
 
+/** "45,210 to 45,262", with " est." unless both figures are real readings; "—" when there are none. */
+export function odometerPdfText(t: Pick<ExportTripRow, "odometerStart" | "odometerEnd" | "odometerSource">): string {
+  if (t.odometerStart == null || t.odometerEnd == null) return "—";
+  const start = t.odometerStart.toLocaleString("en-GB");
+  const end = t.odometerEnd.toLocaleString("en-GB");
+  return `${start} to ${end}${t.odometerSource === "Recorded" ? "" : " est."}`;
+}
+
+function fitFontSize(doc: PDFKit.PDFDocument, text: string, maxWidth: number, size: number, min: number): number {
+  let s = size;
+  doc.font("Helvetica");
+  while (s > min && doc.fontSize(s).widthOfString(text) > maxWidth) s -= 0.25;
+  return s;
+}
+
 export function tripsToCsv(trips: ExportTripRow[]): string {
   const headers = [
     "Date",
@@ -428,6 +443,9 @@ export function tripsToCsv(trips: ExportTripRow[]): string {
     "From Postcode",
     "To Postcode",
     "Distance (miles)",
+    "Odometer start",
+    "Odometer end",
+    "Odometer source",
     "Classification",
     "Platform",
     "Business Purpose",
@@ -448,6 +466,9 @@ export function tripsToCsv(trips: ExportTripRow[]): string {
       t.startPostcode ?? "",
       t.endPostcode ?? "",
       t.distanceMiles,
+      t.odometerStart ?? "",
+      t.odometerEnd ?? "",
+      t.odometerSource ?? "",
       t.classification,
       t.platform,
       t.businessPurpose,
@@ -526,6 +547,7 @@ export async function generateTripsCsv(
     to: opts.to,
     classification: opts.classification,
     withPostcodes: true,
+    withOdometer: true,
   });
   return tripsToCsv(trips);
 }
@@ -542,6 +564,7 @@ export async function generateTripsPdf(
     from: opts.from,
     to: opts.to,
     classification: opts.classification,
+    withOdometer: true,
   });
 
   const pageWidth = 841.89; // A4 landscape
@@ -624,13 +647,14 @@ export async function generateTripsPdf(
   const cols = [
     { header: "Date", width: 65 },
     { header: "Time", width: 62 },
-    { header: "From", width: 105 },
-    { header: "To", width: 105 },
+    { header: "From", width: 75 },
+    { header: "To", width: 75 },
+    { header: "Odometer", width: 80 },
     { header: "Miles", width: 45 },
     { header: "Type", width: 55 },
     { header: "Platform", width: 62 },
     { header: "Purpose", width: 62 },
-    { header: "Vehicle", width: 85 },
+    { header: "Vehicle", width: 80 },
     { header: "Rate", width: 38 },
     { header: "Deduction", width: 62 },
   ];
@@ -686,6 +710,7 @@ export async function generateTripsPdf(
       `${trip.startTime}${trip.endTime ? "–" + trip.endTime : ""}`,
       trip.startAddress || "—",
       trip.endAddress || "—",
+      odometerPdfText(trip),
       trip.distanceMiles.toFixed(1),
       trip.classification === "business"
         ? "Business"
@@ -701,12 +726,15 @@ export async function generateTripsPdf(
 
     let x = startX;
     for (let j = 0; j < cols.length; j++) {
-      doc.text(values[j], x + 3, y + 1, {
+      // "45,210 to 45,262 est." is the longest cell; shrink it to fit rather than run into Miles.
+      const fit = cols[j].header === "Odometer" ? fitFontSize(doc, values[j], cols[j].width - 6, 7, 5.5) : 7;
+      doc.fontSize(fit).text(values[j], x + 3, y + 1, {
         width: cols[j].width - 6,
         lineBreak: false,
       });
       x += cols[j].width;
     }
+    doc.fontSize(7);
     y += rowHeight;
   }
 
@@ -717,6 +745,27 @@ export async function generateTripsPdf(
     .lineWidth(0.5)
     .strokeColor(GREY_200)
     .stroke();
+
+  if (trips.some((t) => t.odometerSource)) {
+    if (y + 16 > pageHeight - 50) {
+      drawFooter(doc, pageNum, null, pageWidth, pageHeight, margin, reportRef);
+      pageNum++;
+      doc.addPage();
+      drawHeader(doc, "Trip Report", label, reportRef, pageWidth, margin, true);
+      y = doc.y;
+    }
+    doc
+      .font("Helvetica")
+      .fontSize(7)
+      .fillColor(GREY_400)
+      .text(
+        "Odometer figures marked est. are worked out from the trips recorded in MileClear since the driver's last reading.",
+        startX,
+        y + 5,
+        { width: tableWidth, lineBreak: false }
+      );
+    y += 14;
+  }
 
   // ── Business miles by project (only when a trip has one) ──
   const projectRows = projectSummaryFromRows(trips);

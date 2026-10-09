@@ -224,6 +224,7 @@ model User {
   shifts              Shift[]
   trips               Trip[]
   fuelLogs            FuelLog[]
+  odometerReadings    OdometerReading[]
   earnings            Earning[]
   achievements        Achievement[]
   mileageSummary      MileageSummary[]
@@ -473,8 +474,30 @@ model Vehicle {
   trips    Trip[]
   fuelLogs FuelLog[]
   expenses Expense[]
+  odometerReadings OdometerReading[]
 
   @@map("vehicles")
+}
+
+// A dashboard reading the driver typed in (9 Oct 2026). Kept as rows, never
+// overwritten: the daily odometer log needs the reading that applied on each
+// past day. Readings typed on a trip (odometerStart/End) and on a fuel log
+// are NOT copied here; the running-odometer calculation reads them in place
+// (shared/utils/odometer.ts). source is "user" in v1, "mot" reserved.
+model OdometerReading {
+  id           String   @id @default(uuid())
+  userId       String
+  vehicleId    String
+  readingMiles Float
+  readAt       DateTime
+  source       String   @default("user") @db.VarChar(10)
+  createdAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId, readAt])
+  @@map("odometer_readings")
 }
 
 model Shift {

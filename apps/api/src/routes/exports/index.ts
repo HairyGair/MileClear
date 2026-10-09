@@ -10,6 +10,12 @@ import {
   formatQuickBooksExpense,
 } from "../../services/export.js";
 import { logEvent } from "../../services/appEvents.js";
+import {
+  generateOdometerLogCsv,
+  inclusiveDayCount,
+  taxYearDateRange,
+} from "../../services/odometer.js";
+import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { prisma } from "../../lib/prisma.js";
 import { parseTaxYear } from "@mileclear/shared";
 
@@ -127,6 +133,67 @@ export async function exportRoutes(app: FastifyInstance) {
       .header("Content-Disposition", `attachment; filename="${filename}"`)
       .send(csv);
   });
+
+  // Odometer log CSV: start and end readings for each day driven (spec: docs/odometer-oct2026).
+  app.get(
+    "/odometer-log",
+    async (
+      request: FastifyRequest<{ Querystring: { vehicleId?: string; taxYear?: string; from?: string; to?: string } }>,
+      reply
+    ) => {
+      const userId = request.userId!;
+      const q = request.query;
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+
+      let from: string;
+      let to: string;
+      if (q.taxYear && (q.from || q.to)) {
+        return reply.status(400).send({ error: "Provide taxYear or from+to, not both" });
+      } else if (q.taxYear) {
+        try {
+          ({ from, to } = taxYearDateRange(q.taxYear));
+        } catch {
+          return reply.status(400).send({ error: "That tax year doesn't look right." });
+        }
+      } else if (q.from && q.to && dateRe.test(q.from) && dateRe.test(q.to) && !Number.isNaN(Date.parse(q.from)) && !Number.isNaN(Date.parse(q.to))) {
+        from = q.from;
+        to = q.to;
+      } else {
+        return reply.status(400).send({ error: "Provide taxYear or both from and to (YYYY-MM-DD)" });
+      }
+      if (from > to || inclusiveDayCount(from, to) > 366) {
+        return reply.status(400).send({ error: "Pick a range of 366 days or fewer." });
+      }
+
+      const vehicleId = q.vehicleId || (await defaultVehicleIdForUser(userId));
+      if (!vehicleId) {
+        // No default: either no vehicle at all, or several with none marked main.
+        const hasVehicles = (await prisma.vehicle.count({ where: { userId } })) > 0;
+        return reply.status(400).send({
+          error: hasVehicles
+            ? "Pick which vehicle the odometer log is for."
+            : "Add a vehicle first. The odometer belongs to a vehicle.",
+        });
+      }
+
+      const result = await generateOdometerLogCsv(userId, { vehicleId, from, to });
+      if (!result) {
+        return reply.status(404).send({ error: "Vehicle not found" });
+      }
+      if (result.dayCount === 0) {
+        logEvent("export.blocked_empty", userId, { format: "odometer_log", from, to });
+        return reply.status(400).send({
+          error: "There is no driving or odometer reading in that date range yet, so this export would come out empty.",
+        });
+      }
+
+      logEvent("export.odometer_log", userId, { from, to });
+      return reply
+        .header("Content-Type", "text/csv")
+        .header("Content-Disposition", `attachment; filename="mileclear-odometer-log-${from}-to-${to}.csv"`)
+        .send(result.csv);
+    }
+  );
 
   // PDF trip report download
   app.get("/pdf", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {

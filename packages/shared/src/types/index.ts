@@ -1138,6 +1138,11 @@ export interface ExportTripRow {
   vehicleName: string | null;
   hmrcRatePence: number;
   deductionPence: number;
+  /** Running odometer at the start and end of the trip, whole miles. Null/absent before the first reading. */
+  odometerStart?: number | null;
+  odometerEnd?: number | null;
+  /** "Recorded" when both ends are real readings, otherwise "Estimated"; null when no figures. */
+  odometerSource?: "Recorded" | "Estimated" | null;
 }
 
 export interface ExportVehicleBreakdown {

@@ -9,6 +9,9 @@ import { cacheGet, cacheSet } from "../../lib/redis.js";
 import { FUEL_TYPES, VEHICLE_TYPES, assessCleanAirZones, getTaxYear } from "@mileclear/shared";
 import type { FuelType, VehicleLookupResult, CazVehicleClass } from "@mileclear/shared";
 import { fetchMotHistory, DvsaMotError } from "../../services/dvsaMot.js";
+import { loadOdometerInputs, vehicleOdometerSummaries } from "../../services/odometer.js";
+import { buildOdometerTimeline, odometerStateAt, ODOMETER_MAX_MILES } from "@mileclear/shared";
+import type { OdometerReadingCreated, VehicleOdometerResponse } from "@mileclear/shared";
 
 function freeVehicleLimitMessage(providedByOthers: boolean): string {
   return providedByOthers
@@ -101,6 +104,21 @@ const updateVehicleSchema = z.object({
   providedByOthers: z.boolean().optional(),
   euroStatus: z.string().max(20).nullable().optional(),
   firstRegistration: z.string().max(7).nullable().optional(),
+});
+
+// Allow a phone clock this far ahead before "Now" counts as the future.
+const ODOMETER_CLOCK_SKEW_MS = 2 * 60 * 1000;
+const ODOMETER_BAD_READING = "That doesn't look like an odometer reading. Check it and try again.";
+
+const createOdometerReadingSchema = z.object({
+  readingMiles: z
+    .number({ invalid_type_error: ODOMETER_BAD_READING, required_error: "Type the reading from your dashboard." })
+    .gt(0, ODOMETER_BAD_READING)
+    .max(ODOMETER_MAX_MILES, ODOMETER_BAD_READING),
+  readAt: z
+    .string()
+    .refine((v) => !Number.isNaN(Date.parse(v)), "That time doesn't look right.")
+    .optional(),
 });
 
 const lookupSchema = z.object({
@@ -289,7 +307,17 @@ export async function vehicleRoutes(app: FastifyInstance) {
       orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
     });
 
-    return reply.send({ data: vehicles.map(withCleanAirZones) });
+    // The running odometer for the list card. Never worth failing the list for.
+    let odometer = new Map<string, { miles: number; isEstimated: boolean } | null>();
+    try {
+      odometer = await vehicleOdometerSummaries(request.userId!, vehicles.map((v) => v.id));
+    } catch (err) {
+      app.log.warn(err, "vehicle odometer summary failed");
+    }
+
+    return reply.send({
+      data: vehicles.map((v) => ({ ...withCleanAirZones(v), odometer: odometer.get(v.id) ?? null })),
+    });
   });
 
   // Update vehicle
@@ -383,6 +411,136 @@ export async function vehicleRoutes(app: FastifyInstance) {
     ]);
 
     return reply.send({ message: "Vehicle deleted" });
+  });
+
+  // ── Running odometer (9 Oct 2026) ────────────────────────────────
+
+  // The running figure and every real reading for a vehicle (newest first).
+  app.get("/:id/odometer", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const userId = request.userId!;
+
+    const vehicle = await prisma.vehicle.findFirst({ where: { id, userId }, select: { id: true } });
+    if (!vehicle) {
+      return reply.status(404).send({ error: "Vehicle not found" });
+    }
+
+    const inputs = (await loadOdometerInputs(userId, [id])).get(id)!;
+    const timeline = buildOdometerTimeline(inputs);
+    const data: VehicleOdometerResponse = { current: timeline.current, readings: timeline.readings };
+    return reply.send({ data });
+  });
+
+  // Record a reading from the dashboard.
+  app.post("/:id/odometer-readings", async (request, reply) => {
+    const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
+    const parsed = createOdometerReadingSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const userId = request.userId!;
+    const vehicle = await prisma.vehicle.findFirst({
+      where: { id, userId },
+      select: { id: true, createdAt: true },
+    });
+    if (!vehicle) {
+      return reply.status(404).send({ error: "Vehicle not found" });
+    }
+
+    const now = Date.now();
+    const requested = parsed.data.readAt ? new Date(parsed.data.readAt).getTime() : now;
+    // A phone clock a few seconds ahead must not turn "Now" into an error.
+    if (requested > now + ODOMETER_CLOCK_SKEW_MS) {
+      return reply.status(400).send({ error: "That time hasn't happened yet." });
+    }
+    const readAtMs = Math.min(requested, now);
+    if (readAtMs < vehicle.createdAt.getTime() - 365 * 86400000) {
+      return reply.status(400).send({ error: "That date is too far back for this vehicle." });
+    }
+    const readAt = new Date(readAtMs);
+    const readingMiles = Math.round(parsed.data.readingMiles * 10) / 10;
+
+    const inputs = (await loadOdometerInputs(userId, [id])).get(id)!;
+    const before = odometerStateAt(buildOdometerTimeline(inputs), readAt);
+
+    // Odometers don't go backwards. Whether a reading is a typo is a question
+    // for the driver (the app asks); this one is a fact.
+    if (before.latestReading && readingMiles < before.latestReading.readingMiles) {
+      return reply.status(409).send({
+        code: "LOWER_THAN_EARLIER",
+        error: "That's lower than an earlier reading",
+        earlier: before.latestReading,
+      });
+    }
+
+    // A backdated reading must not sit higher than a typed reading taken later.
+    const timeline = buildOdometerTimeline(inputs);
+    const later = timeline.readings
+      .filter(
+        (r) =>
+          r.used &&
+          r.source === "user" &&
+          new Date(r.readAt).getTime() > readAt.getTime() &&
+          r.readingMiles < readingMiles
+      )
+      .sort((a, b) => a.readAt.localeCompare(b.readAt))[0];
+    if (later) {
+      const when = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/London",
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+      }).format(new Date(later.readAt));
+      return reply.status(409).send({
+        code: "HIGHER_THAN_LATER",
+        error: `That's higher than your reading of ${Math.round(later.readingMiles).toLocaleString("en-GB")} on ${when}, which was taken later. Check the reading or the time.`,
+        later,
+      });
+    }
+
+    const created = await prisma.odometerReading.create({
+      data: { userId, vehicleId: id, readingMiles, readAt, source: "user" },
+    });
+
+    const current = buildOdometerTimeline({
+      trips: inputs.trips,
+      anchors: [
+        ...inputs.anchors,
+        { id: created.id, at: created.readAt, readingMiles: created.readingMiles, source: "user", createdAt: created.createdAt },
+      ],
+    }).current;
+
+    const data: OdometerReadingCreated = {
+      reading: {
+        id: created.id,
+        vehicleId: created.vehicleId,
+        readingMiles: created.readingMiles,
+        readAt: created.readAt.toISOString(),
+        source: created.source,
+      },
+      estimatedMiles: before.estimate,
+      current,
+    };
+    return reply.status(201).send({ data });
+  });
+
+  // Delete a typed reading (trip and fuel readings are changed on the trip or fuel log).
+  app.delete("/:id/odometer-readings/:readingId", async (request, reply) => {
+    const { id, readingId } = z
+      .object({ id: z.string().uuid(), readingId: z.string().uuid() })
+      .parse(request.params);
+    const userId = request.userId!;
+
+    const existing = await prisma.odometerReading.findFirst({
+      where: { id: readingId, vehicleId: id, userId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return reply.status(404).send({ error: "Reading not found" });
+    }
+    await prisma.odometerReading.delete({ where: { id: readingId } });
+    return reply.send({ message: "Reading deleted" });
   });
 
   // MOT history from DVSA. Cached for 24h per registration plate via the

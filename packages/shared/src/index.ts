@@ -11,3 +11,4 @@ export * from "./utils/mileageCertificate.js";
 export * from "./utils/ticketDefender.js";
 export * from "./data/releaseNotes.js";
 export * from "./utils/projectMileage.js";
+export * from "./utils/odometer.js";
