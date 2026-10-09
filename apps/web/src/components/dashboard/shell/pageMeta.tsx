@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 export interface PageMeta {
   title: string;
+  /** Browser tab title when it should differ from the on-page title (Home's greeting). */
+  docTitle?: string;
   back?: { href: string; label: string };
 }
 
@@ -23,7 +25,7 @@ export function PageMetaProvider({ children }: { children: ReactNode }) {
   // client re-renders. Watch the tag and put the page title back.
   useEffect(() => {
     if (!meta.title) return;
-    const want = `${meta.title} · MileClear`;
+    const want = `${meta.docTitle ?? meta.title} · MileClear`;
     const apply = () => {
       if (document.title !== want) document.title = want;
     };
@@ -33,7 +35,7 @@ export function PageMetaProvider({ children }: { children: ReactNode }) {
     const mo = new MutationObserver(apply);
     mo.observe(el, { childList: true, characterData: true, subtree: true });
     return () => mo.disconnect();
-  }, [meta.title]);
+  }, [meta.title, meta.docTitle]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

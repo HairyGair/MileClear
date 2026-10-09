@@ -43,8 +43,8 @@ function AchievementsPreviewImpl(): React.ReactElement | null {
         <CardFailed title="Personal records" onRetry={stats.reload} />
       ) : rec && (rec.mostMilesInDay > 0 || rec.longestSingleTrip > 0) ? (
         <Card title="Personal records">
-          {rec.mostMilesInDay > 0 && <Row main="Most miles in a day" sub={rec.mostMilesInDayDate ? new Date(rec.mostMilesInDayDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : undefined} figure={miles(rec.mostMilesInDay)} />}
-          {rec.longestSingleTrip > 0 && <Row main="Longest trip" sub={rec.longestSingleTripDate ? new Date(rec.longestSingleTripDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : undefined} figure={miles(rec.longestSingleTrip)} />}
+          {rec.mostMilesInDay > 0 && <Row main="Most miles in a day" sub={rec.mostMilesInDayDate ? new Date(rec.mostMilesInDayDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }).replace(/\bSept\b/, "Sep") : undefined} figure={miles(rec.mostMilesInDay)} />}
+          {rec.longestSingleTrip > 0 && <Row main="Longest trip" sub={rec.longestSingleTripDate ? new Date(rec.longestSingleTripDate).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }).replace(/\bSept\b/, "Sep") : undefined} figure={miles(rec.longestSingleTrip)} />}
           {rec.longestStreakDays > 0 && <Row main="Longest streak" figure={`${rec.longestStreakDays} ${rec.longestStreakDays === 1 ? "day" : "days"}`} />}
         </Card>
       ) : null}

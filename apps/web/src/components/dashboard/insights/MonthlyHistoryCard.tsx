@@ -22,7 +22,7 @@ async function fetchSixMonths(now: Date = new Date()): Promise<MonthBar[]> {
     )
   );
   return months.map((d, i) => ({
-    label: d.toLocaleDateString("en-GB", { month: "short" }),
+    label: d.toLocaleDateString("en-GB", { month: "short" }).replace(/\bSept\b/, "Sep"),
     fullLabel: d.toLocaleDateString("en-GB", { month: "long", year: "numeric" }),
     miles: Math.round(results[i].data.totalMiles * 10) / 10,
   }));

@@ -13,12 +13,15 @@ import { usePageMeta } from "../shell/pageMeta";
  */
 export function PageHeader({
   title,
+  docTitle,
   back,
   primary,
   secondary,
   children,
 }: {
   title: string;
+  /** Tab title, when it should differ from `title` (e.g. Home's greeting). */
+  docTitle?: string;
   back?: { href: string; label: string };
   primary?: ReactNode;
   secondary?: ReactNode;
@@ -29,9 +32,9 @@ export function PageHeader({
   const backLabel = back?.label;
 
   useLayoutEffect(() => {
-    setMeta({ title, back: backHref ? { href: backHref, label: backLabel ?? "Back" } : undefined });
-    document.title = `${title} · MileClear`;
-  }, [title, backHref, backLabel, setMeta]);
+    setMeta({ title, docTitle, back: backHref ? { href: backHref, label: backLabel ?? "Back" } : undefined });
+    document.title = `${docTitle ?? title} · MileClear`;
+  }, [title, docTitle, backHref, backLabel, setMeta]);
 
   if (!primary && !secondary && !children) return null;
   return (

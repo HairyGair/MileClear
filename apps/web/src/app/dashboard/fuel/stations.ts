@@ -23,7 +23,7 @@ export function titleCase(name: string): string {
  * station name already starts with it. Otherwise the brand leads, as in "Esso, Durham Road".
  */
 export function stationLabel(s: Pick<FuelStation, "stationName" | "brand">): string {
-  const name = titleCase(s.stationName);
+  const name = tidyName(titleCase(s.stationName));
   const brand = s.brand ? titleCase(s.brand) : "";
   if (!brand) return name;
   const lower = name.toLowerCase();
@@ -47,4 +47,31 @@ export function dedupeStations<T extends FuelStation>(list: T[]): T[] {
     }
   }
   return [...new Set(seen.values())];
+}
+
+/**
+ * Some feeds put the address in the name: "..., Pallion Road, Sunderland, SR4 6nd, Sunderland".
+ * Capitalise postcodes and drop a repeated part.
+ */
+export function tidyName(name: string): string {
+  const parts = name.split(",").map((p) => p.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (const raw of parts) {
+    const p = /^[a-z]{1,2}\d[a-z\d]?\s*\d[a-z]{2}$/i.test(raw) ? raw.toUpperCase() : raw;
+    if (!out.some((o) => o.toLowerCase() === p.toLowerCase())) out.push(p);
+  }
+  return out.join(", ");
+}
+
+/** Labels for a list, with the postcode added where two stations would read the same. */
+export function stationLabels<T extends FuelStation>(list: T[]): Map<T, string> {
+  const base = new Map(list.map((s) => [s, stationLabel(s)] as const));
+  const counts = new Map<string, number>();
+  for (const l of base.values()) counts.set(l.toLowerCase(), (counts.get(l.toLowerCase()) ?? 0) + 1);
+  const out = new Map<T, string>();
+  for (const [s, l] of base) {
+    const pc = s.postcode?.trim().toUpperCase();
+    out.set(s, (counts.get(l.toLowerCase()) ?? 0) > 1 && pc && !l.toUpperCase().includes(pc) ? `${l} (${pc})` : l);
+  }
+  return out;
 }

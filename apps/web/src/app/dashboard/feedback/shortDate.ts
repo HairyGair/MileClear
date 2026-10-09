@@ -11,5 +11,5 @@ export function shortDate(iso: string | null | undefined): string {
     day: "numeric",
     month: "short",
     ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
-  });
+  }).replace(/\bSept\b/, "Sep");
 }

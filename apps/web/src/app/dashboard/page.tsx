@@ -42,7 +42,7 @@ export default function HomePage() {
 
   return (
     <div className="mc-home">
-      <PageHeader title={title} primary={<Button variant="primary" href="/dashboard/trips/new">Add a trip</Button>} />
+      <PageHeader title={title} docTitle="Home" primary={<Button variant="primary" href="/dashboard/trips/new">Add a trip</Button>} />
       <DataQualityBanner />
       <SetupChecklist />
       {mode === "work" && <NominateManagerCard />}
