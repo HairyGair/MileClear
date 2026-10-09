@@ -14,7 +14,7 @@
 // Insights swap places with the work/personal mode in the same way.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text } from "react-native";
+import { AppState, Text, View } from "react-native";
 import { Tabs, useSegments } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,6 +22,7 @@ import * as Haptics from "expo-haptics";
 import { useMode } from "../../lib/mode/context";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { colors, fonts, tabBar } from "../../lib/theme";
+import { UpdateReadyBanner } from "../../components/UpdateReadyBanner";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -122,6 +123,7 @@ export default function TabLayout() {
   }, [throttledRefresh]);
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       backBehavior="history"
       screenListeners={{
@@ -220,5 +222,8 @@ export default function TabLayout() {
       <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="admin" options={{ href: null }} />
     </Tabs>
+    {/* "A new version is ready" once an update has downloaded (lib/updates/updateReady.ts) */}
+    <UpdateReadyBanner />
+    </View>
   );
 }

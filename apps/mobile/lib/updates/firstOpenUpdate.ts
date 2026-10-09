@@ -49,7 +49,7 @@ export function firstOpenRestartDecision(s: FirstOpenState): { restart: true } |
 }
 
 /** Anything that must not be cut off by a restart: an auto recording, a shift or a Start Trip. */
-async function isRecordingNow(): Promise<boolean> {
+export async function isRecordingNow(): Promise<boolean> {
   try {
     const { getDatabase } = await import("../db/index");
     const db = await getDatabase();
