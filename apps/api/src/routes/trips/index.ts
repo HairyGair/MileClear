@@ -1,4 +1,5 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { withKeyLock } from "../../lib/keyedLock.js";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
@@ -579,7 +580,7 @@ export async function tripRoutes(app: FastifyInstance) {
   });
 
   // Create trip (manual entry)
-  app.post("/", async (request, reply) => {
+  const createTrip = async (request: FastifyRequest, reply: FastifyReply) => {
     const parsed = createTripSchema.safeParse(request.body);
     if (!parsed.success) {
       // A 400 here deletes the phone's copy of the trip when it came straight
@@ -1319,7 +1320,15 @@ export async function tripRoutes(app: FastifyInstance) {
           ? { ...placePair.suggestion, autoApplied: true }
           : null,
     });
-  });
+  };
+  // One create at a time per driver: the duplicate check below is check-then-
+  // insert, so two copies of a drive arriving together both passed it
+  // (lib/keyedLock.ts).
+  app.post("/", async (request, reply) =>
+    request.userId
+      ? withKeyLock(`trip-create:${request.userId}`, () => createTrip(request, reply))
+      : createTrip(request, reply)
+  );
 
   // List trips with pagination
   app.get("/", async (request, reply) => {
