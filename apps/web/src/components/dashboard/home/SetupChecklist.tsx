@@ -29,6 +29,7 @@ export function SetupChecklist() {
   if (todo.length === 0) return null;
 
   return (
+    <div data-tour="home-setup">
     <Card title="Get set up" padded={false}>
       <div className="mc-checklist">
         {todo.map((t) => (
@@ -36,5 +37,6 @@ export function SetupChecklist() {
         ))}
       </div>
     </Card>
+    </div>
   );
 }

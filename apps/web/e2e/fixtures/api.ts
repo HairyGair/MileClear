@@ -46,11 +46,25 @@ export interface MockOptions {
   profile?: Profile;
   unclassified?: number;
   team?: { orgId: string; orgName: string; role: string } | null;
+  /** The first-use tour. "seen" (default) marks it done so other specs are never blocked; "unseen" lets it start. */
+  tour?: "seen" | "unseen";
+  /** Override GET /gamification/stats data. */
+  stats?: Record<string, unknown>;
+  /** Override GET /vehicles data. */
+  vehicles?: unknown[];
+  /** Override GET /trips data (total follows its length). */
+  trips?: unknown[];
+  /** Status POST /user/event answers with (default 200). */
+  eventStatus?: number;
 }
 
 /** Logged-in session with a fake token and every API call answered from fixtures. */
-export async function mockSession(page: Page, opts: MockOptions = {}): Promise<{ hosts: string[] }> {
+export async function mockSession(
+  page: Page,
+  opts: MockOptions = {}
+): Promise<{ hosts: string[]; events: { type: string; metadata?: Record<string, unknown> }[] }> {
   const hosts: string[] = [];
+  const events: { type: string; metadata?: Record<string, unknown> }[] = [];
   page.on("request", (r) => {
     try {
       hosts.push(new URL(r.url()).host);
@@ -59,10 +73,20 @@ export async function mockSession(page: Page, opts: MockOptions = {}): Promise<{
     }
   });
 
-  await page.addInitScript(() => {
-    window.localStorage.setItem("mc_access_token", "test-token");
-    window.localStorage.setItem("mc_refresh_token", "test-refresh");
-  });
+  const userId = (opts.profile ?? profile()).id;
+  const seen = (opts.tour ?? "seen") === "seen";
+  await page.addInitScript(
+    ({ userId, seen }) => {
+      window.localStorage.setItem("mc_access_token", "test-token");
+      window.localStorage.setItem("mc_refresh_token", "test-refresh");
+      // Only on the first load of the page, so a spec can clear or change it and reload.
+      if (seen && !window.sessionStorage.getItem("mc_test_tour_init")) {
+        window.sessionStorage.setItem("mc_test_tour_init", "1");
+        window.localStorage.setItem(`mc_web_tour_v1:${userId}`, JSON.stringify({ state: "done" }));
+      }
+    },
+    { userId, seen }
+  );
 
   await page.route(`${API}/**`, async (route: Route) => {
     const url = new URL(route.request().url());
@@ -94,17 +118,29 @@ export async function mockSession(page: Page, opts: MockOptions = {}): Promise<{
         return json({ available: false, dailyLimit: 20, monthlyLimit: 200 });
       case "/user/data-quality-improvement":
         return json({ data: { improvedTripCount: 0, milesGained: 0, firstImprovementAt: null, lastImprovementAt: null } });
+      case "/user/event": {
+        try {
+          events.push(route.request().postDataJSON());
+        } catch {
+          // ignore
+        }
+        return opts.eventStatus && opts.eventStatus !== 200
+          ? json({ error: "nope" }, opts.eventStatus)
+          : json({ success: true });
+      }
       case "/vehicles":
-        return json({ data: [{ id: "v1" }] });
-      case "/trips":
-        return json({ data: [{ id: "t1" }], total: 1, page: 1, pageSize: 1, totalPages: 1 });
+        return json({ data: opts.vehicles ?? [{ id: "v1" }] });
+      case "/trips": {
+        const t = opts.trips ?? [{ id: "t1" }];
+        return json({ data: t, total: t.length, page: 1, pageSize: 1, totalPages: 1 });
+      }
       case "/gamification/stats":
-        return json({ data: { totalTrips: 2, businessMiles: 0, deductionPence: 0 } });
+        return json({ data: opts.stats ?? { totalTrips: 2, businessMiles: 0, deductionPence: 0 } });
       default:
         return json({ error: "Not mocked in tests" }, 404);
     }
   });
-  return { hosts };
+  return { hosts, events };
 }
 
 /** Texts that must never appear anywhere in the dashboard. */

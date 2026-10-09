@@ -8,7 +8,7 @@ import { Icon } from "../kit/Icon";
 export function HomeGrid({ hero, children }: { hero?: ReactNode; children: ReactNode }) {
   return (
     <div className="mc-home__grid">
-      {hero !== undefined && <div className="mc-home__hero">{hero}</div>}
+      {hero !== undefined && <div className="mc-home__hero" data-tour="home-hero">{hero}</div>}
       {children}
     </div>
   );

@@ -68,7 +68,7 @@ test.describe("desktop 1440", () => {
     await page.getByRole("button", { name: "Your account" }).click();
     const menu = page.getByRole("menu");
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole("menuitem")).toHaveText(["Your profile", "Your plan", "Settings", "Get the app", "Log out"]);
+    await expect(menu.getByRole("menuitem")).toHaveText(["Your profile", "Your plan", "Settings", "Take the tour", "Get the app", "Log out"]);
     for (let i = 0; i < 7; i++) await page.keyboard.press("Tab");
     expect(await page.evaluate(() => !!document.activeElement?.closest('[role="menu"]'))).toBe(true);
     await page.keyboard.press("Escape");

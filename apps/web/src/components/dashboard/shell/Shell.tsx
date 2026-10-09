@@ -12,6 +12,7 @@ import { Segmented } from "../kit/Controls";
 import { Skeleton } from "../kit/States";
 import { activeNavKey, navItems } from "./nav";
 import { usePageMeta } from "./pageMeta";
+import { TourProvider, useTour } from "../tour/TourProvider";
 
 function Wordmark() {
   return (
@@ -51,6 +52,7 @@ function Rail() {
                 className={`mc-rail__item${on ? " is-active" : ""}`}
                 aria-current={on ? "page" : undefined}
                 aria-label={it.key === "trips" && count > 0 ? `Trips, ${count} to classify` : undefined}
+                data-tour={`nav-${it.key}`}
               >
                 <Icon name={on ? it.iconActive : it.icon} size={20} />
                 <span className="mc-rail__label">{it.label}</span>
@@ -92,6 +94,7 @@ function TabBar() {
             className={`mc-tabbar__item${on ? " is-active" : ""}`}
             aria-current={on ? "page" : undefined}
             aria-label={it.key === "trips" && count > 0 ? `Trips, ${count} to classify` : undefined}
+            data-tour={`nav-${it.key}`}
           >
             <span className="mc-tabbar__icon">
               <Icon name={on ? it.iconActive : it.icon} size={24} />
@@ -108,11 +111,13 @@ function TabBar() {
 function AvatarMenu() {
   const { user, isPro, isAdmin } = useMe();
   const { logout } = useAuth();
+  const tour = useTour();
   const file = resolveAvatarFile(user?.avatarId);
   const name = user?.displayName || user?.fullName || user?.email || "You";
   const initial = name.trim().charAt(0).toUpperCase();
 
   return (
+    <span data-tour="avatar" style={{ display: "inline-flex" }}>
     <Menu
       ariaLabel="Your account"
       triggerClassName="mc-avatar"
@@ -135,6 +140,7 @@ function AvatarMenu() {
         { label: "Your profile", href: "/dashboard/profile" },
         { label: "Your plan", href: "/dashboard/settings/plan" },
         { label: "Settings", href: "/dashboard/settings" },
+        { label: "Take the tour", onClick: () => tour.startFromMenu() },
         { label: "Get the app", href: "/app", external: true },
         ...(isAdmin ? [{ label: "Admin", href: "/dashboard/admin" }] : []),
         {
@@ -147,6 +153,7 @@ function AvatarMenu() {
         },
       ]}
     />
+    </span>
   );
 }
 
@@ -182,15 +189,17 @@ function TopBar() {
       </div>
       <div className="mc-topbar__right">
         {isHome && baseMode === "both" && (
-          <Segmented
-            ariaLabel="View"
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: "work", label: "Work" },
-              { value: "personal", label: "Personal" },
-            ]}
-          />
+          <span data-tour="mode-toggle" style={{ display: "inline-flex" }}>
+            <Segmented
+              ariaLabel="View"
+              value={mode}
+              onChange={setMode}
+              options={[
+                { value: "work", label: "Work" },
+                { value: "personal", label: "Personal" },
+              ]}
+            />
+          </span>
         )}
         <AvatarMenu />
       </div>
@@ -201,7 +210,7 @@ function TopBar() {
 /** The signed-in frame: rail on desktop, top bar, bottom tab bar on phones. */
 export function Shell({ children }: { children: ReactNode }) {
   return (
-    <>
+    <TourProvider>
       <Rail />
       <div className="mc-frame">
         <TopBar />
@@ -210,7 +219,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </main>
       </div>
       <TabBar />
-    </>
+    </TourProvider>
   );
 }
 

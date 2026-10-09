@@ -15,6 +15,15 @@ export default function HelpPage() {
     <>
       <PageHeader title="Help and tutorials" back={{ href: "/dashboard/more", label: "More" }} />
       <div className={styles.page}>
+        <Card tone="quiet">
+          <div className={styles.fields}>
+            <p className={styles.lead}>New to the website, or want a reminder?</p>
+            <div className={styles.actions}>
+              <Button variant="secondary" href="/dashboard?tour=1">Take the tour again</Button>
+            </div>
+          </div>
+        </Card>
+
         <TextField label="Search help" type="text" value={query} onChange={setQuery} placeholder="e.g. mileage rate, Self Assessment" />
 
         {sections.length === 0 ? (
