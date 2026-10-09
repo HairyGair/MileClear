@@ -95,38 +95,58 @@ export interface PeriodSummaryState {
   offline: boolean;
 }
 
+/** Which period the held figures belong to, so a period switch never shows the old one's. */
+function periodKey(period: InsightsPeriod, offset: number): string {
+  return `${period}|${offset}`;
+}
+
 export function usePeriodSummary(
   period: InsightsPeriod,
   offset: number,
   wantPrevious: boolean,
   refreshKey: number
 ): PeriodSummaryState {
-  const [state, setState] = useState<PeriodSummaryState>({ status: "loading", current: null, previous: null, offline: false });
+  const [state, setState] = useState<PeriodSummaryState & { key: string }>({
+    status: "loading",
+    current: null,
+    previous: null,
+    offline: false,
+    key: periodKey(period, offset),
+  });
   const seq = useRef(0);
 
   useEffect(() => {
     const mine = ++seq.current;
-    // Keep what is on screen while reloading; only the first load shows skeletons.
-    setState((s) => (s.current ? s : { ...s, status: "loading" }));
+    const key = periodKey(period, offset);
+    // Keep what is on screen while the SAME period reloads (focus, pull to
+    // refresh). A different period starts from a skeleton: the old figures
+    // under the new title would be wrong.
+    setState((s) =>
+      s.key === key && s.current ? s : { status: "loading", current: null, previous: null, offline: false, key }
+    );
     (async () => {
       try {
         const [current, previous] = await Promise.all([
           loadTotals(period, offset),
           wantPrevious && period !== "tax_year" ? loadTotals(period, offset - 1).catch(() => null) : Promise.resolve(null),
         ]);
-        if (mine === seq.current) setState({ status: "ready", current, previous, offline: false });
+        if (mine === seq.current) setState({ status: "ready", current, previous, offline: false, key });
       } catch {
         try {
           const range = getPeriodRange(period, offset);
           const local = await localTrips(range.start, range.end);
-          if (mine === seq.current) setState({ status: "ready", current: totalsFromTrips(local), previous: null, offline: true });
+          if (mine === seq.current) setState({ status: "ready", current: totalsFromTrips(local), previous: null, offline: true, key });
         } catch {
-          if (mine === seq.current) setState({ status: "error", current: null, previous: null, offline: false });
+          if (mine === seq.current) setState({ status: "error", current: null, previous: null, offline: false, key });
         }
       }
     })();
   }, [period, offset, wantPrevious, refreshKey]);
 
+  // The render straight after a switch, before the effect has run.
+  if (state.key !== periodKey(period, offset)) {
+    return { status: "loading", current: null, previous: null, offline: false };
+  }
   return state;
 }
 
@@ -138,28 +158,36 @@ export interface PeriodTripsState {
 }
 
 export function usePeriodTrips(period: InsightsPeriod, offset: number, refreshKey: number): PeriodTripsState {
-  const [state, setState] = useState<PeriodTripsState>({ status: "loading", trips: [], truncated: false });
+  const [state, setState] = useState<PeriodTripsState & { key: string }>({
+    status: "loading",
+    trips: [],
+    truncated: false,
+    key: periodKey(period, offset),
+  });
   const seq = useRef(0);
 
   useEffect(() => {
     const mine = ++seq.current;
-    setState((s) => (s.status === "ready" ? s : { ...s, status: "loading" }));
+    const key = periodKey(period, offset);
+    // Same rule as the summary: old trips would be bucketed into the new period's bars.
+    setState((s) => (s.key === key && s.status === "ready" ? s : { status: "loading", trips: [], truncated: false, key }));
     const range = getPeriodRange(period, offset);
     (async () => {
       try {
         const { trips, truncated } = await fetchAllTrips(range.start, range.end, period === "tax_year" ? 10 : 3);
-        if (mine === seq.current) setState({ status: "ready", trips, truncated });
+        if (mine === seq.current) setState({ status: "ready", trips, truncated, key });
       } catch {
         try {
           const trips = await localTrips(range.start, range.end);
-          if (mine === seq.current) setState({ status: "ready", trips, truncated: false });
+          if (mine === seq.current) setState({ status: "ready", trips, truncated: false, key });
         } catch {
-          if (mine === seq.current) setState({ status: "error", trips: [], truncated: false });
+          if (mine === seq.current) setState({ status: "error", trips: [], truncated: false, key });
         }
       }
     })();
   }, [period, offset, refreshKey]);
 
+  if (state.key !== periodKey(period, offset)) return { status: "loading", trips: [], truncated: false };
   return state;
 }
 
