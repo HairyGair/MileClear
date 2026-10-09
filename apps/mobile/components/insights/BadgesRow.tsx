@@ -68,10 +68,12 @@ interface BadgesRowProps {
   stats: BadgeStats | null;
   mode: "work" | "personal";
   loading: boolean;
+  /** How many of the nearest unearned badges "Coming up next" already shows. They are not repeated here. */
+  skipNext?: number;
   onSeeAll: () => void;
 }
 
-export function BadgesRow({ achievements, stats, mode, loading, onSeeAll }: BadgesRowProps) {
+export function BadgesRow({ achievements, stats, mode, loading, skipNext = 0, onSeeAll }: BadgesRowProps) {
   if (loading && achievements.length === 0) {
     return (
       <View style={styles.card}>
@@ -90,7 +92,7 @@ export function BadgesRow({ achievements, stats, mode, loading, onSeeAll }: Badg
   const recent = [...achievements]
     .sort((a, b) => new Date(b.achievedAt).getTime() - new Date(a.achievedAt).getTime())
     .slice(0, 3);
-  const next = stats ? nextBadges(allTypes, earnedTypes, stats, mode, 3) : [];
+  const next = stats ? nextBadges(allTypes, earnedTypes, stats, mode, skipNext + 3).slice(skipNext) : [];
   if (recent.length === 0 && next.length === 0) return null;
 
   return (

@@ -1,43 +1,59 @@
-// Data for the Insights frame, in small hooks so each source is easy to swap
-// when docs/insights-oct2026/NUMBERS.md names the one source per figure.
+// Data for the Insights frame, in small hooks. Every request goes through the
+// shared cache in lib/insights/api.ts, so cards that need the same endpoint
+// share one request and a return to the screen inside 60 s sends nothing.
+// Sources: docs/insights-oct2026/NUMBERS.md.
 //
-//   usePeriodSummary   miles, trips, claim for the shown period (+ previous)
-//   usePeriodTrips     trips in the shown period, for the bars
-//   useRecentTripDates trip dates over ~30 weeks, for the Personal week streak
-//   useInsightsProfile stats, earned badges, lifetime miles
+//   usePeriodSummary   recap (Week/Month, compare=1 for Pro) or stats (Tax year)
+//   usePeriodTrips     trips in the period, for the bars (not for Tax year)
+//   useRecentTripDates trip dates for the Personal week streak
+//   useInsightsProfile stats (lifetimeMiles, trips, unsorted), earned badges
+//   useRunningCostInputs  the period's miles and the main vehicle
 //
 // Every hook takes `refreshKey`; bump it to reload (focus, pull to refresh).
-// Pages stay at 200 trips or fewer: the API rejects bigger pageSizes and the
-// old 500 silently returned nothing.
+// A pull to refresh calls insightsCache.invalidate() first.
 
 import { useEffect, useRef, useState } from "react";
 import type { AchievementWithMeta, GamificationStats, Vehicle } from "@mileclear/shared";
-import { fetchVehicles } from "../lib/api/vehicles";
-import { fetchAchievements, fetchGamificationStats, fetchRecap } from "../lib/api/gamification";
-import { fetchTripSummary, fetchTrips } from "../lib/api/trips";
 import { getLocalTrips } from "../lib/db/queries";
+import {
+  cachedAchievements,
+  cachedRecap,
+  cachedRunningCost,
+  cachedStats,
+  cachedTripSummary,
+  cachedTripsPage,
+  cachedVehicles,
+  dateParam,
+} from "../lib/insights/api";
 import { getPeriodRange, type InsightsPeriod, type TripLike } from "../lib/insights/period";
+import {
+  previousFromRecap,
+  totalsFromRecap,
+  totalsFromStats,
+  totalsFromTripSummary,
+  type InsightsMode,
+  type PeriodTotals,
+} from "../lib/insights/periodTotals";
 
+export type { PeriodTotals } from "../lib/insights/periodTotals";
 export type Status = "loading" | "ready" | "error";
-
-export interface PeriodTotals {
-  miles: number;
-  trips: number;
-  businessMiles: number;
-  /** Mileage claim in pence, or null when this source can't say. */
-  claimPence: number | null;
-  busiestDayLabel: string | null;
-  busiestDayMiles: number;
-}
 
 const PAGE = 200;
 
-async function fetchAllTrips(from: Date, to: Date, maxPages: number): Promise<{ trips: TripLike[]; truncated: boolean }> {
+async function fetchTripsInRange(
+  from: Date,
+  to: Date,
+  maxPages: number,
+  businessOnly = false
+): Promise<{ trips: TripLike[]; truncated: boolean }> {
   const out: TripLike[] = [];
   let truncated = false;
   for (let page = 1; page <= maxPages; page++) {
-    const res = await fetchTrips({ from: from.toISOString(), to: to.toISOString(), page, pageSize: PAGE });
-    for (const t of res.data) out.push({ startedAt: t.startedAt, distanceMiles: t.distanceMiles });
+    const res = await cachedTripsPage(from.toISOString(), to.toISOString(), page);
+    for (const t of res.data) {
+      if (businessOnly && t.classification !== "business") continue;
+      out.push({ startedAt: t.startedAt, distanceMiles: t.distanceMiles, classification: t.classification });
+    }
     if (page >= (res.totalPages ?? 1)) break;
     if (page === maxPages) truncated = true;
   }
@@ -51,40 +67,50 @@ async function localTrips(from: Date, to: Date): Promise<TripLike[]> {
       const ms = new Date(t.startedAt).getTime();
       return ms >= from.getTime() && ms < to.getTime();
     })
-    .map((t) => ({ startedAt: t.startedAt, distanceMiles: t.distanceMiles }));
+    .map((t) => ({ startedAt: t.startedAt, distanceMiles: t.distanceMiles, classification: t.classification }));
 }
 
 function totalsFromTrips(trips: TripLike[]): PeriodTotals {
   const miles = trips.reduce((s, t) => s + t.distanceMiles, 0);
-  return { miles, trips: trips.length, businessMiles: 0, claimPence: null, busiestDayLabel: null, busiestDayMiles: 0 };
+  return {
+    miles,
+    trips: trips.length,
+    businessMiles: 0,
+    claimPence: null,
+    earningsPence: null,
+    earningsCount: null,
+    busiestDayLabel: null,
+    busiestDayMiles: 0,
+  };
 }
 
-async function loadTotals(period: InsightsPeriod, offset: number): Promise<PeriodTotals> {
+interface Loaded {
+  current: PeriodTotals;
+  previous: PeriodTotals | null;
+}
+
+async function loadTotals(
+  period: InsightsPeriod,
+  offset: number,
+  mode: InsightsMode,
+  wantPrevious: boolean
+): Promise<Loaded> {
   const range = getPeriodRange(period, offset);
   if (period === "tax_year") {
-    const [sum, stats] = await Promise.all([
-      fetchTripSummary({ from: range.start.toISOString(), to: range.end.toISOString() }),
-      offset === 0 ? fetchGamificationStats().catch(() => null) : Promise.resolve(null),
-    ]);
-    return {
-      miles: sum.data.totalMiles,
-      trips: sum.data.totalTrips,
-      businessMiles: sum.data.businessMiles,
-      claimPence: stats ? stats.data.deductionPence : null,
-      busiestDayLabel: null,
-      busiestDayMiles: 0,
-    };
+    if (offset === 0) {
+      // Miles and claim from stats: the Tax year card reads the same call.
+      const [stats, sum] = await Promise.all([
+        cachedStats(),
+        cachedTripSummary(range.start.toISOString(), range.end.toISOString()).catch(() => null),
+      ]);
+      const trips = sum ? (mode === "work" ? sum.businessTrips : sum.totalTrips) : 0;
+      return { current: totalsFromStats(stats, trips, mode), previous: null };
+    }
+    const sum = await cachedTripSummary(range.start.toISOString(), range.end.toISOString());
+    return { current: totalsFromTripSummary(sum, mode), previous: null };
   }
-  const res = await fetchRecap(period === "week" ? "weekly" : "monthly", range.anchor.toISOString());
-  const r = res.data;
-  return {
-    miles: r.totalMiles,
-    trips: r.totalTrips,
-    businessMiles: r.businessMiles,
-    claimPence: r.deductionPence,
-    busiestDayLabel: r.busiestDayLabel,
-    busiestDayMiles: r.busiestDayMiles,
-  };
+  const recap = await cachedRecap(period === "week" ? "weekly" : "monthly", dateParam(range.anchor), wantPrevious);
+  return { current: totalsFromRecap(recap, mode), previous: wantPrevious ? previousFromRecap(recap, mode) : null };
 }
 
 export interface PeriodSummaryState {
@@ -96,13 +122,14 @@ export interface PeriodSummaryState {
 }
 
 /** Which period the held figures belong to, so a period switch never shows the old one's. */
-function periodKey(period: InsightsPeriod, offset: number): string {
-  return `${period}|${offset}`;
+function periodKey(period: InsightsPeriod, offset: number, mode: string): string {
+  return `${period}|${offset}|${mode}`;
 }
 
 export function usePeriodSummary(
   period: InsightsPeriod,
   offset: number,
+  mode: InsightsMode,
   wantPrevious: boolean,
   refreshKey: number
 ): PeriodSummaryState {
@@ -111,13 +138,13 @@ export function usePeriodSummary(
     current: null,
     previous: null,
     offline: false,
-    key: periodKey(period, offset),
+    key: periodKey(period, offset, mode),
   });
   const seq = useRef(0);
 
   useEffect(() => {
     const mine = ++seq.current;
-    const key = periodKey(period, offset);
+    const key = periodKey(period, offset, mode);
     // Keep what is on screen while the SAME period reloads (focus, pull to
     // refresh). A different period starts from a skeleton: the old figures
     // under the new title would be wrong.
@@ -126,25 +153,26 @@ export function usePeriodSummary(
     );
     (async () => {
       try {
-        const [current, previous] = await Promise.all([
-          loadTotals(period, offset),
-          wantPrevious && period !== "tax_year" ? loadTotals(period, offset - 1).catch(() => null) : Promise.resolve(null),
-        ]);
+        const { current, previous } = await loadTotals(period, offset, mode, wantPrevious);
         if (mine === seq.current) setState({ status: "ready", current, previous, offline: false, key });
       } catch {
         try {
           const range = getPeriodRange(period, offset);
-          const local = await localTrips(range.start, range.end);
-          if (mine === seq.current) setState({ status: "ready", current: totalsFromTrips(local), previous: null, offline: true, key });
+          const local = (await localTrips(range.start, range.end)).filter(
+            (t) => mode !== "work" || t.classification === "business"
+          );
+          if (mine === seq.current) {
+            setState({ status: "ready", current: totalsFromTrips(local), previous: null, offline: true, key });
+          }
         } catch {
           if (mine === seq.current) setState({ status: "error", current: null, previous: null, offline: false, key });
         }
       }
     })();
-  }, [period, offset, wantPrevious, refreshKey]);
+  }, [period, offset, mode, wantPrevious, refreshKey]);
 
   // The render straight after a switch, before the effect has run.
-  if (state.key !== periodKey(period, offset)) {
+  if (state.key !== periodKey(period, offset, mode)) {
     return { status: "loading", current: null, previous: null, offline: false };
   }
   return state;
@@ -153,45 +181,57 @@ export function usePeriodSummary(
 export interface PeriodTripsState {
   status: Status;
   trips: TripLike[];
-  /** More trips than we fetched; the bars would be wrong, so don't draw them. */
+  /** The bars would be wrong or too costly (more trips than we fetched, or Tax year): don't draw them. */
   truncated: boolean;
 }
 
-export function usePeriodTrips(period: InsightsPeriod, offset: number, refreshKey: number): PeriodTripsState {
+export function usePeriodTrips(
+  period: InsightsPeriod,
+  offset: number,
+  mode: InsightsMode,
+  refreshKey: number
+): PeriodTripsState {
   const [state, setState] = useState<PeriodTripsState & { key: string }>({
     status: "loading",
     trips: [],
     truncated: false,
-    key: periodKey(period, offset),
+    key: periodKey(period, offset, mode),
   });
   const seq = useRef(0);
 
   useEffect(() => {
     const mine = ++seq.current;
-    const key = periodKey(period, offset);
+    const key = periodKey(period, offset, mode);
     // Same rule as the summary: old trips would be bucketed into the new period's bars.
     setState((s) => (s.key === key && s.status === "ready" ? s : { status: "loading", trips: [], truncated: false, key }));
+    // Tax year: no bars. Fetching a year of trips (up to 2,000) for a chart is
+    // not worth it; the figures come from stats.
+    if (period === "tax_year") {
+      setState({ status: "ready", trips: [], truncated: true, key });
+      return;
+    }
     const range = getPeriodRange(period, offset);
+    const business = mode === "work";
     (async () => {
       try {
-        const { trips, truncated } = await fetchAllTrips(range.start, range.end, period === "tax_year" ? 10 : 3);
+        const { trips, truncated } = await fetchTripsInRange(range.start, range.end, period === "week" ? 1 : 2, business);
         if (mine === seq.current) setState({ status: "ready", trips, truncated, key });
       } catch {
         try {
-          const trips = await localTrips(range.start, range.end);
+          const trips = (await localTrips(range.start, range.end)).filter((t) => !business || t.classification === "business");
           if (mine === seq.current) setState({ status: "ready", trips, truncated: false, key });
         } catch {
           if (mine === seq.current) setState({ status: "error", trips: [], truncated: false, key });
         }
       }
     })();
-  }, [period, offset, refreshKey]);
+  }, [period, offset, mode, refreshKey]);
 
-  if (state.key !== periodKey(period, offset)) return { status: "loading", trips: [], truncated: false };
+  if (state.key !== periodKey(period, offset, mode)) return { status: "loading", trips: [], truncated: false };
   return state;
 }
 
-/** Start times of trips over the last ~30 weeks, newest data included. */
+/** Start times of recent trips (newest first, up to 2 pages) for the Personal week streak. */
 export function useRecentTripDates(enabled: boolean, refreshKey: number): { status: Status; dates: string[] } {
   const [state, setState] = useState<{ status: Status; dates: string[] }>({ status: "loading", dates: [] });
   const seq = useRef(0);
@@ -203,7 +243,7 @@ export function useRecentTripDates(enabled: boolean, refreshKey: number): { stat
     const from = new Date(Date.now() - 30 * 7 * 86_400_000);
     (async () => {
       try {
-        const { trips } = await fetchAllTrips(from, to, 5);
+        const { trips } = await fetchTripsInRange(from, to, 2);
         if (mine === seq.current) setState({ status: "ready", dates: trips.map((t) => t.startedAt) });
       } catch {
         try {
@@ -223,8 +263,9 @@ export interface InsightsProfileState {
   status: Status;
   stats: GamificationStats | null;
   achievements: AchievementWithMeta[];
-  /** Lifetime miles and trips. Not stats.totalMiles: that one is this tax year only. */
+  /** Every mile ever (stats.lifetimeMiles). Not stats.totalMiles: that one is this tax year only. */
   lifetimeMiles: number | null;
+  /** Every trip ever (stats.totalTrips counts all non-phantom trips). */
   lifetimeTrips: number | null;
 }
 
@@ -241,18 +282,14 @@ export function useInsightsProfile(refreshKey: number): InsightsProfileState {
   useEffect(() => {
     const mine = ++seq.current;
     (async () => {
-      const [stats, ach, life] = await Promise.all([
-        fetchGamificationStats().catch(() => null),
-        fetchAchievements().catch(() => null),
-        fetchTripSummary().catch(() => null),
-      ]);
+      const [stats, ach] = await Promise.all([cachedStats().catch(() => null), cachedAchievements().catch(() => null)]);
       if (mine !== seq.current) return;
       setState((prev) => ({
-        status: !stats && !ach && !life ? (prev.stats ? "ready" : "error") : "ready",
-        stats: stats ? stats.data : prev.stats,
-        achievements: ach ? ach.data : prev.achievements,
-        lifetimeMiles: life ? life.data.totalMiles : prev.lifetimeMiles,
-        lifetimeTrips: life ? life.data.totalTrips : prev.lifetimeTrips,
+        status: !stats && !ach ? (prev.stats ? "ready" : "error") : "ready",
+        stats: stats ?? prev.stats,
+        achievements: ach ?? prev.achievements,
+        lifetimeMiles: stats ? (stats.lifetimeMiles ?? null) : prev.lifetimeMiles,
+        lifetimeTrips: stats ? stats.totalTrips : prev.lifetimeTrips,
       }));
     })();
   }, [refreshKey]);
@@ -260,33 +297,46 @@ export function useInsightsProfile(refreshKey: number): InsightsProfileState {
   return state;
 }
 
-/** What the fuel and charging cards need: this month's miles and the main vehicle. */
+export interface RunningCostInputs {
+  /** Miles in the running-cost window (from /business-insights/running-cost). */
+  miles: number;
+  vehicle: Vehicle | null;
+}
+
+/** The window's miles (from the running-cost endpoint) and the main vehicle. */
 export function useRunningCostInputs(
   enabled: boolean,
+  costPeriod: "week" | "month",
+  anchor: Date,
   refreshKey: number
-): { monthMiles: number; vehicle: Vehicle | null } {
-  const [state, setState] = useState<{ monthMiles: number; vehicle: Vehicle | null }>({ monthMiles: 0, vehicle: null });
+): RunningCostInputs {
+  const date = dateParam(anchor);
+  const [state, setState] = useState<{ miles: number; vehicle: Vehicle | null; key: string }>({
+    miles: 0,
+    vehicle: null,
+    key: "",
+  });
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    const key = `${costPeriod}|${date}`;
     (async () => {
-      const [sum, vehicles] = await Promise.all([
-        fetchTripSummary({ from: from.toISOString(), to: now.toISOString() }).catch(() => null),
-        fetchVehicles().catch(() => null),
+      const [cost, vehicles] = await Promise.all([
+        cachedRunningCost(costPeriod, date).catch(() => null),
+        cachedVehicles().catch(() => null),
       ]);
       if (cancelled) return;
       setState((prev) => ({
-        monthMiles: sum ? sum.data.totalMiles : prev.monthMiles,
-        vehicle: vehicles ? (vehicles.data.find((v) => v.isPrimary) ?? vehicles.data[0] ?? null) : prev.vehicle,
+        miles: cost ? cost.period.miles : prev.key === key ? prev.miles : 0,
+        vehicle: vehicles ? (vehicles.find((v) => v.isPrimary) ?? vehicles[0] ?? null) : prev.vehicle,
+        key,
       }));
     })();
     return () => {
       cancelled = true;
     };
-  }, [enabled, refreshKey]);
+  }, [enabled, costPeriod, date, refreshKey]);
 
-  return state;
+  return { miles: state.miles, vehicle: state.vehicle };
 }

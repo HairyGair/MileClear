@@ -18,7 +18,7 @@ import type {
   EarningsDayPattern,
   CommuteTiming,
 } from "@mileclear/shared";
-import { fetchDrivingAnalytics } from "../../lib/api/analytics";
+import { cachedDrivingAnalytics } from "../../lib/insights/api";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { ErrorState } from "../ErrorState";
@@ -571,8 +571,8 @@ export function useDrivingAnalytics(enabled: boolean, refreshToken = 0) {
   const load = useCallback(async () => {
     if (!enabled) return;
     try {
-      const res = await fetchDrivingAnalytics();
-      setAnalytics(res.data);
+      const res = await cachedDrivingAnalytics();
+      setAnalytics(res);
       setFailed(false);
     } catch {
       setFailed(true);

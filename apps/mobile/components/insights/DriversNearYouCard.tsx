@@ -10,7 +10,7 @@
 
 import { View, Text, StyleSheet } from "react-native";
 import type { LocalBenchmark } from "@mileclear/shared";
-import { fetchLocalBenchmark } from "../../lib/api/businessInsights";
+import { cachedLocalBenchmark } from "../../lib/insights/api";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
 import { chart, colors, fonts, fontScaleCap, spacing } from "../../lib/theme";
 import { InsightCard, CardSkeleton, CardError, type InsightCardProps } from "./work/InsightCardUi";
@@ -27,7 +27,7 @@ function groupLabel(d: LocalBenchmark): string {
 
 export default function DriversNearYouCard({ mode, refreshToken }: InsightCardProps) {
   const { data, loading, failed, reload } = useAsyncData(
-    () => fetchLocalBenchmark(mode).then((r) => r.data),
+    () => cachedLocalBenchmark(mode),
     `near-${mode}`,
     refreshToken
   );

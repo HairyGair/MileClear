@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { fetchActivityHeatmap } from "../../lib/api/businessInsights";
+import { cachedHeatmap } from "../../lib/insights/api";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
 import { loadLocalPatternCells } from "../../lib/insights/localPatternCells";
 import {
@@ -27,8 +27,8 @@ const BLOCK_HEADERS = ["12am", "4am", "8am", "12pm", "4pm", "8pm"];
 
 async function loadCells(mode: "work" | "personal"): Promise<PatternCell[]> {
   if (mode === "personal") return loadLocalPatternCells(12, false);
-  const res = await fetchActivityHeatmap({ weeksBack: 12 });
-  return res.data.cells.map((c) => ({ dayOfWeek: c.dayOfWeek, hour: c.hour, tripCount: c.tripCount }));
+  const res = await cachedHeatmap();
+  return res.cells.map((c) => ({ dayOfWeek: c.dayOfWeek, hour: c.hour, tripCount: c.tripCount }));
 }
 
 export default function WhenYouDriveCard({ mode, refreshToken }: InsightCardProps) {

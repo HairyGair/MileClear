@@ -6,20 +6,19 @@
 //
 // Usage:
 //   <PlatformLeagueCard period="month" offset={0} mode="work" isPro={isPro} />
-// The window is the last 30 days (Week and Month) or the tax year so far
-// (Tax year); stepping back in time is not supported by the data yet.
+// The window is the period shown (week, month or tax year, any offset). Pro
+// reads GET /business-insights/platform-pnl?period=; free drivers get the same
+// ranking rule from free endpoints (platformLeagueData.ts), figures masked.
 
 import { useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { getTaxYear, parseTaxYear } from "@mileclear/shared";
 import { useUser } from "../../lib/user/context";
 import { usePaywall } from "../paywall";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
-import { loadLeagueInputs, windowStart } from "../../lib/insights/platformLeagueData";
+import { loadLeague } from "../../lib/insights/platformLeagueData";
+import { getPeriodRange, summaryTitle } from "../../lib/insights/period";
 import {
-  buildLeague,
   hasLeague,
-  maskLeagueForFree,
   formatPerMile,
   leagueSubline,
   type LeagueRow,
@@ -32,33 +31,25 @@ export default function PlatformLeagueCard({ period, offset, mode, isPro, refres
   const { showPaywall } = usePaywall();
   const workType = user?.workType ?? "gig";
   const isGig = (workType === "gig" || workType === "both") && !isCompanyDriver;
-  const hidden = mode !== "work" || !isGig || (period === "tax_year" && offset < 0);
+  const hidden = mode !== "work" || !isGig;
 
-  const taxYearWindow = period === "tax_year";
-  const key = taxYearWindow ? "league-ty" : "league-30";
-  const { data, loading, failed, reload } = useAsyncData(
-    () => {
-      const since = taxYearWindow ? parseTaxYear(getTaxYear(new Date())).start.toISOString() : undefined;
-      return loadLeagueInputs(windowStart(30, since));
-    },
+  const range = useMemo(() => getPeriodRange(period, offset), [period, offset]);
+  // Pro and free read different sources, so they are different keys.
+  const key = `league|${period}|${offset}|${isPro ? "pro" : "free"}`;
+  const { data: rows, loading, failed, reload } = useAsyncData<LeagueRow[]>(
+    () => loadLeague(period, range, isPro),
     key,
     refreshToken,
     !hidden
   );
 
-  const rows = useMemo<LeagueRow[]>(() => {
-    if (!data) return [];
-    const league = buildLeague(data);
-    return isPro ? league : maskLeagueForFree(league);
-  }, [data, isPro]);
-
   if (hidden) return null;
-  if (loading && !data) return <CardSkeleton lines={4} />;
-  if (failed && !data) return <CardError onRetry={reload} />;
-  if (!data || !hasLeague(rows)) return null;
+  if (loading && !rows) return <CardSkeleton lines={4} />;
+  if (failed && !rows) return <CardError onRetry={reload} />;
+  if (!rows || !hasLeague(rows)) return null;
 
   return (
-    <InsightCard title="Your platforms, ranked" meta={taxYearWindow ? "Tax year so far" : "Last 30 days"}>
+    <InsightCard title="Your platforms, ranked" meta={range.isCurrent && period === "tax_year" ? "Tax year so far" : summaryTitle(period, offset, range)}>
       {rows.map((r, i) => (
         <LeagueRowView key={r.platform} row={r} last={i === rows.length - 1} isPro={isPro} />
       ))}
@@ -130,6 +121,10 @@ function LeagueRowView({ row, last, isPro }: { row: LeagueRow; last: boolean; is
               </Text>
             )}
           </>
+        ) : isPro ? (
+          <Text style={styles.sub} maxFontSizeMultiplier={fontScaleCap.display}>
+            {row.trips === 0 ? "No trips tagged" : "No earnings"}
+          </Text>
         ) : (
           <View style={styles.placeholder} />
         )}

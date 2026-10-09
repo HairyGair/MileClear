@@ -1,7 +1,8 @@
 // "Tax year so far" (Work). Business miles this tax year as a bar to 10,000
-// with the claim built so far. The claim is the Tax tab's own figure
-// (GET /business-insights/tax-snapshot, mileageDeductionPence), so the two
-// screens agree. The tax year is always the current one; when the period is
+// with the claim built so far. Miles and claim both come from
+// GET /gamification/stats (deductionPence), the same call the summary card
+// uses for the tax year, so the screen never shows two claim figures for the
+// same period. The tax year is always the current one; when the period is
 // "Tax year" and the driver steps back to last year there is no source for
 // it yet, so the card stays out of the way.
 //
@@ -13,9 +14,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { formatPence, resolveMileageRates } from "@mileclear/shared";
-import { fetchGamificationStats } from "../../lib/api/gamification";
-import { fetchTaxSnapshot } from "../../lib/api/businessInsights";
-import { fetchVehicles } from "../../lib/api/vehicles";
+import { cachedStats, cachedVehicles } from "../../lib/insights/api";
 import { useUser } from "../../lib/user/context";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
 import {
@@ -35,17 +34,13 @@ interface Loaded {
 }
 
 async function loadTaxYear(): Promise<Loaded> {
-  const [stats, snap, vehicles] = await Promise.all([
-    fetchGamificationStats(),
-    fetchTaxSnapshot().catch(() => null),
-    fetchVehicles().catch(() => null),
-  ]);
-  const list = vehicles?.data ?? [];
+  const [stats, vehicles] = await Promise.all([cachedStats(), cachedVehicles().catch(() => null)]);
+  const list = vehicles ?? [];
   const primary = list.find((v) => v.isPrimary) ?? list[0] ?? null;
   return {
-    taxYear: stats.data.taxYear,
-    businessMiles: stats.data.businessMiles,
-    claimPence: snap ? snap.data.ytd.mileageDeductionPence : null,
+    taxYear: stats.taxYear,
+    businessMiles: stats.businessMiles,
+    claimPence: stats.deductionPence,
     vehicleType: primary?.vehicleType ?? null,
   };
 }

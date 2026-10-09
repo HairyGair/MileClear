@@ -145,6 +145,8 @@ const MONTH_LETTERS = ["A", "M", "J", "J", "A", "S", "O", "N", "D", "J", "F", "M
 export interface TripLike {
   startedAt: string;
   distanceMiles: number;
+  /** Optional: Work mode bars count business trips only. */
+  classification?: string;
 }
 
 /**

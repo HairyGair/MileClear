@@ -33,6 +33,10 @@ import { isOnline } from "../../lib/network";
 import { useReducedMotion } from "../../lib/accessibility";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
 import { getPeriodRange, isInsightsPeriod, PERIOD_KEY, type InsightsPeriod } from "../../lib/insights/period";
+import { insightsCache } from "../../lib/insights/requestCache";
+import { dateParam } from "../../lib/insights/api";
+import { costWindow } from "../../lib/insights/costWindow";
+import { insightsVisibility, tripsToSort } from "../../lib/insights/visibility";
 import { getMilestoneRoadOrStart } from "../../lib/insights/milestones";
 import { getInsightsValue, setInsightsValue, WEEKLY_GOAL_KEY } from "../../lib/insights/store";
 
@@ -45,6 +49,8 @@ export default function InsightsScreen() {
   const { view } = useLocalSearchParams<{ view?: string }>();
   const mode: "work" | "personal" = isWork ? "work" : "personal";
   const isPro = !!user?.isPremium;
+  // Answers belong to one driver; a different driver starts with an empty cache.
+  insightsCache.setScope(user?.id ?? null);
 
   // Period: remembered on this phone only.
   const [period, setPeriod] = useState<InsightsPeriod>("week");
@@ -61,6 +67,7 @@ export default function InsightsScreen() {
   }, []);
 
   // Reload on focus (not on the first focus: the hooks already load on mount).
+  // Coming back inside 60 s sends nothing: the shared cache answers.
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const firstFocus = useRef(true);
@@ -75,11 +82,15 @@ export default function InsightsScreen() {
   );
 
   const range = useMemo(() => getPeriodRange(period, offset), [period, offset]);
-  const summary = usePeriodSummary(period, offset, isPro, refreshKey);
-  const bars = usePeriodTrips(period, offset, refreshKey);
+  const summary = usePeriodSummary(period, offset, mode, isPro, refreshKey);
+  const bars = usePeriodTrips(period, offset, mode, refreshKey);
   const profile = useInsightsProfile(refreshKey);
   const weekDates = useRecentTripDates(isPersonal && !isCompanyDriver, refreshKey);
-  const running = useRunningCostInputs(isPersonal, refreshKey);
+  // Running costs follow Week and Month; Tax year shows this month and says so.
+  const monthRange = useMemo(() => getPeriodRange("month", 0), []);
+  const cost = useMemo(() => costWindow(period, offset, range, monthRange), [period, offset, range, monthRange]);
+  const costAnchor = cost.fellBackToMonth ? monthRange.anchor : range.anchor;
+  const running = useRunningCostInputs(isPersonal, cost.window.period, costAnchor, refreshKey);
 
   const [goal, setGoal] = useState<number | null>(null);
   useFocusEffect(
@@ -98,18 +109,26 @@ export default function InsightsScreen() {
     records ? { bestDay: records.mostMilesInDay, longestTrip: records.longestSingleTrip } : null
   );
 
-  // Pull to refresh: stop the spinner once the summary has come back.
+  // Pull to refresh: drop the cached answers, reload every card, and keep the
+  // spinner until every request has come back (or 15 s, whichever is first).
   const handleRefresh = useCallback(() => {
+    insightsCache.invalidate();
     setRefreshing(true);
     setRefreshKey((k) => k + 1);
   }, []);
   useEffect(() => {
-    if (refreshing && summary.status !== "loading" && profile.status !== "loading") setRefreshing(false);
-  }, [refreshing, summary.status, profile.status]);
-  useEffect(() => {
     if (!refreshing) return;
-    const t = setTimeout(() => setRefreshing(false), 6000);
-    return () => clearTimeout(t);
+    let cancelIdle = () => {};
+    // Let this render's effects start their requests first, then wait for none to be left.
+    const start = setTimeout(() => {
+      cancelIdle = insightsCache.whenIdle(() => setRefreshing(false));
+    }, 60);
+    const cap = setTimeout(() => setRefreshing(false), 15000);
+    return () => {
+      clearTimeout(start);
+      clearTimeout(cap);
+      cancelIdle();
+    };
   }, [refreshing]);
 
   // Old links to /insights?view=trends land on Go deeper at the bottom.
@@ -136,7 +155,7 @@ export default function InsightsScreen() {
 
   const earnedTypes = useMemo(() => new Set(profile.achievements.map((a) => a.type)), [profile.achievements]);
   const tripsEver = profile.lifetimeTrips ?? stats?.totalTrips ?? null;
-  const firstWeek = tripsEver !== null && tripsEver < 10;
+  const vis = insightsVisibility(tripsEver);
 
   const summaryCard = (
     <PeriodSummaryCard
@@ -180,7 +199,7 @@ export default function InsightsScreen() {
   // Records and badges wait for 10 trips (first-week rule); badges show sooner.
   const recordsAndBadges = (
     <>
-      {!firstWeek && (
+      {vis.showRecords && (
         <RecordsCard mode={mode} records={records} loading={profile.status === "loading"} range={range} />
       )}
       <BadgesRow
@@ -197,12 +216,15 @@ export default function InsightsScreen() {
         }
         mode={mode}
         loading={profile.status === "loading"}
+        // The nearest unearned badge is already in Coming up next.
+        skipNext={stats ? 1 : 0}
         onSeeAll={() => router.push("/achievements")}
       />
     </>
   );
 
-  const toSort = isWork && isCompanyDriver && stats && (stats.unclassifiedTrips ?? 0) > 0 ? stats.unclassifiedTrips ?? 0 : 0;
+  // Every Work-mode driver with unsorted trips, employees included.
+  const toSort = tripsToSort(isWork, stats?.unclassifiedTrips);
 
   return (
     <View style={styles.container}>
@@ -239,7 +261,8 @@ export default function InsightsScreen() {
             <>
               {summaryCard}
 
-              {toSort > 0 && (
+              {/* No trips ever: the empty state above is the whole screen. */}
+              {!vis.onlyEmptyState && toSort > 0 && (
                 <TouchableOpacity
                   style={styles.toSort}
                   onPress={() => router.push("/(tabs)/trips")}
@@ -254,7 +277,7 @@ export default function InsightsScreen() {
                 </TouchableOpacity>
               )}
 
-              {isWork ? (
+              {vis.onlyEmptyState ? null : isWork ? (
                 <WorkSection
                   period={period}
                   offset={offset}
@@ -262,6 +285,8 @@ export default function InsightsScreen() {
                   isPro={isPro}
                   refreshToken={refreshKey}
                   isCompanyDriver={isCompanyDriver}
+                  showDriversNearYou={vis.showDriversNearYou}
+                  showGoDeeper={vis.showGoDeeper}
                   comingUp={comingUp}
                   recordsAndBadges={recordsAndBadges}
                 />
@@ -272,16 +297,26 @@ export default function InsightsScreen() {
                   mode={mode}
                   isPro={isPro}
                   refreshToken={refreshKey}
+                  showDriversNearYou={vis.showDriversNearYou}
+                  showGoDeeper={vis.showGoDeeper}
                   comingUp={comingUp}
                   runningCosts={
                     <>
                       <FuelSummaryCard
-                        monthMiles={running.monthMiles}
+                        window={{
+                          period: cost.window.period,
+                          start: cost.window.start,
+                          end: cost.window.end,
+                          label: cost.window.label,
+                          date: dateParam(costAnchor),
+                        }}
+                        monthMiles={running.miles}
                         estimatedMpg={running.vehicle?.estimatedMpg ?? running.vehicle?.actualMpg ?? null}
                         fuelType={running.vehicle?.fuelType ?? null}
                       />
                       <ChargingSummaryCard
-                        monthMiles={running.monthMiles}
+                        whenLabel={cost.window.label}
+                        monthMiles={running.miles}
                         milesPerKwh={(running.vehicle as { milesPerKwh?: number | null } | null)?.milesPerKwh ?? null}
                         fuelType={running.vehicle?.fuelType ?? null}
                       />

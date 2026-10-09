@@ -4,7 +4,7 @@
 //
 // Work mode, gig or both:   1 Summary (frame) / 2 Tax year so far / 3 Your
 //   platforms / 4 Coming up (frame) / 5 When you drive / 6 Drivers near you /
-//   7 Records + Badges (frame) / 8 Go deeper.
+//   6 Last shift / 7 Records + Badges (frame) / 8 Go deeper.
 // Employee or company driver: no platforms.
 //
 // Each card renders nothing when it has nothing to show.
@@ -15,6 +15,7 @@ import PlatformLeagueCard from "./PlatformLeagueCard";
 import WhenYouDriveCard from "./WhenYouDriveCard";
 import DriversNearYouCard from "./DriversNearYouCard";
 import GoDeeper from "./GoDeeper";
+import LastShiftCard from "./LastShiftCard";
 import type { InsightsPeriod } from "../../lib/insights/period";
 
 export interface WorkCardProps {
@@ -29,6 +30,9 @@ export interface WorkCardProps {
 interface WorkSectionProps extends WorkCardProps {
   /** Employee or company driver: no earnings or platform cards. */
   isCompanyDriver: boolean;
+  /** Under 10 trips: Drivers near you and Go deeper wait (SPEC-UX section 12). */
+  showDriversNearYou: boolean;
+  showGoDeeper: boolean;
   /** The frame's own cards, slotted between B2's groups. */
   comingUp: ReactNode;
   recordsAndBadges: ReactNode;
@@ -43,9 +47,10 @@ export function WorkSection(p: WorkSectionProps) {
       {!p.isCompanyDriver && <PlatformLeagueCard {...card} />}
       {p.comingUp}
       <WhenYouDriveCard {...card} />
-      <DriversNearYouCard {...card} />
+      {!p.isCompanyDriver && <LastShiftCard {...card} />}
+      {p.showDriversNearYou && <DriversNearYouCard {...card} />}
       {p.recordsAndBadges}
-      <GoDeeper {...card} />
+      {p.showGoDeeper && <GoDeeper {...card} />}
     </>
   );
 }
@@ -58,9 +63,9 @@ export function PersonalSection(p: Omit<WorkSectionProps, "isCompanyDriver"> & {
       {p.comingUp}
       {p.runningCosts}
       <WhenYouDriveCard {...card} />
-      <DriversNearYouCard {...card} />
+      {p.showDriversNearYou && <DriversNearYouCard {...card} />}
       {p.recordsAndBadges}
-      <GoDeeper {...card} />
+      {p.showGoDeeper && <GoDeeper {...card} />}
     </>
   );
 }
