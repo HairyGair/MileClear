@@ -26,6 +26,12 @@ export interface BusinessRecapShareData {
   avgShiftGrade: string | null;
   bestPlatform: string | null;
   totalShiftHours: number;
+  /**
+   * "mileage" is the Insights share: a business mileage picture that leaves
+   * earnings out unless grossEarningsPence is above 0 (the driver switched
+   * "Include earnings" on). Left out, the earnings report below is drawn.
+   */
+  variant?: "earnings" | "mileage";
 }
 
 function formatMilesReadable(miles: number): string {
@@ -34,6 +40,7 @@ function formatMilesReadable(miles: number): string {
 }
 
 export function BusinessRecapShareCard(data: BusinessRecapShareData) {
+  if (data.variant === "mileage") return <MileageShareCard {...data} />;
   const tripWord = data.totalTrips === 1 ? "trip" : "trips";
   const hours = Math.round(data.totalShiftHours);
   const hasProfit = data.netProfitPence !== 0;
@@ -157,6 +164,63 @@ export function BusinessRecapShareCard(data: BusinessRecapShareData) {
   );
 }
 
+function MileageShareCard(data: BusinessRecapShareData) {
+  const tripWord = data.totalTrips === 1 ? "trip" : "trips";
+  const hasClaim = data.hmrcDeductionPence > 0;
+  const withEarnings = data.grossEarningsPence > 0;
+  return (
+    <View style={s.card}>
+      <View style={s.ambientGlow} />
+      <View style={[s.corner, { top: 14, left: 14, borderTopWidth: 1, borderLeftWidth: 1 }]} />
+      <View style={[s.corner, { top: 14, right: 14, borderTopWidth: 1, borderRightWidth: 1 }]} />
+      <View style={[s.corner, { bottom: 14, left: 14, borderBottomWidth: 1, borderLeftWidth: 1 }]} />
+      <View style={[s.corner, { bottom: 14, right: 14, borderBottomWidth: 1, borderRightWidth: 1 }]} />
+      <View style={s.accentLine} />
+      <View style={s.wordmark}>
+        <Text style={s.wordMile}>Mile</Text>
+        <Text style={s.wordClear}>Clear</Text>
+      </View>
+      <View style={s.labelRow}>
+        <View style={s.labelLine} />
+        <Text style={s.labelText}>BUSINESS MILEAGE</Text>
+        <View style={s.labelLine} />
+      </View>
+      <Text style={s.period}>{data.periodLabel.toUpperCase()}</Text>
+      <Text style={s.heroValue}>{hasClaim ? formatPence(data.hmrcDeductionPence) : formatMilesReadable(data.businessMiles)}</Text>
+      <Text style={s.heroUnit}>{hasClaim ? "mileage claim built" : "business miles"}</Text>
+      <View style={s.statsRow}>
+        <View style={s.statBox}>
+          <Text style={s.statValue}>{formatMilesReadable(data.businessMiles)}</Text>
+          <Text style={s.statLabel}>miles</Text>
+        </View>
+        <View style={s.statDivider} />
+        <View style={s.statBox}>
+          <Text style={s.statValue}>{data.totalTrips}</Text>
+          <Text style={s.statLabel}>{tripWord}</Text>
+        </View>
+        {withEarnings && (
+          <>
+            <View style={s.statDivider} />
+            <View style={s.statBox}>
+              <Text style={s.statValue}>{formatPence(data.grossEarningsPence)}</Text>
+              <Text style={s.statLabel}>earned</Text>
+            </View>
+          </>
+        )}
+      </View>
+      <View style={s.divider} />
+      <View style={[s.accentLine, { marginTop: 16 }]} />
+      <View style={s.footer}>
+        <View style={s.footerWordmark}>
+          <Text style={[s.wordMile, { fontSize: 13 }]}>Mile</Text>
+          <Text style={[s.wordClear, { fontSize: 13 }]}>Clear</Text>
+        </View>
+        <Text style={s.footerTagline}>Track smarter, earn more</Text>
+      </View>
+    </View>
+  );
+}
+
 // ─── Capture + share ────────────────────────────────────────
 
 export async function captureAndShareBusinessRecap(
@@ -170,7 +234,7 @@ export async function captureAndShareBusinessRecap(
     });
     await Sharing.shareAsync(uri, {
       mimeType: "image/png",
-      dialogTitle: `My ${data.periodLabel} Earnings Report`,
+      dialogTitle: data.variant === "mileage" ? `My ${data.periodLabel} business mileage` : `My ${data.periodLabel} Earnings Report`,
     });
   } catch {
     await textFallbackShare(data);
@@ -178,6 +242,21 @@ export async function captureAndShareBusinessRecap(
 }
 
 async function textFallbackShare(data: BusinessRecapShareData): Promise<void> {
+  if (data.variant === "mileage") {
+    const lines = [
+      `My business mileage, ${data.periodLabel}:`,
+      `- ${formatMilesReadable(data.businessMiles)} business miles over ${data.totalTrips} ${data.totalTrips === 1 ? "trip" : "trips"}`,
+    ];
+    if (data.hmrcDeductionPence > 0) lines.push(`- ${formatPence(data.hmrcDeductionPence)} mileage claim built`);
+    if (data.grossEarningsPence > 0) lines.push(`- ${formatPence(data.grossEarningsPence)} earned`);
+    lines.push("", "Tracked with MileClear", "https://apps.apple.com/app/mileclear/id6759671005");
+    try {
+      await RNShare.share({ message: lines.join("\n") }, { subject: `My ${data.periodLabel} business mileage` });
+    } catch {
+      // Dismissed
+    }
+    return;
+  }
   const tripWord = data.totalTrips === 1 ? "trip" : "trips";
   const hours = Math.round(data.totalShiftHours);
 

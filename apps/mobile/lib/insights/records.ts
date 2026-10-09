@@ -35,8 +35,9 @@ function miles(n: number): string {
 }
 
 /**
- * Personal: Best day, Longest trip. (Streaks there count weeks and live in
- * "Coming up"; "trips per shift" is a Work idea.)
+ * Personal: Best day, Longest trip, Best streak (longest run of days with a
+ * trip; the live weekly streak is in "Coming up"). "Trips per shift" is a Work
+ * idea, and the API has no "most trips in a day" yet.
  * Work: Best day, Longest trip, Most trips in a shift, Best streak.
  * A record whose value is 0 is dropped. `isNew` is true when the record was
  * set inside the shown period (start inclusive, end exclusive).
@@ -80,7 +81,7 @@ export function buildRecords(
   if (mode === "work") {
     const shift = parseDate(r.mostTripsInShiftDate);
     add("tripsInShift", "Most trips in a shift", r.mostTripsInShift, String(r.mostTripsInShift), "", shift, "trips");
-    add("bestStreak", "Best streak", r.longestStreakDays, String(r.longestStreakDays), r.longestStreakDays === 1 ? "day" : "days", null, r.longestStreakDays === 1 ? "day" : "days");
   }
+  add("bestStreak", "Best streak", r.longestStreakDays, String(r.longestStreakDays), r.longestStreakDays === 1 ? "day" : "days", null, r.longestStreakDays === 1 ? "day" : "days");
   return cells;
 }

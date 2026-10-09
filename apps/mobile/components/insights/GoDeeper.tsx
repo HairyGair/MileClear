@@ -25,11 +25,14 @@ import {
   ShiftSweetSpotsCard,
   EarningsByDayCard,
 } from "./TrendsView";
+import { PayPerMileCard, WeeklyMoneyCard, useWorkMoney } from "./MoneyCards";
+import { hasPayRates, hasWeekMoney, payHeadline, weekMoneyHeadline, weeksBackFor } from "../../lib/insights/money";
+import { formatPence } from "@mileclear/shared";
 import { fuelPerMile } from "../../lib/insights/fuelPerMile";
 import { CardSkeleton, CardError, type InsightCardProps } from "./work/InsightCardUi";
 import { colors, fonts, fontScaleCap, radii, shared, spacing } from "../../lib/theme";
 
-type RowKey = "routes" | "commute" | "fuel" | "shift" | "days";
+type RowKey = "routes" | "commute" | "fuel" | "shift" | "days" | "pay" | "week";
 
 interface DeepRow {
   key: RowKey;
@@ -43,7 +46,7 @@ function pluralise(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-export default function GoDeeper({ mode, isPro, refreshToken }: InsightCardProps) {
+export default function GoDeeper({ period, offset, mode, isPro, refreshToken }: InsightCardProps) {
   const { user, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
   const [open, setOpen] = useState<RowKey | null>(null);
@@ -52,6 +55,7 @@ export default function GoDeeper({ mode, isPro, refreshToken }: InsightCardProps
   const isWork = mode === "work";
   const workType = user?.workType ?? "gig";
   const isGig = (workType === "gig" || workType === "both") && !isCompanyDriver;
+  const money = useWorkMoney(isPro && isWork && isGig, weeksBackFor(period, offset), refreshToken ?? 0);
 
   if (!isPro) {
     return (
@@ -88,11 +92,32 @@ export default function GoDeeper({ mode, isPro, refreshToken }: InsightCardProps
     );
   }
 
-  if (loading && !analytics) return <CardSkeleton lines={3} />;
-  if (failed && !analytics) return <CardError onRetry={reload} />;
-  if (!analytics) return null;
+  if (loading && !analytics && !(money.insights || money.pnl)) return <CardSkeleton lines={3} />;
+  if (failed && !analytics && !(money.insights || money.pnl)) return <CardError onRetry={reload} />;
 
   const rows: DeepRow[] = [];
+  // Work, gig: pay per mile and the week's money in and out lead the list.
+  if (isWork && isGig && hasPayRates(money.insights)) {
+    rows.push({
+      key: "pay",
+      icon: "cash-outline",
+      title: "Pay per mile and per hour",
+      headline: payHeadline(money.insights, formatPence),
+      card: <PayPerMileCard insights={money.insights} />,
+    });
+  }
+  if (isWork && isGig && hasWeekMoney(money.pnl)) {
+    rows.push({
+      key: "week",
+      icon: "swap-vertical-outline",
+      title: "Money in and out",
+      headline: weekMoneyHeadline(money.pnl, formatPence),
+      card: <WeeklyMoneyCard pnl={money.pnl} />,
+    });
+  }
+  if (!analytics) {
+    return rows.length > 0 ? renderRows(rows, open, setOpen) : null;
+  }
   if (analytics.frequentRoutes.length > 0) {
     rows.push({
       key: "routes",
@@ -148,7 +173,10 @@ export default function GoDeeper({ mode, isPro, refreshToken }: InsightCardProps
   }
 
   if (rows.length === 0) return null;
+  return renderRows(rows, open, setOpen);
+}
 
+function renderRows(rows: DeepRow[], open: RowKey | null, setOpen: (k: RowKey | null) => void) {
   return (
     <View>
       <View style={[styles.headRow, styles.sectionHead]}>

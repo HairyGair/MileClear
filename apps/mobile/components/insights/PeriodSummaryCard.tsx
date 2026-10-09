@@ -4,8 +4,8 @@
 // previous period is Pro only (decision A): free drivers get this period's
 // figures and one quiet line that opens the paywall.
 
-import { useEffect, useMemo, useRef } from "react";
-import { AccessibilityInfo, Text, TouchableOpacity, useWindowDimensions, View, StyleSheet } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Modal, Switch, Text, TouchableOpacity, useWindowDimensions, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, heroCard, numberSizes } from "../../lib/theme";
@@ -16,6 +16,8 @@ import { PeriodBars } from "./PeriodBars";
 import { RecapShareCard, captureAndShareRecap, type RecapShareCardProps } from "../personal/ShareableRecap";
 import type { PeriodSummaryState, PeriodTripsState } from "../../hooks/useInsightsData";
 import type { Celebration } from "../../hooks/useInsightsCelebration";
+import { BusinessRecapShareCard, captureAndShareBusinessRecap } from "../business/BusinessShareableRecap";
+import { buildBusinessShareData, canIncludeEarnings } from "../../lib/insights/businessShare";
 import { shareHeading, sharePeriodTotalLabel } from "../../lib/insights/shareLabels";
 import {
   bucketTrips,
@@ -60,6 +62,9 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
   const stacked = width < 380 || fontScale > 1.3;
   const shareRef = useRef<View>(null);
   const isPersonal = mode === "personal";
+  // Work share: a small sheet with "Include earnings" (off by default).
+  const [shareOpen, setShareOpen] = useState(false);
+  const [includeEarnings, setIncludeEarnings] = useState(false);
 
   const current = summary.current;
   const showComparison = isPro && period !== "tax_year";
@@ -190,6 +195,20 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
     region: props.region,
   };
 
+  const businessShare = !isPersonal
+    ? buildBusinessShareData(shareHeading(period, offset, range), current, includeEarnings)
+    : null;
+  const earningsToInclude = canIncludeEarnings(current);
+  const doShare = () => {
+    if (businessShare) {
+      setShareOpen(false);
+      // Let the sheet close before the share sheet opens.
+      setTimeout(() => captureAndShareBusinessRecap(shareRef, businessShare), 350);
+    } else {
+      captureAndShareRecap(shareRef, shareData);
+    }
+  };
+
   const showDial = isPersonal && !quiet;
   const dial = showDial ? (
     <Dial
@@ -231,7 +250,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
       {/* Off-screen share card, captured as an image on Share. */}
       <View style={styles.offScreen} pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <View ref={shareRef} collapsable={false}>
-          <RecapShareCard {...shareData} />
+          {businessShare ? <BusinessRecapShareCard {...businessShare} /> : <RecapShareCard {...shareData} />}
         </View>
       </View>
 
@@ -245,7 +264,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
         {!quiet && (
           <TouchableOpacity
             style={styles.share}
-            onPress={() => captureAndShareRecap(shareRef, shareData)}
+            onPress={() => (isPersonal ? doShare() : setShareOpen(true))}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={`Share your ${period === "tax_year" ? "tax year" : period} as a picture`}
@@ -255,6 +274,38 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
           </TouchableOpacity>
         )}
       </View>
+
+      {businessShare && (
+        <Modal visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)}>
+          <View style={styles.sheetBackdrop}>
+            <View style={styles.sheet} accessibilityViewIsModal>
+              <Text style={styles.sheetTitle} maxFontSizeMultiplier={fontScaleCap.heading} accessibilityRole="header">
+                Share {shareHeading(period, offset, range)}
+              </Text>
+              <Text style={styles.sheetBody} maxFontSizeMultiplier={fontScaleCap.body}>
+                A picture of your business miles and mileage claim. It never shows where you went.
+              </Text>
+              {earningsToInclude && (
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel} maxFontSizeMultiplier={fontScaleCap.body}>Include earnings</Text>
+                  <Switch
+                    value={includeEarnings}
+                    onValueChange={setIncludeEarnings}
+                    trackColor={{ true: colors.amber, false: colors.surfaceBorder }}
+                    accessibilityLabel="Include earnings"
+                  />
+                </View>
+              )}
+              <TouchableOpacity style={styles.sheetPrimary} onPress={doShare} accessibilityRole="button" accessibilityLabel="Share">
+                <Text style={styles.sheetPrimaryText} maxFontSizeMultiplier={fontScaleCap.heading}>Share</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.sheetCancel} onPress={() => setShareOpen(false)} accessibilityRole="button" accessibilityLabel="Cancel">
+                <Text style={styles.sheetCancelText} maxFontSizeMultiplier={fontScaleCap.heading}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      )}
 
       {props.celebration && (
         <View style={styles.celebrate} accessible accessibilityRole="text" accessibilityLabel={`${props.celebration.title}. ${props.celebration.detail}`}>
@@ -337,6 +388,16 @@ const styles = StyleSheet.create({
   title: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text2 },
   share: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 28 },
   shareText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1 },
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", padding: 24 },
+  sheet: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.surfaceBorder, padding: 20 },
+  sheetTitle: { fontSize: 18, fontFamily: fonts.bold, color: colors.text1 },
+  sheetBody: { fontSize: 14, fontFamily: fonts.regular, color: colors.text2, lineHeight: 20, marginTop: 6 },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 48, marginTop: 12 },
+  switchLabel: { fontSize: 16, fontFamily: fonts.semibold, color: colors.text1, flex: 1 },
+  sheetPrimary: { minHeight: 48, borderRadius: 12, backgroundColor: colors.amber, alignItems: "center", justifyContent: "center", marginTop: 16 },
+  sheetPrimaryText: { fontSize: 16, fontFamily: fonts.bold, color: colors.bg },
+  sheetCancel: { minHeight: 44, alignItems: "center", justifyContent: "center", marginTop: 4 },
+  sheetCancelText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text2 },
   celebrate: {
     flexDirection: "row",
     gap: 8,

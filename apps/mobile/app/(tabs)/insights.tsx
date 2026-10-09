@@ -5,10 +5,11 @@
 // in Work mode.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AppHeader from "../../components/AppHeader";
+import { usePrompt } from "../../components/prompt";
 import { ErrorState } from "../../components/ErrorState";
 import { usePaywall } from "../../components/paywall";
 import { FuelSummaryCard } from "../../components/personal/FuelSummaryCard";
@@ -38,7 +39,8 @@ import { dateParam } from "../../lib/insights/api";
 import { costWindow } from "../../lib/insights/costWindow";
 import { insightsVisibility, tripsToSort } from "../../lib/insights/visibility";
 import { getMilestoneRoadOrStart } from "../../lib/insights/milestones";
-import { getInsightsValue, setInsightsValue, WEEKLY_GOAL_KEY } from "../../lib/insights/store";
+import { parseGoalInput } from "../../lib/insights/goal";
+import { clearInsightsValue, getInsightsValue, setInsightsValue, WEEKLY_GOAL_KEY } from "../../lib/insights/store";
 
 export default function InsightsScreen() {
   const router = useRouter();
@@ -101,6 +103,32 @@ export default function InsightsScreen() {
       });
     }, [])
   );
+
+  // The goal dialog: same field as Settings > Work & tax (personal_goal_miles on this phone).
+  const { prompt } = usePrompt();
+  const editGoal = useCallback(async () => {
+    const res = await prompt({
+      title: "Weekly miles goal",
+      message: "Set a target for your weekly driving (for example 50). It shows on your summary.",
+      defaultValue: goal ? String(goal) : "",
+      keyboardType: "number-pad",
+      neutralLabel: goal !== null ? "Remove" : undefined,
+    });
+    if (res.action === "cancel") return;
+    if (res.action === "neutral") {
+      await clearInsightsValue(WEEKLY_GOAL_KEY);
+      setGoal(null);
+      return;
+    }
+    if (!res.value.trim()) return;
+    const parsed = parseGoalInput(res.value);
+    if (!parsed.ok) {
+      Alert.alert("Not a goal", "Enter a number of miles more than 0.");
+      return;
+    }
+    await setInsightsValue(WEEKLY_GOAL_KEY, String(parsed.miles));
+    setGoal(parsed.miles);
+  }, [goal, prompt]);
 
   const stats = profile.stats;
   const records = stats ? stats.personalRecords : null;
@@ -188,11 +216,12 @@ export default function InsightsScreen() {
       earnedTypes={earnedTypes}
       tripDates={weekDates.status === "ready" ? weekDates.dates : null}
       hideStreak={isCompanyDriver}
-      hasWeeklyGoal={goal !== null}
+      weeklyGoal={goal}
+      hideGoal={isCompanyDriver}
       avatarId={user?.avatarId}
       reducedMotion={reducedMotion}
       onOpenAchievements={() => router.push("/achievements")}
-      onSetGoal={() => router.push("/settings/work-tax" as never)}
+      onSetGoal={editGoal}
     />
   );
 

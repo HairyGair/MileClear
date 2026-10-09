@@ -26,6 +26,15 @@ export async function setInsightsValue(key: string, value: string): Promise<void
   }
 }
 
+export async function clearInsightsValue(key: string): Promise<void> {
+  try {
+    const db = await getDatabase();
+    await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [key]);
+  } catch {
+    // Non-critical.
+  }
+}
+
 export const MILESTONE_SEEN_KEY = "insights_milestone_seen";
 export const RECORDS_SEEN_KEY = "insights_records_seen";
 export const WEEKLY_GOAL_KEY = "personal_goal_miles";

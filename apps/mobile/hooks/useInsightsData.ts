@@ -39,6 +39,8 @@ export type { PeriodTotals } from "../lib/insights/periodTotals";
 export type Status = "loading" | "ready" | "error";
 
 const PAGE = 200;
+// A tax year of trips for the monthly bars: up to 2,000. Past that the bars are left out (truncated).
+const TAX_YEAR_PAGES = 10;
 
 async function fetchTripsInRange(
   from: Date,
@@ -204,17 +206,11 @@ export function usePeriodTrips(
     const key = periodKey(period, offset, mode);
     // Same rule as the summary: old trips would be bucketed into the new period's bars.
     setState((s) => (s.key === key && s.status === "ready" ? s : { status: "loading", trips: [], truncated: false, key }));
-    // Tax year: no bars. Fetching a year of trips (up to 2,000) for a chart is
-    // not worth it; the figures come from stats.
-    if (period === "tax_year") {
-      setState({ status: "ready", trips: [], truncated: true, key });
-      return;
-    }
     const range = getPeriodRange(period, offset);
     const business = mode === "work";
     (async () => {
       try {
-        const { trips, truncated } = await fetchTripsInRange(range.start, range.end, period === "week" ? 1 : 2, business);
+        const { trips, truncated } = await fetchTripsInRange(range.start, range.end, period === "week" ? 1 : period === "month" ? 2 : TAX_YEAR_PAGES, business);
         if (mine === seq.current) setState({ status: "ready", trips, truncated, key });
       } catch {
         try {

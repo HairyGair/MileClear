@@ -288,9 +288,9 @@ describe("records", () => {
   };
   const week = { start: new Date(2026, 9, 5), end: new Date(2026, 9, 12) };
 
-  it("personal mode never has trips per shift or a day streak and tags a new record", () => {
+  it("personal mode never has trips per shift, shows the best streak and tags a new record", () => {
     const cells = buildRecords(rec, "personal", week);
-    expect(cells.map((c) => c.key)).toEqual(["bestDay", "longestTrip"]);
+    expect(cells.map((c) => c.key)).toEqual(["bestDay", "longestTrip", "bestStreak"]);
     expect(cells[0]).toMatchObject({ value: "168.9", dateLabel: "5 Oct", isNew: true });
     expect(cells[1].isNew).toBe(false);
     expect(cells[0].spoken).toBe("Best day, 168.9 miles, 5 Oct, new");

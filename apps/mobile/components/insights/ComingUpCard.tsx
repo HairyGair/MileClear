@@ -16,6 +16,7 @@ import { Skeleton } from "../Skeleton";
 import { Medal } from "./BadgesRow";
 import { getMilestoneRoadOrStart, milesToGoText } from "../../lib/insights/milestones";
 import { nextBadges } from "../../lib/insights/badges";
+import { goalRowText } from "../../lib/insights/goal";
 import { weekStreak, weekStreakLine } from "../../lib/insights/streak";
 
 const CAR = 28;
@@ -31,7 +32,10 @@ interface ComingUpCardProps {
   tripDates: string[] | null;
   /** Company drivers: streaks are noise, hide the row. */
   hideStreak: boolean;
-  hasWeeklyGoal: boolean;
+  /** The weekly goal in miles, or null when none is set. */
+  weeklyGoal: number | null;
+  /** Company drivers have no use for a mileage target. */
+  hideGoal?: boolean;
   avatarId: string | null | undefined;
   reducedMotion: boolean;
   onOpenAchievements: () => void;
@@ -84,7 +88,8 @@ export function ComingUpCard(props: ComingUpCardProps) {
     }
   }
 
-  if (!road && !next && !streak && !(isPersonal && !props.hasWeeklyGoal)) return null;
+  const goalText = goalRowText(props.weeklyGoal, mode);
+  if (!road && !next && !streak && props.hideGoal) return null;
 
   return (
     <View style={styles.card}>
@@ -139,19 +144,19 @@ export function ComingUpCard(props: ComingUpCardProps) {
         </View>
       )}
 
-      {isPersonal && !props.hasWeeklyGoal && (
+      {!props.hideGoal && (
         <TouchableOpacity
           style={[styles.row, (road || next || streak) && styles.rowDivider]}
           onPress={props.onSetGoal}
           accessibilityRole="button"
-          accessibilityLabel="Set a weekly goal. Opens settings"
+          accessibilityLabel={goalText.spoken}
         >
           <View style={styles.flame}>
             <Ionicons name="flag-outline" size={20} color={colors.text2} />
           </View>
           <View style={styles.rowText}>
-            <Text style={styles.rowTitle} maxFontSizeMultiplier={fontScaleCap.body}>Set a weekly goal</Text>
-            <Text style={styles.rowSub} maxFontSizeMultiplier={fontScaleCap.body}>Your goal shows on the dial above.</Text>
+            <Text style={styles.rowTitle} maxFontSizeMultiplier={fontScaleCap.body}>{goalText.title}</Text>
+            <Text style={styles.rowSub} maxFontSizeMultiplier={fontScaleCap.body}>{goalText.sub}</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={colors.text3} />
         </TouchableOpacity>

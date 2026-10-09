@@ -43,7 +43,7 @@ export function RecordsCard({ mode, records, loading, range }: RecordsCardProps)
       <Text style={styles.title} maxFontSizeMultiplier={fontScaleCap.heading} accessibilityRole="header">
         {mode === "work" ? "Your records" : "Records"}
       </Text>
-      {cells.length < 2 ? (
+      {cells.length < 1 ? (
         <View style={styles.empty}>
           <Ionicons name="trophy-outline" size={20} color={colors.text3} />
           <Text style={styles.emptyText} maxFontSizeMultiplier={fontScaleCap.body}>Records start after a few trips.</Text>
