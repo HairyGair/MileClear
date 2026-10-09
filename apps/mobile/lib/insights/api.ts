@@ -10,7 +10,7 @@ import { fetchAchievements, fetchGamificationStats, fetchRecap, fetchScorecard }
 import {
   fetchActivityHeatmap,
   fetchLocalBenchmark,
-  fetchPlatformPnL,
+  fetchPlatformLeague,
   fetchRunningCost,
 } from "../api/businessInsights";
 import { fetchDrivingAnalytics } from "../api/analytics";
@@ -43,7 +43,7 @@ export const cachedRunningCost = (period: "week" | "month", date: string) =>
   insightsCache.get(`running-cost|${period}|${date}`, () => fetchRunningCost(period, date).then((r) => r.data));
 
 export const cachedPlatformPnL = (period: "week" | "month" | "tax_year", date: string) =>
-  insightsCache.get(`platform-pnl|${period}|${date}`, () => fetchPlatformPnL(period, date).then((r) => r.data));
+  insightsCache.get(`platform-pnl|${period}|${date}`, () => fetchPlatformLeague(period, date).then((r) => r.data));
 
 export const cachedTripSummary = (fromIso: string, toIso: string) =>
   insightsCache.get(`trip-summary|${fromIso}|${toIso}`, () =>
