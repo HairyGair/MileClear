@@ -13,6 +13,8 @@ import {
   computeInvoiceTotals,
   invoiceChaseStages,
   buildInvoicePreDueEmail,
+  filterTraceOutliers,
+  dropPinnedFixes,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -664,5 +666,58 @@ describe("buildInvoicePreDueEmail", () => {
     expect(body).toContain("31 July 2026");
     expect(body).not.toMatch(/interest|overdue|1998/i);
     expect(body).toContain("Laura");
+  });
+});
+
+describe("filterTraceOutliers: pinned fixes (Shoaib Khan, 1-2 Oct 2026)", () => {
+  // A real drive heading east from about 1 mile east of home, one fix every
+  // 7 s at ~10 m/s, and alongside each one a fix pinned at home (accuracy
+  // exactly 50, speed 0), half of them sharing the real fix's timestamp.
+  const HOME = { lat: 53.77332, lng: -1.74781 };
+  const t0 = Date.parse("2026-10-01T11:21:00Z");
+  const iso = (ms: number) => new Date(ms).toISOString();
+  const real = Array.from({ length: 20 }, (_, i) => ({
+    lat: 53.7729,
+    lng: -1.7212 + i * 0.001,
+    accuracy: 4,
+    speed: 10,
+    recorded_at: iso(t0 + i * 7000),
+  }));
+  const mixed = real.flatMap((r, i) => [
+    r,
+    { ...HOME, accuracy: 50, speed: 0, recorded_at: iso(t0 + i * 7000 + (i % 2 ? 0 : 3000)) },
+  ]);
+  const pathMiles = (cs: { lat: number; lng: number }[]) =>
+    cs.slice(1).reduce((s, c, k) => s + haversineDistance(cs[k].lat, cs[k].lng, c.lat, c.lng), 0);
+
+  it("drops the pinned home fixes and keeps the real trail", () => {
+    const kept = filterTraceOutliers(mixed);
+    const pinned = kept.slice(1, -1).filter((c) => c.lat === HOME.lat && c.lng === HOME.lng);
+    expect(pinned).toHaveLength(0);
+    expect(kept.filter((c) => c.speed === 10)).toHaveLength(20);
+  });
+
+  it("the distance matches the real drive, not the ping-pong", () => {
+    const realMiles = pathMiles(real);
+    const kept = filterTraceOutliers(mixed).filter((c) => !(c.lat === HOME.lat && c.lng === HOME.lng));
+    expect(pathMiles(kept)).toBeCloseTo(realMiles, 2);
+    expect(pathMiles(mixed)).toBeGreaterThan(realMiles * 10);
+  });
+
+  it("leaves a genuine wait at one spot alone (no moving fix contradicts it)", () => {
+    const wait = Array.from({ length: 6 }, (_, i) => ({
+      ...HOME, accuracy: 10, speed: 0, recorded_at: iso(t0 + i * 10_000),
+    }));
+    expect(dropPinnedFixes(wait)).toHaveLength(6);
+  });
+
+  it("two fixes at the same instant far apart: the one off the trail goes", () => {
+    const cs = [
+      { lat: 53.7729, lng: -1.7212, accuracy: 4, speed: 10, recorded_at: iso(t0) },
+      { lat: 53.7729, lng: -1.7202, accuracy: 4, speed: 10, recorded_at: iso(t0 + 7000) },
+      { lat: 53.75, lng: -1.80, accuracy: 20, speed: 5, recorded_at: iso(t0 + 7000) },
+      { lat: 53.7729, lng: -1.7192, accuracy: 4, speed: 10, recorded_at: iso(t0 + 14000) },
+    ];
+    expect(filterTraceOutliers(cs).map((c) => c.lat)).toEqual([53.7729, 53.7729, 53.7729]);
   });
 });

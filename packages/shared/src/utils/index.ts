@@ -267,6 +267,7 @@ export function filterTraceOutliers<
     lng: number;
     accuracy: number | null;
     recorded_at?: string;
+    speed?: number | null;
   }
 >(
   coords: T[],
@@ -276,13 +277,16 @@ export function filterTraceOutliers<
   const maxAccuracyMeters = opts.maxAccuracyMeters ?? 50;
   const maxSpeedMs = opts.maxSpeedMs ?? 53.6; // ~120mph
 
+  // Pass 0 - pinned fixes, always keeping first + last
+  const pinnedOut = dropPinnedFixes(coords);
+
   // Pass 1 - accuracy filter, always keeping first + last
   const accFiltered: T[] = [];
-  for (let i = 0; i < coords.length; i++) {
-    const isEdge = i === 0 || i === coords.length - 1;
-    const acc = coords[i].accuracy;
+  for (let i = 0; i < pinnedOut.length; i++) {
+    const isEdge = i === 0 || i === pinnedOut.length - 1;
+    const acc = pinnedOut[i].accuracy;
     if (isEdge || acc == null || acc <= maxAccuracyMeters) {
-      accFiltered.push(coords[i]);
+      accFiltered.push(pinnedOut[i]);
     }
   }
   if (accFiltered.length < 3) return accFiltered;
@@ -297,16 +301,73 @@ export function filterTraceOutliers<
       const dtSec =
         (new Date(curr.recorded_at).getTime() -
           new Date(prev.recorded_at).getTime()) / 1000;
+      const distMeters =
+        haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng) * 1609.344;
       if (dtSec > 0) {
-        const distMeters =
-          haversineDistance(prev.lat, prev.lng, curr.lat, curr.lng) * 1609.344;
         const impliedSpeedMs = distMeters / dtSec;
         if (impliedSpeedMs > maxSpeedMs && !isLast) {
           continue; // teleport - skip, but never drop the final coord
         }
+      } else if (distMeters > 100 && !isLast) {
+        // Same instant, somewhere else: two fixes cannot both be true. Keep
+        // the one the trail already follows (Shoaib Khan, 9 Oct 2026: a fix
+        // pinned at his home shared a timestamp with nearly every real fix).
+        continue;
       }
     }
     out.push(curr);
+  }
+  return out;
+}
+
+/**
+ * Drop "pinned" fixes: the same exact coordinate reported again and again at
+ * zero speed while the phone's other fixes, moments either side, are driving
+ * somewhere else.
+ *
+ * Shoaib Khan, Android, 1-2 Oct 2026: alongside nearly every real fix the phone
+ * also reported 53.77332,-1.74781 (30 m from his saved Home) with accuracy
+ * exactly 50 m and speed 0, while he was driving a mile or more away; most
+ * likely a Wi-Fi location from a hotspot registered at his address. 50 m
+ * passed the accuracy filter (it drops WORSE than 50), the shared timestamps
+ * slipped past the speed filter, and once a pinned fix was kept the real ones
+ * after it looked like teleports, so the trail ping-ponged and seven trips
+ * gained hundreds of miles. Always keeps first + last.
+ */
+export function dropPinnedFixes<
+  T extends { lat: number; lng: number; recorded_at?: string; speed?: number | null }
+>(coords: T[]): T[] {
+  if (coords.length < 4) return coords;
+  const key = (c: T) => `${c.lat.toFixed(6)},${c.lng.toFixed(6)}`;
+  const counts = new Map<string, number>();
+  for (const c of coords) counts.set(key(c), (counts.get(key(c)) ?? 0) + 1);
+  const time = (c: T) => (c.recorded_at ? new Date(c.recorded_at).getTime() : NaN);
+
+  const out: T[] = [];
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i];
+    const isEdge = i === 0 || i === coords.length - 1;
+    const repeated = (counts.get(key(c)) ?? 0) >= 3;
+    const still = c.speed == null || c.speed <= 0.5;
+    const t = time(c);
+    if (isEdge || !repeated || !still || !Number.isFinite(t)) {
+      out.push(c);
+      continue;
+    }
+    // Is a moving fix within 60 s, from a different spot, more than 300 m away?
+    let contradicted = false;
+    for (let j = Math.max(0, i - 15); j <= Math.min(coords.length - 1, i + 15); j++) {
+      if (j === i) continue;
+      const o = coords[j];
+      if (key(o) === key(c) || o.speed == null || o.speed < 3) continue;
+      const to = time(o);
+      if (!Number.isFinite(to) || Math.abs(to - t) > 60_000) continue;
+      if (haversineDistance(c.lat, c.lng, o.lat, o.lng) * 1609.344 > 300) {
+        contradicted = true;
+        break;
+      }
+    }
+    if (!contradicted) out.push(c);
   }
   return out;
 }
