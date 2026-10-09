@@ -1,4 +1,6 @@
 import { prisma } from "../lib/prisma.js";
+import { allocateEarningsToHours } from "../lib/insightsMath.js";
+import { ukParts } from "../lib/ukTime.js";
 import {
   GIG_PLATFORMS,
   type ActivityHeatmap,
@@ -15,11 +17,12 @@ const PLATFORM_LABEL = new Map<string, string>(
  * users. Default window is the last 12 weeks - long enough to spot patterns,
  * short enough that it stays current as a driver's habits change.
  *
- * Bucketing: trips by their startedAt local hour, earnings by their
- * periodStart local hour. Both anchored to the JS Date semantics, which
- * means UTC if the API process runs in UTC. The Pixelish server runs in
- * Europe/London - same as the user base - so day-of-week / hour buckets
- * line up with what the driver actually experienced.
+ * Bucketing: trips by their startedAt hour in UK time. Earnings are dates
+ * with no time (Earning.periodStart is a DATE), so they are spread over the
+ * hours worked that day (lib/insightsMath allocateEarningsToHours, the same
+ * as Golden Hours); earnings over several days or on days with no recorded
+ * work are not put in any cell. Before 9 Oct 2026 every earning landed in
+ * the midnight cell (1 AM in BST).
  */
 export async function buildActivityHeatmap(
   userId: string,
@@ -32,7 +35,7 @@ export async function buildActivityHeatmap(
   // Pull all business trips in the window so we can compute the available
   // platform list AND build the heatmap from the same dataset. Earnings
   // come back in a parallel query.
-  const [allTrips, earnings] = await Promise.all([
+  const [allTripsRaw, earnings, shifts] = await Promise.all([
     prisma.trip.findMany({
       where: {
         userId,
@@ -41,8 +44,10 @@ export async function buildActivityHeatmap(
       },
       select: {
         startedAt: true,
+        endedAt: true,
         distanceMiles: true,
         platformTag: true,
+        isPhantomTrip: true,
       },
     }),
     prisma.earning.findMany({
@@ -52,11 +57,18 @@ export async function buildActivityHeatmap(
       },
       select: {
         periodStart: true,
+        periodEnd: true,
         amountPence: true,
         platform: true,
       },
     }),
+    prisma.shift.findMany({
+      where: { userId, status: "completed", startedAt: { gte: since }, endedAt: { not: null } },
+      select: { startedAt: true, endedAt: true },
+    }),
   ]);
+
+  const allTrips = allTripsRaw.filter((t) => !t.isPhantomTrip);
 
   // Available platforms come from ALL trips, regardless of filter, so the
   // user can switch between them without the chip set changing.
@@ -88,9 +100,7 @@ export async function buildActivityHeatmap(
 
   let totalTrips = 0;
   for (const t of filteredTrips) {
-    const d = t.startedAt;
-    const dow = d.getDay();
-    const hour = d.getHours();
+    const { dow, hour } = ukParts(t.startedAt);
     const key = cellKey(dow, hour);
     const existing = cellMap.get(key) ?? {
       dayOfWeek: dow,
@@ -105,22 +115,24 @@ export async function buildActivityHeatmap(
     totalTrips += 1;
   }
 
-  let totalEarningsPence = 0;
-  for (const e of filteredEarnings) {
-    const d = e.periodStart;
-    const dow = d.getDay();
-    const hour = d.getHours();
-    const key = cellKey(dow, hour);
+  // Total keeps every earning; cells get only what can be placed in an hour.
+  const totalEarningsPence = filteredEarnings.reduce((sum, e) => sum + e.amountPence, 0);
+  const { slots } = allocateEarningsToHours({
+    earnings: filteredEarnings,
+    shifts: filteredPlatform ? [] : shifts.map((sh) => ({ start: sh.startedAt, end: sh.endedAt })),
+    businessTrips: filteredTrips.map((t) => ({ start: t.startedAt, end: t.endedAt, platformTag: t.platformTag })),
+  });
+  for (const slot of slots) {
+    const key = cellKey(slot.dow, slot.hour);
     const existing = cellMap.get(key) ?? {
-      dayOfWeek: dow,
-      hour,
+      dayOfWeek: slot.dow,
+      hour: slot.hour,
       tripCount: 0,
       totalMiles: 0,
       totalEarningsPence: 0,
     };
-    existing.totalEarningsPence += e.amountPence;
+    existing.totalEarningsPence += slot.totalPence;
     cellMap.set(key, existing);
-    totalEarningsPence += e.amountPence;
   }
 
   // Round miles to 1dp for client - matches the precision elsewhere.

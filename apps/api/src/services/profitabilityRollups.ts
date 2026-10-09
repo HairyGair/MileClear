@@ -22,7 +22,9 @@
 //     earnings share - good-enough heuristic for v1.
 
 import { prisma } from "../lib/prisma.js";
-import { EXPENSE_CATEGORIES } from "@mileclear/shared";
+import { EXPENSE_CATEGORIES, type PlatformLeagueEntry } from "@mileclear/shared";
+import { rankPlatforms } from "../lib/insightsMath.js";
+import { dateColumnRange } from "../lib/ukTime.js";
 
 const ALLOWABLE_EXPENSE_CATEGORIES: Set<string> = new Set(
   EXPENSE_CATEGORIES.filter((c) => c.deductibleWithMileage).map((c) => c.value)
@@ -37,9 +39,7 @@ export interface PnlBreakdown {
   businessMiles: number;
 }
 
-export interface PlatformPnL extends PnlBreakdown {
-  platform: string;
-}
+export type PlatformPnL = PlatformLeagueEntry;
 
 export interface ProjectPnL extends PnlBreakdown {
   projectLabel: string;
@@ -65,16 +65,18 @@ export async function getPlatformPnL(args: RangeArgs): Promise<PlatformPnL[]> {
 
   const [earnings, trips, fuelLogs, expenses] = await Promise.all([
     prisma.earning.findMany({
-      where: { userId, periodStart: { gte: from, lte: to } },
+      // Earnings are dates: compare UK calendar dates.
+      where: { userId, periodStart: dateColumnRange({ start: from, end: to }) },
       select: { platform: true, amountPence: true },
     }),
     prisma.trip.findMany({
       where: {
         userId,
+        isPhantomTrip: false,
         classification: "business",
         startedAt: { gte: from, lte: to },
       },
-      select: { distanceMiles: true, platformTag: true },
+      select: { distanceMiles: true, platformTag: true, startedAt: true, endedAt: true },
     }),
     prisma.fuelLog.findMany({
       where: { userId, loggedAt: { gte: from, lte: to } },
@@ -85,56 +87,45 @@ export async function getPlatformPnL(args: RangeArgs): Promise<PlatformPnL[]> {
       select: { amountPence: true, category: true },
     }),
   ]);
+  return buildPlatformLeague(earnings, trips, fuelLogs, expenses);
+}
 
+/** The one platform league (9 Oct 2026): ranked by pay per mile via
+ *  lib/insightsMath rankPlatforms, the same ranking as
+ *  /business-insights platformPerformance. Before, this table sorted by
+ *  net £ (best: Uber) while Platform Performance sorted by £/mile (best:
+ *  Deliveroo). Costs are still split by earnings share for the net column. */
+export function buildPlatformLeague(
+  earnings: { platform: string; amountPence: number }[],
+  trips: { distanceMiles: number; platformTag: string | null; startedAt: Date; endedAt: Date | null }[],
+  fuelLogs: { costPence: number }[],
+  expenses: { amountPence: number; category: string }[],
+): PlatformPnL[] {
   const totalEarningsPence = earnings.reduce((s, e) => s + e.amountPence, 0);
-  // Heuristic expense allocation: split the period's allowable expenses
-  // proportional to each platform's share of total earnings. Not perfect
-  // (a phone bill isn't really Uber-specific) but it's defensible and
-  // the per-project view exists for true platform-tied costs.
   const allowableExpensePence = expenses
     .filter((e) => ALLOWABLE_EXPENSE_CATEGORIES.has(e.category))
     .reduce((s, e) => s + e.amountPence, 0);
   const totalFuelPence = fuelLogs.reduce((s, l) => s + l.costPence, 0);
 
-  // Group by platform
-  const byPlatform = new Map<string, PlatformPnL>();
-  for (const e of earnings) {
-    const cur = byPlatform.get(e.platform) ?? blankPlatform(e.platform);
-    cur.grossEarningsPence += e.amountPence;
-    byPlatform.set(e.platform, cur);
-  }
-  for (const t of trips) {
-    const platform = t.platformTag ?? "untagged";
-    const cur = byPlatform.get(platform) ?? blankPlatform(platform);
-    cur.trips += 1;
-    cur.businessMiles += t.distanceMiles;
-    byPlatform.set(platform, cur);
-  }
-
-  // Distribute expenses + fuel proportionally to earnings share
-  for (const row of byPlatform.values()) {
-    const share =
-      totalEarningsPence > 0 ? row.grossEarningsPence / totalEarningsPence : 0;
-    row.expensesPence = Math.round(allowableExpensePence * share);
-    row.fuelPence = Math.round(totalFuelPence * share);
-    row.netPence = row.grossEarningsPence - row.expensesPence - row.fuelPence;
-  }
-
-  return Array.from(byPlatform.values()).sort(
-    (a, b) => b.netPence - a.netPence
-  );
-}
-
-function blankPlatform(platform: string): PlatformPnL {
-  return {
-    platform,
-    grossEarningsPence: 0,
-    expensesPence: 0,
-    fuelPence: 0,
-    netPence: 0,
-    trips: 0,
-    businessMiles: 0,
-  };
+  return rankPlatforms(earnings, trips).map((r, i) => {
+    const share = totalEarningsPence > 0 ? r.earningsPence / totalEarningsPence : 0;
+    const expensesPence = Math.round(allowableExpensePence * share);
+    const fuelPence = Math.round(totalFuelPence * share);
+    return {
+      platform: r.platform,
+      grossEarningsPence: r.earningsPence,
+      expensesPence,
+      fuelPence,
+      netPence: r.earningsPence - expensesPence - fuelPence,
+      trips: r.trips,
+      businessMiles: r.businessMiles,
+      drivingHours: r.drivingHours,
+      earningsPerMilePence: r.earningsPerMilePence,
+      earningsPerHourPence: r.earningsPerHourPence,
+      fewTrips: r.fewTrips,
+      rank: i + 1,
+    };
+  });
 }
 
 // ── Per-project (freeform user labels) ────────────────────────────────

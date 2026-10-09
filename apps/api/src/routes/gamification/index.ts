@@ -15,6 +15,9 @@ const scorecardQuery = z.object({
 const recapQuery = z.object({
   period: z.enum(["daily", "weekly", "monthly"]).default("weekly"),
   date: z.coerce.date().optional(),
+  // compare=1 adds `previous` (the period before) and `change` percents,
+  // from the same calculation: the one "vs last week" on Insights.
+  compare: z.enum(["0", "1", "true", "false"]).optional(),
 });
 
 export async function gamificationRoutes(app: FastifyInstance) {
@@ -65,7 +68,8 @@ export async function gamificationRoutes(app: FastifyInstance) {
     const data = await getPeriodRecap(
       userId,
       parsed.data.period,
-      parsed.data.date
+      parsed.data.date,
+      { withPrevious: parsed.data.compare === "1" || parsed.data.compare === "true" },
     );
     return reply.send({ data });
   });
