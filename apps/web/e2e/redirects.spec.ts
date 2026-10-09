@@ -37,3 +37,8 @@ test("CSP allows analytics and the configured API but not unpkg for scripts we d
   expect(csp).not.toContain("postcodes.io");
   expect(csp).not.toContain("nominatim");
 });
+
+test("the unclassified-trips redirect does not loop on its own destination", async ({ request }) => {
+  const res = await request.get("/dashboard/trips?view=inbox&filter=unclassified", { maxRedirects: 0 });
+  expect(res.status()).toBe(200);
+});

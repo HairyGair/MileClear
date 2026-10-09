@@ -51,7 +51,9 @@ const nextConfig: NextConfig = {
       // because emails and bookmarks point at them. 307 (permanent: false) so
       // nothing is cached by browsers if a destination moves again.
       // The query-matched one must come first.
-      { source: "/dashboard/trips", has: [{ type: "query", key: "filter", value: "unclassified" }], destination: "/dashboard/trips?view=inbox", permanent: false },
+      // Next passes the original query through, so `missing: view` stops it
+      // matching its own destination (it looped forever without it).
+      { source: "/dashboard/trips", has: [{ type: "query", key: "filter", value: "unclassified" }], missing: [{ type: "query", key: "view" }], destination: "/dashboard/trips?view=inbox", permanent: false },
       { source: "/dashboard/business", destination: "/dashboard/insights", permanent: false },
       { source: "/dashboard/personal", destination: "/dashboard/insights", permanent: false },
       { source: "/dashboard/analytics", destination: "/dashboard/insights?view=trends", permanent: false },

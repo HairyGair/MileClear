@@ -57,13 +57,23 @@ function PlanPage() {
   async function upgrade() {
     setUpgrading(true);
     setUpgradeError(null);
+    // Checkout opens in a new tab: Stripe's success page sends the browser to the
+    // phone app, so this tab stays here and picks up Pro when the driver comes back.
+    const tab = window.open("", "_blank");
     try {
       const res = await api.post<unknown>("/billing/checkout");
       const url = unwrap<{ url?: string }>(res)?.url;
       if (!url) throw new Error("no url");
-      window.location.href = url;
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else {
+        window.location.href = url;
+      }
     } catch {
+      tab?.close();
       setUpgradeError("Couldn't open checkout. Try again in a moment.");
+    } finally {
       setUpgrading(false);
     }
   }

@@ -35,13 +35,21 @@ function CommunityPage() {
   async function link() {
     setBusy(true);
     setError(null);
+    // Open the tab inside the click so Safari's popup blocker lets it through.
+    const tab = window.open("", "_blank");
     try {
       const res = await api.get<unknown>("/auth/discord/start?client=web");
       const url = unwrap<{ url?: string }>(res)?.url;
       if (!url) throw new Error("no url");
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (tab) {
+        tab.opener = null;
+        tab.location.href = url;
+      } else {
+        window.location.href = url;
+      }
       setOpened(true);
     } catch (e) {
+      tab?.close();
       setError(errMsg(e, "Couldn't start the link. Try again in a moment."));
     } finally {
       setBusy(false);

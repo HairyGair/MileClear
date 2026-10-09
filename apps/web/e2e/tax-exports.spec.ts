@@ -62,8 +62,9 @@ test.describe("Tax exports", () => {
 
     await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trips \(CSV\)/ }).click()]);
     const csv = calls.find((c) => c.path === "/exports/csv");
-    expect(csv?.search).toContain("from=2026-05-01");
-    expect(csv?.search).toContain("to=2026-05-31T23:59:59.999Z");
+    // Local (UK) day edges, as instants. The browser and this runner share a time zone.
+    expect(csv?.search).toContain(`from=${new Date("2026-05-01T00:00:00").toISOString()}`);
+    expect(csv?.search).toContain(`to=${new Date("2026-05-31T23:59:59.999").toISOString()}`);
     expect(csv?.search).not.toContain("classification");
 
     await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Odometer log/ }).click()]);

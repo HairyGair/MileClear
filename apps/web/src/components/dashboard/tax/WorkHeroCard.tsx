@@ -56,7 +56,7 @@ export function WorkHeroCard({ mode }: { mode: "work" | "personal" }) {
         size="xl"
         label="Business miles this tax year"
         value={formatMiles(data.businessMiles)}
-        sub={data.deductionPence > 0 ? `About ${formatPence(data.deductionPence)} at HMRC mileage rates · ${data.taxYear}` : data.taxYear}
+        sub={data.deductionPence > 0 ? `About ${formatPence(data.deductionPence)} to claim · ${data.taxYear}` : data.taxYear}
       />
       {sortLink}
     </div>

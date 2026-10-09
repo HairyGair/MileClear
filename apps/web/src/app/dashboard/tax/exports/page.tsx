@@ -19,6 +19,11 @@ import {
   useToast,
 } from "@/components/dashboard/kit";
 import { downloadFile, messageOf, todayStamp } from "@/components/dashboard/tax/tax-utils";
+import { endOfLocalDayIso, startOfLocalDayIso } from "@/components/dashboard/trips/lib/days";
+
+function datesInvalidFor(r: { from: string; to: string }): boolean {
+  return !/^\d{4}-\d{2}-\d{2}$/.test(r.from) || !/^\d{4}-\d{2}-\d{2}$/.test(r.to);
+}
 import "@/components/dashboard/tax/tax.css";
 
 type PeriodMode = "year" | "dates";
@@ -106,7 +111,11 @@ function Exports() {
 
   // Dates: the trip exports take instants, so the last day runs to the end of that day.
   const period = periodMode === "year" ? `taxYear=${taxYear}` : `from=${range.from}&to=${range.to}`;
-  const tripPeriod = periodMode === "year" ? period : `from=${range.from}&to=${range.to}T23:59:59.999Z`;
+  // UK days, not UTC ones (a BST morning trip fell outside the old UTC range).
+  const tripPeriod =
+    periodMode === "year" || datesInvalidFor(range)
+      ? period
+      : `from=${startOfLocalDayIso(range.from)}&to=${endOfLocalDayIso(range.to)}`;
   const label = periodMode === "year" ? taxYear : `${range.from}-to-${range.to}`;
   const stamp = todayStamp();
   const biz = businessOnly ? "&classification=business" : "";

@@ -31,7 +31,7 @@ test.describe("desktop 1440", () => {
       "GET /billing/status": () => FREE_BILLING,
       "POST /billing/checkout": () => ({ data: { url: "http://127.0.0.1:3999/fake-stripe" } }),
     });
-    await page.route("http://127.0.0.1:3999/fake-stripe", (r) => r.fulfill({ contentType: "text/html", body: "<h1>Stripe</h1>" }));
+    await page.context().route("http://127.0.0.1:3999/fake-stripe", (r) => r.fulfill({ contentType: "text/html", body: "<h1>Stripe</h1>" }));
     await page.goto("/dashboard/settings/plan?reason=exports");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your plan");
     await expect(page.getByRole("heading", { name: "Download your records" })).toBeVisible();
@@ -40,8 +40,11 @@ test.describe("desktop 1440", () => {
     await expect(page.getByText("EmSee", { exact: true })).toHaveCount(0); // not available in the fixture
     await expect(page.locator(".mc-btn--primary")).toHaveCount(1);
     await expect(page.getByRole("link", { name: "Or earn free months by inviting friends" })).toHaveAttribute("href", "/dashboard/invite");
+    const popup = page.context().waitForEvent("page");
     await page.getByRole("button", { name: "Upgrade to Pro" }).click();
-    await expect(page).toHaveURL(/fake-stripe/);
+    const stripe = await popup;
+    await expect(stripe).toHaveURL(/fake-stripe/);
+    await expect(page).toHaveURL(/settings\/plan/);
     expect(seen.some((r) => r.method === "POST" && r.path === "/billing/checkout")).toBe(true);
   });
 

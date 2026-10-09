@@ -28,7 +28,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "what-it-does",
         q: "What does MileClear do for me?",
-        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, try quarterly Making Tax Digital updates (in beta on HMRC's test service), or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
+        a: "MileClear automatically records every mile you drive for work and works out the mileage deduction you can claim. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, try quarterly Making Tax Digital updates (in beta on HMRC's test service), or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
       },
       {
         id: "trip-detection",
@@ -76,7 +76,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "mtd-itsa",
         q: "What is MTD ITSA?",
-        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. the Tax tab (or More → Tax in Personal mode) → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
+        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment.\n\nMileClear can prepare the quarterly updates. The Tax tab (or More → Tax in Personal mode) → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
       },
       {
         id: "paye-offset",
@@ -167,7 +167,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "confidence",
         q: "What does the High / Medium / Low badge mean?",
-        a: "Confidence level for each trip's distance figure, based on GPS sample quality, breadcrumb count, route verification, and average speed sanity. Tap any badge for the plain-English breakdown. High = bulletproof for HMRC defence; Low = worth a Recalculate before you rely on it.",
+        a: "Confidence level for each trip's distance figure, based on GPS sample quality, breadcrumb count, route verification, and average speed sanity. Tap any badge for the plain-English breakdown. High = a solid figure you can rely on; Low = worth a Recalculate before you rely on it.",
       },
       {
         id: "saved-location-suggestions",
@@ -393,7 +393,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "auto-detection-missed",
         q: "Auto-detection missed a trip - what now?",
-        a: "Three layered fixes:\n\n1. Add it manually. Dashboard → Start Trip → Manual. Enter start + end address (or pick on the map), set the date, classify, save. The routing engine gives the same mileage for the same address pair every time, so HMRC accepts it.\n2. Check why it was missed. Settings → Data Quality. Common culprits: Location set to \"While Using\" instead of \"Always\", Background App Refresh off, app force-quit before the trip started, signal blackspot for the whole journey.\n3. Pin Home / Work / regular stops as saved locations. They don't start a recording (detection is still speed-based), but a captured trip that starts or ends at one is labelled with the name, which makes a missed leg much easier to spot and add.\n\nIf detection's missing trips often, send a screenshot of Settings → Data Quality to support@mileclear.com - Anthony will work out what's tripping it.",
+        a: "Three layered fixes:\n\n1. Add it manually. Dashboard → Start Trip → Manual. Enter start + end address (or pick on the map), set the date, classify, save. The routing engine gives the same mileage for the same address pair every time, so the figure is consistent.\n2. Check why it was missed. Settings → Data Quality. Common culprits: Location set to \"While Using\" instead of \"Always\", Background App Refresh off, app force-quit before the trip started, signal blackspot for the whole journey.\n3. Pin Home / Work / regular stops as saved locations. They don't start a recording (detection is still speed-based), but a captured trip that starts or ends at one is labelled with the name, which makes a missed leg much easier to spot and add.\n\nIf detection's missing trips often, send a screenshot of Settings → Data Quality to support@mileclear.com - Anthony will work out what's tripping it.",
       },
       {
         id: "offline",

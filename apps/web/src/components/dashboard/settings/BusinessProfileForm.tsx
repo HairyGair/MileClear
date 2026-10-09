@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Button,
   Card,
+  CardError,
   NumberField,
   SelectField,
   TextField,
@@ -56,6 +57,8 @@ async function resizeImage(file: File): Promise<Blob> {
 export function BusinessProfileForm() {
   const { show } = useToast();
   const [loaded, setLoaded] = useState(false);
+  // A failed load must not show an empty form: saving it would wipe the profile.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [tradingName, setTradingName] = useState("");
   const [address, setAddress] = useState("");
   const [vat, setVat] = useState(false);
@@ -91,7 +94,9 @@ export function BusinessProfileForm() {
     }
   }
 
-  useEffect(() => {
+  function loadProfile() {
+    setLoaded(false);
+    setLoadFailed(false);
     api
       .get<{ data: BusinessProfile }>("/user/profile")
       .then(({ data }) => {
@@ -106,8 +111,12 @@ export function BusinessProfileForm() {
         setSortCode(data.bankSortCode ?? "");
         setAccountNumber(data.bankAccountNumber ?? "");
       })
-      .catch(() => {})
+      .catch(() => setLoadFailed(true))
       .finally(() => setLoaded(true));
+  }
+
+  useEffect(() => {
+    loadProfile();
     void loadLogo();
     return () => setLogoUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev);
@@ -181,6 +190,7 @@ export function BusinessProfileForm() {
   }
 
   if (!loaded) return null;
+  if (loadFailed) return <CardError onRetry={loadProfile} />;
 
   return (
     <div className={styles.page}>

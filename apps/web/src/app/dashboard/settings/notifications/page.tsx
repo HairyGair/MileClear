@@ -103,7 +103,12 @@ export default function NotificationsPage() {
   async function toggle(p: Pref, value: boolean) {
     const before = latest.current;
     // The API replaces the whole set, so send every switch we know, not just this one.
-    const next: Stored = { ...before };
+    // The API rejects unknown keys, so carry over only the ones it accepts
+    // (fuelAlert is an app-only switch with no row here).
+    const next: Stored = {};
+    for (const [k, v] of Object.entries(before)) {
+      if (typeof v === "boolean" && (k === "fuelAlert" || ALL.some((q) => q.key === k))) next[k] = v;
+    }
     for (const q of ALL) {
       const v = before[q.key];
       next[q.key] = q.optIn ? v === true : v !== false;
