@@ -1,0 +1,142 @@
+/* Shared styles for the driving pages. Tokens only (var(--mc-*)); no dashboard.css classes. */
+
+/* Odometer figure */
+.figure { display: inline-flex; align-items: flex-end; gap: 6px; }
+.groups { display: inline-flex; gap: 10px; }
+.group { display: inline-flex; gap: 3px; }
+.cell {
+  width: 26px; height: 40px; border-radius: var(--mc-r-xs);
+  background: var(--mc-bg); border: 1px solid var(--mc-hairline);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 600; line-height: 1; color: var(--mc-text-1);
+  font-variant-numeric: tabular-nums;
+}
+.unit { font-size: var(--mc-fs-body-lg); font-weight: 600; color: var(--mc-text-2); padding-bottom: 6px; margin-left: 4px; }
+.compact { font-size: var(--mc-fs-body-lg); font-weight: 600; color: var(--mc-text-1); font-variant-numeric: tabular-nums; }
+@media (min-width: 1024px) {
+  .cell { width: 32px; height: 48px; font-size: 34px; }
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--mc-fs-caption); font-weight: 600; padding: 3px 8px; border-radius: var(--mc-r-sm);
+  background: transparent; white-space: nowrap;
+}
+.chipRecorded { border: 1px solid var(--mc-text-3); color: var(--mc-text-1); }
+.chipEstimated { border: 1px dashed var(--mc-text-2); color: var(--mc-text-2); }
+
+/* Layout */
+.cols { display: grid; gap: var(--mc-s-lg); align-items: start; }
+@media (min-width: 1024px) { .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.stack { display: flex; flex-direction: column; gap: var(--mc-s-lg); }
+.formGrid { display: grid; gap: var(--mc-s-md); }
+@media (min-width: 640px) { .formGrid2 { grid-template-columns: 1fr 1fr; } }
+.actionsRow { display: flex; flex-wrap: wrap; gap: var(--mc-s-sm); align-items: center; }
+.muted { color: var(--mc-text-2); font-size: var(--mc-fs-body); margin: 0; }
+.hint { color: var(--mc-text-3); font-size: var(--mc-fs-hint); margin: 0; }
+.bold { font-weight: 600; color: var(--mc-text-1); }
+.num { font-variant-numeric: tabular-nums; }
+.ok { color: var(--mc-green); font-size: var(--mc-fs-body); margin: 0; }
+.err { color: var(--mc-red-text); font-size: var(--mc-fs-body); margin: 0; }
+.link { background: none; border: 0; padding: 0; color: var(--mc-amber); font: inherit; cursor: pointer; text-align: left; }
+.divider { border: 0; border-top: 1px solid var(--mc-hairline); margin: var(--mc-s-md) 0; }
+.notice {
+  background: var(--mc-icon-tile); border: 1px solid var(--mc-hairline); border-radius: var(--mc-r-md);
+  padding: var(--mc-s-md); color: var(--mc-text-2); font-size: var(--mc-fs-body);
+}
+.noticeWarn { border-color: var(--mc-amber-glow); }
+
+/* Vehicles */
+.vehicleGrid { display: grid; gap: var(--mc-s-md); }
+@media (min-width: 768px) { .vehicleGrid { grid-template-columns: 1fr 1fr; } }
+.vehicleCard { display: flex; flex-direction: column; gap: var(--mc-s-sm); color: inherit; text-decoration: none; }
+.vehicleHead { display: flex; align-items: center; gap: var(--mc-s-md); }
+.vehicleIcon {
+  width: 40px; height: 40px; border-radius: var(--mc-r-md); background: var(--mc-icon-tile);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--mc-text-2); flex: none;
+}
+.vehicleTitle { font-size: var(--mc-fs-body-lg); font-weight: 700; color: var(--mc-text-1); margin: 0; }
+.plate {
+  display: inline-block; font-weight: 700; letter-spacing: 0.06em; font-size: var(--mc-fs-body);
+  padding: 2px 8px; border-radius: var(--mc-r-xs); border: 1px solid var(--mc-hairline); color: var(--mc-text-1);
+  background: var(--mc-bg); text-transform: uppercase;
+}
+.chipRow { display: flex; flex-wrap: wrap; gap: var(--mc-s-sm); }
+.metaRow { display: flex; flex-wrap: wrap; gap: var(--mc-s-xs) var(--mc-s-lg); color: var(--mc-text-2); font-size: var(--mc-fs-hint); }
+
+/* Odometer log */
+.dayCard { scroll-margin-top: calc(var(--mc-topbar-h) + 16px); }
+.dayCardFlash { outline: 2px solid var(--mc-amber); outline-offset: 2px; }
+.dayHead { display: flex; justify-content: space-between; align-items: baseline; gap: var(--mc-s-md); }
+.dayDate { font-size: var(--mc-fs-row); font-weight: 600; color: var(--mc-text-1); margin: 0; }
+.dayRows { display: grid; gap: var(--mc-s-xs); margin-top: var(--mc-s-sm); }
+.dayRow { display: flex; align-items: center; gap: var(--mc-s-md); }
+.dayLabel { width: 56px; color: var(--mc-text-2); font-size: var(--mc-fs-body); }
+.dayFig { font-size: var(--mc-fs-body-lg); font-weight: 600; color: var(--mc-text-1); font-variant-numeric: tabular-nums; min-width: 72px; }
+.dayMark { font-size: var(--mc-fs-caption); color: var(--mc-text-2); }
+.dayMarkRec { color: var(--mc-text-1); border: 1px solid var(--mc-text-3); border-radius: var(--mc-r-xs); padding: 0 6px; display: inline-flex; gap: 4px; align-items: center; }
+.split { display: flex; flex-wrap: wrap; gap: var(--mc-s-xs) var(--mc-s-md); margin-top: var(--mc-s-sm); font-size: var(--mc-fs-hint); color: var(--mc-text-2); font-variant-numeric: tabular-nums; }
+.diffBtn { background: none; border: 0; padding: 0; margin-top: var(--mc-s-sm); color: var(--mc-text-2); font: inherit; font-size: var(--mc-fs-hint); text-align: left; cursor: pointer; text-decoration: underline dotted; }
+.topCard { display: flex; flex-direction: column; gap: var(--mc-s-sm); }
+.topTitle { font-size: var(--mc-fs-title); font-weight: 600; color: var(--mc-text-1); margin: 0; font-variant-numeric: tabular-nums; }
+.tableLinkRow { cursor: default; }
+
+/* Readings list */
+.readingRow { display: flex; justify-content: space-between; align-items: center; gap: var(--mc-s-md); padding: var(--mc-s-md) 0; border-bottom: 1px solid var(--mc-hairline); }
+.readingRow:last-child { border-bottom: 0; }
+.readingMain { min-width: 0; }
+.readingFig { font-size: var(--mc-fs-body-lg); font-weight: 600; color: var(--mc-text-1); font-variant-numeric: tabular-nums; margin: 0; }
+.readingSub { color: var(--mc-text-3); font-size: var(--mc-fs-hint); margin: 0; }
+.readingWarn { color: var(--mc-amber); font-size: var(--mc-fs-hint); margin: 0; }
+
+/* MOT */
+.motTest { padding: var(--mc-s-md) 0; border-bottom: 1px solid var(--mc-hairline); }
+.motTest:last-child { border-bottom: 0; }
+.motHead { display: flex; justify-content: space-between; gap: var(--mc-s-md); align-items: baseline; }
+.motList { margin: var(--mc-s-sm) 0 0; padding-left: 18px; color: var(--mc-text-2); font-size: var(--mc-fs-hint); }
+
+/* Prompt-type cards */
+.promptTitle { font-size: var(--mc-fs-body-lg); font-weight: 600; color: var(--mc-text-1); margin: 0 0 var(--mc-s-xs); }
+
+/* Pickers and lists shared by places, fuel, shifts, tools */
+.list { list-style: none; margin: 0; padding: 0; }
+.listRow { display: flex; align-items: center; justify-content: space-between; gap: var(--mc-s-md); padding: var(--mc-s-md) var(--mc-s-lg); border-bottom: 1px solid var(--mc-hairline); color: inherit; text-decoration: none; min-height: var(--mc-tap); }
+.listRow:last-child { border-bottom: 0; }
+.listMain { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.listTitle { font-size: var(--mc-fs-row); font-weight: 600; color: var(--mc-text-1); margin: 0; }
+.listSub { font-size: var(--mc-fs-hint); color: var(--mc-text-2); margin: 0; }
+.listFig { font-weight: 600; color: var(--mc-text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.statGrid { display: grid; gap: var(--mc-s-md); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 768px) { .statGrid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .statGrid4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.slider { width: 100%; accent-color: var(--mc-amber); min-height: var(--mc-tap); }
+.badgeGrid { display: grid; gap: var(--mc-s-md); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 768px) { .badgeGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .badgeGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.badge { display: flex; flex-direction: column; gap: var(--mc-s-xs); height: 100%; }
+.badgeLocked { opacity: 0.72; }
+.badgeLabel { font-size: var(--mc-fs-row); font-weight: 600; color: var(--mc-text-1); margin: 0; }
+.badgeDesc { font-size: var(--mc-fs-hint); color: var(--mc-text-2); margin: 0; }
+.bar { height: 6px; border-radius: 3px; background: var(--mc-icon-tile); overflow: hidden; }
+.barFill { height: 100%; background: var(--mc-amber); }
+.barDone { background: var(--mc-green); }
+.copyRow { display: flex; gap: var(--mc-s-sm); align-items: stretch; flex-wrap: wrap; }
+.code { font-size: var(--mc-fs-heading); font-weight: 700; letter-spacing: 0.08em; color: var(--mc-text-1); font-variant-numeric: tabular-nums; margin: 0; }
+.shareUrl { word-break: break-all; font-size: var(--mc-fs-body); color: var(--mc-text-2); margin: 0; }
+.alertTitle { font-size: var(--mc-fs-row); font-weight: 600; color: var(--mc-text-1); margin: 0; }
+.alertBody { font-size: var(--mc-fs-body); color: var(--mc-text-2); margin: 2px 0 0; }
+.alertMeta { font-size: var(--mc-fs-hint); color: var(--mc-text-3); margin: 2px 0 0; }
+.pointTable { width: 100%; border-collapse: collapse; font-size: var(--mc-fs-hint); font-variant-numeric: tabular-nums; }
+.pointTable th, .pointTable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--mc-hairline); color: var(--mc-text-2); }
+.pointTable th { color: var(--mc-text-3); font-weight: 600; }
+.scroll { overflow-x: auto; }
+
+/* Small helpers (instead of inline styles) */
+.mt { margin-top: var(--mc-s-md); }
+.mtLg { margin-top: var(--mc-s-lg); }
+.pad { padding: var(--mc-s-lg); }
+.alignTop { align-items: flex-start; }
+.dangerText { color: var(--mc-red-text); }
+.rowTight { padding: var(--mc-s-sm) 0; list-style: none; }
+.rowMid { padding: var(--mc-s-md) 0; }
+.grow { flex: 1 1 200px; }
+.alignEnd { align-self: flex-end; }
+.plainList { list-style: none; }

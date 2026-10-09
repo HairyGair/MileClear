@@ -14,7 +14,7 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -47,3 +47,14 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Build web
+        run: pnpm --filter @mileclear/web build
+
+      - name: Install Playwright browser
+        run: |
+          npm --prefix apps/web/e2e ci
+          npm --prefix apps/web/e2e exec -- playwright install --with-deps chromium
+
+      - name: Web end-to-end tests
+        run: pnpm --filter @mileclear/web test:e2e

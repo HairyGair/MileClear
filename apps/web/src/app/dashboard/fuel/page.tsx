@@ -1,510 +1,398 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { api } from "../../../lib/api";
-import { PageHeader } from "../../../components/dashboard/PageHeader";
-import { Button } from "../../../components/ui/Button";
-import { Input } from "../../../components/ui/Input";
-import { Select } from "../../../components/ui/Select";
-import { Modal } from "../../../components/ui/Modal";
-import { ConfirmModal } from "../../../components/ui/ConfirmModal";
-import { Pagination } from "../../../components/ui/Pagination";
-import { EmptyState } from "../../../components/ui/EmptyState";
-import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
-import { useToast } from "../../../components/ui/Toast";
+import { useEffect, useMemo, useState } from "react";
+import type { ChargePoint, CheapestTodayResponse, FuelLogWithVehicle, FuelStation, NationalAveragePrices } from "@mileclear/shared";
+import { formatPence } from "@mileclear/shared";
+import { api } from "@/lib/api";
+import { Button } from "@/components/dashboard/kit/Button";
+import { Card, SectionHeader } from "@/components/dashboard/kit/Card";
+import { DataTable } from "@/components/dashboard/kit/DataTable";
+import { ConfirmDialog, Dialog } from "@/components/dashboard/kit/Dialog";
+import { DateField, MoneyField, NumberField, SelectField, TextField, TimeField } from "@/components/dashboard/kit/Fields";
+import { PageHeader } from "@/components/dashboard/kit/PageHeader";
+import { StatTile } from "@/components/dashboard/kit/Figure";
+import { EmptyState, ErrorState, Skeleton } from "@/components/dashboard/kit/States";
+import { useToast } from "@/components/dashboard/kit/Toast";
+import { useData } from "@/lib/dashboard/useData";
+import { formatDay } from "@/lib/dashboard/dates";
+import { safeGet, safeSet } from "@/lib/dashboard/mode";
+import { fetchVehicles, fromInputs, toDateInput, toTimeInput, vehicleName } from "@/components/dashboard/driving/api";
+import styles from "@/components/dashboard/driving/driving.module.css";
+import { dedupeStations, stationLabels } from "./stations";
 
 const PAGE_SIZE = 20;
+const POSTCODE_KEY = "mc_fuel_postcode";
 
-interface FuelLog {
-  id: string;
-  vehicleId: string | null;
-  litres: number;
-  costPence: number;
-  stationName: string | null;
-  odometerReading: number | null;
-  loggedAt: string;
-  createdAt: string;
-  vehicle?: { make: string; model: string } | null;
-}
-
-interface Vehicle {
-  id: string;
-  make: string;
-  model: string;
-}
-
-interface FuelLogsResponse {
-  data: FuelLog[];
+interface LogsResponse {
+  data: FuelLogWithVehicle[];
   total: number;
   page: number;
   pageSize: number;
   totalPages: number;
 }
 
-function formatPence(pence: number): string {
-  return `\u00A3${(pence / 100).toFixed(2)}`;
+const ppl = (pence: number) => `${(Math.round(pence * 10) / 10).toFixed(1)}p`;
+
+function monthStartIso(): string {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), 1).toISOString();
+}
+
+/** The add and edit dialog for one fill-up. Cost is typed in pounds and sent as pence. */
+function FuelLogDialog({
+  log,
+  open,
+  vehicles,
+  onClose,
+  onSaved,
+  onDelete,
+}: {
+  log: FuelLogWithVehicle | null;
+  open: boolean;
+  vehicles: { id: string; label: string }[];
+  onClose: () => void;
+  onSaved: () => void;
+  onDelete?: (log: FuelLogWithVehicle) => void;
+}) {
+  const { show } = useToast();
+  const [vehicleId, setVehicleId] = useState("");
+  const [litres, setLitres] = useState("");
+  const [cost, setCost] = useState<number | null>(null);
+  const [station, setStation] = useState("");
+  const [odo, setOdo] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    const when = log ? new Date(log.loggedAt) : new Date();
+    setVehicleId(log?.vehicleId ?? vehicles[0]?.id ?? "");
+    setLitres(log ? String(log.litres) : "");
+    setCost(log ? log.costPence : null);
+    setStation(log?.stationName ?? "");
+    setOdo(log?.odometerReading != null ? String(log.odometerReading) : "");
+    setDate(toDateInput(when));
+    setTime(toTimeInput(when));
+    setError(null);
+    setFormKey((k) => k + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, log]);
+
+  async function save() {
+    const l = parseFloat(litres);
+    if (!Number.isFinite(l) || l <= 0) return setError("Enter the litres.");
+    if (!cost || cost <= 0) return setError("Enter what it cost.");
+    const o = odo ? parseFloat(odo) : null;
+    setSaving(true);
+    setError(null);
+    try {
+      const body = {
+        vehicleId: vehicleId || (log ? null : undefined),
+        litres: l,
+        costPence: cost,
+        stationName: station.trim() || (log ? null : undefined),
+        odometerReading: o && o > 0 ? o : log ? null : undefined,
+        loggedAt: fromInputs(date, time).toISOString(),
+      };
+      if (log) await api.patch(`/fuel/logs/${log.id}`, body);
+      else await api.post("/fuel/logs", body);
+      show("Saved");
+      onSaved();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title={log ? "Edit fill-up" : "Log fill-up"}
+      onClose={onClose}
+      footer={
+        <>
+          {log && onDelete && (
+            <Button variant="destructive" onClick={() => onDelete(log)}>Delete</Button>
+          )}
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" loading={saving} onClick={save}>Save</Button>
+        </>
+      }
+    >
+      <div className={styles.stack} key={formKey}>
+        {vehicles.length > 0 && (
+          <SelectField
+            label="Vehicle"
+            value={vehicleId}
+            onChange={setVehicleId}
+            options={[{ value: "", label: "No vehicle" }, ...vehicles.map((v) => ({ value: v.id, label: v.label }))]}
+          />
+        )}
+        <div className={`${styles.formGrid} ${styles.formGrid2}`}>
+          <NumberField label="Litres" value={litres} onChange={setLitres} suffix="L" />
+          <MoneyField label="Cost" value={cost} onChange={setCost} />
+        </div>
+        <TextField label="Station" value={station} onChange={setStation} required={false} />
+        <NumberField label="Odometer" value={odo} onChange={setOdo} suffix="miles" required={false} decimals={false} />
+        <div className={`${styles.formGrid} ${styles.formGrid2}`}>
+          <DateField label="Date" value={date} onChange={setDate} />
+          <TimeField label="Time" value={time} onChange={setTime} />
+        </div>
+        {error && <p className={styles.err} role="alert">{error}</p>}
+      </div>
+    </Dialog>
+  );
+}
+
+interface PricesState {
+  stations: FuelStation[];
+  nationalAverage: NationalAveragePrices | null;
+  chargers: ChargePoint[];
+  attribution: string;
+}
+
+function PricesNearYou({ hasEv }: { hasEv: boolean }) {
+  const [postcode, setPostcode] = useState("");
+  const [state, setState] = useState<PricesState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const rate = useData(hasEv ? "charging-rate" : null, () => api.get<{ data: { pencePerKwh: number; source: string } }>("/charging/electricity-rate"));
+
+  useEffect(() => {
+    const saved = safeGet(POSTCODE_KEY);
+    if (saved) setPostcode(saved);
+  }, []);
+
+  async function lookUp() {
+    const pc = postcode.trim();
+    if (pc.length < 2) return setError("Enter a postcode.");
+    setBusy(true);
+    setError(null);
+    try {
+      const geo = await api.get<{ data: { lat: number; lng: number }[] }>(`/geocode/search?q=${encodeURIComponent(pc)}&limit=1`);
+      const hit = geo.data?.[0];
+      if (!hit) {
+        setState(null);
+        setError("We couldn't find that postcode. Check it and try again.");
+        return;
+      }
+      safeSet(POSTCODE_KEY, pc);
+      const q = `lat=${hit.lat}&lng=${hit.lng}&radiusMiles=5`;
+      const [prices, chargers] = await Promise.all([
+        api.get<{ stations: FuelStation[]; nationalAverage: NationalAveragePrices | null }>(`/fuel/prices?${q}`),
+        hasEv
+          ? api.get<{ chargers: ChargePoint[]; attribution: string }>(`/charging/nearby?${q}`).catch(() => ({ chargers: [], attribution: "" }))
+          : Promise.resolve({ chargers: [] as ChargePoint[], attribution: "" }),
+      ]);
+      setState({ stations: prices.stations ?? [], nationalAverage: prices.nationalAverage, chargers: chargers.chargers ?? [], attribution: chargers.attribution });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load prices. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const stations = useMemo(() => dedupeStations(state?.stations ?? []).sort((a, b) => a.distanceMiles - b.distanceMiles).slice(0, 20), [state]);
+  const labels = useMemo(() => stationLabels(stations), [stations]);
+
+  return (
+    <div className={styles.stack}>
+      <SectionHeader title="Prices near you" />
+      <Card>
+        <form
+          className={styles.stack}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void lookUp();
+          }}
+        >
+          <div className={styles.copyRow}>
+            <div className={styles.grow}>
+              <TextField label="Postcode" value={postcode} onChange={setPostcode} placeholder="e.g. NE1 4ST" autoComplete="postal-code" />
+            </div>
+            <div className={styles.alignEnd}>
+              <Button type="submit" variant="secondary" loading={busy}>Show prices</Button>
+            </div>
+          </div>
+          {error && <p className={styles.err} role="alert">{error}</p>}
+        </form>
+      </Card>
+      {!state ? (
+        <EmptyState size="card" icon="location-outline" title="Enter a postcode" body="We'll show prices at stations nearby." />
+      ) : (
+        <>
+          {state.nationalAverage && (
+            <p className={styles.muted}>
+              UK average today: petrol {ppl(state.nationalAverage.petrolPencePerLitre)}, diesel {ppl(state.nationalAverage.dieselPencePerLitre)} a litre.
+            </p>
+          )}
+          {stations.length === 0 ? (
+            <EmptyState size="card" icon="water-outline" title="No stations found" body="Try a postcode a little further out." />
+          ) : (
+            <DataTable
+              rows={stations}
+              rowKey={(s) => s.siteId}
+              columns={[
+                { key: "stationName", label: "Station", render: (s) => labels.get(s) ?? s.stationName },
+                { key: "petrol", label: "Petrol, a litre", align: "right", render: (s) => (s.prices.E10 != null ? ppl(s.prices.E10) : "No price") },
+                { key: "diesel", label: "Diesel, a litre", align: "right", render: (s) => (s.prices.B7 != null ? ppl(s.prices.B7) : "No price") },
+                { key: "distanceMiles", label: "Distance", align: "right", render: (s) => `${s.distanceMiles.toFixed(1)} mi` },
+              ]}
+            />
+          )}
+          {hasEv && (
+            <div className={styles.stack}>
+              <SectionHeader title="Charging" subtitle={rate.data ? `Your electricity rate is ${ppl(rate.data.data.pencePerKwh)} a kWh.` : undefined} />
+              {state.chargers.length === 0 ? (
+                <EmptyState size="card" icon="flash-outline" title="No chargers found" body="Try a postcode a little further out." />
+              ) : (
+                <Card padded={false}>
+                  <ul className={styles.list}>
+                    {state.chargers.slice(0, 10).map((c) => (
+                      <li key={c.id} className={styles.listRow}>
+                        <div className={styles.listMain}>
+                          <p className={styles.listTitle}>{c.name}</p>
+                          <p className={styles.listSub}>
+                            {[c.operator, c.connectors.map((k) => `${k.type}${k.powerKw ? ` ${k.powerKw}kW` : ""}`).join(", ")].filter(Boolean).join(" · ")}
+                          </p>
+                        </div>
+                        <span className={styles.listFig}>{c.distanceMiles.toFixed(1)} mi</span>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+              )}
+              {state.attribution && <p className={styles.hint}>{state.attribution}</p>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function FuelPage() {
-  const { toast } = useToast();
-
-  const [logs, setLogs] = useState<FuelLog[]>([]);
-  const [total, setTotal] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const { show } = useToast();
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const logs = useData(`fuel-logs-${page}`, () => api.get<LogsResponse>(`/fuel/logs?page=${page}&pageSize=${PAGE_SIZE}`));
+  const from = useMemo(monthStartIso, []);
+  const month = useData("fuel-month", () => api.get<LogsResponse>(`/fuel/logs?from=${encodeURIComponent(from)}&page=1&pageSize=200`));
+  const miles = useData("fuel-month-miles", () =>
+    api.get<{ data: { totalMiles: number } }>(`/trips/summary?from=${encodeURIComponent(from)}`).catch(() => null)
+  );
+  const cheapest = useData("fuel-cheapest", () => api.get<CheapestTodayResponse>("/fuel/cheapest-today").catch(() => null));
+  const vehicles = useData("vehicles", fetchVehicles);
+  const [editing, setEditing] = useState<FuelLogWithVehicle | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<FuelLogWithVehicle | null>(null);
 
-  // Add modal
-  const [showAdd, setShowAdd] = useState(false);
-  const [addForm, setAddForm] = useState({
-    vehicleId: "",
-    litres: "",
-    costPounds: "",
-    stationName: "",
-    odometerMiles: "",
-    loggedAt: new Date().toISOString().slice(0, 16),
-  });
-  const [addLoading, setAddLoading] = useState(false);
+  const rows = logs.data?.data ?? [];
+  const totalPages = logs.data?.totalPages ?? 1;
+  const monthRows = month.data?.data ?? [];
+  const monthSpend = monthRows.reduce((s, l) => s + l.costPence, 0);
+  const monthLitres = monthRows.reduce((s, l) => s + l.litres, 0);
+  const monthMiles = miles.data?.data?.totalMiles ?? 0;
+  const hasEv = (vehicles.data ?? []).some((v) => v.fuelType === "electric");
+  const vehicleOptions = (vehicles.data ?? []).map((v) => ({ id: v.id, label: vehicleName(v) }));
+  const empty = !logs.loading && logs.data && logs.data.total === 0;
 
-  // Edit modal
-  const [editLog, setEditLog] = useState<FuelLog | null>(null);
-  const [editForm, setEditForm] = useState({
-    vehicleId: "",
-    litres: "",
-    costPounds: "",
-    stationName: "",
-    odometerMiles: "",
-    loggedAt: "",
-  });
-  const [editLoading, setEditLoading] = useState(false);
-
-  // Delete
-  const [deleteLog, setDeleteLog] = useState<FuelLog | null>(null);
-  const [deleteLoading, setDeleteLoading] = useState(false);
-
-  const loadLogs = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-      });
-      const res = await api.get<FuelLogsResponse>(`/fuel/logs?${params}`);
-      setLogs(res.data);
-      setTotal(res.total);
-      setTotalPages(res.totalPages);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [page]);
-
-  const loadVehicles = useCallback(async () => {
-    try {
-      const res = await api.get<{ data: Vehicle[] }>("/vehicles/");
-      setVehicles(res.data);
-    } catch {
-      // Non-critical
-    }
-  }, []);
-
-  useEffect(() => {
-    loadLogs();
-    loadVehicles();
-  }, [loadLogs, loadVehicles]);
-
-  // Compute totals
-  const totalSpendPence = logs.reduce((sum, l) => sum + l.costPence, 0);
-  const totalLitres = logs.reduce((sum, l) => sum + l.litres, 0);
-  const avgPencePerLitre = totalLitres > 0 ? Math.round(totalSpendPence / totalLitres) : 0;
-
-  // Add
-  const handleAdd = async () => {
-    const litres = parseFloat(addForm.litres);
-    const costPounds = parseFloat(addForm.costPounds);
-    if (!addForm.litres || isNaN(litres) || litres <= 0) {
-      setError("Please enter a valid number of litres");
-      return;
-    }
-    if (!addForm.costPounds || isNaN(costPounds) || costPounds <= 0) {
-      setError("Please enter a valid cost");
-      return;
-    }
-    setAddLoading(true);
-    setError(null);
-    try {
-      const odometerMiles = addForm.odometerMiles ? parseFloat(addForm.odometerMiles) : undefined;
-      await api.post("/fuel/logs", {
-        vehicleId: addForm.vehicleId || undefined,
-        litres,
-        costPence: Math.round(costPounds * 100),
-        stationName: addForm.stationName.trim() || undefined,
-        odometerReading: odometerMiles && !isNaN(odometerMiles) ? odometerMiles : undefined,
-        loggedAt: new Date(addForm.loggedAt).toISOString(),
-      });
-      setShowAdd(false);
-      setAddForm({ vehicleId: "", litres: "", costPounds: "", stationName: "", odometerMiles: "", loggedAt: new Date().toISOString().slice(0, 16) });
-      loadLogs();
-      toast("Fuel log added");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setAddLoading(false);
-    }
-  };
-
-  // Open edit modal pre-filled
-  const openEdit = (log: FuelLog) => {
-    setEditLog(log);
-    setEditForm({
-      vehicleId: log.vehicleId ?? "",
-      litres: String(log.litres),
-      costPounds: (log.costPence / 100).toFixed(2),
-      stationName: log.stationName ?? "",
-      odometerMiles: log.odometerReading != null ? String(log.odometerReading) : "",
-      loggedAt: new Date(log.loggedAt).toISOString().slice(0, 16),
-    });
-  };
-
-  // Edit
-  const handleEdit = async () => {
-    if (!editLog) return;
-    const litres = parseFloat(editForm.litres);
-    const costPounds = parseFloat(editForm.costPounds);
-    if (!editForm.litres || isNaN(litres) || litres <= 0) {
-      setError("Please enter a valid number of litres");
-      return;
-    }
-    if (!editForm.costPounds || isNaN(costPounds) || costPounds <= 0) {
-      setError("Please enter a valid cost");
-      return;
-    }
-    setEditLoading(true);
-    setError(null);
-    try {
-      const odometerMiles = editForm.odometerMiles ? parseFloat(editForm.odometerMiles) : undefined;
-      await api.patch(`/fuel/logs/${editLog.id}`, {
-        vehicleId: editForm.vehicleId || undefined,
-        litres,
-        costPence: Math.round(costPounds * 100),
-        stationName: editForm.stationName.trim() || undefined,
-        odometerReading: odometerMiles && !isNaN(odometerMiles) ? odometerMiles : undefined,
-        loggedAt: new Date(editForm.loggedAt).toISOString(),
-      });
-      setEditLog(null);
-      loadLogs();
-      toast("Fuel log updated");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  // Delete
-  const handleDelete = async () => {
-    if (!deleteLog) return;
-    setDeleteLoading(true);
-    try {
-      await api.delete(`/fuel/logs/${deleteLog.id}`);
-      setDeleteLog(null);
-      loadLogs();
-      toast("Fuel log deleted");
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
-  const vehicleOptions = [
-    { value: "", label: "No vehicle" },
-    ...vehicles.map((v) => ({ value: v.id, label: `${v.make} ${v.model}` })),
-  ];
+  function reloadAll() {
+    logs.reload();
+    month.reload();
+  }
+  function openAdd() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
 
   return (
     <>
       <PageHeader
         title="Fuel"
-        subtitle={`${total} fill-up${total !== 1 ? "s" : ""} recorded`}
-        action={
-          <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
-            + Add fill-up
-          </Button>
-        }
+        back={{ href: "/dashboard/more", label: "More" }}
+        primary={!empty ? <Button variant="primary" onClick={openAdd}>Log fill-up</Button> : undefined}
       />
+      <div className={styles.stack}>
+        {cheapest.data?.data?.line && (
+          <Card tone="quiet">
+            <p className={styles.bold}>Cheapest today</p>
+            <p className={styles.muted}>{cheapest.data.data.line}</p>
+          </Card>
+        )}
 
-      {/* Summary */}
-      <div className="stats-grid" style={{ marginBottom: "var(--dash-gap)" }}>
-        <div className="stat-card">
-          <div className="stat-card__value stat-card__value--amber">{formatPence(totalSpendPence)}</div>
-          <div className="stat-card__label">Total Spend</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__value">{totalLitres.toFixed(1)}L</div>
-          <div className="stat-card__label">Total Litres</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__value">{avgPencePerLitre > 0 ? `${(avgPencePerLitre / 100).toFixed(1)}p` : "-"}</div>
-          <div className="stat-card__label">Avg Cost/Litre</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-card__value">{total}</div>
-          <div className="stat-card__label">Fill-ups</div>
-        </div>
+        {logs.loading && !logs.data ? (
+          <Skeleton variant="row" count={5} />
+        ) : logs.error && !logs.data ? (
+          <ErrorState title="Couldn't load your fuel" onRetry={logs.reload} />
+        ) : empty ? (
+          <EmptyState icon="water-outline" title="No fill-ups yet" body="Log a fill-up to see your fuel costs." action={{ label: "Log fill-up", onClick: openAdd }} />
+        ) : (
+          <>
+            <div className={`${styles.statGrid} ${styles.statGrid3}`}>
+              <StatTile label="Spent this month" value={monthRows.length ? formatPence(monthSpend) : null} />
+              <StatTile label="Average a litre" value={monthLitres > 0 ? ppl(monthSpend / monthLitres) : null} note="This month" />
+              <StatTile label="Cost a mile" value={monthSpend > 0 && monthMiles > 0 ? ppl(monthSpend / monthMiles) : null} note="This month" />
+            </div>
+
+            <SectionHeader title="Fill-ups" subtitle={`${logs.data?.total ?? 0} in total`} />
+            <DataTable
+              rows={rows}
+              rowKey={(l) => l.id}
+              onRowClick={(l) => {
+                setEditing(l);
+                setDialogOpen(true);
+              }}
+              columns={[
+                { key: "loggedAt", label: "Date", render: (l) => formatDay(l.loggedAt) },
+                { key: "stationName", label: "Station", render: (l) => l.stationName ?? "No station" },
+                { key: "perLitre", label: "A litre", align: "right", hideBelow: 768, render: (l) => ppl(l.costPence / l.litres) },
+                { key: "vehicle", label: "Vehicle", hideBelow: 1024, render: (l) => (l.vehicle ? `${l.vehicle.make} ${l.vehicle.model}` : "No vehicle") },
+                { key: "litres", label: "Litres", align: "right", render: (l) => `${l.litres.toFixed(1)} L` },
+                { key: "costPence", label: "Cost", align: "right", render: (l) => formatPence(l.costPence) },
+              ]}
+            />
+            {totalPages > 1 && (
+              <div className={styles.actionsRow}>
+                <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+                <span className={styles.muted}>Page {page} of {totalPages}</span>
+                <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+              </div>
+            )}
+          </>
+        )}
+
+        <PricesNearYou hasEv={hasEv} />
       </div>
 
-      {error && (
-        <div className="alert alert--error" style={{ marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <LoadingSkeleton variant="row" count={5} style={{ marginBottom: 8 }} />
-      ) : logs.length === 0 ? (
-        <EmptyState
-          icon={
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M3 22V8l4-6h6l4 6v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M10 2v4M3 14h14M21 10v12M17 10h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          }
-          title="No fuel logs yet"
-          description="Track your fuel fill-ups to see spending trends and cost per mile."
-          action={
-            <Button variant="primary" size="sm" onClick={() => setShowAdd(true)}>
-              Add your first fill-up
-            </Button>
-          }
-        />
-      ) : (
-        <>
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Station</th>
-                  <th>Litres</th>
-                  <th>Cost</th>
-                  <th className="hide-mobile">Cost/L</th>
-                  <th className="hide-mobile">Odometer</th>
-                  <th className="hide-mobile">Vehicle</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {new Date(log.loggedAt).toLocaleDateString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        year: "2-digit",
-                      })}
-                    </td>
-                    <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {log.stationName || <span style={{ color: "var(--text-faint)" }}>-</span>}
-                    </td>
-                    <td>{log.litres.toFixed(1)}L</td>
-                    <td style={{ fontWeight: 600 }}>{formatPence(log.costPence)}</td>
-                    <td className="hide-mobile">
-                      {(log.costPence / log.litres / 100).toFixed(1)}p/L
-                    </td>
-                    <td className="hide-mobile">
-                      {log.odometerReading ? `${log.odometerReading.toLocaleString()} mi` : <span style={{ color: "var(--text-faint)" }}>-</span>}
-                    </td>
-                    <td className="hide-mobile">
-                      {log.vehicle ? (
-                        `${log.vehicle.make} ${log.vehicle.model}`
-                      ) : (
-                        <span style={{ color: "var(--text-faint)" }}>-</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="table__actions">
-                        <button
-                          className="table__action-btn"
-                          onClick={() => openEdit(log)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="table__action-btn table__action-btn--danger"
-                          onClick={() => setDeleteLog(log)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-        </>
-      )}
-
-      {/* Add Modal */}
-      <Modal
-        open={showAdd}
-        onClose={() => setShowAdd(false)}
-        title="Add Fuel Fill-up"
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleAdd} disabled={addLoading}>
-              {addLoading ? "Adding..." : "Add fill-up"}
-            </Button>
-          </>
-        }
-      >
-        <div className="form-row">
-          <Input
-            id="addLitres"
-            label="Litres"
-            type="number"
-            step="0.1"
-            min="0"
-            value={addForm.litres}
-            onChange={(e) => setAddForm((f) => ({ ...f, litres: e.target.value }))}
-            placeholder="e.g. 45.5"
-          />
-          <Input
-            id="addCost"
-            label="Cost (pounds)"
-            type="number"
-            step="0.01"
-            min="0"
-            value={addForm.costPounds}
-            onChange={(e) => setAddForm((f) => ({ ...f, costPounds: e.target.value }))}
-            placeholder="e.g. 72.50"
-          />
-        </div>
-        <Input
-          id="addStation"
-          label="Station name"
-          value={addForm.stationName}
-          onChange={(e) => setAddForm((f) => ({ ...f, stationName: e.target.value }))}
-          placeholder="e.g. Tesco Extra"
-        />
-        <div className="form-row">
-          <Select
-            id="addVehicle"
-            label="Vehicle"
-            value={addForm.vehicleId}
-            onChange={(e) => setAddForm((f) => ({ ...f, vehicleId: e.target.value }))}
-            options={vehicleOptions}
-          />
-          <Input
-            id="addOdometer"
-            label="Odometer (miles)"
-            type="number"
-            step="1"
-            min="0"
-            value={addForm.odometerMiles}
-            onChange={(e) => setAddForm((f) => ({ ...f, odometerMiles: e.target.value }))}
-            placeholder="e.g. 45230"
-          />
-        </div>
-        <Input
-          id="addDate"
-          label="Date"
-          type="datetime-local"
-          value={addForm.loggedAt}
-          onChange={(e) => setAddForm((f) => ({ ...f, loggedAt: e.target.value }))}
-        />
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal
-        open={!!editLog}
-        onClose={() => setEditLog(null)}
-        title="Edit Fuel Fill-up"
-        footer={
-          <>
-            <Button variant="ghost" size="sm" onClick={() => setEditLog(null)}>
-              Cancel
-            </Button>
-            <Button variant="primary" size="sm" onClick={handleEdit} disabled={editLoading}>
-              {editLoading ? "Saving..." : "Save changes"}
-            </Button>
-          </>
-        }
-      >
-        <div className="form-row">
-          <Input
-            id="editLitres"
-            label="Litres"
-            type="number"
-            step="0.1"
-            min="0"
-            value={editForm.litres}
-            onChange={(e) => setEditForm((f) => ({ ...f, litres: e.target.value }))}
-            placeholder="e.g. 45.5"
-          />
-          <Input
-            id="editCost"
-            label="Cost (pounds)"
-            type="number"
-            step="0.01"
-            min="0"
-            value={editForm.costPounds}
-            onChange={(e) => setEditForm((f) => ({ ...f, costPounds: e.target.value }))}
-            placeholder="e.g. 72.50"
-          />
-        </div>
-        <Input
-          id="editStation"
-          label="Station name"
-          value={editForm.stationName}
-          onChange={(e) => setEditForm((f) => ({ ...f, stationName: e.target.value }))}
-          placeholder="e.g. Tesco Extra"
-        />
-        <div className="form-row">
-          <Select
-            id="editVehicle"
-            label="Vehicle"
-            value={editForm.vehicleId}
-            onChange={(e) => setEditForm((f) => ({ ...f, vehicleId: e.target.value }))}
-            options={vehicleOptions}
-          />
-          <Input
-            id="editOdometer"
-            label="Odometer (miles)"
-            type="number"
-            step="1"
-            min="0"
-            value={editForm.odometerMiles}
-            onChange={(e) => setEditForm((f) => ({ ...f, odometerMiles: e.target.value }))}
-            placeholder="e.g. 45230"
-          />
-        </div>
-        <Input
-          id="editDate"
-          label="Date"
-          type="datetime-local"
-          value={editForm.loggedAt}
-          onChange={(e) => setEditForm((f) => ({ ...f, loggedAt: e.target.value }))}
-        />
-      </Modal>
-
-      {/* Delete Confirmation */}
-      <ConfirmModal
-        open={!!deleteLog}
-        onClose={() => setDeleteLog(null)}
-        onConfirm={handleDelete}
-        title="Delete Fuel Log"
-        message="Are you sure you want to delete this fuel log? This action cannot be undone."
-        loading={deleteLoading}
+      <FuelLogDialog
+        open={dialogOpen}
+        log={editing}
+        vehicles={vehicleOptions}
+        onClose={() => setDialogOpen(false)}
+        onSaved={reloadAll}
+        onDelete={(l) => {
+          setDialogOpen(false);
+          setToDelete(l);
+        }}
+      />
+      <ConfirmDialog
+        open={!!toDelete}
+        title="Delete this fill-up?"
+        body="It goes from your fuel costs. This can't be undone."
+        confirmLabel="Delete"
+        destructive
+        onClose={() => setToDelete(null)}
+        onConfirm={async () => {
+          if (!toDelete) return;
+          await api.delete(`/fuel/logs/${toDelete.id}`);
+          show("Deleted");
+          reloadAll();
+        }}
       />
     </>
   );
