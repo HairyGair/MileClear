@@ -1,3 +1,4 @@
+import type { MileageReliefData } from "../utils/mileageRelief.js";
 // User types
 export type WorkType = "gig" | "employee" | "both";
 
@@ -123,6 +124,9 @@ export interface TaxSnapshot {
     taxBasis?: "cash" | "accruals";
 
     mileageDeductionPence: number;
+    /** How far the taxable profit plus other income is below the higher-rate
+     *  threshold, when within 15,000 pounds of it; else null. Tax tab, 10 Oct 2026. */
+    higherRateHeadroomPence?: number | null;
     /** Allowable (non-motor) expenses netted into the estimate, matching the
      *  Self Assessment wizard. Motor costs covered by AMAP are excluded. */
     allowableExpensesPence?: number;
@@ -1458,6 +1462,10 @@ export interface WeeklyPnL {
    *  /gamification/recap?period=weekly deductionPence (from 9 Oct 2026; it
    *  was approved rates on every trip, ignoring an employer's rate). */
   hmrcDeductionPence: number;
+  /** Mileage on your tax return: every claimable business trip at the approved
+   *  rates (the self-employment figure). Same value as hmrcDeductionPence from
+   *  10 Oct 2026; use this name in new code. */
+  taxReturnMileagePence?: number;
   businessMiles: number;
   totalTrips: number;
   /** Earnings dated this week (count), so "none this week" can be told
@@ -2418,6 +2426,10 @@ export interface TaxPlan {
   /** Put this by each week from today to cover the payments listed (up to
    *  coversTo). null when the next payment can't be worked out. */
   weeklySetAsidePence: number | null;
+  /** The part of weeklySetAsidePence that is the accountant's fee (annual fee / 52). */
+  accountantWeeklyFeePence?: number;
+  /** The tax-only part of weeklySetAsidePence, before the accountant's fee. */
+  weeklyTaxPence?: number | null;
   coversTo: string | null;
   /** No earnings recorded for the current tax year. */
   missingCurrentEarnings: boolean;
@@ -2428,6 +2440,77 @@ export interface TaxPlan {
   remindersOn: boolean;
   /** Has said they drive as an employee, or is in Personal mode. */
   mayNotApply: boolean;
+}
+
+/** GET /tax/overview: everything the Tax tab and the Home tax line show, one
+ *  request, no maths of its own (every figure comes from an existing service). */
+export interface TaxOverview {
+  /** UK calendar date the overview was built for, "2026-10-10". */
+  today: string;
+  /** "return" from 6 April to 31 January, "this_year" from 1 February to 5 April (UK dates). */
+  lead: "return" | "this_year";
+  workType: "gig" | "employee" | "both";
+  /** Active OrgMembership (same query as /team/me). */
+  isCompanyDriver: boolean;
+  /** Own, team and partner Pro all count. */
+  isPremium: boolean;
+  /** Any non-phantom trip, ever. */
+  hasTrips: boolean;
+
+  /** The Home/Insights mileage claim for this tax year. Null only if it failed. */
+  claim: null | {
+    taxYear: string;
+    totalMiles: number;
+    businessMiles: number;
+    claimPence: number;
+  };
+
+  /** gig/both only, else null. The return due next. */
+  return: null | {
+    taxYear: string;
+    deadline: string;
+    daysToDeadline: number;
+    attentionCount: number;
+    headline: string;
+    /** Items with status "attention", in checklist order, PDF excluded. */
+    attentionItems: SaChecklistItem[];
+    returnMileagePence: number;
+    businessMiles: number;
+    earningsPence: number;
+  };
+
+  /** gig/both only, else null. This tax year so far. */
+  thisYear: null | {
+    taxYear: string;
+    estimatedTaxPence: number;
+    grossEarningsPence: number;
+    returnMileagePence: number;
+    allowableExpensesPence: number;
+    higherRateHeadroomPence: number | null;
+    mileageDerivation: NumberDerivation;
+    earningsDerivation: NumberDerivation | null;
+  };
+
+  /** gig/both only, else null. */
+  plan: null | {
+    /** Includes the accountant's weekly fee. */
+    weeklySetAsidePence: number | null;
+    accountantWeeklyFeePence: number;
+    coversTo: string | null;
+    /** First payment with amount null or above zero. */
+    nextPayment: TaxPlannerPayment | null;
+    missingCurrentEarnings: boolean;
+    /** Has the driver said when they started working for themselves
+     *  (TaxPlannerSettings.firstSelfEmployedTaxYear)? */
+    startAssumed: boolean;
+    firstSelfEmployedTaxYear: string | null;
+  };
+
+  /** employee/both, or company drivers, else null. Same data as GET /mileage-relief. */
+  relief: MileageReliefData | null;
+
+  /** Sections that failed; each is then null. */
+  failed: Array<"claim" | "return" | "thisYear" | "plan" | "relief">;
 }
 
 /** GET /business-insights/running-cost: the one running cost per mile (9 Oct 2026). */

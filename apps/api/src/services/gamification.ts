@@ -143,14 +143,23 @@ async function getPersonalRecords(
 
 // ── getStats ────────────────────────────────────────────────────────
 
+/**
+ * The stored MileageSummary row for a tax year. The one read behind
+ * /gamification/stats (Home, Insights) and /tax/overview claim, so they
+ * always agree.
+ */
+export async function readTaxYearSummary(userId: string, taxYear: string) {
+  return prisma.mileageSummary.findUnique({
+    where: { userId_taxYear: { userId, taxYear } },
+  });
+}
+
 export async function getStats(userId: string): Promise<GamificationStats> {
   const now = new Date();
   const taxYear = getTaxYear(now);
 
   // Read mileage summary for current tax year
-  const summary = await prisma.mileageSummary.findUnique({
-    where: { userId_taxYear: { userId, taxYear } },
-  });
+  const summary = await readTaxYearSummary(userId, taxYear);
 
   // Today's miles (UK timezone)
   const { start: todayStart, end: todayEnd } = ukDayBounds(now);

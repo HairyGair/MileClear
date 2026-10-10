@@ -10,6 +10,8 @@ import {
   formatPence,
   formatMiles,
   HMRC_THRESHOLD_MILES,
+  UK_TAX_2025_26,
+  accountantWeeklyFee,
   type TaxSnapshot,
   type ReadinessItem,
   type VehicleType,
@@ -36,8 +38,7 @@ import { getHmrcRatesForTaxYear } from "@mileclear/shared";
  * values, allowable expense breakdown). The snapshot is deliberately simpler:
  * earnings minus mileage deduction = profit, no expense allocation.
  */
-export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
-  const now = new Date();
+export async function buildTaxSnapshot(userId: string, now: Date = new Date()): Promise<TaxSnapshot> {
   const taxYear = getTaxYear(now);
   const { start, end } = parseTaxYear(taxYear);
 
@@ -285,6 +286,17 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       ? Math.round((estimatedTaxPence / grossEarningsPence) * 10000) / 100
       : 0;
 
+  // Higher-rate headroom (Tax tab, 10 Oct 2026): when profit plus other income
+  // is within 15,000 pounds below the higher-rate threshold, how far below it
+  // is. The 2025-26 threshold is frozen, so the one constant serves every year.
+  const higherRateThresholdPence = UK_TAX_2025_26.basicRateThresholdPence;
+  const totalIncomePence = taxableProfitPence + (user?.otherAnnualIncomePence ?? 0);
+  const higherRateHeadroomPence =
+    totalIncomePence < higherRateThresholdPence &&
+    totalIncomePence >= higherRateThresholdPence - 1_500_000
+      ? higherRateThresholdPence - totalIncomePence
+      : null;
+
   // Set-aside recommendation: apply the YTD effective rate to last week's
   // gross. Self-corrects as the year progresses and the effective rate
   // becomes more accurate. Defaults to 25% (sensible basic-rate guess) for
@@ -300,10 +312,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
   // NOT a deduction against tax — the fee itself is separately
   // deductible on the SA103 but that's handled by the expenses surface.
   const accountantAnnualFeePence = user?.accountantAnnualFeePence ?? 0;
-  const accountantWeeklyFeePence =
-    accountantAnnualFeePence > 0
-      ? Math.round(accountantAnnualFeePence / 52)
-      : 0;
+  const accountantWeeklyFeePence = accountantWeeklyFee(accountantAnnualFeePence);
 
   const suggestedSetAsidePence = taxComponentPence + accountantWeeklyFeePence;
 
@@ -395,6 +404,7 @@ export async function buildTaxSnapshot(userId: string): Promise<TaxSnapshot> {
       invoiceIncomePence,
       taxBasis: userTaxBasis,
       mileageDeductionPence,
+      higherRateHeadroomPence,
       allowableExpensesPence,
       taxableProfitPence,
       grossTaxLiabilityPence,

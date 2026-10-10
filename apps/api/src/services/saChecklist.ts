@@ -160,7 +160,7 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
       id: "trips_sorted",
       status: "attention",
       title: "Trips logged",
-      detail: `No trips logged between ${taxYearRangeLabel(taxYear)}. If you drove for work then, add those journeys so the miles count.`,
+      detail: `No trips logged between ${taxYearBetweenLabel(taxYear)}. If you drove for work then, add those journeys so the miles count.`,
       action: "add_trip",
       actionLabel: "Add a past trip",
     });
@@ -169,7 +169,7 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
       id: "trips_sorted",
       status: "attention",
       title: "Trips sorted",
-      detail: `${plural(unclassifiedTrips, "trip")} (${milesText(unclassifiedMiles)}) from ${taxYear} still ${unclassifiedTrips === 1 ? "needs" : "need"} sorting into business or personal. Only business trips count towards your mileage claim.`,
+      detail: `${plural(unclassifiedTrips, "trip")} (${milesText(unclassifiedMiles)}) from ${taxYear} still ${unclassifiedTrips === 1 ? "needs" : "need"} sorting into business or personal. Only business trips count towards your mileage on the return.`,
       action: "unclassified_trips",
       actionLabel: "Sort trips",
     });
@@ -184,13 +184,16 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
     });
   }
 
-  // 2. Mileage claim
-  if (miles.businessMiles > 0) {
+  // 2. Mileage on your return. Left out when "Trips logged" needs attention:
+  // both said "Add a past trip".
+  if (totalTrips === 0) {
+    // no mileage item
+  } else if (miles.businessMiles > 0) {
     items.push({
       id: "mileage_claim",
       status: "done",
-      title: "Mileage claim",
-      detail: `${milesText(miles.businessMiles)} of business driving, worth ${formatPence(miles.mileageClaimPence)} at HMRC's mileage rates for ${taxYear}.`,
+      title: "Mileage on your return",
+      detail: `${milesText(miles.businessMiles)} of business driving, worth ${formatPence(miles.mileageClaimPence)} at the approved mileage rates for ${taxYear}.`,
       action: null,
       actionLabel: null,
     });
@@ -204,7 +207,7 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
     items.push({
       id: "mileage_claim",
       status: "attention",
-      title: "Mileage claim",
+      title: "Mileage on your return",
       detail: `No business miles for ${taxYear} yet.${next}`,
       action: unclassifiedTrips > 0 ? "unclassified_trips" : totalTrips === 0 ? "add_trip" : null,
       actionLabel: unclassifiedTrips > 0 ? "Sort trips" : totalTrips === 0 ? "Add a past trip" : null,
@@ -324,7 +327,7 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
       ? {
           id: "walkthrough",
           status: "done",
-          title: "Box-by-box walkthrough",
+          title: "Box by box",
           detail: `You've been through which box each ${taxYear} figure goes in.`,
           action: "self_assessment",
           actionLabel: "Open again",
@@ -332,7 +335,7 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
       : {
           id: "walkthrough",
           status: "attention",
-          title: "Box-by-box walkthrough",
+          title: "Box by box",
           detail: "See which box on your return each figure goes in. Free, and it takes a few minutes.",
           action: "self_assessment",
           actionLabel: "Start",
@@ -377,6 +380,12 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
     attentionCount,
     headline: buildHeadline(attentionCount, daysToDeadline, taxYear),
   };
+}
+
+/** "6 April 2025 and 5 April 2026" for a tax year string. */
+function taxYearBetweenLabel(taxYear: string): string {
+  const start = parseInt(taxYear.slice(0, 4), 10);
+  return `6 April ${start} and 5 April ${start + 1}`;
 }
 
 export function buildHeadline(attentionCount: number, days: number, taxYear: string): string {
