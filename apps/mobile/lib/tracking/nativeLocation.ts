@@ -54,6 +54,7 @@ import {
   type RecentFix,
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
+import { noteRecordingDropped } from "./recordingDrops";
 import { decideMotionStart } from "./motionStartRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
@@ -1238,11 +1239,27 @@ async function openNativeRecording(
     // rescued above. Clearing them stops stale coords mixing with this drive
     // and being (mis)gap-trimmed — the buffer hygiene problem affecting
     // ~1 in 5 users in the fleet diagnostics.
+    const leftover = await db
+      .getFirstAsync<{ oldest: string | null; newest: string | null }>(
+        "SELECT MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
+      )
+      .catch(() => null);
     const cleared = await db.runAsync("DELETE FROM detection_coordinates");
     if (cleared.changes > 0) {
       logDetectionEvent("native_buffer_cleared_on_open", {
         droppedCoords: cleared.changes,
       }).catch(() => {});
+      // Fixes nothing turned into a trip. Usually a couple of stationary
+      // leftovers, but now countable (recordingDrops.ts, 10 Oct 2026).
+      if (cleared.changes >= 2) {
+        await noteRecordingDropped({
+          reason: "stale_buffer_cleared",
+          source: "recording_open",
+          startedAt: leftover?.oldest ?? null,
+          endedAt: leftover?.newest ?? null,
+          coords: cleared.changes,
+        });
+      }
     }
   }
   if (reason === "speed") {

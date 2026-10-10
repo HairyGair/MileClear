@@ -162,6 +162,16 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       data TEXT
     );
 
+    -- App events waiting to reach /user/events (trip.recording_dropped, 10 Oct
+    -- 2026): written at the kerb, often offline or with the app closed. See
+    -- lib/tracking/recordingDrops.ts.
+    CREATE TABLE IF NOT EXISTS event_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      metadata TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
     -- Battery over time while the tracking engine is awake, shipped in the
     -- diagnostic dump; see lib/tracking/batterySamples.ts (24 Sep 2026).
     CREATE TABLE IF NOT EXISTS battery_samples (
@@ -399,6 +409,7 @@ const USER_DATA_TABLES = [
   "detection_events",
   "detection_lifecycle_events",
   "tracking_log",
+  "event_outbox",
   "battery_samples",
   "trips",
   "shifts",

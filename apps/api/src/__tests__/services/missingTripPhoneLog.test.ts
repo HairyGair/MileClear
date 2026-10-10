@@ -103,5 +103,15 @@ describe("dropsInWindow", () => {
     expect(drops.map((d) => d.reason)).toEqual(["no_coords", "too_short"]);
     expect(drops[1].distanceMiles).toBe(0.2);
     expect(drops[1].receivedAt).toBe("2026-10-10T07:00:00.000Z");
+    expect(drops[1].lost).toBe(false);
+  });
+
+  it("reads the phone's own lost flag", () => {
+    const [d] = dropsInWindow(
+      [{ createdAt: new Date("2026-10-09T08:31:00Z"), metadata: { reason: "walk", lost: true, endedAt: "2026-10-09T08:30:00.000Z" } }],
+      Date.parse(FROM),
+      Date.parse(TO)
+    );
+    expect(d.lost).toBe(true);
   });
 });

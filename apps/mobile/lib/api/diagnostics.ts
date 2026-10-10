@@ -207,6 +207,12 @@ function screenDetails(): { modelName: string | null; screenWidth: number; scree
 }
 
 export async function uploadDiagnosticDump(): Promise<void> {
+  // Recording-drop events that could not be sent at the time (offline at the
+  // kerb, or the app closed mid-send) go now, once per app start. Detached:
+  // it must not hold up or fail the dump. See lib/tracking/recordingDrops.ts.
+  import("../tracking/recordingDrops")
+    .then((m) => m.flushEventOutbox())
+    .catch(() => {});
   try {
     const [
       diagnostics,

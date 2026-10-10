@@ -5,6 +5,8 @@
 // using the support-playbook rules, so most answer themselves before being
 // opened:
 //   landed_after_report → Class 11: the trip arrived after the report.
+//   dropped_on_phone    → signal_start, then the phone's own drop event
+//                         (trip.recording_dropped, 10 Oct 2026) with a reason.
 //   open_recording      → Class 15: signal_start with no trip.created since;
 //                         the route is on the phone until their next drive.
 //   no_addresses        → Class 14: the trip is there with no addresses, so
@@ -48,6 +50,7 @@ import "@/components/admin/drivers/drivers.css";
 
 type Diagnosis =
   | "landed_after_report"
+  | "dropped_on_phone"
   | "open_recording"
   | "no_addresses"
   | "head_gap"
@@ -160,6 +163,11 @@ const DIAGNOSIS: Record<Diagnosis, { label: string; tone: Tone; hint: string }> 
     tone: "good",
     hint: "The trip was created shortly after the report (finishing or syncing late). Nothing to recover; a push pointing at Trips closes it.",
   },
+  dropped_on_phone: {
+    label: "Recorded, then dropped by the phone",
+    tone: "warn",
+    hint: "The phone started a recording and then did not save a trip, and said why (the reason is in the evidence). Too short, walk and phantom drops are offered back to the driver as a 'was this a drive?' row; an error is retried at the next app open. If the reason looks wrong for a real drive, add the trip for them and note the reason.",
+  },
   open_recording: {
     label: "Recording still open on the phone",
     tone: "bad",
@@ -192,7 +200,7 @@ const DIAGNOSIS: Record<Diagnosis, { label: string; tone: Tone; hint: string }> 
   },
 };
 
-const ORDER: Diagnosis[] = ["open_recording", "head_gap", "silent_non_capture", "permission_gap", "no_addresses", "needs_look", "landed_after_report"];
+const ORDER: Diagnosis[] = ["open_recording", "dropped_on_phone", "head_gap", "silent_non_capture", "permission_gap", "no_addresses", "needs_look", "landed_after_report"];
 const NEEDS_FIX: Diagnosis[] = ["open_recording", "head_gap", "silent_non_capture"];
 
 function ago(iso: string | null): string {

@@ -47,7 +47,7 @@ import { adminPaidAdsRoutes } from "./paidAds.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
-import { dropsInWindow, readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
+import { dropsInWindow, readRecordingDrop, readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
   getSubscriptionTruth,
@@ -3202,10 +3202,11 @@ export async function adminRoutes(app: FastifyInstance) {
           prisma.appEvent.findMany({
             where: {
               userId: { in: ids },
-              type: "trip.signal_start",
+              // Drops (10 Oct 2026) explain a signal with no trip.
+              type: { in: ["trip.signal_start", "trip.recording_dropped"] },
               createdAt: { gte: windowStart },
             },
-            select: { userId: true, type: true, createdAt: true },
+            select: { userId: true, type: true, createdAt: true, metadata: true },
             orderBy: { createdAt: "asc" },
           }),
           prisma.trip.findMany({
@@ -3270,6 +3271,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     type Diagnosis =
       | "landed_after_report"
+      | "dropped_on_phone"
       | "open_recording"
       | "no_addresses"
       | "head_gap"
@@ -3340,7 +3342,23 @@ export async function adminRoutes(app: FastifyInstance) {
               // added by support days later does not count as closing it.
               t.createdAt.getTime() <= sig + DAY
           );
-          if (!closed) {
+          // The phone said what became of it (trip.recording_dropped, sent
+          // since 10 Oct 2026): too short, a walk, a phantom, an error...
+          const drop = closed
+            ? null
+            : userEvents
+                .filter((ev) => ev.type === "trip.recording_dropped" && ev.createdAt.getTime() >= sig - 10 * 60000)
+                .map((ev) => readRecordingDrop(ev.createdAt, ev.metadata))
+                .find((d) => {
+                  const t = Date.parse(d.at);
+                  // Merged or deduped means a trip holds these miles already.
+                  const explains = d.reason !== "merged" && d.reason !== "deduped";
+                  return explains && Number.isFinite(t) && t >= sig - 10 * 60000 && t <= sig + 12 * HOUR;
+                });
+          if (drop) {
+            diagnosis = "dropped_on_phone";
+            evidence = `trip.signal_start ${mins(at - sig)} min before the report; the phone dropped the recording as "${drop.reason}"${drop.detail ? ` (${drop.detail})` : ""}${drop.distanceMiles != null ? `, ${drop.distanceMiles.toFixed(2)} mi` : ""}${drop.coords != null ? `, ${drop.coords} fixes` : ""}.`;
+          } else if (!closed) {
             diagnosis = "open_recording";
             const hb = e.user?.lastHeartbeatAt?.getTime() ?? null;
             const frozen = hb !== null && Math.abs(hb - lastSignal.createdAt.getTime()) <= 2 * 60000;

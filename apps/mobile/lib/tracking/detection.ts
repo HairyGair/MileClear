@@ -8,6 +8,7 @@ import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { isLifecycleEvent, LIFECYCLE_EVENT_CAP, LIFECYCLE_EVENT_WINDOW_MS } from "./lifecycleEvents";
 import { appendTrackingLog } from "./trackingLogStore";
+import { noteRecordingDropped } from "./recordingDrops";
 import { getAppMode } from "../mode/index";
 import {
   sendDrivingDetectedNotification,
@@ -497,6 +498,19 @@ export async function logDetectionEvent(event: string, data?: Record<string, unk
   } catch {
     // Logging failures must never break detection
   }
+}
+
+/** First and last time and size of a buffered route, for a drop event. */
+function dropSpan(coords: ReadonlyArray<{ recorded_at: string }>): {
+  startedAt: string | null;
+  endedAt: string | null;
+  coords: number;
+} {
+  return {
+    startedAt: coords[0]?.recorded_at ?? null,
+    endedAt: coords[coords.length - 1]?.recorded_at ?? null,
+    coords: coords.length,
+  };
 }
 
 /**
@@ -1858,6 +1872,10 @@ async function _finalizeAutoTripInner(): Promise<void> {
   if (allCoords.length < 2) {
     // No meaningful trip - dismiss Live Activity immediately
     logDetectionEvent("finalize_no_coords").catch(() => {});
+    // Every exit below that saves no new trip also says so to the server
+    // (recordingDrops.ts, 10 Oct 2026), so "a drive started and no trip
+    // arrived" can be counted and explained instead of guessed at.
+    await noteRecordingDropped({ reason: "no_coords", ...dropSpan(allCoords) });
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     // Re-arm the departure anchor at the current position. Critical for
@@ -1910,6 +1928,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
       distanceMiles: earlyDistMiles,
       nativeCount,
     }).catch(() => {});
+    await noteRecordingDropped({
+      reason: "phantom",
+      detail: "momentary",
+      ...dropSpan(allCoords),
+      distanceMiles: earlyDistMiles,
+      nativeCoords: nativeCount,
+    });
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     try {
@@ -1963,6 +1988,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       keptCoords: coords.length,
       endIdx,
     }).catch(() => {});
+    await noteRecordingDropped({ reason: "tail_trim", ...dropSpan(allCoords) });
     await consumeProcessedBuffer();
     return;
   }
@@ -2009,6 +2035,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     );
     if (already) {
       logDetectionEvent("finalize_dedup_local_skip", { tripId: already.id }).catch(() => {});
+      await noteRecordingDropped({ reason: "deduped", detail: "same_start_saved", ...dropSpan(filteredCoords) });
       await consumeProcessedBuffer();
       endLiveActivity().catch(() => {});
       return;
@@ -2062,6 +2089,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
       gpsSumDistance,
       wasRealDriving,
     }).catch(() => {});
+    await noteRecordingDropped({
+      reason: "too_short",
+      detail: wasRealDriving ? "driving_speed" : "no_driving_speed",
+      ...dropSpan(filteredCoords),
+      distanceMiles: totalDistance,
+    });
     await consumeProcessedBuffer();
     if (wasRealDriving) {
       const { markLiveActivityTooShort } = await import("../liveActivity");
@@ -2160,6 +2193,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
       pctOnFoot: motion.pctOnFoot,
       steps,
     }).catch(() => {});
+    await noteRecordingDropped({
+      reason: "walk",
+      detail: walk.reason,
+      ...dropSpan(filteredCoords),
+      distanceMiles: totalDistance,
+    });
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     // The verdict stands, but it is not silent any more. The walking-pace
@@ -2198,6 +2237,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
       durationSec: Math.round(durationSec),
       avgMph: Math.round(avgMph * 10) / 10,
     }).catch(() => {});
+    await noteRecordingDropped({
+      reason: "phantom",
+      detail: "walking_shape",
+      ...dropSpan(filteredCoords),
+      distanceMiles: totalDistance,
+    });
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
     // Same as the walk verdict above: keep the drop, lose the silence. A slow
@@ -2261,6 +2306,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
         coords: filteredCoords.length,
         reason: "implausible_distance",
       }).catch(() => {});
+      await noteRecordingDropped({
+        reason: "crow_flies",
+        detail: "implausible_distance",
+        ...dropSpan(filteredCoords),
+        distanceMiles: totalDistance,
+      });
       await consumeProcessedBuffer();
       endLiveActivity().catch(() => {});
       try {
@@ -2385,6 +2436,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
           tripId: recentTrip.id,
           kind: "merged",
         }).catch(() => {});
+        await noteRecordingDropped({ reason: "deduped", detail: "already_merged", ...dropSpan(filteredCoords) });
         await consumeProcessedBuffer();
         endLiveActivity().catch(() => {});
         return;
@@ -2470,6 +2522,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         });
         merged = true;
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
+        await noteRecordingDropped({ reason: "merged", ...dropSpan(filteredCoords), distanceMiles: totalDistance });
 
         // Feed the dashboard status strip — the merged trip is the user's
         // "last saved trip" with its new combined total.
@@ -2648,9 +2701,30 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // syncCreateTrip returned null = hit the dedup window (another sync
       // path already saved this trip within 2 minutes). Log explicitly so
       // this path is distinguishable from a real save.
+      //
+      // 10 Oct 2026: null ALSO means "saved on the phone, upload queued"
+      // (offline, or the API call failed). Tell the two apart: the exact
+      // started_at guard above has already stopped a re-run of this same leg,
+      // so a local row with this start time is the one just written.
+      let queuedOffline = false;
+      try {
+        queuedOffline = !!(await db.getFirstAsync<{ id: string }>(
+          "SELECT id FROM trips WHERE started_at = ? LIMIT 1",
+          [first.recorded_at]
+        ));
+      } catch {}
       logDetectionEvent("finalize_dedup_skipped", {
         distance: totalDistance,
+        queuedOffline,
       }).catch(() => {});
+      if (!queuedOffline) {
+        await noteRecordingDropped({
+          reason: "deduped",
+          detail: "saved_within_2_min",
+          ...dropSpan(filteredCoords),
+          distanceMiles: totalDistance,
+        });
+      }
     } else {
       logDetectionEvent("finalize_saved", {
         tripId: savedTripId,
@@ -2799,6 +2873,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
     logDetectionEvent("finalize_save_failed", {
       error: errorMessage.slice(0, 500),
     }).catch(() => {});
+    // The fixes stay on the phone and the next app open finalises again, so
+    // this is not a loss yet, but it is a drive with no trip for now.
+    await noteRecordingDropped({ reason: "error", detail: errorMessage, ...dropSpan(allCoords) });
     // Dismiss Live Activity on failure
     endLiveActivity().catch(() => {});
   }
@@ -2970,6 +3047,15 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
         overlap: Math.round((savedOverlap ?? 0) * 100) / 100,
         spanMin: Math.round((spanEndMs - spanStartMs) / 60000),
       }).catch(() => {});
+      await noteRecordingDropped({
+        reason: "deduped",
+        detail: "route_already_saved",
+        source: `orphan_${source}`,
+        startedAt: Number.isFinite(spanStartMs) ? new Date(spanStartMs).toISOString() : null,
+        endedAt: spanEndMs > 0 ? new Date(spanEndMs).toISOString() : null,
+        coords: jsCoordCount,
+        nativeCoords: native?.count ?? null,
+      });
       await db.runAsync("DELETE FROM detection_coordinates");
       try {
         const { destroyNativeLocations } = await import("./nativeLocation");
@@ -3015,10 +3101,33 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
   stopWatchdog();
   dismissRecordingActiveNotification().catch(() => {});
   const db = await getDatabase();
+  // What is being thrown away, for the drop event below (read before the
+  // deletes). Best-effort: a failed read just sends a thinner event.
+  let cancelled: { n: number; oldest: string | null; newest: string | null; armed: boolean } | null = null;
+  if (clearCoords) {
+    try {
+      const span = await db.getFirstAsync<{ n: number; oldest: string | null; newest: string | null }>(
+        "SELECT COUNT(*) AS n, MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
+      );
+      const armed = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+      );
+      cancelled = { n: span?.n ?? 0, oldest: span?.oldest ?? null, newest: span?.newest ?? null, armed: armed?.value === "1" };
+    } catch {}
+  }
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
   if (clearCoords) {
+    if (cancelled && (cancelled.armed || cancelled.n >= 2)) {
+      await noteRecordingDropped({
+        reason: "cancelled",
+        detail: "not_driving",
+        startedAt: cancelled.oldest,
+        endedAt: cancelled.newest,
+        coords: cancelled.n,
+      });
+    }
     await db.runAsync("DELETE FROM detection_coordinates");
     // The native engine keeps its own copy of the fixes. Left in place, the
     // orphan-route sweep at the next app open would turn the ride the driver
@@ -4913,7 +5022,9 @@ async function discardAutoRecordingWhileOff(source: string, nativeCoords: number
   try {
     stopWatchdog();
     const db = await getDatabase();
-    const buffered = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM detection_coordinates");
+    const buffered = await db.getFirstAsync<{ n: number; oldest: string | null; newest: string | null }>(
+      "SELECT COUNT(*) AS n, MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
+    );
     const wasRecording = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
@@ -4938,6 +5049,16 @@ async function discardAutoRecordingWhileOff(source: string, nativeCoords: number
         nativeCoords,
         wasRecording: wasRecording?.value === "1",
       }).catch(() => {});
+    }
+    if (wasRecording?.value === "1" || jsCoords >= 2) {
+      await noteRecordingDropped({
+        reason: "switched_off",
+        source,
+        startedAt: buffered?.oldest ?? null,
+        endedAt: buffered?.newest ?? null,
+        coords: jsCoords,
+        nativeCoords,
+      });
     }
   } catch {
     // best effort: the next sweep asks again and discards again

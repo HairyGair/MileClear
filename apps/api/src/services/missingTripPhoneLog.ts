@@ -177,6 +177,9 @@ export interface RecordingDrop {
   at: string;
   reason: string;
   detail: string | null;
+  /** The phone's own call: true when the drive's miles are not in the trip
+   *  list (merged, deduped and error are false). */
+  lost: boolean;
   startedAt: string | null;
   endedAt: string | null;
   distanceMiles: number | null;
@@ -196,6 +199,7 @@ export function readRecordingDrop(createdAt: Date, metadata: unknown): Recording
     at: endedAt ?? startedAt ?? droppedAt ?? createdAt.toISOString(),
     reason: str(m.reason) ?? "unknown",
     detail: str(m.detail),
+    lost: m.lost === true,
     startedAt,
     endedAt,
     distanceMiles: num(m.distanceMiles),
