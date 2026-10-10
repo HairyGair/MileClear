@@ -129,8 +129,9 @@ export function recordingMessages(p: PhoneState): { blocker: BlockerId | null; s
     motionStatus: p.motion,
     chaseUndeterminedMotion: Platform.OS === "android",
     notifPermission: p.notifications,
-    // Battery is an Android nudge Home snoozes; Settings leaves it to the
-    // Recording screen so one phone setting cannot colour the whole page.
+    // Battery optimisation is an Android nudge Home snoozes and shows on its
+    // own; Settings leaves it out so one phone setting cannot colour the whole
+    // page (Check recording in detail covers it).
     batteryApplicable: false,
     batteryIgnoring: null,
     batteryDismissedAt: null,
