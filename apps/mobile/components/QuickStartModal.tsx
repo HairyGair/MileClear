@@ -18,7 +18,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
  * Quick Start — first-launch tutorial. 5 cards introducing the core
  * value loop of MileClear: tracking → classifying → tax →
  * tax submission. Fires once per install (gated by tracking_state
- * key 'quick_start_shown'), can be replayed from Help & Tutorials.
+ * key 'quick_start_shown'), no longer replayed from Help (the replay button never opened it).
  *
  * Deliberately not a full walkthrough of every screen — it's the
  * "elevator pitch" version so a new user understands what they're
@@ -36,27 +36,27 @@ const CARDS: Card[] = [
   {
     icon: "speedometer-outline",
     title: "Every mile, automatically",
-    body: "Drive past 15mph and MileClear starts recording in the background. Set Home and Work as saved locations and we'll auto-detect those routes too. Your Lock Screen shows the trip live while you drive.",
+    body: "Set off and MileClear starts recording by itself once you reach driving speed. The line at the top of Home tells you it's working. Save Home and Work under Saved places so your trips show their names.",
   },
   {
     icon: "swap-horizontal-outline",
-    title: "Tag it Work or Personal",
-    body: "After each trip, tag it as Work (counts towards HMRC) or Personal (just for your records). Do the same A→B journey three times and we'll auto-classify the fourth - taps disappear fast.",
+    title: "Business or Personal",
+    body: "After each trip, mark it Business (counts towards your mileage claim) or Personal. Mark the same journey the same way three times and MileClear sorts it for you after that.",
   },
   {
     icon: "calculator-outline",
-    title: "Real-time tax estimate",
-    body: "The Tax tab shows roughly what you'll owe at the end of the tax year, updated as you drive. The weekly figure tells you what to put by, so January isn't a surprise.",
+    title: "Your tax so far",
+    body: "The Tax tab shows your tax so far, worked out from what you've recorded, and what to put by each week so January isn't a surprise.",
   },
   {
     icon: "cloud-upload-outline",
-    title: "Submit straight to HMRC",
-    body: "From April 2026, sole traders earning £50k+ must submit four quarterly returns to HMRC. MileClear Pro does this for you - Connect once, preview every quarter, tap Submit. No paperwork.",
+    title: "Your return, box by box",
+    body: "Box by box on the Tax tab shows the figure for each box of the self-employment pages and where it goes. You or your accountant file the return; MileClear doesn't send anything to HMRC.",
   },
   {
     icon: "checkmark-circle",
     title: "You're set",
-    body: "Add your vehicle in Settings → Vehicles to get started. Tap your avatar any time for Help & Tutorials. Drive safe.",
+    body: "Add your vehicle in More > Vehicles to get started. Help and how-tos is in More any time. Drive safe.",
   },
 ];
 
