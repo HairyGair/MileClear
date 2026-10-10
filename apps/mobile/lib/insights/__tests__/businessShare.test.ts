@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBusinessShareData, canIncludeEarnings } from "../businessShare";
+import { buildBusinessShareData, canIncludeEarnings, createPendingShare } from "../businessShare";
 
 const cur = { businessMiles: 182.4, trips: 6, claimPence: 8208, earningsPence: 12345 };
 
@@ -26,5 +26,22 @@ describe("canIncludeEarnings", () => {
     expect(canIncludeEarnings({ earningsPence: 1 })).toBe(true);
     expect(canIncludeEarnings({ earningsPence: 0 })).toBe(false);
     expect(canIncludeEarnings({ earningsPence: null })).toBe(false);
+  });
+});
+
+describe("createPendingShare", () => {
+  it("hands the held share over once", () => {
+    const p = createPendingShare<string>();
+    expect(p.take()).toBeNull();
+    p.set("week");
+    expect(p.take()).toBe("week");
+    // onDismiss and the Android wait must never open two share sheets.
+    expect(p.take()).toBeNull();
+  });
+  it("keeps the latest share chosen", () => {
+    const p = createPendingShare<string>();
+    p.set("week");
+    p.set("month");
+    expect(p.take()).toBe("month");
   });
 });

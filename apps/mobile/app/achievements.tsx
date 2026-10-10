@@ -15,6 +15,7 @@ import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { maybeRequestReview } from "../lib/rating/index";
 import { colors, fonts } from "../lib/theme";
 import { Medal } from "../components/insights/BadgesRow";
+import { badgeSpokenLabel } from "../lib/insights/badges";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const BG = colors.bg;
@@ -101,11 +102,7 @@ export default function AchievementsScreen() {
               key={type}
               style={[s.badgeCard, isEarned && s.badgeEarned]}
               accessible={true}
-              accessibilityLabel={
-                isEarned
-                  ? `${meta.label}: ${meta.description}. Earned`
-                  : `${meta.label}: ${meta.description}. Not yet earned`
-              }
+              accessibilityLabel={badgeSpokenLabel(meta.label, meta.description, isEarned)}
             >
               <View style={s.badgeMedal}>
                 <Medal type={type} state={isEarned ? "earned" : "next"} size={40} />

@@ -532,7 +532,7 @@ export const ACHIEVEMENT_META: Record<
   miles_10000: { label: "10K Titan", description: "10,000 miles, the point where the mileage rate steps down. Big milestone!", emoji: "🏆" },
   miles_25000: { label: "Quarter Century", description: "25,000 miles, you've driven around the Earth", emoji: "🌍" },
   miles_50000: { label: "Legend of the Road", description: "50,000 miles, twice around the world. Absolute legend", emoji: "👑" },
-  miles_100000: { label: "Hundred Grand", description: "100,000 miles, that's to the Moon and halfway back!", emoji: "💎" },
+  miles_100000: { label: "Hundred Grand", description: "100,000 miles, that's four times around the world!", emoji: "💎" },
   // Trip count
   trips_1: { label: "First Wheels", description: "Trip number one. Everyone starts somewhere!", emoji: "🚗" },
   trips_10: { label: "Getting Rolling", description: "10 trips logged, you're building a habit", emoji: "📍" },

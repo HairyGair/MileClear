@@ -41,3 +41,15 @@ export function weekMoneyHeadline(w: WeekMoney, formatPence: (p: number) => stri
 export function weeksBackFor(period: "week" | "month" | "tax_year", offset: number): number {
   return period === "week" ? Math.max(0, -offset) : 0;
 }
+
+/**
+ * Labels for the week's money in and out. Fuel is what the driver paid at the
+ * pump that week (fill-ups logged in the week), not an estimate from miles, so
+ * it must not say "estimate". Wear and tear is worked out from miles.
+ */
+export const WEEK_MONEY_LABELS = {
+  paidIn: "Paid in",
+  fuel: "Fuel bought",
+  wear: "Wear and tear (estimate)",
+  left: "Left after costs",
+} as const;

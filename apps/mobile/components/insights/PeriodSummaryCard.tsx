@@ -5,7 +5,7 @@
 // figures and one quiet line that opens the paywall.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Modal, Switch, Text, TouchableOpacity, useWindowDimensions, View, StyleSheet } from "react-native";
+import { AccessibilityInfo, Modal, Platform, Switch, Text, TouchableOpacity, useWindowDimensions, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, heroCard, numberSizes } from "../../lib/theme";
@@ -17,7 +17,7 @@ import { RecapShareCard, captureAndShareRecap, type RecapShareCardProps } from "
 import type { PeriodSummaryState, PeriodTripsState } from "../../hooks/useInsightsData";
 import type { Celebration } from "../../hooks/useInsightsCelebration";
 import { BusinessRecapShareCard, captureAndShareBusinessRecap } from "../business/BusinessShareableRecap";
-import { buildBusinessShareData, canIncludeEarnings } from "../../lib/insights/businessShare";
+import { buildBusinessShareData, canIncludeEarnings, createPendingShare } from "../../lib/insights/businessShare";
 import { shareHeading, sharePeriodTotalLabel } from "../../lib/insights/shareLabels";
 import {
   bucketTrips,
@@ -65,6 +65,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
   // Work share: a small sheet with "Include earnings" (off by default).
   const [shareOpen, setShareOpen] = useState(false);
   const [includeEarnings, setIncludeEarnings] = useState(false);
+  const pendingBusinessShare = useRef(createPendingShare<ReturnType<typeof buildBusinessShareData>>()).current;
 
   const current = summary.current;
   const showComparison = isPro && period !== "tax_year";
@@ -199,11 +200,18 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
     ? buildBusinessShareData(shareHeading(period, offset, range), current, includeEarnings)
     : null;
   const earningsToInclude = canIncludeEarnings(current);
+  const runPendingBusinessShare = () => {
+    const data = pendingBusinessShare.take();
+    if (data) captureAndShareBusinessRecap(shareRef, data);
+  };
   const doShare = () => {
     if (businessShare) {
+      // iOS will not present the share sheet while this Modal is still on
+      // screen (a fixed delay raced the fade and nothing opened), so share
+      // from the Modal's onDismiss there. Android has no onDismiss: wait.
+      pendingBusinessShare.set(businessShare);
       setShareOpen(false);
-      // Let the sheet close before the share sheet opens.
-      setTimeout(() => captureAndShareBusinessRecap(shareRef, businessShare), 350);
+      if (Platform.OS !== "ios") setTimeout(runPendingBusinessShare, 350);
     } else {
       captureAndShareRecap(shareRef, shareData);
     }
@@ -276,7 +284,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
       </View>
 
       {businessShare && (
-        <Modal visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)}>
+        <Modal visible={shareOpen} transparent animationType="fade" onRequestClose={() => setShareOpen(false)} onDismiss={runPendingBusinessShare}>
           <View style={styles.sheetBackdrop}>
             <View style={styles.sheet} accessibilityViewIsModal>
               <Text style={styles.sheetTitle} maxFontSizeMultiplier={fontScaleCap.heading} accessibilityRole="header">
