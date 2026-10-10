@@ -793,6 +793,8 @@ function RootNavigator() {
         <Stack.Screen name="settings/security" options={{ headerShown: true, title: "Security" }} />
         <Stack.Screen name="settings/business" options={{ headerShown: true, title: "Business Profile" }} />
         <Stack.Screen name="settings/home" options={{ headerShown: true, title: "Home screen" }} />
+        <Stack.Screen name="settings/preferences" options={{ headerShown: true, title: "Preferences" }} />
+        <Stack.Screen name="settings/profile" options={{ headerShown: true, title: "Profile" }} />
       </Stack>
       <QuickStartModal
         visible={quickStartVisible}
