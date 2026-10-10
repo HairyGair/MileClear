@@ -94,7 +94,7 @@ const ANDROID_BETA_URL = "https://mileclear.com/updates/mileclear-on-android-clo
 export function HomeIdle(p: Props) {
   const router = useRouter();
   const { mode, isPersonal } = useMode();
-  const { user, isCompanyDriver } = useUser();
+  const { user, isCompanyDriver, seesCompanyDriverApp } = useUser();
   const isPremium = useIsPremium();
   const { showPaywall } = usePaywall();
   const { width, fontScale } = useWindowDimensions();
@@ -193,7 +193,9 @@ export function HomeIdle(p: Props) {
   const odo = useOdometerAsk(isWork, totalTrips);
   const employer = useEmployerAsk({
     isWork,
-    isCompanyDriver,
+    // Anyone on the company-driver app (team or "A company car") has an
+    // employer arrangement already; do not ask them again.
+    isCompanyDriver: seesCompanyDriverApp,
     workType: user?.workType,
     hasBusinessMileage,
   });

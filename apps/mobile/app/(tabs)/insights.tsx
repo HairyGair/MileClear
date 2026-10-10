@@ -49,7 +49,7 @@ import { clearInsightsValue, getInsightsValue, setInsightsValue, WEEKLY_GOAL_KEY
 export default function InsightsScreen() {
   const router = useRouter();
   const { isWork, isPersonal } = useMode();
-  const { user, isCompanyDriver } = useUser();
+  const { user, seesCompanyDriverApp: companyApp } = useUser();
   const { showPaywall } = usePaywall();
   const reducedMotion = useReducedMotion();
   const { view, period: periodParam, offset: offsetParam, at: atParam } = useLocalSearchParams<{
@@ -113,7 +113,7 @@ export default function InsightsScreen() {
   const summary = usePeriodSummary(period, offset, mode, isPro, refreshKey);
   const bars = usePeriodTrips(period, offset, mode, refreshKey);
   const profile = useInsightsProfile(refreshKey);
-  const weekDates = useRecentTripDates(isPersonal && !isCompanyDriver, refreshKey);
+  const weekDates = useRecentTripDates(isPersonal && !companyApp, refreshKey);
   // Running costs follow Week and Month; Tax year shows this month and says so.
   const monthRange = useMemo(() => getPeriodRange("month", 0), []);
   const cost = useMemo(() => costWindow(period, offset, range, monthRange), [period, offset, range, monthRange]);
@@ -239,9 +239,9 @@ export default function InsightsScreen() {
       stats={stats}
       earnedTypes={earnedTypes}
       tripDates={weekDates.status === "ready" ? weekDates.dates : null}
-      hideStreak={isCompanyDriver}
+      hideStreak={companyApp}
       weeklyGoal={goal}
-      hideGoal={isCompanyDriver}
+      hideGoal={companyApp}
       avatarId={user?.avatarId}
       reducedMotion={reducedMotion}
       onOpenAchievements={() => router.push("/achievements")}
@@ -337,21 +337,21 @@ export default function InsightsScreen() {
                   mode={mode}
                   isPro={isPro}
                   refreshToken={refreshKey}
-                  isCompanyDriver={isCompanyDriver}
+                  isCompanyDriver={companyApp}
                   showDriversNearYou={vis.showDriversNearYou}
                   showGoDeeper={vis.showGoDeeper}
                   comingUp={comingUp}
                   recordsAndBadges={recordsAndBadges}
                   showHowYouCompare={showHowYouCompare({
                     isWork,
-                    isCompanyDriver,
+                    isCompanyDriver: companyApp,
                     enoughTrips: vis.showDriversNearYou,
                     deductionPence: stats?.deductionPence,
                   })}
                   showEarningsGoal={showWeeklyEarningsGoal({
                     isWork,
                     isGig: isGigWorkType(user?.workType),
-                    isCompanyDriver,
+                    isCompanyDriver: companyApp,
                     period,
                     offset,
                     enoughTrips: vis.showDriversNearYou,

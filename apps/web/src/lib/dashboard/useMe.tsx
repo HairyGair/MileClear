@@ -31,6 +31,8 @@ export interface Me {
   /** False until GET /team/me has answered, so rows don't flash. */
   teamReady: boolean;
   isCompanyDriver: boolean;
+  /** What to hide: team company driver OR "A company car" chosen in Settings. Visibility only, never Pro or team features. */
+  seesCompanyDriverApp: boolean;
   isGigDriver: boolean;
   isEmployee: boolean;
   isAdmin: boolean;
@@ -134,6 +136,7 @@ export function MeProvider({ children }: { children: ReactNode }) {
       team,
       teamReady,
       isCompanyDriver,
+      seesCompanyDriverApp: isCompanyDriver || workType === "company",
       isGigDriver: (workType === "gig" || workType === "both") && !isCompanyDriver,
       isEmployee: workType === "employee" || workType === "both",
       isAdmin: !!user?.isAdmin,

@@ -11,8 +11,8 @@ import "./tax.css";
  * never flashes an empty card. GET /self-assessment/checklist.
  */
 export function SaCountdownCard({ mode }: { mode: "work" | "personal" }) {
-  const { isCompanyDriver } = useMe();
-  const enabled = mode === "work" && !isCompanyDriver;
+  const { seesCompanyDriverApp } = useMe();
+  const enabled = mode === "work" && !seesCompanyDriverApp;
   const { data, error, reload } = useData<SaChecklist>(enabled ? "sa-checklist" : null, () =>
     api.get<{ data: SaChecklist }>("/self-assessment/checklist").then((r) => r.data)
   );

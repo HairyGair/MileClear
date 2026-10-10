@@ -16,7 +16,7 @@ import "./tax.css";
  *   <TaxReadinessCard mode="work" hub />      Tax hub: links row and empty state
  */
 export function TaxReadinessCard({ mode, hub = false }: { mode: "work" | "personal"; hub?: boolean }) {
-  const { isCompanyDriver, isGigDriver, isEmployee } = useMe();
+  const { seesCompanyDriverApp, isGigDriver, isEmployee } = useMe();
   const enabled = mode === "work" || hub;
   const { data, error, loading, reload } = useData<TaxSnapshot>(enabled ? "tax-snapshot" : null, () =>
     api.get<{ data: TaxSnapshot }>("/business-insights/tax-snapshot").then((r) => r.data)
@@ -54,7 +54,7 @@ export function TaxReadinessCard({ mode, hub = false }: { mode: "work" | "person
 
   // Employees and company drivers have no self-employed tax to estimate: the
   // headline is the mileage claim the snapshot returns.
-  const claimOnly = isCompanyDriver || (isEmployee && !isGigDriver);
+  const claimOnly = seesCompanyDriverApp || (isEmployee && !isGigDriver);
   const noEarnings = ytd.grossEarningsPence === 0;
   const showClaim = claimOnly || noEarnings;
   const milesFact = ytd.mileageDeductionDerivation.components.find((c) => /business miles/i.test(c.label));
@@ -230,7 +230,7 @@ export function TaxReadinessCard({ mode, hub = false }: { mode: "work" | "person
           <Link href="/dashboard/tax/self-assessment" className="mc-textlink">
             Your return
           </Link>
-          {!isCompanyDriver && (
+          {!seesCompanyDriverApp && (
             <Link href="/dashboard/tax/payment-plan" className="mc-textlink">
               Payment plan
             </Link>

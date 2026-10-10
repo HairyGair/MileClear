@@ -11,7 +11,7 @@ interface HmrcStatus {
 
 /** Tax hub: the readiness card, then links grouped by what the driver needs. */
 export default function TaxHubPage() {
-  const { isCompanyDriver, isGigDriver, isEmployee } = useMe();
+  const { seesCompanyDriverApp, isGigDriver, isEmployee } = useMe();
   // 200 + connected shows the quarterly row. Any error (503 not configured, 404) hides it.
   const { data: hmrc } = useData<HmrcStatus | null>("hmrc-status", () =>
     api
@@ -29,7 +29,7 @@ export default function TaxHubPage() {
         <div className="mc-tax-groups">
           <SettingsGroup title="Your tax return">
             <SettingsRow icon="calculator-outline" label="Self Assessment" hint="Your figures, box by box" href="/dashboard/tax/self-assessment" />
-            {!isCompanyDriver && (
+            {!seesCompanyDriverApp && (
               <SettingsRow icon="calendar-outline" label="Tax payment plan" hint="What to pay and when" href="/dashboard/tax/payment-plan" />
             )}
             {isGigDriver && (

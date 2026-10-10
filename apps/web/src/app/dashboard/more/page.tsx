@@ -12,13 +12,13 @@ import { SettingsGroup, SettingsRow } from "../../../components/dashboard/kit/Se
 
 // The app's More screen, group for group. Rows show or hide by who the driver is.
 export default function MorePage() {
-  const { user, isPro, isAdmin, isCompanyDriver, team, mode } = useMe();
+  const { user, isPro, isAdmin, seesCompanyDriverApp, team, mode } = useMe();
   const { logout } = useAuth();
   const emsee = useData("assistant-status", () => api.get<{ available?: boolean }>("/assistant/status"));
   const name = user?.displayName || user?.fullName || user?.email || "Your profile";
   const file = resolveAvatarFile(user?.avatarId);
   const proBadge = isPro ? undefined : "pro";
-  const money = !isCompanyDriver;
+  const money = !seesCompanyDriverApp;
 
   return (
     <>

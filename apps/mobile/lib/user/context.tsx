@@ -3,6 +3,7 @@ import { fetchProfile } from "../api/user";
 import { fetchTeamMe, type TeamMembership } from "../api/team";
 import { useAuth } from "../auth/context";
 import type { User } from "@mileclear/shared";
+import { seesCompanyDriverApp } from "./companyApp";
 
 interface UserContextValue {
   user: User | null;
@@ -17,6 +18,12 @@ interface UserContextValue {
    * so the screens that carry that stuff hide it when this is true.
    */
   isCompanyDriver: boolean;
+  /**
+   * What to hide: true for a team company driver AND for a driver who chose
+   * "A company car" in Settings. Visibility only: never use it for Pro or
+   * team features, use isCompanyDriver for those.
+   */
+  seesCompanyDriverApp: boolean;
 }
 
 const UserContext = createContext<UserContextValue | null>(null);
@@ -63,7 +70,15 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <UserContext.Provider
-      value={{ user, isLoading, refreshUser, clearUser, company, isCompanyDriver: !!company }}
+      value={{
+        user,
+        isLoading,
+        refreshUser,
+        clearUser,
+        company,
+        isCompanyDriver: !!company,
+        seesCompanyDriverApp: seesCompanyDriverApp({ isCompanyDriver: !!company, workType: user?.workType }),
+      }}
     >
       {children}
     </UserContext.Provider>

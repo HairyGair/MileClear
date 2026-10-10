@@ -6,7 +6,7 @@ import styles from "@/components/dashboard/settings/settings.module.css";
 // The Settings hub: the app's settings screen, row for row, minus app lock
 // (that lives on the phone). The first two rows are the ones email links land on.
 export default function SettingsPage() {
-  const { isPro, premiumSource, team, isCompanyDriver } = useMe();
+  const { isPro, premiumSource, team, seesCompanyDriverApp } = useMe();
   const planHint = !isPro ? "Free" : premiumSource === "team" && team ? `Pro through ${team.orgName}` : "Pro";
 
   return (
@@ -31,7 +31,7 @@ export default function SettingsPage() {
 
         <SettingsGroup title="Work and tax">
           <SettingsRow icon="briefcase-outline" label="Work and tax" hint="Work type, employer rate, other income" href="/dashboard/settings/work-tax" />
-          {!isCompanyDriver && (
+          {!seesCompanyDriverApp && (
             <SettingsRow icon="business-outline" label="Business profile" hint="Name, logo and bank details for invoices" href="/dashboard/settings/business-profile" />
           )}
           <SettingsRow icon="people-outline" label="Your accountant" href="/dashboard/tax/accountant" />

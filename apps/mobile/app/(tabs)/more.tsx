@@ -21,7 +21,7 @@ import { colors, fonts, radii, spacing } from "../../lib/theme";
 
 export default function MoreScreen() {
   const router = useRouter();
-  const { user, isCompanyDriver, isLoading } = useUser();
+  const { user, seesCompanyDriverApp: companyApp, isLoading } = useUser();
   const { logout } = useAuth();
   const { isWork } = useMode();
   const assistantAvailable = useAssistantAvailable();
@@ -99,17 +99,17 @@ export default function MoreScreen() {
         </SettingsGroup>
 
         <SettingsGroup title="MONEY">
-          {!isCompanyDriver && (
+          {!companyApp && (
             <SettingsRow icon="cash-outline" label="Earnings" hint="What you were paid" onPress={go("/(tabs)/earnings")} />
           )}
           <SettingsRow icon="receipt-outline" label="Expenses" hint="Parking, tolls and other costs" onPress={go("/expenses")} />
-          {!isCompanyDriver && (
+          {!companyApp && (
             <SettingsRow icon="document-text-outline" label="Invoices" hint="Bill your clients" onPress={go("/invoices")} />
           )}
-          {!isCompanyDriver && (
+          {!companyApp && (
             <SettingsRow icon="business-outline" label="Link a bank" hint="Bring in your earnings automatically" badge={proBadge} onPress={go("/open-banking")} />
           )}
-          {!isCompanyDriver && (
+          {!companyApp && (
             <SettingsRow icon="mail-unread-outline" label="Bank inbox" hint="Payments waiting to be sorted" badge={proBadge} onPress={go("/inbox")} />
           )}
         </SettingsGroup>
@@ -119,7 +119,7 @@ export default function MoreScreen() {
           {assistantAvailable === true && (
             <SettingsRow icon="chatbubbles-outline" label="EmSee" hint="Ask about MileClear" badge={proBadge} onPress={go("/assistant")} />
           )}
-          {isWork && !isCompanyDriver && (user?.workType === "employee" || user?.workType === "both") && (
+          {isWork && !companyApp && (user?.workType === "employee" || user?.workType === "both") && (
             <SettingsRow icon="people-outline" label="Invite your manager" hint="If your employer pays your mileage" onPress={go("/nominate-manager")} />
           )}
           <SettingsRow icon="calendar-outline" label="Work hours" hint="Your working days and hours" onPress={go("/work-schedule")} />

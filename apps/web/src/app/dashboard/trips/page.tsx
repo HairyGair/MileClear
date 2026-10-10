@@ -249,7 +249,7 @@ function TripsInner() {
   const journeyCount = journeys.length;
   const inboxCount = unclassified.count + journeyCount;
   const emptyAll = view === "all" && fcount === 0 && status === "ready" && items.length === 0;
-  const showPlatform = me.mode !== "personal" && !me.isCompanyDriver;
+  const showPlatform = me.mode !== "personal" && !me.seesCompanyDriverApp;
 
   const segments = [
     { value: "all" as const, label: "All" },
@@ -432,7 +432,7 @@ function TripsInner() {
       <FiltersDialog
         open={filtersOpen}
         initial={filters}
-        showPlatform={!me.isCompanyDriver}
+        showPlatform={!me.seesCompanyDriverApp}
         onClose={() => setFiltersOpen(false)}
         onApply={(f) => {
           setFiltersOpen(false);
