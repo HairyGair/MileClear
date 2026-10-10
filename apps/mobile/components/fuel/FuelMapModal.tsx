@@ -10,6 +10,7 @@ import { AppModal } from "../AppModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { openDirections } from "../../lib/location/directions";
 import type { FuelStation } from "@mileclear/shared";
+import { UNLEADED, type MapFuel } from "../../lib/fuel/mapFuel";
 import { colors, fonts } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -60,6 +61,8 @@ interface FuelMapModalProps {
   stations: FuelStation[];
   nationalAvgPetrol: number | null;
   nationalAvgDiesel: number | null;
+  /** Which price the pins show; the driver's fuel. Defaults to unleaded. */
+  fuel?: MapFuel;
   userLat: number | null;
   userLng: number | null;
 }
@@ -70,9 +73,11 @@ export default function FuelMapModal({
   stations,
   nationalAvgPetrol,
   nationalAvgDiesel,
+  fuel = UNLEADED,
   userLat,
   userLng,
 }: FuelMapModalProps) {
+  const pinAvg = fuel.key === "B7" ? nationalAvgDiesel : nationalAvgPetrol;
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
   const [selected, setSelected] = useState<FuelStation | null>(null);
@@ -139,8 +144,8 @@ export default function FuelMapModal({
           onPress={() => setSelected(null)}
         >
           {stations.map((s, i) => {
-            const e10 = s.prices.E10;
-            const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : AMBER;
+            const price = s.prices[fuel.key];
+            const color = price != null ? getPriceColor(price, pinAvg) : AMBER;
             return (
               <MarkerNative
                 key={`${s.siteId}-${i}`}
@@ -153,9 +158,9 @@ export default function FuelMapModal({
                     <Text style={styles.calloutTitle} numberOfLines={1}>
                       {s.brand}
                     </Text>
-                    {e10 != null && (
+                    {price != null && (
                       <Text style={[styles.calloutPrice, { color }]}>
-                        Unleaded {formatPpl(e10)}
+                        {fuel.label} {formatPpl(price)}
                       </Text>
                     )}
                   </View>

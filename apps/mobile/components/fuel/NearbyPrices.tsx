@@ -7,6 +7,8 @@ import {
 } from "react-native";
 import { getCurrentLocation } from "../../lib/location/geocoding";
 import { fetchNearbyPrices } from "../../lib/api/fuel";
+import { fetchVehicles } from "../../lib/api/vehicles";
+import { mapFuelFor, UNLEADED, type MapFuel } from "../../lib/fuel/mapFuel";
 import { openDirections } from "../../lib/location/directions";
 import FuelMapModal from "./FuelMapModal";
 import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
@@ -136,6 +138,14 @@ export default function NearbyPrices() {
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [mapModalVisible, setMapModalVisible] = useState(false);
+  // Pins follow the driver's fuel: a diesel driver sees diesel prices.
+  const [mapFuel, setMapFuel] = useState<MapFuel>(UNLEADED);
+
+  useEffect(() => {
+    fetchVehicles()
+      .then((res) => setMapFuel(mapFuelFor(res.data)))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -268,7 +278,10 @@ export default function NearbyPrices() {
         <View style={styles.mapContainer}>
           <InlineMapView
             stations={stations}
-            nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
+            fuel={mapFuel}
+            nationalAvg={
+              (mapFuel.key === "B7" ? nationalAvg?.dieselPencePerLitre : nationalAvg?.petrolPencePerLitre) ?? null
+            }
             userLat={userLat}
             userLng={userLng}
           />
@@ -290,6 +303,7 @@ export default function NearbyPrices() {
         stations={stations}
         nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
         nationalAvgDiesel={nationalAvg?.dieselPencePerLitre ?? null}
+        fuel={mapFuel}
         userLat={userLat}
         userLng={userLng}
       />
@@ -299,12 +313,14 @@ export default function NearbyPrices() {
 
 function InlineMapView({
   stations,
-  nationalAvgPetrol,
+  fuel,
+  nationalAvg,
   userLat,
   userLng,
 }: {
   stations: FuelStation[];
-  nationalAvgPetrol: number | null;
+  fuel: MapFuel;
+  nationalAvg: number | null;
   userLat: number | null;
   userLng: number | null;
 }) {
@@ -342,8 +358,8 @@ function InlineMapView({
         userInterfaceStyle="dark"
       >
         {stations.map((s, i) => {
-          const e10 = s.prices.E10;
-          const color = e10 != null ? getPriceColor(e10, nationalAvgPetrol) : AMBER;
+          const price = s.prices[fuel.key];
+          const color = price != null ? getPriceColor(price, nationalAvg) : AMBER;
           return (
             <Marker
               key={`${s.siteId}-${i}`}
@@ -353,9 +369,9 @@ function InlineMapView({
               <Callout>
                 <View style={styles.callout}>
                   <Text style={styles.calloutTitle}>{s.brand}</Text>
-                  {e10 != null && (
+                  {price != null && (
                     <Text style={styles.calloutPrice}>
-                      Unleaded {formatPpl(e10)}
+                      {fuel.label} {formatPpl(price)}
                     </Text>
                   )}
                 </View>
