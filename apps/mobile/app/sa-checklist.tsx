@@ -1,4 +1,4 @@
-// "Ready for 31 January?" checklist (2 Oct 2026).
+// "Your return" checklist (2 Oct 2026).
 //
 // The full list behind the Work dashboard countdown card and the reminder
 // pushes: for the tax year the next 31 January deadline is for, what is done,
@@ -17,7 +17,7 @@ import {
   RefreshControl,
   Alert,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence, type SaChecklist, type SaChecklistItem } from "@mileclear/shared";
 import { fetchSaChecklist } from "../lib/api/selfAssessment";
@@ -26,6 +26,7 @@ import { useIsPremium } from "../components/PremiumGate";
 import { usePaywall } from "../components/paywall";
 import { daysLabel, downloadSaPdf, routeForSaAction, wantsSaPreview } from "../lib/saCountdown";
 import { colors, fonts } from "../lib/theme";
+import { visibleChecklistItems } from "../lib/tax/checklistItems";
 
 function statusIcon(item: SaChecklistItem): { name: keyof typeof Ionicons.glyphMap; color: string; label: string } {
   if (item.status === "done") return { name: "checkmark-circle", color: colors.green, label: "Done" };
@@ -131,9 +132,11 @@ export default function SaChecklistScreen() {
 
   const c = checklist;
   const urgent = c.daysToDeadline <= 14;
+  const items = visibleChecklistItems(c.items);
 
   return (
     <View style={s.container}>
+      <Stack.Screen options={{ title: `Your ${c.taxYear} return` }} />
       <ScrollView
         contentContainerStyle={s.content}
         refreshControl={
@@ -157,8 +160,7 @@ export default function SaChecklistScreen() {
           </View>
           <Text style={s.headline}>{c.headline}</Text>
           <Text style={s.heroSub}>
-            Your {c.taxYear} return covers {c.taxYearLabel}. The online filing deadline is 31 January{" "}
-            {new Date(c.deadline).getUTCFullYear()}.
+            It covers {c.taxYearLabel}. File online by 31 January {new Date(c.deadline).getUTCFullYear()}.
           </Text>
           {!c.eligible && (
             <Text style={s.note}>
@@ -177,7 +179,7 @@ export default function SaChecklistScreen() {
           </View>
           <View style={s.figure}>
             <Text style={s.figureValue}>{formatPence(c.mileageClaimPence)}</Text>
-            <Text style={s.figureLabel}>Mileage claim</Text>
+            <Text style={s.figureLabel}>On your return</Text>
           </View>
           <View style={s.figure}>
             <Text style={s.figureValue}>{formatPence(c.earningsPence)}</Text>
@@ -186,12 +188,12 @@ export default function SaChecklistScreen() {
         </View>
 
         {/* Checklist */}
-        {c.items.map((item, idx) => {
+        {items.map((item, idx) => {
           const icon = statusIcon(item);
           const isPdf = item.action === "sa_pdf";
           const label = isPdf && !isPremium ? "Download PDF (Pro)" : item.actionLabel;
           return (
-            <View key={item.id} style={[s.item, idx === c.items.length - 1 && s.itemLast]}>
+            <View key={item.id} style={[s.item, idx === items.length - 1 && s.itemLast]}>
               <Ionicons
                 name={icon.name}
                 size={22}

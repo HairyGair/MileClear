@@ -67,9 +67,9 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     // Top: the figure worth seeing + the primary action
     {
       key: "work_hero",
-      label: "Tax Deduction",
+      label: "Mileage claim",
       icon: "cash-outline",
-      description: "Tax year deduction summary",
+      description: "Your mileage claim this tax year",
     },
     // One-time "Need odometer readings for work?" prompt (9 Oct 2026), directly
     // under the hero on new and saved layouts alike (SPEC-UX 1.4). Not
@@ -109,13 +109,13 @@ export const SECTION_REGISTRY: Record<ScreenKey, SectionDef[]> = {
     // carries the year, and a month's miles early in the month is small).
     {
       key: "tax_readiness",
-      label: "Tax Readiness",
+      label: "Tax summary",
       icon: "shield-checkmark-outline",
-      description: "HMRC estimate, weekly set-aside, filing deadline countdown",
+      description: "Your next tax step in one line",
     },
     // "Ready for 31 January?" (2 Oct 2026). Renders only from 1 December to
     // 31 January, so for ten months of the year it takes no space. Sits
-    // straight under Tax Readiness on devices that already have saved prefs
+    // straight under the tax summary on devices that already have saved prefs
     // too (insertAfter), not appended at the bottom of the dashboard.
     {
       key: "sa_countdown",

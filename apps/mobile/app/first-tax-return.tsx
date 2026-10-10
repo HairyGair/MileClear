@@ -64,9 +64,6 @@ export default function FirstTaxReturnScreen() {
     <ScrollView style={s.root} contentContainerStyle={s.content}>
       {/* Hero */}
       <View style={s.hero}>
-        <View style={s.heroBadge}>
-          <Text style={s.heroBadgeText}>FIRST-TIME GUIDE</Text>
-        </View>
         <Text style={s.heroTitle}>Your first Self Assessment</Text>
         <Text style={s.heroSub}>
           A plain-English walkthrough for self-employed drivers filing for the first time.
@@ -148,15 +145,15 @@ export default function FirstTaxReturnScreen() {
           <Text style={s.taxRowMeta}>Voluntary - counts for state pension</Text>
         </View>
         <P>
-          MileClear&apos;s dashboard shows your live HMRC tax estimate. The tax-readiness
-          card in Work mode tells you how much to set aside this week.
+          The Tax tab shows your tax so far this year, and the payment plan tells you how
+          much to put by each week.
         </P>
       </Section>
 
       <Section
         num="5"
         icon="map-outline"
-        title="The mileage deduction (this is the big one)"
+        title="Mileage on your tax return (the big one)"
       >
         <P>
           HMRC&apos;s Approved Mileage Allowance Payment (AMAP) lets you deduct a flat
@@ -239,7 +236,7 @@ export default function FirstTaxReturnScreen() {
         <View style={s.bullet}>
           <Ionicons name="checkmark-circle" size={14} color={GREEN} />
           <Text style={s.bulletText}>
-            Self Assessment wizard mapping your numbers to SA103 boxes (free; the PDF is Pro)
+            Box by box, which maps your numbers to the SA103 boxes (free; the PDF is Pro)
           </Text>
         </View>
         <View style={s.bullet}>
@@ -326,7 +323,7 @@ export default function FirstTaxReturnScreen() {
           resizeMode="contain"
         />
         <Text style={s.communityLinkText}>
-          Stuck on something? Ask the community in our Discord — drivers helping drivers through their first return.
+          Stuck on something? Ask the community in our Discord. Drivers help each other through their first return.
         </Text>
       </TouchableOpacity>
 

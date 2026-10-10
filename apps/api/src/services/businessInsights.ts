@@ -331,11 +331,13 @@ export async function getWeeklyPnL(
     estimatedFuelCostPence,
     estimatedWearCostPence,
     netProfitPence: grossEarningsPence - estimatedFuelCostPence - estimatedWearCostPence,
-    // The week's mileage claim (lib/mileageRates periodClaimPence): gig
-    // trips at the approved rates, other work trips at the employer's rate.
-    // Before 9 Oct 2026 this was approved rates on every trip, so the demo
-    // week showed £99.94 here and £72.68 on Trends.
-    hmrcDeductionPence: figures.claimPence,
+    // Weekly P&L is a self-employment figure, so its mileage line is the
+    // approved rates on every claimable business trip ("mileage on your tax
+    // return"), not the claim rule Home/Insights/recap use (10 Oct 2026,
+    // Tax tab SPEC section 7). hmrcDeductionPence stays for builds in the
+    // field; taxReturnMileagePence is the same value under its new name.
+    hmrcDeductionPence: figures.returnMileagePence,
+    taxReturnMileagePence: figures.returnMileagePence,
     businessMiles,
     totalTrips: figures.businessTrips,
     earningsCount: figures.earningsCount,

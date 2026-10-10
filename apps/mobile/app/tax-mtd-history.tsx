@@ -55,7 +55,7 @@ export default function TaxMtdHistoryScreen() {
     try {
       const status = await fetchHmrcStatus();
       if (!status.data.connected || !status.data.businessId) {
-        setError("Connect to HMRC and confirm your trade to see submission history.");
+        setError("Connect to the test service and confirm your trade to see your update history.");
         setPeriods([]);
         setCalculations([]);
         setLoading(false);
@@ -102,12 +102,12 @@ export default function TaxMtdHistoryScreen() {
       contentContainerStyle={{ padding: 16, paddingBottom: 64 }}
       refreshControl={<RefreshControl tintColor={AMBER} refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Stack.Screen options={{ title: "Submission history", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+      <Stack.Screen options={{ title: "Update history", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
 
       <BetaBanner
-        label="Beta · Sandbox"
-        title="Sandbox submissions"
-        body="These submissions were sent to HMRC's test system while we wait for HMRC's production credentials. They don't yet appear on your real HMRC tax record."
+        label="Test version"
+        title="Test updates"
+        body="These updates went to HMRC's test service. They are not on your real HMRC tax record."
       />
 
       <View style={styles.tabs}>
@@ -138,7 +138,7 @@ export default function TaxMtdHistoryScreen() {
         <>
           <Section title="Quarterly periods">
             {periods.length === 0 ? (
-              <Text style={styles.emptyText}>No quarterly submissions for {selectedYear} yet.</Text>
+              <Text style={styles.emptyText}>No quarterly updates for {selectedYear} yet.</Text>
             ) : (
               periods.map((p) => (
                 <View key={p.periodId} style={styles.row}>
@@ -147,7 +147,7 @@ export default function TaxMtdHistoryScreen() {
                       {formatPeriod(p.periodStartDate, p.periodEndDate)}
                     </Text>
                     {p.creationDate && (
-                      <Text style={styles.rowSub}>Submitted {formatDate(p.creationDate)}</Text>
+                      <Text style={styles.rowSub}>Test update on {formatDate(p.creationDate)}</Text>
                     )}
                   </View>
                   <View style={styles.checkBadge}>
@@ -158,7 +158,7 @@ export default function TaxMtdHistoryScreen() {
             )}
           </Section>
 
-          <Section title="HMRC calculations">
+          <Section title="Test calculations">
             {calculations.length === 0 ? (
               <Text style={styles.emptyText}>No calculations triggered for {selectedYear} yet.</Text>
             ) : (

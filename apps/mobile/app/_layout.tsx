@@ -688,7 +688,7 @@ function RootNavigator() {
         <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
-        <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add Earning" }} />
+        <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add earnings" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Nearby Chargers" }} />
         <Stack.Screen name="road-alerts" options={{ headerShown: true, title: "Road alerts" }} />
@@ -696,7 +696,7 @@ function RootNavigator() {
         <Stack.Screen name="verify-email" options={{ headerShown: true, title: "Confirm your email" }} />
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
-        <Stack.Screen name="exports" options={{ headerShown: true, title: "Tax exports" }} />
+        <Stack.Screen name="exports" options={{ headerShown: true, title: "Downloads" }} />
         <Stack.Screen name="project-totals" options={{ headerShown: true, title: "Miles by project" }} />
         <Stack.Screen name="refer" options={{ headerShown: true, title: "Invite Friends" }} />
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
@@ -723,20 +723,20 @@ function RootNavigator() {
         <Stack.Screen name="admin-push" options={{ headerShown: true, title: "Push Notifications" }} />
         <Stack.Screen name="admin-email" options={{ headerShown: true, title: "Email Campaigns" }} />
         <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
-        <Stack.Screen name="self-assessment" options={{ headerShown: true, title: "Self Assessment" }} />
-        <Stack.Screen name="first-tax-return" options={{ headerShown: true, title: "First-Time Guide" }} />
-        <Stack.Screen name="sa-checklist" options={{ headerShown: true, title: "Ready for 31 January?" }} />
-        <Stack.Screen name="tax-planner" options={{ headerShown: true, title: "Tax Payment Plan" }} />
+        <Stack.Screen name="self-assessment" options={{ headerShown: true, title: "Box by box" }} />
+        <Stack.Screen name="first-tax-return" options={{ headerShown: true, title: "Your first Self Assessment" }} />
+        <Stack.Screen name="sa-checklist" options={{ headerShown: true, title: "Your return" }} />
+        <Stack.Screen name="tax-planner" options={{ headerShown: true, title: "Payment plan" }} />
         <Stack.Screen name="vehicle-mot-history" options={{ headerShown: true, title: "MOT History" }} />
-        <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "Check against HMRC's figures" }} />
+        <Stack.Screen name="hmrc-reconciliation" options={{ headerShown: true, title: "Check your platform figures" }} />
         <Stack.Screen name="mileage-relief" options={{ headerShown: true, title: "Mileage Allowance Relief" }} />
-        <Stack.Screen name="mileage-certificate" options={{ headerShown: true, title: "Mileage Certificate" }} />
-        <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Tax (MTD)" }} />
+        <Stack.Screen name="mileage-certificate" options={{ headerShown: true, title: "Mileage certificate" }} />
+        <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Quarterly updates" }} />
         <Stack.Screen name="tax-mtd-nino" options={{ headerShown: true, title: "National Insurance Number" }} />
         <Stack.Screen name="tax-mtd-business" options={{ headerShown: true, title: "Confirm trade" }} />
-        <Stack.Screen name="tax-mtd-preview" options={{ headerShown: true, title: "Review submission" }} />
-        <Stack.Screen name="tax-mtd-submitted" options={{ headerShown: true, title: "Submitted", headerBackVisible: false }} />
-        <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Submission history" }} />
+        <Stack.Screen name="tax-mtd-preview" options={{ headerShown: true, title: "Review update" }} />
+        <Stack.Screen name="tax-mtd-submitted" options={{ headerShown: true, title: "Test update done", headerBackVisible: false }} />
+        <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Update history" }} />
         <Stack.Screen name="invoices" options={{ headerShown: true, title: "Invoices" }} />
         <Stack.Screen name="invoice-form" options={{ headerShown: true, title: "Add invoice" }} />
         <Stack.Screen name="clients" options={{ headerShown: true, title: "Clients" }} />
@@ -755,7 +755,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
         <Stack.Screen name="settings/general" options={{ headerShown: true, title: "General" }} />
         <Stack.Screen name="settings/tracking" options={{ headerShown: true, title: "Tracking & Locations" }} />
-        <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Work & Tax" }} />
+        <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Your tax details" }} />
         <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
         <Stack.Screen name="settings/visibility" options={{ headerShown: true, title: "What you see" }} />
         <Stack.Screen name="settings/data-exports" options={{ headerShown: true, title: "Data & Exports" }} />

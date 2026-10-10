@@ -72,7 +72,7 @@ export default function SettingsHub() {
         <SettingsRow
           icon="options-outline"
           label="Preferences"
-          hint="Dashboard mode: Work, Personal or Both"
+          hint="Dashboard mode and weekly miles goal"
           onPress={go("/settings/preferences")}
         />
         <SettingsRow
@@ -83,8 +83,8 @@ export default function SettingsHub() {
         />
         <SettingsRow
           icon="briefcase-outline"
-          label="Work & Tax"
-          hint="Work type, mileage rates, tax bracket, goal"
+          label="Your tax details"
+          hint="Work type, rates, other income"
           onPress={go("/settings/work-tax")}
         />
         <SettingsRow
@@ -108,7 +108,7 @@ export default function SettingsHub() {
         <SettingsRow
           icon="cloud-download-outline"
           label="Data & Exports"
-          hint="Tax exports, sync status, GDPR data export"
+          hint="Downloads, sync status, GDPR data export"
           onPress={go("/settings/data-exports")}
         />
         <SettingsRow

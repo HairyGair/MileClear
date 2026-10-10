@@ -73,17 +73,16 @@ export default function TaxMtdNinoScreen() {
       <Stack.Screen options={{ title: "National Insurance Number", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
       <ScrollView contentContainerStyle={styles.container}>
         <BetaBanner
-          label="Beta · Sandbox"
-          title="HMRC integration is in beta"
-          body="MTD submissions currently go to HMRC's test system while we wait for HMRC's production credentials. Your NINO is stored encrypted either way."
+          label="Test version"
+          title="Quarterly updates are a test version"
+          body="Nothing is sent to HMRC yet. This uses HMRC's test service while we wait to be allowed to send real updates. Your National Insurance Number is stored encrypted either way."
         />
         <View style={styles.card}>
           <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
           <Text style={styles.title}>Your NINO</Text>
           <Text style={styles.body}>
             HMRC uses your National Insurance Number to identify your tax record. It's
-            stored encrypted on MileClear's server and only sent to HMRC during
-            submissions.
+            stored encrypted on MileClear's server and only used for the test connection.
           </Text>
 
           <Text style={styles.label}>NATIONAL INSURANCE NUMBER</Text>

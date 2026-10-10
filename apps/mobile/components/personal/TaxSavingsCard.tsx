@@ -35,7 +35,7 @@ export function TaxSavingsCard({
           <Ionicons name="cash-outline" size={16} color={GREEN} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>HMRC Deduction</Text>
+          <Text style={styles.label}>Mileage claim</Text>
           <Text style={styles.taxYear}>{taxYear}</Text>
         </View>
       </View>

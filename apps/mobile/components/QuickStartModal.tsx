@@ -16,7 +16,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 /**
  * Quick Start — first-launch tutorial. 5 cards introducing the core
- * value loop of MileClear: tracking → classifying → tax readiness →
+ * value loop of MileClear: tracking → classifying → tax →
  * tax submission. Fires once per install (gated by tracking_state
  * key 'quick_start_shown'), can be replayed from Help & Tutorials.
  *
@@ -46,7 +46,7 @@ const CARDS: Card[] = [
   {
     icon: "calculator-outline",
     title: "Real-time tax estimate",
-    body: "The Tax Readiness card on your dashboard shows what you'll owe HMRC at year-end, updated live as you drive. The 'Set aside this week' figure tells you exactly what to save - no surprises in January.",
+    body: "The Tax tab shows roughly what you'll owe at the end of the tax year, updated as you drive. The weekly figure tells you what to put by, so January isn't a surprise.",
   },
   {
     icon: "cloud-upload-outline",

@@ -130,3 +130,16 @@ export function taxYearRangeLabel(taxYear: string): string {
   const start = parseInt(taxYear.slice(0, 4), 10);
   return `6 April ${start} to 5 April ${start + 1}`;
 }
+
+/**
+ * Which card leads the Tax tab and the Home tax line. From 6 April to
+ * 31 January the return due next leads; from 1 February to 5 April the
+ * current tax year so far leads (the return is nearly always filed by then).
+ * UK dates.
+ */
+export function taxPageLead(now: Date): "return" | "this_year" {
+  const { month, day } = ukDateParts(now);
+  if (month === 2 || month === 3) return "this_year";
+  if (month === 4 && day < 6) return "this_year";
+  return "return";
+}

@@ -8,21 +8,22 @@ import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
 import { fetchProfile, updateProfile } from "../../lib/api/user";
 import { useUser } from "../../lib/user/context";
-import { getDatabase } from "../../lib/db";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { useIsPremium } from "../../components/PremiumGate";
 import { usePrompt } from "../../components/prompt";
 
 /**
- * Work & Tax sub-screen. Owns the three "self-employed driver" settings
- * that feed the tax-readiness card and HMRC exports:
+ * "Your tax details" sub-screen. Owns the settings that feed the Tax tab
+ * and the exports:
  *
  *   - Work type (gig / employee / both)
  *   - Employer mileage rate (visible only when employee/both)
  *   - Other annual income (drives the marginal tax-rate calculation)
- *   - Weekly miles goal (carries over from the old SETTINGS section)
+ *   (The weekly miles goal moved to settings/preferences on 10 Oct 2026.)
  */
 export default function WorkTaxSettings() {
   const { refreshUser } = useUser();
+  const isPremium = useIsPremium();
   const { prompt } = usePrompt();
   const [workType, setWorkType] = useState<WorkType>("gig");
   const [employerRate, setEmployerRate] = useState<number | null>(null);
@@ -30,7 +31,6 @@ export default function WorkTaxSettings() {
   const [otherIncomePence, setOtherIncomePence] = useState<number | null>(null);
   const [payeTaxPaidPence, setPayeTaxPaidPence] = useState<number | null>(null);
   const [taxBasis, setTaxBasis] = useState<"cash" | "accruals">("cash");
-  const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
 
   // Load on mount
   useEffect(() => {
@@ -49,18 +49,6 @@ export default function WorkTaxSettings() {
         setTaxBasis(profile.taxBasis ?? "cash");
       } catch (e) {
         console.warn("[settings/work-tax] profile load failed:", e);
-      }
-      try {
-        const db = await getDatabase();
-        const row = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'personal_goal_miles'"
-        );
-        if (row) {
-          const n = parseFloat(row.value);
-          setWeeklyGoal(n > 0 && isFinite(n) ? n : null);
-        }
-      } catch (e) {
-        console.warn("[settings/work-tax] weekly goal load failed:", e);
       }
     })();
   }, []);
@@ -98,7 +86,7 @@ export default function WorkTaxSettings() {
     const firstRes = await prompt({
       title: "Rate for first 10,000 miles",
       message:
-        "Pence per mile your employer reimburses (0 to clear). HMRC's AMAP rate is 55p for the first 10,000 miles, then 25p, so anything below leaves a gap you can claim back via Mileage Allowance Relief (rate rose from 45p to 55p on 6 April 2026).",
+        "Pence per mile your employer reimburses (0 to clear). The approved rate is 55p for the first 10,000 miles, then 25p, so anything below leaves a gap you can claim back through Mileage Allowance Relief (the rate rose from 45p to 55p on 6 April 2026).",
       defaultValue: employerRate ? String(employerRate) : "",
       keyboardType: "number-pad",
       submitLabel: "Next",
@@ -178,7 +166,7 @@ export default function WorkTaxSettings() {
     const res = await prompt({
       title: "Other annual income",
       message:
-        "Pre-tax income from your main job, pension, rental, etc. We use this to calculate the right tax bracket on your gig profit. Leave blank if MileClear earnings are your only taxable income.",
+        "Pre-tax income from your main job, pension, rental, etc. We use it to work out the right tax rate on your gig profit. Leave blank if MileClear earnings are your only taxable income.",
       defaultValue: currentPounds,
       keyboardType: "number-pad",
     });
@@ -221,7 +209,7 @@ export default function WorkTaxSettings() {
     const res = await prompt({
       title: "PAYE tax already paid",
       message:
-        "Total tax deducted by your employer so far this tax year (from your latest payslip). We subtract it from the Tax Readiness figure so you see what's still owed, not the gross liability.",
+        "Total tax deducted by your employer so far this tax year (from your latest payslip). We take it off your tax so far, so you see what is still owed.",
       defaultValue: currentPounds,
       keyboardType: "number-pad",
     });
@@ -255,43 +243,6 @@ export default function WorkTaxSettings() {
       ]
     );
   }, [refreshUser]);
-
-  // ── Weekly goal ───────────────────────────────────────────────────
-  const handleWeeklyGoal = useCallback(async () => {
-    const persistGoal = async (n: number | null) => {
-      const db = await getDatabase();
-      if (n === null) {
-        await db.runAsync("DELETE FROM tracking_state WHERE key = 'personal_goal_miles'");
-      } else {
-        await db.runAsync(
-          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', ?)",
-          [String(n)]
-        );
-      }
-      setWeeklyGoal(n);
-    };
-
-    const res = await prompt({
-      title: "Weekly miles goal",
-      message: "Set a target for your weekly driving (e.g. 50). Leave blank to remove.",
-      defaultValue: weeklyGoal ? String(weeklyGoal) : "",
-      keyboardType: "number-pad",
-      // "Remove" only makes sense once a goal exists.
-      neutralLabel: weeklyGoal !== null ? "Remove" : undefined,
-    });
-    if (res.action === "cancel") return;
-    if (res.action === "neutral") {
-      await persistGoal(null);
-      return;
-    }
-    if (!res.value.trim()) return;
-    const parsed = parseFloat(res.value.trim());
-    if (!isFinite(parsed) || parsed <= 0) {
-      Alert.alert("Invalid", "Enter a positive number of miles.");
-      return;
-    }
-    await persistGoal(Math.round(parsed * 10) / 10);
-  }, [weeklyGoal, prompt]);
 
   // ── Render ────────────────────────────────────────────────────────
   const workTypeLabel =
@@ -342,9 +293,9 @@ export default function WorkTaxSettings() {
             hint={
               employerRate
                 ? employerRateAfter10k != null
-                  ? `${employerRate}p first 10k mi / ${employerRateAfter10k}p after`
-                  : `${employerRate}p / mi flat`
-                : "Not set - claim full 55p HMRC rate"
+                  ? `${employerRate}p for the first 10,000 miles, then ${employerRateAfter10k}p`
+                  : `${employerRate}p a mile`
+                : "Not set. Assumes your employer pays nothing."
             }
             badge={employerRate ? "Edit" : "Set"}
             onPress={handleEmployerRate}
@@ -364,7 +315,7 @@ export default function WorkTaxSettings() {
           label="Other annual income"
           hint={
             otherIncomePence != null
-              ? `£${(otherIncomePence / 100).toLocaleString("en-GB")} / year - tax bracket adjusted`
+              ? `£${(otherIncomePence / 100).toLocaleString("en-GB")} a year, used to work out your tax rate`
               : "Main job, pension, etc. Sets the right tax bracket."
           }
           badge={otherIncomePence != null ? "Edit" : "Set"}
@@ -372,47 +323,30 @@ export default function WorkTaxSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="GOALS">
-        <SettingsRow
-          icon="flag-outline"
-          label="Weekly miles goal"
-          hint={weeklyGoal ? `${weeklyGoal} miles / week` : "Track progress against a weekly target"}
-          badge={weeklyGoal ? "Edit" : "Set"}
-          onPress={handleWeeklyGoal}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup title="MTD ITSA">
+      <SettingsGroup title="QUARTERLY UPDATES">
         <SettingsRow
           icon="cloud-upload-outline"
-          label="Quarterly Self Assessment"
-          hint="Connect to HMRC and submit quarterly updates direct from MileClear"
-          badge="Pro"
+          label="Quarterly updates (test version)"
+          hint="Try quarterly reporting. Nothing is sent to HMRC yet."
+          badge={isPremium ? undefined : "Pro"}
           onPress={() => router.push("/tax-mtd")}
           helpTopicId="mtd-itsa"
         />
       </SettingsGroup>
 
-      <SettingsGroup title="SOLE TRADER">
-        <SettingsRow
-          icon="document-text-outline"
-          label="Invoices"
-          hint="Track who owes you for freelance work + what's been paid"
-          onPress={() => router.push("/invoices")}
-          helpTopicId="earnings"
-        />
+      <SettingsGroup title="SELF-EMPLOYED">
         <SettingsRow
           icon="layers-outline"
           label="Tax basis"
-          hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (count when invoiced)"}
+          hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (counted when invoiced)"}
           badge={taxBasis === "cash" ? "Cash" : "Accruals"}
           onPress={handleTaxBasis}
           helpTopicId="cash-vs-accruals"
         />
         <SettingsRow
           icon="briefcase-outline"
-          label="My Accountant"
-          hint="Name, contact and annual fee — added to your weekly set-aside"
+          label="Your accountant"
+          hint="Name, contact and annual fee, added to your weekly put-by"
           onPress={() => router.push("/accountant" as never)}
           helpTopicId="accountant"
         />
@@ -429,8 +363,8 @@ export default function WorkTaxSettings() {
               otherIncomePence != null && otherIncomePence > 0
                 ? "Not needed: your other income above already covers this"
                 : payeTaxPaidPence != null
-                  ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} subtracted from "still owed"`
-                  : "Enter PAYE deductions so Tax Readiness is honest"
+                  ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} taken off what you still owe`
+                  : "Enter PAYE deductions so your tax so far is right"
             }
             badge={payeTaxPaidPence != null ? "Edit" : "Set"}
             onPress={handlePayeTaxPaid}

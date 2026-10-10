@@ -91,7 +91,7 @@ export default function MoreScreen() {
           {isWork ? (
             <SettingsRow icon="stats-chart-outline" label="Insights" hint="Your numbers and trends" onPress={go("/(tabs)/insights")} />
           ) : (
-            <SettingsRow icon="calculator-outline" label="Tax" hint="Self Assessment and exports" onPress={go("/(tabs)/tax")} />
+            <SettingsRow icon="ribbon-outline" label="Records" hint="Mileage certificate and downloads" onPress={go("/(tabs)/tax")} />
           )}
         </SettingsGroup>
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,21 +13,18 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  calculateMileageAllowanceRelief,
   formatPence,
   getTaxYear,
   MAR_GOV_UK_URL,
   MAR_P87_POST_URL,
   P87_MAX_CLAIM_PENCE,
-  type EmployerPaid,
   type MarKindResult,
   type MarYearResult,
   type MileageReliefData,
   type MileageReliefYearMiles,
-  type TaxRegion,
 } from "@mileclear/shared";
 import { fetchMileageRelief } from "../lib/api/mileageRelief";
-import { getDatabase } from "../lib/db";
+import { useMarRelief } from "../lib/mileageRelief/useMarRelief";
 import { usePrompt } from "../components/prompt";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
 
@@ -39,52 +36,8 @@ import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
  * The driver's answers here (where they pay tax, whether they file Self
  * Assessment, a corrected employer payment for a year) stay on this phone in
  * tracking_state. A corrected payment never overwrites the employer rate in
- * Tax Settings.
+ * your tax details.
  */
-
-const PREFS_KEY = "mileage_relief_prefs_v1";
-
-type Answer<T> = T | null;
-
-interface ReliefPrefs {
-  region: Answer<TaxRegion>;
-  filesSa: Answer<boolean>;
-  /** Per tax year: what the employer actually paid, when it differs from the usual rate. */
-  overrides: Record<string, EmployerPaid>;
-}
-
-const EMPTY_PREFS: ReliefPrefs = { region: null, filesSa: null, overrides: {} };
-
-async function loadPrefs(): Promise<ReliefPrefs> {
-  try {
-    const db = await getDatabase();
-    const row = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = ?",
-      [PREFS_KEY],
-    );
-    if (!row) return EMPTY_PREFS;
-    const parsed = JSON.parse(row.value) as Partial<ReliefPrefs>;
-    return {
-      region: parsed.region === "rUK" || parsed.region === "scotland" ? parsed.region : null,
-      filesSa: typeof parsed.filesSa === "boolean" ? parsed.filesSa : null,
-      overrides: parsed.overrides && typeof parsed.overrides === "object" ? parsed.overrides : {},
-    };
-  } catch {
-    return EMPTY_PREFS;
-  }
-}
-
-async function savePrefs(prefs: ReliefPrefs): Promise<void> {
-  try {
-    const db = await getDatabase();
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
-      [PREFS_KEY, JSON.stringify(prefs)],
-    );
-  } catch {
-    // Not fatal: the answers just will not be remembered next time.
-  }
-}
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -110,14 +63,6 @@ function kindLabel(kind: MarKindResult["kind"]): string {
   return "Bicycle";
 }
 
-function usualPaid(data: MileageReliefData): EmployerPaid {
-  return {
-    kind: "rates",
-    carVanFirst10kPence: data.employerMileageRatePence ?? 0,
-    carVanAfter10kPence: data.employerMileageRatePenceAfter10k,
-  };
-}
-
 function parsePounds(raw: string): number | null {
   const cleaned = raw.replace(/[£,\s]/g, "");
   if (!cleaned) return null;
@@ -137,16 +82,15 @@ function parsePence(raw: string): number | null {
 export default function MileageReliefScreen() {
   const { prompt } = usePrompt();
   const [data, setData] = useState<MileageReliefData | null>(null);
-  const [prefs, setPrefs] = useState<ReliefPrefs>(EMPTY_PREFS);
+  const { prefs, updatePrefs, results, totalReliefPence, ready } = useMarRelief(data);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [res, p] = await Promise.all([fetchMileageRelief(), loadPrefs()]);
+      const res = await fetchMileageRelief();
       setData(res.data);
-      setPrefs(p);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load your miles.");
@@ -163,30 +107,7 @@ export default function MileageReliefScreen() {
     setRefreshing(false);
   }, [load]);
 
-  const updatePrefs = useCallback((next: ReliefPrefs) => {
-    setPrefs(next);
-    void savePrefs(next);
-  }, []);
-
-  const results = useMemo(() => {
-    if (!data) return [];
-    return data.years
-      .map((y) => {
-        const override = prefs.overrides[y.taxYear];
-        const res = calculateMileageAllowanceRelief({
-          taxYear: y.taxYear,
-          carVanMiles: y.carVanMiles,
-          motorcycleMiles: y.motorcycleMiles,
-          employerPaid: override ?? usualPaid(data),
-          filesSelfAssessment: prefs.filesSa,
-          taxRegion: prefs.region,
-        });
-        return res ? { miles: y, result: res, overridden: !!override } : null;
-      })
-      .filter((r): r is { miles: MileageReliefYearMiles; result: MarYearResult; overridden: boolean } => r !== null);
-  }, [data, prefs]);
-
-  const totalRelief = results.reduce((a, r) => a + r.result.reliefPence, 0);
+  const totalRelief = totalReliefPence ?? 0;
 
   const editPaid = useCallback(
     async (y: MileageReliefYearMiles) => {
@@ -203,7 +124,7 @@ export default function MileageReliefScreen() {
           buttons.push({ text: "Cancel", style: "cancel", onPress: () => resolve(null) });
           Alert.alert(
             `What your employer paid in ${y.taxYear}`,
-            "Count only mileage payments for business journeys, including any monthly car allowance meant to cover them. Leave out payments for carrying passengers. Your payslips show the amounts. This only changes the figure here, not the rate in Tax Settings.",
+            "Count only mileage payments for business journeys, including any monthly car allowance meant to cover them. Leave out payments for carrying passengers. Your payslips show the amounts. This only changes the figure here, not the rate in your tax details.",
             buttons,
           );
         });
@@ -303,7 +224,7 @@ export default function MileageReliefScreen() {
     [data, prefs, prompt, updatePrefs],
   );
 
-  if (loading) {
+  if (loading || (data && !ready)) {
     return (
       <View style={s.center}>
         <ActivityIndicator size="large" color={colors.amber} />
@@ -348,10 +269,10 @@ export default function MileageReliefScreen() {
           <Text style={s.cardText}>
             This is for employees who drive their own vehicle for work. Self-employed miles are
             claimed on your Self Assessment instead. If you are also employed, set your work type
-            to Employee or Both in Tax Settings.
+            to Employee or Both in your tax details.
           </Text>
           <TouchableOpacity style={s.secondaryBtn} onPress={() => router.push("/settings/work-tax")}>
-            <Text style={s.secondaryBtnText}>Open Tax Settings</Text>
+            <Text style={s.secondaryBtnText}>Open your tax details</Text>
           </TouchableOpacity>
         </View>
       )}

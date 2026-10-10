@@ -71,7 +71,7 @@ export default function TaxMtdSubmittedScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
       <Stack.Screen
         options={{
-          title: "Submitted",
+          title: "Test update done",
           headerStyle: { backgroundColor: BG },
           headerTintColor: TEXT_1,
           headerBackVisible: false,
@@ -79,36 +79,35 @@ export default function TaxMtdSubmittedScreen() {
       />
 
       <BetaBanner
-        label="Beta · Sandbox"
-        title="Sent to HMRC's sandbox"
-        body="You've completed the full submission flow against HMRC's test system. This does not change your real tax record yet - we're waiting for HMRC's production credentials. There's nothing more you need to do."
+        label="Test version"
+        title="Sent to HMRC's test service"
+        body="You've completed a test update. Nothing reached HMRC and your real tax record is not changed. There's nothing more you need to do."
       />
 
       <View style={styles.successCard}>
         <View style={styles.successIconWrap}>
           <Ionicons name="checkmark" size={42} color="#000" />
         </View>
-        <Text style={styles.successTitle}>Submission complete</Text>
+        <Text style={styles.successTitle}>Test update complete</Text>
         <Text style={styles.successBody}>
-          Your quarterly update went through the full flow. We'll keep it on file and
-          remind you when the next obligation is due.
+          Your test update went through the full flow. We'll keep it on file.
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>HMRC Calculation</Text>
+        <Text style={styles.sectionTitle}>Test calculation</Text>
 
         {calc.status === "triggering" && (
           <View style={styles.calcPlaceholder}>
             <ActivityIndicator color={AMBER} />
-            <Text style={styles.calcPlaceholderText}>Asking HMRC for an in-year calculation…</Text>
+            <Text style={styles.calcPlaceholderText}>Asking the test service for a calculation...</Text>
           </View>
         )}
 
         {calc.status === "polling" && (
           <View style={styles.calcPlaceholder}>
             <ActivityIndicator color={AMBER} />
-            <Text style={styles.calcPlaceholderText}>HMRC is calculating your tax…</Text>
+            <Text style={styles.calcPlaceholderText}>The test service is calculating your tax...</Text>
             <Text style={styles.calcPlaceholderHint}>Usually takes 10–30 seconds.</Text>
           </View>
         )}
@@ -118,7 +117,7 @@ export default function TaxMtdSubmittedScreen() {
             <Ionicons name="alert-circle-outline" size={32} color={TEXT_3} />
             <Text style={styles.calcPlaceholderText}>{calc.message}</Text>
             <Text style={styles.calcPlaceholderHint}>
-              You can re-trigger the calc later from the Tax screen — your submission isn't affected.
+              You can re-trigger the calc later. Your test update isn't affected.
             </Text>
           </View>
         )}
@@ -126,7 +125,7 @@ export default function TaxMtdSubmittedScreen() {
         {calc.status === "ready" && <CalcSummary summary={calc.result} />}
 
         <MtdSignpost
-          text="You can also view your tax calculation in your HMRC Personal Tax Account on GOV.UK."
+          text="This came from HMRC's test service. Your real tax calculation is in your HMRC Personal Tax Account on GOV.UK."
           linkUrl={GOVUK_PERSONAL_TAX_ACCOUNT}
           linkLabel="View your HMRC Personal Tax Account ›"
         />
@@ -146,14 +145,14 @@ export default function TaxMtdSubmittedScreen() {
 
 function CalcSummary({ summary }: { summary: HmrcCalculationSummary }) {
   const fmt = (v: number | undefined) =>
-    v === undefined ? "—" : `£${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    v === undefined ? "Not set" : `£${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <View style={{ gap: 12 }}>
       <View style={styles.headlineCard}>
         <Text style={styles.headlineLabel}>Total tax + NIC due</Text>
         <Text style={styles.headlineValue}>{fmt(summary.totalIncomeTaxAndNicsDue)}</Text>
-        <Text style={styles.headlineSubLabel}>HMRC's in-year estimate · tax year {summary.taxYear}</Text>
+        <Text style={styles.headlineSubLabel}>Test estimate · tax year {summary.taxYear}</Text>
       </View>
 
       <View style={styles.breakdownGrid}>
@@ -175,8 +174,8 @@ function CalcSummary({ summary }: { summary: HmrcCalculationSummary }) {
       )}
 
       <Text style={styles.disclaimerText}>
-        These are HMRC's figures — what you'll owe at year-end if your earning pattern
-        stays the same. They update each time you submit a quarter.
+        These are the test service's figures: what you'd owe at year-end if your earning
+        pattern stays the same. They update each time you send a test update.
       </Text>
     </View>
   );

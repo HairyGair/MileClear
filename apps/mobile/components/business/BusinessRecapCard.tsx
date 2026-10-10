@@ -37,20 +37,23 @@ export function BusinessRecapCard() {
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
   const [pnl, setPnl] = useState<WeeklyPnL | null>(null);
   const [month, setMonth] = useState<PeriodRecap | null>(null);
+  const [weekRecap, setWeekRecap] = useState<PeriodRecap | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"week" | "month">("month");
 
   useEffect(() => {
     async function load() {
       try {
-        const [insRes, pnlRes, monthRes] = await Promise.all([
+        const [insRes, pnlRes, monthRes, weekRes] = await Promise.all([
           fetchBusinessInsights(),
           fetchWeeklyPnL(0),
           fetchRecap("monthly").catch(() => null),
+          fetchRecap("weekly").catch(() => null),
         ]);
         setInsights(insRes.data);
         setPnl(pnlRes.data);
         setMonth(monthRes?.data ?? null);
+        setWeekRecap(weekRes?.data ?? null);
       } catch {
         // Silent
       } finally {
@@ -93,7 +96,9 @@ export function BusinessRecapCard() {
     totalTrips: displayTrips,
     earningsPerMilePence: insights.earningsPerMilePence,
     earningsPerHourPence: insights.earningsPerHourPence,
-    hmrcDeductionPence: isWeek ? (pnl?.hmrcDeductionPence ?? 0) : (month?.deductionPence ?? 0),
+    // Mileage claim (the claim rule) in both views. Weekly P&L now uses the
+    // approved rates ("mileage on your tax return"), which can differ.
+    hmrcDeductionPence: isWeek ? (weekRecap?.deductionPence ?? 0) : (month?.deductionPence ?? 0),
     avgShiftGrade: insights.avgShiftGrade,
     bestPlatform: insights.bestPlatform ? platformLabel(insights.bestPlatform) : null,
     totalShiftHours: isWeek ? Math.round(displayHours) : insights.totalShiftHours,
@@ -220,7 +225,7 @@ export function BusinessRecapCard() {
                 <Ionicons name="cash" size={12} color={GREEN} />
               </View>
               <Text style={styles.insightText}>
-                {formatPence(insights.deductionPence)} HMRC deduction this tax year
+                {formatPence(insights.deductionPence)} mileage claim this tax year
               </Text>
             </View>
           )}

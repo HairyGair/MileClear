@@ -7,6 +7,7 @@ import {
   previousTaxYear,
   taxYearRangeLabel,
   ukDateParts,
+  taxPageLead,
 } from "./saCountdown.js";
 
 // Instants in UTC. December and January are GMT, so UTC = UK time there;
@@ -79,5 +80,26 @@ describe("helpers", () => {
   it("reads UK time, not UTC", () => {
     // 23:30 UTC on 30 June is 00:30 BST on 1 July.
     expect(ukDateParts(at("2026-06-30T23:30:00Z"))).toEqual({ year: 2026, month: 7, day: 1, hour: 0 });
+  });
+});
+
+describe("taxPageLead", () => {
+  it("leads with the return from 6 April to 31 January", () => {
+    expect(taxPageLead(at("2026-10-10T12:00:00Z"))).toBe("return");
+    expect(taxPageLead(at("2027-01-31T12:00:00Z"))).toBe("return");
+    expect(taxPageLead(at("2026-04-06T12:00:00Z"))).toBe("return");
+    expect(taxPageLead(at("2026-12-25T12:00:00Z"))).toBe("return");
+  });
+  it("leads with this year from 1 February to 5 April", () => {
+    expect(taxPageLead(at("2027-02-01T12:00:00Z"))).toBe("this_year");
+    expect(taxPageLead(at("2027-03-15T12:00:00Z"))).toBe("this_year");
+    expect(taxPageLead(at("2027-04-05T12:00:00Z"))).toBe("this_year");
+  });
+  it("uses the UK date at the edges", () => {
+    // 23:30 UTC on 31 Jan is still 31 Jan UK (GMT); 00:30 UTC 1 Feb is 1 Feb.
+    expect(taxPageLead(at("2027-01-31T23:30:00Z"))).toBe("return");
+    expect(taxPageLead(at("2027-02-01T00:30:00Z"))).toBe("this_year");
+    // 5 April 23:30 UTC is 6 April 00:30 BST.
+    expect(taxPageLead(at("2027-04-05T23:30:00Z"))).toBe("return");
   });
 });

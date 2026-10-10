@@ -33,7 +33,7 @@ Do NOT use for period figures: `/analytics/weekly-report` (old Trends card; it n
 | Tax year label | `stats.taxYear` | rates from `getHmrcRatesForTaxYear(stats.taxYear)` |
 | Lifetime miles (milestones) | `GET /gamification/stats` `lifetimeMiles` (new) | every mile ever, phantoms excluded. `totalMiles` resets each April, so it is wrong for lifetime milestones; Home's `MilestoneTracker` still uses `totalMiles` (not changed here) |
 
-Not the same fact: the Home HMRC card's "£171.38 mileage deduction" (`/business-insights/tax-snapshot` `ytd.mileageDeductionPence`) is the deduction against self-employed profit, approved rates on every business trip (Anthony, 23 Sep 2026). Insights must not show it. See "Open" below.
+Not the same fact: the Home HMRC card's "£171.38 mileage deduction" (`/business-insights/tax-snapshot` `ytd.mileageDeductionPence`) is the deduction against self-employed profit, approved rates on every business trip (Anthony, 23 Sep 2026). Insights must not show it. On the Tax tab it is "mileage on your tax return" (see "Tax tab" below).
 
 ## Running cost
 
@@ -92,6 +92,25 @@ Best day and streaks use the UK date of each trip's start (a trip at 00:30 BST c
 
 `GET /gamification/scorecard` `deductionPence` uses the same claim rule (`periodClaimPence`, threshold aware).
 
+## Tax tab (10 Oct 2026)
+
+One call: `GET /tax/overview` (`fetchTaxOverview`, shared by the Tax tab and the Home tax line via `useTaxOverview`). It does no maths of its own: each field is read from the service that owns it, so the tab cannot disagree with Home, Insights, the checklist or the wizard. Tests: `__tests__/services/taxOverview.test.ts` (agreement rules).
+
+| Figure | Overview field | Same as | Label |
+|---|---|---|---|
+| Mileage claim, this tax year | `claim.claimPence` (`businessMiles`, `totalMiles`) | `/gamification/stats` `deductionPence` (MileageSummary, `readTaxYearSummary`) | "mileage claim" |
+| Mileage on your return, this year so far | `thisYear.returnMileagePence` | tax-snapshot `ytd.mileageDeductionPence` | "mileage on your tax return" |
+| Mileage on your return, return year | `return.returnMileagePence` | checklist `mileageClaimPence`, `/self-assessment/summary` `mileageDeductionPence` | "mileage on your tax return" |
+| Tax so far | `thisYear.estimatedTaxPence` | tax-snapshot `ytd.estimatedTaxPence` | "Tax so far" |
+| Put by each week | `plan.weeklySetAsidePence` | `/tax-planner` `weeklySetAsidePence`, now including the accountant's weekly fee (`accountantWeeklyFeePence`, annual fee / 52) | "Put by each week" |
+| Higher-rate headroom | `thisYear.higherRateHeadroomPence` | tax-snapshot `ytd.higherRateHeadroomPence` (profit plus other income within 15,000 pounds under 50,270) | |
+| Mileage Allowance Relief data | `relief` | `GET /mileage-relief` (`loadMileageReliefData`); the pounds are worked out on the phone | |
+| Which card leads | `lead` | `taxPageLead(now)`: return 6 April to 31 January, this year 1 February to 5 April; always `this_year` when the driver started working for themselves this tax year | |
+
+The claim and the return figure differ only for drivers with an employer rate and untagged business trips. Show both only then.
+
+Weekly P&L basis (10 Oct 2026): `getWeeklyPnL` mileage line is now `returnMileagePence` (approved rates on every claimable business trip, 10,000-mile threshold counted from 6 April, no employer rate), exposed as `taxReturnMileagePence` (`hmrcDeductionPence` carries the same value for builds in the field). Recap, scorecard, Home and Insights keep the claim rule, so for a driver with an employer rate the P&L week figure and the recap `deductionPence` differ by design. Label it "Mileage on your tax return".
+
 ## Changed on 9 Oct 2026 (what the old screen showed)
 
 1. Week claim £72.68 (Trends) vs £99.94 (Weekly P&L): Weekly P&L valued every trip at the approved rate; recaps and the scorecard valued each trip from zero. All now `periodClaimPence`.
@@ -104,5 +123,5 @@ Best day and streaks use the UK date of each trip's start (a trip at 00:30 BST c
 
 ## Open
 
-- Home HMRC card: "after £171.38 mileage deduction" sits under a £139.33 hero. Both are right but say "deduction". Suggest relabelling the card's figure "mileage deduction on your self-employed income" or explaining the employer-rate trips (Anthony's call; Home is outside this work).
+- Home HMRC card: SETTLED 10 Oct 2026 (decisions B and L). The card becomes a one-line tax summary opening the Tax tab; the hero says "Mileage claim"; the self-employed figure is "mileage on your tax return" on the Tax tab.
 - `usePersonalStats` asks `/trips` for `pageSize=500`; the API caps at 200 and the request fails silently. Insights no longer depends on it; Home still does.

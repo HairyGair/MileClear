@@ -140,7 +140,16 @@ describe("buildSaChecklist", () => {
   it("no trips at all asks for past trips", () => {
     const c = buildSaChecklist(input({ buckets: [] }));
     expect(item(c, "trips_sorted").action).toBe("add_trip");
-    expect(item(c, "mileage_claim").status).toBe("attention");
+    // Both items said "Add a past trip", so the mileage item is left out.
+    expect(c.items.find((i) => i.id === "mileage_claim")).toBeUndefined();
+    expect(item(c, "trips_sorted").detail).toContain("6 April 2025 and 5 April 2026");
+  });
+
+  it("uses the on-your-return wording", () => {
+    const c = buildSaChecklist(input({}));
+    expect(item(c, "mileage_claim").title).toBe("Mileage on your return");
+    expect(item(c, "mileage_claim").detail).toContain("approved mileage rates");
+    expect(item(c, "walkthrough").title).toBe("Box by box");
   });
 
   it("earnings, full name and walkthrough each need attention when missing", () => {

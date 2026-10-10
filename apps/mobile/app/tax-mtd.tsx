@@ -1,3 +1,4 @@
+import { isConnectionExpired, connectionLine } from "../lib/tax/mtdCopy";
 import { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -181,12 +182,12 @@ function TaxMtdContent() {
           obligationsUnavailable: false,
           businesses: [],
           loading: false,
-          error: "Your HMRC connection expired. Reconnect to continue.",
+          error: "Your test connection has expired. Connect again to carry on.",
         });
         return;
       }
       const msg =
-        isApiError(err) ? err.message : err instanceof Error ? err.message : "Failed to load HMRC status.";
+        isApiError(err) ? err.message : err instanceof Error ? err.message : "Couldn't load your connection. Pull down to try again.";
       setState((s) => ({ ...s, loading: false, error: msg }));
     }
   }, []);
@@ -238,8 +239,8 @@ function TaxMtdContent() {
 
   const onDisconnect = useCallback(() => {
     Alert.alert(
-      "Disconnect from HMRC?",
-      "You'll need to reconnect before you can submit again. Your existing submissions stay with HMRC.",
+      "Disconnect the test connection?",
+      "You'll need to connect again to carry on with the test version.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -276,9 +277,9 @@ function TaxMtdContent() {
       refreshControl={<RefreshControl tintColor={AMBER} refreshing={refreshing} onRefresh={onRefresh} />}
     >
       <BetaBanner
-        label="Beta · Sandbox"
-        title="HMRC integration is in beta"
-        body="The full flow works against HMRC's sandbox while we wait for HMRC's production credentials. You can connect, preview, and walk through submissions — but they won't reach real HMRC yet. Your live tax data is unaffected."
+        label="Test version"
+        title="Quarterly updates are a test version"
+        body="This works with HMRC's test service while we wait to be allowed to send real updates. You can connect, preview and walk through an update, but nothing reaches HMRC and your tax account is not changed."
       />
 
       <Header status={state.status} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
@@ -297,14 +298,15 @@ function TaxMtdContent() {
         <ReadyStep
           obligations={state.obligations}
           unavailable={state.obligationsUnavailable}
+          expired={isConnectionExpired(state.status?.expiresAt)}
         />
       )}
 
-      {/* HMRC-mandated scope signposts (in-year, self-employment-only product). */}
+      {/* Scope signposts (in-year, self-employment-only product). Future tense: nothing is live yet. */}
       {state.step === "ready" && (
         <>
-          <MtdSignpost text="MileClear submits self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those." />
-          <MtdSignpost text="MileClear submits your in-year quarterly updates. It does not yet handle your end-of-year Final Declaration - you'll finalise that with HMRC or other MTD-compatible software." />
+          <MtdSignpost text="When it goes live, MileClear will send self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those." />
+          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates. It won't handle the end-of-year Final Declaration: you'll do that with HMRC or other MTD-compatible software." />
         </>
       )}
     </ScrollView>
@@ -321,28 +323,29 @@ function Header({
   onDisconnect?: () => void;
 }) {
   const isConnected = status?.connected === true;
+  const sandbox = status?.environment !== "production";
   return (
     <View style={styles.header}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <View
-            style={[styles.statusDot, { backgroundColor: isConnected ? GREEN : TEXT_3 }]}
-            accessibilityLabel={isConnected ? "Connected" : "Not connected"}
+            style={[styles.statusDot, { backgroundColor: isConnected ? (sandbox ? AMBER : GREEN) : TEXT_3 }]}
+            accessibilityLabel={isConnected ? (sandbox ? "Connected to the test service" : "Connected") : "Not connected"}
             accessible={true}
           />
           <Text style={styles.headerTitle}>
-            {isConnected ? "Connected to HMRC" : "Not connected"}
+            {isConnected ? (sandbox ? "Connected to HMRC's test service" : "Connected to HMRC") : "Not connected"}
           </Text>
         </View>
         {onDisconnect && (
-          <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel="Disconnect from HMRC">
+          <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel="Disconnect the test connection">
             <Text style={styles.disconnectLink}>Disconnect</Text>
           </TouchableOpacity>
         )}
       </View>
       {isConnected && status?.environment && (
         <Text style={styles.headerSub}>
-          Environment: {status.environment} · Token expires {formatExpiry(status.expiresAt)}
+          {connectionLine(status.expiresAt, formatExpiry(status.expiresAt))}
         </Text>
       )}
     </View>
@@ -355,25 +358,25 @@ function ConnectStep({ onConnect }: { onConnect: () => void }) {
   return (
     <View style={styles.stepCard}>
       <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-      <Text style={styles.stepTitle}>Connect to HMRC</Text>
+      <Text style={styles.stepTitle}>Connect to the test service</Text>
       <Text style={styles.stepBody}>
-        Sign in with HMRC to start filing your quarterly Self Assessment updates from
-        MileClear. You'll grant read + write access to your Self Employment data.
+        Sign in to HMRC's test service to try quarterly updates. Nothing is sent to
+        HMRC yet, and your real tax account is not changed.
       </Text>
       <Bullets
         items={[
-          "Your figures stay accurate — MileClear does the mapping",
-          "Quarterly periods submit in seconds, not hours",
-          "Cross-check HMRC's calc against your Tax Readiness estimate",
+          "MileClear works out the figures from your trips and earnings",
+          "Preview each quarter before you go any further",
+          "Compare the result with your tax so far on the Tax tab",
         ]}
       />
-      <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Continue to HMRC">
-        <Text style={styles.primaryButtonText}>Continue to HMRC</Text>
+      <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Continue to the test service">
+        <Text style={styles.primaryButtonText}>Continue</Text>
         <Ionicons name="arrow-forward" size={18} color="#000" />
       </TouchableOpacity>
       <Text style={styles.fineprint}>
-        You'll be redirected to HMRC's sign-in page. Tokens are stored encrypted on
-        MileClear's server and revocable any time via Disconnect.
+        You'll be taken to HMRC's sign-in page for the test service. The connection
+        lasts a limited time, so you may need to connect again. You can disconnect any time.
       </Text>
     </View>
   );
@@ -387,8 +390,8 @@ function NinoStep({ onDone: _onDone }: { onDone: () => void }) {
       <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
       <Text style={styles.stepTitle}>Enter your NINO</Text>
       <Text style={styles.stepBody}>
-        We need your National Insurance Number to identify you to HMRC. It's stored
-        encrypted and only used for MTD submissions.
+        We need your National Insurance Number to set up the test connection. It's stored
+        encrypted and only used for quarterly updates.
       </Text>
       <TouchableOpacity
         style={styles.primaryButton}
@@ -420,8 +423,8 @@ function BusinessStep({
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
         <Text style={styles.stepTitle}>No self-employment trade on file</Text>
         <Text style={styles.stepBody}>
-          HMRC has no self-employment business registered against your NINO. Register
-          your trade with HMRC first (Self Assessment online), then come back here.
+          HMRC has no self-employment business registered against your National Insurance
+          Number. Register your trade with HMRC first, then come back here.
         </Text>
       </View>
     );
@@ -432,7 +435,7 @@ function BusinessStep({
       <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
       <Text style={styles.stepTitle}>Choose your trade</Text>
       <Text style={styles.stepBody}>
-        Pick the self-employment business this MileClear account submits against.
+        Pick the self-employment business to use for quarterly updates.
       </Text>
       {seBusinesses.map((b) => (
         <TouchableOpacity
@@ -464,9 +467,11 @@ function BusinessStep({
 function ReadyStep({
   obligations,
   unavailable,
+  expired,
 }: {
   obligations: HmrcObligation[];
   unavailable: boolean;
+  expired: boolean;
 }) {
   const sorted = useMemo(
     () => [...obligations].sort((a, b) => a.due.localeCompare(b.due)),
@@ -482,14 +487,16 @@ function ReadyStep({
     return (
       <View style={styles.stepCard}>
         <Ionicons name="alert-circle-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>Could not check with HMRC</Text>
-        <Text style={styles.stepBody}>
-          We could not load your quarterly obligations just now, so we cannot
-          tell you whether anything is due. Pull down to try again. This does
-          not mean you have nothing to file.
+        <Text style={styles.stepTitle}>
+          {expired ? "Your test connection has expired" : "Couldn't load your updates"}
         </Text>
-        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="View submission history">
-          View submission history →
+        <Text style={styles.stepBody}>
+          {expired
+            ? "Your test connection has expired. Connect again to carry on."
+            : "We couldn't load your quarterly updates just now, so we can't tell you whether anything is due. Pull down to try again. This does not mean you have nothing to file."}
+        </Text>
+        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="See update history">
+          See update history
         </Text>
       </View>
     );
@@ -501,11 +508,11 @@ function ReadyStep({
         <Ionicons name="checkmark-circle-outline" size={48} color={GREEN} style={{ alignSelf: "center" }} />
         <Text style={styles.stepTitle}>All caught up</Text>
         <Text style={styles.stepBody}>
-          No open quarterly obligations from HMRC right now. We'll show your next
-          period here as soon as it's available.
+          No open quarterly updates right now. We'll show your next period here as
+          soon as it's available.
         </Text>
-        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="View submission history">
-          View submission history →
+        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="See update history">
+          See update history
         </Text>
       </View>
     );
@@ -517,8 +524,8 @@ function ReadyStep({
       {sorted.map((o, idx) => (
         <ObligationCard key={`${o.start}-${o.end}-${idx}`} obligation={o} />
       ))}
-      <Text style={[styles.helperLink, { marginTop: 8, textAlign: "center" }]} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="View submission history">
-        View submission history →
+      <Text style={[styles.helperLink, { marginTop: 8, textAlign: "center" }]} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="See update history">
+        See update history
       </Text>
     </View>
   );
@@ -541,8 +548,8 @@ function ObligationCard({ obligation }: { obligation: HmrcObligation }) {
         })
       }
       accessibilityRole="button"
-      accessibilityLabel={`Submit quarter: ${formatPeriodLabel(obligation.start, obligation.end)}`}
-      accessibilityHint="Opens preview screen to review and submit this quarterly update"
+      accessibilityLabel={`Review quarter: ${formatPeriodLabel(obligation.start, obligation.end)}`}
+      accessibilityHint="Opens a preview of this quarterly update. Nothing goes to HMRC."
     >
       <View style={{ flex: 1 }}>
         <Text style={styles.obligationDates}>
@@ -585,12 +592,12 @@ function Bullets({ items }: { items: string[] }) {
 }
 
 function formatExpiry(iso: string | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "Not set";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "Not set";
   // Treat epoch-adjacent placeholders (the new Date(0) draft-row leak)
   // as missing data rather than rendering "1 Jan 1970 at 01:00".
-  if (d.getFullYear() < 2000) return "—";
+  if (d.getFullYear() < 2000) return "Not set";
   return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
 

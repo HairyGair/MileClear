@@ -24,6 +24,7 @@ import { fetchExpenseSummary } from "./export-data.js";
 import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import { pushPrefEnabled } from "./pushPrefs.js";
 import {
+  accountantWeeklyFee,
   calculateMileageDeduction,
   parseTaxYear,
   ukDateParts,
@@ -76,6 +77,7 @@ interface PlannerUser {
   otherAnnualIncomePence: number | null;
   payeAnnualPaidTaxPence: number | null;
   taxBasis: string;
+  accountantAnnualFeePence: number | null;
   pushPrefs: Prisma.JsonValue | null;
   taxPlanner: Prisma.JsonValue | null;
 }
@@ -89,6 +91,7 @@ const PLANNER_USER_SELECT = {
   otherAnnualIncomePence: true,
   payeAnnualPaidTaxPence: true,
   taxBasis: true,
+  accountantAnnualFeePence: true,
   pushPrefs: true,
   taxPlanner: true,
 } as const;
@@ -193,6 +196,9 @@ export async function loadTaxPlan(userId: string, now: Date = new Date()): Promi
   });
   const payments = buildPaymentSchedule(today, years);
   const { weeklyPence, coversTo } = weeklySetAside(payments);
+  // Put by each week includes the accountant's yearly fee spread over 52
+  // weeks (the same helper as the Tax tab's snapshot). Unknown stays unknown.
+  const accountantWeeklyFeePence = accountantWeeklyFee(user.accountantAnnualFeePence);
 
   return {
     currentTaxYear: current,
@@ -204,7 +210,9 @@ export async function loadTaxPlan(userId: string, now: Date = new Date()): Promi
       partialYear: user.createdAt > parseTaxYear(y.taxYear).start && y.source === "estimate",
     })),
     payments,
-    weeklySetAsidePence: weeklyPence,
+    weeklySetAsidePence: weeklyPence != null ? weeklyPence + accountantWeeklyFeePence : null,
+    weeklyTaxPence: weeklyPence,
+    accountantWeeklyFeePence,
     coversTo,
     missingCurrentEarnings: profits[2].grossEarningsPence <= 0,
     startAssumed: settings.firstSelfEmployedTaxYear == null,

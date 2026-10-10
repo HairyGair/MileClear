@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { getTaxYear, parseTaxYear } from "@mileclear/shared";
+import { parseTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { fetchVehicles } from "../lib/api/vehicles";
@@ -21,6 +21,8 @@ import { dayKeyOf } from "../lib/odometer/logic";
 import { usePaywall } from "../components/paywall";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts } from "../lib/theme";
+import { useTaxOverview } from "../lib/tax/useTaxOverview";
+import { recentTaxYears } from "../lib/tax/taxYears";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -30,21 +32,18 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
 
-function generateTaxYears(count: number): string[] {
-  const current = getTaxYear(new Date());
-  const startYear = parseInt(current.split("-")[0], 10);
-  return Array.from({ length: count }, (_, i) => {
-    const y = startYear - i;
-    return `${y}-${String(y + 1).slice(2)}`;
-  });
-}
-
 type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | null;
 
 export default function ExportsScreen() {
   const { showPaywall } = usePaywall();
-  const taxYears = generateTaxYears(4);
-  const [selectedYear, setSelectedYear] = useState(taxYears[0]);
+  const taxYears = recentTaxYears(4);
+  const overview = useTaxOverview();
+  // The return due next while it leads (6 April to 31 January), else this year.
+  const [selectedYear, setSelectedYear] = useState(() =>
+    overview.data?.lead === "return" && overview.data.return?.taxYear
+      ? overview.data.return.taxYear
+      : taxYears[0],
+  );
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   // Tax-year vs custom date-range mode for CSV/PDF (the server supports both;
@@ -69,7 +68,7 @@ export default function ExportsScreen() {
 
   const pickTaxYear = useCallback(() => {
     Alert.alert(
-      "Select Tax Year",
+      "Tax year",
       undefined,
       [
         ...taxYears.map((year) => ({
@@ -187,7 +186,7 @@ export default function ExportsScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: "Tax exports",
+          title: "Downloads",
         }}
       />
       <ScrollView contentContainerStyle={styles.content}>
@@ -199,11 +198,11 @@ export default function ExportsScreen() {
             accessibilityRole="button"
             accessibilityLabel="Upgrade to MileClear Pro"
           >
-            <Text style={styles.paywallTitle}>Pro Feature</Text>
+            <Text style={styles.paywallTitle}>Pro feature</Text>
             <Text style={styles.paywallText}>
-              Tax exports require MileClear Pro. Upgrade to download tax-ready reports.
+              Downloads are part of MileClear Pro.
             </Text>
-            <Text style={styles.paywallCta}>Upgrade Now</Text>
+            <Text style={styles.paywallCta}>Upgrade to Pro</Text>
             <Text style={styles.paywallLegal}>
               Auto-renews monthly. Cancel anytime.
             </Text>
@@ -216,7 +215,7 @@ export default function ExportsScreen() {
         )}
 
         <Text style={styles.subtitle}>
-          Professional tax-ready reports with your mileage data, vehicle breakdown, and tax deduction summary.
+          Your trips and figures as PDF or CSV, for your records, your accountant or your employer.
         </Text>
 
         {/* Period mode toggle: tax year or a custom date range */}
@@ -249,7 +248,7 @@ export default function ExportsScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Tax year: ${selectedYear}. Tap to change`}
           >
-            <Text style={styles.yearLabel}>Tax Year</Text>
+            <Text style={styles.yearLabel}>Tax year</Text>
             <Text style={styles.yearValue}>{selectedYear}</Text>
           </TouchableOpacity>
         ) : (
@@ -268,15 +267,15 @@ export default function ExportsScreen() {
           onPress={() => router.push("/self-assessment")}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Open Self Assessment Guide"
+          accessibilityLabel="Open box by box"
         >
           <View style={styles.saWizardIcon}>
             <Ionicons name="document-text-outline" size={20} color={AMBER} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.saWizardTitle}>Self Assessment Guide</Text>
+            <Text style={styles.saWizardTitle}>Box by box</Text>
             <Text style={styles.saWizardDesc}>
-              Step-by-step SA103 walkthrough with income, mileage, expenses and tax estimate
+              Your income, mileage, expenses and tax estimate, box by box
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} />
@@ -288,13 +287,13 @@ export default function ExportsScreen() {
           onPress={() => router.push("/mileage-certificate")}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Open Mileage Certificate"
+          accessibilityLabel="Open mileage certificate"
         >
           <View style={styles.saWizardIcon}>
             <Ionicons name="ribbon-outline" size={20} color={AMBER} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.saWizardTitle}>Mileage Certificate</Text>
+            <Text style={styles.saWizardTitle}>Mileage certificate</Text>
             <Text style={styles.saWizardDesc}>
               A record of your miles with a link anyone can check, for an insurer, employer, accountant or buyer
             </Text>
@@ -339,7 +338,7 @@ export default function ExportsScreen() {
               <Text style={styles.rowTitle}>Self Assessment</Text>
             </View>
             <Text style={styles.rowDesc}>
-              Complete tax report with vehicle breakdown, monthly summary, and HMRC rate explanation. Ready for your accountant.
+              A full report with vehicle breakdown, monthly summary and the mileage rates used. Good to hand to your accountant.
             </Text>
           </View>
           {loadingKey === "self-assessment" ? (
@@ -364,7 +363,7 @@ export default function ExportsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Trip Report (PDF)</Text>
             <Text style={styles.rowDesc}>
-              Branded trip-by-trip report with summary stats. Unique report reference for audit trail.
+              Trip-by-trip report with summary figures and a unique reference number.
             </Text>
           </View>
           {loadingKey === "pdf" ? (
@@ -389,7 +388,7 @@ export default function ExportsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle}>Trip Data (CSV)</Text>
             <Text style={styles.rowDesc}>
-              Raw trip data with HMRC rates. Import into Excel or accounting software.
+              Every trip with the mileage rate applied. Open it in Excel or accounting software.
             </Text>
           </View>
           {loadingKey === "csv" ? (
@@ -424,7 +423,7 @@ export default function ExportsScreen() {
 
         {/* Coming Soon rows */}
         <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
-          Accounting Integrations
+          Accounting
         </Text>
 
         {["Xero", "FreeAgent"].map((name) => (
@@ -432,10 +431,10 @@ export default function ExportsScreen() {
             <View style={{ flex: 1 }}>
               <View style={styles.comingSoonRow}>
                 <Text style={styles.rowTitle}>{name}</Text>
-                <Text style={styles.comingSoonBadge}>Coming Soon</Text>
+                <Text style={styles.comingSoonBadge}>Coming soon</Text>
               </View>
               <Text style={styles.rowDesc}>
-                Direct export to {name} — available soon.
+                Direct export to {name} is coming soon.
               </Text>
             </View>
           </View>

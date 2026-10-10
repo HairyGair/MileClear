@@ -1,99 +1,251 @@
-// Tax hub: the seven-odd tax entries the old avatar menu listed, grouped by
-// what the driver is trying to do. Work mode shows it as a tab; Personal mode
-// reaches it from More and gets a back arrow.
+// Tax tab: the answer first, one next step, then a short steady list.
+// Spec: docs/tax-tab-oct2026/SPEC.md (Option 1). Work mode shows it as a tab;
+// Personal mode reaches it from More as "Records" and gets a back arrow.
+//
+// Everything the cards show comes from one request (useTaxOverview). The rows
+// below depend only on the persona, never on whether a card loaded.
 
-import { useCallback, useState } from "react";
-import { ScrollView, View, StyleSheet } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { formatPence, getTaxYear } from "@mileclear/shared";
 import AppHeader from "../../components/AppHeader";
 import { EmptyState } from "../../components/EmptyState";
+import { Skeleton } from "../../components/Skeleton";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
-import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
-import { fetchGamificationStats } from "../../lib/api/gamification";
+import { ReturnCard } from "../../components/tax/ReturnCard";
+import { ThisYearCard } from "../../components/tax/ThisYearCard";
+import { ReliefCard } from "../../components/tax/ReliefCard";
+import { CompanyCard } from "../../components/tax/CompanyCard";
+import { RecordsCard } from "../../components/tax/RecordsCard";
+import { taxCard } from "../../components/tax/cardStyles";
+import { useTaxOverview } from "../../lib/tax/useTaxOverview";
+import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
+import { updateTaxPlannerSettings } from "../../lib/api/taxPlanner";
+import {
+  resolvePersona,
+  returnCardMode,
+  rowGroups,
+  showProBadge,
+  type Persona,
+} from "../../lib/tax/persona";
 import { useUser } from "../../lib/user/context";
 import { useMode } from "../../lib/mode/context";
-import { colors } from "../../lib/theme";
+import { colors, fonts, heroCard, spacing } from "../../lib/theme";
+
+function staleTime(updatedAt: number): string {
+  const d = new Date(updatedAt);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function SectionError() {
+  return (
+    <View style={taxCard.plain}>
+      <Text style={taxCard.body}>Couldn't load this part. Pull down to try again.</Text>
+    </View>
+  );
+}
 
 export default function TaxScreen() {
   const router = useRouter();
-  const { user, isCompanyDriver, isLoading } = useUser();
-  const { isPersonal } = useMode();
-  // null = not known yet (or offline): show the readiness card, which copes
-  // with its own failures, rather than a "nothing to claim" message.
-  const [totalTrips, setTotalTrips] = useState<number | null>(null);
-  // The readiness card already links to Self Assessment, the payment plan, the
-  // first-return guide and reconciliation. Show those as rows only when the
-  // card is not on screen (no trips yet, or it could not load).
-  const [cardShown, setCardShown] = useState<boolean | null>(null);
+  const { user, isCompanyDriver, isLoading: userLoading } = useUser();
+  const { isPersonal, setMode } = useMode();
+  const { data, loading, error, updatedAt, refresh } = useTaxOverview();
+  const [refreshing, setRefreshing] = useState(false);
+  const { prefs, results, totalReliefPence } = useMarRelief(data?.relief ?? null);
 
   useFocusEffect(
     useCallback(() => {
-      fetchGamificationStats()
-        .then((res) => setTotalTrips(res.data.totalTrips ?? null))
-        .catch(() => {});
-    }, [])
+      void refresh();
+    }, [refresh]),
   );
 
-  const proBadge = isLoading || user?.isPremium ? undefined : "PRO";
-  const workType = user?.workType ?? "gig";
-  const isGigDriver = (workType === "gig" || workType === "both") && !isCompanyDriver;
-  const isEmployee = workType === "employee" || workType === "both";
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refresh({ fresh: true });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
 
-  const showCardRows = totalTrips === 0 || cardShown === false;
+  const persona: Persona = resolvePersona({
+    isPersonal,
+    isCompanyDriver,
+    workType: user?.workType ?? data?.workType,
+  });
+  const failed = new Set(data?.failed ?? []);
+  const reliefPence = totalReliefPence ?? 0;
+  const isPremium = !!user?.isPremium || !!data?.isPremium || isCompanyDriver;
+  const proBadge = showProBadge({ userLoading, isPremium }) ? "PRO" : undefined;
+
+  const groups = useMemo(
+    () => rowGroups(persona, { isPremium, reliefPence, formatPence }),
+    [persona, isPremium, reliefPence],
+  );
 
   const go = (route: string) => () => router.push(route as never);
+  const currentTaxYear = data?.claim?.taxYear ?? data?.thisYear?.taxYear ?? getTaxYear(new Date());
+
+  const startedThisYear = useCallback(async () => {
+    try {
+      await updateTaxPlannerSettings({ firstSelfEmployedTaxYear: currentTaxYear });
+    } catch {
+      // The card stays as it is; pulling down tries again.
+    }
+    await refresh({ fresh: true });
+  }, [currentTaxYear, refresh]);
+
+  // ── Lead and second cards ────────────────────────────────────────
+
+  const cards = (() => {
+    if (!data) {
+      if (loading) {
+        return <Skeleton height={160} radius={heroCard.radius} style={{ marginTop: spacing.sm, marginBottom: spacing.md }} />;
+      }
+      if (error) {
+        return (
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Couldn't load your tax figures"
+            description="Check your connection and pull down to try again."
+            size="card"
+          />
+        );
+      }
+      return <Skeleton height={160} radius={heroCard.radius} style={{ marginTop: spacing.sm, marginBottom: spacing.md }} />;
+    }
+
+    if (!data.hasTrips) {
+      return isPersonal ? (
+        <EmptyState
+          icon="calculator-outline"
+          title="No trips yet"
+          description="Your trips will show here once you've driven."
+          size="card"
+        />
+      ) : (
+        <EmptyState
+          icon="calculator-outline"
+          title="Nothing to claim yet"
+          description="Mark work trips as Business and your mileage builds up here."
+          size="card"
+        />
+      );
+    }
+
+    if (persona === "personal") {
+      return data.claim && !failed.has("claim") ? (
+        <RecordsCard taxYear={data.claim.taxYear} totalMiles={data.claim.totalMiles} />
+      ) : (
+        <SectionError />
+      );
+    }
+
+    if (persona === "company") {
+      return data.claim && !failed.has("claim") ? (
+        <CompanyCard taxYear={data.claim.taxYear} businessMiles={data.claim.businessMiles} />
+      ) : (
+        <SectionError />
+      );
+    }
+
+    if (persona === "employee") {
+      if (failed.has("relief") || !data.relief) return <SectionError />;
+      if (totalReliefPence == null) {
+        return <Skeleton height={160} radius={heroCard.radius} style={{ marginTop: spacing.sm, marginBottom: spacing.md }} />;
+      }
+      const withRelief = results.filter((r) => r.result.reliefPence > 0).map((r) => r.miles.taxYear);
+      // Newest first in the data.
+      return (
+        <ReliefCard
+          reliefPence={totalReliefPence}
+          firstYear={withRelief.length ? withRelief[withRelief.length - 1] : null}
+          lastYear={withRelief.length ? withRelief[0] : null}
+          employerRateSet={data.relief.employerMileageRatePence != null}
+          scotland={prefs.region === "scotland"}
+        />
+      );
+    }
+
+    // gig and both
+    const ret = data.return;
+    const mode = returnCardMode(data.lead, ret, data.plan?.firstSelfEmployedTaxYear);
+    const returnFailed = failed.has("return");
+    const returnCard =
+      returnFailed && data.lead === "return" ? (
+        <SectionError key="return-error" />
+      ) : ret && mode !== "hidden" ? (
+        <ReturnCard
+          key="return"
+          ret={ret}
+          mode={mode}
+          lead={data.lead === "return"}
+          currentTaxYear={currentTaxYear}
+          onStartedThisYear={startedThisYear}
+        />
+      ) : null;
+    const thisYearCard = failed.has("thisYear") ? (
+      <SectionError key="thisyear-error" />
+    ) : data.thisYear ? (
+      <ThisYearCard
+        key="thisyear"
+        thisYear={data.thisYear}
+        plan={data.plan}
+        lead={data.lead === "this_year" || !returnCard}
+        claimPence={data.claim?.claimPence ?? null}
+        canAddEarnings
+      />
+    ) : null;
+
+    return data.lead === "return" ? (
+      <>
+        {returnCard}
+        {thisYearCard}
+      </>
+    ) : (
+      <>
+        {thisYearCard}
+        {returnCard}
+      </>
+    );
+  })();
+
+  const showStale = !!data && error && updatedAt != null;
 
   return (
     <View style={styles.container}>
-      <AppHeader title="Tax" showBack={isPersonal} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {totalTrips === 0 ? (
-          <EmptyState
-            icon="calculator-outline"
-            title="Nothing to claim yet"
-            description="Mark work trips as Business and your mileage claim builds up here."
-            size="card"
-          />
-        ) : (
-          <TaxReadinessCard onResolved={setCardShown} />
+      <AppHeader title={isPersonal ? "Records" : "Tax"} showBack={isPersonal} />
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.amber} />}
+      >
+        {showStale && (
+          <Text style={styles.stale}>{`Last updated ${staleTime(updatedAt)}. Pull down to refresh.`}</Text>
         )}
 
-        {(showCardRows || isGigDriver) && (
-        <SettingsGroup title="YOUR TAX RETURN">
-          {showCardRows && (
-            <SettingsRow icon="calculator-outline" label="Self Assessment" hint="Your return, box by box" onPress={go("/self-assessment")} />
-          )}
-          {showCardRows && !isCompanyDriver && (
-            <SettingsRow icon="calendar-outline" label="Tax payment plan" hint="What to pay and when" onPress={go("/tax-planner")} />
-          )}
-          {showCardRows && isGigDriver && (
-            <SettingsRow icon="book-outline" label="First Self Assessment?" hint="A plain guide to your first return" onPress={go("/first-tax-return")} />
-          )}
-          {isGigDriver && (
-            <SettingsRow icon="checkbox-outline" label="Ready for 31 January?" hint="A checklist before you file" onPress={go("/sa-checklist")} />
-          )}
-        </SettingsGroup>
-        )}
+        {cards}
 
-        <SettingsGroup title="RECORDS">
-          <SettingsRow icon="download-outline" label="Tax exports" hint="CSV and PDF for you or your accountant" badge={proBadge} onPress={go("/exports")} />
-          <SettingsRow icon="ribbon-outline" label="Mileage certificate" hint="A summary of your miles you can share" badge={proBadge} onPress={go("/mileage-certificate")} />
-          {showCardRows && (
-            <SettingsRow icon="git-compare-outline" label="Check against HMRC's figures" hint="Compare your records with your tax account" onPress={go("/hmrc-reconciliation")} />
-          )}
-          <SettingsRow icon="people-outline" label="Your accountant" hint="Let your accountant see your records" badge={proBadge} onPress={go("/accountant")} />
-        </SettingsGroup>
-
-        {isEmployee && (
-          <SettingsGroup title="CLAIMS">
-            <SettingsRow icon="trending-down-outline" label="Mileage Allowance Relief" hint="Claim the gap from your employer's rate" onPress={go("/mileage-relief")} />
+        {groups.map((g, gi) => (
+          <SettingsGroup key={g.title ?? `g${gi}`} title={g.title}>
+            {g.rows.map((r) => (
+              <SettingsRow
+                key={r.id}
+                icon={r.icon as never}
+                label={r.label}
+                hint={r.hint}
+                badge={r.pro ? proBadge : undefined}
+                onPress={
+                  r.id === "switch_work"
+                    ? () => setMode("work")
+                    : go(r.route as string)
+                }
+              />
+            ))}
           </SettingsGroup>
-        )}
-
-        <SettingsGroup title="SETTINGS">
-          <SettingsRow icon="briefcase-outline" label="Work & Tax" hint="Work type, mileage rates, tax band" onPress={go("/settings/work-tax")} />
-        </SettingsGroup>
+        ))}
       </ScrollView>
     </View>
   );
@@ -102,4 +254,10 @@ export default function TaxScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 16, paddingBottom: 32 },
+  stale: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: colors.text2,
+    marginTop: spacing.sm,
+  },
 });

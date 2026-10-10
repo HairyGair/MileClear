@@ -60,7 +60,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "unlimited-free",
         q: "Why is MileClear free? What's the catch?",
-        a: "There isn't one. Trip tracking, auto-detection, classification, HMRC rate calculation, fuel prices, gamification, Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, MOT history, two saved locations - all free, with no monthly drive cap.\n\nFor comparison: MileIQ caps the free tier at 40 drives a month then charges £5.99 to keep tracking. TripLog also caps at 40. Driversnote caps at 20. MileClear doesn't cap the tracker, ever - that's the whole point.\n\nPro (£4.99/month or £44.99/year) only covers tax-time work and analyst extras: PDF / CSV / Self Assessment exports, the SA103 wizard, Accountant Portal, receipt scanning, CSV earnings import, Open Banking auto-import, business insights, unlimited saved locations and vehicles. It never gates the tracker.",
+        a: "There isn't one. Trip tracking, auto-detection, classification, HMRC rate calculation, fuel prices, gamification, the Tax tab, Anonymous Benchmarking, HMRC Reconciliation, MOT history, two saved locations - all free, with no monthly drive cap.\n\nFor comparison: MileIQ caps the free tier at 40 drives a month then charges £5.99 to keep tracking. TripLog also caps at 40. Driversnote caps at 20. MileClear doesn't cap the tracker, ever - that's the whole point.\n\nPro (£4.99/month or £44.99/year) only covers tax-time work and analyst extras: PDF / CSV / Self Assessment exports, the SA103 wizard, Accountant Portal, receipt scanning, CSV earnings import, Open Banking auto-import, business insights, unlimited saved locations and vehicles. It never gates the tracker.",
       },
       {
         id: "discord-community",
@@ -72,7 +72,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         id: "siri-shortcuts",
         iosOnly: true,
         q: "What Siri Shortcuts does MileClear support?",
-        a: "Hands-free commands (set up once in iOS Settings → Siri & Search → MileClear):\n\n• \"Hey Siri, start my shift\" - kicks off a new shift\n• \"Hey Siri, end my shift\" - ends the active shift + shows scorecard\n• \"Hey Siri, how many miles today?\" - speaks your today's total\n• \"Hey Siri, log expense\" - opens the expense form\n• \"Hey Siri, what's my tax estimate?\" - speaks current Tax Readiness figure\n\nGreat for CarPlay - you can use them while driving without picking up the phone. Customise the trigger phrase to whatever you want (e.g. \"start work\", \"end work\") in the Shortcuts app.",
+        a: "Hands-free commands (set up once in iOS Settings → Siri & Search → MileClear):\n\n• \"Hey Siri, start my shift\" - kicks off a new shift\n• \"Hey Siri, end my shift\" - ends the active shift + shows scorecard\n• \"Hey Siri, how many miles today?\" - speaks your today's total\n• \"Hey Siri, log expense\" - opens the expense form\n• \"Hey Siri, what's my tax estimate?\" - speaks your tax so far\n\nGreat for CarPlay - you can use them while driving without picking up the phone. Customise the trigger phrase to whatever you want (e.g. \"start work\", \"end work\") in the Shortcuts app.",
       },
     ],
   },
@@ -82,19 +82,19 @@ export const HELP_SECTIONS: HelpSection[] = [
     topics: [
       {
         id: "tax-readiness",
-        q: "What's the Tax Readiness card?",
-        a: "Real-time estimate of what you'll owe HMRC at the end of the current tax year, based on the trips and earnings you've recorded so far. The \"Set aside\" line tells you what to save each week to cover both income tax and Class 4 NI on your gig profits.\n\nThe more accurate your earnings + trip data is, the better the estimate.",
+        q: "What does the Tax tab show?",
+        a: "The return you file next (with what is left to sort), your tax so far this year, and the payment plan's \"Put by each week\" figure. It is worked out from the trips and earnings you've recorded, so the more accurate they are, the better the estimate.",
       },
       {
         id: "mtd-itsa",
         q: "What is MTD ITSA?",
-        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment.\n\nMileClear's Pro tier handles all four quarters automatically. the Tax tab (or More → Tax in Personal mode) → Work & Tax → MTD ITSA. Currently in sandbox mode while HMRC reviews our request for production credentials.",
+        a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment.\n\nMileClear has a test version of quarterly updates for Pro: Tax tab → Your tax details → Quarterly updates (test version). Nothing is sent to HMRC yet. It works with HMRC's test service while we wait to be allowed to send real updates.",
         goTo: "/tax-mtd",
       },
       {
         id: "paye-offset",
         q: "I have a day job too - does MileClear handle that?",
-        a: "Yes. Settings → Work & Tax → enter what your employer has already deducted in PAYE this year (it's on your most recent payslip, year-to-date tax line). Tax Readiness then shows what you STILL owe on top of PAYE, rather than the full gross liability.\n\nIf you've entered your other income (salary or pension) instead, you don't need this: MileClear already works out only the extra tax your self-employed profit adds on top of it.",
+        a: "Yes. Tax tab → Your tax details → enter what your employer has already deducted in PAYE this year (it's on your most recent payslip, year-to-date tax line). Your tax so far then shows what you STILL owe on top of PAYE, rather than the full gross liability.\n\nIf you've entered your other income (salary or pension) instead, you don't need this: MileClear already works out only the extra tax your self-employed profit adds on top of it.",
         goTo: "/settings/work-tax",
       },
       {
@@ -105,19 +105,19 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "accountant",
         q: "I pay an accountant - can I factor that in?",
-        a: "Settings → Work & Tax → Sole Trader → My Accountant. Enter their annual filing fee. We spread it across 52 weeks and add it to your weekly set-aside, so by filing season the cash is already there for both the tax and the accountant.",
+        a: "Tax tab → Your accountant. Enter their annual filing fee. We spread it across 52 weeks and add it to your weekly put-by in the payment plan, so by filing season the cash is already there for both the tax and the accountant.",
         goTo: "/accountant",
       },
       {
         id: "employer-mileage",
         q: "My employer reimburses me for mileage - what do I enter?",
-        a: "Settings → Work & Tax → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 55p / 25p (up from 45p / 25p on 6 April 2026) - that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
+        a: "Tax tab → Your tax details → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 55p / 25p (up from 45p / 25p on 6 April 2026) - that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
         goTo: "/settings/work-tax",
       },
       {
         id: "accountant-sharing",
         q: "Can my accountant log in to see my numbers? (Pro)",
-        a: "Yes, with Pro, set up from the website. Sign in at mileclear.com and open Accountant Access in the dashboard, then enter your accountant's email. They get a read-only view of your mileage and tax figures, with no password handover, and you can revoke it at any time.\n\nThe invite is on the website only for now. The My Accountant screen in the app just stores their name and fee for your weekly set-aside.",
+        a: "Yes, with Pro, set up from the website. Sign in at mileclear.com and open Accountant Access in the dashboard, then enter your accountant's email. They get a read-only view of your mileage and tax figures, with no password handover, and you can revoke it at any time.\n\nThe invite is on the website only for now. The accountant screen in the app just stores their name and fee for your weekly put-by.",
       },
       {
         id: "hmrc-rates",
@@ -131,13 +131,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       },
       {
         id: "tax-readiness-breakdown",
-        q: "How is the Tax Readiness estimate calculated?",
-        a: "Earnings (gig + invoices) minus AMAP mileage deduction minus expenses = taxable profit. Then we apply:\n\n• Personal allowance £12,570 (free of income tax)\n• Basic rate 20% (£12,570 to £50,270)\n• Higher rate 40% (£50,270 to £125,140)\n• Additional rate 45% (over £125,140)\n• Class 4 NI 6% on profits over £12,570\n• Class 2 NI £3.45/week if profits over £6,725\n\nIf you've also got PAYE income, Settings → Work & Tax → enter your year-to-date PAYE tax. We then show only what you still owe on top, not the full gross liability.\n\nThe Set-aside line divides what you owe by the number of weeks left in the tax year, so you can drip money into a savings pot rather than scramble at filing time.",
+        q: "How is the tax estimate calculated?",
+        a: "Earnings (gig + invoices) minus mileage on your tax return minus expenses = taxable profit. Then we apply:\n\n• Personal allowance £12,570 (free of income tax)\n• Basic rate 20% (£12,570 to £50,270)\n• Higher rate 40% (£50,270 to £125,140)\n• Additional rate 45% (over £125,140)\n• Class 4 NI 6% on profits over £12,570\n• Class 2 NI £3.45/week if profits over £6,725\n\nIf you've also got PAYE income, Tax tab → Your tax details → enter your year-to-date PAYE tax. We then show only what you still owe on top, not the full gross liability.\n\nThe payment plan divides what you owe by the number of weeks left in the tax year, so you can drip money into a savings pot rather than scramble at filing time.",
       },
       {
         id: "hmrc-reconciliation",
-        q: "What's HMRC Reconciliation?",
-        a: "From 2024, UK gig platforms (Uber, Deliveroo, Amazon Flex etc) must report your earnings directly to HMRC via the Digital Platform Reporting Rules. HMRC pre-populates your Self Assessment with their figures.\n\nDashboard → HMRC Reconciliation lets you enter what each platform told HMRC, side-by-side with what MileClear tracked. Differences are flagged - usually a platform's figure includes tips you got in cash and didn't log, OR excludes the side jobs you did off-app. Catch it now, not in a year-end HMRC enquiry.",
+        q: "What is \"Check your platform figures\"?",
+        a: "From 2024, UK gig platforms (Uber, Deliveroo, Amazon Flex etc) must report your earnings directly to HMRC via the Digital Platform Reporting Rules. HMRC pre-populates your Self Assessment with their figures.\n\nTax tab → Check your platform figures lets you enter what each platform told HMRC, side-by-side with what MileClear tracked. Differences are flagged - usually a platform's figure includes tips you got in cash and didn't log, OR excludes the side jobs you did off-app. Catch it now, not in a year-end HMRC enquiry.",
         goTo: "/hmrc-reconciliation",
       },
       {
@@ -344,7 +344,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "streaks",
         q: "What counts as a streak?",
-        a: "Any day where you've taken at least one trip (business or personal). Streak resets if you skip a day. Visible on the dashboard as a flame icon with the day count.\n\nIf you genuinely don't drive every day, streaks can feel punishing - feel free to ignore them. The Tax Readiness card and Tax Summary are the metrics that actually matter for HMRC. Streaks are just a nudge to make sure you don't forget to record trips when you do drive.",
+        a: "Any day where you've taken at least one trip (business or personal). Streak resets if you skip a day. Visible on the dashboard as a flame icon with the day count.\n\nIf you genuinely don't drive every day, streaks can feel punishing - feel free to ignore them. The Tax tab figures are the ones that actually matter at tax time. Streaks are just a nudge to make sure you don't forget to record trips when you do drive.",
       },
       {
         id: "personal-records",

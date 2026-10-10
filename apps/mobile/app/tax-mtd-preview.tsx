@@ -59,7 +59,7 @@ export default function TaxMtdPreviewScreen() {
         const status = await fetchHmrcStatus();
         if (cancelled) return;
         if (!status.data.connected || !status.data.businessId) {
-          setError("Reconnect to HMRC and confirm your trade before submitting.");
+          setError("Connect again to the test service and confirm your trade first.");
           setLoading(false);
           return;
         }
@@ -92,13 +92,12 @@ export default function TaxMtdPreviewScreen() {
   const onSubmit = useCallback(() => {
     if (!preview || !businessId) return;
     Alert.alert(
-      "Submit to HMRC",
-      `You're about to submit ${formatPeriodLabel(preview.periodDates.periodStartDate, preview.periodDates.periodEndDate)} to HMRC. ` +
-        `Once submitted, you can amend the figures but not delete the submission.`,
+      "Send test update",
+      `This sends ${formatPeriodLabel(preview.periodDates.periodStartDate, preview.periodDates.periodEndDate)} to HMRC's test service. Nothing reaches HMRC and your tax account is not changed.`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Submit",
+          text: "Send test update",
           style: "default",
           onPress: async () => {
             setSubmitting(true);
@@ -115,7 +114,7 @@ export default function TaxMtdPreviewScreen() {
               });
             } catch (err) {
               Alert.alert(
-                "Submission failed",
+                "Test update failed",
                 isApiError(err) ? err.message : err instanceof Error ? err.message : "Try again."
               );
               setSubmitting(false);
@@ -129,7 +128,7 @@ export default function TaxMtdPreviewScreen() {
   if (loading) {
     return (
       <View style={[styles.center, { flex: 1, backgroundColor: BG }]}>
-        <Stack.Screen options={{ title: "Review submission", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+        <Stack.Screen options={{ title: "Review update", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
         <ActivityIndicator color={AMBER} size="large" />
         <Text style={styles.loadingText}>Calculating from your MileClear data…</Text>
       </View>
@@ -139,7 +138,7 @@ export default function TaxMtdPreviewScreen() {
   if (error || !preview) {
     return (
       <View style={[styles.center, { flex: 1, backgroundColor: BG, padding: 24 }]}>
-        <Stack.Screen options={{ title: "Review submission", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+        <Stack.Screen options={{ title: "Review update", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
         <Ionicons name="alert-circle-outline" size={48} color={RED} />
         <Text style={[styles.title, { marginTop: 16 }]}>Couldn't build preview</Text>
         <Text style={styles.body}>{error ?? "Unknown error."}</Text>
@@ -158,12 +157,12 @@ export default function TaxMtdPreviewScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 96 }}>
-      <Stack.Screen options={{ title: "Review submission", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+      <Stack.Screen options={{ title: "Review update", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
 
       <BetaBanner
-        label="Beta · Sandbox"
-        title="This is a sandbox submission"
-        body="Your figures and HMRC's calculation are real, but while we wait for HMRC's production credentials the submission goes to HMRC's test system - it does not change your real tax record yet."
+        label="Test version"
+        title="This is a test update"
+        body="Your figures are worked out from your real trips and earnings, but the update only goes to HMRC's test service. Nothing is sent to HMRC and your tax account is not changed."
       />
 
       <View style={styles.headerCard}>
@@ -173,7 +172,7 @@ export default function TaxMtdPreviewScreen() {
         </Text>
         <Text style={styles.headerTaxYear}>Tax year {taxYear}</Text>
         <Text style={styles.headerYtdNote}>
-          These are your year-to-date totals. HMRC quarterly updates are cumulative - each one reports the full year so far, not just the quarter.
+          These are your year-to-date totals. Quarterly updates are cumulative: each one covers the full year so far, not just the quarter.
         </Text>
 
         <View style={styles.divider} />
@@ -246,8 +245,8 @@ export default function TaxMtdPreviewScreen() {
         />
         {b.mileage.crossesTenKThreshold && (
           <Text style={styles.tierNote}>
-            ⓘ Crosses the 10,000-mile threshold this period — tier-crossing handled
-            automatically.
+            ⓘ Crosses the 10,000-mile threshold this period. The two rates are
+            applied for you.
           </Text>
         )}
       </Section>
@@ -280,7 +279,7 @@ export default function TaxMtdPreviewScreen() {
         <SectionRow label="Tracked expenses" value={String(b.expenses.expenseCount)} muted />
         {b.expenses.excludedNonAmapPence > 0 && (
           <Text style={styles.helperNote}>
-            {formatPence(b.expenses.excludedNonAmapPence)} of motor running costs (fuel, insurance, road tax, MOT, maintenance) excluded — those are folded into the AMAP per-mile rate.
+            {formatPence(b.expenses.excludedNonAmapPence)} of motor running costs (fuel, insurance, road tax, MOT, maintenance) left out, because the mileage rate already covers them.
           </Text>
         )}
       </Section>
@@ -291,14 +290,14 @@ export default function TaxMtdPreviewScreen() {
           onPress={onSubmit}
           disabled={submitting}
           accessibilityRole="button"
-          accessibilityLabel="Submit to HMRC"
+          accessibilityLabel="Send test update"
           accessibilityState={{ disabled: submitting }}
         >
           {submitting ? (
             <ActivityIndicator color="#000" />
           ) : (
             <>
-              <Text style={styles.primaryButtonText}>Submit to HMRC</Text>
+              <Text style={styles.primaryButtonText}>Send test update</Text>
               <Ionicons name="cloud-upload-outline" size={18} color="#000" />
             </>
           )}

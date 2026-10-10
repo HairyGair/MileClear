@@ -3,6 +3,9 @@ import { Alert, View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
+import { SettingsRow } from "../../components/settings/SettingsRow";
+import { getDatabase } from "../../lib/db";
+import { usePrompt } from "../../components/prompt";
 import { fetchProfile, updateProfile } from "../../lib/api/user";
 import { useUser } from "../../lib/user/context";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
@@ -24,6 +27,8 @@ const MODE_OPTIONS: { value: DashboardMode; label: string; hint: string }[] = [
  */
 export default function PreferencesSettings() {
   const { refreshUser } = useUser();
+  const { prompt } = usePrompt();
+  const [weeklyGoal, setWeeklyGoal] = useState<number | null>(null);
   const [user, setLocalUser] = useState<User | null>(null);
   const [savingMode, setSavingMode] = useState(false);
 
@@ -32,6 +37,59 @@ export default function PreferencesSettings() {
       .then((res) => setLocalUser(res.data))
       .catch((e) => console.warn("[settings/preferences] profile load failed:", e));
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const row = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'personal_goal_miles'"
+        );
+        if (row) {
+          const n = parseFloat(row.value);
+          setWeeklyGoal(n > 0 && isFinite(n) ? n : null);
+        }
+      } catch (e) {
+        console.warn("[settings/preferences] weekly goal load failed:", e);
+      }
+    })();
+  }, []);
+
+  const handleWeeklyGoal = useCallback(async () => {
+    const persistGoal = async (n: number | null) => {
+      const db = await getDatabase();
+      if (n === null) {
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'personal_goal_miles'");
+      } else {
+        await db.runAsync(
+          "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('personal_goal_miles', ?)",
+          [String(n)]
+        );
+      }
+      setWeeklyGoal(n);
+    };
+
+    const res = await prompt({
+      title: "Weekly miles goal",
+      message: "Set a target for your weekly driving (e.g. 50). Leave blank to remove.",
+      defaultValue: weeklyGoal ? String(weeklyGoal) : "",
+      keyboardType: "number-pad",
+      // "Remove" only makes sense once a goal exists.
+      neutralLabel: weeklyGoal !== null ? "Remove" : undefined,
+    });
+    if (res.action === "cancel") return;
+    if (res.action === "neutral") {
+      await persistGoal(null);
+      return;
+    }
+    if (!res.value.trim()) return;
+    const parsed = parseFloat(res.value.trim());
+    if (!isFinite(parsed) || parsed <= 0) {
+      Alert.alert("Invalid", "Enter a positive number of miles.");
+      return;
+    }
+    await persistGoal(Math.round(parsed * 10) / 10);
+  }, [weeklyGoal, prompt]);
 
   const setMode = useCallback(
     async (mode: DashboardMode) => {
@@ -86,6 +144,16 @@ export default function PreferencesSettings() {
             </TouchableOpacity>
           ))}
         </View>
+      </SettingsGroup>
+
+      <SettingsGroup title="GOALS">
+        <SettingsRow
+          icon="flag-outline"
+          label="Weekly miles goal"
+          hint={weeklyGoal ? `${weeklyGoal} miles / week` : "Track progress against a weekly target"}
+          badge={weeklyGoal ? "Edit" : "Set"}
+          onPress={handleWeeklyGoal}
+        />
       </SettingsGroup>
     </SettingsScreen>
   );

@@ -412,8 +412,8 @@ export function BusinessInsightsCard() {
             </View>
             )}
             <View style={s.pnlRow}>
-              <Text style={[s.pnlLabel, { color: TEXT_3 }]}>HMRC Deduction</Text>
-              <Text style={[s.pnlValue, { color: TEXT_3 }]}>{formatPence(pnl.hmrcDeductionPence)}</Text>
+              <Text style={[s.pnlLabel, { color: TEXT_3 }]}>Mileage on your tax return</Text>
+              <Text style={[s.pnlValue, { color: TEXT_3 }]}>{formatPence(pnl.taxReturnMileagePence ?? pnl.hmrcDeductionPence)}</Text>
             </View>
           </View>
           <Text style={s.pnlMeta}>

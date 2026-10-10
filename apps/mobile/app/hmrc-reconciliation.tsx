@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import {
+  TouchableOpacity,
   ScrollView,
   View,
   Text,
@@ -9,13 +11,16 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { formatPence, getTaxYear } from "@mileclear/shared";
+import { formatPence } from "@mileclear/shared";
 import type { ReconciliationSummary } from "@mileclear/shared";
 import {
   fetchHmrcReconciliation,
   saveHmrcReconciliation,
 } from "../lib/api/hmrcReconciliation";
 import { colors } from "../lib/theme";
+import { useUser } from "../lib/user/context";
+import { useTaxOverview } from "../lib/tax/useTaxOverview";
+import { defaultReturnYear, recentTaxYears } from "../lib/tax/taxYears";
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -42,16 +47,35 @@ function diffTone(diffPence: number): { color: string; bg: string } {
 function diffLabel(diffPence: number): string {
   const abs = Math.abs(diffPence);
   if (abs < 2_000) return "matches";
-  if (diffPence > 0) return `${formatPence(abs)} HMRC sees more`;
-  return `${formatPence(abs)} you tracked more`;
+  if (diffPence > 0) return `${formatPence(abs)} more reported by the app`;
+  return `${formatPence(abs)} more recorded by you`;
 }
 
 export default function HmrcReconciliationScreen() {
-  const [taxYear] = useState(() => getTaxYear(new Date()));
+  const router = useRouter();
+  const { user, isCompanyDriver } = useUser();
+  const overview = useTaxOverview();
+  const [taxYear, setTaxYear] = useState(() => defaultReturnYear(overview.data?.return?.taxYear));
   const [data, setData] = useState<ReconciliationSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+
+  const pickYear = () => {
+    Alert.alert("Tax year", undefined, [
+      ...recentTaxYears(3).map((y) => ({
+        text: y,
+        onPress: () => {
+          if (y === taxYear) return;
+          setLoading(true);
+          setData(null);
+          setDrafts({});
+          setTaxYear(y);
+        },
+      })),
+      { text: "Cancel", style: "cancel" as const },
+    ]);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +128,16 @@ export default function HmrcReconciliationScreen() {
     }
   };
 
+  if (user?.workType === "employee" || isCompanyDriver) {
+    return (
+      <View style={s.loading}>
+        <Text style={s.errorText}>
+          This is for self-employed drivers who get reports from gig apps.
+        </Text>
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <View style={s.loading}>
@@ -115,7 +149,7 @@ export default function HmrcReconciliationScreen() {
   if (!data) {
     return (
       <View style={s.loading}>
-        <Text style={s.errorText}>Could not load reconciliation.</Text>
+        <Text style={s.errorText}>Couldn't load your platform figures. Go back and try again.</Text>
       </View>
     );
   }
@@ -125,19 +159,23 @@ export default function HmrcReconciliationScreen() {
   return (
     <ScrollView style={s.root} contentContainerStyle={s.content}>
       <View style={s.intro}>
-        <View style={s.taxYearBadge}>
-          <Text style={s.taxYearBadgeText}>TAX YEAR {data.taxYear}</Text>
-        </View>
-        <Text style={s.title}>Reconcile vs HMRC</Text>
+        <TouchableOpacity
+          style={s.taxYearBadge}
+          onPress={pickYear}
+          accessibilityRole="button"
+          accessibilityLabel={`Tax year ${data.taxYear}. Tap to change`}
+        >
+          <Text style={s.taxYearBadgeText}>{data.taxYear}</Text>
+          <Ionicons name="chevron-down" size={14} color={AMBER} />
+        </TouchableOpacity>
+        <Text style={s.title}>Check your platform figures</Text>
         <Text style={s.intro2}>
-          Since January 2024, every gig platform has been reporting your earnings to
-          HMRC under the Digital Platform Reporting rules. The first reports landed at
-          HMRC by 31 January 2026 covering 2025 calendar-year earnings.
+          Gig apps now send HMRC a yearly report of what they paid you. If HMRC has
+          shown you these figures, type each one in and MileClear shows any gap.
         </Text>
         <Text style={s.intro2}>
-          Enter the figure HMRC says each platform reported (from the notice in your
-          Personal Tax Account). MileClear shows you the gap so you can address it
-          before HMRC does.
+          Their reports cover January to December, so they won't match your tax year
+          exactly. A small gap is normal.
         </Text>
       </View>
 
@@ -145,11 +183,11 @@ export default function HmrcReconciliationScreen() {
       {overall.completedPlatforms > 0 && (
         <View style={s.totals}>
           <View style={s.totalsRow}>
-            <Text style={s.totalsLabel}>HMRC reported</Text>
+            <Text style={s.totalsLabel}>Reported by the apps</Text>
             <Text style={s.totalsValue}>{formatPence(overall.hmrcReportedPence)}</Text>
           </View>
           <View style={s.totalsRow}>
-            <Text style={s.totalsLabel}>You tracked</Text>
+            <Text style={s.totalsLabel}>You recorded</Text>
             <Text style={s.totalsValue}>
               {formatPence(overall.mileclearTrackedPence)}
             </Text>
@@ -172,6 +210,16 @@ export default function HmrcReconciliationScreen() {
           <Text style={s.totalsNote}>
             {overall.completedPlatforms} of {overall.totalPlatforms} platforms entered
           </Text>
+          {overall.diffPence > 0 && (
+            <TouchableOpacity
+              style={s.addBtn}
+              onPress={() => router.push("/earning-form" as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Add missing earnings"
+            >
+              <Text style={s.addBtnText}>Add missing earnings</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -179,9 +227,17 @@ export default function HmrcReconciliationScreen() {
         <View style={s.empty}>
           <Ionicons name="document-outline" size={28} color={TEXT_3} />
           <Text style={s.emptyText}>
-            No earnings tracked yet for {data.taxYear}. Add earnings on the Earnings
-            tab first, then come back here to reconcile against HMRC.
+            No earnings recorded for {data.taxYear}. Add your earnings first, then come
+            back here to compare them with what the apps reported.
           </Text>
+          <TouchableOpacity
+            style={s.addBtn}
+            onPress={() => router.push("/earning-form" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Add earnings"
+          >
+            <Text style={s.addBtnText}>Add earnings</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         data.rows.map((row) => {
@@ -209,7 +265,7 @@ export default function HmrcReconciliationScreen() {
 
               <View style={s.platformBody}>
                 <View style={s.platformInputCol}>
-                  <Text style={s.fieldLabel}>HMRC reported (£)</Text>
+                  <Text style={s.fieldLabel}>Reported by the app (£)</Text>
                   <TextInput
                     style={s.input}
                     keyboardType="decimal-pad"
@@ -232,7 +288,7 @@ export default function HmrcReconciliationScreen() {
                   )}
                 </View>
                 <View style={s.platformValueCol}>
-                  <Text style={s.fieldLabel}>You tracked</Text>
+                  <Text style={s.fieldLabel}>You recorded</Text>
                   <Text style={s.trackedValue}>
                     {formatPence(row.mileclearTrackedPence)}
                   </Text>
@@ -247,8 +303,8 @@ export default function HmrcReconciliationScreen() {
         <Ionicons name="information-circle-outline" size={14} color={TEXT_3} />
         <Text style={s.disclaimerText}>
           The figures here are entered by you and stored for your reference only. They
-          are not submitted to HMRC. To check what HMRC actually has on file, log in to
-          your Personal Tax Account on gov.uk.
+          stay in MileClear and don't go to HMRC. To see what HMRC has on file, sign in to your Personal
+          Tax Account on GOV.UK.
         </Text>
       </View>
     </ScrollView>
@@ -271,17 +327,31 @@ const s = StyleSheet.create({
     textAlign: "center",
   },
   intro: { marginBottom: 14 },
+  addBtn: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.4)",
+    marginTop: 8,
+  },
+  addBtnText: { color: AMBER, fontSize: 14, fontWeight: "600" },
   taxYearBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    minHeight: 36,
     alignSelf: "flex-start",
     backgroundColor: AMBER_FAINT,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
+    paddingHorizontal: 12,
+    borderRadius: 18,
     marginBottom: 8,
   },
   taxYearBadgeText: {
     color: AMBER,
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: "700",
     letterSpacing: 0.6,
   },

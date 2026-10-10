@@ -28,6 +28,9 @@ export interface PeriodTotals {
   personalTrips: number;
   /** What the period's business trips add to the mileage claim. */
   claimPence: number;
+  /** The same trips at the approved rates only (no employer rate): the
+   *  self-employment figure, "mileage on your tax return". Weekly P&L. */
+  returnMileagePence: number;
   earningsPence: number;
   earningsCount: number;
 }
@@ -79,6 +82,9 @@ export function summarisePeriod(args: {
     business.filter(isClaimableTrip).map((t) => toRated(t, args.fallbackType)),
     args.user,
   );
+  const claimable = business.filter(isClaimableTrip).map((t) => toRated(t, args.fallbackType));
+  // null user = no employer rate: approved rates, threshold-aware.
+  const returnMileagePence = periodClaimPence(args.earlier, claimable, null);
   return {
     totalMiles: round1(sum(trips)),
     businessMiles: round1(sum(business)),
@@ -87,6 +93,7 @@ export function summarisePeriod(args: {
     businessTrips: business.length,
     personalTrips: personal.length,
     claimPence,
+    returnMileagePence,
     earningsPence: args.earnings.reduce((s, e) => s + e.amountPence, 0),
     earningsCount: args.earnings.length,
   };

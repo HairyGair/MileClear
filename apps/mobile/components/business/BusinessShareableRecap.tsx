@@ -132,7 +132,7 @@ export function BusinessRecapShareCard(data: BusinessRecapShareData) {
           <View style={s.insightRow}>
             <View style={[s.insightDot, { backgroundColor: "rgba(16, 185, 129, 0.5)" }]} />
             <Text style={s.insightText}>
-              <Text style={{ color: GREEN }}>{formatPence(data.hmrcDeductionPence)}</Text> HMRC tax deduction
+              <Text style={{ color: GREEN }}>{formatPence(data.hmrcDeductionPence)}</Text> mileage claim
             </Text>
           </View>
         )}
@@ -267,7 +267,7 @@ async function textFallbackShare(data: BusinessRecapShareData): Promise<void> {
     `- ${formatPence(data.earningsPerMilePence)}/mi${data.earningsPerHourPence > 0 ? ` | ${formatPence(data.earningsPerHourPence)}/hr` : ""}`,
   ];
   if (data.hmrcDeductionPence > 0) {
-    lines.push(`- ${formatPence(data.hmrcDeductionPence)} HMRC deduction claimed`);
+    lines.push(`- ${formatPence(data.hmrcDeductionPence)} mileage claim built`);
   }
   if (data.bestPlatform) {
     lines.push(`- Top platform: ${data.bestPlatform}`);

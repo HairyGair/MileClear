@@ -10,12 +10,14 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getTaxYear, formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
+import { formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
+import { useTaxOverview } from "../lib/tax/useTaxOverview";
+import { defaultReturnYear, recentTaxYears } from "../lib/tax/taxYears";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -28,15 +30,6 @@ const GREEN = colors.green;
 const RED = colors.red;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-function generateTaxYears(count: number): string[] {
-  const current = getTaxYear(new Date());
-  const startYear = parseInt(current.split("-")[0], 10);
-  return Array.from({ length: count }, (_, i) => {
-    const y = startYear - i;
-    return `${y}-${String(y + 1).slice(2)}`;
-  });
-}
 
 function platformLabel(tag: string): string {
   const MAP: Record<string, string> = {
@@ -56,18 +49,17 @@ function platformLabel(tag: string): string {
 
 function taxTypeLabel(type: string): string {
   if (type === "income_tax") return "Income Tax";
-  if (type === "class2_ni") return "Class 2 NI";
-  if (type === "class4_ni") return "Class 4 NI";
+  if (type === "class2_ni") return "National Insurance (Class 2)";
+  if (type === "class4_ni") return "National Insurance (Class 4)";
   return type;
 }
 
 const STEP_LABELS = [
-  "Tax Year",
   "Income",
   "Mileage",
   "Expenses",
-  "Tax Estimate",
-  "SA103S Guide",
+  "Tax estimate",
+  "Box by box",
 ] as const;
 
 /** SA103S box for an expense category, or null for an unknown category. */
@@ -122,19 +114,20 @@ function DataRow({
 // ── Step content components ────────────────────────────────────────────────
 
 function StepIncome({ summary }: { summary: SelfAssessmentSummary }) {
+  const router = useRouter();
   return (
     <>
       <SectionCard>
-        <Text style={styles.stepTitle}>Income Summary</Text>
+        <Text style={styles.stepTitle}>Your income</Text>
         <Text style={styles.stepDesc}>
-          Your total gross income from all platforms in {summary.taxYear}. This is box 9 on the short self-employment pages (SA103S).
+          Your total income from all platforms in {summary.taxYear}. It goes in box 9 on the short self-employment pages (SA103S).
         </Text>
-        <HeroValue label="Total Earnings (box 9)" value={formatPence(summary.totalEarningsPence)} />
+        <HeroValue label="Earnings · goes in box 9" value={formatPence(summary.totalEarningsPence)} />
       </SectionCard>
 
       {summary.platformBreakdown.length > 0 && (
         <SectionCard>
-          <Text style={styles.cardTitle}>By Platform</Text>
+          <Text style={styles.cardTitle}>By platform</Text>
           {summary.platformBreakdown.map((row) => (
             <DataRow
               key={row.platform}
@@ -153,9 +146,16 @@ function StepIncome({ summary }: { summary: SelfAssessmentSummary }) {
 
       {summary.platformBreakdown.length === 0 && (
         <SectionCard>
-          <Text style={styles.emptyText}>
-            No earnings recorded for {summary.taxYear}. Add earnings from the Earnings screen.
-          </Text>
+          <Text style={styles.emptyText}>No earnings recorded for {summary.taxYear}.</Text>
+          <TouchableOpacity
+            style={styles.emptyBtn}
+            onPress={() => router.push("/earning-form" as never)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Add earnings"
+          >
+            <Text style={styles.emptyBtnText}>Add earnings</Text>
+          </TouchableOpacity>
         </SectionCard>
       )}
     </>
@@ -170,16 +170,15 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
   return (
     <>
       <SectionCard>
-        <Text style={styles.stepTitle}>Mileage Deduction</Text>
+        <Text style={styles.stepTitle}>Mileage on your tax return</Text>
         <Text style={styles.stepDesc}>
-          HMRC simplified mileage for {summary.taxYear}: {firstTier} per mile for the first 10,000 business miles, 25p thereafter
-          {isPost2026 ? " (the rate rose from 45p to 55p on 6 April 2026)" : " (the rate before 6 April 2026)"}. It goes in box 12, car, van and travel expenses.
+          For {summary.taxYear}: {firstTier} a mile for the first 10,000 business miles, then 25p. It goes in box 12 with your other travel costs.
         </Text>
-        <HeroValue label="Mileage Deduction (part of box 12)" value={formatPence(summary.mileageDeductionPence)} />
+        <HeroValue label="Part of box 12" value={formatPence(summary.mileageDeductionPence)} />
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.cardTitle}>Miles Breakdown</Text>
+        <Text style={styles.cardTitle}>Miles breakdown</Text>
         <DataRow label="Business miles" value={formatMiles(summary.businessMiles)} highlight />
         <DataRow label="Personal miles" value={formatMiles(summary.personalMiles)} />
         <View style={styles.divider} />
@@ -188,13 +187,13 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
 
       {summary.vehicleBreakdown.length > 1 && (
         <SectionCard>
-          <Text style={styles.cardTitle}>By Vehicle</Text>
+          <Text style={styles.cardTitle}>By vehicle</Text>
           {summary.vehicleBreakdown.map((v) => (
             <View key={v.vehicleId} style={styles.vehicleRow}>
               <Text style={styles.vehicleRowName}>{v.make} {v.model}</Text>
               <View style={styles.vehicleRowDetails}>
                 <DataRow label="Business" value={formatMiles(v.businessMiles)} />
-                <DataRow label="Deduction" value={formatPence(v.deductionPence)} highlight />
+                <DataRow label="On your return" value={formatPence(v.deductionPence)} highlight />
               </View>
             </View>
           ))}
@@ -212,17 +211,18 @@ function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
 }
 
 function StepExpenses({ summary }: { summary: SelfAssessmentSummary }) {
+  const router = useRouter();
   const claimable = summary.expenseBreakdown.filter((e) => e.deductibleWithMileage && e.totalPence > 0);
   const notClaimable = summary.expenseBreakdown.filter((e) => !e.deductibleWithMileage && e.totalPence > 0);
 
   return (
     <>
       <SectionCard>
-        <Text style={styles.stepTitle}>Allowable Expenses</Text>
+        <Text style={styles.stepTitle}>Expenses</Text>
         <Text style={styles.stepDesc}>
           Expenses you can claim alongside simplified mileage. Each shows its SA103S box: parking, tolls and fares go in box 12 with your mileage, your phone in box 18. Vehicle running costs cannot be claimed.
         </Text>
-        <HeroValue label="Claimable Expenses" value={formatPence(summary.allowableExpensesPence)} />
+        <HeroValue label="You can claim" value={formatPence(summary.allowableExpensesPence)} />
       </SectionCard>
 
       {claimable.length > 0 && (
@@ -245,9 +245,9 @@ function StepExpenses({ summary }: { summary: SelfAssessmentSummary }) {
 
       {notClaimable.length > 0 && (
         <SectionCard>
-          <Text style={styles.cardTitle}>Not claimable with mileage method</Text>
+          <Text style={styles.cardTitle}>Not claimable with the mileage method</Text>
           <Text style={styles.cardSubDesc}>
-            Tracked for your records but not deductible when using simplified mileage.
+            Tracked for your records, but you cannot claim them when you use simplified mileage.
           </Text>
           {notClaimable.map((e) => (
             <DataRow key={e.category} label={e.label} value={formatPence(e.totalPence)} dimmed />
@@ -257,9 +257,16 @@ function StepExpenses({ summary }: { summary: SelfAssessmentSummary }) {
 
       {claimable.length === 0 && notClaimable.length === 0 && (
         <SectionCard>
-          <Text style={styles.emptyText}>
-            No expenses recorded for {summary.taxYear}. Log expenses from the Expenses screen.
-          </Text>
+          <Text style={styles.emptyText}>No expenses recorded for {summary.taxYear}.</Text>
+          <TouchableOpacity
+            style={styles.emptyBtn}
+            onPress={() => router.push("/expenses" as never)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Add expenses"
+          >
+            <Text style={styles.emptyBtnText}>Add expenses</Text>
+          </TouchableOpacity>
         </SectionCard>
       )}
     </>
@@ -273,16 +280,16 @@ function StepTaxEstimate({ summary }: { summary: SelfAssessmentSummary }) {
   return (
     <>
       <SectionCard>
-        <Text style={styles.stepTitle}>Tax Estimate</Text>
+        <Text style={styles.stepTitle}>Tax estimate</Text>
         <Text style={styles.stepDesc}>
-          An estimated breakdown for {summary.taxYear}. Your actual liability may differ - speak to an accountant for certainty.
+          An estimated breakdown for {summary.taxYear}. Your actual bill may differ, so check with an accountant if you want to be sure.
         </Text>
       </SectionCard>
 
       <SectionCard>
-        <Text style={styles.cardTitle}>Taxable Income Calculation</Text>
+        <Text style={styles.cardTitle}>Taxable profit</Text>
         <DataRow label="Total earnings" value={formatPence(summary.totalEarningsPence)} />
-        <DataRow label="Mileage deduction" value={`- ${formatPence(summary.mileageDeductionPence)}`} />
+        <DataRow label="Mileage on your return" value={`- ${formatPence(summary.mileageDeductionPence)}`} />
         <DataRow label="Other allowable expenses" value={`- ${formatPence(summary.allowableExpensesPence)}`} />
         <View style={styles.divider} />
         <DataRow label="Taxable profit" value={formatPence(summary.taxableProfitPence)} highlight />
@@ -314,7 +321,7 @@ function StepTaxEstimate({ summary }: { summary: SelfAssessmentSummary }) {
         </SectionCard>
       )}
 
-      <HeroValue label="Estimated Total Tax" value={formatPence(summary.totalTaxPence)} />
+      <HeroValue label="Estimated tax and National Insurance" value={formatPence(summary.totalTaxPence)} />
       {summary.effectiveRatePercent > 0 && (
         <Text style={styles.effectiveRate}>
           Effective rate: {summary.effectiveRatePercent.toFixed(1)}%
@@ -347,9 +354,9 @@ function StepSa103Guide({
   return (
     <>
       <SectionCard>
-        <Text style={styles.stepTitle}>SA103S Form Guide</Text>
+        <Text style={styles.stepTitle}>Box by box</Text>
         <Text style={styles.stepDesc}>
-          Box numbers are for the short self-employment pages (SA103S), used when your turnover was below £90,000. With a turnover of £90,000 or more you need the full pages (SA103F), which number their boxes differently. Use these figures when filing at gov.uk/self-assessment or with your accountant.
+          Box numbers are for the short self-employment pages (SA103S), used when your turnover was below £90,000. With a turnover of £90,000 or more you need the full pages (SA103F), which number their boxes differently. Use these figures when you file at GOV.UK or give them to your accountant.
         </Text>
       </SectionCard>
 
@@ -366,7 +373,7 @@ function StepSa103Guide({
               <View style={styles.sa103BoxNumWrap}>
                 <Text style={styles.sa103BoxNum}>Box {box.box}</Text>
               </View>
-              {isKey && <Text style={styles.sa103KeyBadge}>KEY BOX</Text>}
+              {isKey && <Text style={styles.sa103KeyBadge}>Main box</Text>}
             </View>
             <Text style={styles.sa103BoxLabel}>{box.label}</Text>
             <Text style={styles.sa103BoxDesc}>{box.description}</Text>
@@ -377,7 +384,7 @@ function StepSa103Guide({
 
       {relevantBoxes.length === 0 && (
         <SectionCard>
-          <Text style={styles.emptyText}>Complete earlier steps to see your SA103S box values.</Text>
+          <Text style={styles.emptyText}>Nothing recorded for {summary.taxYear}, so there's nothing to put in the boxes yet.</Text>
         </SectionCard>
       )}
 
@@ -387,7 +394,7 @@ function StepSa103Guide({
         disabled={downloading}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={isPremium ? "Download Self-Assessment PDF" : "Download Self-Assessment PDF, Pro feature"}
+        accessibilityLabel={isPremium ? "Download PDF" : "Download PDF, Pro"}
       >
         {downloading ? (
           <ActivityIndicator color={BG} size="small" />
@@ -400,7 +407,7 @@ function StepSa103Guide({
               style={{ marginRight: 6 }}
             />
             <Text style={styles.downloadBtnText}>
-              {isPremium ? "Download PDF Summary" : "Download PDF Summary (Pro)"}
+              {isPremium ? "Download PDF" : "Download PDF (Pro)"}
             </Text>
           </>
         )}
@@ -411,20 +418,19 @@ function StepSa103Guide({
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
-const HEADER_OPTIONS = {
-  headerShown: true,
-  title: "Self Assessment",
-};
-
 export default function SelfAssessmentScreen() {
   const router = useRouter();
   const { showPaywall } = usePaywall();
-  const taxYears = generateTaxYears(4);
+  const taxYears = recentTaxYears(4);
+  const overview = useTaxOverview();
 
   const [step, setStep] = useState(0);
-  const [selectedYear, setSelectedYear] = useState(taxYears[1] ?? taxYears[0]);
+  // The return due next when the Tax tab has loaded, else last tax year.
+  const [selectedYear, setSelectedYear] = useState(() =>
+    defaultReturnYear(overview.data?.return?.taxYear),
+  );
   const [summary, setSummary] = useState<SelfAssessmentSummary | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   const [downloading, setDownloading] = useState(false);
@@ -442,25 +448,22 @@ export default function SelfAssessmentScreen() {
       const res = await fetchSelfAssessmentSummary(year);
       setSummary(res.data);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load";
-      // Wizard data is free as of 8 May 2026 — only the PDF download
-      // is Pro. A 403 here would be a server-side regression rather
-      // than the paywall, so surface it as an error.
-      setError(msg);
+      // The walkthrough is free; only the PDF is Pro. A 403 here would be
+      // a server-side regression rather than the paywall, so show it.
+      setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
       setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    setSummary(null);
+    fetchSummary(selectedYear);
+  }, [selectedYear, fetchSummary]);
+
   const handleNext = useCallback(() => {
-    if (step === 0) {
-      setSummary(null);
-      fetchSummary(selectedYear);
-      setStep(1);
-    } else if (step < TOTAL_STEPS - 1) {
-      setStep((s) => s + 1);
-    }
-  }, [step, selectedYear, fetchSummary]);
+    if (step < TOTAL_STEPS - 1) setStep((s) => s + 1);
+  }, [step]);
 
   const handleBack = useCallback(() => {
     if (step > 0) setStep((s) => s - 1);
@@ -468,20 +471,18 @@ export default function SelfAssessmentScreen() {
 
   const handleYearPick = useCallback(() => {
     Alert.alert(
-      "Select Tax Year",
+      "Tax year",
       undefined,
       [
         ...taxYears.map((year) => ({
           text: year,
-          onPress: () => {
-            setSelectedYear(year);
-            setSummary(null);
-          },
+          onPress: () => setSelectedYear(year),
         })),
         { text: "Cancel", style: "cancel" as const },
       ]
     );
-  }, [taxYears]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDownload = useCallback(async () => {
     // Known free: open the Pro screen straight away rather than asking the
@@ -511,17 +512,28 @@ export default function SelfAssessmentScreen() {
     }
   }, [selectedYear, showPaywall, isPremium]);
 
-  // Wizard is free as of 8 May 2026; the PDF download (handleDownload
-  // above) gates Pro inline by surfacing the paywall on 403. The
-  // full-screen Pro gate that previously sat here was removed in the
-  // same change — see self-assessment route on the API side which
-  // dropped its premiumMiddleware hook.
-
-  const progressPct = step === 0 ? 0 : (step / (TOTAL_STEPS - 1)) * 100;
+  const progressPct = (step / (TOTAL_STEPS - 1)) * 100;
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={HEADER_OPTIONS} />
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: "Box by box",
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={handleYearPick}
+              hitSlop={8}
+              style={styles.yearChip}
+              accessibilityRole="button"
+              accessibilityLabel={`Tax year ${selectedYear}. Tap to change`}
+            >
+              <Text style={styles.yearChipText}>{selectedYear}</Text>
+              <Ionicons name="chevron-down" size={14} color={AMBER} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
       {/* Step dots */}
       <View style={styles.stepBar}>
@@ -556,61 +568,28 @@ export default function SelfAssessmentScreen() {
           ))}
         </View>
         <Text style={styles.stepLabel}>
-          Step {step + 1} of {TOTAL_STEPS} - {STEP_LABELS[step]}
+          Step {step + 1} of {TOTAL_STEPS}: {STEP_LABELS[step]}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-
-        {/* Step 0: Year selection */}
-        {step === 0 && (
-          <>
-            <SectionCard>
-              <Text style={styles.stepTitle}>Select Tax Year</Text>
-              <Text style={styles.stepDesc}>
-                Choose the tax year for your Self Assessment. The UK tax year runs from 6 April to 5 April the following year.
-              </Text>
-            </SectionCard>
-            <TouchableOpacity
-              style={styles.yearPicker}
-              onPress={handleYearPick}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Tax year: ${selectedYear}. Tap to change`}
-            >
-              <Text style={styles.yearPickerLabel}>Selected tax year</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text style={styles.yearPickerValue}>{selectedYear}</Text>
-                <Ionicons name="chevron-down" size={16} color={AMBER} />
-              </View>
-            </TouchableOpacity>
-            <Text style={styles.yearSubtext}>
-              6 April {selectedYear.split("-")[0]} to 5 April {parseInt(selectedYear.split("-")[0]) + 1}
+        {step === 0 && isPremium === false && (
+          <View style={styles.noteBox}>
+            <Ionicons name="information-circle-outline" size={16} color="#3b82f6" style={{ marginRight: 6 }} />
+            <Text style={styles.noteText}>
+              This walkthrough is free. A printable PDF of it is part of Pro.
             </Text>
-            <TouchableOpacity
-              style={styles.checklistLink}
-              onPress={() => router.push("/sa-checklist" as never)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel="Ready for 31 January? Open your checklist"
-            >
-              <Ionicons name="checkbox-outline" size={16} color={AMBER} />
-              <Text style={styles.checklistLinkText}>Ready for 31 January? Check your list</Text>
-              <Ionicons name="chevron-forward" size={14} color={AMBER} />
-            </TouchableOpacity>
-          </>
-        )}
-
-        {/* Loading */}
-        {step > 0 && loading && (
-          <View style={styles.centered}>
-            <ActivityIndicator color={AMBER} size="large" />
-            <Text style={styles.loadingText}>Loading {selectedYear} data...</Text>
           </View>
         )}
 
-        {/* Error */}
-        {step > 0 && error && !loading && (
+        {loading && (
+          <View style={styles.centered}>
+            <ActivityIndicator color={AMBER} size="large" />
+            <Text style={styles.loadingText}>Loading {selectedYear}...</Text>
+          </View>
+        )}
+
+        {error && !loading && (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity
@@ -624,14 +603,13 @@ export default function SelfAssessmentScreen() {
           </View>
         )}
 
-        {/* Step data */}
-        {step > 0 && !loading && !error && summary && (
+        {!loading && !error && summary && (
           <>
-            {step === 1 && <StepIncome summary={summary} />}
-            {step === 2 && <StepMileage summary={summary} />}
-            {step === 3 && <StepExpenses summary={summary} />}
-            {step === 4 && <StepTaxEstimate summary={summary} />}
-            {step === 5 && (
+            {step === 0 && <StepIncome summary={summary} />}
+            {step === 1 && <StepMileage summary={summary} />}
+            {step === 2 && <StepExpenses summary={summary} />}
+            {step === 3 && <StepTaxEstimate summary={summary} />}
+            {step === 4 && (
               <StepSa103Guide
                 summary={summary}
                 onDownload={handleDownload}
@@ -639,6 +617,17 @@ export default function SelfAssessmentScreen() {
                 isPremium={isPremium}
               />
             )}
+            <TouchableOpacity
+              style={styles.checklistLink}
+              onPress={() => router.push("/sa-checklist" as never)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Open your return checklist"
+            >
+              <Ionicons name="checkbox-outline" size={16} color={AMBER} />
+              <Text style={styles.checklistLinkText}>See what's left on your return</Text>
+              <Ionicons name="chevron-forward" size={14} color={AMBER} />
+            </TouchableOpacity>
           </>
         )}
 
@@ -665,27 +654,25 @@ export default function SelfAssessmentScreen() {
 
         {step < TOTAL_STEPS - 1 ? (
           <TouchableOpacity
-            style={[styles.navBtnPrimary, (step > 0 && (loading || !summary)) && { opacity: 0.4 }]}
+            style={[styles.navBtnPrimary, (loading || !summary) && { opacity: 0.4 }]}
             onPress={handleNext}
-            disabled={step > 0 && (loading || !summary)}
+            disabled={loading || !summary}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Next step"
           >
-            <Text style={styles.navBtnPrimaryText}>
-              {step === 0 ? "Start" : loading ? "Loading..." : "Next"}
-            </Text>
+            <Text style={styles.navBtnPrimaryText}>{loading ? "Loading..." : "Next"}</Text>
             <Ionicons name="chevron-forward" size={18} color={BG} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={styles.navBtn}
-            onPress={() => setStep(0)}
+            style={styles.navBtnPrimary}
+            onPress={() => router.back()}
             activeOpacity={0.7}
             accessibilityRole="button"
-            accessibilityLabel="Start over"
+            accessibilityLabel="Done"
           >
-            <Text style={styles.navBtnText}>Start Over</Text>
+            <Text style={styles.navBtnPrimaryText}>Done</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -1172,6 +1159,35 @@ const styles = StyleSheet.create({
   },
 
   // Empty
+  yearChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    minHeight: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(245,166,35,0.12)",
+    marginRight: 4,
+  },
+  yearChipText: {
+    color: AMBER,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+  },
+  emptyBtn: {
+    alignSelf: "center",
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.4)",
+  },
+  emptyBtnText: {
+    color: AMBER,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+  },
   emptyText: {
     fontSize: 13,
     fontFamily: fonts.regular,

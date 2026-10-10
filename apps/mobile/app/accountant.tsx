@@ -82,7 +82,7 @@ export default function AccountantSettings() {
     const feeNumber = feePounds.trim() ? parseFloat(feePounds.trim()) : 0;
     if (!isFinite(feeNumber) || feeNumber <= 0) return null;
     const weekly = feeNumber / 52;
-    return `That's about £${weekly.toFixed(2)} added to your weekly set-aside.`;
+    return `That's about £${weekly.toFixed(2)} added to your weekly put-by.`;
   })();
 
   if (loading) {
@@ -97,13 +97,12 @@ export default function AccountantSettings() {
     <SettingsScreen>
       <View style={styles.intro}>
         <View style={styles.introTitleRow}>
-          <Text style={styles.introTitle}>Set aside the accountant fee too</Text>
+          <Text style={styles.introTitle}>Cover your accountant's fee</Text>
           <ContextualHelp topicId="accountant" size={16} />
         </View>
         <Text style={styles.introBody}>
-          Enter your accountant's annual fee and we'll spread it across your
-          weekly set-aside on the Tax Readiness card. So when filing comes
-          around, both the tax and the accountant are already covered.
+          Add your accountant's yearly fee and MileClear spreads it across your
+          weekly put-by in the payment plan, so the bill is covered when it comes.
         </Text>
       </View>
 

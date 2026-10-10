@@ -7,7 +7,7 @@
 // (services/taxPlannerMath.ts); this screen only shows it and saves the
 // driver's own answers (when they started, any bill HMRC has calculated).
 //
-// Reached from the Tax Readiness card ("See your payment plan"), the avatar
+// Reached from the Tax tab ("See payment plan"), the avatar
 // menu's TAX section and the payment reminder pushes (open_tax_planner).
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -237,6 +237,11 @@ export default function TaxPlannerScreen() {
             <Text style={s.setAsideValue} maxFontSizeMultiplier={1.3}>
               {formatPence(plan.weeklySetAsidePence)}
             </Text>
+            {(plan.accountantWeeklyFeePence ?? 0) > 0 && (
+              <Text style={s.setAsideMeta}>
+                Includes {formatPence(plan.accountantWeeklyFeePence ?? 0)} a week for your accountant.
+              </Text>
+            )}
             <Text style={s.setAsideMeta}>
               Starting this week, this covers every payment below by its date, up to {longDate(plan.coversTo)}.
               {plan.coversTo !== lastListed ? " It leaves out the later ones MileClear can't work out yet." : ""}

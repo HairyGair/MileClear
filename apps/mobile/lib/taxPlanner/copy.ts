@@ -9,7 +9,6 @@ import type {
   TaxPlannerBillSource,
   TaxPlannerNoPoaReason,
   TaxPlannerPart,
-  TaxPlannerPayment,
 } from "@mileclear/shared";
 
 const MONTHS = [
@@ -89,7 +88,5 @@ export function sourceLabel(source: TaxPlannerBillSource, taxYear: string): stri
   }
 }
 
-/** Headline for the first payment that has money in it. */
-export function nextPayment(payments: TaxPlannerPayment[]): TaxPlannerPayment | null {
-  return payments.find((p) => p.amountPence == null || p.amountPence > 0) ?? null;
-}
+/** Headline for the first payment that has money in it (shared with the API). */
+export { nextPayment } from "@mileclear/shared";

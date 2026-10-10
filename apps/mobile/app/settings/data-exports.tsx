@@ -6,9 +6,11 @@ import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
 import { exportUserData } from "../../lib/api/user";
 import { scanLowConfidenceTrips } from "../../lib/api/trips";
+import { useIsPremium } from "../../components/PremiumGate";
 
 export default function DataExportsSettings() {
   const router = useRouter();
+  const isPremium = useIsPremium();
   const [exporting, setExporting] = useState(false);
   const [scanning, setScanning] = useState(false);
 
@@ -85,9 +87,9 @@ export default function DataExportsSettings() {
       <SettingsGroup>
         <SettingsRow
           icon="receipt-outline"
-          label="Tax exports"
-          hint="Self Assessment, CSV, PDF trip log"
-          badge="Pro"
+          label="Downloads"
+          hint="Trip log, CSV and Self Assessment PDF"
+          badge={isPremium ? undefined : "Pro"}
           onPress={() => router.push("/exports")}
         />
         <SettingsRow

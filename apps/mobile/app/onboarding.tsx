@@ -419,7 +419,7 @@ export default function OnboardingScreen() {
                 <View style={s.transformBulletBody}>
                   <Text style={s.transformBulletTitle}>Instant HMRC calculation</Text>
                   <Text style={s.transformBulletText}>
-                    See your tax deduction update in real time as you drive
+                    See your mileage claim update as you drive
                   </Text>
                 </View>
               </View>
@@ -477,7 +477,7 @@ export default function OnboardingScreen() {
               Track every mile.{"\n"}Claim what you're owed.
             </Text>
             <Text style={s.welcomeSubtitle}>
-              GPS trip tracking, automatic HMRC deductions, and a personal driving journal - all in one app.
+              GPS trip tracking, your mileage claim worked out for you, and a personal driving journal - all in one app.
             </Text>
 
             <Text style={s.sectionLabel}>How will you use MileClear?</Text>
@@ -491,7 +491,7 @@ export default function OnboardingScreen() {
                 onPress={() => setUserIntent("work")}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel="Work: tax deductions, shift tracking, earnings"
+                accessibilityLabel="Work: mileage claim, shift tracking, earnings"
                 accessibilityState={{ selected: userIntent === "work" }}
               >
                 <View
@@ -516,7 +516,7 @@ export default function OnboardingScreen() {
                     Work
                   </Text>
                   <Text style={s.intentDesc}>
-                    For gig workers, self-employed drivers, and employees who use their own car for work. Track business miles, calculate HMRC deductions, and prepare claims for your employer.
+                    For gig workers, self-employed drivers, and employees who use their own car for work. Track business miles, see your mileage claim, and prepare claims for your employer.
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -1135,7 +1135,7 @@ export default function OnboardingScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.nextStepTitle}>Tap to classify</Text>
                   <Text style={s.nextStepBody}>
-                    Mark each trip business or personal in one tap. Only business miles count towards your HMRC deduction.
+                    Mark each trip business or personal in one tap. Only business miles count towards your mileage claim.
                   </Text>
                 </View>
               </View>
@@ -1146,7 +1146,7 @@ export default function OnboardingScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={s.nextStepTitle}>Watch your deduction grow</Text>
                   <Text style={s.nextStepBody}>
-                    Open the Tax Readiness card on the dashboard for a live HMRC + NI estimate that updates with every mile.
+                    Open the Tax tab for your tax estimate, updated as you drive.
                   </Text>
                 </View>
               </View>

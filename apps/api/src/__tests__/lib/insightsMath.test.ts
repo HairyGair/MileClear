@@ -369,3 +369,28 @@ describe("current streak uses the UK date", () => {
     expect(computeStreak(["2026-10-07", "2026-10-06"], now).current).toBe(0);
   });
 });
+
+describe("Weekly P&L basis (Tax tab, 10 Oct 2026)", () => {
+  const week = [
+    trip(100, "2026-10-05T08:00:00Z"), // untagged work trip
+    trip(40, "2026-10-05T12:00:00Z", { platformTag: "uber" }),
+  ];
+
+  it("with an employer rate and untagged trips, P&L (approved rates) and the claim differ", () => {
+    const t = summarisePeriod({ trips: week, earlier: [], earnings: [], user: demoUser, fallbackType: "car" });
+    expect(t.returnMileagePence).toBe(140 * 55); // 55p on every claimable trip
+    expect(t.claimPence).toBe(100 * 40 + 40 * 55); // untagged at 40p, gig at 55p
+    expect(t.returnMileagePence).not.toBe(t.claimPence);
+  });
+
+  it("without an employer rate they are equal", () => {
+    const t = summarisePeriod({ trips: week, earlier: [], earnings: [], user: gigOnly, fallbackType: "car" });
+    expect(t.returnMileagePence).toBe(t.claimPence);
+  });
+
+  it("is threshold-aware: miles over 10,000 earlier in the tax year are 25p", () => {
+    const earlier = [{ distanceMiles: 9950, vehicleType: "car" as const, platformTag: "uber", startedAt: new Date("2026-06-01T08:00:00Z") }];
+    const t = summarisePeriod({ trips: [trip(100, "2026-10-05T08:00:00Z")], earlier, earnings: [], user: demoUser, fallbackType: "car" });
+    expect(t.returnMileagePence).toBe(50 * 55 + 50 * 25);
+  });
+});

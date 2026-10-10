@@ -75,7 +75,7 @@ import { CommunityInsightsCard } from "../../components/community/CommunityInsig
 import { CommunityMonthCard } from "../../components/community/CommunityMonthCard";
 import RoadAlertsCard from "../../components/roadAlerts/RoadAlertsCard";
 import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
-import { TaxReadinessCard } from "../../components/business/TaxReadinessCard";
+import { TaxSummaryLine } from "../../components/tax/TaxSummaryLine";
 import { SaCountdownCard } from "../../components/business/SaCountdownCard";
 import { MileageMonthCard } from "../../components/business/MileageMonthCard";
 import { ActivityHeatmapCard } from "../../components/business/ActivityHeatmapCard";
@@ -435,7 +435,7 @@ export default function DashboardScreen() {
     savedLocationsSuggestionCount > 0 &&
     Date.now() >= savedLocsNudgeDismissedUntil;
   const proNudgeMessages = [
-    stats ? `You've saved ${formatPence(stats.deductionPence)} in deductions. Export them with Pro` : "Export your HMRC deductions with Pro",
+    stats ? `Your mileage claim is ${formatPence(stats.deductionPence)}. Download your records with Pro` : "Download your mileage records with Pro",
     "See which platform pays best with business insights",
     "Save unlimited work locations with Pro",
     "Get monthly and yearly recap reports",
@@ -1854,7 +1854,7 @@ export default function DashboardScreen() {
 
             <Text style={s.explainerSubhead}>How it works</Text>
             <Text style={s.explainerBody}>
-              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>HMRC mileage deduction</Text> - 55p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
+              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>mileage claim</Text> - 55p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
             </Text>
 
             <View style={s.explainerDivider} />
@@ -2220,10 +2220,10 @@ export default function DashboardScreen() {
                   key={key}
                   style={s.heroCard}
                   accessible
-                  accessibilityLabel={`Tax deduction for the ${prev.taxYear} tax year: ${formatPence(prev.deductionPence)} of business mileage you can claim, from ${formatWholeMiles(prev.businessMiles)} business miles. ${stats.taxYear} started 6 April: ${thisYearSoFar}.`}
+                  accessibilityLabel={`Mileage claim for the ${prev.taxYear} tax year: ${formatPence(prev.deductionPence)} of business mileage you can claim, from ${formatWholeMiles(prev.businessMiles)} business miles. ${stats.taxYear} started 6 April: ${thisYearSoFar}.`}
                 >
                   <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {prev.taxYear}</Text>
+                    <Text style={s.heroLabel}>Mileage claim {"\u00B7"} {prev.taxYear}</Text>
                   </View>
                   <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
                     {formatPence(prev.deductionPence)}
@@ -2253,7 +2253,7 @@ export default function DashboardScreen() {
                   <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
                   <Text style={s.heroSavedLabel}>to claim so far</Text>
                   <Text style={s.heroEmptyBody}>
-                    Tap Start Trip the next time you drive. Your HMRC deduction starts adding up from your first business mile.
+                    Tap Start Trip the next time you drive. Your mileage claim starts adding up from your first business mile.
                   </Text>
                 </View>
               );
@@ -2272,7 +2272,7 @@ export default function DashboardScreen() {
                   accessibilityLabel="No business miles tracked yet. Tap to open the Trips tab and reclassify any work-related trips as Business."
                 >
                   <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Tax Deduction {"·"} {stats.taxYear}</Text>
+                    <Text style={s.heroLabel}>Mileage claim {"·"} {stats.taxYear}</Text>
                   </View>
                   <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
                   <Text style={s.heroSavedLabel}>no business trips yet</Text>
@@ -2313,7 +2313,7 @@ export default function DashboardScreen() {
             return stats ? (
               <View key={key} style={s.heroCard}>
                 <View style={s.heroTopRow}>
-                  <Text style={s.heroLabel}>Tax Deduction {"\u00B7"} {stats.taxYear}</Text>
+                  <Text style={s.heroLabel}>Mileage claim {"\u00B7"} {stats.taxYear}</Text>
                   {stats.currentStreakDays > 0 && (
                     <View style={s.streakBadgeInline}>
                       <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
@@ -2361,10 +2361,10 @@ export default function DashboardScreen() {
             ) : null;
           }
           case "tax_readiness":
-            // Hide until there's at least one trip - "£0 estimated tax"
-            // adds nothing for a brand-new user.
+            // One line that opens the Tax tab (key kept for saved layouts).
+            // Hide until there's at least one trip.
             if (totalTrips === 0) return null;
-            return <TaxReadinessCard key={key} />;
+            return <TaxSummaryLine key={key} />;
           case "sa_countdown":
             // "Ready for 31 January?" Renders nothing outside 1 December to
             // 31 January, or for personal-mode, employee and company
@@ -2600,7 +2600,7 @@ export default function DashboardScreen() {
             <Text style={s.dqBannerTitle}>We improved your trip data</Text>
             <Text style={s.dqBannerBody}>
               We re-routed {dqImprovement.improvedTripCount} of your recent {dqImprovement.improvedTripCount === 1 ? "trip" : "trips"} and recovered{" "}
-              {dqImprovement.milesGained.toFixed(1)} miles for you. Tax Readiness is up to date.
+              {dqImprovement.milesGained.toFixed(1)} miles for you. Your tax figures are up to date.
             </Text>
           </View>
           <TouchableOpacity

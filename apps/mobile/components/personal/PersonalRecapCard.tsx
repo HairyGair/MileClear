@@ -327,7 +327,7 @@ export function PersonalRecapCard({
                 <Ionicons name="cash" size={12} color={GREEN} />
               </View>
               <Text style={styles.insightText}>
-                £{(yearDeductionPence / 100).toFixed(2)} HMRC deduction so far
+                £{(yearDeductionPence / 100).toFixed(2)} mileage claim so far
               </Text>
             </View>
           )}

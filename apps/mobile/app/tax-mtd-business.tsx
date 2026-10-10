@@ -97,9 +97,9 @@ export default function TaxMtdBusinessScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
       <Stack.Screen options={{ title: "Confirm trade", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
       <BetaBanner
-        label="Beta · Sandbox"
-        title="HMRC integration is in beta"
-        body="MTD submissions currently go to HMRC's test system while we wait for HMRC's production credentials."
+        label="Test version"
+        title="Quarterly updates are a test version"
+        body="Nothing is sent to HMRC yet. This uses HMRC's test service while we wait to be allowed to send real updates."
       />
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
@@ -126,9 +126,9 @@ export default function TaxMtdBusinessScreen() {
 
         <Text style={styles.warningTitle}>Confirm before you continue</Text>
         <Text style={styles.warningBody}>
-          MileClear will submit quarterly figures against this trade. If the details
-          don't match the work you actually do — make changes via HMRC's Self
-          Assessment online before you continue.
+          When it goes live, quarterly updates will be sent against this trade. If the
+          details don't match the work you do, change them in HMRC's Self Assessment
+          online before you continue.
         </Text>
 
         <TouchableOpacity
@@ -176,7 +176,7 @@ function formatDate(iso: string): string {
 }
 
 function formatAddress(addr: HmrcBusinessDetails["businessAddress"]): string {
-  if (!addr) return "—";
+  if (!addr) return "Not set";
   return [addr.line1, addr.line2, addr.line3, addr.line4, addr.postalCode]
     .filter(Boolean)
     .join(", ");
