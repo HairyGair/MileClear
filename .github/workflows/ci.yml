@@ -15,6 +15,10 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    # The production server runs on UK time and tax-year/UK-date code relies
+    # on it; on UTC, trips near midnight land on the wrong day.
+    env:
+      TZ: Europe/London
 
     steps:
       - name: Checkout
