@@ -267,7 +267,8 @@ export function rowGroups(
         },
       ];
       if (reliefPence > 0) groups.push({ title: "CLAIMS", rows: [reliefRow(reliefPence, formatPence)] });
-      groups.push({ title: "SETTINGS", rows: [R.taxDetails] });
+      // The page shows only "You drive for" for a company car (no rates or income).
+      groups.push({ title: "SETTINGS", rows: [{ ...R.taxDetails, hint: "What you drive for" }] });
       return groups;
     }
     case "personal":

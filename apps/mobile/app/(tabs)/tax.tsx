@@ -158,7 +158,11 @@ export default function TaxScreen() {
 
     if (persona === "company") {
       return data.claim && !failed.has("claim") ? (
-        <CompanyCard taxYear={data.claim.taxYear} businessMiles={data.claim.businessMiles} />
+        <CompanyCard
+          taxYear={data.claim.taxYear}
+          businessMiles={data.claim.businessMiles}
+          onMilesheet={isCompanyDriver}
+        />
       ) : (
         <SectionError />
       );
