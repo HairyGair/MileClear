@@ -49,13 +49,25 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "modes",
         q: "Work mode vs Personal mode?",
-        a: "Top of the dashboard - switch between Work and Personal whenever your day changes. Work mode shows your mileage claim, business insights and tax tools. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you do both, set your dashboard mode to \"Both\" in Settings to see everything at once.",
+        a: "Top of the dashboard - switch between Work and Personal whenever your day changes. Work mode shows your mileage claim, business insights and tax tools. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you never drive for work, choose \"Just me, not for work\" under Settings → You drive for to stop tax and work reminders.",
         goTo: "/settings/work-tax",
+      },
+      {
+        id: "you-drive-for",
+        q: "What does \"You drive for\" in Settings do?",
+        a: "It tells MileClear how you work, so you only get the reminders and tax tools that fit. Choose Deliveries or gig work, An employer in your own car, Gig work and an employer, A company car, or Just me, not for work.\n\n\"Just me\" stops tax and work reminders. Pick another answer any time to switch them back on.",
+        goTo: "/settings/work-tax",
+      },
+      {
+        id: "settings-checks",
+        q: "What are the ticks at the top of Settings?",
+        a: "They answer \"is MileClear working?\": whether trips are recording (the same line as on Home), your last trip, whether your phone lets MileClear send notifications, and whether all your trips are saved to your account.\n\nA red line says what is wrong and has a Fix or Retry button. Tap any line to see more.",
+        goTo: "/settings",
       },
       {
         id: "first-trip",
         q: "I just installed the app - what should I do first?",
-        a: "Five things in order:\n\n1. Add your vehicle in Settings → Vehicles. We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (More → Saved places). Trips that start or end there get labelled with the name rather than a street address, and trips between two saved places can be auto-classified. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Profile → Settings → Community) for tax tips, platform talk and product updates from other UK drivers.",
+        a: "Five things in order:\n\n1. Add your vehicle in More → Vehicles (or Settings → Your car). We need fuel type + MPG to calculate fuel costs.\n2. Allow notifications when prompted. Push is how we send trip-classify nudges, MOT reminders, and the streak / recap pings.\n3. Pin Home and Work as saved locations (More → Saved places). Trips that start or end there get labelled with the name rather than a street address, and trips between two saved places can be auto-classified. After you've taken a handful of trips MileClear suggests other places to pin, surfaced as a sparkles card on the dashboard.\n4. Take your first drive. You'll see a \"Trip Active\" Live Activity on the Lock Screen.\n5. Optional but recommended: join the Discord (Settings → MileClear community) for tax tips, platform talk and product updates from other UK drivers.",
       },
       {
         id: "unlimited-free",
@@ -65,7 +77,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "discord-community",
         q: "Is there a community I can join?",
-        a: "Yes - Profile → Settings → Community, or jump straight to discord.gg/Wxnvr3rzaq. UK drivers (gig + employee + sole trader), tax chat, platform talk, fuel deals, and product updates from Anthony (founder). No obligation, no DMs from us unless you start a thread.\n\nLaura's tip: pin the #tax-questions channel - tax season gets busy and answers there save you an accountant call.",
+        a: "Yes - Settings → MileClear community, or jump straight to discord.gg/Wxnvr3rzaq. UK drivers (gig + employee + sole trader), tax chat, platform talk, fuel deals, and product updates from Anthony (founder). No obligation, no DMs from us unless you start a thread.\n\nLaura's tip: pin the #tax-questions channel - tax season gets busy and answers there save you an accountant call.",
         externalUrl: "https://discord.gg/Wxnvr3rzaq",
       },
       {
@@ -111,7 +123,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "employer-mileage",
         q: "My employer reimburses me for mileage - what do I enter?",
-        a: "Tax tab → Your tax details → set Work type to \"Employee using own vehicle\" or \"Both\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 55p / 25p (up from 45p / 25p on 6 April 2026) - that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
+        a: "Settings → You drive for → choose \"An employer, in my own car\" or \"Gig work and an employer\", then enter your employer's per-mile rate. MileClear shows you the gap between what they pay and HMRC's 55p / 25p (up from 45p / 25p on 6 April 2026) - that's the amount you can recover at year-end via Mileage Allowance Relief on a P87 or Self Assessment.",
         goTo: "/settings/work-tax",
       },
       {
@@ -181,7 +193,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "wrong-distance",
         q: "A trip's distance looks wrong",
-        a: "Open the trip → Recalculate distance. Hits our routing engine on demand. For sparse-GPS trips, also try Settings → Data Quality → Recheck suspicious trips - we'll re-route any trip with low confidence in bulk.",
+        a: "Open the trip → Recalculate distance. Hits our routing engine on demand. For sparse-GPS trips, also try Settings → Your data → Check my trips for odd ones - we'll re-route any trip with low confidence in bulk.",
       },
       {
         id: "confidence",
@@ -228,7 +240,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "auto-classify-rules",
         q: "How do auto-classify rules work? (Pro)",
-        a: "Settings → Auto-classify. Three triggers:\n\n• Time of day - e.g. trips between 06:00 and 18:00 on weekdays = Work\n• Saved-location pair - trips between Home and Depot = Work\n• Work Schedule - link to your Work Schedule (Profile → Schedule) so Monday-Friday 9-5 trips classify Work, Saturday classifies Personal\n\nRules run in priority order. After a rule matches, the trip auto-saves with the classification - no Lock Screen prompt needed. You can always override an auto-classified trip later.\n\nPro feature. Free users still get the per-A-to-B learning ('three Works = suggest Work').",
+        a: "Settings → Recording → Sort trips automatically. Three triggers:\n\n• Time of day - e.g. trips between 06:00 and 18:00 on weekdays = Work\n• Saved-location pair - trips between Home and Depot = Work\n• Work hours - link to your working hours (Settings → Work hours) so Monday-Friday 9-5 trips classify Work, Saturday classifies Personal\n\nRules run in priority order. After a rule matches, the trip auto-saves with the classification - no Lock Screen prompt needed. You can always override an auto-classified trip later.\n\nPro feature. Free users still get the per-A-to-B learning ('three Works = suggest Work').",
         goTo: "/classification-rules",
       },
     ],
@@ -254,7 +266,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         a: "Self Assessment PDF, CSV and PDF mileage exports, CSV earnings import, Open Banking import, the Bank-feed Inbox, auto-classify rules, business insights, driving analytics, journey map, accountant access (set up on mileclear.com), unlimited invoices, and unlimited saved locations and vehicles.\n\nThe Self Assessment wizard, receipt scanning, shift scorecards, achievements and recaps are all free.\n\n£4.99/month or £44.99/year. " +
           (Platform.OS === "android"
             ? "Cancel any time in Google Play > Payments & subscriptions."
-            : "Cancel any time in your Apple ID settings, or from Profile if you subscribed on the website."),
+            : "Cancel any time in your Apple ID settings, or from Settings → Your plan if you subscribed on the website."),
       },
       {
         id: "expenses",
@@ -272,7 +284,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "inbox",
         q: "What's the Bank-feed Inbox? (Pro)",
-        a: "Connect your bank with Open Banking (Profile → Settings → Open Banking) and every transaction lands in a triage screen at More → Bank inbox. Each row shows the merchant, amount, date and a suggested category dot - green for high confidence, amber for medium, grey for low.\n\nOne tap to Accept as Earning, Accept as Expense, or Ignore. The categoriser learns from every override - if you mark \"Costa Coffee\" as Subsistence twice, the third time it auto-suggests Subsistence with high confidence.\n\nKnown gig platforms (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr) still auto-import as Earnings in the background - the Inbox is for everything else.",
+        a: "Connect your bank with Open Banking (More → Link a bank) and every transaction lands in a triage screen at More → Bank inbox. Each row shows the merchant, amount, date and a suggested category dot - green for high confidence, amber for medium, grey for low.\n\nOne tap to Accept as Earning, Accept as Expense, or Ignore. The categoriser learns from every override - if you mark \"Costa Coffee\" as Subsistence twice, the third time it auto-suggests Subsistence with high confidence.\n\nKnown gig platforms (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr) still auto-import as Earnings in the background - the Inbox is for everything else.",
         goTo: "/inbox",
       },
       {
@@ -288,7 +300,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "open-banking",
         q: "What's Open Banking auto-import? (Pro)",
-        a: "Profile → Settings → Open Banking → Connect. Use TrueLayer (FCA-authorised) to link your bank account read-only. Every transaction from that point on lands in the Bank-feed Inbox for one-tap triage.\n\nKnown gig platforms auto-promote straight to Earnings (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr). Everything else - fuel, parking, phone bill, hotel - goes to the Inbox with a suggested category.\n\nRead-only access only - we cannot move money or see account numbers. Disconnect any time from the same screen. Supports Monzo, Starling, Lloyds, Barclays, HSBC, NatWest, Santander, Revolut and ~20 more UK banks.",
+        a: "More → Link a bank → Connect. Use TrueLayer (FCA-authorised) to link your bank account read-only. Every transaction from that point on lands in the Bank-feed Inbox for one-tap triage.\n\nKnown gig platforms auto-promote straight to Earnings (Uber, Deliveroo, Just Eat, Amazon Flex, Stuart, Gophr). Everything else - fuel, parking, phone bill, hotel - goes to the Inbox with a suggested category.\n\nRead-only access only - we cannot move money or see account numbers. Disconnect any time from the same screen. Supports Monzo, Starling, Lloyds, Barclays, HSBC, NatWest, Santander, Revolut and ~20 more UK banks.",
         goTo: "/open-banking",
       },
       {
@@ -310,13 +322,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "add-vehicle",
         q: "How do I add a vehicle?",
-        a: "Profile → Settings → Vehicles → Add. Enter the registration plate and tap Look up - DVLA returns make, model, fuel type, and engine size automatically. Add MPG (rough figure is fine, MileClear refines it over time from your fuel logs) and you're done.\n\nMultiple vehicles: free tier supports 1, Pro supports unlimited. Each trip gets assigned to a vehicle so the right HMRC rate (car/van vs motorbike) applies.",
+        a: "More → Vehicles → Add. Enter the registration plate and tap Look up - DVLA returns make, model, fuel type, and engine size automatically. Add MPG (rough figure is fine, MileClear refines it over time from your fuel logs) and you're done.\n\nMultiple vehicles: free tier supports 1, Pro supports unlimited. Each trip gets assigned to a vehicle so the right HMRC rate (car/van vs motorbike) applies.",
         goTo: "/vehicle-form",
       },
       {
         id: "mot-history",
         q: "How do I see my MOT history?",
-        a: "Profile → Vehicles → tap a vehicle → View MOT History. The full DVSA record: every test, pass/fail, mileage at test, advisories, and minor / major / dangerous defects. Useful for spotting recurring issues (the same advisory three years running probably means a real problem) and for selling the car later (buyers love a clean history).\n\nFree feature - same DVSA data as gov.uk/check-mot-history, but laid out for drivers rather than mechanics.",
+        a: "More → Vehicles → tap a vehicle → View MOT History. The full DVSA record: every test, pass/fail, mileage at test, advisories, and minor / major / dangerous defects. Useful for spotting recurring issues (the same advisory three years running probably means a real problem) and for selling the car later (buyers love a clean history).\n\nFree feature - same DVSA data as gov.uk/check-mot-history, but laid out for drivers rather than mechanics.",
         goTo: "/vehicle-mot-history",
       },
       {
@@ -370,7 +382,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "restore-purchases",
         q: "I subscribed but Pro features aren't unlocked",
-        a: "Profile → Settings → Subscription → Restore Purchases. Apple's StoreKit reads your account history and re-applies the Pro flag. Usually fixes it instantly.\n\nIf still no luck: email support@mileclear.com with the App Store receipt (Settings → [your name] → Media & Purchases → View Account → Purchase History). Anthony will manually link the purchase. Free turnaround - we don't leave anyone stranded after they've paid.",
+        a: "Settings → Your plan → Restore purchase. Apple's StoreKit reads your account history and re-applies the Pro flag. Usually fixes it instantly.\n\nIf still no luck: email support@mileclear.com with the App Store receipt (Settings → [your name] → Media & Purchases → View Account → Purchase History). Anthony will manually link the purchase. Free turnaround - we don't leave anyone stranded after they've paid.",
       },
       {
         id: "cancel-pro",
@@ -380,12 +392,12 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "delete-account",
         q: "How do I delete my account?",
-        a: "Profile → Settings → Delete Account. Type your password to confirm. Within 30 days, all your data is permanently erased - trips, vehicles, fuel logs, earnings, expenses, invoices - from MileClear's servers and any backups. If you have an active Pro subscription it'll be cancelled (you'll need to do this from Apple's Subscriptions screen too if you want a refund).\n\nThis is GDPR-compliant erasure. Once it's gone we cannot recover it. If you just want to take a break, sign out instead.",
+        a: "Settings → Your account → Delete account. Type your password to confirm. Within 30 days, all your data is permanently erased - trips, vehicles, fuel logs, earnings, expenses, invoices - from MileClear's servers and any backups. If you have an active Pro subscription it'll be cancelled (you'll need to do this from Apple's Subscriptions screen too if you want a refund).\n\nThis is GDPR-compliant erasure. Once it's gone we cannot recover it. If you just want to take a break, sign out instead.",
       },
       {
         id: "gdpr-export",
         q: "Can I download all my data?",
-        a: "Yes - Profile → Settings → Export My Data. Generates a JSON file with everything we hold about you: account, all trips and coordinates, vehicles, fuel logs, earnings, expenses, invoices, saved locations. Free, GDPR-compliant.\n\nUse it to import into another tool, hand to your accountant, or just to know what we have. We don't compress it or strip anything - what you see is what we have.",
+        a: "Yes - Settings → Your data → Get a copy of your data. Gives you a file with everything we hold about you: account, all trips and coordinates, vehicles, fuel logs, earnings, expenses, invoices, saved locations. Free, GDPR-compliant.\n\nUse it to import into another tool, hand to your accountant, or just to know what we have. We don't compress it or strip anything - what you see is what we have.",
       },
       {
         id: "marketing-emails",
@@ -406,7 +418,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "trips-not-syncing",
         q: "Trips not appearing on the web dashboard",
-        a: "Open Settings → Sync Status. Pending trips upload as soon as you're back online. If you see \"failed\" items, tap Retry. Trips are always saved locally first - they don't get lost if sync is delayed.",
+        a: "Open Settings: the \"All trips saved\" line at the top shows anything waiting. Tap it. Pending trips upload as soon as you're back online. If you see \"failed\" items, tap Retry. Trips are always saved locally first - they don't get lost if sync is delayed.",
         goTo: "/sync-status",
       },
       {
@@ -417,7 +429,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "battery",
         q: "Is GPS tracking going to kill my battery?",
-        a: "MileClear uses iOS's significant-location-change API while you're stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check Settings → Data Quality - your tracking permissions might be sub-optimal.",
+        a: "MileClear uses iOS's significant-location-change API while you're stationary, and only escalates to active GPS during a recording. Typical impact is 2-4% per 8-hour shift. If you notice more than that, check Settings → Recording → Check recording in detail - your tracking permissions might be sub-optimal.",
       },
       {
         id: "notification-permission",

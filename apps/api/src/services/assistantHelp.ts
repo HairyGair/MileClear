@@ -72,13 +72,25 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "work-personal-mode",
     area: "getting_started",
     q: "What's the difference between Work and Personal mode?",
-    a: "Work mode shows your mileage claim, tax and business figures, with a Tax tab. Personal mode is for everyday driving, with an Insights tab instead of Tax (Tax is then under More). Switch at the top of Home, or choose Work, Personal or Both in More > Settings > Preferences.",
+    a: "Work mode shows your mileage claim, tax and business figures, with a Tax tab. Personal mode is for everyday driving, with an Insights tab instead of Tax (Tax is then under More). Switch at the top of Home. To stop work and tax reminders, choose \"Just me, not for work\" under You drive for (More > Settings > You drive for).",
+  },
+  {
+    id: "you-drive-for",
+    area: "getting_started",
+    q: "What does \"You drive for\" in Settings do?",
+    a: "It tells MileClear how you work, so you only get the right reminders and tax tools. Choose Deliveries or gig work, An employer in your own car, Gig work and an employer, A company car, or Just me, not for work. \"Just me\" stops tax and work reminders; pick another answer any time to switch them back on. It's in More > Settings > You drive for.",
+  },
+  {
+    id: "settings-checks",
+    area: "recording_trips",
+    q: "What are the ticks at the top of Settings?",
+    a: "They answer \"is MileClear working?\": whether trips are recording (the same line as on Home), your last trip, whether your phone lets MileClear send notifications, and whether all your trips are saved to your account. A red line says what's wrong and has a Fix or Retry button. Tap any line to see more.",
   },
   {
     id: "who-for",
     area: "getting_started",
     q: "Who is MileClear for?",
-    a: "Self-employed and gig drivers (Uber, Deliveroo, Just Eat, Amazon Flex, Evri, DPD and others), employees who drive their own car for work, and anyone who wants to keep track of their own driving. Employees can set their employer's mileage rate in More > Settings > Work & Tax.",
+    a: "Self-employed and gig drivers (Uber, Deliveroo, Just Eat, Amazon Flex, Evri, DPD and others), employees who drive their own car for work, and anyone who wants to keep track of their own driving. Employees can set their employer's mileage rate in More > Settings > You drive for.",
   },
   {
     id: "android",
@@ -92,13 +104,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "automatic-trips",
     area: "recording_trips",
     q: "How does MileClear know I'm driving?",
-    a: "With Automatic trips on (More > Settings > Tracking & Locations, also on Home), MileClear notices when you're moving at driving speed and records the trip by itself, then ends it when you stop. It needs location set to \"Always\" with Precise on, and Motion & Fitness (Physical activity on Android) allowed.",
+    a: "With Automatic trips on (More > Settings > Recording, also on Home), MileClear notices when you're moving at driving speed and records the trip by itself, then ends it when you stop. It needs location set to \"Always\" with Precise on, and Motion & Fitness (Physical activity on Android) allowed.",
   },
   {
     id: "start-trip",
     area: "recording_trips",
     q: "What is Start Trip?",
-    a: "Start Trip on Home records one trip from the moment you tap it until you tap I've Arrived, then shows a summary for you to save. By default it saves by itself after 15 minutes parked. If you turn on \"Start Trip runs until I tap Arrived\" (More > Settings > Tracking & Locations), waits and stops stay in the same trip.",
+    a: "Start Trip on Home records one trip from the moment you tap it until you tap I've Arrived, then shows a summary for you to save. By default it saves by itself after 15 minutes parked. If you turn on \"Start Trip runs until I tap Arrived\" (More > Settings > Recording), waits and stops stay in the same trip.",
   },
   {
     id: "still-on-your-trip",
@@ -122,37 +134,37 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "turn-off-automatic",
     area: "recording_trips",
     q: "How do I stop it recording every drive?",
-    a: "Turn off Automatic trips in More > Settings > Tracking & Locations (the switch is also on Home). You can still use Start Trip or Start Shift, or add trips by hand. Personal trips are never claimed, so leaving them recorded does no harm.",
+    a: "Turn off Automatic trips in More > Settings > Recording (the switch is also on Home). You can still use Start Trip or Start Shift, or add trips by hand. Personal trips are never claimed, so leaving them recorded does no harm.",
   },
   {
     id: "battery",
     area: "recording_trips",
     q: "Does it drain my battery?",
-    a: "MileClear uses about 2 to 4% of battery over an 8-hour shift. Battery saver (More > Settings > Tracking & Locations) eases off when the battery is low and you're not plugged in, without dropping trips. Low Power Mode on iPhone can delay or miss trips, so leave it off while you work if you can.",
+    a: "MileClear uses about 2 to 4% of battery over an 8-hour shift. \"Save battery when it's low\" (More > Settings > Recording) eases off when the battery is low and you're not plugged in, without dropping trips. Low Power Mode on iPhone can delay or miss trips, so leave it off while you work if you can.",
   },
   {
     id: "journey-end",
     area: "recording_trips",
     q: "How long does a stop have to be before a new trip starts?",
-    a: "Set it under More > Settings > Tracking & Locations > End a journey after. Stops shorter than that stay in one trip; longer ones split it into two. The default is 30 minutes.",
+    a: "Set it under More > Settings > Recording > End a trip after. Stops shorter than that stay in one trip; longer ones split it into two. The default is 30 minutes.",
   },
   {
     id: "live-activity",
     area: "recording_trips",
     q: "What is the box on my lock screen while I drive?",
-    a: "That's the Live Activity on iPhone, showing the trip as it records. If it doesn't show, check iPhone Settings > MileClear > Live Activities is on. You can switch it off for automatic trips in More > Settings > Notifications.",
+    a: "That's the Live Activity on iPhone, showing the trip as it records. If it doesn't show, check iPhone Settings > MileClear > Live Activities is on. You can switch it off in More > Settings > Notifications (\"Show a trip on your lock screen\").",
   },
   {
     id: "permissions",
     area: "recording_trips",
     q: "Which permissions does MileClear need?",
-    a: "Location \"Always\" with Precise Location on, Motion & Fitness (Physical activity on Android), and notifications. Without \"Always\" it can only record while the app is open. More > Settings > Tracking & Locations > Diagnostics shows what is set and what needs fixing.",
+    a: "Location \"Always\" with Precise Location on, Motion & Fitness (Physical activity on Android), and notifications. Without \"Always\" it can only record while the app is open. More > Settings > Recording > Check recording in detail shows what is set and what needs fixing.",
   },
   {
     id: "offline",
     area: "recording_trips",
     q: "Does it work without signal?",
-    a: "Yes. Trips, earnings, expenses and fuel are saved on your phone first and upload when you're back online. More > Settings > Data & Exports > Sync status shows anything still waiting.",
+    a: "Yes. Trips, earnings, expenses and fuel are saved on your phone first and upload when you're back online. Settings opens with a check that says whether all your trips are saved to your account, and tapping it shows anything still waiting.",
   },
 
   // ── Missing or wrong trips ────────────────────────────────────────────────
@@ -160,7 +172,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "missing-trip",
     area: "missing_or_wrong_trips",
     q: "A trip is missing. What do I do?",
-    a: "First check the Trips tab, including the Inbox and \"Journeys to check\", because some trips arrive late. If it isn't there, tap \"Missing a trip you made?\" at the top of the Trips tab to tell us, or add it with Add a past trip. Then check the usual causes: location not set to \"Always\", Precise Location off, Low Power Mode, recording paused, Automatic trips off, or the app swiped away. More > Settings > Tracking & Locations > Diagnostics shows what to fix.",
+    a: "First check the Trips tab, including the Inbox and \"Journeys to check\", because some trips arrive late. If it isn't there, tap \"Missing a trip you made?\" at the top of the Trips tab to tell us, or add it with Add a past trip. Then check the usual causes: location not set to \"Always\", Precise Location off, Low Power Mode, recording paused, Automatic trips off, or the app swiped away. More > Settings > Recording > Check recording in detail shows what to fix.",
   },
   {
     id: "late-trip",
@@ -172,7 +184,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "split-trip",
     area: "missing_or_wrong_trips",
     q: "One journey was split into two trips.",
-    a: "A long stop, such as a wait at a pickup, ends one trip and starts another. You can merge them: open one of the trips and use More, or long-press it in the Trips list. To keep waits in one trip in future, make the stop length longer under More > Settings > Tracking & Locations > End a journey after, or use Start Trip with \"Start Trip runs until I tap Arrived\" on.",
+    a: "A long stop, such as a wait at a pickup, ends one trip and starts another. You can merge them: open one of the trips and use More, or long-press it in the Trips list. To keep waits in one trip in future, make the stop length longer under More > Settings > Recording > End a trip after, or use Start Trip with \"Start Trip runs until I tap Arrived\" on.",
   },
   {
     id: "wrong-distance",
@@ -202,7 +214,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "web-missing",
     area: "missing_or_wrong_trips",
     q: "My trips aren't showing on the website.",
-    a: "Trips upload when your phone is online. Check More > Settings > Data & Exports > Sync status on your phone and tap Retry on anything that failed. Make sure you're signed in to the same account on the website.",
+    a: "Trips upload when your phone is online. Open Settings on your phone: if anything failed to upload, the \"All trips saved\" line turns red. Tap it and tap Retry. Make sure you're signed in to the same account on the website.",
   },
 
   // ── Managing trips ───────────────────────────────────────────────────────
@@ -270,7 +282,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "auto-classify",
     area: "managing_trips",
     q: "Can trips be classified automatically?",
-    a: "MileClear suggests Business or Personal for journeys you repeat. With Pro, Classification rules (More > Settings > Tracking & Locations) mark trips by your working hours, saved places or time of day without asking. Set your hours in More > Work schedule.",
+    a: "MileClear suggests Business or Personal for journeys you repeat. \"Sort trips automatically\" (More > Settings > Recording) marks trips by your working hours, saved places or time of day without asking. Set your hours in More > Work hours (or Settings > Work hours).",
   },
 
   // ── Tax and claims ───────────────────────────────────────────────────────
@@ -308,7 +320,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "tax-estimate",
     area: "tax_and_claims",
     q: "How is the tax estimate worked out?",
-    a: "From your recorded earnings, minus your mileage claim and allowable expenses, giving your profit. MileClear applies the current personal allowance, income tax bands and Class 4 National Insurance, and takes your other income into account if you've entered it in More > Settings > Work & Tax. It's only as good as what you've recorded, and it's an estimate, not a bill.",
+    a: "From your recorded earnings, minus your mileage claim and allowable expenses, giving your profit. MileClear applies the current personal allowance, income tax bands and Class 4 National Insurance, and takes your other income into account if you've entered it in More > Settings > You drive for. It's only as good as what you've recorded, and it's an estimate, not a bill.",
   },
   {
     id: "payment-plan",
@@ -326,13 +338,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "employee",
     area: "tax_and_claims",
     q: "I'm an employee and my employer pays me per mile.",
-    a: "Set your work type and your employer's rate in More > Settings > Work & Tax. If your employer pays less than the approved rates, Tax > Mileage Allowance Relief works out the difference you can claim back from HMRC. It's free.",
+    a: "Set your work type and your employer's rate in More > Settings > You drive for. If your employer pays less than the approved rates, Tax > Mileage Allowance Relief works out the difference you can claim back from HMRC. It's free.",
   },
   {
     id: "other-income",
     area: "tax_and_claims",
     q: "I have a job as well as driving.",
-    a: "Enter your other income, or the tax already taken through PAYE, in More > Settings > Work & Tax. The tax estimate then shows only the extra tax your driving profit adds.",
+    a: "Enter your other income, or the tax already taken through PAYE, in More > Settings > You drive for. The tax estimate then shows only the extra tax your driving profit adds.",
   },
   {
     id: "hmrc-check",
@@ -400,7 +412,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "invoices",
     area: "money",
     q: "Can I send invoices?",
-    a: "Yes, from More > Invoices. The free plan covers 3 invoices a month; Pro removes the limit and adds branded PDFs, emailing the client and payment reminders. Set your logo and bank details in More > Settings > Business Profile.",
+    a: "Yes, from More > Invoices. The free plan covers 3 invoices a month; Pro removes the limit and adds branded PDFs, emailing the client and payment reminders. Set your logo and bank details under Invoice details at the top of More > Invoices.",
   },
   {
     id: "fuel",
@@ -444,7 +456,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "work-schedule",
     area: "vehicles_and_places",
     q: "What is the work schedule?",
-    a: "More > Work schedule is where you set your working days and hours. It's free. With Pro, Classification rules can use it to mark trips in your working hours as Business, and it can switch you to Work mode while you're working.",
+    a: "More > Work hours (also in Settings) is where you set your working days and hours. It's free. With Pro, \"Sort trips automatically\" can use it to mark trips in your working hours as Business, and it can switch you to Work mode while you're working.",
   },
 
   // ── Pro and billing ──────────────────────────────────────────────────────
@@ -464,13 +476,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "cancel",
     area: "pro_and_billing",
     q: "How do I cancel Pro?",
-    a: "If you subscribed on iPhone, cancel in iPhone Settings > your name > Subscriptions. On Android, use Google Play > Payments & subscriptions. If you paid by card on the website, cancel from Profile in the app or Settings at mileclear.com. Pro stays on until the end of the period you've paid for, and your records stay as they are.",
+    a: "If you subscribed on iPhone, cancel in iPhone Settings > your name > Subscriptions. On Android, use Google Play > Payments & subscriptions. If you paid by card on the website, cancel from More > Settings > Your plan in the app, or Settings at mileclear.com. Pro stays on until the end of the period you've paid for, and your records stay as they are.",
   },
   {
     id: "restore",
     area: "pro_and_billing",
     q: "I paid but Pro isn't unlocked.",
-    a: "Open Profile (tap your picture on Home) and tap Restore Purchases, signed in with the same Apple ID you paid with. Check you're signed in to the MileClear account you subscribed on. If it still isn't unlocked, use More > Feedback > Report a problem or email support@mileclear.com.",
+    a: "Open Settings (tap your picture on Home), then Your plan > Restore purchase, signed in with the same Apple ID you paid with. Check you're signed in to the MileClear account you subscribed on. If it still isn't unlocked, use More > Feedback > Report a problem or email support@mileclear.com.",
   },
   {
     id: "refer",
@@ -496,19 +508,19 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "change-email",
     area: "account_and_app",
     q: "How do I change my email or password?",
-    a: "More > Settings > Profile has Email and Change password. When you change your email, MileClear sends a code to the new address to confirm it.",
+    a: "More > Settings > Your account has Email and Change password. When you change your email, MileClear sends a code to the new address to confirm it.",
   },
   {
     id: "delete-account",
     area: "account_and_app",
     q: "How do I delete my account?",
-    a: "Open Profile (tap your picture on Home) and tap Delete Account. It removes your account and records permanently. Cancel any App Store or Google Play subscription separately. To keep your records first, download them (More > Settings > Data & Exports).",
+    a: "Open Settings (tap your picture on Home), then Your account > Delete account. It removes your account and records permanently. Cancel any App Store or Google Play subscription separately. To keep your records first, download them (More > Settings > Downloads).",
   },
   {
     id: "my-data",
     area: "account_and_app",
     q: "Can I download all my data?",
-    a: "Yes, free: More > Settings > Data & Exports has a full copy of everything MileClear holds about you. For tax, use Tax > Tax exports instead (Pro).",
+    a: "Yes, free: More > Settings > Your data > Get a copy of your data has everything MileClear holds about you. For tax, use Tax > Tax exports instead (Pro).",
   },
   {
     id: "website",
@@ -532,7 +544,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "app-lock",
     area: "account_and_app",
     q: "Can I lock the app?",
-    a: "Yes. More > Settings > Security locks MileClear with Face ID, Touch ID or your passcode.",
+    a: "Yes. The App lock switch in More > Settings locks MileClear with Face ID, Touch ID or your passcode.",
   },
   {
     id: "emails",
@@ -550,7 +562,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "community",
     area: "account_and_app",
     q: "Is there a community of drivers?",
-    a: "Yes, a Discord for UK drivers: More > Settings > Community.",
+    a: "Yes, a Discord for UK drivers: More > Settings > MileClear community.",
   },
   {
     id: "privacy",
