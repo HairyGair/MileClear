@@ -21,6 +21,8 @@ export interface BankQuestion {
   expect: RegExp[];
   /** Must NOT appear in a correct answer. */
   reject?: RegExp[];
+  /** A correct answer can come from EmSee's data tools (rates, tax year, what EmSee is) without mileclear_help. */
+  toolOptional?: boolean;
 }
 
 const SETTINGS = /settings/i;
@@ -83,7 +85,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   // Managing trips
   { q: "How do I mark a trip as business?", area: "managing_trips", id: "classify", expect: [/business/i] },
   { q: "where do i sort my unclassified trips", area: "managing_trips", id: "classify", expect: [/inbox|trips/i] },
-  { q: "Does driving to the depot count as business?", area: "managing_trips", id: "what-is-business", expect: [/commut/i] },
+  { q: "Does driving to the depot count as business?", area: "managing_trips", id: "what-is-business", expect: [/commut/i], toolOptional: true },
   { q: "I forgot to track a trip, can I add it?", area: "managing_trips", id: "add-past-trip", expect: [/add a past trip/i] },
   { q: "How do I log a journey from last week by hand?", area: "managing_trips", id: "add-past-trip", expect: [/add a past trip/i] },
   { q: "How do I change the time on a trip?", area: "managing_trips", id: "edit-trip", expect: [/edit trip/i] },
@@ -97,11 +99,11 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I undo an automatic sort on a trip?", area: "managing_trips", id: "auto-classify", expect: [/undo automatic sort/i] },
 
   // Tax and claims
-  { q: "What's the mileage rate this year?", area: "tax_and_claims", id: "rates", expect: [/55p/, /25p/] },
-  { q: "Why are some trips at 45p?", area: "tax_and_claims", id: "rates", expect: [/45p/, /6 april 2026/i] },
-  { q: "whats the rate for a motorbike", area: "tax_and_claims", id: "rates", expect: [/24p/] },
-  { q: "Is the mileage claim money I get paid?", area: "tax_and_claims", id: "claim-meaning", expect: [/profit|expense/i] },
-  { q: "Can I claim fuel as well as mileage?", area: "tax_and_claims", id: "claim-meaning", expect: [/fuel/i] },
+  { q: "What's the mileage rate this year?", area: "tax_and_claims", id: "rates", expect: [/55p/, /25p/], toolOptional: true },
+  { q: "Why are some trips at 45p?", area: "tax_and_claims", id: "rates", expect: [/45p/, /6 april 2026/i], toolOptional: true },
+  { q: "whats the rate for a motorbike", area: "tax_and_claims", id: "rates", expect: [/24p/], toolOptional: true },
+  { q: "Is the mileage claim money I get paid?", area: "tax_and_claims", id: "claim-meaning", expect: [/profit|expense/i], toolOptional: true },
+  { q: "Can I claim fuel as well as mileage?", area: "tax_and_claims", id: "claim-meaning", expect: [/fuel/i], toolOptional: true },
   { q: "What does the Tax tab show me?", area: "tax_and_claims", id: "tax-tab", expect: [/return|tax so far|put by/i] },
   { q: "How do I get my tax return ready for January?", area: "tax_and_claims", id: "your-return", expect: [/31 january/i] },
   { q: "How do I fill in my tax return with this?", area: "tax_and_claims", id: "sa-wizard", expect: [/box by box/i] },
@@ -122,7 +124,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How can I show my insurer proof of my business miles?", area: "tax_and_claims", id: "certificate", expect: [/mileage certificate/i] },
   { q: "Is MileClear HMRC approved?", area: "tax_and_claims", id: "hmrc-approved", expect: [/\bno\b|isn't|not/i], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },
   { q: "Does it do Making Tax Digital?", area: "tax_and_claims", id: "mtd", expect: [/test/i], reject: [/submits? (your|quarterly) updates? to hmrc/i] },
-  { q: "When does the tax year end?", area: "tax_and_claims", id: "tax-year", expect: [/5 april/i] },
+  { q: "When does the tax year end?", area: "tax_and_claims", id: "tax-year", expect: [/5 april/i], toolOptional: true },
 
   // Money
   { q: "How do I add my Deliveroo earnings?", area: "money", id: "earnings", expect: [/earnings/i, /add manually/i] },
@@ -157,7 +159,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "My company uses MileClear, how do I get Pro through them?", area: "pro_and_billing", id: "team-pro", expect: [/invite|team/i] },
 
   // Account and app
-  { q: "If I sign in and see an empty account, what should I do?", area: "account_and_app", id: "sign-in", expect: [/same way|way you first|first did/i] },
+  { q: "If I sign in and see an empty account, what should I do?", area: "account_and_app", id: "sign-in", expect: [/same way|way you first|first did|originally/i] },
   { q: "How do I change my email address?", area: "account_and_app", id: "change-email", expect: [SETTINGS, /email/i, /code/i] },
   { q: "How do I change my password?", area: "account_and_app", id: "change-email", expect: [/change password/i] },
   { q: "How do I change my display name?", area: "account_and_app", id: "names", expect: [/your name|you screen/i] },
@@ -169,7 +171,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Is there an Android version?", area: "account_and_app", id: "android", expect: [/google play/i] },
   { q: "How do I speak to someone?", area: "account_and_app", id: "contact", expect: [/feedback|support@mileclear\.com/i] },
   { q: "How do I stop the update emails?", area: "account_and_app", id: "emails", expect: [/unsubscribe/i] },
-  { q: "What can EmSee do for me?", area: "account_and_app", id: "emsee", expect: [/records|miles|earnings/i] },
+  { q: "What can EmSee do for me?", area: "account_and_app", id: "emsee", expect: [/records|miles|earnings/i], toolOptional: true },
   { q: "Is there a group for drivers?", area: "account_and_app", id: "community", expect: [/discord/i] },
   { q: "Who can see my trips?", area: "account_and_app", id: "privacy", expect: [/accountant|only you/i] },
 

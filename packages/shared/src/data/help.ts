@@ -122,7 +122,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     q: "What does \"You drive for\" in Settings do?",
     a: "It tells MileClear how you work, so you get the right tax tools and reminders. Choose Deliveries or gig work, An employer in my own car, Gig work and an employer, A company car, or Just me, not for work. It's in More > Settings > You drive for (the same screen as Tax > Your tax details). Change it any time.",
     goTo: "/settings/work-tax",
-    keywords: ["drive for", "gig", "employer", "just me", "type", "kind", "work type", "which", "pick", "choose"],
+    keywords: ["drive for", "gig", "employer", "just me", "type", "kind", "work type", "which", "pick", "choose", "myself", "only drive for myself", "not for work", "never drive for work", "personal use"],
   },
   {
     id: "company-car",
