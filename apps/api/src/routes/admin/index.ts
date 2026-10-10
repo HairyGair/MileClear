@@ -3353,7 +3353,13 @@ export async function adminRoutes(app: FastifyInstance) {
                   const t = Date.parse(d.at);
                   // Merged or deduped means a trip holds these miles already.
                   // A sweep's stationary leftovers explain nothing either.
-                  const explains = d.reason !== "merged" && d.reason !== "deduped" && !isResidueDrop(d);
+                  // Nor does clearing old leftovers as a NEW recording opened:
+                  // that is the start of a drive, not the end of the missing one.
+                  const explains =
+                    d.reason !== "merged" &&
+                    d.reason !== "deduped" &&
+                    d.reason !== "stale_buffer_cleared" &&
+                    !isResidueDrop(d);
                   return explains && Number.isFinite(t) && t >= sig - 10 * 60000 && t <= sig + 12 * HOUR;
                 });
           if (drop) {
