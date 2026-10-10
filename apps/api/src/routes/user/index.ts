@@ -13,7 +13,8 @@ import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { shouldSendStuckRecordingAlert } from "../../services/stuckRecordingRule.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
-import { formatInvoiceNumber, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
+import { upsertMileageSummary } from "../../services/mileage.js";
+import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -546,6 +547,27 @@ export async function userRoutes(app: FastifyInstance) {
       data: updateData,
       select: USER_SELECT,
     });
+
+    // The stored claim (Home's "mileage claim") values untagged business trips
+    // at the employer's rate only for employees and "both" drivers, so a change
+    // of work type or employer rate changes it. Recalculate this tax year and
+    // last, or Home keeps the old figure until the next trip (found 10 Oct 2026:
+    // a driver switched to gig still saw the employer-rate claim).
+    if (
+      workType !== undefined ||
+      employerMileageRatePence !== undefined ||
+      employerMileageRatePenceAfter10k !== undefined
+    ) {
+      const thisYear = getTaxYear(new Date());
+      const lastYear = getTaxYear(new Date(Date.now() - 366 * 24 * 60 * 60 * 1000));
+      await Promise.all(
+        [...new Set([thisYear, lastYear])].map((ty) =>
+          upsertMileageSummary(userId, ty).catch((err) =>
+            request.log.error({ err, ty }, "mileage summary refresh after work type change failed")
+          )
+        )
+      );
+    }
 
     // New email: send the confirmation code to it straight away. A failed
     // send never fails the change; the driver can ask for another code.
