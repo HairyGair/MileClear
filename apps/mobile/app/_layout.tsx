@@ -720,7 +720,7 @@ function RootNavigator() {
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Nearby Chargers" }} />
         <Stack.Screen name="road-alerts" options={{ headerShown: true, title: "Road alerts" }} />
-        <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Edit Profile" }} />
+        <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Your email" }} />
         <Stack.Screen name="verify-email" options={{ headerShown: true, title: "Confirm your email" }} />
         <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
@@ -780,18 +780,26 @@ function RootNavigator() {
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
-        <Stack.Screen name="settings/general" options={{ headerShown: true, title: "General" }} />
-        <Stack.Screen name="settings/tracking" options={{ headerShown: true, title: "Recording" }} />
-        <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Your tax details" }} />
+        <Stack.Screen name="settings/recording" options={{ headerShown: true, title: "Recording" }} />
         <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
-        <Stack.Screen name="settings/data-exports" options={{ headerShown: true, title: "Downloads and your data" }} />
-        <Stack.Screen name="settings/community" options={{ headerShown: true, title: "Community" }} />
-        <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help, feedback and legal" }} />
-        <Stack.Screen name="settings/security" options={{ headerShown: true, title: "Security" }} />
-        <Stack.Screen name="settings/business" options={{ headerShown: true, title: "Business Profile" }} />
+        <Stack.Screen name="settings/account" options={{ headerShown: true, title: "Your account" }} />
+        <Stack.Screen name="settings/plan" options={{ headerShown: true, title: "Your plan" }} />
+        <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Your tax details" }} />
+        <Stack.Screen name="settings/data" options={{ headerShown: true, title: "Your data" }} />
         <Stack.Screen name="settings/home" options={{ headerShown: true, title: "Home screen" }} />
-        <Stack.Screen name="settings/preferences" options={{ headerShown: true, title: "Preferences" }} />
-        <Stack.Screen name="settings/profile" options={{ headerShown: true, title: "Profile" }} />
+        <Stack.Screen name="settings/community" options={{ headerShown: true, title: "Community" }} />
+        <Stack.Screen name="invoice-details" options={{ headerShown: true, title: "Invoice details" }} />
+        {/* Old settings routes, each a redirect, so old links never hit a missing screen. */}
+        <Stack.Screen name="settings/general" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/profile" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/preferences" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/security" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/tracking" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/data-exports" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/help" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/visibility" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/legal" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/business" options={{ headerShown: false }} />
       </Stack>
       <QuickStartModal
         visible={quickStartVisible}

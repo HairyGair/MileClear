@@ -2,8 +2,8 @@ import { Redirect } from "expo-router";
 
 /**
  * Kept so an old link, a deep link or a push notification never lands on a
- * missing screen. App lock is now a switch on the Settings page.
+ * missing screen. What you see did nothing and was removed.
  */
-export default function Legacy_security() {
+export default function Legacy_visibility() {
   return <Redirect href="/settings" />;
 }

@@ -61,7 +61,7 @@ export function routeForSaAction(action: SaChecklistAction): string | null {
     case "vehicles":
       return "/vehicles";
     case "profile_name":
-      return "/profile-edit";
+      return "/settings/account";
     case "self_assessment":
       return "/self-assessment";
     case "sa_pdf":

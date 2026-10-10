@@ -101,7 +101,7 @@ export default function ProfileEditScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Stack.Screen
-        options={{ title: "Edit Profile" }}
+        options={{ title: "Your email" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Full Name</Text>

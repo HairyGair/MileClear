@@ -23,6 +23,7 @@ import {
   lastTripCheck,
   notificationsCheck,
   recordingCheck,
+  settingsHeadline,
   uploadsCheck,
   type CheckRow,
   type NotificationPermission,
@@ -211,4 +212,35 @@ export function useSettingsChecks(): SettingsChecks {
   }, [phone]);
 
   return { rows, phone, fixLocation, openPhoneSettings, fixNotifications };
+}
+
+/**
+ * The light version for the More tab's Settings row: just the headline
+ * ("Recording automatically", or the first red problem), without reading the
+ * last trip or the notification switches.
+ */
+export function useSettingsHeadline(): { text: string; red: boolean } {
+  const phone = usePhoneState();
+  const recording = useRecordingNow();
+  const failed = useFailedSyncCount();
+  const now = Date.now();
+  return useMemo(() => {
+    const msgs = recordingMessages(phone);
+    const rows = [
+      recordingCheck({
+        blocker: msgs.blocker,
+        pausedUntil: phone.pausedUntil,
+        now,
+        automaticOff: phone.automaticOff,
+        lowPowerMode: phone.lowPower,
+        platform: Platform.OS === "ios" ? "ios" : "android",
+        setup: msgs.setup,
+        recording,
+      }),
+      notificationsCheck({ permission: phone.notifications, counts: null }),
+      uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips }),
+    ];
+    return settingsHeadline(rows);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone, recording, failed.count, failed.allTrips, Math.floor(now / 60000)]);
 }

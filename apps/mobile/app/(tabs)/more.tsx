@@ -15,6 +15,7 @@ import { useAuth } from "../../lib/auth/context";
 import { useUser } from "../../lib/user/context";
 import { useMode } from "../../lib/mode/context";
 import { useAssistantAvailable } from "../../lib/api/assistant";
+import { useSettingsHeadline } from "../../components/settings/useSettingsChecks";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 
 export default function MoreScreen() {
@@ -23,6 +24,7 @@ export default function MoreScreen() {
   const { logout } = useAuth();
   const { isWork } = useMode();
   const assistantAvailable = useAssistantAvailable();
+  const headline = useSettingsHeadline();
 
   // A paying subscriber should not be advertised features they own, and the
   // profile is null while loading: treat both as Pro rather than flash "PRO".
@@ -46,13 +48,13 @@ export default function MoreScreen() {
       >
         <TouchableOpacity
           style={styles.profileCard}
-          onPress={go("/(tabs)/profile")}
+          onPress={go("/settings")}
           activeOpacity={0.7}
           accessibilityRole="button"
           accessibilityLabel={
             user
-              ? `${user.displayName || "Driver"}, ${user.email}. Go to profile`
-              : "Go to profile"
+              ? `${user.displayName || "Driver"}, ${user.email}. Open settings`
+              : "Open settings"
           }
         >
           <UserAvatar
@@ -123,7 +125,7 @@ export default function MoreScreen() {
         </SettingsGroup>
 
         <SettingsGroup title="HELP AND SETTINGS">
-          <SettingsRow icon="settings-outline" label="Settings" hint="Notifications, tracking, work and tax" onPress={go("/settings")} />
+          <SettingsRow icon="settings-outline" label="Settings" hint={headline.text} hintTone={headline.red ? "bad" : undefined} onPress={go("/settings")} />
           <SettingsRow icon="help-circle-outline" label="Help and tutorials" hint="How MileClear works" onPress={go("/help")} />
           <SettingsRow icon="bulb-outline" label="Feedback" hint="Ideas and problems" onPress={go("/feedback")} />
           <SettingsRow icon="gift-outline" label="Invite a friend, get Pro free" onPress={go("/refer")} />

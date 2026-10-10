@@ -26,10 +26,17 @@ describe("every settings screen is registered with a header", () => {
     it(`${route} has a Stack.Screen line`, () => {
       expect(registered(route)).toBe(true);
     });
-    it(`${route} shows its header`, () => {
+    // A legacy stub only redirects (old links must never land on a missing
+    // screen), so it has no header of its own; every real screen needs one.
+    const isRedirect = readFileSync(join(APP, "settings", f), "utf8").includes("<Redirect");
+    it(`${route} ${isRedirect ? "is a redirect with no header of its own" : "shows its header"}`, () => {
       const line = layout.split("\n").find((l) => l.includes(`<Stack.Screen name="${route}"`)) ?? "";
-      expect(line).toContain("headerShown: true");
-      expect(line).toMatch(/title: "[^"]+"/);
+      if (isRedirect) {
+        expect(line).toContain("headerShown: false");
+      } else {
+        expect(line).toContain("headerShown: true");
+        expect(line).toMatch(/title: "[^"]+"/);
+      }
     });
   }
 });
