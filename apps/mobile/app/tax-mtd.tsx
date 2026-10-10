@@ -90,7 +90,7 @@ export default function TaxMtdScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: "Quarterly updates", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
-      <PremiumGate feature="MTD ITSA">
+      <PremiumGate feature="Quarterly updates">
         <TaxMtdContent />
       </PremiumGate>
     </View>

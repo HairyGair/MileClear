@@ -257,7 +257,6 @@ export default function MileageReliefScreen() {
       contentContainerStyle={s.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.amber} />}
     >
-      <Text style={s.title} maxFontSizeMultiplier={fontScaleCap.heading}>Mileage Allowance Relief</Text>
       <Text style={s.body} maxFontSizeMultiplier={fontScaleCap.body}>
         If you use your own vehicle for your job and your employer pays you less per mile than
         the approved mileage rates, you can claim tax relief on the difference. You can claim for
@@ -558,7 +557,6 @@ const s = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: 48, gap: spacing.md },
   center: { flex: 1, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
   flex: { flex: 1 },
-  title: { fontSize: 22, fontFamily: fonts.bold, color: colors.text1 },
   body: { fontSize: 14, fontFamily: fonts.regular, color: colors.text2, lineHeight: 20 },
   card: {
     backgroundColor: colors.surface,

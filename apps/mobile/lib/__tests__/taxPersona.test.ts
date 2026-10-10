@@ -142,13 +142,21 @@ describe("differs line", () => {
     expect(showsDiffersLine(500, 500)).toBe(false);
     expect(showsDiffersLine(null, 500)).toBe(false);
   });
-  it("applies only to both, or gig with an employer rate (SPEC 3.2)", () => {
-    expect(differsLineApplies("both", null)).toBe(true);
-    expect(differsLineApplies("gig", 30)).toBe(true);
-    expect(differsLineApplies("gig", 0)).toBe(true);
+  it("applies only to employee or both with an employer rate set", () => {
+    // Only drivers who actually have an employer rate.
+    expect(differsLineApplies("both", 30)).toBe(true);
+    expect(differsLineApplies("both", 0)).toBe(true);
+    expect(differsLineApplies("employee", 30)).toBe(true);
+    // Employee or both without a rate set.
+    expect(differsLineApplies("both", null)).toBe(false);
+    expect(differsLineApplies("both", undefined)).toBe(false);
+    expect(differsLineApplies("employee", null)).toBe(false);
+    // Gig-only drivers never, even with a stale employer rate on the profile.
+    expect(differsLineApplies("gig", 30)).toBe(false);
     expect(differsLineApplies("gig", null)).toBe(false);
-    expect(differsLineApplies("gig", undefined)).toBe(false);
-    expect(differsLineApplies("employee", 30)).toBe(false);
+    // Personal mode and company drivers never.
+    expect(differsLineApplies("personal", 30)).toBe(false);
+    expect(differsLineApplies("company", 30)).toBe(false);
   });
 });
 

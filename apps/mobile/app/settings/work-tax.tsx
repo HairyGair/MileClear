@@ -323,34 +323,40 @@ export default function WorkTaxSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="QUARTERLY UPDATES">
-        <SettingsRow
-          icon="cloud-upload-outline"
-          label="Quarterly updates (test version)"
-          hint="Try quarterly reporting. Nothing is sent to HMRC yet."
-          badge={isPremium ? undefined : "Pro"}
-          onPress={() => router.push("/tax-mtd")}
-          helpTopicId="mtd-itsa"
-        />
-      </SettingsGroup>
+      {/* Employees have no self-employed income, so quarterly updates and the
+          self-employed settings do not apply to them. Drivers who are both keep them. */}
+      {workType !== "employee" && (
+        <>
+          <SettingsGroup title="QUARTERLY UPDATES">
+            <SettingsRow
+              icon="cloud-upload-outline"
+              label="Quarterly updates (test version)"
+              hint="Try quarterly reporting. Nothing is sent to HMRC yet."
+              badge={isPremium ? undefined : "Pro"}
+              onPress={() => router.push("/tax-mtd")}
+              helpTopicId="mtd-itsa"
+            />
+          </SettingsGroup>
 
-      <SettingsGroup title="SELF-EMPLOYED">
-        <SettingsRow
-          icon="layers-outline"
-          label="Tax basis"
-          hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (counted when invoiced)"}
-          badge={taxBasis === "cash" ? "Cash" : "Accruals"}
-          onPress={handleTaxBasis}
-          helpTopicId="cash-vs-accruals"
-        />
-        <SettingsRow
-          icon="briefcase-outline"
-          label="Your accountant"
-          hint="Name, contact and annual fee, added to your weekly put-by"
-          onPress={() => router.push("/accountant" as never)}
-          helpTopicId="accountant"
-        />
-      </SettingsGroup>
+          <SettingsGroup title="SELF-EMPLOYED">
+            <SettingsRow
+              icon="layers-outline"
+              label="Tax basis"
+              hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (counted when invoiced)"}
+              badge={taxBasis === "cash" ? "Cash" : "Accruals"}
+              onPress={handleTaxBasis}
+              helpTopicId="cash-vs-accruals"
+            />
+            <SettingsRow
+              icon="briefcase-outline"
+              label="Your accountant"
+              hint="Name, contact and annual fee, added to your weekly put-by"
+              onPress={() => router.push("/accountant" as never)}
+              helpTopicId="accountant"
+            />
+          </SettingsGroup>
+        </>
+      )}
 
       {(workType === "employee" || workType === "both") && (
         <SettingsGroup title="PAYE EMPLOYMENT">

@@ -17,7 +17,7 @@ import {
   fetchHmrcReconciliation,
   saveHmrcReconciliation,
 } from "../lib/api/hmrcReconciliation";
-import { colors } from "../lib/theme";
+import { colors, fonts } from "../lib/theme";
 import { useUser } from "../lib/user/context";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
 import { defaultReturnYear, recentTaxYears } from "../lib/tax/taxYears";
@@ -168,7 +168,6 @@ export default function HmrcReconciliationScreen() {
           <Text style={s.taxYearBadgeText}>{data.taxYear}</Text>
           <Ionicons name="chevron-down" size={14} color={AMBER} />
         </TouchableOpacity>
-        <Text style={s.title}>Check your platform figures</Text>
         <Text style={s.intro2}>
           Gig apps now send HMRC a yearly report of what they paid you. If HMRC has
           shown you these figures, type each one in and MileClear shows any gap.
@@ -324,6 +323,7 @@ const s = StyleSheet.create({
   errorText: {
     color: TEXT_2,
     fontSize: 13,
+    fontFamily: fonts.regular,
     textAlign: "center",
   },
   intro: { marginBottom: 14 },
@@ -337,7 +337,7 @@ const s = StyleSheet.create({
     borderColor: "rgba(245,166,35,0.4)",
     marginTop: 8,
   },
-  addBtnText: { color: AMBER, fontSize: 14, fontWeight: "600" },
+  addBtnText: { color: AMBER, fontSize: 14, fontFamily: fonts.semibold },
   taxYearBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -352,19 +352,13 @@ const s = StyleSheet.create({
   taxYearBadgeText: {
     color: AMBER,
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
     letterSpacing: 0.6,
-  },
-  title: {
-    color: TEXT_1,
-    fontSize: 22,
-    fontWeight: "700",
-    letterSpacing: -0.4,
-    marginBottom: 8,
   },
   intro2: {
     color: TEXT_2,
     fontSize: 13,
+    fontFamily: fonts.regular,
     lineHeight: 19,
     marginBottom: 8,
   },
@@ -385,12 +379,12 @@ const s = StyleSheet.create({
   totalsLabel: {
     color: TEXT_2,
     fontSize: 12,
-    fontWeight: "500",
+    fontFamily: fonts.medium,
   },
   totalsValue: {
     color: TEXT_1,
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
   },
   totalsDiffRow: {
     paddingTop: 8,
@@ -401,11 +395,12 @@ const s = StyleSheet.create({
   },
   totalsDiffValue: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
   },
   totalsNote: {
     color: TEXT_3,
     fontSize: 11,
+    fontFamily: fonts.regular,
     marginTop: 4,
   },
   empty: {
@@ -416,6 +411,7 @@ const s = StyleSheet.create({
   emptyText: {
     color: TEXT_2,
     fontSize: 13,
+    fontFamily: fonts.regular,
     textAlign: "center",
     lineHeight: 18,
     paddingHorizontal: 16,
@@ -437,7 +433,7 @@ const s = StyleSheet.create({
   platformLabel: {
     color: TEXT_1,
     fontSize: 14,
-    fontWeight: "700",
+    fontFamily: fonts.bold,
     flex: 1,
   },
   diffPill: {
@@ -447,7 +443,7 @@ const s = StyleSheet.create({
   },
   diffPillText: {
     fontSize: 10,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
   },
   platformBody: {
     flexDirection: "row",
@@ -458,6 +454,7 @@ const s = StyleSheet.create({
   fieldLabel: {
     color: TEXT_3,
     fontSize: 10,
+    fontFamily: fonts.regular,
     textTransform: "uppercase",
     letterSpacing: 0.4,
     marginBottom: 4,
@@ -465,6 +462,7 @@ const s = StyleSheet.create({
   input: {
     color: TEXT_1,
     fontSize: 14,
+    fontFamily: fonts.regular,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 8,
     paddingHorizontal: 10,
@@ -475,7 +473,7 @@ const s = StyleSheet.create({
   trackedValue: {
     color: TEXT_1,
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: fonts.semibold,
     paddingVertical: 8,
   },
   disclaimer: {
@@ -489,6 +487,7 @@ const s = StyleSheet.create({
   disclaimerText: {
     color: TEXT_3,
     fontSize: 11,
+    fontFamily: fonts.regular,
     lineHeight: 15,
     flex: 1,
   },

@@ -91,7 +91,10 @@ const INVOICE_LEAD: PaywallLead = {
 };
 
 /** Sources that name a single feature: "<Feature> is part of Pro". */
-const FEATURE_GATES: Record<string, { subline: string; icon: string; highlightFeature?: PaywallFeatureId }> = {
+const FEATURE_GATES: Record<
+  string,
+  { headline?: string; subline: string; icon: string; highlightFeature?: PaywallFeatureId }
+> = {
   "Driving Analytics": {
     subline: "Routes, costs, earnings patterns and commute timing, with weekly trends across the months.",
     icon: "analytics-outline",
@@ -120,16 +123,12 @@ const FEATURE_GATES: Record<string, { subline: string; icon: string; highlightFe
     icon: "calendar-outline",
     highlightFeature: "auto_classify",
   },
-  "MTD ITSA": {
+  "Quarterly updates": {
+    headline: "Quarterly updates are part of Pro",
     subline:
       "Connect with HMRC and walk through your quarterly updates. It is in beta, so for now it runs against HMRC's test service.",
     icon: "document-text-outline",
   },
-};
-
-/** Display names for gate sources whose key is not what a driver would read. */
-const FEATURE_GATE_NAMES: Record<string, string> = {
-  "MTD ITSA": "Making Tax Digital",
 };
 
 /**
@@ -234,9 +233,8 @@ export function paywallLeadFor(source: string | null | undefined): PaywallLead |
 
   const gate = FEATURE_GATES[source];
   if (gate) {
-    const name = FEATURE_GATE_NAMES[source] ?? source;
     return {
-      headline: `${name} is part of Pro`,
+      headline: gate.headline ?? `${source} is part of Pro`,
       subline: gate.subline,
       icon: gate.icon,
       highlightFeature: gate.highlightFeature,

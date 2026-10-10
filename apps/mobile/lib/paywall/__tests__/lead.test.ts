@@ -34,7 +34,7 @@ const LEAD_SOURCES = [
   "Journey Timeline",
   "Community Insights",
   "Auto-Classify Rules",
-  "MTD ITSA",
+  "Quarterly updates",
 ];
 
 const GENERIC_SOURCES = [
@@ -72,7 +72,7 @@ describe("paywallLeadFor", () => {
   it("names the feature for PremiumGate sources", () => {
     expect(paywallLeadFor("Driving Analytics")?.headline).toBe("Driving Analytics is part of Pro");
     expect(paywallLeadFor("Journey Map")?.highlightFeature).toBe("journey_map");
-    expect(paywallLeadFor("MTD ITSA")?.headline).toBe("Making Tax Digital is part of Pro");
+    expect(paywallLeadFor("Quarterly updates")?.headline).toBe("Quarterly updates are part of Pro");
   });
 
   it("covers the new upgrade-path sources", () => {

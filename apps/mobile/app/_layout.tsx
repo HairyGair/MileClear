@@ -1,9 +1,10 @@
 import "react-native-gesture-handler";
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking } from "react-native";
+import { View, Text, LogBox, ScrollView, StyleSheet, Alert, AppState, Linking, useColorScheme } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack, useRouter } from "expo-router";
+import { StatusBar, setStatusBarStyle } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import * as Font from "expo-font";
 import { colors } from "../lib/theme";
@@ -191,6 +192,31 @@ void bootNativeEngineOnLaunch();
 // (lib/auth, lib/geofencing) imports this module dynamically for the same
 // reason - follow that.
 void import("../lib/tracking/nativeLocation").then((m) => m.loadLicenceState());
+
+/**
+ * The app is dark on every screen, so the status bar is always light content.
+ * Left to "auto" it turns dark text on the dark app whenever the phone is in
+ * light appearance. iOS resets the style when the appearance changes while
+ * the app is open (seen in Expo Go on the simulator), so it is set again on
+ * each change and whenever the app comes back to the front.
+ */
+function LightStatusBar() {
+  const scheme = useColorScheme();
+  useEffect(() => {
+    // Set now and again just after: iOS applies its own reset after the
+    // appearance change is delivered, which overrides an immediate set.
+    setStatusBarStyle("light");
+    const t = setTimeout(() => setStatusBarStyle("light"), 500);
+    return () => clearTimeout(t);
+  }, [scheme]);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") setStatusBarStyle("light");
+    });
+    return () => sub.remove();
+  }, []);
+  return <StatusBar style="light" />;
+}
 
 function RootNavigator() {
   const { isLoading, isAuthenticated } = useAuth();
@@ -663,6 +689,7 @@ function RootNavigator() {
 
   return (
     <>
+      <LightStatusBar />
       <Stack
         screenOptions={{
           headerShown: false,

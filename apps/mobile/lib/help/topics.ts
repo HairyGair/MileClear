@@ -87,7 +87,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       },
       {
         id: "mtd-itsa",
-        q: "What is MTD ITSA?",
+        q: "What are quarterly updates (Making Tax Digital)?",
         a: "Making Tax Digital for Income Tax Self Assessment. From April 2026, sole traders earning over £50k a year must submit four quarterly returns to HMRC plus a year-end statement - no more single January 31 Self Assessment.\n\nMileClear has a test version of quarterly updates for Pro: Tax tab → Your tax details → Quarterly updates (test version). Nothing is sent to HMRC yet. It works with HMRC's test service while we wait to be allowed to send real updates.",
         goTo: "/tax-mtd",
       },

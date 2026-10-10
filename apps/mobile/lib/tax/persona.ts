@@ -106,13 +106,15 @@ export function showsDiffersLine(
 }
 
 /**
- * Whether the differs line may show at all (SPEC 3.2): only for "both", or a
- * gig driver with an employer rate. Its text explains the gap as the
- * employer's rate, so for anyone else a gap (a stale stored summary) would
- * get the wrong explanation.
+ * Whether the differs line may show at all: only for a driver who actually
+ * has an employer rate, i.e. employee or both with an employer rate set. Its
+ * text explains the gap as the employer's rate, so gig-only drivers (and
+ * anyone without a rate) never see it; for them a gap (a stale stored
+ * summary) would get the wrong explanation. Approved 10 Oct 2026, replacing
+ * SPEC 3.2's "both, or gig with an employer rate".
  */
 export function differsLineApplies(persona: Persona, employerRatePence: number | null | undefined): boolean {
-  return persona === "both" || (persona === "gig" && employerRatePence != null);
+  return (persona === "employee" || persona === "both") && employerRatePence != null;
 }
 
 /**
