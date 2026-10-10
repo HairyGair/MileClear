@@ -25,7 +25,8 @@ import {
 } from "./parkedReminderRule";
 import {
   finishParkedQuickTrip,
-  getStartTripUntilArrived,
+  getStartTripRunsUntilArrived,
+  isDriveDetectionSwitchOn,
   logDetectionEvent,
   quickTripLastDrivingMs,
 } from "./detection";
@@ -186,7 +187,8 @@ export async function reconcileParkedReminder(lastDrivingMs: number | null): Pro
         // malformed start row: not a usable anchor
       }
     }
-    const untilArrived = isQuickTrip ? await getStartTripUntilArrived().catch(() => false) : false;
+    // The setting, or Automatic trips off (startTripHoldsThroughStops).
+    const untilArrived = isQuickTrip ? await getStartTripRunsUntilArrived().catch(() => false) : false;
 
     const plan = parkedReminderPlan({
       nowMs: Date.now(),
@@ -408,7 +410,14 @@ export async function handleParkedReminderResponse(
       outcome = decision;
     }
 
-    await postResult(parkedArrivedNotification(outcome === "saved" || outcome === "nothing" ? "finish" : outcome, tripsSaved));
+    const automaticTripsOn = await isDriveDetectionSwitchOn();
+    await postResult(
+      parkedArrivedNotification(
+        outcome === "saved" || outcome === "nothing" ? "finish" : outcome,
+        tripsSaved,
+        automaticTripsOn
+      )
+    );
     const detail = { tripsSaved, minutesSinceDriving, outcome };
     logDetectionEvent("start_trip.parked_reminder_arrived", detail).catch(() => {});
     reportServerEvent("start_trip.parked_reminder_arrived", detail);

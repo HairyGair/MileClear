@@ -56,6 +56,7 @@ import {
   type PauseInterval,
 } from "../lib/trips/missingReportRule";
 import { haptic } from "../lib/haptics";
+import { collectMissingTripPhoneLog, withTimeout } from "../lib/tracking/trackingLogStore";
 
 /** Newest trip on the device, by start time. Null when there are none. */
 async function newestLocalTrip(): Promise<{
@@ -326,8 +327,13 @@ export function MissingTripReporter({
     const fromLabel = from ? placeLabel(from.address) : null;
     const toLabel = to ? placeLabel(to.address) : null;
     const text = describeReportNote({ from: fromLabel, to: toLabel, departAt, extra: note });
+    // The phone's own log around the departure rides along, so the report
+    // explains itself (10 Oct 2026). Bounded to a few seconds and optional:
+    // the report goes without it rather than waiting on it.
+    const phoneLog = await withTimeout(collectMissingTripPhoneLog(departAt), 4000);
     try {
       await reportMissingTrip(text, localIsoDate(departAt), {
+        ...(phoneLog ? { phoneLog } : {}),
         ...(fromLabel ? { from: fromLabel } : {}),
         ...(toLabel ? { to: toLabel } : {}),
         departAt: departAt.toISOString(),

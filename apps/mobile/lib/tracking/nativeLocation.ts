@@ -54,6 +54,8 @@ import {
   type RecentFix,
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
+import { noteRecordingDropped } from "./recordingDrops";
+import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
@@ -99,6 +101,25 @@ async function recentActivityFixes(
   return out;
 }
 
+/**
+ * The useful fields of the SDK's providerchange event, for the tracking log:
+ * whether location services are on, the authorization status (iOS: 3 Always,
+ * 4 While Using, 2 denied; Android maps to the same numbers), and whether the
+ * phone gave precise or approximate location. Never throws.
+ */
+export function readProviderChange(e: unknown, source: string): Record<string, unknown> {
+  const p = (e ?? {}) as Record<string, unknown>;
+  const pick = (v: unknown) => (typeof v === "boolean" || typeof v === "number" ? v : null);
+  return {
+    enabled: pick(p.enabled),
+    status: pick(p.status),
+    gps: pick(p.gps),
+    network: pick(p.network),
+    accuracyAuthorization: pick(p.accuracyAuthorization),
+    source,
+  };
+}
+
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
 // until a dev build installs it), and a static import would break typecheck and
@@ -123,6 +144,9 @@ type BgGeo = {
   // Force RNBG into continuous-tracking (moving) state immediately, bypassing
   // CoreMotion's slow "automotive" classification — the short-journey backstop.
   changePace?: (isMoving: boolean) => Promise<unknown>;
+  // Log-only listeners for the tracking log. Optional: guarded at the call.
+  onProviderChange?: (cb: (e: unknown) => void) => void;
+  onPowerSaveChange?: (cb: (on: unknown) => void) => void;
   DESIRED_ACCURACY_NAVIGATION: number;
   DESIRED_ACCURACY_HIGH: number;
   DESIRED_ACCURACY_MEDIUM?: number;
@@ -659,6 +683,22 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       BGGeo.onHeartbeat(() => {
         void handleNativeHeartbeat();
       });
+
+      // Permission, location-services and battery-saver changes, for the
+      // 24-hour tracking log (trackingLog.ts, 10 Oct 2026). Until now the
+      // only record of a permission change was the next app open noticing it,
+      // so a drive missed in between could not be put down to it. Log lines
+      // only: nothing here changes what the engine does.
+      if (typeof BGGeo.onProviderChange === "function") {
+        BGGeo.onProviderChange((e: unknown) => {
+          logDetectionEvent("provider_change", readProviderChange(e, "live")).catch(() => {});
+        });
+      }
+      if (typeof BGGeo.onPowerSaveChange === "function") {
+        BGGeo.onPowerSaveChange((on: unknown) => {
+          logDetectionEvent("power_save_change", { enabled: on === true, source: "live" }).catch(() => {});
+        });
+      }
 
       // Read before ready(): the iPhone trigger list depends on it (engineTriggers.ts).
       const motionPermission = await getMotionPermission().catch(() => "unavailable");
@@ -1200,11 +1240,27 @@ async function openNativeRecording(
     // rescued above. Clearing them stops stale coords mixing with this drive
     // and being (mis)gap-trimmed — the buffer hygiene problem affecting
     // ~1 in 5 users in the fleet diagnostics.
+    const leftover = await db
+      .getFirstAsync<{ oldest: string | null; newest: string | null }>(
+        "SELECT MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
+      )
+      .catch(() => null);
     const cleared = await db.runAsync("DELETE FROM detection_coordinates");
     if (cleared.changes > 0) {
       logDetectionEvent("native_buffer_cleared_on_open", {
         droppedCoords: cleared.changes,
       }).catch(() => {});
+      // Fixes nothing turned into a trip. Usually a couple of stationary
+      // leftovers, but now countable (recordingDrops.ts, 10 Oct 2026).
+      if (cleared.changes >= 2) {
+        await noteRecordingDropped({
+          reason: "stale_buffer_cleared",
+          source: "recording_open",
+          startedAt: leftover?.oldest ?? null,
+          endedAt: leftover?.newest ?? null,
+          coords: cleared.changes,
+        });
+      }
     }
   }
   if (reason === "speed") {
@@ -1604,6 +1660,16 @@ export async function handleNativeMotionChange(event: NativeMotionEvent): Promis
       if (recording?.value === "1") {
         // finalizeAutoTrip reconciles RNBG's native store itself (12 Jun 2026)
         // so every finalize path sees the full route — no pre-call needed here.
+        // Another finalize already owns this drive (the heartbeat backstop, a
+        // sweep, or a second headless task: Android runs headless events
+        // concurrently). finalizeAutoTrip would return at once, and the
+        // destroyLocations below would then wipe the engine's store before
+        // that finalize has read it, losing the route. Leave it to the owner,
+        // which clears the store itself when it is done.
+        if (isFinalizeInFlight()) {
+          logDetectionEvent("native_recording_finalize_in_flight", { from: "motionchange" }).catch(() => {});
+          return;
+        }
         logDetectionEvent("native_recording_finalizing", {}).catch(() => {});
         await finalizeAutoTrip();
         try {
@@ -1667,7 +1733,10 @@ async function enterPostTripKeepAlive(
  * onMotionChange hasn't fired — so finalize through the same pipeline. This is
  * what turns the old ~1h "self-confirm" into a ~5-7min one.
  */
-async function handleNativeHeartbeat(): Promise<void> {
+// Exported for the Android headless task (nativeHeadless.ts), which runs it
+// on a headless heartbeat while a recording is open: the same backstop, for
+// a phone whose app Android has ended (10 Oct 2026).
+export async function handleNativeHeartbeat(opts: { minRetryMs?: number } = {}): Promise<void> {
   try {
     void recordBatterySample();
     // In low power, a heartbeat is a clock tick: if the pause ran out while
@@ -1709,7 +1778,12 @@ async function handleNativeHeartbeat(): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (recording?.value !== "1") {
-      // Not recording. Either a post-trip keep-alive window is running (hold the
+      // Not recording: finish and send what a drive left behind (a failed
+      // upload, a route nothing is armed to save, waiting drop events), at
+      // most every ten minutes, BEFORE the wake lock is let go below so iOS
+      // does not suspend the app half way through. See backgroundUpkeep.ts.
+      await runBackgroundUpkeep("heartbeat");
+      // Either a post-trip keep-alive window is running (hold the
       // wake lock so a quick next hop is caught warm), or the window has expired
       // / never existed (release the lock so the app suspends normally — also
       // self-heals a preventSuspend left on after a force-quit-mid-drive
@@ -1734,6 +1808,32 @@ async function handleNativeHeartbeat(): Promise<void> {
     if (!lastMs) return;
     const idleMs = Date.now() - lastMs;
     if (idleMs <= HEARTBEAT_FINALIZE_STALE_MS) return; // still moving / recently moved
+
+    // A finalize is already running (the stationary event, a sweep, or a
+    // concurrent Android headless task): finalizeAutoTrip would return at
+    // once and the destroyLocations below would wipe the engine's store
+    // under it before it has read the route. The owner clears it itself.
+    if (isFinalizeInFlight()) return;
+
+    // The Android headless heartbeat fires every minute for as long as the
+    // app stays ended. A finalize that keeps failing (it leaves the recording
+    // open so the fixes survive) must not be re-run every minute all day:
+    // that is the battery, a map-match and geocode each time, and a drop
+    // event per attempt. The live listeners pass nothing and keep the old
+    // behaviour.
+    if (opts.minRetryMs && opts.minRetryMs > 0) {
+      const attempt = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'heartbeat_finalize_attempt_at'"
+      );
+      const lastAttempt = attempt ? Number(attempt.value) : 0;
+      if (Number.isFinite(lastAttempt) && lastAttempt > 0 && lastAttempt <= Date.now() && Date.now() - lastAttempt < opts.minRetryMs) {
+        return;
+      }
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('heartbeat_finalize_attempt_at', ?)",
+        [String(Date.now())]
+      );
+    }
 
     const BGGeo = loadNativeModule();
     // finalizeAutoTrip reconciles the native store itself (12 Jun 2026).
@@ -1812,6 +1912,41 @@ export async function getNativeStoreSummary(): Promise<{
     return { count: native.length, newestMs, oldestMs };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Cheap look at the engine for background upkeep (backgroundUpkeep.ts): how
+ * many fixes its store holds (getCount, without loading them, unlike
+ * getNativeStoreSummary) and whether it thinks it is moving. Nulls when the
+ * native engine is off, the module is absent, or a call fails.
+ */
+export async function getNativeStoreCountAndMotion(): Promise<{ count: number | null; isMoving: boolean | null }> {
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (!(await isNativeLocationEngineEnabled())) return { count: null, isMoving: null };
+    const BGGeo = loadNativeModule() as (BgGeo & {
+      getCount?: () => Promise<number>;
+      getState?: () => Promise<{ isMoving?: boolean }>;
+    }) | null;
+    if (!BGGeo) return { count: null, isMoving: null };
+    let count: number | null = null;
+    let isMoving: boolean | null = null;
+    try {
+      if (typeof BGGeo.getCount === "function") {
+        const n = await BGGeo.getCount();
+        count = typeof n === "number" && Number.isFinite(n) ? n : null;
+      }
+    } catch {}
+    try {
+      if (typeof BGGeo.getState === "function") {
+        const st = await BGGeo.getState();
+        isMoving = typeof st?.isMoving === "boolean" ? st.isMoving : null;
+      }
+    } catch {}
+    return { count, isMoving };
+  } catch {
+    return { count: null, isMoving: null };
   }
 }
 

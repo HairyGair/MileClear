@@ -5,6 +5,8 @@
 // using the support-playbook rules, so most answer themselves before being
 // opened:
 //   landed_after_report → Class 11: the trip arrived after the report.
+//   dropped_on_phone    → signal_start, then the phone's own drop event
+//                         (trip.recording_dropped, 10 Oct 2026) with a reason.
 //   open_recording      → Class 15: signal_start with no trip.created since;
 //                         the route is on the phone until their next drive.
 //   no_addresses        → Class 14: the trip is there with no addresses, so
@@ -28,6 +30,7 @@ import {
   BarChart,
   BarList,
   DataTable,
+  Dialog,
   EmptyState,
   FilterBar,
   Grid,
@@ -47,6 +50,7 @@ import "@/components/admin/drivers/drivers.css";
 
 type Diagnosis =
   | "landed_after_report"
+  | "dropped_on_phone"
   | "open_recording"
   | "no_addresses"
   | "head_gap"
@@ -74,6 +78,83 @@ interface Report {
   evidence: string | null;
   tripId: string | null;
   selfAdded: boolean;
+  /** The phone's own tracking log, sent with the report since 10 Oct 2026.
+   *  Null for reports from older builds. */
+  phoneLog: PhoneLogSummary | null;
+}
+
+interface PhoneLogSummary {
+  rows: number;
+  covered: boolean;
+  dropped: number;
+  line: string;
+  from: string;
+  to: string;
+  state: Record<string, unknown> | null;
+}
+
+interface PhoneLogDetail {
+  phoneLog: { from: string; to: string; oldestHeld: string | null; truncated: boolean; rows: Array<[string, string, string | null]> } | null;
+  drops: Array<{ at: string; reason: string; detail: string | null; distanceMiles: number | null; coords: number | null; receivedAt: string }>;
+}
+
+function clock(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? iso
+    : d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/** The phone log a report carried, opened on demand: it can be a few hundred rows. */
+function PhoneLogDialog({ report, onClose }: { report: Report; onClose: () => void }) {
+  const { data, error, loading } = useAdminData<PhoneLogDetail>(`/admin/missing-trip-reports/${report.id}/phone-log`);
+  return (
+    <Dialog open onClose={onClose} wide title={`Phone log: ${report.displayName || report.email || "driver"}`}>
+      {loading && <LoadingSkeleton rows={8} />}
+      {error && <p className="adm-text adm-drv-tone-bad">{error}</p>}
+      {data && (
+        <div className="adm-drv-wrap" style={{ gap: "0.75rem" }}>
+          {report.phoneLog && <p className="adm-text">{report.phoneLog.line}</p>}
+          {report.phoneLog?.state && (
+            <pre className="adm-drv-mono" style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+              {JSON.stringify(report.phoneLog.state, null, 1)}
+            </pre>
+          )}
+          <p className="adm-text">
+            <strong>Recordings the phone dropped in this window: {data.drops.length}</strong>
+          </p>
+          {data.drops.map((d, i) => (
+            <span key={i} className="adm-drv-mono">
+              {clock(d.at)} {d.reason}
+              {d.distanceMiles != null ? ` ${d.distanceMiles.toFixed(2)} mi` : ""}
+              {d.coords != null ? `, ${d.coords} fixes` : ""}
+              {d.detail ? ` (${d.detail})` : ""}
+            </span>
+          ))}
+          {data.phoneLog ? (
+            <>
+              <p className="adm-text">
+                <strong>
+                  {data.phoneLog.rows.length} events, {clock(data.phoneLog.from)} to {clock(data.phoneLog.to)}
+                </strong>
+                {data.phoneLog.truncated ? " (busy window: the middle was left out)" : ""}
+                {data.phoneLog.oldestHeld ? `. Oldest event the phone still held: ${clock(data.phoneLog.oldestHeld)}` : ""}
+              </p>
+              <div style={{ maxHeight: 420, overflow: "auto" }}>
+                {data.phoneLog.rows.map(([at, event, payload], i) => (
+                  <div key={i} className="adm-drv-mono" style={{ whiteSpace: "pre-wrap" }}>
+                    {clock(at)} <strong>{event}</strong> {payload ?? ""}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="adm-text adm-drv-tone-muted">This report came from an app version that did not send a phone log.</p>
+          )}
+        </div>
+      )}
+    </Dialog>
+  );
 }
 
 const DIAGNOSIS: Record<Diagnosis, { label: string; tone: Tone; hint: string }> = {
@@ -81,6 +162,11 @@ const DIAGNOSIS: Record<Diagnosis, { label: string; tone: Tone; hint: string }> 
     label: "Not missing, arrived after the report",
     tone: "good",
     hint: "The trip was created shortly after the report (finishing or syncing late). Nothing to recover; a push pointing at Trips closes it.",
+  },
+  dropped_on_phone: {
+    label: "Recorded, then dropped by the phone",
+    tone: "warn",
+    hint: "The phone started a recording and then did not save a trip, and said why (the reason is in the evidence). Too short, walk and phantom drops are offered back to the driver as a 'was this a drive?' row; an error is retried at the next app open. If the reason looks wrong for a real drive, add the trip for them and note the reason.",
   },
   open_recording: {
     label: "Recording still open on the phone",
@@ -114,7 +200,7 @@ const DIAGNOSIS: Record<Diagnosis, { label: string; tone: Tone; hint: string }> 
   },
 };
 
-const ORDER: Diagnosis[] = ["open_recording", "head_gap", "silent_non_capture", "permission_gap", "no_addresses", "needs_look", "landed_after_report"];
+const ORDER: Diagnosis[] = ["open_recording", "dropped_on_phone", "head_gap", "silent_non_capture", "permission_gap", "no_addresses", "needs_look", "landed_after_report"];
 const NEEDS_FIX: Diagnosis[] = ["open_recording", "head_gap", "silent_non_capture"];
 
 function ago(iso: string | null): string {
@@ -145,6 +231,7 @@ function last30Days(reports: Report[]) {
 export default function MissingTripReportsPage() {
   const { data, error, loading, reload } = useAdminData<{ reports: Report[] }>("/admin/missing-trip-reports");
   const [filter, setFilter] = useState<string>("");
+  const [logFor, setLogFor] = useState<Report | null>(null);
 
   const reports = data?.reports ?? null;
   const counts = useMemo(() => {
@@ -241,6 +328,25 @@ export default function MissingTripReportsPage() {
           </span>
         </span>
       ),
+    },
+    {
+      key: "phoneLog",
+      header: "Phone log",
+      title: "What the phone itself logged around the departure time, sent with the report (app versions from 10 Oct 2026)",
+      sortValue: (r) => r.phoneLog?.rows ?? -1,
+      render: (r) =>
+        r.phoneLog ? (
+          <div className="adm-drv-wrap">
+            <span className={`adm-cell-sub${r.phoneLog.dropped > 0 || !r.phoneLog.covered ? " adm-drv-tone-warn" : ""}`} style={{ whiteSpace: "normal" }}>
+              {r.phoneLog.line}
+            </span>
+            <button type="button" className="adm-btn adm-btn--sm" onClick={() => setLogFor(r)}>
+              Open phone log
+            </button>
+          </div>
+        ) : (
+          <span className="adm-drv-tone-muted">-</span>
+        ),
     },
   ];
 
@@ -344,6 +450,8 @@ export default function MissingTripReportsPage() {
           )}
         </LoadState>
       </Panel>
+
+      {logFor && <PhoneLogDialog report={logFor} onClose={() => setLogFor(null)} />}
 
       <Panel title="What each diagnosis means" subtitle="The playbook rule behind each label, and what to do about it.">
         <ul className="adm-drv-guide">

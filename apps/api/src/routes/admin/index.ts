@@ -47,6 +47,7 @@ import { adminPaidAdsRoutes } from "./paidAds.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
+import { dropsInWindow, isResidueDrop, readRecordingDrop, readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
   getSubscriptionTruth,
@@ -3201,10 +3202,11 @@ export async function adminRoutes(app: FastifyInstance) {
           prisma.appEvent.findMany({
             where: {
               userId: { in: ids },
-              type: "trip.signal_start",
+              // Drops (10 Oct 2026) explain a signal with no trip.
+              type: { in: ["trip.signal_start", "trip.recording_dropped"] },
               createdAt: { gte: windowStart },
             },
-            select: { userId: true, type: true, createdAt: true },
+            select: { userId: true, type: true, createdAt: true, metadata: true },
             orderBy: { createdAt: "asc" },
           }),
           prisma.trip.findMany({
@@ -3269,6 +3271,7 @@ export async function adminRoutes(app: FastifyInstance) {
 
     type Diagnosis =
       | "landed_after_report"
+      | "dropped_on_phone"
       | "open_recording"
       | "no_addresses"
       | "head_gap"
@@ -3339,7 +3342,30 @@ export async function adminRoutes(app: FastifyInstance) {
               // added by support days later does not count as closing it.
               t.createdAt.getTime() <= sig + DAY
           );
-          if (!closed) {
+          // The phone said what became of it (trip.recording_dropped, sent
+          // since 10 Oct 2026): too short, a walk, a phantom, an error...
+          const drop = closed
+            ? null
+            : userEvents
+                .filter((ev) => ev.type === "trip.recording_dropped" && ev.createdAt.getTime() >= sig - 10 * 60000)
+                .map((ev) => readRecordingDrop(ev.createdAt, ev.metadata))
+                .find((d) => {
+                  const t = Date.parse(d.at);
+                  // Merged or deduped means a trip holds these miles already.
+                  // A sweep's stationary leftovers explain nothing either.
+                  // Nor does clearing old leftovers as a NEW recording opened:
+                  // that is the start of a drive, not the end of the missing one.
+                  const explains =
+                    d.reason !== "merged" &&
+                    d.reason !== "deduped" &&
+                    d.reason !== "stale_buffer_cleared" &&
+                    !isResidueDrop(d);
+                  return explains && Number.isFinite(t) && t >= sig - 10 * 60000 && t <= sig + 12 * HOUR;
+                });
+          if (drop) {
+            diagnosis = "dropped_on_phone";
+            evidence = `trip.signal_start ${mins(at - sig)} min before the report; the phone dropped the recording as "${drop.reason}"${drop.detail ? ` (${drop.detail})` : ""}${drop.distanceMiles != null ? `, ${drop.distanceMiles.toFixed(2)} mi` : ""}${drop.coords != null ? `, ${drop.coords} fixes` : ""}.`;
+          } else if (!closed) {
             diagnosis = "open_recording";
             const hb = e.user?.lastHeartbeatAt?.getTime() ?? null;
             const frozen = hb !== null && Math.abs(hb - lastSignal.createdAt.getTime()) <= 2 * 60000;
@@ -3445,10 +3471,57 @@ export async function adminRoutes(app: FastifyInstance) {
         liveRecordingAtReport: !!landed === false && userEvents.some(
           (ev) => ev.type === "trip.signal_start" && ev.createdAt.getTime() <= at && ev.createdAt.getTime() >= at - 3 * HOUR
         ),
+        // The phone's own tracking log around the departure, sent with the
+        // report since 10 Oct 2026 (null on older builds). Summary only here;
+        // the rows come from /missing-trip-reports/:id/phone-log.
+        phoneLog: (() => {
+          const log = readStoredPhoneLog(e.metadata);
+          return log ? { ...summarisePhoneLog(log), from: log.from, to: log.to, state: log.state } : null;
+        })(),
       };
     });
 
     return reply.send({ data: { reports, generatedAt: new Date().toISOString() } });
+  });
+
+  // GET /admin/missing-trip-reports/:id/phone-log
+  // The rows of the phone log a report carried, plus every recording the
+  // phone says it dropped in the same window (trip.recording_dropped, also
+  // 10 Oct 2026). Drops can reach the server late (they wait on the phone
+  // when it is offline), so they are matched on the drive's own times.
+  app.get<{ Params: { id: string } }>("/missing-trip-reports/:id/phone-log", async (request, reply) => {
+    const report = await prisma.appEvent.findUnique({
+      where: { id: request.params.id },
+      select: { id: true, type: true, userId: true, metadata: true, createdAt: true },
+    });
+    if (!report || report.type !== "trip.report_missing") {
+      return reply.status(404).send({ error: "Missing-trip report not found" });
+    }
+    const log = readStoredPhoneLog(report.metadata);
+    const DAY = 24 * 60 * 60 * 1000;
+    const fromMs = log ? Date.parse(log.from) : report.createdAt.getTime() - DAY;
+    const toMs = log ? Date.parse(log.to) : report.createdAt.getTime();
+    const dropEvents = report.userId
+      ? await prisma.appEvent.findMany({
+          where: {
+            userId: report.userId,
+            type: "trip.recording_dropped",
+            createdAt: { gte: new Date(fromMs), lte: new Date(Math.max(toMs, report.createdAt.getTime()) + 2 * DAY) },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 200,
+          select: { createdAt: true, metadata: true },
+        })
+      : [];
+    const drops = dropsInWindow(dropEvents, fromMs, toMs);
+    return reply.send({
+      data: {
+        reportId: report.id,
+        phoneLog: log,
+        summary: log ? summarisePhoneLog(log) : null,
+        drops,
+      },
+    });
   });
 
   // POST /admin/users/:userId/reset-classifications

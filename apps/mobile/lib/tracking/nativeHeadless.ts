@@ -60,6 +60,9 @@ type BgGeoHeadless = {
   changePace?: (isMoving: boolean) => Promise<unknown>;
 };
 
+/** Least time between two heartbeat-backstop finalize attempts from this task. */
+const HEADLESS_HEARTBEAT_FINALIZE_RETRY_MS = 10 * 60 * 1000;
+
 /** Re-arm at most this often from heartbeats. */
 const HEARTBEAT_REARM_MS = 30 * 60 * 1000;
 
@@ -399,6 +402,40 @@ async function finalizeHeadless(params: unknown): Promise<void> {
   }
 }
 
+/** The SDK's own isMoving. Unknown reads as moving, so the heartbeat
+ *  backstop never ends a drive on a guess. */
+async function sdkIsMoving(BGGeo: BgGeoHeadless): Promise<boolean> {
+  try {
+    if (typeof BGGeo.getState !== "function") return true;
+    const state = await BGGeo.getState();
+    return state?.isMoving !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Headless heartbeat with a recording open and the SDK parked: hand it to the
+ * live heartbeat handler, which finalises only once no fix has arrived for
+ * seven minutes. Logged only when it actually closed the recording.
+ */
+async function heartbeatFinalizeHeadless(): Promise<void> {
+  const log = await loadLog();
+  try {
+    const { handleNativeHeartbeat } = await import("./nativeLocation");
+    // At most one finalize attempt per ten minutes from here: a finalize
+    // that keeps failing must not re-run on every headless heartbeat.
+    await handleNativeHeartbeat({ minRetryMs: HEADLESS_HEARTBEAT_FINALIZE_RETRY_MS });
+    if (!(await isRecordingOpen())) {
+      await log?.("native_headless_heartbeat_finalized", {});
+    }
+  } catch (err) {
+    await log?.("native_headless_heartbeat_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
 /**
  * The SDK woke itself for a drive (motion start) while the app is closed and
  * nothing is recording: open the recording through the same foreground motion
@@ -452,6 +489,26 @@ async function handledAsSwitchedOff(): Promise<boolean> {
   }
 }
 
+/** One tracking-log line for the headless events that describe the phone's
+ *  state rather than a drive. Never throws. */
+async function logHeadlessStateEvent(name: string, params: unknown): Promise<void> {
+  try {
+    if (name === "boot" || name === "terminate") {
+      const log = await loadLog();
+      await log?.("native_headless_lifecycle", { event: name });
+    } else if (name === "providerchange") {
+      const log = await loadLog();
+      const { readProviderChange } = await import("./nativeLocation");
+      await log?.("provider_change", readProviderChange(params, "headless"));
+    } else if (name === "powersavechange") {
+      const log = await loadLog();
+      await log?.("power_save_change", { enabled: params === true, source: "headless" });
+    }
+  } catch {
+    // Logging must never stop the task.
+  }
+}
+
 export function registerNativeHeadlessTask(): void {
   if (Platform.OS !== "android") return;
   let BGGeo: BgGeoHeadless | null = null;
@@ -466,6 +523,11 @@ export function registerNativeHeadlessTask(): void {
   BGGeo.registerHeadlessTask(async (event) => {
     const name = String(event?.name ?? "");
     try {
+      // Log-only events for the 24-hour tracking log (trackingLog.ts), before
+      // anything else so they are kept whatever the switch says: Android
+      // ending the app, the phone restarting, a permission or location
+      // services change, battery saver. Rare, so no throttle.
+      await logHeadlessStateEvent(name, event?.params);
       if (await handledAsSwitchedOff()) return;
       if (name === "boot" || name === "terminate") {
         await rearmIfStationary(BGGeo!, name);
@@ -474,9 +536,23 @@ export function registerNativeHeadlessTask(): void {
         // phone sits still (26 Sep 2026). Pause only: the lock self-heal would
         // log a detection_skipped every minute of a shift.
         if (await isLowPower()) await stillLowAfterRefresh("headless_heartbeat", false);
+        // A recording still open with the car parked: the parked event was
+        // missed, or a finalise it started was cut off (the fixes survive
+        // that, see delete-after-save in finalizeAutoTrip). Run the same
+        // heartbeat backstop the live app runs, so the drive is saved now
+        // rather than at the next app open (10 Oct 2026).
+        if ((await isRecordingOpen()) && !(await sdkIsMoving(BGGeo!))) {
+          await heartbeatFinalizeHeadless();
+        }
         if (Date.now() - (await readLastRearmAt()) >= HEARTBEAT_REARM_MS) {
           await rearmIfStationary(BGGeo!, name);
         }
+        // Then finish and send whatever is left over (failed uploads, a route
+        // nothing is armed to save, drop events), at most every ten minutes.
+        try {
+          const { runBackgroundUpkeep } = await import("./backgroundUpkeep");
+          await runBackgroundUpkeep("headless_heartbeat");
+        } catch {}
       } else if (name === "location" || name === "motionchange") {
         const route = routeHeadlessEvent({
           platform: Platform.OS,

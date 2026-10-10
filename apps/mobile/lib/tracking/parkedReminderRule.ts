@@ -42,6 +42,15 @@ export const PARKED_COPY = {
     title: "Start Trip ended",
     body: "There wasn't enough driving to save a trip. Your next drives record automatically.",
   },
+  // With Automatic trips off, nothing records the next drive by itself.
+  savedAutomaticOff: {
+    title: "Trip saved",
+    body: "Saved up to where you stopped driving. Automatic trips are off, so tap Start Trip for your next drive.",
+  },
+  nothingAutomaticOff: {
+    title: "Start Trip ended",
+    body: "There wasn't enough driving to save a trip. Automatic trips are off, so tap Start Trip for your next drive.",
+  },
   drivingAgain: {
     title: "Still recording",
     body: "You're moving again, so your trip is still running. Tap Arrived when you get there.",
@@ -52,6 +61,8 @@ export const PARKED_COPY = {
   },
   settingsHintOn:
     "Waits and stops stay in the same trip. We'll remind you after 10 minutes stopped. Tap Arrived when you finish.",
+  settingsHintAutomaticOff:
+    "Always on while Automatic trips is off, so a stop never ends your trip. We'll remind you after 10 minutes stopped. Tap Arrived when you finish.",
   settingsHintNoPermission:
     "Turn on notifications to get a reminder when you've been stopped for 10 minutes.",
 } as const;
@@ -234,15 +245,19 @@ export function shouldApplyParkedResponse(args: {
 /** What to post after an Arrived tap. */
 export function parkedArrivedNotification(
   outcome: ParkedArrivedOutcome,
-  tripsSaved: number
+  tripsSaved: number,
+  automaticTripsOn = true
 ): { title: string; body: string; action: string } | null {
   if (outcome === "already_finished") return null;
   if (outcome === "driving_again") {
     return { ...PARKED_COPY.drivingAgain, action: "open_start_trip" };
   }
-  return tripsSaved > 0
-    ? { ...PARKED_COPY.saved, action: "open_trips" }
-    : { ...PARKED_COPY.nothing, action: "open_dashboard" };
+  if (tripsSaved > 0) {
+    const copy = automaticTripsOn ? PARKED_COPY.saved : PARKED_COPY.savedAutomaticOff;
+    return { ...copy, action: "open_trips" };
+  }
+  const copy = automaticTripsOn ? PARKED_COPY.nothing : PARKED_COPY.nothingAutomaticOff;
+  return { ...copy, action: "open_dashboard" };
 }
 
 /**
@@ -253,12 +268,16 @@ export function parkedArrivedNotification(
 export function startTripFinishedAlert(args: {
   fromReminder: boolean;
   tripsSaved: number | null;
+  /** Omitted = on (the old wording). */
+  automaticTripsOn?: boolean;
 }): { title: string; body: string } {
   if (args.tripsSaved === 0) {
-    return {
-      title: "Start Trip ended",
-      body: "There wasn't enough driving to save a trip. Your next drives record automatically.",
-    };
+    return args.automaticTripsOn === false
+      ? PARKED_COPY.nothingAutomaticOff
+      : {
+          title: "Start Trip ended",
+          body: "There wasn't enough driving to save a trip. Your next drives record automatically.",
+        };
   }
   return args.fromReminder
     ? PARKED_COPY.formAlert

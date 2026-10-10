@@ -80,7 +80,7 @@ const u = users[0];
 const since = new Date(Date.now() - days * 86_400_000);
 const premiumNow = u.isPremium && (!u.premiumExpiresAt || u.premiumExpiresAt > new Date());
 
-const [vehicles, tripCount, trips, events, dump, shifts] = await Promise.all([
+const [vehicles, tripCount, trips, events, dump, shifts, drops] = await Promise.all([
   p.vehicle.findMany({ where: { userId: u.id }, select: { make: true, model: true, fuelType: true, vehicleType: true, isPrimary: true } }),
   p.trip.count({ where: { userId: u.id } }),
   p.trip.findMany({
@@ -92,7 +92,7 @@ const [vehicles, tripCount, trips, events, dump, shifts] = await Promise.all([
     orderBy: { startedAt: "asc" },
   }),
   p.appEvent.findMany({
-    where: { userId: u.id, createdAt: { gte: since }, NOT: { type: "screen.viewed" } },
+    where: { userId: u.id, createdAt: { gte: since }, NOT: { type: { in: ["screen.viewed", "trip.recording_dropped"] } } },
     select: { type: true, metadata: true, buildNumber: true, createdAt: true },
     orderBy: { createdAt: "asc" },
     take: 400,
@@ -102,6 +102,12 @@ const [vehicles, tripCount, trips, events, dump, shifts] = await Promise.all([
     select: { capturedAt: true, platform: true, osVersion: true, appVersion: true, buildNumber: true, verdict: true, statusJson: true, eventsJson: true },
   }),
   p.shift.findMany({ where: { userId: u.id, startedAt: { gte: since } }, select: { startedAt: true, endedAt: true, status: true }, orderBy: { startedAt: "asc" } }),
+  p.appEvent.findMany({
+    where: { userId: u.id, createdAt: { gte: since }, type: "trip.recording_dropped" },
+    select: { type: true, metadata: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  }),
 ]);
 
 console.log(`== ${u.displayName ?? "(no name)"}  ${u.email}`);
@@ -157,7 +163,42 @@ if (shifts.length) {
   for (const s of shifts) console.log(`  ${uk(s.startedAt)} -> ${s.endedAt ? uk(s.endedAt).slice(-5) : "open"} ${s.status}`);
 }
 
-console.log(`\nEVENTS, last ${days} days (screen views left out)`);
-for (const e of events) console.log(`  ${uk(e.createdAt)} ${e.type} ${e.metadata ? JSON.stringify(e.metadata).slice(0, 140) : ""}`);
+// Recordings the phone started but did not save, with the reason (sent by
+// the app since 10 Oct 2026 as trip.recording_dropped).
+if (drops.length) {
+  console.log(`\nRECORDINGS DROPPED BY THE PHONE (drive time, UK; newest ${drops.length} at most 200)`);
+  for (const e of [...drops].reverse()) {
+    const m = e.metadata ?? {};
+    const at = m.endedAt ?? m.startedAt ?? m.droppedAt ?? e.createdAt;
+    console.log(
+      `  ${uk(at)} ${m.reason ?? "?"}${m.detail ? ` (${m.detail})` : ""}${typeof m.distanceMiles === "number" ? ` ${m.distanceMiles.toFixed(2)} mi` : ""}${typeof m.coords === "number" ? `, ${m.coords} fixes` : ""}${m.source ? ` via ${m.source}` : ""}  received ${uk(e.createdAt)}`
+    );
+  }
+}
+
+console.log(`\nEVENTS, last ${days} days (screen views and dropped recordings left out)`);
+for (const e of events) {
+  const { phoneLog, ...rest } = e.metadata ?? {};
+  const meta = e.metadata ? JSON.stringify(rest).slice(0, 140) : "";
+  console.log(`  ${uk(e.createdAt)} ${e.type} ${meta}${phoneLog ? ` [phone log: ${phoneLog.rows?.length ?? 0} events]` : ""}`);
+}
+
+// The phone's own tracking log, sent with each missing-trip report since
+// 10 Oct 2026: what the engine did around the departure the driver gave.
+const withLog = events.filter((e) => e.type === "trip.report_missing" && e.metadata?.phoneLog);
+for (const e of withLog) {
+  const log = e.metadata.phoneLog;
+  console.log(`\nPHONE LOG sent with the report of ${uk(e.createdAt)} (window ${uk(log.from)} to ${uk(log.to)})`);
+  if (log.oldestHeld && new Date(log.oldestHeld) > new Date(log.from)) {
+    console.log(`  NOTE: the phone's log only went back to ${uk(log.oldestHeld)}, after the start of the window`);
+  }
+  if (log.truncated) console.log(`  NOTE: busy window, the middle was left out`);
+  if (log.state) console.log(`  phone now: ${JSON.stringify(log.state).slice(0, 400)}`);
+  if (!log.rows?.length) console.log(`  (no events in the window)`);
+  for (const [at, ev, data] of log.rows ?? []) {
+    const t = new Date(at).toLocaleTimeString("en-GB", { timeZone: "Europe/London" });
+    console.log(`  ${ukDay(at)} ${t} ${ev} ${data ? data.slice(0, 160) : ""}`);
+  }
+}
 
 await p.$disconnect();
