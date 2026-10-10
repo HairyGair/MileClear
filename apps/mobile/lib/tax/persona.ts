@@ -105,6 +105,31 @@ export function showsDiffersLine(
   return claimPence !== returnMileagePence;
 }
 
+/**
+ * Whether the differs line may show at all (SPEC 3.2): only for "both", or a
+ * gig driver with an employer rate. Its text explains the gap as the
+ * employer's rate, so for anyone else a gap (a stale stored summary) would
+ * get the wrong explanation.
+ */
+export function differsLineApplies(persona: Persona, employerRatePence: number | null | undefined): boolean {
+  return persona === "both" || (persona === "gig" && employerRatePence != null);
+}
+
+/**
+ * The overview was built for a different work type or team status than the
+ * phone now has (the driver just changed it in Your tax details, and the
+ * 30 second caches still hold the old answer). The caller refetches fresh.
+ * Unknown on either side counts as matching.
+ */
+export function overviewOutOfStep(
+  overview: Pick<TaxOverview, "workType" | "isCompanyDriver"> | null,
+  user: { workType: string | null | undefined; isCompanyDriver: boolean } | null,
+): boolean {
+  if (!overview || !user) return false;
+  const wt = user.workType === "employee" || user.workType === "both" ? user.workType : "gig";
+  return overview.workType !== wt || overview.isCompanyDriver !== user.isCompanyDriver;
+}
+
 /** Whether to draw PRO on Downloads. The caller counts team and partner Pro as Pro. */
 export function showProBadge(args: { userLoading: boolean; isPremium: boolean }): boolean {
   return !args.userLoading && !args.isPremium;

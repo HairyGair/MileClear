@@ -39,7 +39,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "what-it-does",
         q: "What does MileClear do for me?",
-        a: "MileClear automatically records every mile you drive for work and calculates the tax deduction HMRC owes you back. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, try quarterly Making Tax Digital updates (in beta on HMRC's test service), or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
+        a: "MileClear automatically records every mile you drive for work and works out your mileage claim. Unlike most mileage trackers, the tracking itself is unlimited and free - no monthly drive cap, no \"upgrade to keep recording\" paywall. MileIQ stops you at 40 drives a month, Driversnote at 20; MileClear never does.\n\nAt year-end you can export a PDF Self Assessment, try a test version of quarterly Making Tax Digital updates (on HMRC's test service, nothing is sent to HMRC yet), or hand the numbers to your accountant.\n\nFrom tax year 2026-27 (trips on or after 6 April 2026) the standard rate is 55p per mile for the first 10,000 business miles and 25p after - up from the previous 45p first tier. MileClear applies the correct rate per tax year automatically.",
       },
       {
         id: "trip-detection",
@@ -49,7 +49,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "modes",
         q: "Work mode vs Personal mode?",
-        a: "Top of the dashboard - switch between Work and Personal whenever your day changes. Work mode shows your tax deduction, business insights, and HMRC tooling. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you do both, set your dashboard mode to \"Both\" in Settings to see everything at once.",
+        a: "Top of the dashboard - switch between Work and Personal whenever your day changes. Work mode shows your mileage claim, business insights and tax tools. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you do both, set your dashboard mode to \"Both\" in Settings to see everything at once.",
         goTo: "/settings/general",
       },
       {
@@ -153,13 +153,13 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "sa-wizard",
         q: "How does the Self Assessment wizard work?",
-        a: "The Tax tab (or More → Tax in Personal mode) → Self Assessment. Walks you box-by-box through the short self-employment pages (SA103S) your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Box 9 (turnover), box 12 (car, van and travel expenses, where your mileage goes), box 20 (total expenses) and box 31 (taxable profit). If your turnover was £90,000 or more you need the full pages (SA103F), which number the boxes differently. At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
+        a: "The Tax tab → Box by box. Walks you box by box through the short self-employment pages (SA103S) your tax return needs.\n\nEach box shows the figure MileClear calculated, the rule HMRC uses, and where to enter it on the actual return. Box 9 (turnover), box 12 (car, van and travel expenses, where your mileage goes), box 20 (total expenses) and box 31 (taxable profit). If your turnover was £90,000 or more you need the full pages (SA103F), which number the boxes differently. At the end, generate a signed PDF with an attestation cover sheet.\n\nThe wizard is free. Downloading it as a PDF is Pro.",
         goTo: "/self-assessment",
       },
       {
         id: "first-tax-return",
         q: "It's my first ever Self Assessment - help?",
-        a: "The Tax tab (or More → Tax in Personal mode) → First Self Assessment? Read the guide. Plain-English walkthrough covering UTR registration (10-digit number HMRC issues, takes 10 working days), the tax year (6 April to 5 April), what you actually pay (income tax + Class 2 NI + Class 4 NI), the AMAP mileage deduction (45p/55p per car/van mile), and the 31 January deadline.\n\nIf you've earned over £1,000 from self-employment in a tax year, you must register and file - even if you also have a day job.",
+        a: "The Tax tab → New to Self Assessment? Plain-English walkthrough covering UTR registration (10-digit number HMRC issues, takes 10 working days), the tax year (6 April to 5 April), what you actually pay (income tax + Class 2 NI + Class 4 NI), mileage on your tax return (45p/55p per car/van mile), and the 31 January deadline.\n\nIf you've earned over £1,000 from self-employment in a tax year, you must register and file - even if you also have a day job.",
         goTo: "/first-tax-return",
       },
     ],
@@ -354,7 +354,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "recaps",
         q: "What are the Weekly / Monthly / Yearly Recap modals?",
-        a: "Friday afternoon and the first of every month, MileClear shows a recap modal on next app open: total miles, deduction earned, top platform, busiest day, achievements unlocked. End-of-tax-year (5 April) gets a bigger Yearly Recap with the full HMRC-deduction headline figure.\n\nIf you've dismissed one and want to see it again: Dashboard → tap the date period header. Recaps are also shareable as a clean card to Discord, WhatsApp, or wherever you brag about your numbers.",
+        a: "Friday afternoon and the first of every month, MileClear shows a recap modal on next app open: total miles, mileage claim, top platform, busiest day, achievements unlocked. End-of-tax-year (5 April) gets a bigger Yearly Recap with your mileage claim for the whole tax year.\n\nIf you've dismissed one and want to see it again: Dashboard → tap the date period header. Recaps are also shareable as a clean card to Discord, WhatsApp, or wherever you brag about your numbers.",
       },
     ],
   },

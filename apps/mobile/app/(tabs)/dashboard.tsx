@@ -1691,7 +1691,7 @@ export default function DashboardScreen() {
                   <Text style={s.scorecardNum}>
                     {formatPence(scorecard.deductionPence)}
                   </Text>
-                  <Text style={s.scorecardUnit}>deduction</Text>
+                  <Text style={s.scorecardUnit}>claim</Text>
                 </View>
               </View>
 
@@ -1785,7 +1785,7 @@ export default function DashboardScreen() {
                   <Text style={s.scorecardNum}>
                     {formatPence(recapData.deductionPence)}
                   </Text>
-                  <Text style={s.scorecardUnit}>deduction</Text>
+                  <Text style={s.scorecardUnit}>claim</Text>
                 </View>
               </View>
 
@@ -2439,7 +2439,7 @@ export default function DashboardScreen() {
                       <View style={s.dailyRecapDivider} />
                       <View style={s.dailyRecapStat}>
                         <Text style={s.dailyRecapValue}>{formatPence(dailyRecap.deductionPence)}</Text>
-                        <Text style={s.dailyRecapUnit}>deduction</Text>
+                        <Text style={s.dailyRecapUnit}>claim</Text>
                       </View>
                     </>
                   )}

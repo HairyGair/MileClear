@@ -184,7 +184,7 @@ export default function TaxMtdHistoryScreen() {
               ))
             )}
             <MtdSignpost
-              text="These figures are only an estimate based on the information HMRC has received so far. They may change as more is reported about you during the tax year."
+              text="In this test version these figures come from HMRC's test service, not your real tax record. Once it is live, they will only be an estimate based on the information HMRC has received so far, and may change as more is reported about you during the tax year."
               showLink={false}
             />
             <MtdSignpost

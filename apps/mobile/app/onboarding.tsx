@@ -1144,7 +1144,7 @@ export default function OnboardingScreen() {
                   <Text style={s.nextStepNumberText}>3</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.nextStepTitle}>Watch your deduction grow</Text>
+                  <Text style={s.nextStepTitle}>Watch your mileage claim grow</Text>
                   <Text style={s.nextStepBody}>
                     Open the Tax tab for your tax estimate, updated as you drive.
                   </Text>

@@ -2,21 +2,21 @@
 // /tax/overview cache as the Tax tab. Renders nothing while loading, on error
 // with no cache, and for personas that have no line (SPEC 4).
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Pressable, Text, StyleSheet } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
 import { useTaxOverview } from "../../lib/tax/useTaxOverview";
 import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
-import { homeLineText, resolvePersona } from "../../lib/tax/persona";
+import { homeLineText, overviewOutOfStep, resolvePersona } from "../../lib/tax/persona";
 import { useUser } from "../../lib/user/context";
 import { useMode } from "../../lib/mode/context";
 import { colors, fonts, fontScaleCap, shared, spacing } from "../../lib/theme";
 
 export function TaxSummaryLine() {
   const router = useRouter();
-  const { user, isCompanyDriver } = useUser();
+  const { user, isCompanyDriver, isLoading: userLoading } = useUser();
   const { isPersonal } = useMode();
   const { data, refresh } = useTaxOverview();
   const { totalReliefPence } = useMarRelief(data?.relief ?? null);
@@ -26,6 +26,15 @@ export function TaxSummaryLine() {
       void refresh();
     }, [refresh]),
   );
+
+  // Same rule as the Tax tab: a work type or team change refetches past the caches.
+  const outOfStep = overviewOutOfStep(
+    data,
+    user && !userLoading ? { workType: user.workType, isCompanyDriver } : null,
+  );
+  useEffect(() => {
+    if (outOfStep) void refresh({ fresh: true });
+  }, [outOfStep, data?.workType, data?.isCompanyDriver, user?.workType, isCompanyDriver, refresh]);
 
   const persona = resolvePersona({
     isPersonal,

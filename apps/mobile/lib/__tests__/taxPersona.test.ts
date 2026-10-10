@@ -14,6 +14,8 @@ import {
   rowGroups,
   showProBadge,
   showsDiffersLine,
+  differsLineApplies,
+  overviewOutOfStep,
 } from "../tax/persona";
 
 const fmt = (p: number) => `£${(p / 100).toFixed(2)}`;
@@ -139,6 +141,30 @@ describe("differs line", () => {
     expect(showsDiffersLine(400, 500)).toBe(true);
     expect(showsDiffersLine(500, 500)).toBe(false);
     expect(showsDiffersLine(null, 500)).toBe(false);
+  });
+  it("applies only to both, or gig with an employer rate (SPEC 3.2)", () => {
+    expect(differsLineApplies("both", null)).toBe(true);
+    expect(differsLineApplies("gig", 30)).toBe(true);
+    expect(differsLineApplies("gig", 0)).toBe(true);
+    expect(differsLineApplies("gig", null)).toBe(false);
+    expect(differsLineApplies("gig", undefined)).toBe(false);
+    expect(differsLineApplies("employee", 30)).toBe(false);
+  });
+});
+
+describe("overview out of step with the profile", () => {
+  const o = (workType: TaxOverview["workType"], isCompanyDriver = false) => ({ workType, isCompanyDriver });
+  it("matches when work type and team agree (null work type reads as gig)", () => {
+    expect(overviewOutOfStep(o("gig"), { workType: null, isCompanyDriver: false })).toBe(false);
+    expect(overviewOutOfStep(o("both"), { workType: "both", isCompanyDriver: false })).toBe(false);
+  });
+  it("is out of step after a work type or team change", () => {
+    expect(overviewOutOfStep(o("employee"), { workType: "both", isCompanyDriver: false })).toBe(true);
+    expect(overviewOutOfStep(o("gig"), { workType: "gig", isCompanyDriver: true })).toBe(true);
+  });
+  it("is never out of step with nothing to compare", () => {
+    expect(overviewOutOfStep(null, { workType: "both", isCompanyDriver: false })).toBe(false);
+    expect(overviewOutOfStep(o("gig"), null)).toBe(false);
   });
 });
 

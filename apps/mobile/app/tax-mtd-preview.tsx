@@ -239,7 +239,7 @@ export default function TaxMtdPreviewScreen() {
           muted
         />
         <SectionRow
-          label="Mileage deduction"
+          label="Mileage on your tax return"
           value={formatPence(b.mileage.deductionPence)}
           highlight
         />

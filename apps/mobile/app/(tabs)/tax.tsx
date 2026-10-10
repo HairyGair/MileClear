@@ -5,7 +5,7 @@
 // Everything the cards show comes from one request (useTaxOverview). The rows
 // below depend only on the persona, never on whether a card loaded.
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { formatPence, getTaxYear } from "@mileclear/shared";
@@ -24,6 +24,8 @@ import { useTaxOverview } from "../../lib/tax/useTaxOverview";
 import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
 import { updateTaxPlannerSettings } from "../../lib/api/taxPlanner";
 import {
+  differsLineApplies,
+  overviewOutOfStep,
   resolvePersona,
   returnCardMode,
   rowGroups,
@@ -75,6 +77,17 @@ export default function TaxScreen() {
     isCompanyDriver,
     workType: user?.workType ?? data?.workType,
   });
+  // Work type or team changed since the cached overview was built: fetch past
+  // both 30 second caches once (no loop: the effect re-runs only when the
+  // mismatch itself changes).
+  const outOfStep = overviewOutOfStep(
+    data,
+    user && !userLoading ? { workType: user.workType, isCompanyDriver } : null,
+  );
+  useEffect(() => {
+    if (outOfStep) void refresh({ fresh: true });
+  }, [outOfStep, data?.workType, data?.isCompanyDriver, user?.workType, isCompanyDriver, refresh]);
+
   const failed = new Set(data?.failed ?? []);
   const reliefPence = totalReliefPence ?? 0;
   const isPremium = !!user?.isPremium || !!data?.isPremium || isCompanyDriver;
@@ -194,7 +207,9 @@ export default function TaxScreen() {
         thisYear={data.thisYear}
         plan={data.plan}
         lead={data.lead === "this_year" || !returnCard}
-        claimPence={data.claim?.claimPence ?? null}
+        claimPence={
+          differsLineApplies(persona, user?.employerMileageRatePence) ? (data.claim?.claimPence ?? null) : null
+        }
         canAddEarnings
       />
     ) : null;
