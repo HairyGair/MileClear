@@ -180,6 +180,8 @@ export interface RecordingDrop {
   /** The phone's own call: true when the drive's miles are not in the trip
    *  list (merged, deduped and error are false). */
   lost: boolean;
+  /** The code path, when not an ordinary stop ("orphan_..." for a sweep). */
+  source: string | null;
   startedAt: string | null;
   endedAt: string | null;
   distanceMiles: number | null;
@@ -200,12 +202,19 @@ export function readRecordingDrop(createdAt: Date, metadata: unknown): Recording
     reason: str(m.reason) ?? "unknown",
     detail: str(m.detail),
     lost: m.lost === true,
+    source: str(m.source),
     startedAt,
     endedAt,
     distanceMiles: num(m.distanceMiles),
     coords: num(m.coords),
     receivedAt: createdAt.toISOString(),
   };
+}
+
+/** A sweep that found only a parked phone's stationary fixes: housekeeping,
+ *  not an explanation for a missing drive. */
+export function isResidueDrop(d: RecordingDrop): boolean {
+  return !d.lost && d.reason !== "error" && (d.source ?? "").startsWith("orphan_") && d.reason !== "merged" && d.reason !== "deduped";
 }
 
 /** The drops whose drive time falls inside [fromMs, toMs], oldest first. */

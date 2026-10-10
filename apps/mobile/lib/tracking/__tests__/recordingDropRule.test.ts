@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildDropEvent, isLostReason, OUTBOX_BATCH, type DropReason } from "../recordingDropRule";
+import { buildDropEvent, dropIsLost, isLostReason, OUTBOX_BATCH, type DropReason } from "../recordingDropRule";
 
 const NOW = Date.parse("2026-10-10T09:00:00.000Z");
 
@@ -9,6 +9,20 @@ describe("isLostReason", () => {
     const kept: DropReason[] = ["merged", "deduped", "error"];
     for (const r of lost) expect(isLostReason(r), r).toBe(true);
     for (const r of kept) expect(isLostReason(r), r).toBe(false);
+  });
+});
+
+describe("dropIsLost", () => {
+  it("does not count a sweep's stationary leftovers as a lost drive", () => {
+    expect(dropIsLost("phantom", "orphan_upkeep_headless_heartbeat")).toBe(false);
+    expect(dropIsLost("no_coords", "orphan_app_open")).toBe(false);
+    expect(dropIsLost("too_short", "orphan_app_open")).toBe(true);
+    expect(dropIsLost("phantom", null)).toBe(true);
+    expect(dropIsLost("merged", null)).toBe(false);
+  });
+
+  it("carries through to the event", () => {
+    expect(buildDropEvent({ reason: "phantom", source: "orphan_app_open" }, NOW, "ios").lost).toBe(false);
   });
 });
 

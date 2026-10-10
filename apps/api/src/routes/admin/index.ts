@@ -47,7 +47,7 @@ import { adminPaidAdsRoutes } from "./paidAds.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
-import { dropsInWindow, readRecordingDrop, readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
+import { dropsInWindow, isResidueDrop, readRecordingDrop, readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
   getSubscriptionTruth,
@@ -3352,7 +3352,8 @@ export async function adminRoutes(app: FastifyInstance) {
                 .find((d) => {
                   const t = Date.parse(d.at);
                   // Merged or deduped means a trip holds these miles already.
-                  const explains = d.reason !== "merged" && d.reason !== "deduped";
+                  // A sweep's stationary leftovers explain nothing either.
+                  const explains = d.reason !== "merged" && d.reason !== "deduped" && !isResidueDrop(d);
                   return explains && Number.isFinite(t) && t >= sig - 10 * 60000 && t <= sig + 12 * HOUR;
                 });
           if (drop) {

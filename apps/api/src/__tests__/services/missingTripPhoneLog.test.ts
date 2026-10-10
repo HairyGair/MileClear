@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   dropsInWindow,
+  isResidueDrop,
+  readRecordingDrop,
   parsePhoneLog,
   readStoredPhoneLog,
   summarisePhoneLog,
@@ -113,5 +115,15 @@ describe("dropsInWindow", () => {
       Date.parse(TO)
     );
     expect(d.lost).toBe(true);
+  });
+});
+
+describe("isResidueDrop", () => {
+  it("treats a sweep's stationary leftovers as housekeeping and real drops as explanations", () => {
+    const at = new Date("2026-10-09T09:00:00Z");
+    expect(isResidueDrop(readRecordingDrop(at, { reason: "phantom", lost: false, source: "orphan_app_open" }))).toBe(true);
+    expect(isResidueDrop(readRecordingDrop(at, { reason: "phantom", lost: true }))).toBe(false);
+    expect(isResidueDrop(readRecordingDrop(at, { reason: "too_short", lost: true, source: "orphan_app_open" }))).toBe(false);
+    expect(isResidueDrop(readRecordingDrop(at, { reason: "error", lost: false, source: "orphan_app_open" }))).toBe(false);
   });
 });

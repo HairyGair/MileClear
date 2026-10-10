@@ -55,6 +55,7 @@ import {
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
 import { noteRecordingDropped } from "./recordingDrops";
+import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
@@ -1722,7 +1723,10 @@ async function enterPostTripKeepAlive(
  * onMotionChange hasn't fired — so finalize through the same pipeline. This is
  * what turns the old ~1h "self-confirm" into a ~5-7min one.
  */
-async function handleNativeHeartbeat(): Promise<void> {
+// Exported for the Android headless task (nativeHeadless.ts), which runs it
+// on a headless heartbeat while a recording is open: the same backstop, for
+// a phone whose app Android has ended (10 Oct 2026).
+export async function handleNativeHeartbeat(): Promise<void> {
   try {
     void recordBatterySample();
     // In low power, a heartbeat is a clock tick: if the pause ran out while
@@ -1764,7 +1768,12 @@ async function handleNativeHeartbeat(): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (recording?.value !== "1") {
-      // Not recording. Either a post-trip keep-alive window is running (hold the
+      // Not recording: finish and send what a drive left behind (a failed
+      // upload, a route nothing is armed to save, waiting drop events), at
+      // most every ten minutes, BEFORE the wake lock is let go below so iOS
+      // does not suspend the app half way through. See backgroundUpkeep.ts.
+      await runBackgroundUpkeep("heartbeat");
+      // Either a post-trip keep-alive window is running (hold the
       // wake lock so a quick next hop is caught warm), or the window has expired
       // / never existed (release the lock so the app suspends normally — also
       // self-heals a preventSuspend left on after a force-quit-mid-drive
@@ -1867,6 +1876,41 @@ export async function getNativeStoreSummary(): Promise<{
     return { count: native.length, newestMs, oldestMs };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Cheap look at the engine for background upkeep (backgroundUpkeep.ts): how
+ * many fixes its store holds (getCount, without loading them, unlike
+ * getNativeStoreSummary) and whether it thinks it is moving. Nulls when the
+ * native engine is off, the module is absent, or a call fails.
+ */
+export async function getNativeStoreCountAndMotion(): Promise<{ count: number | null; isMoving: boolean | null }> {
+  try {
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (!(await isNativeLocationEngineEnabled())) return { count: null, isMoving: null };
+    const BGGeo = loadNativeModule() as (BgGeo & {
+      getCount?: () => Promise<number>;
+      getState?: () => Promise<{ isMoving?: boolean }>;
+    }) | null;
+    if (!BGGeo) return { count: null, isMoving: null };
+    let count: number | null = null;
+    let isMoving: boolean | null = null;
+    try {
+      if (typeof BGGeo.getCount === "function") {
+        const n = await BGGeo.getCount();
+        count = typeof n === "number" && Number.isFinite(n) ? n : null;
+      }
+    } catch {}
+    try {
+      if (typeof BGGeo.getState === "function") {
+        const st = await BGGeo.getState();
+        isMoving = typeof st?.isMoving === "boolean" ? st.isMoving : null;
+      }
+    } catch {}
+    return { count, isMoving };
+  } catch {
+    return { count: null, isMoving: null };
   }
 }
 

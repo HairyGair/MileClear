@@ -56,6 +56,19 @@ export function isLostReason(reason: DropReason): boolean {
   return LOST.has(reason);
 }
 
+/** What a sweep of fixes no recording was armed for usually finds: a few
+ *  stationary fixes, not a drive. Dropped for one of these reasons, they are
+ *  housekeeping, not a lost drive. */
+const RESIDUE_REASONS: ReadonlySet<DropReason> = new Set<DropReason>(["no_coords", "phantom", "tail_trim"]);
+
+/** Did a drop lose a drive's miles? A residue sweep (source "orphan_...")
+ *  that found only stationary fixes did not. */
+export function dropIsLost(reason: DropReason, source: string | null | undefined): boolean {
+  if (!isLostReason(reason)) return false;
+  if (source && source.startsWith("orphan_") && RESIDUE_REASONS.has(reason)) return false;
+  return true;
+}
+
 export interface DropInput {
   reason: DropReason;
   /** A finer reason, such as the walk guard's own verdict or "momentary". */
@@ -101,7 +114,7 @@ export function buildDropEvent(input: DropInput, now: number, platform: string):
   const distance = finiteOrUndefined(input.distanceMiles);
   const ev: DropEvent = {
     reason: input.reason,
-    lost: isLostReason(input.reason),
+    lost: dropIsLost(input.reason, input.source),
     droppedAt: new Date(now).toISOString(),
     platform,
   };

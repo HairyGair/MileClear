@@ -500,16 +500,26 @@ export async function logDetectionEvent(event: string, data?: Record<string, unk
   }
 }
 
+/**
+ * Which caller is running the current finalize, when it is not an ordinary
+ * stop: set by sweepOrphanedRoute around its finalize, so its drop events say
+ * they came from a sweep (and a sweep that finds only stationary leftovers is
+ * not counted as a lost drive, see dropIsLost). Null otherwise.
+ */
+let finalizeSource: string | null = null;
+
 /** First and last time and size of a buffered route, for a drop event. */
 function dropSpan(coords: ReadonlyArray<{ recorded_at: string }>): {
   startedAt: string | null;
   endedAt: string | null;
   coords: number;
+  source?: string;
 } {
   return {
     startedAt: coords[0]?.recorded_at ?? null,
     endedAt: coords[coords.length - 1]?.recorded_at ?? null,
     coords: coords.length,
+    ...(finalizeSource ? { source: finalizeSource } : {}),
   };
 }
 
@@ -3074,7 +3084,12 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
       evidence: decision.source,
     }).catch(() => {});
 
-    await finalizeAutoTrip();
+    finalizeSource = `orphan_${source}`;
+    try {
+      await finalizeAutoTrip();
+    } finally {
+      finalizeSource = null;
+    }
     // finalizeAutoTrip consumes the JS buffer but leaves RNBG's store alone —
     // its callers clear that. Without this the same fixes are reconciled into
     // the NEXT finalize and arrive as a duplicate of the trip just saved.
@@ -3927,13 +3942,25 @@ try {
       // re-arm the JS geofence or run missed-exit detection — that's what kept
       // the JS layer alive and fighting RNBG (Anthony 3 June). Let RNBG handle
       // wake + capture in native.
+      let nativeOwns = false;
       try {
         const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
         const { isNativeEngineAvailable } = await import("./nativeLocation");
-        if (isNativeEngineAvailable() && (await isNativeLocationEngineEnabled())) {
-          return BackgroundFetch.BackgroundFetchResult.NoData;
-        }
+        nativeOwns = isNativeEngineAvailable() && (await isNativeLocationEngineEnabled());
       } catch {}
+      if (nativeOwns) {
+        // Nothing here touches GPS or the engine. What it does do, since
+        // 10 Oct 2026, is finish and send what a drive left behind (a failed
+        // upload, a route nothing is armed to save, drop events) on a wake
+        // the OS gave us anyway, instead of at the next app open. Throttled
+        // and time-boxed inside; see backgroundUpkeep.ts. Any failure still
+        // returns here, never falling through to the JS-engine checks below.
+        try {
+          const { runBackgroundUpkeep } = await import("./backgroundUpkeep");
+          if (await runBackgroundUpkeep("background_fetch")) return BackgroundFetch.BackgroundFetchResult.NewData;
+        } catch {}
+        return BackgroundFetch.BackgroundFetchResult.NoData;
+      }
 
       const db = await getDatabase();
 
