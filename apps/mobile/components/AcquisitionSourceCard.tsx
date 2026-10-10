@@ -18,46 +18,56 @@ const ASK_WITHIN_MS = 30 * 24 * 60 * 60 * 1000;
 
 type CardState = "checking" | "open" | "other" | "thanks" | "closed";
 
-export function AcquisitionSourceCard() {
+/**
+ * Should this driver be asked? Joined in the last 30 days, not answered or
+ * skipped on this phone, and not answered on another phone (one call, only
+ * once the cheap local checks pass). Offline or unreadable means no: better
+ * silent than asking twice.
+ */
+export async function acquisitionAskEligible(createdAt: string | null | undefined): Promise<boolean> {
+  const createdMs = createdAt ? new Date(createdAt).getTime() : NaN;
+  if (!Number.isFinite(createdMs) || Date.now() - createdMs > ASK_WITHIN_MS) return false;
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [ASKED_KEY]
+    );
+    if (row) return false;
+    const res = await apiRequest<{ data: { answered: boolean } }>("/user/acquisition-source");
+    if (res.data.answered) {
+      await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, '1')", [ASKED_KEY]);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+interface AcquisitionSourceCardProps {
+  /** The caller already checked (Home's ask slot), so open straight away. */
+  assumeEligible?: boolean;
+  /** The question is finished: answered (after the thanks) or skipped. */
+  onFinished?: () => void;
+}
+
+export function AcquisitionSourceCard({ assumeEligible, onFinished }: AcquisitionSourceCardProps = {}) {
   const { user } = useUser();
-  const [state, setState] = useState<CardState>("checking");
+  const [state, setState] = useState<CardState>(assumeEligible ? "open" : "checking");
   const [otherText, setOtherText] = useState("");
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    if (assumeEligible) return;
     let cancelled = false;
-    (async () => {
-      const createdMs = user?.createdAt ? new Date(user.createdAt).getTime() : NaN;
-      if (!Number.isFinite(createdMs) || Date.now() - createdMs > ASK_WITHIN_MS) {
-        if (!cancelled) setState("closed");
-        return;
-      }
-      try {
-        const db = await getDatabase();
-        const row = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = ?",
-          [ASKED_KEY]
-        );
-        if (row) {
-          if (!cancelled) setState("closed");
-          return;
-        }
-        const res = await apiRequest<{ data: { answered: boolean } }>("/user/acquisition-source");
-        if (res.data.answered) {
-          await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, '1')", [ASKED_KEY]);
-          if (!cancelled) setState("closed");
-          return;
-        }
-        if (!cancelled) setState("open");
-      } catch {
-        // Offline or unreadable: stay quiet rather than risk asking twice.
-        if (!cancelled) setState("closed");
-      }
-    })();
+    acquisitionAskEligible(user?.createdAt).then((ok) => {
+      if (!cancelled) setState(ok ? "open" : "closed");
+    });
     return () => {
       cancelled = true;
     };
-  }, [user?.createdAt]);
+  }, [user?.createdAt, assumeEligible]);
 
   const remember = useCallback(async () => {
     try {
@@ -79,21 +89,25 @@ export function AcquisitionSourceCard() {
         });
         await remember();
         setState("thanks");
-        setTimeout(() => setState("closed"), 2500);
+        setTimeout(() => {
+          setState("closed");
+          onFinished?.();
+        }, 2500);
       } catch {
         // Couldn't send: leave the card so they can try again.
       } finally {
         setSending(false);
       }
     },
-    [remember, sending]
+    [remember, sending, onFinished]
   );
 
   const skip = useCallback(async () => {
     setState("closed");
     await remember();
     apiRequest("/user/acquisition-source/skip", { method: "POST", body: "{}" }).catch(() => {});
-  }, [remember]);
+    onFinished?.();
+  }, [remember, onFinished]);
 
   if (state === "checking" || state === "closed") return null;
 

@@ -30,6 +30,8 @@ export interface LastTripData {
   /** A rule or a learned route set the classification, not the driver. */
   autoSorted: boolean;
   isShiftTrip: boolean;
+  /** Added by hand: the mini map joins start and end with a dashed line. */
+  isManual: boolean;
   sync: SyncChip;
   /** Simplified route points for the mini map; empty for manual trips. */
   route: { lat: number; lng: number }[];

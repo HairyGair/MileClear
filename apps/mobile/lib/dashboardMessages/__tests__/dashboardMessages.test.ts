@@ -3,7 +3,6 @@ import {
   selectDashboardMessages,
   batteryChecklistCopy,
   BATTERY_SNOOZE_MS,
-  MAX_SUGGESTIONS,
   type MessageInputs,
 } from "../index";
 
@@ -29,37 +28,21 @@ const base: MessageInputs = {
   notifDeniedNudgeSilenced: false,
   notifPrimerSilenced: false,
   detectionOffSince: null,
-  firstTripEligible: false,
-  savedPlacesEligible: false,
-  referralEligible: false,
-  proEligible: false,
-  androidBetaEligible: false,
 };
 const on = (over: Partial<MessageInputs>) => selectDashboardMessages({ ...base, ...over });
-
-describe("Automatic trips switched off", () => {
-  // 28 Sep 2026: the dashboard's own switch row shows the off state, so a
-  // driver who chose shifts only is not also nagged by a suggestion.
-  it("is not a suggestion: the other suggestions keep their places", () => {
-    const r = on({ detectionOffSince: NOW - 3 * 24 * 3600 * 1000, firstTripEligible: true, referralEligible: true });
-    expect(r.suggestions).toEqual(["first_trip", "referral"]);
-  });
-});
 
 describe("selectDashboardMessages", () => {
   it("says nothing to a healthy driver", () => {
     const r = on({});
-    expect(r).toEqual({ blocker: null, setup: null, suggestions: [], notice: null });
+    expect(r).toEqual({ blocker: null, setup: null, notice: null });
   });
 
   it("says nothing at all during an active shift", () => {
     const r = on({
       activeShift: true,
       locationTier: "none",
-      firstTripEligible: true,
-      proEligible: true,
     });
-    expect(r).toEqual({ blocker: null, setup: null, suggestions: [], notice: null });
+    expect(r).toEqual({ blocker: null, setup: null, notice: null });
   });
 
   // ── Blockers ────────────────────────────────────────────────────
@@ -296,34 +279,6 @@ describe("selectDashboardMessages", () => {
   it("hides the checklist when there is nothing left to do", () => {
     expect(on({}).setup).toBeNull();
   });
-
-  // ── Suggestions ─────────────────────────────────────────────────
-  it("caps suggestions at two", () => {
-    const r = on({
-      firstTripEligible: true,
-      savedPlacesEligible: true,
-      referralEligible: true,
-      proEligible: true,
-      androidBetaEligible: true,
-    });
-    expect(r.suggestions).toHaveLength(MAX_SUGGESTIONS);
-    expect(r.suggestions).toEqual(["first_trip", "saved_places"]);
-  });
-
-  it("puts a driver with no trips on first_trip above everything", () => {
-    const r = on({ firstTripEligible: true, proEligible: true });
-    expect(r.suggestions[0]).toBe("first_trip");
-  });
-
-  it("keeps suggestions below the fold independent of the blocker", () => {
-    const r = on({ locationTier: "none", savedPlacesEligible: true });
-    expect(r.blocker).toBe("no_location");
-    expect(r.suggestions).toEqual(["saved_places"]);
-  });
-
-  it("returns an empty list when nothing is eligible", () => {
-    expect(on({}).suggestions).toEqual([]);
-  });
 });
 
 describe("batteryChecklistCopy", () => {
@@ -366,10 +321,9 @@ describe("batteryChecklistCopy", () => {
 });
 
 describe("Low Power Mode / Battery Saver notice (24 Sep 2026)", () => {
-  it("shows above the mileage while it is on, and takes no suggestion slot", () => {
-    const r = on({ lowPowerMode: true, firstTripEligible: true, referralEligible: true });
+  it("shows above the mileage while it is on", () => {
+    const r = on({ lowPowerMode: true });
     expect(r.notice).toBe("low_power_mode");
-    expect(r.suggestions).toEqual(["first_trip", "referral"]);
   });
   it("gives way to a blocker, which says more", () => {
     expect(on({ lowPowerMode: true, locationTier: "none" }).notice).toBeNull();

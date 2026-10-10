@@ -31,6 +31,9 @@ export const colors = {
   red: "#ef4444",
   redDim: "rgba(239, 68, 68, 0.12)",
   live: "#34c759",
+  // Home status line: the edge of the blocking strip, the red twin of
+  // amberGlow. Decorative (fill, icon and words carry the state).
+  redEdge: "rgba(239,68,68,0.35)",
 
   // Overlays
   overlay: "rgba(0, 0, 0, 0.6)",
@@ -71,10 +74,12 @@ export const heroCard = {
   radius: 20,
 } as const;
 
-// Numbers on Insights only; deliberately off the fontSizes scale.
+// Numbers on Insights and Home; deliberately off the fontSizes scale.
 export const numberSizes = { hero: 44, stat: 28, small: 18 } as const;
 
-export const motion = { quick: 180, settle: 420, celebrate: 700, stagger: 40 } as const;
+// pulse: the live dot's breathing period on Home, the only looping animation
+// there (off under Reduce Motion).
+export const motion = { quick: 180, settle: 420, celebrate: 700, stagger: 40, pulse: 1600 } as const;
 
 // ── Spacing ─────────────────────────────────────────────────────────
 

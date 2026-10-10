@@ -26,15 +26,16 @@ export type HomeTapTarget =
   | "door_fuel"
   | "door_help"
   | "door_hide"
-  | "ask"
-  | "ask_dismiss"
-  | "first_trip_add_past";
+  | "first_trip_add_past"
+  // ask_<id> and ask_dismiss_<id>, e.g. ask_pro, ask_dismiss_vehicle
+  | `ask_${string}`
+  | `ask_dismiss_${string}`;
 
 export const MIN_GAP_MS = 2000;
 export const MAX_PER_SESSION = 60;
 
 export interface HomeTapEvent {
-  target: string;
+  target: HomeTapTarget;
   mode: "work" | "personal";
   state: string;
 }
@@ -45,7 +46,7 @@ export function createTapTracker(
 ) {
   const last = new Map<string, number>();
   let sent = 0;
-  return function track(target: string, mode: "work" | "personal", state: string): boolean {
+  return function track(target: HomeTapTarget, mode: "work" | "personal", state: string): boolean {
     const t = now();
     const key = `${target}|${mode}|${state}`;
     const prev = last.get(key);

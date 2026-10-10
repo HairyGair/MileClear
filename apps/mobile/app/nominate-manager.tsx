@@ -1,12 +1,12 @@
 // "Invite your manager" — the driver-side half of the Milesheet acquisition
 // loop. A driver who claims mileage from an employer tells us the company
 // name and their manager's email; the manager gets an invite email and
-// sets up Milesheet from there. See components/NominateManagerCard.tsx for
-// the prompt that opens this screen, and its comment on the shared local
-// storage key that must never be shown again after a successful submit.
+// sets up Milesheet from there. The Home ask that opens this screen shares
+// the local storage key in lib/nominateManager.ts, which must never be shown
+// again after a successful submit.
 
 import { useCallback, useEffect, useState } from "react";
-import { NOMINATE_PROMPT_STATE_KEY } from "../components/NominateManagerCard";
+import { NOMINATE_PROMPT_STATE_KEY } from "../lib/nominateManager";
 import {
   View,
   Text,
@@ -35,10 +35,8 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
 
-// Must match components/NominateManagerCard.tsx's STATE_KEY — the two
-// files intentionally don't share a helper module (each owns its own tiny
-// bit of local persistence), but the string has to line up or the card
-// keeps reappearing after a successful submission.
+// Shared with the Home ask (lib/nominateManager.ts), so the ask stops
+// appearing after a successful submission.
 const STATE_KEY = NOMINATE_PROMPT_STATE_KEY;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

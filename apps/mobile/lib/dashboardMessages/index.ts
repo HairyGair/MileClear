@@ -19,7 +19,8 @@
 //   2. The five amber permission nags collapse into one setup card with a
 //      progress count, so they have a finish line instead of reappearing
 //      one at a time forever.
-//   3. Suggestions live BELOW your mileage, capped at two.
+//   3. Optional asks (vehicle, Pro, invite...) are not decided here any more:
+//      Home shows one at a time, in the order set in lib/home/ask.ts.
 //
 // Pure and unit-tested, like gapStop / quickTripLock / missedJourneyTimes,
 // so the ordering can be proven without booting the native stack.
@@ -42,17 +43,9 @@ export type SetupId = "always_location" | "motion" | "notifications" | "battery"
  *  that the driver chose, so it is neither a blocker nor a chore: Low Power
  *  Mode (iPhone) / Battery Saver (Android), where iOS cuts background
  *  location and drives go unrecorded without a word (24 Sep 2026: on in 57
- *  of 569 recent dumps). Suggestions sit at the bottom of the dashboard,
- *  where a driver in that state would never see it. */
+ *  of 569 recent dumps). A status line at the top of Home
+ *  carries it, where a driver in that state will see it. */
 export type NoticeId = "low_power_mode";
-
-/** Optional. Never above the fold. */
-export type SuggestionId =
-  | "first_trip"
-  | "saved_places"
-  | "referral"
-  | "pro"
-  | "android_beta";
 
 /** Highest first. A blocker outranks everything else on the screen. */
 export const BLOCKER_ORDER: BlockerId[] = [
@@ -69,22 +62,6 @@ export const SETUP_ORDER: SetupId[] = [
   "notifications",
   "battery",
 ];
-
-/** first_trip outranks everything: a driver with zero trips has one job. */
-export const SUGGESTION_ORDER: SuggestionId[] = [
-  // "detection_off" used to lead this list (16 Sep 2026, 26 phones had it off
-  // silently). Since 28 Sep 2026 the dashboard carries the Automatic trips
-  // switch itself, which shows off plainly, and a driver who chose shifts
-  // only should not be told every day that the choice is wrong.
-  "first_trip",
-  "saved_places",
-  "referral",
-  "pro",
-  "android_beta",
-];
-
-/** Two is enough to be useful and few enough not to be a list of chores. */
-export const MAX_SUGGESTIONS = 2;
 
 /** Battery snooze. 7 days, the same cadence as every other nudge here.
  *  15 Sep 2026 Android audit: optimisation was still ON for 12 of the 17
@@ -142,13 +119,6 @@ export interface MessageInputs {
   /** Low Power Mode (iPhone) or Battery Saver (Android) is on right now.
    *  Optional: a caller that cannot tell leaves it out and nothing shows. */
   lowPowerMode?: boolean;
-
-  // Suggestion eligibility, computed by the caller from its own state.
-  firstTripEligible: boolean;
-  savedPlacesEligible: boolean;
-  referralEligible: boolean;
-  proEligible: boolean;
-  androidBetaEligible: boolean;
 }
 
 export interface SetupItem {
@@ -173,8 +143,6 @@ export interface DashboardMessages {
   blocker: BlockerId | null;
   /** Null when a blocker is showing, or when there is nothing left to do. */
   setup: SetupSummary | null;
-  /** Below your mileage, capped at MAX_SUGGESTIONS. */
-  suggestions: SuggestionId[];
   /** Above your mileage, under the blocker/setup slot. Null while a blocker
    *  shows (it outranks everything) or recording is switched off. */
   notice: NoticeId | null;
@@ -290,7 +258,7 @@ export function batteryChecklistCopy(
 }
 
 export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
-  const empty: DashboardMessages = { blocker: null, setup: null, suggestions: [], notice: null };
+  const empty: DashboardMessages = { blocker: null, setup: null, notice: null };
   if (i.activeShift) return empty;
 
   const blocker = pickBlocker(i);
@@ -311,20 +279,8 @@ export function selectDashboardMessages(i: MessageInputs): DashboardMessages {
     }
   }
 
-  const eligible: Record<SuggestionId, boolean> = {
-    first_trip: i.firstTripEligible,
-    saved_places: i.savedPlacesEligible,
-    referral: i.referralEligible,
-    pro: i.proEligible,
-    android_beta: i.androidBetaEligible,
-  };
-  const suggestions = SUGGESTION_ORDER.filter((id) => eligible[id]).slice(
-    0,
-    MAX_SUGGESTIONS
-  );
-
   const notice: NoticeId | null =
     !blocker && i.lowPowerMode === true && i.detectionOffSince === null ? "low_power_mode" : null;
 
-  return { blocker, setup, suggestions, notice };
+  return { blocker, setup, notice };
 }

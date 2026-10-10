@@ -1,33 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Dimensions,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   ScrollView,
   RefreshControl,
-  Share,
   Platform,
-  Animated,
+  Dimensions,
   Linking,
   AppState,
 } from "react-native";
 import { AppModal } from "../../components/AppModal";
-import { AutoNoteNudgeCard } from "../../components/AutoNoteNudgeCard";
-import { NominateManagerCard } from "../../components/NominateManagerCard";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
-import { FadeInStagger } from "../../components/FadeInStagger";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
-import { ActiveRecordingBanner } from "../../components/ActiveRecordingBanner";
-import { SyncStatusBanner } from "../../components/SyncStatusBanner";
-import { AutomaticTripsRow } from "../../components/AutomaticTripsRow";
-import { AcquisitionSourceCard } from "../../components/AcquisitionSourceCard";
-import { TripStatusStrip } from "../../components/TripStatusStrip";
-import { ShiftSuggestionCard } from "../../components/ShiftSuggestionCard";
 import { describeError } from "../../lib/api/apiError";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
@@ -43,10 +31,7 @@ import {
   onShiftAutoEnded,
 } from "../../lib/tracking/shiftEnd";
 import { getDatabase } from "../../lib/db/index";
-import {
-  fetchGamificationStats,
-  fetchRecap,
-} from "../../lib/api/gamification";
+import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
   requestLocationPermissions,
   startShiftTracking,
@@ -54,7 +39,6 @@ import {
   peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
 import { watchLowPowerMode } from "../../lib/tracking/batteryAware";
-import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { fetchDataQualityImprovement } from "../../lib/api/user";
 import { apiRequest } from "../../lib/api/index";
 import { fetchReferralSummary } from "../../lib/api/referrals";
@@ -62,55 +46,28 @@ import type {
   Vehicle,
   GamificationStats,
   ShiftScorecard,
-  PeriodRecap,
 } from "@mileclear/shared";
 import { formatPence, filterTraceOutliers, MAX_FREE_SAVED_LOCATIONS } from "@mileclear/shared";
 import { maybeRequestReview } from "../../lib/rating/index";
 import { maybeSuggestSavedPlaces } from "../../lib/savedPlacesPrompt/index";
 import { requestPromptSlot } from "../../lib/promptGate/index";
 import { useMode } from "../../lib/mode/context";
-import { ModeToggle } from "../../components/ModeToggle";
-import { PersonalDashboard } from "../../components/personal/PersonalDashboard";
-import { CommunityInsightsCard } from "../../components/community/CommunityInsightsCard";
-import { CommunityMonthCard } from "../../components/community/CommunityMonthCard";
-import RoadAlertsCard from "../../components/roadAlerts/RoadAlertsCard";
-import { WeeklyGoalCard } from "../../components/work/WeeklyGoalCard";
-import { TaxSummaryLine } from "../../components/tax/TaxSummaryLine";
-import { SaCountdownCard } from "../../components/business/SaCountdownCard";
-import { MileageMonthCard } from "../../components/business/MileageMonthCard";
-import { ActivityHeatmapCard } from "../../components/business/ActivityHeatmapCard";
-import { BenchmarkCard } from "../../components/business/BenchmarkCard";
-import { LocalBenchmarkCard } from "../../components/business/LocalBenchmarkCard";
-import { WorkCalendarCard } from "../../components/work/WorkCalendarCard";
-import { MapOverview } from "../../components/personal/MapOverview";
-import { LiveMapTracker, type TripTapInfo } from "../../components/map/LiveMapTracker";
+import { LiveMapTracker } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
-import { useRecentTripsWithCoords } from "../../hooks/useRecentTripsWithCoords";
 import { Ionicons } from "@expo/vector-icons";
 import { startLiveActivity, updateLiveActivity, recoverLiveActivity } from "../../lib/liveActivity";
 import { getLiveActivityContext } from "../../lib/liveActivity/context";
-import { useLayoutPrefs, SECTION_REGISTRY } from "../../lib/layout/index";
-import { OdometerPromptCard } from "../../components/odometer/OdometerPromptCard";
-import { DashboardMoreSection, moreSummary } from "../../components/DashboardMoreSection";
 import {
-  chooseHeroFigure,
   previousTaxYear,
   wantsPreviousYear,
-  formatWholeMiles,
-  taxYearEndLabel,
   type HeroYearFigure,
 } from "../../lib/heroFigure";
 import { fetchSelfAssessmentSummary } from "../../lib/api/selfAssessment";
 import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
-import { DashboardBlockerCard } from "../../components/DashboardBlockerCard";
-import { QuickActionRow } from "../../components/QuickActionRow";
-import { PauseRecordingRow } from "../../components/PauseRecordingRow";
 import { askAboutPauseBeforeStart } from "../../lib/tracking/pausePrompt";
 import { type PauseChoice } from "../../lib/tracking/pauseRule";
-import { SetupChecklistCard, type SetupChecklistRow } from "../../components/SetupChecklistCard";
-import { PremiumGate, useIsPremium } from "../../components/PremiumGate";
-import { SmartInsightCard } from "../../components/SmartInsightCard";
-import { usePaywall } from "../../components/paywall";
+import { type SetupChecklistRow } from "../../components/SetupChecklistCard";
+import { useIsPremium } from "../../components/PremiumGate";
 import { usePrompt } from "../../components/prompt";
 import { requestOrFixBackgroundLocation, getLocationPermissionStatus, type LocationPermissionTier } from "../../lib/permissions/location";
 import type { MotionPermission } from "../../lib/tracking/motionPermission";
@@ -131,6 +88,8 @@ import {
 import { haptic } from "../../lib/haptics";
 import AppHeader from "../../components/AppHeader";
 import { Medal } from "../../components/insights/BadgesRow";
+import { HomeIdle } from "../../components/home/HomeIdle";
+import { useHomeStatus } from "../../components/home/useHomeStatus";
 
 function formatElapsed(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -187,19 +146,10 @@ function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; t
   );
 }
 
-/** Work-dashboard cards that only make sense for a gig worker. */
-const GIG_ONLY_DASHBOARD_KEYS = new Set([
-  "weekly_goal",
-  "activity_heatmap",
-  "benchmark",
-  "local_benchmark",
-  "community",
-]);
-
 export default function DashboardScreen() {
   const router = useRouter();
-  const { isPersonal, isWork } = useMode();
-  const { user: currentUser, isCompanyDriver } = useUser();
+  const { isWork } = useMode();
+  const { user: currentUser } = useUser();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
@@ -218,9 +168,6 @@ export default function DashboardScreen() {
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [scorecard, setScorecard] = useState<ShiftScorecard | null>(null);
   const [showScorecard, setShowScorecard] = useState(false);
-  const [recapData, setRecapData] = useState<PeriodRecap | null>(null);
-  const [showRecap, setShowRecap] = useState(false);
-  const [dailyRecap, setDailyRecap] = useState<PeriodRecap | null>(null);
 
   // Last tax year's deduction, for the hero (lib/heroFigure). Fetched only
   // while this year's figure is weak (early in the year, or under £50), and
@@ -256,16 +203,7 @@ export default function DashboardScreen() {
       });
   }, [stats, heroWantsPreviousYear]);
 
-  // Recent trips with coordinates for MapOverview
-  const { trips: recentTrips } = useRecentTripsWithCoords(10);
-
-  // Layout customization
-  const workLayout = useLayoutPrefs("dashboard_work");
-  const personalLayout = useLayoutPrefs("dashboard_personal");
   const isPremium = useIsPremium();
-
-  // Unclassified trip count for smart insights
-  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
 
   // Work mode explainer — shown once on first Work mode visit
   const [showWorkExplainer, setShowWorkExplainer] = useState(false);
@@ -295,8 +233,6 @@ export default function DashboardScreen() {
   // Timestamp the explainer was shown, to measure dwell time on dismiss.
   const explainerShownAtRef = useRef<number | null>(null);
 
-  // Background location permission — needed for auto trip detection
-  const [bgLocationGranted, setBgLocationGranted] = useState(true); // default true until checked
   // Full permission tier so the dashboard can tell "records when open"
   // (foreground) apart from "can't record at all" (none = undetermined/denied).
   // The latter is an activation blocker — the app is non-functional — so it
@@ -376,25 +312,9 @@ export default function DashboardScreen() {
   const [batteryNudgeDismissedAt, setBatteryNudgeDismissedAt] = useState<number | null>(null);
   const batteryNudgeShownLogged = useRef(false);
 
-  // First-trip nudge dismissal. Mirrors the bg-loc nudge cooldown. The
-  // in-app safety net for the activation funnel: a user who has Always
-  // location on but still has zero trips needs an explicit "record your
-  // first trip" prompt (with a manual-add path), since the passive Day-1
-  // hero alone leaves ~27% of vehicle-setup users never recording anything.
-  const [firstTripNudgeDismissedAt, setFirstTripNudgeDismissedAt] = useState<number | null>(null);
-
   // Referral promo card dismissal. Promotional (not urgent), so it sleeps
   // longer than the other nudges (30 days) before resurfacing.
   const [referralCardDismissedAt, setReferralCardDismissedAt] = useState<number | null>(null);
-
-  // Vehicle nudge — show when user has no vehicles at all
-  const showVehicleNudge = !loading && vehicles.length === 0;
-
-  // Whether this driver has at least one trip that counts toward an HMRC
-  // deduction — a decent proxy for "has business mileage" without a
-  // separate query, since NominateManagerCard needs it to gate the
-  // employer-mileage prompt for gig-only drivers.
-  const hasBusinessMileage = (stats?.deductionPence ?? 0) > 0;
 
   // Data-quality improvement banner — fires once per user when they
   // open the app after a server-side backfill corrected some of their
@@ -407,7 +327,6 @@ export default function DashboardScreen() {
   const [dqBannerSeen, setDqBannerSeen] = useState(true); // default seen until loaded
 
   // Pro nudge card — dismissible, for free users with 5+ trips
-  const { showPaywall } = usePaywall();
   const { prompt } = usePrompt();
   const [proNudgeDismissedUntil, setProNudgeDismissedUntil] = useState<number>(Date.now() + 999999999);
   const showProNudge = !isPremium && !loading && (stats?.totalTrips ?? 0) >= 5 && Date.now() >= proNudgeDismissedUntil;
@@ -434,14 +353,6 @@ export default function DashboardScreen() {
     (isPremium || savedLocationsCount < MAX_FREE_SAVED_LOCATIONS) &&
     savedLocationsSuggestionCount > 0 &&
     Date.now() >= savedLocsNudgeDismissedUntil;
-  const proNudgeMessages = [
-    stats ? `Your mileage claim is ${formatPence(stats.deductionPence)}. Download your records with Pro` : "Download your mileage records with Pro",
-    "See which platform pays best with business insights",
-    "Save unlimited work locations with Pro",
-    "Get monthly and yearly recap reports",
-  ];
-  const proNudgeIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000)) % proNudgeMessages.length;
-
   useEffect(() => {
     (async () => {
       const db = await getDatabase();
@@ -604,7 +515,7 @@ export default function DashboardScreen() {
     (async () => {
       const db = await getDatabase();
       const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'first_trip_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at', 'loc_primer_seen', 'loc_primer_foreground_seen')"
+        "SELECT key, value FROM tracking_state WHERE key IN ('work_explainer_seen', 'bg_loc_nudge_dismissed_at', 'referral_card_dismissed_at', 'motion_nudge_dismissed_at', 'notif_primer_dismissed_at', 'notif_denied_nudge_dismissed_at', 'battery_opt_nudge_dismissed_at', 'loc_primer_seen', 'loc_primer_foreground_seen')"
       );
       const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
       setWorkExplainerSeen(map["work_explainer_seen"] === "1");
@@ -618,10 +529,6 @@ export default function DashboardScreen() {
         ? parseInt(map["motion_nudge_dismissed_at"], 10)
         : null;
       setMotionNudgeDismissedAt(Number.isFinite(motionDismissedAt as number) ? motionDismissedAt : null);
-      const ftDismissedAt = map["first_trip_nudge_dismissed_at"]
-        ? parseInt(map["first_trip_nudge_dismissed_at"], 10)
-        : null;
-      setFirstTripNudgeDismissedAt(Number.isFinite(ftDismissedAt as number) ? ftDismissedAt : null);
       const refDismissedAt = map["referral_card_dismissed_at"]
         ? parseInt(map["referral_card_dismissed_at"], 10)
         : null;
@@ -765,32 +672,15 @@ export default function DashboardScreen() {
     }
   }, [notifRequesting]);
 
-  const dismissFirstTripNudge = useCallback(async () => {
-    const now = Date.now();
-    setFirstTripNudgeDismissedAt(now);
-    const db = await getDatabase();
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('first_trip_nudge_dismissed_at', ?)",
-      [String(now)]
-    );
-  }, []);
-
-  // First-trip nudge: zero trips, any location permission at all (the
-  // no-location blocker owns the "none" case), not in an active shift, and
-  // not snoozed. Foreground-only users used to see nothing actionable here
-  // because this required Always; a While Using user can still press Start
-  // Trip, so the "Add it now" ask reaches them too. Reaches both Work and
-  // Personal mode, unlike the work-only Day-1 hero.
-  const firstTripNudgeSilenced =
-    firstTripNudgeDismissedAt !== null &&
-    Date.now() - firstTripNudgeDismissedAt < SEVEN_DAYS_MS;
+  // A driver with zero trips and some location permission has one job, so the
+  // referral ask stands aside for them. (Their "Your first trip" card is on
+  // Home itself; the no-location blocker owns the "none" case.)
   const showFirstTripNudge =
     !loading &&
     stats !== null &&
     (stats.totalTrips ?? 0) === 0 &&
     locationTier !== "none" &&
-    !activeShift &&
-    !firstTripNudgeSilenced;
+    !activeShift;
 
   // Referral promo card — shown near the top of both dashboards. Resurfaces
   // every 7 days after a dismissal (and on a fresh login, since the device has
@@ -842,7 +732,6 @@ export default function DashboardScreen() {
   const fixLocationFromBlocker = useCallback(async () => {
     const final = await requestOrFixBackgroundLocation();
     setLocationTier(final.tier);
-    setBgLocationGranted(final.tier === "always");
   }, []);
 
   // Undetermined still has a system prompt behind it, so ask for it here and
@@ -881,18 +770,12 @@ export default function DashboardScreen() {
         notifPrimerSilenced,
         detectionOffSince,
         lowPowerMode,
-        firstTripEligible: showFirstTripNudge,
-        savedPlacesEligible: showSavedLocationsNudge,
-        referralEligible: showReferralCard,
-        proEligible: showProNudge,
-        androidBetaEligible: !amapBannerSeen,
       }),
     [
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
       motionStatus, notifPermission, batteryOptState, batteryNudgeDismissedAt,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
-      notifPrimerSilenced, detectionOffSince, lowPowerMode, showFirstTripNudge, showSavedLocationsNudge,
-      showReferralCard, showProNudge, amapBannerSeen,
+      notifPrimerSilenced, detectionOffSince, lowPowerMode,
     ]
   );
   // How often Low Power Mode is on when a driver looks: once per dashboard
@@ -967,6 +850,49 @@ export default function DashboardScreen() {
     openBatteryNudgeSettings,
   ]);
 
+
+  // ── Home's status line ──────────────────────────────────────────
+  // One row (and the sheets it opens) for everything that used to be a
+  // separate banner: recording, can't record, failed uploads, pause, Automatic
+  // trips off, Low Power, setup, the one-time "we recovered" note. It is built
+  // here, above the early returns, so the idle Home and the shift screen share
+  // it. The rules are in lib/home/statusLine.ts.
+  const home = useHomeStatus({
+    mode: isWork ? "work" : "personal",
+    blocker: dashboardMessages.blocker,
+    setup: dashboardMessages.setup
+      ? { done: dashboardMessages.setup.done, total: dashboardMessages.setup.total, rows: setupRows }
+      : null,
+    lowPowerMode: dashboardMessages.notice === "low_power_mode",
+    pausedUntil,
+    automaticOff: detectionOffSince !== null,
+    recovered:
+      !dqBannerSeen && dqImprovement
+        ? { trips: dqImprovement.improvedTripCount, miles: dqImprovement.milesGained }
+        : null,
+    onFixLocation: fixLocationFromBlocker,
+    onPause: pauseRecording,
+    onResume: resumeRecording,
+    onAutomaticChange: refreshPauseState,
+    onShowExplainer: () => {
+      explainerShownAtRef.current = Date.now();
+      trackEvent("work_explainer.shown", { source: "manual" });
+      setShowWorkExplainer(true);
+    },
+    onSnoozeSetup: snoozeSetupChecklist,
+    onRecoveredTap: dismissDqBanner,
+  });
+  // "We recovered..." shows for one visit: leaving Home counts as seeing it.
+  const recoveredShown = useRef(false);
+  recoveredShown.current = home.status.kind === "recovered";
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        if (recoveredShown.current) dismissDqBanner();
+      },
+      [dismissDqBanner]
+    )
+  );
 
   // Auto-show work explainer on first Work mode visit.
   //
@@ -1057,7 +983,6 @@ export default function DashboardScreen() {
     trackEvent("loc_primer.accepted", {});
     const final = await requestOrFixBackgroundLocation();
     setLocationTier(final.tier);
-    setBgLocationGranted(final.tier === "always");
     trackEvent("loc_primer.result", { tier: final.tier });
     // Motion second, and only when location got somewhere: piling a second
     // prompt on top of a refusal asks for a second refusal. Only where the
@@ -1135,29 +1060,6 @@ export default function DashboardScreen() {
     }
   }, [showScorecard]);
 
-  // Trip segment bottom sheet
-  const [tripTapInfo, setTripTapInfo] = useState<TripTapInfo | null>(null);
-  const tripSheetAnim = useRef(new Animated.Value(200)).current;
-
-  const handleTripTap = useCallback((info: TripTapInfo) => {
-    setTripTapInfo(info);
-    tripSheetAnim.setValue(200);
-    Animated.spring(tripSheetAnim, {
-      toValue: 0,
-      useNativeDriver: true,
-      tension: 80,
-      friction: 12,
-    }).start();
-  }, [tripSheetAnim]);
-
-  const dismissTripSheet = useCallback(() => {
-    Animated.timing(tripSheetAnim, {
-      toValue: 200,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => setTripTapInfo(null));
-  }, [tripSheetAnim]);
-
   const loadData = useCallback(async () => {
     try {
       // A shift left running with no driving ends itself (see
@@ -1203,12 +1105,6 @@ export default function DashboardScreen() {
       setActiveShift(active);
       setVehicles(vehicleRes.data);
       if (statsRes) setStats(statsRes.data);
-
-      // Fetch daily recap (free for all users) + unclassified count for insights
-      fetchRecap("daily").then((res) => setDailyRecap(res.data)).catch(() => {});
-      fetchUnclassifiedCount()
-        .then((res) => setUnclassifiedCount(res.count ?? 0))
-        .catch(() => {});
 
       if (active) {
         // Resume GPS tracking if app was killed/backgrounded during a shift
@@ -1292,7 +1188,6 @@ export default function DashboardScreen() {
   const refreshLocationTier = useCallback(() => {
     getLocationPermissionStatus().then(({ tier }) => {
       setLocationTier(tier);
-      setBgLocationGranted(tier === "always");
     }).catch(() => {});
     // Same round trip for notifications: the denied nudge sends the user to
     // system Settings, and on Android the Back button doesn't re-focus the
@@ -1330,7 +1225,6 @@ export default function DashboardScreen() {
       // Check the full location permission tier on each focus.
       getLocationPermissionStatus().then(({ tier }) => {
         setLocationTier(tier);
-        setBgLocationGranted(tier === "always");
         // Track whether background was ever granted, and detect a regression.
         getDatabase().then(async (db) => {
           if (tier === "always") {
@@ -1386,7 +1280,7 @@ export default function DashboardScreen() {
       // app open, and asks again on a later one.
       const suggestTimer = setTimeout(() => maybeSuggestSavedPlaces("dashboard_focus", isPremium), 4000);
       return () => clearTimeout(suggestTimer);
-    }, [loadData, isPremium])
+    }, [loadData, isPremium, refreshPauseState])
   );
 
   useEffect(() => {
@@ -1625,35 +1519,24 @@ export default function DashboardScreen() {
     ]);
   }, [activeShift, loadData, hourlyRatePence]);
 
-  const handleShareRecap = useCallback(async () => {
-    if (!recapData) return;
-    try {
-      await Share.share({ message: recapData.shareText });
-    } catch {}
-  }, [recapData]);
-
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
   }, [loadData]);
 
   if (loading) {
-    // Skeleton-first: show approximate shape of hero, mode toggle, and the
-    // CTA buttons while we fetch user / vehicle / shift state. Replaces the
-    // centred amber spinner that used to make load feel longer than it is.
+    // Skeleton-first: the shape of the new Home (status line, hero, buttons,
+    // last trip, doors) while we fetch user / vehicle / shift state.
     return (
       <View style={s.container}>
         <AppHeader />
-        <ScrollView contentContainerStyle={s.content}>
+        <ScrollView contentContainerStyle={s.homeContent}>
           <Skeleton.Group gap={spacing.md}>
-            <Skeleton height={32} width={180} radius={radii.pill} />
-            <Skeleton height={140} radius={radii.lg} style={{ marginTop: spacing.md }} />
-            <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.md }}>
-              <Skeleton height={56} width="48%" radius={radii.md} />
-              <Skeleton height={56} width="48%" radius={radii.md} />
-            </View>
-            <Skeleton height={120} radius={radii.lg} style={{ marginTop: spacing.lg }} />
-            <Skeleton height={120} radius={radii.lg} style={{ marginTop: spacing.md }} />
+            <Skeleton height={48} radius={radii.md} />
+            <Skeleton height={132} radius={20} style={{ marginTop: spacing.md }} />
+            <Skeleton height={56} radius={radii.md} style={{ marginTop: spacing.lg }} />
+            <Skeleton height={112} radius={radii.lg} style={{ marginTop: spacing.xl }} />
+            <Skeleton height={156} radius={radii.lg} style={{ marginTop: spacing.xl }} />
           </Skeleton.Group>
         </ScrollView>
       </View>
@@ -1748,68 +1631,6 @@ export default function DashboardScreen() {
             icon="checkmark"
             onPress={() => setShowScorecard(false)}
           />
-        </View>
-      </View>
-    </AppModal>
-  );
-
-  // ── Recap Modal ───────────────────────────────────────────────
-  const recapModal = (
-    <AppModal
-      visible={showRecap}
-      animationType="slide"
-      onRequestClose={() => setShowRecap(false)}
-    >
-      <View style={s.modalOverlay}>
-        <View style={s.modalSheet} accessibilityViewIsModal={true}>
-          <View style={s.modalHandle} />
-          <Text style={s.modalTitle}>
-            {recapData?.period === "daily" ? "Daily" : recapData?.period === "weekly" ? "Weekly" : "Monthly"} Recap
-          </Text>
-          {recapData && (
-            <>
-              <Text style={s.recapSubtitle}>{recapData.label}</Text>
-
-              <View style={s.scorecardGrid}>
-                <View style={s.scorecardCell}>
-                  <Text style={s.scorecardNum}>
-                    {recapData.totalMiles.toFixed(1)}
-                  </Text>
-                  <Text style={s.scorecardUnit}>miles</Text>
-                </View>
-                <View style={s.scorecardCell}>
-                  <Text style={s.scorecardNum}>{recapData.totalTrips}</Text>
-                  <Text style={s.scorecardUnit}>trips</Text>
-                </View>
-                <View style={s.scorecardCell}>
-                  <Text style={s.scorecardNum}>
-                    {formatPence(recapData.deductionPence)}
-                  </Text>
-                  <Text style={s.scorecardUnit}>claim</Text>
-                </View>
-              </View>
-
-              {recapData.busiestDayLabel && (
-                <Text style={s.recapDetail}>
-                  Busiest day: {recapData.busiestDayLabel} ({recapData.busiestDayMiles.toFixed(1)} mi)
-                </Text>
-              )}
-
-              <View style={s.recapBtnRow}>
-                <Button
-                  variant="secondary"
-                  title="Share"
-                  icon="share-outline"
-                  onPress={handleShareRecap}
-                />
-                <Button
-                  title="Close"
-                  icon="checkmark"
-                  onPress={() => setShowRecap(false)}
-                />
-              </View>
-            </>
-          )}
         </View>
       </View>
     </AppModal>
@@ -2045,6 +1866,7 @@ export default function DashboardScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
           }
         >
+        <View style={s.shiftStatus}>{home.element}</View>
         <Text style={s.greeting}>Shift Active</Text>
 
         <View style={s.timerWrap}>
@@ -2093,7 +1915,6 @@ export default function DashboardScreen() {
           trailDefault
           avatarId={currentUser?.avatarId}
           showTripSegments
-          onTripTap={handleTripTap}
         />
 
         <View style={s.statsRow}>
@@ -2130,936 +1951,41 @@ export default function DashboardScreen() {
     );
   }
 
-  // ── More (4 Oct 2026) ──
-  // The sections a driver hasn't got on the home screen. Locked ones are
-  // always on it, and company drivers never see the gig-only cards at all.
-  const workHiddenKeys = workLayout.prefs
-    .filter((p) => !p.visible)
-    .map((p) => p.key)
-    .filter((key) => !(isCompanyDriver && GIG_ONLY_DASHBOARD_KEYS.has(key)));
-  const personalHiddenKeys = personalLayout.prefs
-    .filter((p) => !p.visible)
-    .map((p) => p.key);
-  // Everything but first_trip and pro, which stay on the home screen.
-  const moreSuggestions = dashboardMessages.suggestions.filter((id) => id !== "first_trip" && id !== "pro");
-  const moreSummaryText = (() => {
-    const screen = isWork ? "dashboard_work" : "dashboard_personal";
-    const keys = isWork ? workHiddenKeys : personalHiddenKeys;
-    const labels = keys
-      .map((k) => SECTION_REGISTRY[screen].find((sec) => sec.key === k)?.label)
-      .filter((l): l is string => !!l);
-    if (moreSuggestions.length > 0) labels.unshift("Suggestions");
-    return moreSummary(labels) || "Tips about your driving";
-  })();
-
-  // ── Work cards (layout-aware) ──
-  // One renderer for both places a Work card can sit: the home screen
-  // (switched-on sections) and More (everything else, 4 Oct 2026).
-  const renderWorkCards = (keys: string[]) => keys
-        // Company mode: an employee claiming mileage from their employer is
-        // not competing with other UK drivers, has no earnings target, and
-        // does not care which platform pays best by hour. These four cards
-        // are all built on that assumption.
-        .filter((key) => !(isCompanyDriver && GIG_ONLY_DASHBOARD_KEYS.has(key)))
-        .map((key, index) => {
-        // Trip-count gates: cards that only make sense once a few trips are
-        // logged are hidden in the empty / early state.
-        //
-        // We use TWO signals because they catch different empty cases:
-        //   - totalTrips: have they driven anything at all? (Day 1 user)
-        //   - hasBusinessDeduction: do any of their trips count as business?
-        //     (a user with 100 trips all marked Personal still has £0
-        //     business deduction and would get empty heatmap / benchmark
-        //     / calendar cards if we only gated on totalTrips)
-        const totalTrips = stats?.totalTrips ?? 0;
-        const hasBusinessDeduction = (stats?.deductionPence ?? 0) > 0;
-
-        const card = (() => {
-        switch (key) {
-          case "work_hero": {
-            if (!stats) return null;
-            // Which figure leads (lib/heroFigure, 4 Oct 2026): never a
-            // deflating one when a bigger honest one exists, and always
-            // labelled with the period it covers.
-            const heroChoice = chooseHeroFigure({
-              now: new Date(),
-              current: {
-                taxYear: stats.taxYear,
-                deductionPence: stats.deductionPence,
-                businessMiles: stats.businessMiles,
-              },
-              totalMilesThisYear: stats.totalMiles,
-              previous: previousYear,
-            });
-            const unclassifiedNudge = (stats.unclassifiedTrips ?? 0) >= 5 ? (
-              <TouchableOpacity
-                style={s.heroNudge}
-                onPress={() => router.push("/(tabs)/trips" as any)}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`${stats.unclassifiedTrips} unclassified trips this tax year. Tap to review.`}
-              >
-                <Ionicons name="alert-circle-outline" size={16} color="#fbbf24" />
-                <Text style={s.heroNudgeText}>
-                  {stats.unclassifiedTrips} unclassified {stats.unclassifiedTrips === 1 ? "trip" : "trips"} this tax year. Review them to add to your deduction.
-                </Text>
-                <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
-              </TouchableOpacity>
-            ) : null;
-            // This year's running total, as the second line under a bigger
-            // figure. Plain words, no "£0.00".
-            const thisYearSoFar =
-              stats.deductionPence > 0
-                ? `${formatPence(stats.deductionPence)} so far`
-                : "no business miles yet";
-            if (heroChoice.kind === "previous_year") {
-              const prev = heroChoice.previous;
-              const ended = taxYearEndLabel(prev.taxYear);
-              return (
-                <View
-                  key={key}
-                  style={s.heroCard}
-                  accessible
-                  accessibilityLabel={`Mileage claim for the ${prev.taxYear} tax year: ${formatPence(prev.deductionPence)} of business mileage you can claim, from ${formatWholeMiles(prev.businessMiles)} business miles. ${stats.taxYear} started 6 April: ${thisYearSoFar}.`}
-                >
-                  <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Mileage claim {"\u00B7"} {prev.taxYear}</Text>
-                  </View>
-                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
-                    {formatPence(prev.deductionPence)}
-                  </Text>
-                  <Text style={s.heroSavedLabel}>
-                    business mileage to claim for {prev.taxYear}
-                    {ended ? `, the tax year that ended ${ended}` : ""}
-                  </Text>
-                  <View style={s.heroMeta}>
-                    <Text style={s.heroMetaText}>
-                      {stats.taxYear} started 6 April: {thisYearSoFar}
-                    </Text>
-                  </View>
-                  {unclassifiedNudge}
-                </View>
-              );
-            }
-            // Empty-state hero: replaces "£0.00 saved" with a Day 1 welcome
-            // when the user has never logged a trip. The Start Trip CTA card
-            // immediately below the hero is the next-action prompt.
-            if (totalTrips === 0) {
-              return (
-                <View key={key} style={s.heroCard}>
-                  <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Welcome {"·"} Day 1</Text>
-                  </View>
-                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
-                  <Text style={s.heroSavedLabel}>to claim so far</Text>
-                  <Text style={s.heroEmptyBody}>
-                    Tap Start Trip the next time you drive. Your mileage claim starts adding up from your first business mile.
-                  </Text>
-                </View>
-              );
-            }
-            // Trips exist but none are business-classified - the user is
-            // tracking but not yet claiming. Replace the confusing "£0 next
-            // to 123 trips" display with an actionable nudge.
-            if (!hasBusinessDeduction) {
-              return (
-                <TouchableOpacity
-                  key={key}
-                  style={s.heroCard}
-                  onPress={() => router.push("/(tabs)/trips" as any)}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="No business miles tracked yet. Tap to open the Trips tab and reclassify any work-related trips as Business."
-                >
-                  <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Mileage claim {"·"} {stats.taxYear}</Text>
-                  </View>
-                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>{"£"}0.00</Text>
-                  <Text style={s.heroSavedLabel}>no business trips yet</Text>
-                  <Text style={s.heroEmptyBody}>
-                    You have {stats.totalTrips} trip{stats.totalTrips === 1 ? "" : "s"} tracked but none are marked Business. Tap any work-related trip in the Trips tab and switch its classification to start your HMRC deduction.
-                  </Text>
-                </TouchableOpacity>
-              );
-            }
-            // A small deduction but plenty of miles (usually trips not yet
-            // marked Business): lead with the miles, deduction underneath.
-            if (heroChoice.kind === "miles_tracked") {
-              return (
-                <View key={key} style={s.heroCard}>
-                  <View style={s.heroTopRow}>
-                    <Text style={s.heroLabel}>Since 6 April {"\u00B7"} {stats.taxYear}</Text>
-                    {stats.currentStreakDays > 0 && (
-                      <View style={s.streakBadgeInline}>
-                        <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={s.heroValue} maxFontSizeMultiplier={fontScaleCap.display}>
-                    {formatWholeMiles(heroChoice.miles)} miles
-                  </Text>
-                  <Text style={[s.heroSavedLabel, { color: colors.text2 }]}>All your driving, work and personal</Text>
-                  <View style={s.heroMeta}>
-                    <Text style={s.heroMetaText}>
-                      {stats.deductionPence > 0
-                        ? `${formatPence(stats.deductionPence)} to claim for business miles so far`
-                        : "No business miles to claim yet"}
-                    </Text>
-                  </View>
-                  {unclassifiedNudge}
-                </View>
-              );
-            }
-            return stats ? (
-              <View key={key} style={s.heroCard}>
-                <View style={s.heroTopRow}>
-                  <Text style={s.heroLabel}>Mileage claim {"\u00B7"} {stats.taxYear}</Text>
-                  {stats.currentStreakDays > 0 && (
-                    <View style={s.streakBadgeInline}>
-                      <Text style={s.streakNumInline}>{stats.currentStreakDays}d</Text>
-                    </View>
-                  )}
-                </View>
-                {/* Adaptive typography: deductions under \u00A310 use a smaller
-                    type ramp so a "\u00A31.67" headline doesn't dominate a card
-                    that's meant to celebrate a building total. Once the
-                    number is meaningful (\u00A310+) it returns to the full
-                    heroValue size. */}
-                <Text
-                  style={[
-                    s.heroValue,
-                    stats.deductionPence < 1000 && s.heroValueGettingStarted,
-                  ]}
-                  maxFontSizeMultiplier={fontScaleCap.display}
-                >
-                  {formatPence(stats.deductionPence)}
-                </Text>
-                {stats.deductionPence >= 1000 && (
-                  <Text style={s.heroSavedLabel}>business mileage to claim this tax year</Text>
-                )}
-                {stats.deductionPence > 0 && stats.deductionPence < 1000 && (
-                  <Text style={s.heroSavedLabel}>building up - keep classifying business trips</Text>
-                )}
-                {!isPremium && stats.deductionPence >= 1000 && (
-                  <Text style={s.heroLockedHint}>Upgrade to export for your tax return</Text>
-                )}
-                <View style={s.heroMeta}>
-                  <Text style={s.heroMetaText}>
-                    {formatMilesShort(stats.todayMiles)} mi today
-                  </Text>
-                  <View style={s.heroDivider} />
-                  <Text style={s.heroMetaText}>
-                    {formatMilesShort(stats.weekMiles)} mi this week
-                  </Text>
-                  <View style={s.heroDivider} />
-                  <Text style={s.heroMetaText}>
-                    {stats.totalTrips} trips
-                  </Text>
-                </View>
-                {unclassifiedNudge}
-              </View>
-            ) : null;
-          }
-          case "tax_readiness":
-            // One line that opens the Tax tab (key kept for saved layouts).
-            // Hide until there's at least one trip.
-            if (totalTrips === 0) return null;
-            return <TaxSummaryLine key={key} />;
-          case "sa_countdown":
-            // "Ready for 31 January?" Renders nothing outside 1 December to
-            // 31 January, or for personal-mode, employee and company
-            // drivers (the card checks; see lib/saCountdown).
-            return <SaCountdownCard key={key} />;
-          case "business_mileage":
-            // Always render - drivers explicitly asked for business mileage
-            // visibility, and "0 miles this month" is intuitive (it just
-            // means they haven't driven yet).
-            return <MileageMonthCard key={key} classification="business" />;
-          case "shift_suggestion":
-            // Renders nothing unless the server has a run of recent trips
-            // that looks like an unrecorded shift. "Grade it" creates the
-            // shift and opens the same scorecard modal a normal end-shift
-            // shows; if the API returned no scorecard, fall back to Shifts.
-            return (
-              <ShiftSuggestionCard
-                key={key}
-                onGraded={(sc) => {
-                  if (sc) {
-                    setScorecard(sc);
-                    setShowScorecard(true);
-                  } else {
-                    router.push("/shifts");
-                  }
-                }}
-              />
-            );
-          case "activity_heatmap":
-            // 7x24 grid filters for business trips. Hide until the user
-            // actually has business activity so we don't show an empty
-            // grid to someone with 100 personal trips.
-            if (!hasBusinessDeduction) return null;
-            return <ActivityHeatmapCard key={key} />;
-          case "benchmark":
-            // Filters for business activity; otherwise just shows
-            // "Need more data" which is noise for a personal-only user.
-            if (!hasBusinessDeduction) return null;
-            return <BenchmarkCard key={key} />;
-          case "local_benchmark":
-            // Free community card. Needs at least one trip to say anything;
-            // the card explains itself when there aren't enough drivers yet.
-            if (totalTrips === 0) return null;
-            return <LocalBenchmarkCard key={key} mode="work" />;
-          case "daily_recap":
-            return dailyRecap && dailyRecap.totalTrips > 0 ? (
-              <TouchableOpacity
-                key={key}
-                style={s.dailyRecapCard}
-                onPress={() => { setRecapData(dailyRecap); setShowRecap(true); }}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`Today's recap: ${dailyRecap.totalMiles.toFixed(1)} miles, ${dailyRecap.totalTrips} trip${dailyRecap.totalTrips !== 1 ? "s" : ""}${dailyRecap.deductionPence > 0 ? `, ${formatPence(dailyRecap.deductionPence)} deduction` : ""}. Tap to share.`}
-              >
-                <View style={s.dailyRecapHeader}>
-                  <Ionicons name="today-outline" size={16} color="#f5a623" accessible={false} />
-                  <Text style={s.dailyRecapTitle}>Today</Text>
-                  <Ionicons name="share-outline" size={14} color="#64748b" style={{ marginLeft: "auto" }} accessible={false} />
-                </View>
-                <View style={s.dailyRecapStats}>
-                  <View style={s.dailyRecapStat}>
-                    <Text style={s.dailyRecapValue}>{dailyRecap.totalMiles.toFixed(1)}</Text>
-                    <Text style={s.dailyRecapUnit}>miles</Text>
-                  </View>
-                  <View style={s.dailyRecapDivider} />
-                  <View style={s.dailyRecapStat}>
-                    <Text style={s.dailyRecapValue}>{dailyRecap.totalTrips}</Text>
-                    <Text style={s.dailyRecapUnit}>{dailyRecap.totalTrips === 1 ? "trip" : "trips"}</Text>
-                  </View>
-                  {dailyRecap.deductionPence > 0 && (
-                    <>
-                      <View style={s.dailyRecapDivider} />
-                      <View style={s.dailyRecapStat}>
-                        <Text style={s.dailyRecapValue}>{formatPence(dailyRecap.deductionPence)}</Text>
-                        <Text style={s.dailyRecapUnit}>claim</Text>
-                      </View>
-                    </>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ) : null;
-          case "work_cta":
-            return (
-              <View key={key}>
-              <View style={s.ctaRow}>
-                <TouchableOpacity
-                  style={s.ctaPrimary}
-                  onPress={() => router.push("/trip-form")}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Start Trip"
-                >
-                  <Ionicons name="navigate" size={18} color="#030712" accessible={false} />
-                  <Text style={s.ctaPrimaryText}>Start Trip</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={s.ctaShift}
-                  onPress={handleStartShift}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Start Shift"
-                  disabled={starting}
-                >
-                  {starting ? (
-                    <ActivityIndicator size="small" color={AMBER} />
-                  ) : (
-                    <Ionicons name="play" size={18} color={AMBER} accessible={false} />
-                  )}
-                  <Text style={s.ctaShiftText}>Start Shift</Text>
-                </TouchableOpacity>
-              </View>
-              <PauseRecordingRow pausedUntil={pausedUntil} now={Date.now()} onPause={pauseRecording} onResume={resumeRecording} />
-              {/* Quick actions, same row as Personal. Tax has its own tab. */}
-              <QuickActionRow
-                actions={[
-                  { key: "shifts", icon: "time-outline", label: "Shifts", a11yLabel: "View shifts", onPress: () => router.push("/shifts" as never) },
-                  { key: "expenses", icon: "receipt-outline", label: "Expenses", a11yLabel: "Expenses", onPress: () => router.push("/expenses" as never) },
-                  { key: "insights", icon: "stats-chart-outline", label: "Insights", a11yLabel: "Insights", onPress: () => router.push("/insights" as never) },
-                  // Save the spot the driver is parked at right now, so a
-                  // customer's door becomes a saved place without typing a
-                  // postcode (Chris, 16 Sep 2026).
-                  { key: "spot", icon: "bookmark-outline", label: "Save spot", a11yLabel: "Save this spot as a place", onPress: () => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } }) },
-                ]}
-              />
-              </View>
-            );
-          case "work_shift":
-            return null;
-          case "journey_map":
-            return recentTrips.length > 0 ? (
-              <View key={key}>
-                <PremiumGate feature="Journey Map">
-                  <MapOverview trips={recentTrips} title="Recent Journeys" />
-                </PremiumGate>
-              </View>
-            ) : null;
-          case "weekly_goal":
-            // Hide until at least one trip - "0 / X miles" with an empty
-            // bar tells a brand-new user nothing useful.
-            if (totalTrips === 0) return null;
-            return <WeeklyGoalCard key={key} />;
-          case "work_calendar":
-            // Filters for business trips; empty calendar without them.
-            if (!hasBusinessDeduction) return null;
-            return <WorkCalendarCard key={key} />;
-          case "odometer_prompt":
-            // One-time prompt for drivers with no odometer reading; renders
-            // nothing unless every condition holds (SPEC-UX 1.4).
-            return <OdometerPromptCard key={key} isWork={isWork} totalTrips={totalTrips} />;
-          case "road_alerts":
-            // Road alerts trial: renders nothing unless something is on the
-            // driver's usual roads, or the one-time opt-in offer.
-            return <RoadAlertsCard key={key} />;
-          case "community_month":
-            return <CommunityMonthCard key={key} />;
-          case "community":
-            return (
-              <View key={key}>
-                <PremiumGate feature="Community Insights">
-                  <CommunityInsightsCard isWork={isWork} />
-                </PremiumGate>
-              </View>
-            );
-          default:
-            return null;
-        }
-        })();
-        return card ? (
-          <FadeInStagger key={key} index={index}>
-            {card}
-            {/* Asked once, under the mileage, of drivers who joined in the
-                last 30 days (1 Oct 2026). Renders nothing otherwise. */}
-            {key === "work_hero" && <AcquisitionSourceCard />}
-          </FadeInStagger>
-        ) : null;
-      });
-
-  // ── Idle Dashboard ────────────────────────────────────────────
-  // Modals rendered as siblings of the ScrollView (not children) so they
-  // sit at the component root. Avoids any odd interaction between the
-  // outer ScrollView and the Modal's portal layer on iPad.
+  // ── Idle Home ─────────────────────────────────────────────────
+  // The new Home (components/home). Modals stay here as siblings so they sit
+  // at the component root, away from the ScrollView's portal layer on iPad.
   return (
     <>
       {scorecardModal}
-      {recapModal}
       {workExplainerModal}
       {locPrimerModal}
-      <AppHeader />
-      <ScrollView
-        style={s.container}
-        contentContainerStyle={[s.content, { paddingTop: 16 }]}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#f5a623" />
-        }
-      >
-      {/* Mode Toggle */}
-      <ModeToggle
-        onInfoPress={() => {
-          explainerShownAtRef.current = Date.now();
-          trackEvent("work_explainer.shown", { source: "manual" });
-          setShowWorkExplainer(true);
-        }}
-      />
-
-      {/* Active recording banner — appears whenever auto-detection has a
-          trip in progress, so the user always knows we're tracking even if
-          the Live Activity silently failed to present. */}
-      <ActiveRecordingBanner />
-      {/* Automatic trips on or off, in both modes (28 Sep 2026: a shift-only
-          driver could not find the switch, and it did not really switch
-          anything off). A compact row, not a card: the one-card rule above
-          the mileage still holds. It shows the off state itself, so the
-          "tracking is off" banner and the "off since" suggestion stand down
-          on this screen; a pause is still shown by the Pause row. */}
-      <AutomaticTripsRow onChange={refreshPauseState} />
-      <SyncStatusBanner />
-      {/* Persistent trip-status surface — Saving / Saved+sync-state / Ready.
-          Hides itself while recording (banner above owns that state) and when
-          permissions are broken (the red blockers below own those). */}
-      <TripStatusStrip />
-
-      {/* Data-quality improvement celebration banner — fires once per user
-          when they open the app after a server-side backfill corrected
-          some of their trips. Turns invisible "we fixed your data" work
-          into a visible trust moment. SQLite-flagged so it only shows
-          once per device install. */}
-      {!dqBannerSeen && dqImprovement && (
-        <View style={s.dqBanner}>
-          <View style={s.dqBannerIconWrap}>
-            <Ionicons name="sparkles" size={20} color={colors.amber} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.dqBannerTitle}>We improved your trip data</Text>
-            <Text style={s.dqBannerBody}>
-              We re-routed {dqImprovement.improvedTripCount} of your recent {dqImprovement.improvedTripCount === 1 ? "trip" : "trips"} and recovered{" "}
-              {dqImprovement.milesGained.toFixed(1)} miles for you. Your tax figures are up to date.
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={dismissDqBanner}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          >
-            <Ionicons name="close" size={20} color={colors.text3} />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Background location nudge - auto trip detection requires "Always".
-          Uses the smart escalation helper so the right thing happens whether
-          the user has never granted, granted only foreground, or denied
-          outright. Linking.openSettings() alone is wrong for fresh installs:
-          iOS doesn't show a Location row in Settings until the app has
-          actually asked for permission once. */}
-      {/* One thing above your mileage: either MileClear cannot record at
-          all (red, non-dismissible) or there is setup left to finish. Never
-          both, and never the five separate permission nags this replaced. */}
-      {dashboardMessages.blocker && (
-        <DashboardBlockerCard
-          id={dashboardMessages.blocker}
-          onFixLocation={fixLocationFromBlocker}
-          onOpenSettings={() => { Linking.openSettings().catch(() => {}); }}
-        />
-      )}
-      {dashboardMessages.setup && (
-        <SetupChecklistCard
-          rows={setupRows}
-          done={dashboardMessages.setup.done}
-          total={dashboardMessages.setup.total}
-          onSnooze={snoozeSetupChecklist}
-        />
-      )}
-      {/* Low Power Mode / Battery Saver: above the mileage, where a driver in
-          that state will actually see it (lib/dashboardMessages NoticeId). */}
-      {dashboardMessages.notice === "low_power_mode" && (
-        <View
-          style={s.offSinceCard}
-          accessible
-          accessibilityLabel={
-            Platform.OS === "ios"
-              ? "Low Power Mode is on. Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you are driving."
-              : "Battery Saver is on. It can stop MileClear recording drives in the background. Turn it off while you are driving."
+      <HomeIdle
+        stats={stats}
+        previousYear={previousYear}
+        status={home.status}
+        statusElement={home.element}
+        hasVehicle={vehicles.length > 0}
+        starting={starting}
+        onStartShift={handleStartShift}
+        onShiftGraded={(sc) => {
+          if (sc) {
+            setScorecard(sc);
+            setShowScorecard(true);
+          } else {
+            router.push("/shifts");
           }
-        >
-          <Ionicons name="battery-dead-outline" size={20} color={AMBER} accessible={false} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.offSinceTitle}>
-              {Platform.OS === "ios" ? "Low Power Mode is on" : "Battery Saver is on"}
-            </Text>
-            <Text style={s.offSinceBody}>
-              {Platform.OS === "ios"
-                ? "Your iPhone limits background location in Low Power Mode, so drives may not record. Turn it off while you're driving."
-                : "Battery Saver can stop MileClear recording drives in the background. Turn it off while you're driving."}
-            </Text>
-          </View>
-        </View>
-      )}
-
-
-
-
-
-
-
-
-
-      {/* ── Work Mode (layout-aware) ── */}
-      {/* Each card fades-in-from-below with a small stagger via
-          FadeInStagger. The IIFE around the switch captures the rendered
-          card so we can wrap it in the animation; the original returns
-          are preserved verbatim, only the outer wrapper changed. */}
-      {isWork && renderWorkCards(workLayout.visibleKeys)}
-
-      {/* Vehicle Nudge — no vehicles yet */}
-      {isWork && showVehicleNudge && (
-        <TouchableOpacity
-          style={s.vehicleNudgeCard}
-          onPress={() => router.push("/vehicle-form" as any)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Add your vehicle. Tap to set up your vehicle for accurate HMRC mileage rates."
-        >
-          <View style={s.vehicleNudgeIcon}>
-            <Ionicons name="car-outline" size={24} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Add your vehicle</Text>
-          <Text style={s.btPromoBody}>
-            For accurate HMRC mileage rates, add your vehicle. Cars, vans, and motorbikes each have different rates.
-          </Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* Nominate-manager prompt — Milesheet's driver-side acquisition loop.
-          Self-gated (company status, workType, dismissal), so it's safe to
-          render unconditionally here; work mode only, since claiming from
-          an employer is a work concept a gig-only driver never sees. */}
-      {isWork && <NominateManagerCard hasBusinessMileage={hasBusinessMileage} />}
-
-      {/* ── Personal Dashboard (layout-aware) ── */}
-      {isPersonal && (
-        <PersonalDashboard
-          avatarId={currentUser?.avatarId}
-          stats={stats}
-          visibleKeys={personalLayout.visibleKeys}
-          recentTrips={recentTrips}
-          dailyRecap={dailyRecap}
-          onShowRecap={(recap) => { setRecapData(recap); setShowRecap(true); }}
-          pausedUntil={pausedUntil}
-          onPause={pauseRecording}
-          onResume={resumeRecording}
-        />
-      )}
-      {isPersonal && <AcquisitionSourceCard />}
-
-      {/* Vehicle Nudge — personal mode */}
-      {isPersonal && showVehicleNudge && (
-        <TouchableOpacity
-          style={s.vehicleNudgeCard}
-          onPress={() => router.push("/vehicle-form" as any)}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Add your vehicle. Tap to get personalised fuel economy stats."
-        >
-          <View style={s.vehicleNudgeIcon}>
-            <Ionicons name="car-outline" size={24} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Add your vehicle</Text>
-          <Text style={s.btPromoBody}>
-            Track which car you're driving and get personalised fuel economy stats.
-          </Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.vehicleNudgeCtaText}>Add vehicle</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* First trip: a driver with zero trips has one job, so this one
-          suggestion stays on the home screen rather than under More. */}
-      {/* First-trip nudge — in-app activation safety net. Shows when the user
-          has Always location on but still zero trips. Two paths: take a live
-          trip now, or backfill one they already drove. */}
-      {dashboardMessages.suggestions.includes("first_trip") && (
-        <View style={s.ftNudge}>
-          <View style={s.bgLocNudgeRow}>
-            <View style={s.ftNudgeIcon}>
-              <Ionicons name="navigate-outline" size={20} color={AMBER} accessible={false} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.bgLocNudgeTitle}>Record your first trip</Text>
-              <Text style={s.bgLocNudgeBody}>
-                Auto-detection is on - just drive and it records itself. Already made a journey? Add it now so your deduction starts.
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={dismissFirstTripNudge}
-              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss for 7 days"
-            >
-              <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-            </TouchableOpacity>
-          </View>
-          <View style={s.ftNudgeActions}>
-            <TouchableOpacity
-              style={[s.ftNudgeBtn, s.ftNudgeBtnPrimary]}
-              onPress={() => router.push("/trip-form")}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Start a trip now"
-            >
-              <Ionicons name="play" size={14} color="#0b0e14" accessible={false} />
-              <Text style={s.ftNudgeBtnTextPrimary}>Start a trip</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.ftNudgeBtn}
-              onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as any)}
-              activeOpacity={0.8}
-              accessibilityRole="button"
-              accessibilityLabel="Add a past trip manually"
-            >
-              <Ionicons name="create-outline" size={14} color={AMBER} accessible={false} />
-              <Text style={s.ftNudgeBtnText}>Add a past trip</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Pro nudge (free drivers with 5+ trips), kept on the home screen rather
-          than under More (4 Oct 2026): paying is how the app is funded, and
-          under More almost nobody would see it. Still dismissible. */}
-      {dashboardMessages.suggestions.includes("pro") && (
-        <TouchableOpacity
-          style={s.proNudgeCard}
-          onPress={() => showPaywall("dashboard_nudge")}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Upgrade to Pro"
-        >
-          <TouchableOpacity
-            style={s.btPromoDismiss}
-            onPress={dismissProNudge}
-            hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss Pro nudge"
-          >
-            <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-          </TouchableOpacity>
-          <View style={s.proNudgeIcon}>
-            <Ionicons name="star" size={24} color={AMBER} accessible={false} />
-          </View>
-          <Text style={s.btPromoTitle}>Upgrade to Pro</Text>
-          <Text style={s.btPromoBody}>{proNudgeMessages[proNudgeIndex]}</Text>
-          <View style={s.btPromoCta}>
-            <Text style={s.vehicleNudgeCtaText}>See plans</Text>
-            <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-          </View>
-        </TouchableOpacity>
-      )}
-
-      {/* More (4 Oct 2026): every section the driver hasn't switched on,
-          plus tips and suggestions. Collapsed, and nothing inside mounts or
-          fetches until it is opened. Customise brings any card back up. */}
-      <DashboardMoreSection
-        summary={moreSummaryText}
-        renderContent={() => (
-          <>
-            {isWork && renderWorkCards(workHiddenKeys)}
-            {isPersonal && personalHiddenKeys.length > 0 && (
-              <PersonalDashboard
-                inMore
-                avatarId={currentUser?.avatarId}
-                stats={stats}
-                visibleKeys={personalHiddenKeys}
-                recentTrips={recentTrips}
-                dailyRecap={dailyRecap}
-                onShowRecap={(recap) => { setRecapData(recap); setShowRecap(true); }}
-              />
-            )}
-            {/* Auto-classified trips skip the Inbox, so they never get the prominent
-                "Add a note" row. Nudge for the most recent one (self-contained:
-                queries on focus, renders nothing when there's no candidate). */}
-            <AutoNoteNudgeCard />
-
-
-
-            {/* Smart Insights */}
-            <SmartInsightCard
-              stats={stats}
-              vehicles={vehicles}
-              isPremium={isPremium}
-              isWork={isWork}
-              unclassifiedCount={unclassifiedCount}
-            />
-
-
-
-            {/* Suggestions. Optional, capped at two, and deliberately BELOW the
-                driver's own mileage: you opened the app to see your miles, not a
-                list of chores. Ordering and the cap live in lib/dashboardMessages.
-                Since 4 Oct 2026 they sit under More, all but the first-trip one. */}
-            {moreSuggestions.length > 0 && (
-              <Text style={s.suggestionsHeading}>Suggestions</Text>
-            )}
-            {/* Saved-locations nudge: clusters available and a free slot to put them
-                in. Sits above the referral promo because it improves the user's own
-                data (named stops) and that earns the higher spot. */}
-            {dashboardMessages.suggestions.includes("saved_places") && (
-              <TouchableOpacity
-                style={s.savedLocsNudge}
-                onPress={() => router.push("/saved-locations-suggest" as never)}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel={`Review ${savedLocationsSuggestionCount} suggested ${
-                  savedLocationsSuggestionCount === 1 ? "place" : "places"
-                }`}
-              >
-                <TouchableOpacity
-                  style={s.savedLocsNudgeDismiss}
-                  onPress={dismissSavedLocationsNudge}
-                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss"
-                >
-                  <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-                </TouchableOpacity>
-                <View style={s.savedLocsNudgeIconWrap}>
-                  <Ionicons name="sparkles" size={20} color={AMBER} accessible={false} />
-                </View>
-                <Text style={s.savedLocsNudgeTitle}>
-                  Save the places you visit often
-                </Text>
-                <Text style={s.savedLocsNudgeBody}>
-                  MileClear spotted{" "}
-                  {savedLocationsSuggestionCount === 1
-                    ? "1 place"
-                    : `${savedLocationsSuggestionCount} places`}{" "}
-                  in your recent trips. Save them so journeys are labelled with names
-                  you recognise.
-                </Text>
-                <View style={s.savedLocsNudgeCta}>
-                  <Text style={s.savedLocsNudgeCtaText}>Review suggestions</Text>
-                  <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-                </View>
-              </TouchableOpacity>
-            )}
-            {/* Referral promo — dismissible (30 days), both modes. Links to the
-                Invite Friends screen. Suppressed while the first-trip nudge shows. */}
-            {dashboardMessages.suggestions.includes("referral") && (
-              <TouchableOpacity
-                style={s.referralCard}
-                onPress={() => router.push("/refer" as never)}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="Invite friends and get a free month of Pro for each. Opens the invite screen."
-              >
-                <View style={s.referralCardIcon}>
-                  <Ionicons name="gift" size={20} color={AMBER} accessible={false} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.referralCardTitle}>Get Pro free - invite friends</Text>
-                  <Text style={s.referralCardBody}>
-                    A free month of Pro for every friend who joins and takes a trip (up to 3).
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
-                <TouchableOpacity
-                  onPress={dismissReferralCard}
-                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-                  style={s.referralCardDismiss}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss"
-                >
-                  <Ionicons name="close" size={15} color="#6b7280" accessible={false} />
-                </TouchableOpacity>
-              </TouchableOpacity>
-            )}
-            {/* Dashboard announcement slot. 28 Aug 2026: Android closed beta
-                (replaced the 55p rate card that ran from April). Dismissible per
-                device; one-time SQLite flag keyed on the announcement id so a new
-                announcement re-shows even to people who dismissed the last one. */}
-            {dashboardMessages.suggestions.includes("android_beta") && (
-              <TouchableOpacity
-                style={s.savedLocsNudge}
-                onPress={() => {
-                  Linking.openURL("https://mileclear.com/updates/mileclear-on-android-closed-beta").catch(() => {});
-                }}
-                activeOpacity={0.85}
-                accessibilityRole="button"
-                accessibilityLabel="MileClear is on Android. Closed beta, testers wanted."
-              >
-                <TouchableOpacity
-                  style={s.savedLocsNudgeDismiss}
-                  onPress={dismissAmapBanner}
-                  hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss"
-                >
-                  <Ionicons name="close" size={16} color="#6b7280" accessible={false} />
-                </TouchableOpacity>
-                <View style={s.savedLocsNudgeIconWrap}>
-                  <Ionicons name="megaphone" size={20} color={AMBER} accessible={false} />
-                </View>
-                <Text style={s.savedLocsNudgeTitle}>
-                  MileClear is on Android
-                </Text>
-                <Text style={s.savedLocsNudgeBody}>
-                  The Android app is in closed testing on Google Play. Know anyone
-                  with an Android phone? Testers get Pro free. Send their Google
-                  account email to support@mileclear.com for an invite.
-                </Text>
-                <View style={s.savedLocsNudgeCta}>
-                  <Text style={s.savedLocsNudgeCtaText}>Learn more</Text>
-                  <Ionicons name="chevron-forward" size={14} color={AMBER} accessible={false} />
-                </View>
-              </TouchableOpacity>
-            )}
-
-          </>
-        )}
+        }}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        savedPlaces={{
+          eligible: showSavedLocationsNudge,
+          count: savedLocationsSuggestionCount,
+          dismiss: dismissSavedLocationsNudge,
+        }}
+        pro={{ eligible: showProNudge, dismiss: dismissProNudge }}
+        referral={{ eligible: showReferralCard, dismiss: dismissReferralCard }}
+        androidBeta={{ eligible: !amapBannerSeen, dismiss: dismissAmapBanner }}
       />
-
-      {/* Customise layout: discoverable footer link, low visual weight */}
-      <TouchableOpacity
-        style={s.customizeFooter}
-        onPress={() => router.push("/customize-layout" as any)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Customise this dashboard. Choose which cards are on your home screen and which sit under More."
-      >
-        <Ionicons name="options-outline" size={14} color="#64748b" accessible={false} />
-        <Text style={s.customizeFooterText}>Customise this dashboard</Text>
-      </TouchableOpacity>
-
-      <View style={{ height: 24 }} />
-
-      {/* Trip segment bottom sheet */}
-      {tripTapInfo && (
-        <Animated.View
-          style={[
-            s.tripSheet,
-            { transform: [{ translateY: tripSheetAnim }] },
-          ]}
-        >
-          <TouchableOpacity
-            style={s.tripSheetDismiss}
-            onPress={dismissTripSheet}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss trip details"
-          >
-            <View style={s.tripSheetHandle} />
-          </TouchableOpacity>
-          <View style={s.tripSheetHeader}>
-            <View style={[s.tripSheetDot, { backgroundColor: ["#f5a623", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#06b6d4"][tripTapInfo.index % 6] }]} />
-            <Text style={s.tripSheetTitle}>Trip {tripTapInfo.index + 1}</Text>
-          </View>
-          <View style={s.tripSheetStats}>
-            <View style={s.tripSheetStat}>
-              <Text style={s.tripSheetStatValue}>{tripTapInfo.distance}</Text>
-              <Text style={s.tripSheetStatLabel}>miles</Text>
-            </View>
-            <View style={s.tripSheetStat}>
-              <Text style={s.tripSheetStatValue}>
-                {Math.floor(tripTapInfo.duration / 60)}m {tripTapInfo.duration % 60}s
-              </Text>
-              <Text style={s.tripSheetStatLabel}>duration</Text>
-            </View>
-            <View style={s.tripSheetStat}>
-              <Text style={s.tripSheetStatValue}>{tripTapInfo.avgSpeed}</Text>
-              <Text style={s.tripSheetStatLabel}>avg mph</Text>
-            </View>
-          </View>
-          {(tripTapInfo.startAddress || tripTapInfo.endAddress) && (
-            <View style={s.tripSheetAddresses}>
-              {tripTapInfo.startAddress && (
-                <Text style={s.tripSheetAddress} numberOfLines={1}>
-                  From: {tripTapInfo.startAddress}
-                </Text>
-              )}
-              {tripTapInfo.endAddress && (
-                <Text style={s.tripSheetAddress} numberOfLines={1}>
-                  To: {tripTapInfo.endAddress}
-                </Text>
-              )}
-            </View>
-          )}
-        </Animated.View>
-      )}
-      </ScrollView>
     </>
   );
 }
@@ -3081,223 +2007,13 @@ const TEXT_3 = colors.text3;
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#030712" },
-  centered: { justifyContent: "center", alignItems: "center" },
+  shiftStatus: { marginBottom: 16 },
   content: { paddingHorizontal: 20, paddingBottom: 20 },
-
-  // Streak
-  streakRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 16,
-  },
+  homeContent: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 20 },
   greeting: {
     fontSize: 14,
     fontFamily: fonts.regular,
     color: TEXT_2,
-  },
-  streakBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(245, 166, 35, 0.12)",
-    borderWidth: 1.5,
-    borderColor: "rgba(245, 166, 35, 0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  streakNum: {
-    fontSize: 15,
-    fontFamily: fonts.bold,
-    color: AMBER,
-  },
-
-  // Hero card
-  heroCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.12)",
-    ...Platform.select({
-      ios: {
-        shadowColor: AMBER,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
-      },
-    }),
-  },
-  heroLabel: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  heroValue: {
-    fontSize: 38,
-    fontFamily: fonts.light,
-    color: AMBER,
-    letterSpacing: -1,
-    marginBottom: 10,
-  },
-  heroValueGettingStarted: {
-    fontSize: 28,
-    color: TEXT_1, // dim white instead of bright amber when the number is small
-    fontFamily: fonts.regular,
-  },
-  heroSavedLabel: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: colors.green,
-    marginBottom: 6,
-    marginTop: -6,
-  },
-  heroEmptyBody: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: "#94a3b8",
-    lineHeight: 19,
-    marginTop: 10,
-  },
-  heroLockedHint: {
-    fontSize: 12,
-    fontFamily: fonts.medium,
-    color: "rgba(245, 166, 35, 0.5)",
-    marginBottom: 6,
-    marginTop: -4,
-  },
-  heroMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  heroMetaText: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-  },
-  heroDivider: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: TEXT_3,
-    marginHorizontal: 10,
-  },
-  heroNudge: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: "rgba(251,191,36,0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(251,191,36,0.18)",
-  },
-  heroNudgeText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: fonts.medium,
-    color: "#fcd34d",
-    lineHeight: 16,
-  },
-
-  // Hero top row with inline streak
-  heroTopRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  streakBadgeInline: {
-    backgroundColor: "rgba(245, 166, 35, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  streakNumInline: {
-    fontSize: 12,
-    fontFamily: fonts.bold,
-    color: AMBER,
-  },
-
-  // CTA row — Start Trip + Vehicle picker side by side
-  ctaRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 10,
-  },
-  ctaPrimary: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: AMBER,
-    borderRadius: 14,
-    paddingVertical: 14,
-  },
-  ctaPrimaryText: {
-    fontSize: 15,
-    fontFamily: fonts.bold,
-    color: "#030712",
-  },
-  ctaShift: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    paddingVertical: 14,
-    borderWidth: 1.5,
-    borderColor: AMBER,
-  },
-  ctaShiftText: {
-    fontSize: 15,
-    fontFamily: fonts.bold,
-    color: AMBER,
-  },
-
-  // "Recording has been off since ..." (permanent switch, 16 Sep 2026)
-  offSinceCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.35)",
-  },
-  offSinceTitle: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1, marginBottom: 2 },
-  offSinceBody: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2, lineHeight: 17 },
-
-  // Quick actions
-  quickActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 16,
-  },
-  quickAction: {
-    flex: 1,
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  quickActionLabel: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-    letterSpacing: 0.2,
   },
 
   // Stats row
@@ -3337,119 +2053,6 @@ const s = StyleSheet.create({
     color: TEXT_2,
     marginTop: 2,
     letterSpacing: 0.2,
-  },
-
-  // Sections
-  section: { marginBottom: 20 },
-  sectionHead: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-    letterSpacing: -0.2,
-  },
-  seeAll: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: AMBER,
-  },
-
-  // Badges
-  badgeScroll: { gap: 8 },
-  badge: {
-    backgroundColor: CARD_BG,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    width: 74,
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  badgeEmoji: { fontSize: 26, marginBottom: 4 },
-  badgeLabel: {
-    fontSize: 11,
-    fontFamily: fonts.medium,
-    color: TEXT_2,
-    textAlign: "center",
-  },
-
-  // Recap buttons
-  recapRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  recapBtn: {
-    flex: 1,
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  recapBtnLabel: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-    letterSpacing: -0.2,
-  },
-
-  // Records
-  recordGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  recordCell: {
-    width: "47%" as any,
-    backgroundColor: CARD_BG,
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  recordValue: {
-    fontSize: 18,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-    marginBottom: 2,
-  },
-  recordLabel: {
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    letterSpacing: 0.2,
-  },
-
-  // Vehicle picker
-  vehiclePicker: {
-    backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: CARD_BORDER,
-  },
-  vehiclePickerLabel: {
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 3,
-  },
-  vehiclePickerVal: {
-    fontSize: 16,
-    fontFamily: fonts.medium,
-    color: TEXT_1,
   },
 
   // Active shift
@@ -3606,459 +2209,6 @@ const s = StyleSheet.create({
   unlockLabel: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
   unlockDesc: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2 },
 
-  // Daily recap card (work mode)
-  dailyRecapCard: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.12)",
-  },
-  dailyRecapHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 12,
-  },
-  dailyRecapTitle: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-  },
-  dailyRecapStats: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  dailyRecapStat: {
-    alignItems: "center",
-  },
-  dailyRecapValue: {
-    fontSize: 20,
-    fontFamily: fonts.bold,
-    color: AMBER,
-  },
-  dailyRecapUnit: {
-    fontSize: 10,
-    fontFamily: fonts.medium,
-    color: TEXT_3,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    marginTop: 2,
-  },
-  dailyRecapDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-
-  // Recap modal
-  recapSubtitle: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  recapDetail: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    textAlign: "center",
-    marginBottom: 6,
-  },
-  recapBtnRow: { gap: 10, marginTop: 8 },
-  // Trip segment bottom sheet
-  tripSheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#0a1120",
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: "rgba(255,255,255,0.08)",
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  tripSheetDismiss: {
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  tripSheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-  tripSheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  tripSheetDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  tripSheetTitle: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: TEXT_1,
-  },
-  tripSheetStats: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
-  },
-  tripSheetStat: {
-    flex: 1,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  tripSheetStatValue: {
-    fontSize: 18,
-    fontFamily: fonts.bold,
-    color: TEXT_1,
-  },
-  tripSheetStatLabel: {
-    fontSize: 10,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    marginTop: 2,
-    textTransform: "uppercase",
-  },
-  tripSheetAddresses: {
-    gap: 4,
-  },
-  tripSheetAddress: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-  },
-
-  // Bluetooth promo
-  btPromoCard: {
-    backgroundColor: "rgba(59, 130, 246, 0.06)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(59, 130, 246, 0.15)",
-    padding: 20,
-    marginTop: 16,
-    position: "relative" as const,
-  },
-  btPromoDismiss: {
-    position: "absolute" as const,
-    top: 12,
-    right: 12,
-    zIndex: 1,
-  },
-  btPromoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(59, 130, 246, 0.12)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  btPromoTitle: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: TEXT_1,
-    marginBottom: 6,
-  },
-  btPromoBody: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    lineHeight: 19,
-    marginBottom: 14,
-  },
-  btPromoCta: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 4,
-  },
-  btPromoCtaText: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: "#3b82f6",
-  },
-
-  // Vehicle nudge card
-  vehicleNudgeCard: {
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.15)",
-    padding: 20,
-    marginTop: 16,
-  },
-  vehicleNudgeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(245, 166, 35, 0.12)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  vehicleNudgeCtaText: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-
-  // Pro nudge card
-  proNudgeCard: {
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.15)",
-    padding: 20,
-    marginTop: 16,
-    position: "relative" as const,
-  },
-  proNudgeIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(245, 166, 35, 0.12)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-
-  // Saved-locations nudge (mirrors proNudgeCard styling so it sits well
-  // adjacent in the dashboard hierarchy).
-  savedLocsNudge: {
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.15)",
-    padding: 20,
-    marginTop: 16,
-    position: "relative" as const,
-  },
-  savedLocsNudgeDismiss: {
-    position: "absolute" as const,
-    top: 12,
-    right: 12,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-  },
-  savedLocsNudgeIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(245, 166, 35, 0.12)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-    marginBottom: 12,
-  },
-  savedLocsNudgeTitle: {
-    fontSize: 16,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-    marginBottom: 6,
-  },
-  savedLocsNudgeBody: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: colors.text2,
-    lineHeight: 18,
-    marginBottom: 12,
-  },
-  savedLocsNudgeCta: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 4,
-  },
-  savedLocsNudgeCtaText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-
-  // Data-quality improvement celebration banner
-  dqBanner: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 12,
-    backgroundColor: "rgba(16, 185, 129, 0.08)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 185, 129, 0.2)",
-    padding: 14,
-    marginBottom: 12,
-  },
-  dqBannerIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(245, 166, 35, 0.15)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-  },
-  dqBannerTitle: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: colors.text1,
-  },
-  dqBannerBody: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: colors.text2,
-    lineHeight: 17,
-    marginTop: 2,
-  },
-
-  // Background location nudge
-  bgLocNudge: {
-    backgroundColor: "rgba(245, 158, 11, 0.08)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(245, 158, 11, 0.2)",
-    padding: 14,
-    marginBottom: 12,
-  },
-  // Danger variant for the "can't record at all" activation blocker.
-  bgLocBlocker: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderColor: "rgba(239, 68, 68, 0.35)",
-  },
-  bgLocBlockerTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    color: "#ef4444",
-    marginBottom: 2,
-  },
-  bgLocNudgeRow: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    gap: 12,
-  },
-  bgLocNudgeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(245, 158, 11, 0.15)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-  },
-  bgLocNudgeTitle: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: "#f59e0b",
-    marginBottom: 2,
-  },
-  bgLocNudgeBody: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    lineHeight: 17,
-  },
-
-  // First-trip nudge (activation safety net)
-  ftNudge: {
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.18)",
-    padding: 14,
-    marginBottom: 12,
-  },
-  ftNudgeIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(245, 166, 35, 0.14)",
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-  },
-  ftNudgeActions: {
-    flexDirection: "row" as const,
-    gap: 8,
-    marginTop: 12,
-  },
-  ftNudgeBtn: {
-    flex: 1,
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.35)",
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
-  },
-  ftNudgeBtnPrimary: {
-    backgroundColor: AMBER,
-    borderColor: AMBER,
-  },
-  ftNudgeBtnText: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-  ftNudgeBtnTextPrimary: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: "#0b0e14",
-  },
-
-  // Referral promo card
-  referralCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "rgba(245, 166, 35, 0.06)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.18)",
-    padding: 14,
-    paddingRight: 34,
-    marginBottom: 12,
-  },
-  referralCardIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(245, 166, 35, 0.14)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  referralCardTitle: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: "#f0f2f5",
-    marginBottom: 2,
-  },
-  referralCardBody: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: "#8494a7",
-    lineHeight: 17,
-  },
-  referralCardDismiss: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    padding: 2,
-  },
-
   // Work mode explainer
   explainerOverlay: {
     flex: 1,
@@ -4144,27 +2294,5 @@ const s = StyleSheet.create({
     fontSize: 17,
     fontFamily: fonts.bold,
     letterSpacing: 0.3,
-  },
-  suggestionsHeading: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: TEXT_3,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginTop: 24,
-    marginBottom: 10,
-  },
-  customizeFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 14,
-    marginTop: 8,
-  },
-  customizeFooterText: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: "#64748b",
   },
 });

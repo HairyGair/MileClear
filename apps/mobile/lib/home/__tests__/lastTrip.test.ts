@@ -9,6 +9,7 @@ import {
   type LastTripInputs,
 } from "../lastTrip";
 import { createTapTracker, MAX_PER_SESSION, MIN_GAP_MS } from "../tapEvents";
+import { layoutRoute } from "../miniRoute";
 
 const NOW = new Date(2026, 9, 10, 18, 0).getTime();
 const iso = (ms: number) => new Date(ms).toISOString();
@@ -23,6 +24,7 @@ const trip = (over: Partial<LastTripData> = {}): LastTripData => ({
   classification: "unclassified",
   autoSorted: false,
   isShiftTrip: false,
+  isManual: false,
   sync: "synced",
   route: [],
   startPoint: null,
@@ -181,5 +183,52 @@ describe("home tap tracker", () => {
       throw new Error("boom");
     });
     expect(() => track("hero", "work", "fine")).not.toThrow();
+  });
+});
+
+
+describe("layoutRoute", () => {
+  const A = { lat: 54.9, lng: -1.6 };
+  const B = { lat: 54.95, lng: -1.5 };
+
+  it("draws nothing without two points", () => {
+    expect(layoutRoute({ route: [], start: A, end: null, size: 56 }).pieces).toEqual([]);
+    expect(layoutRoute({ route: [], start: null, end: null, size: 56 }).start).toBeNull();
+  });
+
+  it("falls back to a straight line from start to end", () => {
+    const d = layoutRoute({ route: [], start: A, end: B, size: 56 });
+    expect(d.pieces).toHaveLength(1);
+    expect(d.start).not.toBeNull();
+    expect(d.end).not.toBeNull();
+  });
+
+  it("keeps every piece and both ends inside the square", () => {
+    const route = [A, { lat: 54.92, lng: -1.58 }, { lat: 54.93, lng: -1.52 }, B];
+    const d = layoutRoute({ route, start: A, end: B, size: 56, pad: 8 });
+    for (const pt of [d.start!, d.end!]) {
+      expect(pt.x).toBeGreaterThanOrEqual(7.9);
+      expect(pt.x).toBeLessThanOrEqual(48.1);
+      expect(pt.y).toBeGreaterThanOrEqual(7.9);
+      expect(pt.y).toBeLessThanOrEqual(48.1);
+    }
+    expect(d.pieces.length).toBe(3);
+  });
+
+  it("puts north at the top: a later, more northern point has a smaller y", () => {
+    const d = layoutRoute({ route: [A, B], start: A, end: B, size: 56 });
+    expect(d.end!.y).toBeLessThan(d.start!.y);
+  });
+
+  it("dashes a hand-added trip into many short pieces", () => {
+    const solid = layoutRoute({ route: [], start: A, end: B, size: 56 });
+    const dashed = layoutRoute({ route: [], start: A, end: B, size: 56, dashed: true });
+    expect(dashed.pieces.length).toBeGreaterThan(solid.pieces.length);
+    expect(Math.max(...dashed.pieces.map((p) => p.length))).toBeLessThanOrEqual(3.01);
+  });
+
+  it("survives a trip that never moved", () => {
+    const d = layoutRoute({ route: [A, A, A], start: A, end: A, size: 56 });
+    expect(d.pieces).toEqual([]);
   });
 });
