@@ -31,3 +31,23 @@ export function buildBusinessShareData(
 export function canIncludeEarnings(current: Pick<PeriodTotals, "earningsPence">): boolean {
   return (current.earningsPence ?? 0) > 0;
 }
+
+/**
+ * Holds the share chosen in the sheet until the sheet has closed. iOS will not
+ * open the share sheet while the Modal is still on screen, so the share runs
+ * from the Modal's onDismiss (iOS) or a short wait (Android). `take` hands the
+ * share over once, so a late second call never opens a second share sheet.
+ */
+export function createPendingShare<T>() {
+  let held: T | null = null;
+  return {
+    set(value: T) {
+      held = value;
+    },
+    take(): T | null {
+      const v = held;
+      held = null;
+      return v;
+    },
+  };
+}

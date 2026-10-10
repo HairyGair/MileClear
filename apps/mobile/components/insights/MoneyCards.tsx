@@ -7,6 +7,7 @@ import { formatPence } from "@mileclear/shared";
 import type { BusinessInsights, WeeklyPnL } from "@mileclear/shared";
 import { fetchBusinessInsights, fetchWeeklyPnL } from "../../lib/api/businessInsights";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
+import { WEEK_MONEY_LABELS } from "../../lib/insights/money";
 
 export function useWorkMoney(enabled: boolean, weeksBack: number, refreshToken: number) {
   const [insights, setInsights] = useState<BusinessInsights | null>(null);
@@ -67,10 +68,10 @@ export function WeeklyMoneyCard({ pnl }: { pnl: WeeklyPnL }) {
   return (
     <View style={styles.card}>
       <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>{pnl.periodLabel}</Text>
-      <Line label="Paid in" value={formatPence(pnl.grossEarningsPence)} />
-      <Line label="Fuel (estimate)" value={`-${formatPence(pnl.estimatedFuelCostPence)}`} />
-      <Line label="Wear and tear (estimate)" value={`-${formatPence(pnl.estimatedWearCostPence)}`} />
-      <Line label="Left after costs" value={formatPence(Math.abs(net))} strong tone={net >= 0 ? "good" : "bad"} />
+      <Line label={WEEK_MONEY_LABELS.paidIn} value={formatPence(pnl.grossEarningsPence)} />
+      <Line label={WEEK_MONEY_LABELS.fuel} value={`-${formatPence(pnl.estimatedFuelCostPence)}`} />
+      <Line label={WEEK_MONEY_LABELS.wear} value={`-${formatPence(pnl.estimatedWearCostPence)}`} />
+      <Line label={WEEK_MONEY_LABELS.left} value={formatPence(Math.abs(net))} strong tone={net >= 0 ? "good" : "bad"} />
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasPayRates, hasWeekMoney, payHeadline, weekMoneyHeadline, weeksBackFor } from "../money";
+import { WEEK_MONEY_LABELS, hasPayRates, hasWeekMoney, payHeadline, weekMoneyHeadline, weeksBackFor } from "../money";
 
 const fp = (p: number) => `£${(p / 100).toFixed(2)}`;
 const rates = { totalEarningsPence: 50000, totalBusinessMiles: 400, earningsPerMilePence: 125, earningsPerHourPence: 1450 };
@@ -34,5 +34,13 @@ describe("week money", () => {
     expect(weeksBackFor("week", -2)).toBe(2);
     expect(weeksBackFor("month", -2)).toBe(0);
     expect(weeksBackFor("tax_year", -1)).toBe(0);
+  });
+});
+
+describe("week money labels", () => {
+  it("does not call the fill-ups bought an estimate", () => {
+    expect(WEEK_MONEY_LABELS.fuel).toBe("Fuel bought");
+    expect(WEEK_MONEY_LABELS.fuel).not.toMatch(/estimate/i);
+    expect(WEEK_MONEY_LABELS.wear).toMatch(/estimate/);
   });
 });

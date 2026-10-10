@@ -129,3 +129,13 @@ export function nextBadges(
   out.sort((a, b) => b.progress - a.progress || a.threshold - b.threshold);
   return out.slice(0, count).map(({ threshold: _t, ...rest }) => rest);
 }
+
+/**
+ * What a screen reader says for a badge on the badges screen. Descriptions
+ * that end in "!" or "?" keep their own ending instead of gaining a "." too.
+ */
+export function badgeSpokenLabel(label: string, description: string, earned: boolean): string {
+  const desc = description.trim();
+  const ended = /[.!?]$/.test(desc) ? desc : `${desc}.`;
+  return `${label}: ${ended} ${earned ? "Earned" : "Not yet earned"}`;
+}
