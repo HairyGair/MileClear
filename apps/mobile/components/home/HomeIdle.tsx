@@ -13,7 +13,7 @@
 // wires taps and lays it out. State that belongs to the dashboard (permissions,
 // the shift, the dismissals of its older asks) comes in as props.
 
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import {
   Linking,
   RefreshControl,
@@ -311,9 +311,16 @@ export function HomeIdle(p: Props) {
     p.onRefresh();
   }, [lastTrip, p]);
 
-  // Come back to Home with the ask quiet state fresh after a dismissal elsewhere.
+  // When the "where did you hear" sheet closes, check again: an answer or a
+  // skip means the ask is gone for good.
+  const acqWasOpen = useRef(false);
   useEffect(() => {
-    if (!acqOpen) acq.recheck();
+    if (acqOpen) {
+      acqWasOpen.current = true;
+    } else if (acqWasOpen.current) {
+      acqWasOpen.current = false;
+      acq.recheck();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acqOpen]);
 
