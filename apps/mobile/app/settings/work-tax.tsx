@@ -27,6 +27,10 @@ export default function WorkTaxSettings() {
   const { prompt } = usePrompt();
   const [driveFor, setDriveFor] = useState<DriveFor>("gig");
   const [dashboardMode, setDashboardMode] = useState<string | null>(null);
+  // Choices stay off until the profile has loaded: a tap before then would save
+  // against a missing current mode and could turn "work" into "both".
+  const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [employerRate, setEmployerRate] = useState<number | null>(null);
   const [employerRateAfter10k, setEmployerRateAfter10k] = useState<number | null>(null);
   const [otherIncomePence, setOtherIncomePence] = useState<number | null>(null);
@@ -49,8 +53,10 @@ export default function WorkTaxSettings() {
         };
         setPayeTaxPaidPence(profile.payeAnnualPaidTaxPence ?? null);
         setTaxBasis(profile.taxBasis ?? "cash");
+        setLoaded(true);
       } catch (e) {
         console.warn("[settings/work-tax] profile load failed:", e);
+        setLoadFailed(true);
       }
     })();
   }, []);
@@ -61,7 +67,7 @@ export default function WorkTaxSettings() {
   // reminders (the old Personal mode); anything else switches them back on.
   const handleDriveFor = useCallback(
     async (answer: DriveFor) => {
-      if (answer === driveFor) return;
+      if (!loaded || answer === driveFor) return;
       const previous = { driveFor, dashboardMode };
       const patch = driveForPatch(answer, dashboardMode);
       setDriveFor(answer);
@@ -75,7 +81,7 @@ export default function WorkTaxSettings() {
         Alert.alert("Couldn't save that", "Try again in a moment.");
       }
     },
-    [driveFor, dashboardMode, refreshUser]
+    [loaded, driveFor, dashboardMode, refreshUser]
   );
 
   // ── Employer rate (two-tier prompt on iOS) ────────────────────────
@@ -268,13 +274,14 @@ export default function WorkTaxSettings() {
           return (
             <TouchableOpacity
               key={opt.value}
-              style={styles.optionRow}
+              style={[styles.optionRow, !loaded && { opacity: 0.5 }]}
+              disabled={!loaded}
               onPress={() => handleDriveFor(opt.value)}
               activeOpacity={0.6}
               accessibilityRole="radio"
               accessibilityLabel={opt.label}
               accessibilityHint={opt.hint}
-              accessibilityState={{ selected }}
+              accessibilityState={{ selected, disabled: !loaded }}
             >
               <Ionicons
                 name={selected ? "radio-button-on" : "radio-button-off"}
@@ -290,6 +297,12 @@ export default function WorkTaxSettings() {
           );
         })}
       </SettingsGroup>
+
+      {loadFailed && !loaded ? (
+        <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>
+          Couldn't load your answer. Check your connection, then come back to this screen.
+        </Text>
+      ) : null}
 
       {noTaxRows ? (
         <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>

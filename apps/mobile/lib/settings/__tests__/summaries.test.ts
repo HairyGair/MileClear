@@ -16,6 +16,10 @@ describe("carSummary", () => {
   it("names the main car, its fuel and the rate it earns", () => {
     expect(carSummary([prius])).toEqual({ text: "Toyota Prius · Hybrid · car rate", tone: "plain" });
   });
+  it("says so when the cars could not be loaded, instead of loading forever", () => {
+    expect(carSummary(null).text).toBe("Loading...");
+    expect(carSummary(null, { failed: true }).text).toBe("Couldn't load your cars. Tap to open them");
+  });
   it("asks to add a car when there is none", () => {
     expect(carSummary([])).toEqual({ text: "Add your car", tone: "add" });
   });

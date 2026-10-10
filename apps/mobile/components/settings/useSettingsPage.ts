@@ -17,6 +17,8 @@ import type { DoorRowId } from "../../lib/home/doorPrefs";
 
 export interface SettingsPageData {
   cars: CarLike[] | null;
+  /** The car list could not be read (offline), so the row says so instead of loading forever. */
+  carsFailed: boolean;
   places: string[] | null;
   slots: SlotLike[] | null;
   plan: PlanLike | null;
@@ -26,6 +28,7 @@ export interface SettingsPageData {
 
 export function useSettingsPage(isPremium: boolean): SettingsPageData {
   const [cars, setCars] = useState<CarLike[] | null>(null);
+  const [carsFailed, setCarsFailed] = useState(false);
   const [places, setPlaces] = useState<string[] | null>(null);
   const [slots, setSlots] = useState<SlotLike[] | null>(null);
   const [plan, setPlan] = useState<PlanLike | null>(null);
@@ -36,8 +39,12 @@ export function useSettingsPage(isPremium: boolean): SettingsPageData {
     useCallback(() => {
       let live = true;
       fetchVehicles()
-        .then((r) => live && setCars(r.data))
-        .catch(() => {});
+        .then((r) => {
+          if (!live) return;
+          setCars(r.data);
+          setCarsFailed(false);
+        })
+        .catch(() => live && setCarsFailed(true));
       getDatabase()
         .then((db) => db.getAllAsync<{ name: string }>("SELECT name FROM saved_locations ORDER BY name"))
         .then((rows) => live && setPlaces(rows.map((r) => r.name)))
@@ -74,5 +81,5 @@ export function useSettingsPage(isPremium: boolean): SettingsPageData {
     }, [isPremium])
   );
 
-  return { cars, places, slots, plan, hiddenDoors, journeyEndLabel };
+  return { cars, carsFailed, places, slots, plan, hiddenDoors, journeyEndLabel };
 }

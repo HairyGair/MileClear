@@ -29,8 +29,10 @@ export interface Summary {
 }
 
 /** "Toyota Prius · Hybrid · car rate", or an Add prompt when there is no car. */
-export function carSummary(cars: CarLike[] | null, args: { companyCar?: boolean } = {}): Summary {
-  if (!cars) return { text: "Loading...", tone: "plain" };
+export function carSummary(cars: CarLike[] | null, args: { companyCar?: boolean; failed?: boolean } = {}): Summary {
+  if (!cars) {
+    return { text: args.failed ? "Couldn't load your cars. Tap to open them" : "Loading...", tone: "plain" };
+  }
   if (cars.length === 0) return { text: "Add your car", tone: "add" };
   const main = cars.find((c) => c.isPrimary) ?? cars[0];
   const rate = main.vehicleType === "motorbike" ? "motorbike rate" : "car rate";
