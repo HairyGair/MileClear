@@ -5,13 +5,19 @@ import type {
   ShiftScorecard,
   PeriodRecap,
 } from "@mileclear/shared";
+import { isRetiredAchievementType } from "@mileclear/shared";
 
 export function fetchGamificationStats() {
   return apiRequest<{ data: GamificationStats }>("/gamification/stats");
 }
 
 export function fetchAchievements() {
-  return apiRequest<{ data: AchievementWithMeta[] }>("/gamification/achievements");
+  // Retired duplicates ("trips_1", "shifts_1") are dropped here too, so an
+  // API that has not been updated yet still gives the same badge count.
+  return apiRequest<{ data: AchievementWithMeta[] }>("/gamification/achievements").then((r) => ({
+    ...r,
+    data: r.data.filter((a) => !isRetiredAchievementType(a.type)),
+  }));
 }
 
 export function fetchScorecard(shiftId?: string) {

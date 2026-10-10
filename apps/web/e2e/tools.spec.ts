@@ -4,8 +4,8 @@ import { callsTo, drivingState, hasHorizontalScroll, mockDriving, reading, VEHIC
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-// ACHIEVEMENT_TYPES in packages/shared has 39 entries (the shared package is ESM, so it is not imported here).
-const BADGE_COUNT = 39;
+// ACHIEVEMENT_TYPES in packages/shared has 37 entries (the shared package is ESM, so it is not imported here).
+const BADGE_COUNT = 37;
 
 const PLACE = (n: number) => ({
   id: `00000000-0000-4000-8000-00000000000${n}`,

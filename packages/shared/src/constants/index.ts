@@ -448,8 +448,10 @@ export const DRIVER_TYPES = [
 // Gamification — milestones & thresholds
 export const MILESTONE_MILES = [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000] as const;
 export const STREAK_THRESHOLDS = [3, 7, 14, 30, 60, 90, 365] as const;
-export const TRIP_COUNT_THRESHOLDS = [1, 10, 25, 50, 100, 250, 500, 1000] as const;
-export const SHIFT_COUNT_THRESHOLDS = [1, 10, 50, 100, 500] as const;
+// 1 is covered by the "first_trip" badge; "trips_1" is retired (see RETIRED_ACHIEVEMENT_TYPES).
+export const TRIP_COUNT_THRESHOLDS = [10, 25, 50, 100, 250, 500, 1000] as const;
+// 1 is covered by "first_shift"; "shifts_1" is retired.
+export const SHIFT_COUNT_THRESHOLDS = [10, 50, 100, 500] as const;
 export const EARNING_THRESHOLDS = [100, 500, 1000, 5000, 10000, 50000] as const; // in pounds
 
 // Achievement type identifiers
@@ -470,7 +472,6 @@ export const ACHIEVEMENT_TYPES = [
   "miles_50000",
   "miles_100000",
   // Trip count
-  "trips_1",
   "trips_10",
   "trips_25",
   "trips_50",
@@ -479,7 +480,6 @@ export const ACHIEVEMENT_TYPES = [
   "trips_500",
   "trips_1000",
   // Shift count
-  "shifts_1",
   "shifts_10",
   "shifts_50",
   "shifts_100",
@@ -502,6 +502,20 @@ export const ACHIEVEMENT_TYPES = [
 ] as const;
 
 export type AchievementType = (typeof ACHIEVEMENT_TYPES)[number];
+
+/**
+ * Badges that meant the same as another one and are no longer awarded or
+ * shown: "trips_1" (same as "first_trip") and "shifts_1" (same as
+ * "first_shift"). Drivers' existing rows stay in the database and in their
+ * data export, they are just hidden. Older app builds still list these in
+ * their own bundled list, so the API never sends them (see
+ * isRetiredAchievementType) and the apps drop them from what they receive.
+ */
+export const RETIRED_ACHIEVEMENT_TYPES: readonly string[] = ["trips_1", "shifts_1"];
+
+export function isRetiredAchievementType(type: string): boolean {
+  return RETIRED_ACHIEVEMENT_TYPES.includes(type);
+}
 
 // All achievements free as of 8 May 2026. Previously the higher-tier
 // mileage and earnings badges (miles_500+, earned_500+) were Pro,
@@ -534,7 +548,6 @@ export const ACHIEVEMENT_META: Record<
   miles_50000: { label: "Legend of the Road", description: "50,000 miles, twice around the world. Absolute legend", emoji: "👑" },
   miles_100000: { label: "Hundred Grand", description: "100,000 miles, that's four times around the world!", emoji: "💎" },
   // Trip count
-  trips_1: { label: "First Wheels", description: "Trip number one. Everyone starts somewhere!", emoji: "🚗" },
   trips_10: { label: "Getting Rolling", description: "10 trips logged, you're building a habit", emoji: "📍" },
   trips_25: { label: "Quarter Ton", description: "25 trips, a solid month's worth of driving", emoji: "📋" },
   trips_50: { label: "Regular", description: "50 trips, the app practically drives itself now", emoji: "📌" },
@@ -543,7 +556,6 @@ export const ACHIEVEMENT_META: Record<
   trips_500: { label: "Road Scholar", description: "500 trips, you could teach a masterclass in driving", emoji: "🎓" },
   trips_1000: { label: "Thousand Tripper", description: "1,000 trips, that's not a hobby, it's a lifestyle", emoji: "🏛️" },
   // Shift count
-  shifts_1: { label: "Punched In", description: "Shift one done. Welcome to the gig!", emoji: "⏰" },
   shifts_10: { label: "Shift Regular", description: "10 shifts, you've found your rhythm", emoji: "🔄" },
   shifts_50: { label: "Shift Veteran", description: "50 shifts, rain or shine, you show up", emoji: "🌧️" },
   shifts_100: { label: "Century Shift", description: "100 shifts, you could do this in your sleep (please don't)", emoji: "😴" },

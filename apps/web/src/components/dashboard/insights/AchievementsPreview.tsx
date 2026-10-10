@@ -1,5 +1,6 @@
 "use client";
 
+import { isRetiredAchievementType } from "@mileclear/shared";
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { Card, useData } from "../kit";
 import { getData } from "./data";
@@ -11,7 +12,7 @@ function AchievementsPreviewImpl(): React.ReactElement | null {
   const ach = useData<AchievementWithMeta[]>("achievements", () => getData("/gamification/achievements"));
   const stats = useData<GamificationStats>("gamification-stats", () => getData("/gamification/stats"));
 
-  const earned = (ach.data ?? []).slice().sort((a, b) => b.achievedAt.localeCompare(a.achievedAt)).slice(0, 6);
+  const earned = (ach.data ?? []).filter((a) => !isRetiredAchievementType(a.type)).slice().sort((a, b) => b.achievedAt.localeCompare(a.achievedAt)).slice(0, 6);
   const rec = stats.data?.personalRecords;
 
   return (

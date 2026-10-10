@@ -33,7 +33,7 @@ export const APP_STORE_RATING = "4.9";
 export const APP_STORE_RATING_COUNT = 48;
 
 /** Achievements in the app. Source: ACHIEVEMENT_TYPES in @mileclear/shared. */
-export const ACHIEVEMENT_COUNT = 39;
+export const ACHIEVEMENT_COUNT = 37;
 
 /** UK forecourts in the fuel price data. Source: services/fuelFinder.ts. */
 export const FUEL_STATIONS_DISPLAY = "8,300+";

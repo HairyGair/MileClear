@@ -13,6 +13,7 @@ import {
   type EarningsDayPattern,
   type CommuteTiming,
   type DrivingAnalytics,
+  RETIRED_ACHIEVEMENT_TYPES,
 } from "@mileclear/shared";
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -51,7 +52,7 @@ export async function getWeeklyReport(userId: string, weeksBack = 0): Promise<We
       where: { userId, status: "completed", startedAt: { gte: start, lte: end } },
     }),
     prisma.achievement.findMany({
-      where: { userId, achievedAt: { gte: start, lte: end } },
+      where: { userId, achievedAt: { gte: start, lte: end }, type: { notIn: [...RETIRED_ACHIEVEMENT_TYPES] } },
     }),
     // For streak — get all trip dates up to now
     prisma.trip.findMany({

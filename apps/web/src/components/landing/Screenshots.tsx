@@ -38,7 +38,7 @@ const shots: Shot[] = [
   },
   {
     file: "08-free.png",
-    caption: "39 achievements",
+    caption: "37 achievements",
     sub: "Free, along with streaks and weekly recaps",
   },
 ];

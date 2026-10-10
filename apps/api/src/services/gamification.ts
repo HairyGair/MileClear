@@ -10,6 +10,7 @@ import {
   formatPence,
   formatMiles,
   ACHIEVEMENT_META,
+  RETIRED_ACHIEVEMENT_TYPES,
   MILESTONE_MILES,
   STREAK_THRESHOLDS,
   TRIP_COUNT_THRESHOLDS,
@@ -421,7 +422,8 @@ export async function getAchievements(
   userId: string
 ): Promise<AchievementWithMeta[]> {
   const achievements = await prisma.achievement.findMany({
-    where: { userId },
+    // Retired duplicates stay in the table but are never listed.
+    where: { userId, type: { notIn: [...RETIRED_ACHIEVEMENT_TYPES] } },
     orderBy: { achievedAt: "desc" },
   });
 
