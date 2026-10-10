@@ -75,8 +75,8 @@ export async function load(opts: { fresh?: boolean }) {
   lastFetchAt = Date.now();
   if (!state.data) set({ loading: true });
   const mine = session;
-  let run!: Promise<void>;
-  run = (async () => {
+  const self: { run?: Promise<void> } = {};
+  const run = (async () => {
     try {
       const res = await fetchTaxOverview({ fresh: opts.fresh });
       if (mine !== session) return;
@@ -86,9 +86,10 @@ export async function load(opts: { fresh?: boolean }) {
     } catch {
       if (mine === session) set({ loading: false, error: true });
     } finally {
-      if (inflight === run) inflight = null;
+      if (inflight === self.run) inflight = null;
     }
   })();
+  self.run = run;
   inflight = run;
   return run;
 }
