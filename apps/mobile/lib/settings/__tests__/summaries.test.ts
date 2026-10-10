@@ -71,9 +71,9 @@ describe("workHoursSummary", () => {
 describe("homeScreenSummary", () => {
   it("names what shows", () => {
     expect(homeScreenSummary([{ label: "Tax", shown: true }, { label: "Insights", shown: true }, { label: "Earnings", shown: false }])).toBe(
-      "Showing Tax, Insights"
+      "On: Tax, Insights"
     );
-    expect(homeScreenSummary([{ label: "Tax", shown: false }])).toBe("No shortcuts showing");
+    expect(homeScreenSummary([{ label: "Tax", shown: false }])).toBe("All shortcuts off");
   });
 });
 

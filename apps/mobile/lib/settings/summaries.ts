@@ -88,8 +88,10 @@ export function workHoursSummary(slots: SlotLike[] | null): string {
 export function homeScreenSummary(labels: { label: string; shown: boolean }[]): string {
   const showing = labels.filter((l) => l.shown).map((l) => l.label);
   if (labels.length === 0) return "Choose which shortcuts show on Home";
-  if (showing.length === 0) return "No shortcuts showing";
-  return `Showing ${showing.join(", ")}`;
+  if (showing.length === 0) return "All shortcuts off";
+  // "On", not "Showing": Home shows at most three at once, and only the ones
+  // with something to say, so "Showing" five read wrong next to Home.
+  return `On: ${showing.join(", ")}`;
 }
 
 // ── Your plan ────────────────────────────────────────────────────────
