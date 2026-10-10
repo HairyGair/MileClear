@@ -24,6 +24,7 @@ import { useFocusEffect, Stack } from "expo-router";
 import { fetchShifts, fetchActiveShift, ShiftWithVehicle } from "../lib/api/shifts";
 import { formatMiles } from "@mileclear/shared";
 import { EmptyState } from "../components/EmptyState";
+import { WorkCalendarCard } from "../components/work/WorkCalendarCard";
 import { colors, fonts, spacing, radii } from "../lib/theme";
 
 // GET /shifts enriches each row with tripCount and tripMiles (a Prisma
@@ -353,6 +354,9 @@ export default function ShiftsScreen() {
                 <Text style={styles.summaryText}>{summaryText}</Text>
               </View>
             )}
+            {/* The Working calendar moved here from Home (Oct 2026): trips and
+                earnings by day for the month, with previous and next. */}
+            {!loading && <WorkCalendarCard />}
           </>
         }
         ListEmptyComponent={

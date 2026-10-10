@@ -713,6 +713,7 @@ function RootNavigator() {
         <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Vehicles" }} />
         <Stack.Screen name="odometer-log" options={{ headerShown: true, title: "Odometer log" }} />
         <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
+        <Stack.Screen name="journey-map" options={{ headerShown: true, title: "Journey map" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add earnings" }} />
@@ -791,6 +792,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
         <Stack.Screen name="settings/security" options={{ headerShown: true, title: "Security" }} />
         <Stack.Screen name="settings/business" options={{ headerShown: true, title: "Business Profile" }} />
+        <Stack.Screen name="settings/home" options={{ headerShown: true, title: "Home screen" }} />
       </Stack>
       <QuickStartModal
         visible={quickStartVisible}

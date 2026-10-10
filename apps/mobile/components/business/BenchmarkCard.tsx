@@ -128,7 +128,12 @@ function BenchmarkRow({ label, cmp }: BenchmarkRowProps) {
   );
 }
 
-export function BenchmarkCard() {
+/**
+ * `hideMilesRow`: Insights already shows weekly miles against nearby drivers
+ * in "Drivers near you", so the moved card leaves its own miles row out
+ * rather than show the same fact twice.
+ */
+export function BenchmarkCard({ hideMilesRow = false }: { hideMilesRow?: boolean } = {}) {
   const [data, setData] = useState<BenchmarkSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPlatforms, setShowPlatforms] = useState(false);
@@ -190,7 +195,7 @@ export function BenchmarkCard() {
         </View>
       </View>
 
-      <BenchmarkRow label="Weekly business miles" cmp={data.national.weeklyMiles} />
+      {!hideMilesRow && <BenchmarkRow label="Weekly business miles" cmp={data.national.weeklyMiles} />}
       <BenchmarkRow label="Weekly trips" cmp={data.national.weeklyTrips} />
 
       {data.platforms.length > 0 && (

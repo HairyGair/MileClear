@@ -19,6 +19,8 @@ import { ComingUpCard } from "../../components/insights/ComingUpCard";
 import { PeriodSummaryCard } from "../../components/insights/PeriodSummaryCard";
 import { PeriodSwitch } from "../../components/insights/PeriodSwitch";
 import { RecordsCard } from "../../components/insights/RecordsCard";
+import MostVisitedCard from "../../components/insights/MostVisitedCard";
+import { CommunityMonthCard } from "../../components/community/CommunityMonthCard";
 import { PersonalSection, WorkSection } from "../../components/insights/WorkSection";
 import {
   useInsightsProfile,
@@ -37,6 +39,7 @@ import { getPeriodRange, isInsightsPeriod, PERIOD_KEY, type InsightsPeriod } fro
 import { insightsCache } from "../../lib/insights/requestCache";
 import { dateParam } from "../../lib/insights/api";
 import { costWindow } from "../../lib/insights/costWindow";
+import { isGigWorkType, showHowYouCompare, showWeeklyEarningsGoal } from "../../lib/insights/movedCards";
 import { insightsVisibility, tripsToSort } from "../../lib/insights/visibility";
 import { getMilestoneRoadOrStart } from "../../lib/insights/milestones";
 import { parseGoalInput } from "../../lib/insights/goal";
@@ -318,6 +321,20 @@ export default function InsightsScreen() {
                   showGoDeeper={vis.showGoDeeper}
                   comingUp={comingUp}
                   recordsAndBadges={recordsAndBadges}
+                  showHowYouCompare={showHowYouCompare({
+                    isWork,
+                    isCompanyDriver,
+                    enoughTrips: vis.showDriversNearYou,
+                    deductionPence: stats?.deductionPence,
+                  })}
+                  showEarningsGoal={showWeeklyEarningsGoal({
+                    isWork,
+                    isGig: isGigWorkType(user?.workType),
+                    isCompanyDriver,
+                    period,
+                    offset,
+                    enoughTrips: vis.showDriversNearYou,
+                  })}
                 />
               ) : (
                 <PersonalSection
@@ -352,8 +369,14 @@ export default function InsightsScreen() {
                     </>
                   }
                   recordsAndBadges={recordsAndBadges}
+                  mostVisited={vis.showDriversNearYou ? <MostVisitedCard places={stats?.drivingPatterns?.topPlaces} /> : null}
                 />
               )}
+
+              {/* "This month in MileClear" (moved from Home): last month's
+                  community totals, only on the 1st to 10th, and it hides
+                  itself otherwise. Last on the screen, for either mode. */}
+              {!vis.onlyEmptyState && <CommunityMonthCard />}
             </>
           )}
           <View style={{ height: 40 }} />

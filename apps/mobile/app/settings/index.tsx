@@ -64,9 +64,15 @@ export default function SettingsHub() {
 
       <SettingsGroup>
         <SettingsRow
+          icon="home-outline"
+          label="Home screen"
+          hint="Choose which shortcuts show on Home"
+          onPress={go("/settings/home")}
+        />
+        <SettingsRow
           icon="apps-outline"
           label="What you see"
-          hint="Hide dashboard cards you don't use"
+          hint="Hide Profile cards you don't use"
           onPress={go("/settings/visibility")}
         />
         <SettingsRow

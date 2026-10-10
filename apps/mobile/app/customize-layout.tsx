@@ -26,11 +26,9 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const RED = colors.red;
 
-const SCREENS: ScreenKey[] = [
-  "dashboard_work",
-  "dashboard_personal",
-  "profile",
-];
+// Home is no longer customised card by card (Oct 2026 redesign): its
+// shortcuts are switched in Settings > Home screen. Only Profile is left.
+const SCREENS: ScreenKey[] = ["profile"];
 
 const TAB_LABELS: Record<ScreenKey, string> = {
   dashboard_work: "Work",
@@ -44,7 +42,7 @@ const TAB_LABELS: Record<ScreenKey, string> = {
 export default function CustomizeLayoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<ScreenKey>("dashboard_work");
+  const [activeTab, setActiveTab] = useState<ScreenKey>("profile");
 
   const handleResetAll = useCallback(() => {
     Alert.alert(
@@ -58,8 +56,8 @@ export default function CustomizeLayoutScreen() {
           onPress: async () => {
             await resetAllLayouts();
             // Force reload by switching tabs
-            setActiveTab("dashboard_personal");
-            setTimeout(() => setActiveTab("dashboard_work"), 50);
+            setActiveTab("avatar_menu");
+            setTimeout(() => setActiveTab("profile"), 50);
             Alert.alert("Done", "All layouts have been reset to default.");
           },
         },
@@ -84,8 +82,8 @@ export default function CustomizeLayoutScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      {/* Tab bar */}
-      <View style={styles.tabBar}>
+      {/* Tab bar (only worth showing with more than one screen to pick) */}
+      {SCREENS.length > 1 && <View style={styles.tabBar}>
         {SCREENS.map((screen) => (
           <TouchableOpacity
             key={screen}
@@ -106,7 +104,7 @@ export default function CustomizeLayoutScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </View>}
 
       {/* Section list */}
       <SectionList key={activeTab} screen={activeTab} />

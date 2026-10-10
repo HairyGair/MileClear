@@ -28,11 +28,12 @@ import {
 import { PayPerMileCard, WeeklyMoneyCard, useWorkMoney } from "./MoneyCards";
 import { hasPayRates, hasWeekMoney, payHeadline, weekMoneyHeadline, weeksBackFor } from "../../lib/insights/money";
 import { formatPence } from "@mileclear/shared";
+import { CommunityInsightsCard } from "../community/CommunityInsightsCard";
 import { fuelPerMile } from "../../lib/insights/fuelPerMile";
 import { CardSkeleton, CardError, type InsightCardProps } from "./work/InsightCardUi";
 import { colors, fonts, fontScaleCap, radii, shared, spacing } from "../../lib/theme";
 
-type RowKey = "routes" | "commute" | "fuel" | "shift" | "days" | "pay" | "week";
+type RowKey = "routes" | "commute" | "fuel" | "shift" | "days" | "pay" | "week" | "community";
 
 interface DeepRow {
   key: RowKey;
@@ -66,8 +67,8 @@ export default function GoDeeper({ period, offset, mode, isPro, refreshToken }: 
         accessibilityRole="button"
         accessibilityLabel={`Go deeper, Pro. ${
           isWork && isGig
-            ? "Your regular routes, commute times, fuel costs and best earning days."
-            : "Your regular routes, commute times and fuel costs."
+            ? "Your regular routes, commute times, fuel costs, best earning days and what other drivers nearby are seeing."
+            : "Your regular routes, commute times, fuel costs and what other drivers nearby are seeing."
         }`}
       >
         <View style={styles.teaserText}>
@@ -83,8 +84,8 @@ export default function GoDeeper({ period, offset, mode, isPro, refreshToken }: 
           </View>
           <Text style={styles.teaserBody} maxFontSizeMultiplier={fontScaleCap.body}>
             {isWork && isGig
-              ? "Your regular routes, commute times, fuel costs and best earning days."
-              : "Your regular routes, commute times and fuel costs."}
+              ? "Your regular routes, commute times, fuel costs, best earning days and what other drivers nearby are seeing."
+              : "Your regular routes, commute times, fuel costs and what other drivers nearby are seeing."}
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.text2} accessible={false} />
@@ -115,8 +116,19 @@ export default function GoDeeper({ period, offset, mode, isPro, refreshToken }: 
       card: <WeeklyMoneyCard pnl={money.pnl} />,
     });
   }
+  // Community insights moved here from Home (Oct 2026). Pro, as before; the
+  // card only loads once the row is opened, and says so if there is nothing
+  // near the driver yet.
+  const communityRow: DeepRow = {
+    key: "community",
+    icon: "people-outline",
+    title: "Community insights",
+    headline: isWork ? "Pay, busy times and road problems near you" : "Busy times and road problems near you",
+    card: <CommunityInsightsCard isWork={isWork} emptyText="Nothing to show near you yet. It fills in as more drivers join." />,
+  };
   if (!analytics) {
-    return rows.length > 0 ? renderRows(rows, open, setOpen) : null;
+    rows.push(communityRow);
+    return renderRows(rows, open, setOpen);
   }
   if (analytics.frequentRoutes.length > 0) {
     rows.push({
@@ -172,7 +184,7 @@ export default function GoDeeper({ period, offset, mode, isPro, refreshToken }: 
     });
   }
 
-  if (rows.length === 0) return null;
+  rows.push(communityRow);
   return renderRows(rows, open, setOpen);
 }
 

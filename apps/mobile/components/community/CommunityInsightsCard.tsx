@@ -111,9 +111,11 @@ function timeAgo(iso: string): string {
 
 interface CommunityInsightsCardProps {
   isWork?: boolean;
+  /** When set, a card with nothing to show prints this line instead of nothing (used inside an expanded row). */
+  emptyText?: string;
 }
 
-export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardProps) {
+export function CommunityInsightsCard({ isWork = true, emptyText }: CommunityInsightsCardProps) {
   const [data, setData] = useState<CommunityInsights | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -155,12 +157,18 @@ export function CommunityInsightsCard({ isWork = true }: CommunityInsightsCardPr
     );
   }
 
-  if (!data) return null;
+  const empty = emptyText ? (
+    <View style={styles.card}>
+      <Text style={{ fontSize: 14, fontFamily: fonts.regular, color: colors.text2 }}>{emptyText}</Text>
+    </View>
+  ) : null;
+
+  if (!data) return empty;
 
   const { stats, areaEarnings, peakHours, nearbyAnomalies, bestPlatformNearby, bestTimeNearby, fuelTipNearby } = data;
 
   // Hide the card entirely when there's not enough community data to be meaningful
-  if (stats.totalDrivers < 20 && stats.driversNearby < 3) return null;
+  if (stats.totalDrivers < 20 && stats.driversNearby < 3) return empty;
 
   // Build headline insights
   const headlines: { icon: string; text: string; color: string }[] = [];

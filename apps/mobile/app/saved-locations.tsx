@@ -302,7 +302,22 @@ export default function SavedLocationsScreen() {
                 </Text>
               </TouchableOpacity>
             ) : (
-              <Button title="Add Location" icon="add" onPress={handleAdd} />
+              <>
+                <Button title="Add Location" icon="add" onPress={handleAdd} />
+                {/* "Save spot" left Home (Oct 2026): pin the place you are
+                    parked at without typing a postcode. */}
+                <TouchableOpacity
+                  style={styles.oftenRow}
+                  onPress={() => router.push({ pathname: "/saved-location-form", params: { useCurrent: "1" } })}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save where I am now as a place"
+                >
+                  <Ionicons name="locate-outline" size={16} color={AMBER} accessible={false} />
+                  <Text style={styles.oftenRowText}>Save where I am now</Text>
+                  <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+                </TouchableOpacity>
+              </>
             )}
             {
             // The "places you visit often" CTA used to live inside

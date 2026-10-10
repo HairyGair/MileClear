@@ -116,6 +116,9 @@ export default function MoreScreen() {
           {assistantAvailable === true && (
             <SettingsRow icon="chatbubbles-outline" label="EmSee" hint="Ask about MileClear" badge={proBadge} onPress={go("/assistant")} />
           )}
+          {isWork && !isCompanyDriver && (user?.workType === "employee" || user?.workType === "both") && (
+            <SettingsRow icon="people-outline" label="Invite your manager" hint="If your employer pays your mileage" onPress={go("/nominate-manager")} />
+          )}
           <SettingsRow icon="calendar-outline" label="Work schedule" hint="Your working days and hours" onPress={go("/work-schedule")} />
         </SettingsGroup>
 

@@ -1633,6 +1633,17 @@ export default function TripsScreen() {
         title="Trips"
         addRoute="/trip-form"
         right={
+          <>
+          {/* The Recent Journeys map left Home (Oct 2026); this is its entry point. */}
+          <TouchableOpacity
+            style={styles.filtersButton}
+            onPress={() => router.push("/journey-map" as never)}
+            hitSlop={4}
+            accessibilityRole="button"
+            accessibilityLabel="Journey map. Opens a map of your recent routes."
+          >
+            <Ionicons name="map-outline" size={16} color={TEXT_2} accessible={false} />
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.filtersButton, activeFilterCount > 0 && styles.filtersButtonActive]}
             onPress={() => setShowFiltersSheet(true)}
@@ -1656,6 +1667,7 @@ export default function TripsScreen() {
               </View>
             )}
           </TouchableOpacity>
+          </>
         }
       />
       <FlatList
