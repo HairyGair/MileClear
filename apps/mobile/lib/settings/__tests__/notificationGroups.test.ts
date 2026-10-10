@@ -47,4 +47,13 @@ describe("notification groups", () => {
     expect(countNotifications(allOn, true)).toEqual({ on: 15, total: 15 });
     expect(countNotifications(allOn, false)).toEqual({ on: 10, total: 10 });
   });
+
+  it("hides Tax deadlines (and its empty group) for a company-car driver only", () => {
+    const keys = (o?: { companyCar?: boolean }) =>
+      visibleNotificationGroups(true, o).flatMap((g) => g.items.map((i) => i.key));
+    expect(keys({ companyCar: true })).not.toContain("taxDeadline");
+    expect(visibleNotificationGroups(true, { companyCar: true }).map((g) => g.title)).not.toContain("Tax and money");
+    expect(keys({ companyCar: false })).toContain("taxDeadline");
+    expect(keys()).toContain("taxDeadline");
+  });
 });
