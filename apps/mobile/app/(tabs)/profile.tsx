@@ -37,7 +37,7 @@ import {
 import { validateGooglePurchase } from "../../lib/api/billingGoogle";
 import { billingCopyFor, billingChannelFor } from "../../lib/paywall/lead";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
-import { useLayoutPrefs, resetHomeLayouts } from "../../lib/layout/index";
+import { useLayoutPrefs } from "../../lib/layout/index";
 import { usePaywall } from "../../components/paywall";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
 import AppHeader from "../../components/AppHeader";
@@ -286,23 +286,6 @@ export default function ProfileScreen() {
     }
   }, [deletePassword, logout]);
 
-  const handleResetLayout = useCallback(() => {
-    Alert.alert(
-      "Reset your home screen?",
-      "Your cards go back to their original order and any you hid come back. Your trips and settings are not touched.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            await resetHomeLayouts();
-            Alert.alert("Home screen reset");
-          },
-        },
-      ]
-    );
-  }, []);
 
   // ── Render ───────────────────────────────────────────────────────
   return (
@@ -647,22 +630,6 @@ export default function ProfileScreen() {
         <View style={styles.group}>
           <Text style={styles.groupLabel} accessibilityRole="header">ACCOUNT</Text>
           <View style={styles.groupCard}>
-            <TouchableOpacity
-              style={[styles.accountItem, styles.itemBorder]}
-              onPress={handleResetLayout}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Reset home screen"
-              accessibilityHint="Put your home screen cards back how they started"
-            >
-              <View style={styles.iconCircle}>
-                <Ionicons name="refresh-outline" size={18} color={colors.text2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemLabel}>Reset home screen</Text>
-                <Text style={styles.itemHint}>Put your home screen cards back how they started</Text>
-              </View>
-            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.accountItem, styles.itemBorder]}
               onPress={handleLogout}
