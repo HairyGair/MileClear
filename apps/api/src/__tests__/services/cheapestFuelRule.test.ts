@@ -19,6 +19,7 @@ import {
   pickStartPoint,
   selectCheapestFuel,
   shortStationName,
+  tripFuelTip,
 } from "../../services/cheapestFuelRule.js";
 import { pushPrefOptedIn, pushPrefEnabled } from "../../services/pushPrefs.js";
 
@@ -308,5 +309,35 @@ describe("opt-in prefs", () => {
     expect(pushPrefOptedIn({ evWeeklySummary: true }, "cheapestFuelDaily")).toBe(false);
     // the opt-out keys keep their old meaning
     expect(pushPrefEnabled({}, "fuelAlert")).toBe(true);
+  });
+});
+
+describe("tripFuelTip: the Cheapest fuel nudge after a trip", () => {
+  const stations = [
+    { brand: "Tesco", stationName: "Tesco Extra", prices: { E10: 132.9, E5: 145.9, B7: 141.9 } },
+    { brand: "Shell", stationName: "Shell Selly Oak", prices: { E10: 136.9, B7: 138.9 } },
+    { brand: "", stationName: "Village Garage", prices: { E10: 131.9 } },
+  ];
+
+  it("tells a diesel driver the cheapest diesel, not the cheaper petrol", () => {
+    expect(tripFuelTip(stations, fuelPathForVehicle("diesel"))).toBe("Shell: 138.9p/L diesel");
+  });
+
+  it("tells a petrol driver the cheapest regular unleaded (E10), naming the station when there is no brand", () => {
+    expect(tripFuelTip(stations, fuelPathForVehicle("petrol"))).toBe("Village Garage: 131.9p/L petrol");
+  });
+
+  it("treats a hybrid as petrol", () => {
+    expect(tripFuelTip(stations, fuelPathForVehicle("hybrid"))).toBe("Village Garage: 131.9p/L petrol");
+  });
+
+  it("says nothing for electric, an unknown fuel or no vehicle", () => {
+    expect(tripFuelTip(stations, fuelPathForVehicle("electric"))).toBeNull();
+    expect(tripFuelTip(stations, fuelPathForVehicle("lpg"))).toBeNull();
+    expect(tripFuelTip(stations, null)).toBeNull();
+  });
+
+  it("says nothing when no nearby station prices that fuel", () => {
+    expect(tripFuelTip([{ brand: "Jet", stationName: "Jet", prices: { E10: 130.9 } }], fuelPathForVehicle("diesel"))).toBeNull();
   });
 });

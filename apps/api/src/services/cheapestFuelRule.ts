@@ -279,6 +279,26 @@ export function cheapestFuelLine(label: "petrol" | "diesel", sel: FuelSelection)
   return `${head}, about the same as the local average.`;
 }
 
+/**
+ * The "Cheapest fuel" nudge after a trip (10 Oct 2026): the driver's own fuel
+ * only. It used to take any station's E5 or B7, so petrol always won and a
+ * diesel driver was told about unleaded. Null for electric, an unknown fuel
+ * type or no vehicle, and when no nearby station prices that fuel.
+ */
+export function tripFuelTip(
+  stations: Pick<FuelStation, "brand" | "stationName" | "prices">[],
+  path: FuelPath | null
+): string | null {
+  if (!path || path.path !== "fuel") return null;
+  let best: { name: string; price: number } | null = null;
+  for (const s of stations) {
+    const price = s.prices[path.key];
+    if (price == null || !(price > 0)) continue;
+    if (!best || price < best.price) best = { name: s.brand || s.stationName, price };
+  }
+  return best ? `${best.name}: ${best.price.toFixed(1)}p/L ${path.label}` : null;
+}
+
 export interface PushCopy {
   title: string;
   body: string;

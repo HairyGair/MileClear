@@ -3,6 +3,13 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getCommunityInsights, getLastKnownGlobalStats } from "../../services/communityInsights.js";
 import { getNearbyStations } from "../../services/fuel.js";
+import {
+  BASE_RADIUS_MILES,
+  fuelPathForVehicle,
+  pickPrimaryVehicle,
+  tripFuelTip,
+} from "../../services/cheapestFuelRule.js";
+import { prisma } from "../../lib/prisma.js";
 
 const querySchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
@@ -57,31 +64,31 @@ const inflight = new Map<string, Promise<unknown>>();
 
 async function computePayload(lat: number, lng: number, userId: string): Promise<unknown> {
   const insights = await getCommunityInsights(lat, lng, userId);
+  return { data: insights };
+}
 
-  // Enrich with nearby fuel tip (cheapest unleaded or diesel within 5 miles)
+// The fuel tip depends on the driver's vehicle, so it is added per request on
+// top of the shared grid payload rather than cached with it. Station prices
+// are already cached in memory by the fuel service.
+async function withFuelTip(payload: unknown, lat: number, lng: number, userId: string): Promise<unknown> {
+  const p = payload as { data?: Record<string, unknown> } | null;
+  if (!p?.data) return payload;
+  let fuelTipNearby: string | null = null;
   try {
-    const { stations } = await getNearbyStations(lat, lng, 5);
-    let cheapest: (typeof stations)[0] | null = null;
-    let cheapestPrice = Infinity;
-    for (const s of stations) {
-      const price = s.prices.E5 ?? s.prices.B7 ?? null;
-      if (price != null && price < cheapestPrice) {
-        cheapestPrice = price;
-        cheapest = s;
-      }
-    }
-    if (cheapest) {
-      const price = cheapest.prices.E5 ?? cheapest.prices.B7;
-      const fuelType = cheapest.prices.E5 ? "unleaded" : "diesel";
-      if (price != null) {
-        insights.fuelTipNearby = `${cheapest.brand ?? cheapest.stationName}: ${price.toFixed(1)}p/L ${fuelType}`;
-      }
+    const vehicles = await prisma.vehicle.findMany({
+      where: { userId },
+      select: { fuelType: true, isPrimary: true, createdAt: true },
+    });
+    const v = pickPrimaryVehicle(vehicles);
+    const path = v ? fuelPathForVehicle(v.fuelType) : null;
+    if (path?.path === "fuel") {
+      const { stations } = await getNearbyStations(lat, lng, BASE_RADIUS_MILES);
+      fuelTipNearby = tripFuelTip(stations, path);
     }
   } catch {
     // Fuel data optional
   }
-
-  return { data: insights };
+  return { ...p, data: { ...p.data, fuelTipNearby } };
 }
 
 function refresh(key: string, lat: number, lng: number, userId: string): Promise<unknown> {
@@ -146,7 +153,7 @@ export async function communityInsightRoutes(app: FastifyInstance) {
 
     // Fresh — serve immediately.
     if (entry && age < FRESH_MS) {
-      return reply.send(entry.payload);
+      return reply.send(await withFuelTip(entry.payload, lat, lng, userId));
     }
 
     // Any cached payload (however old) — serve instantly and refresh in the
@@ -157,7 +164,7 @@ export async function communityInsightRoutes(app: FastifyInstance) {
       refresh(key, lat, lng, userId).catch((err) =>
         request.log.error(err, "community insights background refresh failed")
       );
-      return reply.send(entry.payload);
+      return reply.send(await withFuelTip(entry.payload, lat, lng, userId));
     }
 
     // Truly cold (never computed in this process). Kick off the compute but
@@ -187,8 +194,8 @@ export async function communityInsightRoutes(app: FastifyInstance) {
     // Timed out or errored — return a valid minimal payload; the background
     // compute (still tracked in `inflight`) will warm the cache for next time.
     if (result === DEGRADED) {
-      return reply.send(coldFallbackPayload());
+      return reply.send(await withFuelTip(coldFallbackPayload(), lat, lng, userId));
     }
-    return reply.send(result);
+    return reply.send(await withFuelTip(result, lat, lng, userId));
   });
 }
