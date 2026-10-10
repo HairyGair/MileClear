@@ -1,6 +1,6 @@
 import { Children, ReactNode, isValidElement, cloneElement } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 
 /**
  * Card-like wrapper for a list of settings rows. Optional uppercase
@@ -18,7 +18,7 @@ export function SettingsGroup({
   const childArray = Children.toArray(children).filter(Boolean);
   return (
     <View style={styles.group}>
-      {title && <Text style={styles.title} accessibilityRole="header">{title}</Text>}
+      {title && <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>{title}</Text>}
       <View style={styles.card}>
         {childArray.map((child, idx) => {
           if (!isValidElement(child)) return child;

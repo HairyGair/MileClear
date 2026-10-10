@@ -1,6 +1,6 @@
 import { View, Text, Switch, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 
 /**
  * Settings row with a Switch on the right. Used for booleans where the
@@ -30,8 +30,8 @@ export function ToggleRow({
         <Ionicons name={icon} size={18} color={colors.amber} accessible={false} />
       </View>
       <View style={styles.body}>
-        <Text style={styles.label}>{label}</Text>
-        {hint && <Text style={styles.hint}>{hint}</Text>}
+        <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.body}>{label}</Text>
+        {hint && <Text style={styles.hint} maxFontSizeMultiplier={fontScaleCap.body}>{hint}</Text>}
       </View>
       <Switch
         value={value}

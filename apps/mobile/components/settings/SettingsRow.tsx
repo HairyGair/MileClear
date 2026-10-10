@@ -1,6 +1,6 @@
 import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { ContextualHelp } from "../ContextualHelp";
 
 /**
@@ -59,13 +59,13 @@ export function SettingsRow({
       </View>
       <View style={styles.body}>
         <View style={styles.labelRow}>
-          <Text style={[styles.label, { color: labelColor }]}>{label}</Text>
+          <Text style={[styles.label, { color: labelColor }]} maxFontSizeMultiplier={fontScaleCap.body}>{label}</Text>
           {helpTopicId ? (
             <ContextualHelp topicId={helpTopicId} size={14} color={colors.text3} />
           ) : null}
         </View>
         {hint && (
-          <Text style={[styles.hint, hintTone === "bad" && { color: colors.red }]}>{hint}</Text>
+          <Text style={[styles.hint, hintTone === "bad" && { color: colors.red }]} maxFontSizeMultiplier={fontScaleCap.body}>{hint}</Text>
         )}
       </View>
       {badge && (
@@ -75,7 +75,7 @@ export function SettingsRow({
             badgeColor ? { backgroundColor: badgeColor } : null,
           ]}
         >
-          <Text style={styles.badgeText}>{badge}</Text>
+          <Text style={styles.badgeText} maxFontSizeMultiplier={fontScaleCap.body}>{badge}</Text>
         </View>
       )}
       <Ionicons name="chevron-forward" size={16} color={colors.text3} accessible={false} />
