@@ -715,7 +715,7 @@ function RootNavigator() {
         <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
         <Stack.Screen name="journey-map" options={{ headerShown: true, title: "Journey map" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
-        <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work Schedule" }} />
+        <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work hours" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add earnings" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Nearby Chargers" }} />
@@ -738,19 +738,18 @@ function RootNavigator() {
         <Stack.Screen name="report-problem" options={{ headerShown: true, title: "Report a problem" }} />
         <Stack.Screen name="support-thread" options={{ headerShown: true, title: "Conversation" }} />
         <Stack.Screen name="admin-feedback" options={{ headerShown: true, title: "Manage Feedback" }} />
-        <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Sync Status" }} />
-        <Stack.Screen name="drive-detection-diagnostics" options={{ headerShown: true, title: "Drive Detection" }} />
+        <Stack.Screen name="sync-status" options={{ headerShown: true, title: "Uploads" }} />
+        <Stack.Screen name="drive-detection-diagnostics" options={{ headerShown: true, title: "Check recording" }} />
         <Stack.Screen name="saved-locations" options={{ headerShown: true, title: "Saved places" }} />
         <Stack.Screen name="saved-location-form" options={{ headerShown: true, title: "Add Location" }} />
         <Stack.Screen name="saved-locations-suggest" options={{ headerShown: true, title: "Suggested Places" }} />
         <Stack.Screen name="analytics" options={{ headerShown: false }} />
-        <Stack.Screen name="classification-rules" options={{ headerShown: true, title: "Classification Rules" }} />
+        <Stack.Screen name="classification-rules" options={{ headerShown: true, title: "Sort trips automatically" }} />
         <Stack.Screen name="admin-revenue" options={{ headerShown: true, title: "Revenue" }} />
         <Stack.Screen name="admin-engagement" options={{ headerShown: true, title: "Engagement" }} />
         <Stack.Screen name="admin-auto-trips" options={{ headerShown: true, title: "Auto-trip Health" }} />
         <Stack.Screen name="admin-push" options={{ headerShown: true, title: "Push Notifications" }} />
         <Stack.Screen name="admin-email" options={{ headerShown: true, title: "Email Campaigns" }} />
-        <Stack.Screen name="customize-layout" options={{ headerShown: false }} />
         <Stack.Screen name="self-assessment" options={{ headerShown: true, title: "Box by box" }} />
         <Stack.Screen name="first-tax-return" options={{ headerShown: true, title: "Your first Self Assessment" }} />
         <Stack.Screen name="sa-checklist" options={{ headerShown: true, title: "Your return" }} />
@@ -782,14 +781,12 @@ function RootNavigator() {
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
         <Stack.Screen name="settings/general" options={{ headerShown: true, title: "General" }} />
-        <Stack.Screen name="settings/tracking" options={{ headerShown: true, title: "Tracking & Locations" }} />
+        <Stack.Screen name="settings/tracking" options={{ headerShown: true, title: "Recording" }} />
         <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Your tax details" }} />
         <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
-        <Stack.Screen name="settings/visibility" options={{ headerShown: true, title: "What you see" }} />
-        <Stack.Screen name="settings/data-exports" options={{ headerShown: true, title: "Data & Exports" }} />
+        <Stack.Screen name="settings/data-exports" options={{ headerShown: true, title: "Downloads and your data" }} />
         <Stack.Screen name="settings/community" options={{ headerShown: true, title: "Community" }} />
-        <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help & Feedback" }} />
-        <Stack.Screen name="settings/legal" options={{ headerShown: true, title: "Legal" }} />
+        <Stack.Screen name="settings/help" options={{ headerShown: true, title: "Help, feedback and legal" }} />
         <Stack.Screen name="settings/security" options={{ headerShown: true, title: "Security" }} />
         <Stack.Screen name="settings/business" options={{ headerShown: true, title: "Business Profile" }} />
         <Stack.Screen name="settings/home" options={{ headerShown: true, title: "Home screen" }} />

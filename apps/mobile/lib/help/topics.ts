@@ -50,7 +50,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         id: "modes",
         q: "Work mode vs Personal mode?",
         a: "Top of the dashboard - switch between Work and Personal whenever your day changes. Work mode shows your mileage claim, business insights and tax tools. Personal mode shows journey timeline, milestones, and fuel costs.\n\nIf you do both, set your dashboard mode to \"Both\" in Settings to see everything at once.",
-        goTo: "/settings/general",
+        goTo: "/settings/work-tax",
       },
       {
         id: "first-trip",
@@ -229,7 +229,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         id: "auto-classify-rules",
         q: "How do auto-classify rules work? (Pro)",
         a: "Settings → Auto-classify. Three triggers:\n\n• Time of day - e.g. trips between 06:00 and 18:00 on weekdays = Work\n• Saved-location pair - trips between Home and Depot = Work\n• Work Schedule - link to your Work Schedule (Profile → Schedule) so Monday-Friday 9-5 trips classify Work, Saturday classifies Personal\n\nRules run in priority order. After a rule matches, the trip auto-saves with the classification - no Lock Screen prompt needed. You can always override an auto-classified trip later.\n\nPro feature. Free users still get the per-A-to-B learning ('three Works = suggest Work').",
-        goTo: "/settings/auto-classify",
+        goTo: "/classification-rules",
       },
     ],
   },
