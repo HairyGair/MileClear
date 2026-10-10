@@ -39,6 +39,7 @@ import { getPeriodRange, isInsightsPeriod, PERIOD_KEY, type InsightsPeriod } fro
 import { insightsCache } from "../../lib/insights/requestCache";
 import { dateParam } from "../../lib/insights/api";
 import { costWindow } from "../../lib/insights/costWindow";
+import { parseInsightsLink } from "../../lib/insights/linkParams";
 import { isGigWorkType, showHowYouCompare, showWeeklyEarningsGoal } from "../../lib/insights/movedCards";
 import { insightsVisibility, tripsToSort } from "../../lib/insights/visibility";
 import { getMilestoneRoadOrStart } from "../../lib/insights/milestones";
@@ -51,7 +52,11 @@ export default function InsightsScreen() {
   const { user, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
   const reducedMotion = useReducedMotion();
-  const { view } = useLocalSearchParams<{ view?: string }>();
+  const { view, period: periodParam, offset: offsetParam } = useLocalSearchParams<{
+    view?: string;
+    period?: string;
+    offset?: string;
+  }>();
   const mode: "work" | "personal" = isWork ? "work" : "personal";
   const isPro = !!user?.isPremium;
   // Answers belong to one driver; a different driver starts with an empty cache.
@@ -60,11 +65,23 @@ export default function InsightsScreen() {
   // Period: remembered on this phone only.
   const [period, setPeriod] = useState<InsightsPeriod>("week");
   const [offset, setOffset] = useState(0);
+  // A link from Home (?period=week&offset=-1) wins over the remembered choice,
+  // on open and when the screen is re-opened with new params.
+  const link = parseInsightsLink(periodParam, offsetParam);
+  const linkPeriod = link?.period;
+  const linkOffset = link?.offset ?? 0;
+  const hasLink = useRef(false);
+  hasLink.current = !!link;
   useEffect(() => {
     getInsightsValue(PERIOD_KEY).then((v) => {
-      if (isInsightsPeriod(v)) setPeriod(v);
+      if (isInsightsPeriod(v) && !hasLink.current) setPeriod(v);
     });
   }, []);
+  useEffect(() => {
+    if (!linkPeriod) return;
+    setPeriod(linkPeriod);
+    setOffset(linkOffset);
+  }, [linkPeriod, linkOffset, periodParam, offsetParam]);
   const changePeriod = useCallback((p: InsightsPeriod) => {
     setPeriod(p);
     setOffset(0);

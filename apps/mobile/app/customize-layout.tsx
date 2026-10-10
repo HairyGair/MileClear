@@ -31,8 +31,6 @@ const RED = colors.red;
 const SCREENS: ScreenKey[] = ["profile"];
 
 const TAB_LABELS: Record<ScreenKey, string> = {
-  dashboard_work: "Work",
-  dashboard_personal: "Personal",
   profile: "Profile",
   // The Menu tab is gone (7 Oct 2026, the More tab replaced the avatar menu).
   // The label stays only because the record is keyed by every ScreenKey.
@@ -130,9 +128,6 @@ function SectionList({ screen }: { screen: ScreenKey }) {
   const { prefs, toggleVisibility, moveUp, moveDown, reset } =
     useLayoutPrefs(screen);
   const registry = SECTION_REGISTRY[screen];
-  // On the two dashboards a switched-off section isn't gone: it is listed
-  // under More at the bottom of the dashboard (4 Oct 2026).
-  const isDashboard = screen === "dashboard_work" || screen === "dashboard_personal";
 
   return (
     <ScrollView
@@ -142,9 +137,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
     >
       <Text style={styles.screenLabel}>{SCREEN_LABELS[screen]}</Text>
       <Text style={styles.screenHint}>
-        {isDashboard
-          ? "Switched on: on your home screen. Switched off: under More, at the bottom of the dashboard. Use the arrows to reorder."
-          : "Toggle sections on or off. Use arrows to reorder."}
+        Toggle sections on or off. Use arrows to reorder.
       </Text>
 
       {prefs.map((pref, idx) => {
@@ -234,7 +227,7 @@ function SectionList({ screen }: { screen: ScreenKey }) {
                 thumbColor="#fff"
                 style={styles.toggle}
                 accessibilityLabel={`${section.label}: ${
-                  pref.visible ? (isDashboard ? "on your home screen" : "visible") : (isDashboard ? "under More" : "hidden")
+                  pref.visible ? "visible" : "hidden"
                 }. Toggle visibility`}
               />
             )}
