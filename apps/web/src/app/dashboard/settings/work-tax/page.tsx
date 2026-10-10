@@ -18,12 +18,13 @@ import { api } from "@/lib/api";
 import { errMsg } from "@/components/dashboard/settings/util";
 import styles from "@/components/dashboard/settings/settings.module.css";
 
-type WorkType = "gig" | "employee" | "both";
+type WorkType = "gig" | "employee" | "both" | "company";
 
 const WORK_TYPES = [
   { value: "gig", label: "Self-employed (gig, delivery or courier)" },
   { value: "employee", label: "Employee (my employer pays me for business miles)" },
   { value: "both", label: "Both" },
+  { value: "company", label: "A company car" },
 ];
 
 const TAX_BASIS = [

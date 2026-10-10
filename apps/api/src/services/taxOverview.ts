@@ -45,7 +45,9 @@ function ukDateString(now: Date): string {
   return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
-function toWorkType(raw: string | null | undefined): WorkType {
+function toWorkType(raw: string | null | undefined): Exclude<WorkType, "company"> {
+  // A company car is an employer-paid driver: same tax persona as an employee.
+  if (raw === "company") return "employee";
   return raw === "employee" || raw === "both" ? raw : "gig";
 }
 

@@ -68,6 +68,10 @@ describe("decideSaCountdownPush", () => {
   it("never sends to personal-mode drivers or employees", () => {
     expect(decideSaCountdownPush(candidate({ dashboardMode: "personal" }))).toEqual({ send: false, reason: "personal_mode" });
     expect(decideSaCountdownPush(candidate({ workType: "employee" }))).toEqual({ send: false, reason: "employee" });
+    // "A company car" (the You drive for answer, 10 Oct 2026) is an employer-paid driver too.
+    expect(decideSaCountdownPush(candidate({ workType: "company" }))).toEqual({ send: false, reason: "employee" });
+    // "Just me" is dashboardMode personal and keeps its old behaviour.
+    expect(decideSaCountdownPush(candidate({ dashboardMode: "personal" }))).toEqual({ send: false, reason: "personal_mode" });
   });
 
   it("respects the tax deadline push preference", () => {

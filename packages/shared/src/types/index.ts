@@ -1,6 +1,8 @@
 import type { MileageReliefData } from "../utils/mileageRelief.js";
 // User types
-export type WorkType = "gig" | "employee" | "both";
+// "company" (a company car) was added 10 Oct 2026 for the "You drive for"
+// question. Same VarChar(20) column, so no migration.
+export type WorkType = "gig" | "employee" | "both" | "company";
 
 export interface User {
   id: string;

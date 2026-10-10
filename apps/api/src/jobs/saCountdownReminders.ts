@@ -126,7 +126,7 @@ export function pickGap(c: Pick<SaPushCandidate, "unclassifiedTrips" | "earnings
 
 export function decideSaCountdownPush(c: SaPushCandidate): SaPushDecision {
   if (c.dashboardMode === "personal") return { send: false, reason: "personal_mode" };
-  if (c.workType === "employee") return { send: false, reason: "employee" };
+  if (c.workType === "employee" || c.workType === "company") return { send: false, reason: "employee" };
   if (!c.hasPushToken) return { send: false, reason: "no_token" };
   if (!pushPrefEnabled(c.pushPrefs, "taxDeadline")) return { send: false, reason: "pref_off" };
   if (c.businessMiles <= 0 && c.unclassifiedTrips === 0) return { send: false, reason: "nothing_logged" };
@@ -203,7 +203,7 @@ export async function planSaCountdownPushes(stage: SaCountdownStageId, now: Date
     where: {
       pushToken: { not: null },
       dashboardMode: { in: ["work", "both"] },
-      workType: { not: "employee" },
+      workType: { notIn: ["employee", "company"] },
     },
     select: { id: true, pushToken: true, pushPrefs: true, dashboardMode: true, workType: true, fullName: true },
   });

@@ -194,6 +194,15 @@ describe("personas", () => {
     expect(loadTaxPlan).not.toHaveBeenCalled();
   });
 
+  it("company car (You drive for, 10 Oct 2026): the employee persona", async () => {
+    setUser("company");
+    const o = (await loadTaxOverview(USER, { now: OCT }))!;
+    expect(o.workType).toBe("employee");
+    expect(o.return).toBeNull();
+    expect(o.thisYear).toBeNull();
+    expect(o.plan).toBeNull();
+  });
+
   it("both: every section", async () => {
     setUser("both");
     const o = (await loadTaxOverview(USER, { now: OCT }))!;
