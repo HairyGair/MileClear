@@ -712,9 +712,17 @@ export function setupNotificationResponseHandler(): void {
         router.navigate("/active-recording" as any);
         break;
 
-      case "open_insights":
-        router.navigate("/insights" as any);
+      case "open_insights": {
+        // Optional period/offset (the Monday weekly recap opens last week).
+        // Insights checks them itself (lib/insights/linkParams).
+        const period = typeof data?.period === "string" ? data.period : null;
+        const offset = typeof data?.offset === "number" ? data.offset : null;
+        const query = period
+          ? `?period=${encodeURIComponent(period)}${offset != null ? `&offset=${offset}` : ""}`
+          : "";
+        router.navigate(`/insights${query}` as any);
         break;
+      }
 
       case "open_achievements":
         router.navigate("/achievements" as any);

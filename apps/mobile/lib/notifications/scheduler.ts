@@ -59,8 +59,10 @@ export async function scheduleWeeklyMileageSummary(): Promise<void> {
     identifier: "weekly-summary-monday",
     content: {
       title: "Your weekly mileage recap",
-      body: "Tap to see how far you drove this week",
-      data: { action: "open_dashboard" },
+      body: "Tap to see how far you drove last week",
+      // Fires Monday 09:00, so "this week" is the week just finished. Home no
+      // longer has a recap card; Insights shows that week.
+      data: { action: "open_insights", period: "week", offset: -1 },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "weekly-summary",
       }),

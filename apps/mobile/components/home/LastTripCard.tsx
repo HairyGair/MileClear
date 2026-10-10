@@ -6,7 +6,7 @@
 // writes straight to this phone and the sync queue, so it works offline and
 // shows on Trips at once. The card does not jump to the next trip after a tap.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   Alert,
@@ -19,7 +19,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { MiniRoute } from "./MiniRoute";
-import { classifyTripFromHome } from "../../lib/home/classifyTrip";
+import { classifyTripFromHome, type ClassifyResult } from "../../lib/home/classifyTrip";
 import type { LastTripFooter, LastTripView, SyncChip, TripChoice } from "../../lib/home/lastTrip";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import { haptic } from "../../lib/haptics";
@@ -151,30 +151,65 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
 
   const tripId = view.look === "full" || view.look === "compact" ? view.trip.id : null;
   const stored = view.look === "full" || view.look === "compact" ? view.choice : null;
+  // One save at a time, in tap order (as trip-form's quick changes do): two
+  // quick taps must not race each other into SQLite and the sync queue, or
+  // the server could end up with the first choice instead of the last.
+  const chainRef = useRef<Promise<void>>(Promise.resolve());
+  const seqRef = useRef(0);
+  // What the screen shows right now, read inside the chain (state is stale there).
+  const shownRef = useRef<TripChoice | null>(null);
+
+  // A different trip: start clean.
   useEffect(() => {
     setChosen(null);
     setNote(null);
-  }, [tripId, stored]);
+    shownRef.current = null;
+  }, [tripId]);
+  // The stored trip caught up with the tap: drop the override. (Not on any
+  // change, or a later tap still saving would flick back to an earlier one.)
+  useEffect(() => {
+    if (stored !== null && stored === shownRef.current) {
+      shownRef.current = null;
+      setChosen(null);
+    } else if (shownRef.current === null) {
+      // Changed somewhere else (the trip screen): the old note no longer applies.
+      setNote(null);
+    }
+  }, [stored]);
 
   const choose = useCallback(
-    async (v: Full, c: "business" | "personal") => {
-      if (v.choice === c && !chosen) return;
+    (v: Full, c: "business" | "personal") => {
+      const current = shownRef.current ?? v.choice;
+      if (current === c) return;
       trackHomeTap(c === "business" ? "classify_business" : "classify_personal", mode, state);
       haptic("selection");
-      const before = chosen ?? v.choice;
+      const seq = ++seqRef.current;
+      const before = current;
+      shownRef.current = c;
       setChosen(c);
-      const result = await classifyTripFromHome(v.trip.id, c);
-      if (result === "failed") {
-        setChosen(before === v.choice ? null : before);
-        Alert.alert("Couldn't save that", "Try again in a moment.");
-        return;
-      }
-      const label = c === "business" ? "Business" : "Personal";
-      setNote(result === "queued" ? `Saved as ${label}. It will upload when you have signal.` : `Saved as ${label}`);
-      AccessibilityInfo.announceForAccessibility(`Saved as ${label}`);
-      onChanged();
+      chainRef.current = chainRef.current.then(async () => {
+        const result = await classifyTripFromHome(v.trip.id, c).catch((): ClassifyResult => "failed");
+        if (result === "failed" || result === "missing") {
+          if (seq === seqRef.current) {
+            shownRef.current = before === v.choice ? null : before;
+            setChosen(shownRef.current);
+          }
+          if (result === "missing") {
+            Alert.alert("Trip not found", "This trip has been deleted or merged. Your trips list has the latest.");
+            onChanged();
+          } else {
+            Alert.alert("Couldn't save that", "Try again in a moment.");
+          }
+          return;
+        }
+        if (seq !== seqRef.current) return;
+        const label = c === "business" ? "Business" : "Personal";
+        setNote(result === "queued" ? `Saved as ${label}. It will upload when you have signal.` : `Saved as ${label}`);
+        AccessibilityInfo.announceForAccessibility(`Saved as ${label}`);
+        onChanged();
+      });
     },
-    [chosen, mode, state, onChanged]
+    [mode, state, onChanged]
   );
 
   if (view.look === "none") return null;

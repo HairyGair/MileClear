@@ -1524,6 +1524,14 @@ export default function DashboardScreen() {
     loadData();
   }, [loadData]);
 
+  // A trip sorted from Home's Last trip card changes the claim the hero shows.
+  // Only the stats: the rest of loadData (shift, vehicles) has not changed.
+  const refreshStats = useCallback(() => {
+    fetchGamificationStats()
+      .then((res) => setStats(res.data))
+      .catch(() => {});
+  }, []);
+
   if (loading) {
     // Skeleton-first: the shape of the new Home (status line, hero, buttons,
     // last trip, doors) while we fetch user / vehicle / shift state.
@@ -1977,6 +1985,7 @@ export default function DashboardScreen() {
         }}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        onTripClassified={refreshStats}
         savedPlaces={{
           eligible: showSavedLocationsNudge,
           count: savedLocationsSuggestionCount,

@@ -4,7 +4,7 @@
 // used to sit on Home (Oct 2026).
 
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, Switch, Pressable, StyleSheet, Linking } from "react-native";
+import { View, Text, Switch, Pressable, StyleSheet, Linking, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { HomeSheet } from "./HomeSheet";
 import { readAutomaticTrips, setAutomaticTrips } from "../../lib/tracking/automaticTrips";
@@ -56,7 +56,7 @@ export function RecordingSheet({
     };
   }, [visible]);
 
-  const toggle = useCallback(
+  const apply = useCallback(
     async (next: boolean) => {
       if (busy) return;
       setBusy(true);
@@ -77,6 +77,26 @@ export function RecordingSheet({
       }
     },
     [busy, onAutomaticChange]
+  );
+
+  // Confirm before switching OFF, as Settings > Tracking does: silently
+  // disabling capture is how drives go missing without the driver realising.
+  const toggle = useCallback(
+    (next: boolean) => {
+      if (next) {
+        void apply(true);
+        return;
+      }
+      Alert.alert(
+        "Turn off automatic trips?",
+        "Only shifts and Start Trip will record. Drives outside those won't be kept. You can still add trips by hand with + on the Trips screen.",
+        [
+          { text: "Keep it on", style: "cancel" },
+          { text: "Turn off", style: "destructive", onPress: () => void apply(false) },
+        ]
+      );
+    },
+    [apply]
   );
 
   const now = Date.now();

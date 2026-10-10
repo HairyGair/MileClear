@@ -41,6 +41,8 @@ export interface HomeData {
   texts: DoorTexts;
   hasFuelLogs: boolean;
   endOfWeek: boolean;
+  /** The month recap could not be loaded (Personal hero has nothing to show). */
+  monthFailed: boolean;
 }
 
 function totals(r: PeriodRecap): HeroRecapTotals {
@@ -53,6 +55,7 @@ export function useHomeData(a: Args): HomeData {
   const [weekRecap, setWeekRecap] = useState<PeriodRecap | null>(null);
   const [lastWeekRecap, setLastWeekRecap] = useState<PeriodRecap | null>(null);
   const [monthRecap, setMonthRecap] = useState<PeriodRecap | null>(null);
+  const [monthFailed, setMonthFailed] = useState(false);
   const [achievedTypes, setAchievedTypes] = useState<string[] | null>(null);
   const [fuelData, setFuelData] = useState<Parameters<typeof fuelDoorText>[0]>(null);
   const [roadText, setRoadText] = useState<string | null>(null);
@@ -96,8 +99,12 @@ export function useHomeData(a: Args): HomeData {
     if (mode === "personal") {
       const month = getPeriodRange("month", 0, now);
       cachedRecap("monthly", dateParam(month.anchor), true)
-        .then((r) => !cancelled && setMonthRecap(r))
-        .catch(() => {});
+        .then((r) => {
+          if (cancelled) return;
+          setMonthRecap(r);
+          setMonthFailed(false);
+        })
+        .catch(() => !cancelled && setMonthFailed(true));
     }
     return () => {
       cancelled = true;
@@ -236,5 +243,5 @@ export function useHomeData(a: Args): HomeData {
     [monthRecap]
   );
 
-  return { week, month, texts, hasFuelLogs, endOfWeek };
+  return { week, month, texts, hasFuelLogs, endOfWeek, monthFailed };
 }

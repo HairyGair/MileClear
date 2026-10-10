@@ -257,8 +257,33 @@ export function useLastTrip(): LastTripState {
   const mounted = useRef(true);
   const tripSig = useRef("");
 
+  const probeSig = useRef("");
   const readLocal = useCallback(async () => {
     try {
+      // Every 5 s: a cheap look at the newest trip first, and the full read
+      // (saved places, up to 3,000 route points) only when something changed.
+      const db = await getDatabase();
+      const probe = await db.getFirstAsync<{
+        id: string;
+        classification: string;
+        synced_at: string | null;
+        distance_miles: number;
+        end_address: string | null;
+        ended_at: string | null;
+      }>(
+        "SELECT id, classification, synced_at, distance_miles, end_address, ended_at FROM trips ORDER BY started_at DESC LIMIT 1"
+      );
+      const q = probe && !probe.synced_at
+        ? await db.getFirstAsync<{ status: string }>(
+            "SELECT status FROM sync_queue WHERE entity_id = ? ORDER BY updated_at DESC LIMIT 1",
+            [probe.id]
+          )
+        : null;
+      const pSig = probe
+        ? `${probe.id}|${probe.classification}|${probe.synced_at ?? ""}|${probe.distance_miles}|${probe.end_address ?? ""}|${probe.ended_at ?? ""}|${q?.status ?? ""}|${isOnline() ? 1 : 0}`
+        : "none";
+      if (pSig === probeSig.current) return;
+      probeSig.current = pSig;
       const t = await loadLastTrip();
       if (!mounted.current) return;
       const sig = t ? `${t.id}|${t.classification}|${t.sync}|${t.distanceMiles}|${t.endLabel}|${t.endedAt}` : "none";
@@ -267,7 +292,8 @@ export function useLastTrip(): LastTripState {
         setTrip(t);
       }
     } catch {
-      // keep what is showing
+      // keep what is showing, and do the full read again next time
+      probeSig.current = "";
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -305,6 +331,7 @@ export function useLastTrip(): LastTripState {
   }, []);
 
   const reload = useCallback(() => {
+    probeSig.current = "";
     readLocal();
     readCounts();
   }, [readLocal, readCounts]);

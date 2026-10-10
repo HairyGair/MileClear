@@ -80,6 +80,8 @@ interface Props {
   onShiftGraded: (scorecard: ShiftScorecard | null) => void;
   refreshing: boolean;
   onRefresh: () => void;
+  /** A trip was sorted from the Last trip card: re-read the claim behind the hero. */
+  onTripClassified: () => void;
   savedPlaces: DashboardAsk & { count: number };
   pro: DashboardAsk;
   referral: DashboardAsk;
@@ -112,7 +114,7 @@ export function HomeIdle(p: Props) {
     refreshKey,
   });
 
-  const hero = useMemo(
+  const heroModel = useMemo(
     () =>
       selectHero({
         persona,
@@ -132,6 +134,13 @@ export function HomeIdle(p: Props) {
       }),
     [persona, p.stats, p.previousYear, data.week, data.month]
   );
+  // Home only draws once the dashboard's first load has finished, so no stats
+  // (or no month for Personal) means the request failed, usually no signal.
+  // Leave the space empty rather than a skeleton that never resolves.
+  const hero =
+    heroModel.kind === "loading" && (!p.stats || (persona === "personal" && data.monthFailed))
+      ? ({ kind: "hidden" } as const)
+      : heroModel;
 
   const personalOnlyDriver = !!p.stats && p.stats.businessMiles <= 0 && p.stats.deductionPence <= 0;
   const lastTripView = useMemo(
@@ -302,13 +311,23 @@ export function HomeIdle(p: Props) {
 
   // ── Layout ──
   const narrow = width < 380 || fontScale > 1.3;
-  const showShift = isWork && showsStartShift(persona) && totalTrips > 0;
+  // A trip on this phone counts too, so a driver who opens Home with no signal
+  // (stats not loaded) can still start a shift.
+  const showShift = isWork && showsStartShift(persona) && (totalTrips > 0 || !!lastTrip.trip);
 
   const refresh = useCallback(() => {
     insightsCache.invalidate();
     setRefreshKey((n) => n + 1);
     lastTrip.reload();
     p.onRefresh();
+  }, [lastTrip, p]);
+
+  // After a Business / Personal tap: the card, the week line and the claim.
+  const onTripChanged = useCallback(() => {
+    lastTrip.reload();
+    insightsCache.invalidate();
+    setRefreshKey((n) => n + 1);
+    p.onTripClassified();
   }, [lastTrip, p]);
 
   // When the "where did you hear" sheet closes, check again: an answer or a
@@ -382,7 +401,7 @@ export function HomeIdle(p: Props) {
         {lastTripView.look !== "none" ? (
           <FadeInStagger index={stagger++} delayPer={40}>
             <View style={s.group}>
-              <LastTripCard view={lastTripView} mode={mode} state={p.status.kind} onChanged={lastTrip.reload} />
+              <LastTripCard view={lastTripView} mode={mode} state={p.status.kind} onChanged={onTripChanged} />
             </View>
           </FadeInStagger>
         ) : null}

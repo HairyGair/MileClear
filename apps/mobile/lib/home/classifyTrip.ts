@@ -8,7 +8,8 @@ import { getDatabase } from "../db/index";
 import { syncUpdateTrip } from "../sync/actions";
 import { markLiveActivityClassified } from "../liveActivity";
 
-export type ClassifyResult = "saved" | "queued" | "failed";
+/** "missing": the trip is no longer on this phone (deleted or merged meanwhile). */
+export type ClassifyResult = "saved" | "queued" | "failed" | "missing";
 
 export async function classifyTripFromHome(
   id: string,
@@ -21,7 +22,10 @@ export async function classifyTripFromHome(
       "SELECT platform_tag FROM trips WHERE id = ?",
       [id]
     );
-    platformTag = row?.platform_tag ?? null;
+    // Deleted or merged since the card was drawn: queueing an update for it
+    // would only fail later and show as a trip that couldn't upload.
+    if (!row) return "missing";
+    platformTag = row.platform_tag ?? null;
   } catch {
     // route learning is best-effort
   }
