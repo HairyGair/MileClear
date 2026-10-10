@@ -64,7 +64,7 @@ export default function ChangePasswordScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Stack.Screen options={{ title: "Change Password" }} />
+      <Stack.Screen options={{ title: "Change password" }} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
           Set a new password using your current one. Other devices will be signed out.

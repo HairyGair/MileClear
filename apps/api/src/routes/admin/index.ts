@@ -144,7 +144,7 @@ const usersListFilterSchema = z.object({
   unreachable: z.literal("1").optional(),
   syncBroken: z.literal("1").optional(),
   marketing: z.enum(["on", "off"]).optional(),
-  workType: z.enum(["gig", "employee", "both"]).optional(),
+  workType: z.enum(["gig", "employee", "both", "company"]).optional(),
   mode: z.enum(["work", "personal", "both"]).optional(),
 });
 

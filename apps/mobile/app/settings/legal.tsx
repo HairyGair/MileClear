@@ -1,23 +1,9 @@
-import { Linking } from "react-native";
-import { SettingsScreen } from "../../components/settings/SettingsScreen";
-import { SettingsGroup } from "../../components/settings/SettingsGroup";
-import { SettingsRow } from "../../components/settings/SettingsRow";
+import { Redirect } from "expo-router";
 
-export default function LegalSettings() {
-  return (
-    <SettingsScreen>
-      <SettingsGroup>
-        <SettingsRow
-          icon="document-text-outline"
-          label="Terms of Use"
-          onPress={() => Linking.openURL("https://mileclear.com/terms")}
-        />
-        <SettingsRow
-          icon="shield-checkmark-outline"
-          label="Privacy Policy"
-          onPress={() => Linking.openURL("https://mileclear.com/privacy")}
-        />
-      </SettingsGroup>
-    </SettingsScreen>
-  );
+/**
+ * Kept so an old link, a deep link or a push notification never lands on a
+ * missing screen. Terms and privacy are a row on the Settings page.
+ */
+export default function Legacy_legal() {
+  return <Redirect href="/settings" />;
 }

@@ -128,7 +128,7 @@ export default function HmrcReconciliationScreen() {
     }
   };
 
-  if (user?.workType === "employee" || isCompanyDriver) {
+  if (user?.workType === "employee" || user?.workType === "company" || isCompanyDriver) {
     return (
       <View style={s.loading}>
         <Text style={s.errorText}>

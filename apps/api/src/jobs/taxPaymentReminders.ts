@@ -103,7 +103,7 @@ export type TaxPaymentDecision = { send: true; amountPence: number } | { send: f
 
 export function decideTaxPaymentPush(c: TaxPaymentCandidate): TaxPaymentDecision {
   if (c.dashboardMode === "personal") return { send: false, reason: "personal_mode" };
-  if (c.workType === "employee") return { send: false, reason: "employee" };
+  if (c.workType === "employee" || c.workType === "company") return { send: false, reason: "employee" };
   if (!c.hasPushToken) return { send: false, reason: "no_token" };
   if (!pushPrefEnabled(c.pushPrefs, "taxDeadline")) return { send: false, reason: "pref_off" };
   if (c.alreadySent) return { send: false, reason: "already_sent" };
@@ -181,7 +181,7 @@ export async function planTaxPaymentPushes(stage: TaxPaymentStage, now: Date = n
     where: {
       pushToken: { not: null },
       dashboardMode: { in: ["work", "both"] },
-      workType: { not: "employee" },
+      workType: { notIn: ["employee", "company"] },
     },
     select: { id: true, pushToken: true, pushPrefs: true, dashboardMode: true, workType: true, taxPlanner: true },
   });

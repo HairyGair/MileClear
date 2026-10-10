@@ -95,6 +95,12 @@ function pausedTitle(until: number, now: number): string {
   return pausedRowText(until, now).replace(/^Recording paused/, "Paused");
 }
 
+/** "2 trips couldn't upload". Shared with Settings so both say the same. */
+export function syncFailedTitle(count: number, allTrips: boolean | undefined): string {
+  const noun = allTrips === false ? (count === 1 ? "item" : "items") : count === 1 ? "trip" : "trips";
+  return `${count} ${noun} couldn't upload`;
+}
+
 function make(
   kind: StatusKind,
   look: StatusLook,
@@ -139,11 +145,10 @@ export function selectStatusLine(i: StatusInputs): StatusLine {
     });
   }
   if (i.failedSyncCount > 0) {
-    const n = i.failedSyncCount;
     return make(
       "sync_failed",
       "blocking",
-      `${n} ${i.failedSyncAllTrips === false ? (n === 1 ? "item" : "items") : n === 1 ? "trip" : "trips"} couldn't upload`,
+      syncFailedTitle(i.failedSyncCount, i.failedSyncAllTrips),
       "sync_status",
       { action: "Retry", icon: "cloud-offline-outline", red: true }
     );

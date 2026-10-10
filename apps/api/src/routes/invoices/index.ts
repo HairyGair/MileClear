@@ -459,7 +459,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
     if (user.email.endsWith("@private.mileclear.com")) {
       return reply.status(400).send({
         error:
-          "Add a real email address to your account first — your client's replies would go nowhere. You can change it in Settings → Profile.",
+          "Add a real email address to your account first, or your client's replies would go nowhere. You can change it in More > Settings > Your account.",
       });
     }
 

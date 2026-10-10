@@ -40,10 +40,10 @@ export function AvatarPicker({ currentAvatarId, onSelect }: AvatarPickerProps) {
         onPress={() => setVisible(true)}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={`Change avatar. Current: ${currentAvatarId ?? "initials"}`}
+        accessibilityLabel="Change picture"
       >
         <UserAvatar avatarId={currentAvatarId} name="?" size={64} />
-        <Text style={styles.changeText}>Change Avatar</Text>
+        <Text style={styles.changeText}>Change picture</Text>
       </TouchableOpacity>
 
       <AppModal

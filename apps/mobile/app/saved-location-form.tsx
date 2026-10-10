@@ -357,7 +357,7 @@ export default function SavedLocationFormScreen() {
           `Free accounts can save up to ${MAX_FREE_SAVED_LOCATIONS} locations. Upgrade to Pro for unlimited saved locations.`,
           [
             { text: "Not now", style: "cancel" },
-            { text: "Upgrade", onPress: () => router.push("/profile") },
+            { text: "Upgrade", onPress: () => router.push("/settings/plan" as never) },
           ]
         );
       } else {

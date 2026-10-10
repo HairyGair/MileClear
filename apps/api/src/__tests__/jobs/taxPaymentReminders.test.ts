@@ -82,6 +82,8 @@ describe("decideTaxPaymentPush", () => {
   it("skips personal mode, employees, no token, pref off and repeats", () => {
     expect(decideTaxPaymentPush(candidate({ dashboardMode: "personal" }))).toEqual({ send: false, reason: "personal_mode" });
     expect(decideTaxPaymentPush(candidate({ workType: "employee" }))).toEqual({ send: false, reason: "employee" });
+    expect(decideTaxPaymentPush(candidate({ workType: "company" }))).toEqual({ send: false, reason: "employee" });
+    expect(decideTaxPaymentPush(candidate({ dashboardMode: "personal" }))).toEqual({ send: false, reason: "personal_mode" });
     expect(decideTaxPaymentPush(candidate({ hasPushToken: false }))).toEqual({ send: false, reason: "no_token" });
     expect(decideTaxPaymentPush(candidate({ pushPrefs: { taxDeadline: false } }))).toEqual({ send: false, reason: "pref_off" });
     expect(decideTaxPaymentPush(candidate({ alreadySent: true }))).toEqual({ send: false, reason: "already_sent" });

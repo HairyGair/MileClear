@@ -356,7 +356,7 @@ export function buildSaChecklist(input: SaChecklistInput): SaChecklist {
   const daysToDeadline = daysUntilSaDeadline(now, taxYear);
 
   let ineligibleReason: SaChecklist["ineligibleReason"] = null;
-  if (input.user.workType === "employee") ineligibleReason = "employee";
+  if (input.user.workType === "employee" || input.user.workType === "company") ineligibleReason = "employee";
   else if (input.user.dashboardMode === "personal" && miles.businessMiles === 0) ineligibleReason = "personal_only";
 
   return {

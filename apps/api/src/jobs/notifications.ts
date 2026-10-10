@@ -1486,8 +1486,11 @@ async function runHeartbeatAlertScanJob(): Promise<void> {
         alertType: "alert.detection_disabled",
         title: "Drives aren't being recorded automatically",
         body:
-          "Drive detection is switched off, so MileClear only records during a shift. If that's deliberate, ignore this. To turn it on: Profile > Settings > Drive detection.",
-        data: { action: "open_settings" },
+          "Automatic trips are switched off, so MileClear only records during a shift or Start Trip. If that's deliberate, ignore this. To turn them on: More > Settings > Recording > Automatic trips.",
+        // Opens MileClear's own Recording screen (the switch lives in the app,
+        // not the phone's Settings). Older app bundles fall through to Home,
+        // which has the same switch.
+        data: { action: "open_recording_settings" },
         cooldownMs: 30 * 24 * 60 * 60 * 1000,
       });
     }

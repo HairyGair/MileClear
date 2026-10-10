@@ -176,8 +176,8 @@ export function TripDetail({ id }: { id: string }) {
         ]
       : [];
 
-  const showPlatform = t.classification === "business" && !me.isCompanyDriver && me.user?.workType !== "employee";
-  const showPurpose = t.classification === "business" && me.isEmployee;
+  const showPlatform = t.classification === "business" && !me.isCompanyDriver && me.user?.workType !== "employee" && me.user?.workType !== "company";
+  const showPurpose = t.classification === "business" && (me.isEmployee || me.user?.workType === "company");
   const showCategory = t.classification === "personal";
   const merge = t.mergeSuggestion;
   const caz = t.cleanAirZones?.charges ?? [];

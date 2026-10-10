@@ -811,7 +811,7 @@ export default function ClassificationRulesScreen() {
 
   return (
     <View style={s.container}>
-      <Stack.Screen options={{ title: "Classification Rules" }} />
+      <Stack.Screen options={{ title: "Sort trips automatically" }} />
       <ScrollView
         contentContainerStyle={s.content}
         refreshControl={

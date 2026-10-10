@@ -21,7 +21,7 @@ const updateProfileSchema = z.object({
   fullName: z.string().max(200).nullable().optional(),
   avatarId: z.string().max(50).nullable().optional(),
   userIntent: z.enum(["work", "personal", "both"]).nullable().optional(),
-  workType: z.enum(["gig", "employee", "both"]).optional(),
+  workType: z.enum(["gig", "employee", "both", "company"]).optional(),
   employerMileageRatePence: z.number().int().min(0).max(100).nullable().optional(),
   employerMileageRatePenceAfter10k: z.number().int().min(0).max(100).nullable().optional(),
   // Other annual income in pence. £10M cap rejects nonsense without

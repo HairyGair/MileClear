@@ -30,7 +30,7 @@ export const SA_COUNTDOWN_FORCE_ON = false;
 export function saCountdownAudience(user: User | null, isCompanyDriver: boolean): boolean {
   if (!user || isCompanyDriver) return false;
   if (user.dashboardMode === "personal") return false;
-  if (user.workType === "employee") return false;
+  if (user.workType === "employee" || user.workType === "company") return false;
   return true;
 }
 
@@ -61,7 +61,7 @@ export function routeForSaAction(action: SaChecklistAction): string | null {
     case "vehicles":
       return "/vehicles";
     case "profile_name":
-      return "/profile-edit";
+      return "/settings/account";
     case "self_assessment":
       return "/self-assessment";
     case "sa_pdf":

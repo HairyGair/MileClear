@@ -170,8 +170,8 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
 
   const odoWarning = odometerWarning(odoStart, odoEnd, distance);
   const isBusiness = classification === "business";
-  const showPlatform = isBusiness && !me.isCompanyDriver && me.user?.workType !== "employee";
-  const showPurpose = isBusiness && me.isEmployee;
+  const showPlatform = isBusiness && !me.isCompanyDriver && me.user?.workType !== "employee" && me.user?.workType !== "company";
+  const showPurpose = isBusiness && (me.isEmployee || me.user?.workType === "company");
   const showCategory = classification === "personal";
 
   async function submit(ev: React.FormEvent) {

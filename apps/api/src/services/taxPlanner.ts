@@ -218,7 +218,7 @@ export async function loadTaxPlan(userId: string, now: Date = new Date()): Promi
     startAssumed: settings.firstSelfEmployedTaxYear == null,
     settings,
     remindersOn: pushPrefEnabled(user.pushPrefs, "taxDeadline"),
-    mayNotApply: user.workType === "employee" || user.dashboardMode === "personal",
+    mayNotApply: user.workType === "employee" || user.workType === "company" || user.dashboardMode === "personal",
   };
 }
 

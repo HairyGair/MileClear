@@ -149,7 +149,7 @@ function computeHealth(
     problems.push({
       severity: "error",
       title: "Drive Detection is OFF",
-      cause: "You've turned off the Drive Detection toggle in Profile → Settings.",
+      cause: "You've turned off Automatic trips in Settings > Recording.",
       action: "Turn it back on to start detecting trips automatically.",
     });
   }

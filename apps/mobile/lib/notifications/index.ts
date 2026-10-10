@@ -789,6 +789,13 @@ export function setupNotificationResponseHandler(): void {
         Linking.openSettings();
         return;
 
+      case "open_recording_settings":
+        // "Automatic trips are off" (jobs/notifications.ts, Oct 2026): the
+        // switch is in the app, on the Recording screen. Older bundles fall
+        // through to Home, which has the same switch.
+        router.push("/settings/recording" as never);
+        return;
+
       case "open_feedback":
         // Admin push when a user submits feedback (24 Aug 2026). Older
         // bundles fall through to the dashboard, which is harmless.
@@ -823,7 +830,8 @@ export function setupNotificationResponseHandler(): void {
 
       case "open_billing":
       case "billing":
-        router.navigate("/(tabs)/profile");
+        // Your plan (the Profile tab's subscription card moved here).
+        router.navigate("/settings/plan" as any);
         break;
 
       case "open_referrals":
@@ -877,7 +885,7 @@ export function setupNotificationResponseHandler(): void {
         if (vehicleId) {
           router.navigate(`/vehicle-form?id=${vehicleId}` as any);
         } else {
-          router.navigate("/(tabs)/profile");
+          router.navigate("/vehicles" as any);
         }
         break;
       }
