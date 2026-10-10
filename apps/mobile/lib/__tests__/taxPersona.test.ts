@@ -285,3 +285,34 @@ describe("homeLineText", () => {
     );
   });
 });
+
+import { isWorkDriver, showsTaxTab, taxTabPersona } from "../tax/persona";
+
+describe("Tax tab in Personal mode", () => {
+  it("work drivers (anything but Just me) count as work drivers", () => {
+    expect(isWorkDriver({ dashboardMode: "both" })).toBe(true);
+    expect(isWorkDriver({ dashboardMode: "work" })).toBe(true);
+    expect(isWorkDriver({ dashboardMode: "personal" })).toBe(false);
+    expect(isWorkDriver(null)).toBe(false);
+  });
+
+  it("shows the tab in both modes for work drivers, Work mode only for Just me", () => {
+    expect(showsTaxTab(false, true)).toBe(true);
+    expect(showsTaxTab(true, true)).toBe(true);
+    expect(showsTaxTab(true, false)).toBe(true);
+    expect(showsTaxTab(false, false)).toBe(false);
+  });
+
+  it("gives a work driver the same persona in Personal mode as in Work mode", () => {
+    for (const workType of ["gig", "employee", "both", "company"]) {
+      const work = taxTabPersona({ isPersonal: false, workDriver: true, isCompanyDriver: false, workType });
+      const personal = taxTabPersona({ isPersonal: true, workDriver: true, isCompanyDriver: false, workType });
+      expect(personal).toBe(work);
+      expect(personal).not.toBe("personal");
+    }
+  });
+
+  it("keeps Records for Just me in Personal mode", () => {
+    expect(taxTabPersona({ isPersonal: true, workDriver: false, isCompanyDriver: false, workType: "gig" })).toBe("personal");
+  });
+});

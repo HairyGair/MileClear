@@ -30,6 +30,7 @@ const DEFAULTS: NotificationPreferences = DEFAULT_PREFERENCES;
 export default function NotificationsSettings() {
   const { user } = useUser();
   const isPremium = user?.isPremium ?? false;
+  const companyCar = user?.workType === "company";
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULTS);
   const [permission, setPermission] = useState<"granted" | "denied" | "undetermined">("granted");
 
@@ -101,7 +102,7 @@ export default function NotificationsSettings() {
         )}
       </SettingsGroup>
 
-      {visibleNotificationGroups(isPremium).map((group) => (
+      {visibleNotificationGroups(isPremium, { companyCar }).map((group) => (
         <View key={group.title} style={blocked ? { opacity: 0.5 } : undefined}>
           <SettingsGroup title={group.title.toUpperCase()}>
             {group.items.map((item) => (

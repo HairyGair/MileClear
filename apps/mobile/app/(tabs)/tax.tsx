@@ -26,10 +26,11 @@ import { updateTaxPlannerSettings } from "../../lib/api/taxPlanner";
 import {
   differsLineApplies,
   overviewOutOfStep,
-  resolvePersona,
+  isWorkDriver,
   returnCardMode,
   rowGroups,
   showProBadge,
+  taxTabPersona,
   type Persona,
 } from "../../lib/tax/persona";
 import { useUser } from "../../lib/user/context";
@@ -72,8 +73,11 @@ export default function TaxScreen() {
     }
   }, [refresh]);
 
-  const persona: Persona = resolvePersona({
+  // A driver who drives for work sees the same Tax tab in Personal mode.
+  const recordsView = isPersonal && !isWorkDriver(user);
+  const persona: Persona = taxTabPersona({
     isPersonal,
+    workDriver: isWorkDriver(user),
     isCompanyDriver,
     workType: user?.workType ?? data?.workType,
   });
@@ -131,7 +135,7 @@ export default function TaxScreen() {
     }
 
     if (!data.hasTrips) {
-      return isPersonal ? (
+      return recordsView ? (
         <EmptyState
           icon="calculator-outline"
           title="No trips yet"
@@ -215,6 +219,7 @@ export default function TaxScreen() {
           differsLineApplies(persona, user?.employerMileageRatePence) ? (data.claim?.claimPence ?? null) : null
         }
         canAddEarnings
+        scotland={prefs.region === "scotland"}
       />
     ) : null;
 
@@ -235,7 +240,7 @@ export default function TaxScreen() {
 
   return (
     <View style={styles.container}>
-      <AppHeader title={isPersonal ? "Records" : "Tax"} showBack={isPersonal} />
+      <AppHeader title={recordsView ? "Records" : "Tax"} showBack={recordsView} />
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

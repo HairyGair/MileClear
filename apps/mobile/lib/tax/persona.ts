@@ -21,6 +21,35 @@ export function resolvePersona(args: {
   return "gig";
 }
 
+/**
+ * A driver who drives for work (gig, employer, both, company car). Only
+ * "Just me" (dashboardMode "personal") is not one. Unknown user counts as not
+ * a work driver, so nothing changes until the profile has loaded.
+ */
+export function isWorkDriver(user: { dashboardMode?: string | null } | null | undefined): boolean {
+  return !!user && user.dashboardMode !== "personal";
+}
+
+/**
+ * Whether the Tax tab is in the tab bar. Work drivers get it in Work and
+ * Personal mode (the tab is about their tax and work miles whichever mode
+ * they are looking at); "Just me" drivers get it in Work mode only and reach
+ * Records from More in Personal mode.
+ */
+export function showsTaxTab(isWork: boolean, workDriver: boolean): boolean {
+  return isWork || workDriver;
+}
+
+/** The Tax tab's persona: Personal mode only means "Records" for a Just me driver. */
+export function taxTabPersona(args: {
+  isPersonal: boolean;
+  workDriver: boolean;
+  isCompanyDriver: boolean;
+  workType: string | null | undefined;
+}): Persona {
+  return resolvePersona({ ...args, isPersonal: args.isPersonal && !args.workDriver });
+}
+
 export const isSelfEmployedPersona = (p: Persona) => p === "gig" || p === "both";
 
 /**

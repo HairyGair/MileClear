@@ -29,6 +29,10 @@ let state: State = { data: null, loading: false, error: false, updatedAt: null }
 let lastFetchAt = 0;
 let inflight: Promise<void> | null = null;
 let hydrated = false;
+// Bumped on every sign out. A request remembers the number it started under
+// and throws its answer away if the number has moved on (it belongs to the
+// previous driver).
+let session = 0;
 const listeners = new Set<() => void>();
 
 function set(next: Partial<State>) {
@@ -66,27 +70,34 @@ async function persist(data: TaxOverview, updatedAt: number) {
   }
 }
 
-async function load(opts: { fresh?: boolean }) {
+export async function load(opts: { fresh?: boolean }) {
   if (inflight) return inflight;
   lastFetchAt = Date.now();
   if (!state.data) set({ loading: true });
-  inflight = (async () => {
+  const mine = session;
+  const self: { run?: Promise<void> } = {};
+  const run = (async () => {
     try {
       const res = await fetchTaxOverview({ fresh: opts.fresh });
+      if (mine !== session) return;
       const updatedAt = Date.now();
       set({ data: res.data, loading: false, error: false, updatedAt });
       void persist(res.data, updatedAt);
     } catch {
-      set({ loading: false, error: true });
+      if (mine === session) set({ loading: false, error: true });
     } finally {
-      inflight = null;
+      if (inflight === self.run) inflight = null;
     }
   })();
-  return inflight;
+  self.run = run;
+  inflight = run;
+  return run;
 }
 
-/** Forget everything (sign out). */
+/** Forget everything (sign out). Requests still running are ignored when they land. */
 export function clearTaxOverviewCache() {
+  session += 1;
+  inflight = null;
   state = { data: null, loading: false, error: false, updatedAt: null };
   lastFetchAt = 0;
   hydrated = false;
@@ -104,6 +115,11 @@ export function clearTaxOverviewCache() {
 export interface UseTaxOverview extends State {
   /** Skipped if the last fetch was under 30 s ago, unless fresh. */
   refresh: (opts?: { fresh?: boolean }) => Promise<void>;
+}
+
+/** Test hook: the current state. */
+export function getTaxOverviewState(): State {
+  return state;
 }
 
 export function useTaxOverview(): UseTaxOverview {

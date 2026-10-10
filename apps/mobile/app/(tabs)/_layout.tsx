@@ -1,5 +1,6 @@
-// Bottom tab bar for the main screens: Home, Trips, Tax (Work) or Insights
-// (Personal), and More. Everything else the old avatar menu held is on the
+// Bottom tab bar for the main screens: Home, Trips, Tax, Insights (Personal
+// mode only) and More. Tax shows in Work mode, and in Personal mode too for a
+// driver who drives for work; "Just me" drivers get it in Work mode only. Everything else the old avatar menu held is on the
 // More tab (more.tsx) or the Tax tab (tax.tsx).
 //
 // This is the JS Tabs navigator, not native tabs, for the same reason the
@@ -20,6 +21,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useMode } from "../../lib/mode/context";
+import { useUser } from "../../lib/user/context";
+import { isWorkDriver, showsTaxTab } from "../../lib/tax/persona";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { colors, fonts, tabBar } from "../../lib/theme";
 import { UpdateReadyBanner } from "../../components/UpdateReadyBanner";
@@ -80,6 +83,8 @@ const tabLabel =
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isWork } = useMode();
+  const { user } = useUser();
+  const taxTab = showsTaxTab(isWork, isWorkDriver(user));
   const segments = useSegments();
   const [unclassified, setUnclassified] = useState(0);
   const mounted = useRef(true);
@@ -192,7 +197,7 @@ export default function TabLayout() {
         name="tax"
         options={{
           title: "Tax",
-          href: isWork ? undefined : null,
+          href: taxTab ? undefined : null,
           tabBarLabel: tabLabel("Tax"),
           tabBarIcon: tabIcon("document-text", "document-text-outline"),
           tabBarAccessibilityLabel: "Tax",

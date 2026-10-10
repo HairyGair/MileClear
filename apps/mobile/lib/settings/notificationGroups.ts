@@ -68,10 +68,14 @@ export const NOTIFICATION_GROUPS: NotificationGroup[] = [
 ];
 
 /** Groups with only the rows this driver can use (free drivers lose the Pro rows). */
-export function visibleNotificationGroups(isPremium: boolean): NotificationGroup[] {
+export function visibleNotificationGroups(
+  isPremium: boolean,
+  opts: { companyCar?: boolean } = {}
+): NotificationGroup[] {
   return NOTIFICATION_GROUPS.map((g) => ({
     title: g.title,
-    items: g.items.filter((i) => isPremium || !i.pro),
+    // A company-car driver has no tax to file, so no tax reminders to switch.
+    items: g.items.filter((i) => (isPremium || !i.pro) && !(opts.companyCar && i.key === "taxDeadline")),
   })).filter((g) => g.items.length > 0);
 }
 
@@ -84,8 +88,9 @@ export function hiddenProCount(isPremium: boolean): number {
 /** "12 of 15 on": switches on out of the ones this driver can see. */
 export function countNotifications(
   prefs: NotificationPreferences,
-  isPremium: boolean
+  isPremium: boolean,
+  opts: { companyCar?: boolean } = {}
 ): { on: number; total: number } {
-  const items = visibleNotificationGroups(isPremium).flatMap((g) => g.items);
+  const items = visibleNotificationGroups(isPremium, opts).flatMap((g) => g.items);
   return { on: items.filter((i) => prefs[i.key]).length, total: items.length };
 }

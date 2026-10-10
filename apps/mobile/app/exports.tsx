@@ -22,7 +22,7 @@ import { usePaywall } from "../components/paywall";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts } from "../lib/theme";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
-import { recentTaxYears } from "../lib/tax/taxYears";
+import { defaultExportYear, recentTaxYears } from "../lib/tax/taxYears";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -39,11 +39,7 @@ export default function ExportsScreen() {
   const taxYears = recentTaxYears(4);
   const overview = useTaxOverview();
   // The return due next while it leads (6 April to 31 January), else this year.
-  const [selectedYear, setSelectedYear] = useState(() =>
-    overview.data?.lead === "return" && overview.data.return?.taxYear
-      ? overview.data.return.taxYear
-      : taxYears[0],
-  );
+  const [selectedYear, setSelectedYear] = useState(() => defaultExportYear(overview.data, taxYears[0]));
   const [loadingKey, setLoadingKey] = useState<LoadingKey>(null);
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   // Tax-year vs custom date-range mode for CSV/PDF (the server supports both;
