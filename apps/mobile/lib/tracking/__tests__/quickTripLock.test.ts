@@ -445,8 +445,8 @@ describe("Automatic trips off: Start Trip runs until Arrived (Shaun, 10 Oct 2026
     ).toEqual({ action: "suppress", reason: "recently_started" });
   });
 
-  it("still lets go of a Start Trip that never drove after an hour", () => {
-    const now = START + QUICK_TRIP_NEVER_DROVE_MS + mins(1);
+  it("does not let go of a Start Trip that has waited over an hour before driving", () => {
+    const now = START + QUICK_TRIP_NEVER_DROVE_MS + mins(30);
     expect(
       quickTripLockDecision({
         ...base,
@@ -454,6 +454,29 @@ describe("Automatic trips off: Start Trip runs until Arrived (Shaun, 10 Oct 2026
         lastCoordMs: now - mins(2),
         lastDrivingMs: null,
         automaticTripsOff: true,
+      })
+    ).toEqual({ action: "suppress", reason: "live_breadcrumb" });
+    // Silent phone at the depot: still held by the 12-hour window.
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(60),
+        lastDrivingMs: null,
+        automaticTripsOff: true,
+      })
+    ).toEqual({ action: "suppress", reason: "recently_started" });
+  });
+
+  it("the same wait is still let go with Automatic trips on", () => {
+    const now = START + QUICK_TRIP_NEVER_DROVE_MS + mins(30);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(2),
+        lastDrivingMs: null,
+        automaticTripsOff: false,
       })
     ).toEqual({ action: "finish", reason: "never_drove" });
   });

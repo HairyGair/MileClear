@@ -158,9 +158,10 @@ export function quickTripLockDecision(args: {
   /** The driver's "keep Start Trip going until I tap Arrived" setting. */
   untilArrived?: boolean;
   /**
-   * Automatic trips switched off (startTripHoldsThroughStops). Like the
-   * setting, no parked finish and the 12-hour liveness; unlike it, the
-   * never-drove rule still lets an untouched Start Trip go after an hour.
+   * Automatic trips switched off (startTripHoldsThroughStops). Exactly like
+   * the setting: no parked finish, no never-drove finish (a driver who waits
+   * over an hour before driving would otherwise get nothing recorded), and
+   * the 12-hour liveness. The 12-hour recovery and 18-hour cap still apply.
    */
   automaticTripsOff?: boolean;
 }): QuickTripLockDecision {
@@ -183,13 +184,10 @@ export function quickTripLockDecision(args: {
   // A real Start Trip, with the app off screen (the open form owns its own
   // Arrive, so never finish from under it): judge it by DRIVING, not by any
   // fix, because walking fixes keep the breadcrumb test below forever live.
-  if (quickTripStartMs != null && !appActive && !untilArrived && args.lastDrivingMs !== undefined) {
+  if (quickTripStartMs != null && !appActive && !holdsThroughStops && args.lastDrivingMs !== undefined) {
     const drove = args.lastDrivingMs;
     if (drove != null && Number.isFinite(drove) && drove >= quickTripStartMs) {
-      // Nothing would record the rest of the journey with automatic trips off.
-      if (!automaticTripsOff && nowMs - drove >= QUICK_TRIP_PARKED_MS) {
-        return { action: "finish", reason: "parked" };
-      }
+      if (nowMs - drove >= QUICK_TRIP_PARKED_MS) return { action: "finish", reason: "parked" };
     } else if (nowMs - quickTripStartMs >= QUICK_TRIP_NEVER_DROVE_MS) {
       // Nothing driven: "finish" trims every fix, so no walk is saved as a trip.
       return { action: "finish", reason: "never_drove" };
