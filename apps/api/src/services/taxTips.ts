@@ -192,9 +192,9 @@ export const TAX_TIPS: TaxTip[] = [
   },
   {
     id: "deadline-mtd-itsa",
-    title: "📅 Quarterly updates to HMRC start April 2026",
+    title: "📅 Quarterly updates to HMRC (Making Tax Digital)",
     body:
-      "From April 2026, sole traders with income over £50k must file quarterly digital updates to HMRC. Over £30k from April 2027. MileClear's the UK's first driver-first MTD-ready tracker.",
+      "From April 2026, sole traders with income over £50k must file quarterly digital updates to HMRC. Over £30k from April 2027. MileClear keeps the mileage records you'll need for them.",
     category: "deadlines",
   },
 
