@@ -7,6 +7,8 @@ import { Stack, useRouter } from "expo-router";
 import { StatusBar, setStatusBarStyle } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import * as Font from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
+import { waitForFonts } from "../lib/startup/fontGate";
 import { colors } from "../lib/theme";
 import { HeaderBackButton } from "../components/HeaderBackButton";
 import {
@@ -18,6 +20,9 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 
 LogBox.ignoreLogs(["Not Found"]);
+
+// Keep the splash up until the fonts are ready (see lib/startup/fontGate.ts).
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -845,25 +850,44 @@ export default function RootLayout() {
     void applyFreshUpdateOnFirstOpen();
   }, []);
 
-  // Load fonts in background - never block the navigator
+  // Hold the first draw until the fonts are loaded (max ~3 s, then system
+  // font) so no screen is measured in the fallback font.
+  const [fontsReady, setFontsReady] = useState(false);
   useEffect(() => {
-    Font.loadAsync({
-      PlusJakartaSans_300Light,
-      PlusJakartaSans_400Regular,
-      PlusJakartaSans_500Medium,
-      PlusJakartaSans_600SemiBold,
-      PlusJakartaSans_700Bold,
-    }).catch(() => {});
+    let cancelled = false;
+    void waitForFonts(() =>
+      Font.loadAsync({
+        PlusJakartaSans_300Light,
+        PlusJakartaSans_400Regular,
+        PlusJakartaSans_500Medium,
+        PlusJakartaSans_600SemiBold,
+        PlusJakartaSans_700Bold,
+      }),
+    ).then(() => {
+      if (cancelled) return;
+      setFontsReady(true);
+      SplashScreen.hideAsync().catch(() => {});
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Notification handling starts once the navigator exists, so a tap that
+  // launched the app navigates after the gate rather than before it.
   useEffect(() => {
+    if (!fontsReady) return;
     registerNotificationCategories();
     setupNotificationResponseHandler();
     import("../lib/tracking/parkedReminder")
       .then((m) => m.replayParkedReminderOnLaunch())
       .catch(() => {});
     setupNotificationChannels().catch(console.error);
-  }, []);
+  }, [fontsReady]);
+
+  if (!fontsReady) {
+    return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
