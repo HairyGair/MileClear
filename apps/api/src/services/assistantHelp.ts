@@ -98,13 +98,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "start-trip",
     area: "recording_trips",
     q: "What is Start Trip?",
-    a: "Start Trip on Home records one trip from the moment you tap it until you tap I've Arrived, then shows a summary for you to save. By default it saves by itself after 15 minutes parked. If you turn on \"Start Trip runs until I tap Arrived\" (More > Settings > Tracking & Locations), waits and stops stay in the same trip.",
+    a: "Start Trip on Home records one trip from the moment you tap it until you tap I've Arrived, then shows a summary for you to save. By default it saves by itself after 15 minutes parked. If you turn on \"Start Trip runs until I tap Arrived\" (More > Settings > Tracking & Locations), waits and stops stay in the same trip. With Automatic trips off, Start Trip always runs until you tap I've Arrived, because nothing else would record the rest of your journey.",
   },
   {
     id: "still-on-your-trip",
     area: "recording_trips",
     q: "What is the \"Still on your trip?\" notification?",
-    a: "With \"Start Trip runs until I tap Arrived\" turned on, MileClear reminds you once you've been stopped for 10 minutes. Tap Arrived to save the trip up to where you stopped driving, or Keep going if you're still working. You get one reminder per stop, and it works without signal. It needs notifications allowed.",
+    a: "With \"Start Trip runs until I tap Arrived\" turned on, or Automatic trips off, MileClear reminds you once you've been stopped for 10 minutes. Tap Arrived to save the trip up to where you stopped driving, or Keep going if you're still working. You get one reminder per stop, and it works without signal. It needs notifications allowed.",
   },
   {
     id: "shifts",

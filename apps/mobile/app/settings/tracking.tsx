@@ -156,18 +156,24 @@ export default function TrackingSettings() {
           } stopped. Longer stops split your trips.`}
           onPress={chooseJourneyEnd}
         />
+        {/* With Automatic trips off, Start Trip always runs until Arrived
+            (startTripHoldsThroughStops): shown on and locked, the stored
+            choice comes back when Automatic trips goes back on. */}
         <ToggleRow
           icon="flag-outline"
           label="Start Trip runs until I tap Arrived"
           hint={
-            untilArrived
-              ? PARKED_COPY.settingsHintOn
-              : "Start Trip saves by itself after 15 minutes parked."
+            !driveDetection
+              ? PARKED_COPY.settingsHintAutomaticOff
+              : untilArrived
+                ? PARKED_COPY.settingsHintOn
+                : "Start Trip saves by itself after 15 minutes parked."
           }
-          value={untilArrived}
+          value={untilArrived || !driveDetection}
           onToggle={toggleUntilArrived}
+          disabled={!driveDetection}
         />
-        {untilArrived && notifState !== "granted" && (
+        {(untilArrived || !driveDetection) && notifState !== "granted" && (
           <SettingsRow
             icon="notifications-off-outline"
             label={PARKED_COPY.settingsHintNoPermission}

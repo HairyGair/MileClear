@@ -204,6 +204,8 @@ import { resolveJourneyEndMinutes, journeyBoundaryMs } from "./journeyBoundary";
 import { gapStopDecision, GAP_STOP_MS, type RecentFix } from "./gapStop";
 import {
   quickTripLockDecision,
+  quickTripAutoFinishCopy,
+  startTripHoldsThroughStops,
   QUICK_TRIP_LIVE_COORD_MS as QUICK_TRIP_LIVE_COORD_MS_RULE,
 } from "./quickTripLock";
 import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
@@ -845,21 +847,17 @@ export async function finishParkedQuickTrip(
   // The reminder's Arrived posts its own result notification.
   if (reason === "reminder_arrived") return { claimed: true, tripsSaved };
   try {
+    const copy = quickTripAutoFinishCopy({
+      tripsSaved,
+      automaticTripsOn: await isDriveDetectionSwitchOn(),
+    });
     await Notifications.scheduleNotificationAsync({
-      content:
-        tripsSaved > 0
-          ? {
-              title: "Trip saved",
-              body: "You'd parked, so your Start Trip was finished and saved. Your next drives record automatically.",
-              data: { type: "quick_trip_auto_finished", action: "open_trips" },
-              ...(Platform.OS === "android" && { channelId: "reminders" }),
-            }
-          : {
-              title: "Start Trip ended",
-              body: "Your Start Trip hadn't recorded any driving, so it was switched off to save battery. Your next drives record automatically.",
-              data: { type: "quick_trip_auto_finished", action: "open_dashboard" },
-              ...(Platform.OS === "android" && { channelId: "reminders" }),
-            },
+      content: {
+        title: copy.title,
+        body: copy.body,
+        data: { type: "quick_trip_auto_finished", action: copy.action },
+        ...(Platform.OS === "android" && { channelId: "reminders" }),
+      },
       trigger: null,
     });
   } catch {
@@ -1036,6 +1034,9 @@ export async function shiftSuppressesAutoDetection(
     appActive,
     lastDrivingMs,
     untilArrived: qts ? await getStartTripUntilArrived().catch(() => false) : false,
+    // Automatic trips off: nothing would record the rest of the journey after
+    // a parked finish (Shaun, 10 Oct 2026), so it holds through stops.
+    automaticTripsOff: qts ? !(await isDriveDetectionSwitchOn()) : false,
   });
 
   if (decision.action === "finish") {
@@ -5362,6 +5363,18 @@ export async function getStartTripUntilArrived(): Promise<boolean> {
   return row?.value === "1";
 }
 
+/**
+ * Whether the running Start Trip holds through stops: the setting, or
+ * Automatic trips switched off (startTripHoldsThroughStops in quickTripLock.ts).
+ */
+export async function getStartTripRunsUntilArrived(): Promise<boolean> {
+  const settingOn = await getStartTripUntilArrived().catch(() => false);
+  return startTripHoldsThroughStops({
+    settingOn,
+    automaticTripsOn: await isDriveDetectionSwitchOn(),
+  }).on;
+}
+
 export async function setStartTripUntilArrived(on: boolean): Promise<void> {
   const db = await getDatabase();
   await db.runAsync(
@@ -5369,8 +5382,9 @@ export async function setStartTripUntilArrived(on: boolean): Promise<void> {
     [on ? "1" : "0"]
   );
   logDetectionEvent("start_trip_until_arrived_set", { on }).catch(() => {});
-  if (!on) {
+  if (!on && (await isDriveDetectionSwitchOn())) {
     // Setting off: the phone's reminder goes with it (the 15-minute auto-finish takes over).
+    // Not with Automatic trips off: the Start Trip still holds through stops.
     import("./parkedReminder").then((m) => m.cancelParkedReminder("setting_off")).catch(() => {});
   } else {
     // Switched on mid-trip: arm from what the trail already shows.
@@ -5399,6 +5413,17 @@ export async function setDriveDetectionEnabled(enabled: boolean): Promise<void> 
   }
 
   logDetectionEvent("detection_switch_set", { enabled }).catch(() => {});
+
+  // A Start Trip running now holds through stops while Automatic trips is off,
+  // so arm (or, switched back on, drop) its "Still on your trip?" reminder.
+  // A no-op with no Start Trip running.
+  import("./parkedReminder")
+    .then(async (m) => {
+      const d = await getDatabase();
+      const drove = await quickTripLastDrivingMs(d);
+      await m.reconcileParkedReminder(drove != null && !Number.isNaN(drove) ? drove : null);
+    })
+    .catch(() => {});
 
   if (enabled) {
     // Starts the engine, or for one left running under a shift or Start Trip

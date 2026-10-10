@@ -16,6 +16,8 @@ import {
   QUICK_TRIP_PARKED_MS,
   QUICK_TRIP_NEVER_DROVE_MS,
   QUICK_TRIP_UNTIL_ARRIVED_MS,
+  startTripHoldsThroughStops,
+  quickTripAutoFinishCopy,
 } from "../quickTripLock";
 
 const NOW = Date.parse("2026-09-14T11:56:54Z");
@@ -374,5 +376,125 @@ describe("\"Start Trip runs until I tap Arrived\" (Kada, 9 Oct 2026)", () => {
         untilArrived: true,
       })
     ).toEqual({ action: "recover", reason: "span_cap" });
+  });
+});
+
+describe("Automatic trips off: Start Trip runs until Arrived (Shaun, 10 Oct 2026)", () => {
+  // Automatic trips off, Start Trip, an 18-minute stop part way: the parked
+  // rule saved the first 16 miles and nothing recorded the other ~100.
+  const START = Date.parse("2026-10-10T07:00:00Z");
+  const base = {
+    firstCoordMs: START + mins(1),
+    quickTripStartMs: START,
+    lockStartedAtMs: START,
+    appActive: false,
+  };
+
+  it("holds through stops with the setting on, or with Automatic trips off", () => {
+    expect(startTripHoldsThroughStops({ settingOn: true, automaticTripsOn: true })).toEqual({
+      on: true,
+      source: "setting",
+    });
+    expect(startTripHoldsThroughStops({ settingOn: false, automaticTripsOn: false })).toEqual({
+      on: true,
+      source: "automatic_trips_off",
+    });
+    expect(startTripHoldsThroughStops({ settingOn: true, automaticTripsOn: false }).on).toBe(true);
+    expect(startTripHoldsThroughStops({ settingOn: false, automaticTripsOn: true })).toEqual({
+      on: false,
+      source: null,
+    });
+  });
+
+  it("does not finish his 18-minute stop", () => {
+    const now = START + mins(40);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        lastDrivingMs: now - mins(18),
+        automaticTripsOff: true,
+      })
+    ).toEqual({ action: "suppress", reason: "live_breadcrumb" });
+  });
+
+  it("the same stop still finishes it with Automatic trips on", () => {
+    const now = START + mins(40);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        lastDrivingMs: now - mins(18),
+        automaticTripsOff: false,
+      })
+    ).toEqual({ action: "finish", reason: "parked" });
+  });
+
+  it("keeps the lock through a long silent stop past three hours", () => {
+    const now = START + hours(5);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(90),
+        lastDrivingMs: now - mins(90),
+        automaticTripsOff: true,
+      })
+    ).toEqual({ action: "suppress", reason: "recently_started" });
+  });
+
+  it("still lets go of a Start Trip that never drove after an hour", () => {
+    const now = START + QUICK_TRIP_NEVER_DROVE_MS + mins(1);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(2),
+        lastDrivingMs: null,
+        automaticTripsOff: true,
+      })
+    ).toEqual({ action: "finish", reason: "never_drove" });
+  });
+
+  it("a forgotten one is recovered after the 12-hour window", () => {
+    const now = START + QUICK_TRIP_UNTIL_ARRIVED_MS + mins(5);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(30),
+        lastDrivingMs: now - mins(30),
+        automaticTripsOff: true,
+      })
+    ).toEqual({ action: "recover", reason: "orphan" });
+  });
+
+  it("the 18-hour span cap still applies", () => {
+    const now = START + QUICK_TRIP_MAX_SPAN_MS + mins(1);
+    expect(
+      quickTripLockDecision({
+        ...base,
+        nowMs: now,
+        lastCoordMs: now - mins(1),
+        lastDrivingMs: now - mins(1),
+        automaticTripsOff: true,
+      })
+    ).toEqual({ action: "recover", reason: "span_cap" });
+  });
+
+  it("the finish notice does not promise automatic recording when it is off", () => {
+    expect(quickTripAutoFinishCopy({ tripsSaved: 1, automaticTripsOn: true }).body).toContain(
+      "Your next drives record automatically."
+    );
+    const off = quickTripAutoFinishCopy({ tripsSaved: 0, automaticTripsOn: false });
+    expect(off.title).toBe("Start Trip ended");
+    expect(off.action).toBe("open_dashboard");
+    expect(off.body).not.toContain("record automatically");
+    expect(off.body).toContain("tap Start Trip for your next drive");
+    expect(quickTripAutoFinishCopy({ tripsSaved: 2, automaticTripsOn: false }).action).toBe(
+      "open_trips"
+    );
   });
 });
