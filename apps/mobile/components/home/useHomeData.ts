@@ -6,7 +6,7 @@
 //  - the calendar month (Personal hero), with the month before for a quiet one;
 //  - the next badge, cheapest fuel today, road alerts, and the tax line.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 import { ACHIEVEMENT_META, formatPence, isSaCountdownSeason } from "@mileclear/shared";
 import type { GamificationStats, PeriodRecap } from "@mileclear/shared";
@@ -21,9 +21,12 @@ import { useTaxOverview } from "../../lib/tax/useTaxOverview";
 import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
 import { homeLineText, isSelfEmployedPersona } from "../../lib/tax/persona";
 import { badgesDoorText, earningsDoorText, fuelDoorText, insightsDoorText, saSeasonText } from "../../lib/home/doorText";
+import { createTtlCache } from "../../lib/home/ttlCache";
 import { isEndOfWeek, type DoorTexts } from "../../lib/home/doors";
 import type { HeroRecapTotals } from "../../lib/home/hero";
 import type { HomePersona } from "../../lib/home/persona";
+
+const homeCache = createTtlCache();
 
 interface Args {
   mode: "work" | "personal";
@@ -63,7 +66,19 @@ export function useHomeData(a: Args): HomeData {
   const [focusTick, setFocusTick] = useState(0);
   const endOfWeek = isEndOfWeek(new Date());
 
+  // Pull to refresh goes to the server once for each cached request.
+  const seenRefresh = useRef<Record<string, number>>({});
+  const forceOnce = useCallback(
+    (name: string) => {
+      const force = refreshKey !== (seenRefresh.current[name] ?? 0);
+      seenRefresh.current[name] = refreshKey;
+      return force;
+    },
+    [refreshKey]
+  );
+
   useEffect(() => {
+    homeCache.clear();
     insightsCache.setScope(userId ?? null);
   }, [userId]);
 
@@ -143,18 +158,20 @@ export function useHomeData(a: Args): HomeData {
       return;
     }
     let cancelled = false;
-    fetchCheapestToday()
+    homeCache
+      .get("cheapest", () => fetchCheapestToday(), forceOnce("cheapest"))
       .then((res) => !cancelled && setFuelData(res.data ?? null))
       .catch(() => !cancelled && setFuelData(null));
     return () => {
       cancelled = true;
     };
-  }, [wantsFuel, refreshKey, focusTick]);
+  }, [wantsFuel, refreshKey, focusTick, forceOnce]);
 
   // Road alerts: the worst current one, else the next planned one.
   useEffect(() => {
     let cancelled = false;
-    fetchRoadAlerts()
+    homeCache
+      .get("road", () => fetchRoadAlerts(), forceOnce("road"))
       .then((res) => {
         if (cancelled) return;
         const d = res.data;
@@ -165,7 +182,7 @@ export function useHomeData(a: Args): HomeData {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, focusTick]);
+  }, [refreshKey, focusTick, forceOnce]);
 
   // Tax line, shared with the Tax tab through the same overview cache.
   const { data: overview, refresh: refreshOverview } = useTaxOverview();

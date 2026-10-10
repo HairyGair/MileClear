@@ -45,6 +45,8 @@ export interface StatusInputs {
   blocker: BlockerId | null;
   /** Trips that could not be uploaded and need the driver. */
   failedSyncCount: number;
+  /** Every failed item is a trip. Omitted means yes. Shifts, earnings and fuel logs also queue. */
+  failedSyncAllTrips?: boolean;
   /** Epoch ms when a pause ends, or null. */
   pausedUntil: number | null;
   now: number;
@@ -113,6 +115,13 @@ function make(
   };
 }
 
+/** Say what is wrong, where the cause is known. */
+const BLOCKER_TITLES: Record<BlockerId, string> = {
+  no_location: "Location is off. Trips aren't recording",
+  bg_refresh_off: "Background App Refresh is off. Trips aren't recording",
+  permission_lost: "Location is no longer on Always. Trips aren't recording",
+};
+
 export function selectStatusLine(i: StatusInputs): StatusLine {
   if (i.recording) {
     return make(
@@ -123,7 +132,7 @@ export function selectStatusLine(i: StatusInputs): StatusLine {
     );
   }
   if (i.blocker) {
-    return make("cant_record", "blocking", "Trips aren't recording", "fix", {
+    return make("cant_record", "blocking", BLOCKER_TITLES[i.blocker], "fix", {
       action: "Fix",
       icon: "alert-circle",
       red: true,
@@ -134,7 +143,7 @@ export function selectStatusLine(i: StatusInputs): StatusLine {
     return make(
       "sync_failed",
       "blocking",
-      `${n} ${n === 1 ? "trip" : "trips"} couldn't upload`,
+      `${n} ${i.failedSyncAllTrips === false ? (n === 1 ? "item" : "items") : n === 1 ? "trip" : "trips"} couldn't upload`,
       "sync_status",
       { action: "Retry", icon: "cloud-offline-outline", red: true }
     );

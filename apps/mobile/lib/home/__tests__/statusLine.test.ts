@@ -61,7 +61,12 @@ describe("selectStatusLine priority", () => {
     expect(s.action).toBe("Fix");
     expect(s.tap).toBe("fix");
     expect(s.red).toBe(true);
-    expect(s.a11yLabel).toBe("Trips aren't recording. Fix.");
+    expect(s.title).toBe("Location is no longer on Always. Trips aren't recording");
+    expect(s.a11yLabel).toBe("Location is no longer on Always. Trips aren't recording. Fix.");
+    expect(selectStatusLine(withIn({ blocker: "bg_refresh_off" })).title).toBe(
+      "Background App Refresh is off. Trips aren't recording"
+    );
+    expect(selectStatusLine(withIn({ blocker: "no_location" })).title).toBe("Location is off. Trips aren't recording");
   });
 
   it("failed uploads come next, red, with Retry", () => {
@@ -72,6 +77,8 @@ describe("selectStatusLine priority", () => {
     expect(s.tap).toBe("sync_status");
     expect(s.red).toBe(true);
     expect(selectStatusLine(withIn({ failedSyncCount: 1 })).title).toBe("1 trip couldn't upload");
+    expect(selectStatusLine(withIn({ failedSyncCount: 2, failedSyncAllTrips: false })).title).toBe("2 items couldn't upload");
+    expect(selectStatusLine(withIn({ failedSyncCount: 1, failedSyncAllTrips: false })).title).toBe("1 item couldn't upload");
   });
 
   it("paused is amber with Resume and opens the sheet", () => {

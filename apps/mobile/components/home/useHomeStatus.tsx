@@ -44,7 +44,7 @@ type Sheet = "recording" | "setup" | "low_power" | null;
 export function useHomeStatus(a: Args): { status: StatusLineModel; element: ReactElement } {
   const router = useRouter();
   const recording = useRecordingNow();
-  const failedSyncCount = useFailedSyncCount();
+  const failed = useFailedSyncCount();
   const [sheet, setSheet] = useState<Sheet>(null);
 
   const now = Date.now();
@@ -53,7 +53,8 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
       selectStatusLine({
         recording,
         blocker: a.blocker,
-        failedSyncCount,
+        failedSyncCount: failed.count,
+        failedSyncAllTrips: failed.allTrips,
         pausedUntil: a.pausedUntil,
         now,
         automaticOff: a.automaticOff,
@@ -64,7 +65,7 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
       }),
     // `now` is read once per render on purpose: a pause ending is picked up on the next render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recording, a.blocker, failedSyncCount, a.pausedUntil, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, Math.floor(now / 60000)]
+    [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, Math.floor(now / 60000)]
   );
 
   const onPress = useCallback(() => {

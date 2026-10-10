@@ -1669,31 +1669,28 @@ export default function DashboardScreen() {
             </View>
             <Text style={s.explainerTitle}>Who is Work mode for?</Text>
             <Text style={s.explainerBody}>
-              Work mode is for <Text style={s.explainerBold}>self-employed drivers</Text> who use their own vehicle for business. This includes:
+              Work mode is for <Text style={s.explainerBold}>driving you do for work</Text>. That includes:
             </Text>
 
             <View style={s.explainerList}>
-              <ExplainerItem icon="bicycle-outline" text="Gig & delivery drivers (Uber, Deliveroo, Just Eat, Amazon Flex)" />
-              <ExplainerItem icon="cube-outline" text="Couriers & freelance drivers (Stuart, Gophr, DPD, Yodel, Evri)" />
-              <ExplainerItem icon="construct-outline" text="Self-employed tradespeople, estate agents, carers" />
-              <ExplainerItem icon="business-outline" text="Anyone who drives for their own business" />
+              <ExplainerItem icon="bicycle-outline" text="Gig and delivery drivers (Uber, Deliveroo, Just Eat, Amazon Flex)" />
+              <ExplainerItem icon="construct-outline" text="Self-employed drivers, couriers and tradespeople" />
+              <ExplainerItem icon="briefcase-outline" text="Employees who use their own vehicle for work" />
+              <ExplainerItem icon="business-outline" text="Drivers whose company uses Milesheet" />
             </View>
 
             <View style={s.explainerDivider} />
 
             <Text style={s.explainerSubhead}>How it works</Text>
             <Text style={s.explainerBody}>
-              Business trips are tracked separately and used to calculate your <Text style={s.explainerBold}>mileage claim</Text> - 55p per mile for the first 10,000, then 25p after that. This reduces your tax bill at the end of the year.
+              Business trips are kept apart from personal ones. If you are self-employed, they build your <Text style={s.explainerBold}>mileage claim</Text>: 55p a mile for the first 10,000, then 25p. If your employer pays you for mileage, MileClear works out what you may be owed back. Company drivers send their miles to their company.
             </Text>
 
             <View style={s.explainerDivider} />
 
-            <Text style={s.explainerSubhead}>Not sure if you qualify?</Text>
+            <Text style={s.explainerSubhead}>Not sure?</Text>
             <Text style={s.explainerBody}>
-              If you're employed and your employer reimburses mileage, you may still be able to claim the difference from HMRC. However, regular commuting to a fixed office is <Text style={s.explainerBold}>not</Text> claimable.
-            </Text>
-            <Text style={[s.explainerBody, { marginTop: 8 }]}>
-              If you just want to track personal driving, switch to <Text style={s.explainerBold}>Personal</Text> mode - you can always switch back later.
+              Regular commuting to a fixed workplace is <Text style={s.explainerBold}>not</Text> a business trip. If you only want to track personal driving, switch to <Text style={s.explainerBold}>Personal</Text> mode. You can switch back any time.
             </Text>
           </ScrollView>
 

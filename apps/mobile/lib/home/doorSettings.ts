@@ -21,8 +21,9 @@ const DETAILS: Record<DoorRowId, { hint: string; icon: DoorSwitch["icon"] }> = {
   fuel: { hint: "Cheap fuel near you", icon: "water-outline" },
 };
 
-export function doorSwitches(hidden: readonly DoorRowId[]): DoorSwitch[] {
-  return DOOR_ROW_IDS.map((id) => ({
+/** `available` limits the list to rows this driver can see (see availableDoorRows). */
+export function doorSwitches(hidden: readonly DoorRowId[], available?: readonly DoorRowId[]): DoorSwitch[] {
+  return DOOR_ROW_IDS.filter((id) => !available || available.includes(id)).map((id) => ({
     id,
     label: DOOR_ROW_LABELS[id],
     hint: DETAILS[id].hint,

@@ -288,6 +288,10 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
           accessibilityRole="button"
           accessibilityLabel={v.a11yLabel}
           accessibilityHint="Opens the trip"
+          accessibilityActions={v.chip === "failed" ? [{ name: "syncStatus", label: "Open sync status" }] : undefined}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "syncStatus") router.push("/sync-status" as never);
+          }}
         >
           {map}
           <View style={{ flex: 1 }}>
@@ -324,6 +328,10 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
           accessibilityRole="button"
           accessibilityLabel={v.a11yLabel}
           accessibilityHint="Opens the trip"
+          accessibilityActions={v.chip === "failed" ? [{ name: "syncStatus", label: "Open sync status" }] : undefined}
+          onAccessibilityAction={(e) => {
+            if (e.nativeEvent.actionName === "syncStatus") router.push("/sync-status" as never);
+          }}
         >
           {!mapAbove ? map : null}
           <View style={s.fullText}>

@@ -287,19 +287,21 @@ const s = StyleSheet.create({
   },
   contributorPillText: {
     color: TEXT_2,
-    fontSize: 11,
-    fontWeight: "600",
-  },
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    },
   note: {
     color: TEXT_2,
-    fontSize: 13,
+    fontSize: 14,
+    fontFamily: fonts.regular,
     lineHeight: 19,
     marginTop: 10,
     marginBottom: 8,
   },
   contributorCount: {
     color: TEXT_3,
-    fontSize: 11,
+    fontSize: 12,
+    fontFamily: fonts.regular,
     marginTop: 4,
   },
   row: {
@@ -313,8 +315,8 @@ const s = StyleSheet.create({
   },
   rowLabel: {
     color: TEXT_1,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: fonts.semibold,
     flex: 1,
   },
   rowValueRight: {
@@ -322,27 +324,31 @@ const s = StyleSheet.create({
   },
   rowYouValue: {
     fontSize: 16,
-    fontWeight: "700",
-  },
+    fontFamily: fonts.bold,
+    },
   rowYouNoData: {
     color: TEXT_3,
     fontSize: 12,
-    fontStyle: "italic",
+    fontFamily: fonts.regular,
+    
   },
   rowPercentile: {
     color: TEXT_3,
-    fontSize: 11,
+    fontSize: 12,
+    fontFamily: fonts.regular,
     marginTop: 1,
   },
   rowUnavailable: {
     color: TEXT_3,
     fontSize: 12,
-    fontStyle: "italic",
+    fontFamily: fonts.regular,
+    
     marginTop: 4,
   },
   rowFooter: {
     color: TEXT_3,
-    fontSize: 10,
+    fontSize: 12,
+    fontFamily: fonts.regular,
     marginTop: 4,
   },
   distContainer: {
@@ -387,13 +393,14 @@ const s = StyleSheet.create({
   },
   distLabel: {
     color: TEXT_3,
-    fontSize: 10,
+    fontSize: 12,
+    fontFamily: fonts.regular,
   },
   distLabelMed: {
     color: TEXT_2,
-    fontSize: 10,
-    fontWeight: "600",
-  },
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    },
   platformToggle: {
     flexDirection: "row",
     alignItems: "center",
@@ -407,8 +414,8 @@ const s = StyleSheet.create({
   platformToggleText: {
     color: TEXT_2,
     fontSize: 12,
-    fontWeight: "600",
-  },
+    fontFamily: fonts.semibold,
+    },
   platformList: {
     marginTop: 4,
   },
@@ -419,17 +426,16 @@ const s = StyleSheet.create({
     marginBottom: 8,
   },
   platformLabel: {
-    color: AMBER,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+    color: TEXT_2,
+    fontSize: 12,
+    fontFamily: fonts.bold,
     marginBottom: 8,
   },
   privacyNote: {
     color: TEXT_3,
-    fontSize: 10,
-    fontStyle: "italic",
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    
     marginTop: 8,
     lineHeight: 14,
   },

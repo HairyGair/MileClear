@@ -109,17 +109,21 @@ export function useRecordingNow(): RecordingNow | null {
 // ── Trips that failed to upload ───────────────────────────────────────
 
 /** Trips stuck for good in the sync queue (they need the driver). */
-export function useFailedSyncCount(): number {
-  const [count, setCount] = useState(0);
+export function useFailedSyncCount(): { count: number; allTrips: boolean } {
+  const [state, setState] = useState({ count: 0, allTrips: true });
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
     try {
       const db = await getDatabase();
-      const row = await db.getFirstAsync<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM sync_queue WHERE status = 'permanently_failed'"
+      const rows = await db.getAllAsync<{ entity_type: string; n: number }>(
+        "SELECT entity_type, COUNT(*) AS n FROM sync_queue WHERE status = 'permanently_failed' GROUP BY entity_type"
       );
-      if (mounted.current) setCount(row?.n ?? 0);
+      const count = rows.reduce((t, r) => t + r.n, 0);
+      const allTrips = rows.every((r) => r.entity_type === "trip");
+      if (mounted.current) {
+        setState((prev) => (prev.count === count && prev.allTrips === allTrips ? prev : { count, allTrips }));
+      }
     } catch {
       // best-effort
     }
@@ -135,7 +139,7 @@ export function useFailedSyncCount(): number {
     };
   }, [refresh]);
 
-  return count;
+  return state;
 }
 
 // ── The last saved trip ───────────────────────────────────────────────

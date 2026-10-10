@@ -7,6 +7,10 @@ import { ToggleRow } from "../../components/settings/ToggleRow";
 import { Button } from "../../components/Button";
 import { getHiddenDoorRows, setDoorRowHidden, showAllDoorRows, type DoorRowId } from "../../lib/home/doorPrefs";
 import { doorSwitches, hiddenSummary } from "../../lib/home/doorSettings";
+import { availableDoorRows } from "../../lib/home/doors";
+import { homePersona } from "../../lib/home/persona";
+import { useMode } from "../../lib/mode/context";
+import { useUser } from "../../lib/user/context";
 import { colors, fonts, spacing } from "../../lib/theme";
 
 /**
@@ -16,6 +20,12 @@ import { colors, fonts, spacing } from "../../lib/theme";
  */
 export default function HomeScreenSettings() {
   const [hidden, setHidden] = useState<DoorRowId[]>([]);
+  const { mode, isPersonal } = useMode();
+  const { user, isCompanyDriver } = useUser();
+  const available = availableDoorRows({
+    mode,
+    persona: homePersona({ isPersonal, isCompanyDriver, workType: user?.workType }),
+  });
 
   useFocusEffect(
     useCallback(() => {
@@ -46,7 +56,7 @@ export default function HomeScreenSettings() {
         when it has something to tell you.
       </Text>
       <SettingsGroup title="SHORTCUTS ON HOME">
-        {doorSwitches(hidden).map((row) => (
+        {doorSwitches(hidden, available).map((row) => (
           <ToggleRow
             key={row.id}
             icon={row.icon}

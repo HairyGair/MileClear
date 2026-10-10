@@ -30,3 +30,15 @@ describe("hiddenSummary", () => {
     expect(hiddenSummary(["tax", "fuel"])).toBe("2 shortcuts are hidden.");
   });
 });
+
+import { availableDoorRows } from "../doors";
+
+describe("availableDoorRows", () => {
+  it("matches who can see which shortcut", () => {
+    expect(availableDoorRows({ mode: "personal", persona: "personal" })).not.toContain("earnings");
+    expect(availableDoorRows({ mode: "personal", persona: "personal" })).not.toContain("tax");
+    expect(availableDoorRows({ mode: "work", persona: "gig" })).toContain("earnings");
+    expect(availableDoorRows({ mode: "work", persona: "company" })).not.toContain("tax");
+    expect(doorSwitches([], ["insights"]).map((r) => r.id)).toEqual(["insights"]);
+  });
+});

@@ -139,3 +139,8 @@ export function isEndOfWeek(now: Date): boolean {
   const h = now.getHours();
   return (d === 0 && h >= 18) || (d === 1 && h < 12);
 }
+
+/** The shortcuts that can ever show for this driver (Settings > Home screen lists these). */
+export function availableDoorRows(args: { mode: "work" | "personal"; persona: HomePersona }): DoorRowId[] {
+  return doorOrder({ ...args, totalTrips: 1, endOfWeek: false });
+}
