@@ -101,10 +101,13 @@ export function mergeDumpEvents(
   recent: readonly DumpEvent[],
   lifecycle: readonly DumpEvent[],
   now: number,
-  opts: { windowMs?: number; cap?: number } = {}
+  opts: { windowMs?: number; cap?: number; keep?: (event: string) => boolean } = {}
 ): DumpEvent[] {
   const windowMs = opts.windowMs ?? LIFECYCLE_EVENT_WINDOW_MS;
   const cap = Math.max(0, opts.cap ?? LIFECYCLE_EVENT_CAP);
+  // Which extra rows may join. Lifecycle by default; the 24-hour tracking log
+  // (trackingLog.ts) is merged with the same function and its own rule.
+  const keep = opts.keep ?? isLifecycleEvent;
   const cutoff = now - windowMs;
 
   const inRecent = new Map<string, number>();
@@ -115,7 +118,7 @@ export function mergeDumpEvents(
 
   const extras: DumpEvent[] = [];
   for (const e of lifecycle) {
-    if (!isLifecycleEvent(e.event)) continue;
+    if (!keep(e.event)) continue;
     const t = timeOf(e);
     if (!(t >= cutoff)) continue;
     const k = eventKey(e);

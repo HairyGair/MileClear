@@ -7,6 +7,7 @@ import * as BackgroundFetch from "expo-background-fetch";
 import * as Notifications from "expo-notifications";
 import { getDatabase } from "../db/index";
 import { isLifecycleEvent, LIFECYCLE_EVENT_CAP, LIFECYCLE_EVENT_WINDOW_MS } from "./lifecycleEvents";
+import { appendTrackingLog } from "./trackingLogStore";
 import { getAppMode } from "../mode/index";
 import {
   sendDrivingDetectedNotification,
@@ -489,6 +490,10 @@ export async function logDetectionEvent(event: string, data?: Record<string, unk
     if (isLifecycleEvent(event)) {
       await logLifecycleEvent(db, recordedAt, event, payload);
     }
+    // Third copy for the rolling 24-hour tracking log (trackingLog.ts): the
+    // engine's own account of the day, sent with every dump and sliced into
+    // every missing-trip report.
+    await appendTrackingLog(db, recordedAt, event, payload);
   } catch {
     // Logging failures must never break detection
   }

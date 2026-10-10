@@ -99,6 +99,25 @@ async function recentActivityFixes(
   return out;
 }
 
+/**
+ * The useful fields of the SDK's providerchange event, for the tracking log:
+ * whether location services are on, the authorization status (iOS: 3 Always,
+ * 4 While Using, 2 denied; Android maps to the same numbers), and whether the
+ * phone gave precise or approximate location. Never throws.
+ */
+export function readProviderChange(e: unknown, source: string): Record<string, unknown> {
+  const p = (e ?? {}) as Record<string, unknown>;
+  const pick = (v: unknown) => (typeof v === "boolean" || typeof v === "number" ? v : null);
+  return {
+    enabled: pick(p.enabled),
+    status: pick(p.status),
+    gps: pick(p.gps),
+    network: pick(p.network),
+    accuracyAuthorization: pick(p.accuracyAuthorization),
+    source,
+  };
+}
+
 // ─── Lazy, crash-safe native module load ────────────────────────────────────
 // Never a static import: the module is native-only (crashes in Expo Go, absent
 // until a dev build installs it), and a static import would break typecheck and
@@ -123,6 +142,9 @@ type BgGeo = {
   // Force RNBG into continuous-tracking (moving) state immediately, bypassing
   // CoreMotion's slow "automotive" classification — the short-journey backstop.
   changePace?: (isMoving: boolean) => Promise<unknown>;
+  // Log-only listeners for the tracking log. Optional: guarded at the call.
+  onProviderChange?: (cb: (e: unknown) => void) => void;
+  onPowerSaveChange?: (cb: (on: unknown) => void) => void;
   DESIRED_ACCURACY_NAVIGATION: number;
   DESIRED_ACCURACY_HIGH: number;
   DESIRED_ACCURACY_MEDIUM?: number;
@@ -659,6 +681,22 @@ export async function startNativeLocationEngine(): Promise<boolean> {
       BGGeo.onHeartbeat(() => {
         void handleNativeHeartbeat();
       });
+
+      // Permission, location-services and battery-saver changes, for the
+      // 24-hour tracking log (trackingLog.ts, 10 Oct 2026). Until now the
+      // only record of a permission change was the next app open noticing it,
+      // so a drive missed in between could not be put down to it. Log lines
+      // only: nothing here changes what the engine does.
+      if (typeof BGGeo.onProviderChange === "function") {
+        BGGeo.onProviderChange((e: unknown) => {
+          logDetectionEvent("provider_change", readProviderChange(e, "live")).catch(() => {});
+        });
+      }
+      if (typeof BGGeo.onPowerSaveChange === "function") {
+        BGGeo.onPowerSaveChange((on: unknown) => {
+          logDetectionEvent("power_save_change", { enabled: on === true, source: "live" }).catch(() => {});
+        });
+      }
 
       // Read before ready(): the iPhone trigger list depends on it (engineTriggers.ts).
       const motionPermission = await getMotionPermission().catch(() => "unavailable");

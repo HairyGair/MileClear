@@ -452,6 +452,26 @@ async function handledAsSwitchedOff(): Promise<boolean> {
   }
 }
 
+/** One tracking-log line for the headless events that describe the phone's
+ *  state rather than a drive. Never throws. */
+async function logHeadlessStateEvent(name: string, params: unknown): Promise<void> {
+  try {
+    if (name === "boot" || name === "terminate") {
+      const log = await loadLog();
+      await log?.("native_headless_lifecycle", { event: name });
+    } else if (name === "providerchange") {
+      const log = await loadLog();
+      const { readProviderChange } = await import("./nativeLocation");
+      await log?.("provider_change", readProviderChange(params, "headless"));
+    } else if (name === "powersavechange") {
+      const log = await loadLog();
+      await log?.("power_save_change", { enabled: params === true, source: "headless" });
+    }
+  } catch {
+    // Logging must never stop the task.
+  }
+}
+
 export function registerNativeHeadlessTask(): void {
   if (Platform.OS !== "android") return;
   let BGGeo: BgGeoHeadless | null = null;
@@ -466,6 +486,11 @@ export function registerNativeHeadlessTask(): void {
   BGGeo.registerHeadlessTask(async (event) => {
     const name = String(event?.name ?? "");
     try {
+      // Log-only events for the 24-hour tracking log (trackingLog.ts), before
+      // anything else so they are kept whatever the switch says: Android
+      // ending the app, the phone restarting, a permission or location
+      // services change, battery saver. Rare, so no throttle.
+      await logHeadlessStateEvent(name, event?.params);
       if (await handledAsSwitchedOff()) return;
       if (name === "boot" || name === "terminate") {
         await rearmIfStationary(BGGeo!, name);

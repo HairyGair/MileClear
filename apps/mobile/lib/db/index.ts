@@ -150,6 +150,18 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       data TEXT
     );
 
+    -- The rolling 24-hour tracking log: engine, motion, recording, permission,
+    -- power and app-state events, kept apart from detection_events so routine
+    -- traffic cannot push them out. Carried by the diagnostic dump and sliced
+    -- into every missing-trip report; see lib/tracking/trackingLog.ts
+    -- (10 Oct 2026).
+    CREATE TABLE IF NOT EXISTS tracking_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recorded_at TEXT NOT NULL,
+      event TEXT NOT NULL,
+      data TEXT
+    );
+
     -- Battery over time while the tracking engine is awake, shipped in the
     -- diagnostic dump; see lib/tracking/batterySamples.ts (24 Sep 2026).
     CREATE TABLE IF NOT EXISTS battery_samples (
@@ -386,6 +398,7 @@ const USER_DATA_TABLES = [
   "detection_coordinates",
   "detection_events",
   "detection_lifecycle_events",
+  "tracking_log",
   "battery_samples",
   "trips",
   "shifts",
