@@ -486,6 +486,17 @@ export interface MissingTripReportDetails {
   pausedUntil?: number;
   /** Epoch ms: when that pause began, when the phone still knows. */
   pauseStartedAt?: number;
+  /** The phone's own tracking log around departAt plus its tracking state
+   *  now (10 Oct 2026, lib/tracking/trackingLogStore.ts). An API without the
+   *  key drops it; one with it stores it on this report only. */
+  phoneLog?: {
+    from: string;
+    to: string;
+    oldestHeld: string | null;
+    truncated: boolean;
+    rows: Array<[string, string, string | null]>;
+    state: Record<string, unknown>;
+  };
 }
 
 // A journey the scanner thinks we missed: a spatial gap between two captured

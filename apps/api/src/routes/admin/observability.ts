@@ -37,6 +37,7 @@ import {
   tripQualityRollup,
   STUB_COORD_MAX,
 } from "../../services/adminObservability.js";
+import { readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -146,6 +147,9 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
        *  from the report sheet. The report stays in the queue, because why
        *  the drive was missed is still worth a look. */
       selfAdded: boolean;
+      /** Missing-trip reports only: one line from the phone log the report
+       *  carried (10 Oct 2026), null for older builds and for feedback. */
+      phoneLogLine: string | null;
       status: string | null;
       replies: number;
       lastReplyBy: "admin" | "user" | null;
@@ -172,6 +176,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         diagnosis: null,
         diagnosisEvidence: null,
         selfAdded: false,
+        phoneLogLine: null,
         status: f.status,
         replies: replies.length,
         lastReplyBy: last,
@@ -201,6 +206,10 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
         diagnosis: paused ? "paused" : null,
         diagnosisEvidence: paused?.evidence ?? null,
         selfAdded: reportSelfAdded(r.createdAt, ups),
+        phoneLogLine: (() => {
+          const log = readStoredPhoneLog(r.metadata);
+          return log ? summarisePhoneLog(log).line : null;
+        })(),
         status: null,
         replies: 0,
         lastReplyBy: null,

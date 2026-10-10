@@ -47,6 +47,7 @@ import { adminPaidAdsRoutes } from "./paidAds.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
+import { dropsInWindow, readStoredPhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 import { matchTripRoute, isMatchPlausible, decodePolyline } from "../../services/mapMatching.js";
 import {
   getSubscriptionTruth,
@@ -3445,10 +3446,57 @@ export async function adminRoutes(app: FastifyInstance) {
         liveRecordingAtReport: !!landed === false && userEvents.some(
           (ev) => ev.type === "trip.signal_start" && ev.createdAt.getTime() <= at && ev.createdAt.getTime() >= at - 3 * HOUR
         ),
+        // The phone's own tracking log around the departure, sent with the
+        // report since 10 Oct 2026 (null on older builds). Summary only here;
+        // the rows come from /missing-trip-reports/:id/phone-log.
+        phoneLog: (() => {
+          const log = readStoredPhoneLog(e.metadata);
+          return log ? { ...summarisePhoneLog(log), from: log.from, to: log.to, state: log.state } : null;
+        })(),
       };
     });
 
     return reply.send({ data: { reports, generatedAt: new Date().toISOString() } });
+  });
+
+  // GET /admin/missing-trip-reports/:id/phone-log
+  // The rows of the phone log a report carried, plus every recording the
+  // phone says it dropped in the same window (trip.recording_dropped, also
+  // 10 Oct 2026). Drops can reach the server late (they wait on the phone
+  // when it is offline), so they are matched on the drive's own times.
+  app.get<{ Params: { id: string } }>("/missing-trip-reports/:id/phone-log", async (request, reply) => {
+    const report = await prisma.appEvent.findUnique({
+      where: { id: request.params.id },
+      select: { id: true, type: true, userId: true, metadata: true, createdAt: true },
+    });
+    if (!report || report.type !== "trip.report_missing") {
+      return reply.status(404).send({ error: "Missing-trip report not found" });
+    }
+    const log = readStoredPhoneLog(report.metadata);
+    const DAY = 24 * 60 * 60 * 1000;
+    const fromMs = log ? Date.parse(log.from) : report.createdAt.getTime() - DAY;
+    const toMs = log ? Date.parse(log.to) : report.createdAt.getTime();
+    const dropEvents = report.userId
+      ? await prisma.appEvent.findMany({
+          where: {
+            userId: report.userId,
+            type: "trip.recording_dropped",
+            createdAt: { gte: new Date(fromMs), lte: new Date(Math.max(toMs, report.createdAt.getTime()) + 2 * DAY) },
+          },
+          orderBy: { createdAt: "asc" },
+          take: 200,
+          select: { createdAt: true, metadata: true },
+        })
+      : [];
+    const drops = dropsInWindow(dropEvents, fromMs, toMs);
+    return reply.send({
+      data: {
+        reportId: report.id,
+        phoneLog: log,
+        summary: log ? summarisePhoneLog(log) : null,
+        drops,
+      },
+    });
   });
 
   // POST /admin/users/:userId/reset-classifications
