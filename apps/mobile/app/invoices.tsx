@@ -177,6 +177,23 @@ export default function InvoicesScreen() {
         }}
       />
 
+      {/* Invoice details: your name, VAT and bank details on every invoice.
+          Used to live in Settings (Business Profile). */}
+      <TouchableOpacity
+        style={styles.detailsRow}
+        onPress={() => router.push("/invoice-details" as never)}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Invoice details. Your name, VAT and bank details on invoices"
+      >
+        <Ionicons name="business-outline" size={18} color={AMBER} accessible={false} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.detailsTitle}>Invoice details</Text>
+          <Text style={styles.detailsHint}>Logo, name, VAT and bank details on your invoices</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+      </TouchableOpacity>
+
       {/* Summary header */}
       {summary && (
         <View style={styles.summary}>
@@ -386,6 +403,22 @@ function formatSummaryPence(pence: number): string {
 }
 
 const styles = StyleSheet.create({
+  detailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    minHeight: 52,
+    backgroundColor: CARD_BG,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+  },
+  detailsTitle: { fontSize: 15, fontFamily: fonts.semibold, color: TEXT_1 },
+  detailsHint: { fontSize: 13, fontFamily: fonts.regular, color: colors.text2, marginTop: 2 },
   root: { flex: 1, backgroundColor: BG },
   center: {
     flex: 1,
