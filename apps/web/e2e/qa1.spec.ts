@@ -27,15 +27,25 @@ test.describe("dialog and menu placement", () => {
     await page.getByRole("menuitem", { name: "Delete trip" }).click();
     const dialog = page.getByRole("dialog", { name: "Delete this trip?" });
     await expect(dialog).toBeVisible();
+    // Centred in the visible page, not the raw window: while a dialog is open
+    // the page keeps its scrollbar strip (scrollbar-gutter: stable) so nothing
+    // jumps. Linux/Windows draw that strip (~15px), macOS does not, so the
+    // window centre is the wrong target there. clientWidth/Height exclude it.
     await expect
       .poll(async () => {
         const b = await dialog.boundingBox();
-        if (!b) return false;
-        const cx = b.x + b.width / 2;
-        const cy = b.y + b.height / 2;
-        return Math.abs(cx - 720) < 3 && Math.abs(cy - 450) < 6;
+        if (!b) return "no box";
+        const view = await page.evaluate(() => ({
+          w: document.documentElement.clientWidth,
+          h: document.documentElement.clientHeight,
+        }));
+        const dx = Math.round(b.x + b.width / 2 - view.w / 2);
+        const dy = Math.round(b.y + b.height / 2 - view.h / 2);
+        return Math.abs(dx) < 3 && Math.abs(dy) < 6
+          ? "centred"
+          : `off by ${dx},${dy} (box ${JSON.stringify(b)}, page ${view.w}x${view.h})`;
       })
-      .toBe(true);
+      .toBe("centred");
   });
 
   test("a dialog is a bottom sheet on a phone", async ({ page }) => {
