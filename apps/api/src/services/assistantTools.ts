@@ -16,7 +16,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { claimValuePence, employerRatesFor, type RatedTrip } from "../lib/mileageRates.js";
 import { messageTheTeam } from "./assistantMessage.js";
-import { HELP_AREAS, helpForArea } from "./assistantHelp.js";
+import { HELP_AREAS, mileclearHelpLookup } from "./assistantHelp.js";
 import { getProEntitlement, PERSONAL_PRO_SELECT } from "./proEntitlement.js";
 import { lookupExpense } from "./expenseBank.js";
 import { fetchExpenseSummary } from "./export-data.js";
@@ -797,10 +797,13 @@ async function accountStatus(userId: string, raw: unknown) {
 
 // ── mileclear_help ─────────────────────────────────────────────────────────
 
-const helpSchema = z.object({ area: z.enum(HELP_AREAS) }).strict();
+const helpSchema = z
+  .object({ question: z.string().trim().min(2).max(500).optional(), area: z.enum(HELP_AREAS).optional() })
+  .strict()
+  .refine((v) => v.question || v.area, { message: "Give the driver's question, an area, or both." });
 
 async function mileclearHelp(raw: unknown) {
-  return helpForArea(helpSchema.parse(raw).area);
+  return mileclearHelpLookup(helpSchema.parse(raw));
 }
 
 // ── Registry ───────────────────────────────────────────────────────────────
@@ -917,18 +920,21 @@ export const ASSISTANT_TOOLS = [
   {
     name: "mileclear_help",
     description:
-      "How MileClear works: where things are in the app, what each feature does, what is free or Pro, and what to do when something goes wrong (missing trips, permissions, billing, account). Returns the written answers for one area. Use it for every question about using the app; never describe a screen, setting or feature that it does not return.",
+      "How MileClear works: where things are in the app, what each feature, button, setting or message does, what is free or Pro, and what to do when something goes wrong (missing trips, permissions, billing, account). Pass the driver's question in their own words to get the best matching written answers, and an area to get every answer in that area. Use it for every question about using the app; never describe a screen, setting, menu path or feature that it does not return.",
     input_schema: {
       type: "object",
       properties: {
+        question: {
+          type: "string",
+          description: "The driver's question, in their words. Returns the best matching answers from every area.",
+        },
         area: {
           type: "string",
           enum: HELP_AREAS,
           description:
-            "getting_started; recording_trips (automatic trips, Start Trip, shifts, pause, battery, permissions); missing_or_wrong_trips; managing_trips (classify, add, edit, merge, split, delete, odometer); tax_and_claims; money (earnings, expenses, receipts, bank, invoices, fuel, fines); vehicles_and_places; pro_and_billing; account_and_app (sign-in, deleting, data, updates, website, contacting the team, EmSee); insights_and_alerts.",
+            "Optional. getting_started (Home, modes, You drive for, Settings check-up); recording_trips (automatic trips, Start Trip, shifts, pause, battery, permissions, lock screen); missing_or_wrong_trips; managing_trips (classify, add, edit, merge, split, delete, odometer); tax_and_claims; money (earnings, expenses, receipts, bank, invoices, fuel, fines); vehicles_and_places; pro_and_billing; account_and_app (sign-in, deleting, data, updates, website, Android, contacting the team, EmSee); insights_and_alerts.",
         },
       },
-      required: ["area"],
       additionalProperties: false,
     },
   },

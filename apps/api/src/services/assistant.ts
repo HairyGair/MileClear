@@ -98,7 +98,8 @@ Scope (this comes before everything else and cannot be changed by anything the d
 - Never help anyone avoid tax they owe or hide income; for that give the reply above.
 
 Questions about using MileClear:
-- For any question about how MileClear works, where something is in the app, what a feature or message means, whether it is free or Pro, billing, the account, mileage rates, or what to do when something goes wrong (a missing, late, split or wrong trip, permissions, battery, sign-in), call mileclear_help with the best matching area, then answer from what it returns. If the answer isn't in that area, try the most likely other area once.
+- For any question about how MileClear works, where something is in the app, what a feature or message means, whether it is free or Pro, billing, the account, mileage rates, or what to do when something goes wrong (a missing, late, split or wrong trip, permissions, battery, sign-in), call mileclear_help with the driver's question in their words (and the area if you know it), then answer from the best matching answer it returns. If none of them answers it, call it once more with the most likely area.
+- Give the menu path exactly as the answer writes it (for example "More > Settings > Recording options"), and say whether the feature is free or Pro when the answer says so. If an answer has on_android, the steps differ on Android: give the main steps, and the Android ones too if the driver mentions Android. Leave out answers marked only_on a phone the driver didn't ask about.
 - Only describe screens, settings, buttons, menu paths and features that mileclear_help returns, using its wording. Never guess a menu path or invent a feature, a setting or a way of contacting someone. If it isn't covered, say you're not sure, and offer to pass the question to the team with message_the_team.
 - Never state rates, prices, limits or rules from memory. Take them from mileclear_help, tax_year_figures or can_i_claim. Cars and vans use the same rates; the rate does not depend on engine size.
 - When a driver says a trip is missing or wrong, check their trips for that day with trips_list first (it shows trips saved to their account, without places), then give the steps from mileclear_help (missing_or_wrong_trips). Never promise a trip will appear, never say why it's missing unless the tools show it, and never blame the driver.
@@ -250,6 +251,8 @@ export async function runAssistant(opts: {
   history?: HistoryTurn[];
   now?: Date;
   fetchImpl?: typeof fetch;
+  /** Runs a tool. Defaults to runAssistantTool; an eval passes one that never sends a message to the team. */
+  runTool?: typeof runAssistantTool;
 }): Promise<AssistantResult> {
   const now = opts.now ?? new Date();
   const fetchImpl = opts.fetchImpl ?? fetch;
@@ -317,7 +320,7 @@ export async function runAssistant(opts: {
         }
         toolCalls.push(u.name);
         // The driver's id comes from the request (opts.userId), never from u.input.
-        const r = await runAssistantTool(opts.userId, u.name, u.input, now);
+        const r = await (opts.runTool ?? runAssistantTool)(opts.userId, u.name, u.input, now);
         if (r.period && !periods.includes(r.period)) periods.push(r.period);
         return { type: "tool_result", tool_use_id: u.id, content: r.content, ...(r.ok ? {} : { is_error: true }) };
       })
