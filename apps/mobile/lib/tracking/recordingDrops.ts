@@ -4,6 +4,7 @@
 // send is fire-and-forget and waits in an SQLite outbox when it cannot go.
 
 import { Platform } from "react-native";
+import { scrubCoordinateString } from "@mileclear/shared";
 import { getDatabase } from "../db/index";
 import {
   buildDropEvent,
@@ -23,6 +24,12 @@ export const RECORDING_DROPPED_EVENT = "trip.recording_dropped";
 export async function noteRecordingDropped(input: DropInput): Promise<void> {
   try {
     const ev = buildDropEvent(input, Date.now(), Platform.OS);
+    // `detail` can carry a raw error message (reason "error"), and a geocode
+    // or routing failure can quote the coordinates it was given. Unlike the
+    // dump, /user/events stores metadata as sent. Only the string is
+    // scrubbed: the whole-object scrub would also blank the fix counts
+    // (`coords`, `nativeCoords`), which are not locations.
+    if (ev.detail) ev.detail = scrubCoordinateString(ev.detail);
     try {
       // Lazy: detection imports this module.
       const { logDetectionEvent } = await import("./detection");
