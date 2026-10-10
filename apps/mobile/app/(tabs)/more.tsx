@@ -119,7 +119,7 @@ export default function MoreScreen() {
           {isWork && !isCompanyDriver && (user?.workType === "employee" || user?.workType === "both") && (
             <SettingsRow icon="people-outline" label="Invite your manager" hint="If your employer pays your mileage" onPress={go("/nominate-manager")} />
           )}
-          <SettingsRow icon="calendar-outline" label="Work schedule" hint="Your working days and hours" onPress={go("/work-schedule")} />
+          <SettingsRow icon="calendar-outline" label="Work hours" hint="Your working days and hours" onPress={go("/work-schedule")} />
         </SettingsGroup>
 
         <SettingsGroup title="HELP AND SETTINGS">

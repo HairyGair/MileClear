@@ -61,7 +61,7 @@ export default function WorkTaxSettings() {
         await updateProfile({ workType: wt });
         refreshUser();
       } catch {
-        Alert.alert("Couldn't update work type", "Try again in a moment.");
+        Alert.alert("Couldn't save that", "Try again in a moment.");
       }
     },
     [refreshUser]
@@ -207,7 +207,7 @@ export default function WorkTaxSettings() {
     };
 
     const res = await prompt({
-      title: "PAYE tax already paid",
+      title: "Tax already taken off your pay",
       message:
         "Total tax deducted by your employer so far this tax year (from your latest payslip). We take it off your tax so far, so you see what is still owed.",
       defaultValue: currentPounds,
@@ -220,12 +220,12 @@ export default function WorkTaxSettings() {
   // ── Tax basis (cash vs accruals) ──────────────────────────────────
   const handleTaxBasis = useCallback(() => {
     Alert.alert(
-      "Tax basis",
-      "Cash basis (default since April 2024) counts income when it's received and expenses when paid. Accruals counts when invoiced. Most sole traders should stay on cash.",
+      "How you count income",
+      "Most drivers count income when they are paid, and costs when they pay them. The other way counts income when you earn it (when you send an invoice). Most sole traders should stay on the first.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Cash basis",
+          text: "When I'm paid",
           onPress: async () => {
             setTaxBasis("cash");
             await updateProfile({ taxBasis: "cash" }).catch(() => {});
@@ -233,7 +233,7 @@ export default function WorkTaxSettings() {
           },
         },
         {
-          text: "Accruals",
+          text: "When I earn it",
           onPress: async () => {
             setTaxBasis("accruals");
             await updateProfile({ taxBasis: "accruals" }).catch(() => {});
@@ -246,26 +246,26 @@ export default function WorkTaxSettings() {
 
   // ── Render ────────────────────────────────────────────────────────
   const workTypeLabel =
-    workType === "gig" ? "Gig / delivery platforms"
-    : workType === "employee" ? "Employee using own vehicle"
-    : "Gig work + employee driving";
+    workType === "gig" ? "Deliveries or gig work"
+    : workType === "employee" ? "An employer, in my own car"
+    : "Gig work and an employer";
 
   return (
     <SettingsScreen>
-      <SettingsGroup title="WORK TYPE">
+      <SettingsGroup title="YOU DRIVE FOR">
         <View style={styles.workTypeRow}>
           <View style={styles.iconCircle}>
             <Ionicons name="briefcase-outline" size={18} color={colors.amber} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.label}>Work type</Text>
+            <Text style={styles.label}>You drive for</Text>
             <Text style={styles.hint}>{workTypeLabel}</Text>
           </View>
         </View>
         <View style={styles.pillRow}>
           {([
-            { value: "gig" as WorkType, label: "Gig" },
-            { value: "employee" as WorkType, label: "Employee" },
+            { value: "gig" as WorkType, label: "Gig work" },
+            { value: "employee" as WorkType, label: "Employer" },
             { value: "both" as WorkType, label: "Both" },
           ]).map((opt) => (
             <TouchableOpacity
@@ -285,7 +285,7 @@ export default function WorkTaxSettings() {
         </View>
       </SettingsGroup>
 
-      <SettingsGroup title="MILEAGE & TAX">
+      <SettingsGroup title="MILEAGE AND TAX">
         {(workType === "employee" || workType === "both") && (
           <SettingsRow
             icon="cash-outline"
@@ -306,7 +306,7 @@ export default function WorkTaxSettings() {
           <SettingsRow
             icon="calculator-outline"
             label="Mileage Allowance Relief"
-            hint="Tax relief when your employer pays less per mile than the approved rates"
+            hint="Tax back on work miles your employer doesn't fully pay"
             onPress={() => router.push("/mileage-relief")}
           />
         )}
@@ -338,12 +338,12 @@ export default function WorkTaxSettings() {
             />
           </SettingsGroup>
 
-          <SettingsGroup title="SELF-EMPLOYED">
+          <SettingsGroup title="IF YOU WORK FOR YOURSELF">
             <SettingsRow
               icon="layers-outline"
-              label="Tax basis"
-              hint={taxBasis === "cash" ? "Cash basis (recommended)" : "Accruals (counted when invoiced)"}
-              badge={taxBasis === "cash" ? "Cash" : "Accruals"}
+              label="How you count income"
+              hint={taxBasis === "cash" ? "When you're paid (most drivers)" : "When you earn it (when you invoice)"}
+              badge={taxBasis === "cash" ? "Paid" : "Earned"}
               onPress={handleTaxBasis}
               helpTopicId="cash-vs-accruals"
             />
@@ -359,10 +359,10 @@ export default function WorkTaxSettings() {
       )}
 
       {(workType === "employee" || workType === "both") && (
-        <SettingsGroup title="PAYE EMPLOYMENT">
+        <SettingsGroup title="YOUR JOB">
           <SettingsRow
             icon="receipt-outline"
-            label="Tax already deducted"
+            label="Tax already taken off your pay"
             hint={
               // With other income set, the estimate is already only the extra
               // tax your profit adds, so PAYE isn't taken off again (7 Oct 2026).
@@ -370,7 +370,7 @@ export default function WorkTaxSettings() {
                 ? "Not needed: your other income above already covers this"
                 : payeTaxPaidPence != null
                   ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} taken off what you still owe`
-                  : "Enter PAYE deductions so your tax so far is right"
+                  : "Enter what your employer has taken off so your tax so far is right"
             }
             badge={payeTaxPaidPence != null ? "Edit" : "Set"}
             onPress={handlePayeTaxPaid}
