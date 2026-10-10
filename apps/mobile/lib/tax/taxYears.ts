@@ -28,3 +28,16 @@ export function defaultReturnYear(
 ): string {
   return returnTaxYear && /^\d{4}-\d{2}$/.test(returnTaxYear) ? returnTaxYear : previousTaxYear(now);
 }
+
+/**
+ * Default tax year for Exports and the mileage certificate: the return due
+ * next while the Tax overview says the return leads (6 April to 31 January),
+ * else the current tax year (SPEC section 3).
+ */
+export function defaultExportYear(
+  overview: { lead?: string | null; return?: { taxYear?: string | null } | null } | null | undefined,
+  currentTaxYear: string,
+): string {
+  const ty = overview?.return?.taxYear;
+  return overview?.lead === "return" && ty && /^\d{4}-\d{2}$/.test(ty) ? ty : currentTaxYear;
+}

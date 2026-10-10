@@ -33,6 +33,8 @@ import {
 } from "../lib/api/certificates";
 import { fetchVehicles, type VehicleWithCaz } from "../lib/api/vehicles";
 import { useUser } from "../lib/user/context";
+import { useTaxOverview } from "../lib/tax/useTaxOverview";
+import { defaultExportYear } from "../lib/tax/taxYears";
 import { usePaywall } from "../components/paywall";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts, fontScaleCap, radii, shared, spacing } from "../lib/theme";
@@ -75,7 +77,27 @@ export default function MileageCertificateScreen() {
 
   const taxYears = useMemo(() => recentTaxYears(4), []);
   const currentTaxYear = taxYears[0];
-  const [period, setPeriod] = useState<PeriodChoice>({ kind: "taxYear", taxYear: taxYears[1] });
+  // Same default year as Exports: the return due next while it leads, else
+  // this tax year. The overview may arrive after the screen opens (it loads
+  // from the phone's cache), so apply it once if the driver has not chosen.
+  const overview = useTaxOverview();
+  const [period, setPeriodState] = useState<PeriodChoice>(() => ({
+    kind: "taxYear",
+    taxYear: defaultExportYear(overview.data, taxYears[0]),
+  }));
+  const [periodTouched, setPeriodTouched] = useState(false);
+  const setPeriod = useCallback((p: PeriodChoice) => {
+    setPeriodTouched(true);
+    setPeriodState(p);
+  }, []);
+  const refreshOverview = overview.refresh;
+  useEffect(() => {
+    void refreshOverview();
+  }, [refreshOverview]);
+  const overviewYear = defaultExportYear(overview.data, taxYears[0]);
+  useEffect(() => {
+    if (!periodTouched) setPeriodState({ kind: "taxYear", taxYear: overviewYear });
+  }, [periodTouched, overviewYear]);
   const [fromDate, setFromDate] = useState<Date>(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() - 1);

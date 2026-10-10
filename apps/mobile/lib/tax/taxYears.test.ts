@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultReturnYear, previousTaxYear, recentTaxYears } from "./taxYears";
+import { defaultExportYear, defaultReturnYear, previousTaxYear, recentTaxYears } from "./taxYears";
 
 describe("taxYears", () => {
   const oct2026 = new Date("2026-10-10T12:00:00Z");
@@ -18,5 +18,16 @@ describe("taxYears", () => {
     expect(defaultReturnYear(null, oct2026)).toBe("2025-26");
     expect(defaultReturnYear(undefined, oct2026)).toBe("2025-26");
     expect(defaultReturnYear("garbage", oct2026)).toBe("2025-26");
+  });
+});
+
+describe("defaultExportYear", () => {
+  it("follows the return while it leads", () => {
+    expect(defaultExportYear({ lead: "return", return: { taxYear: "2025-26" } }, "2026-27")).toBe("2025-26");
+  });
+  it("uses the current year when this year leads, there is no return or no overview", () => {
+    expect(defaultExportYear({ lead: "this_year", return: { taxYear: "2025-26" } }, "2026-27")).toBe("2026-27");
+    expect(defaultExportYear({ lead: "return", return: null }, "2026-27")).toBe("2026-27");
+    expect(defaultExportYear(null, "2026-27")).toBe("2026-27");
   });
 });
