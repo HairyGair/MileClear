@@ -3199,7 +3199,7 @@ export default function TripFormScreen() {
   // them and to the manager approving it. Suppressing it here covers both
   // places the picker renders.
   const isGigDriver = (workType === "gig" || workType === "both") && !isCompanyDriver;
-  const isEmployeeDriver = workType === "employee" || workType === "both" || isCompanyDriver;
+  const isEmployeeDriver = workType === "employee" || workType === "both" || workType === "company" || isCompanyDriver;
   const isQuickMode = mode === "ready" || mode === "driving" || mode === "arrived" || mode === "saving";
   const showMap = isQuickMode && !isEditing;
 

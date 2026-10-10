@@ -261,9 +261,9 @@ export function rowGroups(
       const groups: TaxRowGroup[] = [
         {
           title: "RECORDS",
-          rows: [downloads("Trip log, CSV and PDF"), {
-            ...certificate(true), hint: "A summary of your miles you can share",
-          }],
+          // Team drivers have Pro through the team; a driver who only said
+          // "A company car" does not, so the hint follows their plan.
+          rows: [downloads("Trip log, CSV and PDF"), certificate(isPremium)],
         },
       ];
       if (reliefPence > 0) groups.push({ title: "CLAIMS", rows: [reliefRow(reliefPence, formatPence)] });
