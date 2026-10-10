@@ -101,7 +101,7 @@ export default function YourDataSettings() {
         <SettingsRow
           icon="trash-outline"
           label="Delete your account"
-          hint="In Your account. Removes everything for good"
+          hint="On the You screen. Removes everything for good"
           destructive
           onPress={() => router.push("/settings/account" as never)}
         />

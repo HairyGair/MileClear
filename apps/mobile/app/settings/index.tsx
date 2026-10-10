@@ -61,7 +61,7 @@ export default function SettingsPage() {
   const driveFor: DriveFor = driveForOf(user);
   const companyCar = driveFor === "company" || isCompanyDriver;
   const showWorkHours = driveFor !== "personal";
-  const car = carSummary(page.cars, { companyCar });
+  const car = carSummary(page.cars, { companyCar, failed: page.carsFailed });
   const taxYear = getTaxYear(new Date());
 
   const available = availableDoorRows({
@@ -348,7 +348,8 @@ function AccountRow({
       onPress={onPress}
       activeOpacity={0.6}
       accessibilityRole="button"
-      accessibilityLabel={`Your account. ${name}, ${email}`}
+      accessibilityLabel={`You. ${name}, ${email}`}
+      accessibilityHint="Your picture, names, car and plan"
     >
       <UserAvatar avatarId={avatarId} name={name} email={email} size={40} />
       <View style={{ flex: 1 }}>

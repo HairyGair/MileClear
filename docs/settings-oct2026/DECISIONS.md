@@ -16,3 +16,4 @@ Anthony: "Go with A and the team's recommendations, send the fix tonight." All o
 - L. App lock becomes a switch on the page; the Security screen goes.
 - M. Weekly miles goal leaves Settings (Insights has it).
 - N. F1 to F11 ship first. The header fix (F1, Preferences + Profile) went out by OTA on 10 Oct ~22:20.
+- O. B's 'You' screen opens from the name row at the top of Settings, replacing Your account (Anthony, 10 Oct).

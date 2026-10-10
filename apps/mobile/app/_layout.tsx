@@ -782,7 +782,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
         <Stack.Screen name="settings/recording" options={{ headerShown: true, title: "Recording" }} />
         <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
-        <Stack.Screen name="settings/account" options={{ headerShown: true, title: "Your account" }} />
+        <Stack.Screen name="settings/account" options={{ headerShown: true, title: "You" }} />
         <Stack.Screen name="settings/plan" options={{ headerShown: true, title: "Your plan" }} />
         <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Your tax details" }} />
         <Stack.Screen name="settings/data" options={{ headerShown: true, title: "Your data" }} />

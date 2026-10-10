@@ -7,20 +7,27 @@ import { SettingsRow } from "../../components/settings/SettingsRow";
 import { AvatarPicker } from "../../components/avatars/AvatarPicker";
 import { useDeleteAccount } from "../../components/settings/useDeleteAccount";
 import { usePrompt } from "../../components/prompt";
+import { useSettingsPage } from "../../components/settings/useSettingsPage";
+import { useIsPremium } from "../../components/PremiumGate";
 import { fetchProfile, updateProfile } from "../../lib/api/user";
 import { useUser } from "../../lib/user/context";
+import { carSummary, planSummary } from "../../lib/settings/summaries";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
-import type { User } from "@mileclear/shared";
+import { driveForOf, driveForSummary, type User } from "@mileclear/shared";
 
 /**
- * Your account: picture, names, email, password and Delete account, in one
- * place. Names and the picture change right here; only the email goes to its
- * own form because changing it needs your password and a code. Replaces
- * Settings > Profile, Edit Profile and the Profile tab's top card.
+ * You (10 Oct 2026, direction B's "You" screen built into A): the driver, their
+ * car and their plan in one place, opened from the name row at the top of
+ * Settings. Keeps everything Your account had: picture, names, email,
+ * password and Delete account. The car, work type and plan rows open the
+ * existing Vehicles, You drive for and Your plan screens. The route stays
+ * /settings/account so old links and the Profile redirects still land here.
  */
 export default function AccountSettings() {
   const router = useRouter();
-  const { refreshUser } = useUser();
+  const { refreshUser, company, isCompanyDriver } = useUser();
+  const isPremium = useIsPremium();
+  const page = useSettingsPage(isPremium);
   const { prompt } = usePrompt();
   const [user, setUser] = useState<User | null>(null);
   const del = useDeleteAccount();
@@ -77,6 +84,13 @@ export default function AccountSettings() {
     save({ fullName: res.value.trim() || null });
   }, [prompt, user?.fullName, save]);
 
+  const driveFor = driveForOf(user);
+  const car = carSummary(page.cars, {
+    companyCar: driveFor === "company" || isCompanyDriver,
+    failed: page.carsFailed,
+  });
+  const plan = planSummary(page.plan);
+
   return (
     <SettingsScreen>
       <View style={styles.picture}>
@@ -90,6 +104,37 @@ export default function AccountSettings() {
           </Text>
         ) : null}
       </View>
+
+      <SettingsGroup title="YOUR CAR">
+        <SettingsRow
+          icon="car-outline"
+          label={page.cars && page.cars.length > 1 ? "Your cars" : "Your car"}
+          hint={car.text}
+          iconColor={car.tone === "add" ? colors.amber : undefined}
+          onPress={() => router.push((page.cars && page.cars.length === 0 ? "/vehicle-form" : "/vehicles") as never)}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="HOW YOU DRIVE">
+        <SettingsRow
+          icon="briefcase-outline"
+          label="You drive for"
+          hint={driveForSummary(driveFor, {
+            employerRatePence: user?.employerMileageRatePence,
+            teamName: company?.orgName,
+          })}
+          onPress={() => router.push("/settings/work-tax" as never)}
+        />
+      </SettingsGroup>
+
+      <SettingsGroup title="YOUR PLAN">
+        <SettingsRow
+          icon="star-outline"
+          label={page.plan?.isPremium ? "MileClear Pro" : "Free plan"}
+          hint={plan}
+          onPress={() => router.push("/settings/plan" as never)}
+        />
+      </SettingsGroup>
 
       <SettingsGroup title="ABOUT YOU">
         <SettingsRow
