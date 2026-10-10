@@ -1660,6 +1660,16 @@ export async function handleNativeMotionChange(event: NativeMotionEvent): Promis
       if (recording?.value === "1") {
         // finalizeAutoTrip reconciles RNBG's native store itself (12 Jun 2026)
         // so every finalize path sees the full route — no pre-call needed here.
+        // Another finalize already owns this drive (the heartbeat backstop, a
+        // sweep, or a second headless task: Android runs headless events
+        // concurrently). finalizeAutoTrip would return at once, and the
+        // destroyLocations below would then wipe the engine's store before
+        // that finalize has read it, losing the route. Leave it to the owner,
+        // which clears the store itself when it is done.
+        if (isFinalizeInFlight()) {
+          logDetectionEvent("native_recording_finalize_in_flight", { from: "motionchange" }).catch(() => {});
+          return;
+        }
         logDetectionEvent("native_recording_finalizing", {}).catch(() => {});
         await finalizeAutoTrip();
         try {
@@ -1726,7 +1736,7 @@ async function enterPostTripKeepAlive(
 // Exported for the Android headless task (nativeHeadless.ts), which runs it
 // on a headless heartbeat while a recording is open: the same backstop, for
 // a phone whose app Android has ended (10 Oct 2026).
-export async function handleNativeHeartbeat(): Promise<void> {
+export async function handleNativeHeartbeat(opts: { minRetryMs?: number } = {}): Promise<void> {
   try {
     void recordBatterySample();
     // In low power, a heartbeat is a clock tick: if the pause ran out while
@@ -1798,6 +1808,32 @@ export async function handleNativeHeartbeat(): Promise<void> {
     if (!lastMs) return;
     const idleMs = Date.now() - lastMs;
     if (idleMs <= HEARTBEAT_FINALIZE_STALE_MS) return; // still moving / recently moved
+
+    // A finalize is already running (the stationary event, a sweep, or a
+    // concurrent Android headless task): finalizeAutoTrip would return at
+    // once and the destroyLocations below would wipe the engine's store
+    // under it before it has read the route. The owner clears it itself.
+    if (isFinalizeInFlight()) return;
+
+    // The Android headless heartbeat fires every minute for as long as the
+    // app stays ended. A finalize that keeps failing (it leaves the recording
+    // open so the fixes survive) must not be re-run every minute all day:
+    // that is the battery, a map-match and geocode each time, and a drop
+    // event per attempt. The live listeners pass nothing and keep the old
+    // behaviour.
+    if (opts.minRetryMs && opts.minRetryMs > 0) {
+      const attempt = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'heartbeat_finalize_attempt_at'"
+      );
+      const lastAttempt = attempt ? Number(attempt.value) : 0;
+      if (Number.isFinite(lastAttempt) && lastAttempt > 0 && lastAttempt <= Date.now() && Date.now() - lastAttempt < opts.minRetryMs) {
+        return;
+      }
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('heartbeat_finalize_attempt_at', ?)",
+        [String(Date.now())]
+      );
+    }
 
     const BGGeo = loadNativeModule();
     // finalizeAutoTrip reconciles the native store itself (12 Jun 2026).

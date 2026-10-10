@@ -60,6 +60,9 @@ type BgGeoHeadless = {
   changePace?: (isMoving: boolean) => Promise<unknown>;
 };
 
+/** Least time between two heartbeat-backstop finalize attempts from this task. */
+const HEADLESS_HEARTBEAT_FINALIZE_RETRY_MS = 10 * 60 * 1000;
+
 /** Re-arm at most this often from heartbeats. */
 const HEARTBEAT_REARM_MS = 30 * 60 * 1000;
 
@@ -420,7 +423,9 @@ async function heartbeatFinalizeHeadless(): Promise<void> {
   const log = await loadLog();
   try {
     const { handleNativeHeartbeat } = await import("./nativeLocation");
-    await handleNativeHeartbeat();
+    // At most one finalize attempt per ten minutes from here: a finalize
+    // that keeps failing must not re-run on every headless heartbeat.
+    await handleNativeHeartbeat({ minRetryMs: HEADLESS_HEARTBEAT_FINALIZE_RETRY_MS });
     if (!(await isRecordingOpen())) {
       await log?.("native_headless_heartbeat_finalized", {});
     }
