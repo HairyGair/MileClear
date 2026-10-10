@@ -94,6 +94,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.regular,
     color: colors.text2,
+    marginTop: spacing.sm,
     marginBottom: spacing.md,
     paddingHorizontal: 4,
   },

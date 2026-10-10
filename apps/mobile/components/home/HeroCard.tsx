@@ -158,15 +158,25 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
             {figure}
           </Text>
         ) : (
-          <Text
-            style={[s.figure, smallFigure && s.figureSmall]}
-            maxFontSizeMultiplier={fontScaleCap.display}
-            adjustsFontSizeToFit
-            numberOfLines={1}
-          >
-            {figure}
-            {model.unit ? <Text style={s.unit}>{` ${model.unit}`}</Text> : null}
-          </Text>
+          // Figure and unit are siblings so only the figure shrinks to fit.
+          // No lineHeight on the figure: with adjustsFontSizeToFit, iOS drew
+          // "205 miles" a few points high (QA 10 Oct).
+          <View style={s.figureLine}>
+            <Text
+              style={[s.figure, smallFigure && s.figureSmall]}
+              maxFontSizeMultiplier={fontScaleCap.display}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+              numberOfLines={1}
+            >
+              {figure}
+            </Text>
+            {model.unit ? (
+              <Text style={s.unit} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={1}>
+                {model.unit}
+              </Text>
+            ) : null}
+          </View>
         )}
       </View>
       {model.line ? (
@@ -194,17 +204,18 @@ const s = StyleSheet.create({
   label: { fontSize: 14, fontFamily: fonts.medium, color: colors.text2, flexShrink: 1 },
   note: { fontSize: 12, fontFamily: fonts.semibold, color: colors.text2, flexShrink: 1, textAlign: "right" },
   figureRow: { marginTop: 4, paddingRight: 22 },
+  figureLine: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   figure: {
     fontSize: numberSizes.hero,
-    lineHeight: numberSizes.hero + 6,
     fontFamily: fonts.bold,
     color: colors.text1,
     letterSpacing: -0.5,
     fontVariant: ["tabular-nums"],
+    flexShrink: 1,
   },
-  figureSmall: { fontSize: 30, lineHeight: 38 },
+  figureSmall: { fontSize: 30 },
   figureWords: { fontSize: 22, lineHeight: 28, fontFamily: fonts.bold, color: colors.text1, marginVertical: 6 },
-  unit: { fontSize: 18, fontFamily: fonts.semibold, color: colors.text2, letterSpacing: 0 },
+  unit: { fontSize: 18, fontFamily: fonts.semibold, color: colors.text2, letterSpacing: 0, flexShrink: 0 },
   line: { marginTop: 8, fontSize: 16, lineHeight: 22, fontFamily: fonts.regular, color: colors.text1, paddingRight: 22 },
   chevron: { position: "absolute", right: 16, top: "50%", marginTop: -8 },
 });

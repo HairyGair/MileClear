@@ -152,6 +152,9 @@ export default function DashboardScreen() {
   const { user: currentUser } = useUser();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  // False until the vehicle list has loaded once, so a failed or slow request
+  // never asks a driver who has a vehicle to "Add your vehicle" (QA 10 Oct).
+  const [vehiclesKnown, setVehiclesKnown] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | undefined>();
   const [elapsed, setElapsed] = useState(0);
   // Live shift earnings (Laura's idea): an optional hourly rate, remembered in
@@ -1093,7 +1096,7 @@ export default function DashboardScreen() {
           }
           return { data: [] as ShiftWithVehicle[] };
         }),
-        fetchVehicles().catch(() => ({ data: [] as Vehicle[] })),
+        fetchVehicles().catch(() => null),
         fetchGamificationStats().catch(() => null),
       ]);
 
@@ -1103,7 +1106,11 @@ export default function DashboardScreen() {
       // would switch automatic tracking off again.
       if (active && (await wasShiftAutoEnded(active.id))) active = null;
       setActiveShift(active);
-      setVehicles(vehicleRes.data);
+      if (vehicleRes) {
+        setVehicles(vehicleRes.data);
+        setVehiclesKnown(true);
+      }
+      const vehicleList = vehicleRes?.data ?? [];
       if (statsRes) setStats(statsRes.data);
 
       if (active) {
@@ -1120,12 +1127,12 @@ export default function DashboardScreen() {
         const recovered = await recoverLiveActivity(startMs);
         if (!recovered) {
           // Live Activity expired or was dismissed - start a fresh one
-          const v = vehicleRes.data.find((veh) => veh.id === active.vehicleId);
+          const v = vehicleList.find((veh) => veh.id === active.vehicleId);
           const vehicleName = v ? `${v.make} ${v.model}` : "";
           startLiveActivity({ activityType: "shift", vehicleName, isBusinessMode: isWork });
         }
-      } else {
-        const primary = vehicleRes.data.find((v) => v.isPrimary);
+      } else if (vehicleRes) {
+        const primary = vehicleList.find((v) => v.isPrimary);
         setSelectedVehicleId(primary?.id);
       }
     } catch {
@@ -1972,7 +1979,7 @@ export default function DashboardScreen() {
         previousYear={previousYear}
         status={home.status}
         statusElement={home.element}
-        hasVehicle={vehicles.length > 0}
+        hasVehicle={!vehiclesKnown || vehicles.length > 0}
         starting={starting}
         onStartShift={handleStartShift}
         onShiftGraded={(sc) => {

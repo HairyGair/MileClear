@@ -57,7 +57,7 @@ describe("selectLastTrip looks", () => {
     const v = full(selectLastTrip(base()));
     expect(v.look).toBe("full");
     expect(v.showChoice).toBe(true);
-    expect(v.eyebrow).toBe("30 min ago · 12.4 mi");
+    expect(v.eyebrow).toBe("30 min ago\u00a0· 12.4\u00a0mi");
     expect(v.route).toBe("Home to Sunderland Depot");
   });
   it("just finished and auto sorted: full, with the Auto tag", () => {

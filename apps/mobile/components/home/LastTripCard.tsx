@@ -216,7 +216,9 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
 
   const openTrips = (target: "last_trip_footer") => {
     trackHomeTap(target, mode, state);
-    router.navigate("/(tabs)/trips" as never);
+    // Both footers ("N trips to sort", "We may have missed N drives") open the
+    // Inbox, which lists journeys to check and then trips to classify.
+    router.navigate("/(tabs)/trips?filter=unclassified" as never);
   };
 
   if (view.look === "first") {
@@ -295,7 +297,8 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
         >
           {map}
           <View style={{ flex: 1 }}>
-            <Text style={s.compactTitle} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={2}>
+            {/* 3 lines: at the largest text sizes 2 cut the miles off ("12.…"). */}
+            <Text style={s.compactTitle} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={3}>
               {v.eyebrow}
             </Text>
           </View>

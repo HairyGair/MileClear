@@ -52,10 +52,12 @@ export default function InsightsScreen() {
   const { user, isCompanyDriver } = useUser();
   const { showPaywall } = usePaywall();
   const reducedMotion = useReducedMotion();
-  const { view, period: periodParam, offset: offsetParam } = useLocalSearchParams<{
+  const { view, period: periodParam, offset: offsetParam, at: atParam } = useLocalSearchParams<{
     view?: string;
     period?: string;
     offset?: string;
+    /** Time of the Home tap, so the same link tapped twice is seen twice. */
+    at?: string;
   }>();
   const mode: "work" | "personal" = isWork ? "work" : "personal";
   const isPro = !!user?.isPremium;
@@ -77,11 +79,15 @@ export default function InsightsScreen() {
       if (isInsightsPeriod(v) && !hasLink.current) setPeriod(v);
     });
   }, []);
+  // Old links to /insights?view=trends land on Go deeper at the bottom; a
+  // period link from Home starts at the top.
+  const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     if (!linkPeriod) return;
     setPeriod(linkPeriod);
     setOffset(linkOffset);
-  }, [linkPeriod, linkOffset, periodParam, offsetParam]);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [linkPeriod, linkOffset, periodParam, offsetParam, atParam]);
   const changePeriod = useCallback((p: InsightsPeriod) => {
     setPeriod(p);
     setOffset(0);
@@ -179,8 +185,6 @@ export default function InsightsScreen() {
     };
   }, [refreshing]);
 
-  // Old links to /insights?view=trends land on Go deeper at the bottom.
-  const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     if (view !== "trends" || summary.status === "loading") return;
     const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 400);

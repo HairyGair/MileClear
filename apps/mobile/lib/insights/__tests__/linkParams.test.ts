@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseInsightsLink } from "../linkParams";
+import { parseInsightsLink, stampInsightsLink } from "../linkParams";
 
 describe("parseInsightsLink", () => {
   it("reads period and offset", () => {
@@ -20,5 +20,16 @@ describe("parseInsightsLink", () => {
     expect(parseInsightsLink("week", "abc")).toEqual({ period: "week", offset: 0 });
     expect(parseInsightsLink("week", "-1.5")).toEqual({ period: "week", offset: 0 });
     expect(parseInsightsLink("week", "-99999")).toEqual({ period: "week", offset: -520 });
+  });
+});
+
+describe("stampInsightsLink", () => {
+  it("stamps Insights period links with the tap time", () => {
+    expect(stampInsightsLink("/insights?period=week", 123)).toBe("/insights?period=week&at=123");
+    expect(stampInsightsLink("/insights?period=week&offset=-1", 5)).toBe("/insights?period=week&offset=-1&at=5");
+  });
+  it("leaves every other route alone", () => {
+    expect(stampInsightsLink("/(tabs)/tax", 1)).toBe("/(tabs)/tax");
+    expect(stampInsightsLink("/insights", 1)).toBe("/insights");
   });
 });

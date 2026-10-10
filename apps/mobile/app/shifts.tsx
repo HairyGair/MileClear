@@ -371,7 +371,7 @@ export default function ShiftsScreen() {
               <EmptyState
                 icon="time-outline"
                 title="No shifts yet"
-                description="Start and end a shift from the dashboard. Once a shift ends, it will show up here with its trips and miles."
+                description="Start and end a shift from Home. Once a shift ends, it will show up here with its trips and miles."
               />
             )
           ) : null

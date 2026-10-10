@@ -31,3 +31,14 @@ export function parseInsightsLink(period: Param, offset: Param): InsightsLink | 
   }
   return { period: p, offset: off === 0 ? 0 : off };
 }
+
+/**
+ * A Home link to Insights, stamped with the time of the tap (`&at=`). The
+ * Insights tab stays mounted, so a second tap on the same link would otherwise
+ * carry the same params and be ignored: the driver who had moved to Tax year
+ * stayed there, scrolled half way down (QA 10 Oct).
+ */
+export function stampInsightsLink(route: string, now: number = Date.now()): string {
+  if (!/^\/(\(tabs\)\/)?insights\?/.test(route)) return route;
+  return `${route}&at=${now}`;
+}

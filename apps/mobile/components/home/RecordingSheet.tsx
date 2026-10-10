@@ -18,7 +18,10 @@ function tellUs(on: boolean | null) {
   const body = "Hi,\n\nWhat happened:\n\n";
   Linking.openURL(
     `mailto:support@mileclear.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-  ).catch(() => {});
+  ).catch(() => {
+    // No mail app set up (and the simulator): the tap did nothing at all.
+    Alert.alert("Tell us what happened", "Email support@mileclear.com and we'll look into it.");
+  });
 }
 
 interface Props {

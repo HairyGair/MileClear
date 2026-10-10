@@ -229,7 +229,8 @@ export function useHomeData(a: Args): HomeData {
         Object.keys(ACHIEVEMENT_META),
         new Set(achievedTypes),
         {
-          totalMiles: stats.totalMiles,
+          // Mile badges are lifetime; totalMiles is this tax year only.
+          totalMiles: stats.lifetimeMiles ?? stats.totalMiles,
           totalTrips: stats.totalTrips,
           totalShifts: stats.totalShifts,
           longestStreakDays: stats.longestStreakDays,

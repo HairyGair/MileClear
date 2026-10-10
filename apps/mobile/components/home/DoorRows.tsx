@@ -10,6 +10,7 @@ import { useRouter } from "expo-router";
 import { DOOR_ROW_IDS, type DoorRowId } from "../../lib/home/doorPrefs";
 import type { DoorRow } from "../../lib/home/doors";
 import { doorKeyFigure } from "../../lib/home/doorText";
+import { stampInsightsLink } from "../../lib/insights/linkParams";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 
@@ -25,7 +26,9 @@ function isHideable(id: string): id is DoorRowId {
 }
 
 /** The sentence with its one key figure in bold (SPEC-VISUAL 5.6). */
-function DoorSentence({ text }: { text: string }) {
+function DoorSentence({ text: raw }: { text: string }) {
+  // A number and its unit never wrap apart ("1.2" / "mi", "113" / "days").
+  const text = raw.replace(/(\d) (mi|miles?|days?|trips?)\b/g, "$1\u00a0$2");
   const k = doorKeyFigure(text);
   return (
     <Text style={s.text} maxFontSizeMultiplier={fontScaleCap.body}>
@@ -74,7 +77,7 @@ export function DoorRows({ rows, mode, state, onHide }: Props) {
             <Pressable
               onPress={() => {
                 trackHomeTap(`door_${row.id}`, mode, state);
-                router.navigate(row.route as never);
+                router.navigate(stampInsightsLink(row.route) as never);
               }}
               onLongPress={hideable ? () => confirmHide(row) : undefined}
               delayLongPress={450}

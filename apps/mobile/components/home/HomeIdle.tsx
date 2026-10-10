@@ -51,6 +51,7 @@ import { resolveShiftSuggestion } from "../../lib/api/shifts";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { insightsCache } from "../../lib/insights/requestCache";
+import { stampInsightsLink } from "../../lib/insights/linkParams";
 import { selectAsk, proAskLine, type AskId } from "../../lib/home/ask";
 import { selectDoorRows } from "../../lib/home/doors";
 import { getHiddenDoorRows, setDoorRowHidden, type DoorRowId } from "../../lib/home/doorPrefs";
@@ -373,7 +374,7 @@ export function HomeIdle(p: Props) {
                 onPress={() => {
                   trackHomeTap("hero", mode, p.status.kind);
                   if (hero.kind !== "figure") return;
-                  if (hero.target === "insights_month") router.navigate("/insights?period=month" as never);
+                  if (hero.target === "insights_month") router.navigate(stampInsightsLink("/insights?period=month") as never);
                   else router.navigate("/(tabs)/tax" as never);
                 }}
               />

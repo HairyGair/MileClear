@@ -107,7 +107,8 @@ export function whenLabel(startedAtIso: string, endedAtIso: string | null, now: 
 
 export function milesText(miles: number): string {
   const m = Math.round(Math.max(0, miles) * 10) / 10;
-  return `${m.toFixed(1)} mi`;
+  // No-break spaces keep "12.8 mi" (and the dot before it) from wrapping apart.
+  return `${m.toFixed(1)}\u00a0mi`;
 }
 
 /** "Home to Sunderland Depot", "To Sunderland Depot", "From Home", or "Route not recorded". */
@@ -182,7 +183,7 @@ export function selectLastTrip(i: LastTripInputs): LastTripView {
 
   return {
     look,
-    eyebrow: `${when} · ${miles}`,
+    eyebrow: `${when}\u00a0· ${miles}`,
     route,
     choice: t.classification,
     showChoice,

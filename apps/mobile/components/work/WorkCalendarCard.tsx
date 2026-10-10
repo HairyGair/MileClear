@@ -121,12 +121,17 @@ export function WorkCalendarCard() {
       </View>
 
       {/* Month summary */}
+      {/* No "£0.00" for a driver who logs no earnings (QA 10 Oct). */}
       <View style={s.summary}>
-        <Text style={s.summaryItem}>{formatPence(totalEarnings)}</Text>
+        {totalEarnings > 0 ? (
+          <>
+            <Text style={s.summaryItem}>{`${formatPence(totalEarnings)} earned`}</Text>
+            <Text style={s.summaryDot}>{"\u00B7"}</Text>
+          </>
+        ) : null}
+        <Text style={s.summaryItem}>{`${activeDays} ${activeDays === 1 ? "day" : "days"}`}</Text>
         <Text style={s.summaryDot}>{"\u00B7"}</Text>
-        <Text style={s.summaryItem}>{activeDays} days</Text>
-        <Text style={s.summaryDot}>{"\u00B7"}</Text>
-        <Text style={s.summaryItem}>{totalTrips} trips</Text>
+        <Text style={s.summaryItem}>{`${totalTrips} ${totalTrips === 1 ? "trip" : "trips"}`}</Text>
       </View>
     </View>
   );
