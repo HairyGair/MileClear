@@ -160,7 +160,7 @@ const faqSchema = {
       name: 'I am an employee with a work car - can MileClear help me claim mileage from my employer?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. MileClear is built for both gig workers and UK employees who drive their personal car for work. Set your employer\'s per-mile rate in Profile > Work Settings (e.g. 30p/mi) and the app shows you "owed by employer" alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim per period. If your employer pays below HMRC\'s 55p rate (raised from 45p on 6 April 2026), MileClear also calculates the gap you can recover from HMRC as Mileage Allowance Relief. See our employee mileage guide at mileclear.com/employee-mileage-tracker.',
+        text: 'Yes. MileClear is built for both gig workers and UK employees who drive their personal car for work. In the app choose More > Settings > You drive for > An employer, in my own car, and set your employer\'s per-mile rate (e.g. 30p/mi) and the app shows you "owed by employer" alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim per period. If your employer pays below HMRC\'s 55p rate (raised from 45p on 6 April 2026), MileClear also calculates the gap you can recover from HMRC as Mileage Allowance Relief. See our employee mileage guide at mileclear.com/employee-mileage-tracker.',
       },
     },
     {
@@ -201,7 +201,7 @@ const faqSchema = {
       name: 'What is included in the free plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, the Self Assessment wizard, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with the shift scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings and expenses tracking, the pickup wait timer, all 39 achievements and gamification, up to 2 saved locations with geofencing, push notifications, and a first-time Self Assessment guide.',
+        text: 'The free plan includes unlimited GPS trip tracking, the Tax Readiness card with live HMRC tax estimate and weekly set-aside, the Self Assessment wizard, Anonymous Benchmarking against other UK drivers, HMRC Reconciliation against your platforms\' Digital Platform Reporting figures, MOT and tax expiry reminders, full DVSA MOT history with advisories, the Activity Heatmap showing when you drive and earn most, shift management with the shift scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby fuel prices from 8,300+ UK stations, manual earnings and expenses tracking, the pickup wait timer, all 39 achievements and gamification, up to 2 saved places, push notifications, and a first-time Self Assessment guide.',
       },
     },
     {
@@ -217,7 +217,7 @@ const faqSchema = {
       name: 'How do I cancel my subscription?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'On iOS, go to Profile, scroll to Subscription, and tap Manage Subscription. This takes you to your Apple subscription settings where you can cancel. On the web, go to Settings and use the Cancel Subscription option. You keep Pro access until the end of your current billing period and are never charged again after cancelling.',
+        text: 'In the app, go to More > Settings > Your plan. If you subscribed on iPhone, tap Manage in App Store (or use iPhone Settings > your name > Subscriptions); on Android, Manage in Google Play. If you paid by card on the website, use Cancel subscription there or in Settings on mileclear.com. You keep Pro access until the end of your current billing period and are never charged again after cancelling.',
       },
     },
     {
@@ -242,7 +242,7 @@ const faqSchema = {
       name: 'Is MileClear GDPR compliant?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. MileClear is fully GDPR compliant. You can export all your data as a JSON file from Profile, and you can permanently delete your account and all associated data at any time. We only collect data that is necessary for the app to function. We never sell your data. Read the full Privacy Policy at mileclear.com/privacy.',
+        text: 'Yes. MileClear is fully GDPR compliant. You can export all your data as a JSON file from More > Settings > Your data in the app, and you can permanently delete your account and all associated data at any time. We only collect data that is necessary for the app to function. We never sell your data. Read the full Privacy Policy at mileclear.com/privacy.',
       },
     },
     {
@@ -258,7 +258,7 @@ const faqSchema = {
       name: 'How do I delete my account?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Go to Profile, scroll to the bottom, and tap Delete Account. You will be asked to confirm your password. Deleting your account permanently removes all trips, earnings, shifts, vehicles, and personal data from our servers. This action cannot be undone. Any active subscription will also be cancelled.',
+        text: 'In the app, go to More > Settings, tap your name at the top, then Delete account, and confirm with your password. Deleting your account permanently removes all trips, earnings, shifts, vehicles, and personal data from our servers. This action cannot be undone. A subscription paid by card on the website is cancelled too; cancel an App Store or Google Play subscription yourself first.',
       },
     },
   ],
@@ -480,8 +480,8 @@ export default function FaqPage() {
                 </h3>
                 <p className="legal__text">
                   Yes. MileClear is built for both gig workers and UK employees who drive their personal
-                  car for work. Set your employer&apos;s per-mile rate in <strong>Profile &gt; Work
-                  Settings</strong> (e.g. 30p/mi) and the app shows you &ldquo;owed by employer&rdquo;
+                  car for work. In the app choose <strong>More &gt; Settings &gt; You drive
+                  for &gt; An employer, in my own car</strong> and set your employer&apos;s per-mile rate (e.g. 30p/mi) and the app shows you &ldquo;owed by employer&rdquo;
                   alongside your mileage figures. The Pro export produces a payroll-ready CSV/PDF claim
                   per period. If your employer pays below HMRC&apos;s 55p rate (raised from 45p on
                   6 April 2026), MileClear also calculates the gap you can recover from HMRC as
@@ -553,7 +553,7 @@ export default function FaqPage() {
                   scorecard and platform tagging, 1 vehicle with DVLA lookup, fuel logs and nearby
                   fuel prices from over 8,300 stations across the UK, manual earnings and expenses
                   tracking, the pickup wait timer, all 39 achievements and gamification, up
-                  to 2 saved locations with geofencing, push notifications, and a first-time Self
+                  to 2 saved places, push notifications, and a first-time Self
                   Assessment guide.
                 </p>
               </div>
@@ -586,10 +586,7 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">How do I cancel my subscription?</h3>
                 <p className="legal__text">
-                  On iOS, go to Profile, scroll to Subscription, and tap Manage Subscription. This
-                  takes you to your Apple subscription settings where you can cancel. On the web, go
-                  to Settings and use the Cancel Subscription option. You keep Pro access until the
-                  end of your current billing period and are never charged again after cancelling.
+                  In the app, go to More &gt; Settings &gt; Your plan. If you subscribed on iPhone, tap Manage in App Store (or use iPhone Settings &gt; your name &gt; Subscriptions); on Android, Manage in Google Play. If you paid by card on the website, use Cancel subscription there or in Settings on mileclear.com. You keep Pro access until the end of your current billing period and are never charged again after cancelling.
                 </p>
               </div>
             </section>
@@ -613,7 +610,7 @@ export default function FaqPage() {
                 <h3 className="faq__question">Is MileClear GDPR compliant?</h3>
                 <p className="legal__text">
                   Yes. MileClear is fully GDPR compliant. You can export all your data as a JSON
-                  file from Profile, and you can permanently delete your account and all associated
+                  file from More &gt; Settings &gt; Your data in the app, and you can permanently delete your account and all associated
                   data at any time. We only collect data that is necessary for the app to function.
                   We never sell your data. Read the full{' '}
                   <a href="/privacy" style={{ color: 'var(--amber-400)' }}>Privacy Policy</a>.
@@ -634,10 +631,11 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">How do I delete my account?</h3>
                 <p className="legal__text">
-                  Go to Profile, scroll to the bottom, and tap <strong>Delete Account</strong>. You
-                  will be asked to confirm your password. Deleting your account permanently removes
-                  all trips, earnings, shifts, vehicles, and personal data from our servers. This
-                  action cannot be undone. Any active subscription will also be cancelled.
+                  In the app, go to <strong>More &gt; Settings</strong>, tap your name at the top, then{' '}
+                  <strong>Delete account</strong>, and confirm with your password. Deleting your account
+                  permanently removes all trips, earnings, shifts, vehicles, and personal data from our
+                  servers. This action cannot be undone. A subscription paid by card on the website is
+                  cancelled too; cancel an App Store or Google Play subscription yourself first.
                 </p>
               </div>
             </section>

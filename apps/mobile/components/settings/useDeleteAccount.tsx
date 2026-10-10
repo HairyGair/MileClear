@@ -36,12 +36,12 @@ export function useDeleteAccount(): { start: () => void; deleting: boolean; elem
   };
 
   const start = useCallback(async () => {
-    let message = "This is permanent and cannot be undone. Enter your password to confirm.";
+    let message = "This is permanent and cannot be undone. Enter your password to confirm (leave it blank if you only sign in with Apple or Google).";
     try {
       const res = await fetchGamificationStats();
       const s = res.data;
       if (s.totalTrips > 0) {
-        message = `You've tracked ${s.totalTrips} trips and ${s.totalMiles.toFixed(0)} miles. This is permanent and cannot be undone. Enter your password to confirm.`;
+        message = `You've tracked ${s.totalTrips} trips and ${s.totalMiles.toFixed(0)} miles. This is permanent and cannot be undone. Enter your password to confirm (leave it blank if you only sign in with Apple or Google).`;
       }
     } catch {}
     if (Platform.OS === "ios") {
@@ -54,10 +54,12 @@ export function useDeleteAccount(): { start: () => void; deleting: boolean; elem
             text: "Delete",
             style: "destructive",
             onPress: async (password: string | undefined) => {
-              if (!password) return;
+              // Blank is allowed: an Apple or Google account with no password
+              // is deleted without one; the server answers "Password is
+              // required" for an account that has one.
               setDeletingAccount(true);
               try {
-                await deleteAccount(password);
+                await deleteAccount(password ?? "");
                 await wipeLocalDataAfterDeletion();
                 await logout();
               } catch (err: unknown) {
@@ -79,7 +81,6 @@ export function useDeleteAccount(): { start: () => void; deleting: boolean; elem
   }, [logout]);
 
   const confirmDeleteAndroid = useCallback(async () => {
-    if (!deletePassword) return;
     setDeletingAccount(true);
     try {
       await deleteAccount(deletePassword);
@@ -107,7 +108,7 @@ export function useDeleteAccount(): { start: () => void; deleting: boolean; elem
           <View style={styles.modalContent} accessibilityViewIsModal={true}>
             <Text style={styles.modalTitle} accessibilityRole="header">Delete Account</Text>
             <Text style={styles.modalMessage}>
-              This is permanent and cannot be undone. Enter your password to confirm.
+              This is permanent and cannot be undone. Enter your password to confirm (leave it blank if you only sign in with Apple or Google).
             </Text>
             <TextInput
               style={styles.modalInput}
@@ -129,12 +130,12 @@ export function useDeleteAccount(): { start: () => void; deleting: boolean; elem
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalDelete, !deletePassword && styles.buttonDisabled]}
+                style={[styles.modalDelete, deletingAccount && styles.buttonDisabled]}
                 onPress={confirmDeleteAndroid}
-                disabled={!deletePassword || deletingAccount}
+                disabled={deletingAccount}
                 accessibilityRole="button"
                 accessibilityLabel={deletingAccount ? "Deleting account" : "Confirm delete account"}
-                accessibilityState={{ disabled: !deletePassword || deletingAccount, busy: deletingAccount }}
+                accessibilityState={{ disabled: deletingAccount, busy: deletingAccount }}
               >
                 <Text style={styles.modalDeleteText}>
                   {deletingAccount ? "Deleting..." : "Delete"}

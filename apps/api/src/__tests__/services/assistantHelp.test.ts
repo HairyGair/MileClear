@@ -1,10 +1,9 @@
 /**
  * EmSee help knowledge, trips_list and account_status.
  *
- * The question bank is the list of things drivers actually ask (support
- * inbox, feedback, missing-trip replies, app reviews), each pinned to the
- * written answer that covers it. A new kind of question should be added here
- * with an answer in services/assistantHelp.ts.
+ * The question bank (helpQuestionBank.ts) is the list of things drivers
+ * actually ask, each pinned to the written answer that covers it. A new kind
+ * of question goes there, with an answer in packages/shared/src/data/help.ts.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -19,112 +18,13 @@ vi.mock("../../lib/prisma.js", () => ({
 }));
 
 import { prisma } from "../../lib/prisma.js";
-import { HELP_AREAS, HELP_ENTRIES, helpForArea, type HelpArea } from "../../services/assistantHelp.js";
+import { HELP_AREAS, HELP_ENTRIES, helpForArea, searchHelp } from "../../services/assistantHelp.js";
+import { QUESTION_BANK } from "./helpQuestionBank.js";
 import { ASSISTANT_TOOLS, runAssistantTool } from "../../services/assistantTools.js";
 import { SYSTEM_PROMPT, plainAnswer } from "../../services/assistant.js";
 
 const ME = "11111111-1111-1111-1111-111111111111";
 const NOW = new Date("2026-10-09T12:00:00Z");
-
-/** [what a driver asks, the area EmSee should open, the answer that covers it] */
-export const QUESTION_BANK: [string, HelpArea, string][] = [
-  ["What does this app actually do?", "getting_started", "what-it-does"],
-  ["I've just downloaded it, what now?", "getting_started", "first-steps"],
-  ["How do I switch to personal mode?", "getting_started", "work-personal-mode"],
-  ["Can I use it if I'm employed, not self-employed?", "getting_started", "who-for"],
-  ["What does 'You drive for' mean?", "getting_started", "you-drive-for"],
-  ["I drive a company car, what do I pick?", "getting_started", "you-drive-for"],
-  ["What are the green ticks at the top of settings?", "recording_trips", "settings-checks"],
-  ["Is there an Android version?", "getting_started", "android"],
-  ["Do I have to press anything to record a trip?", "recording_trips", "automatic-trips"],
-  ["What's the Start Trip button for?", "recording_trips", "start-trip"],
-  ["Why did my Start Trip end while I was waiting at the depot?", "recording_trips", "start-trip"],
-  ["What's this 'Still on your trip?' message?", "recording_trips", "still-on-your-trip"],
-  ["What's a shift and how is it graded?", "recording_trips", "shifts"],
-  ["I'm on holiday, can I stop it recording for a week?", "recording_trips", "pause-recording"],
-  ["How do I turn off automatic tracking?", "recording_trips", "turn-off-automatic"],
-  ["Is it going to kill my battery?", "recording_trips", "battery"],
-  ["My 20 minute wait split my trip in two", "missing_or_wrong_trips", "split-trip"],
-  ["How long a stop before it starts a new trip?", "recording_trips", "journey-end"],
-  ["How do I get rid of the lock screen thing?", "recording_trips", "live-activity"],
-  ["What permissions does it need?", "recording_trips", "permissions"],
-  ["Will it work in a tunnel or with no signal?", "recording_trips", "offline"],
-  ["My trip from this morning isn't there", "missing_or_wrong_trips", "missing-trip"],
-  ["Why do my trips show up hours later?", "missing_or_wrong_trips", "late-trip"],
-  ["The distance on yesterday's trip is way off", "missing_or_wrong_trips", "wrong-distance"],
-  ["It logged a trip while I was sat at home", "missing_or_wrong_trips", "phantom-trip"],
-  ["It recorded my train journey", "missing_or_wrong_trips", "passenger"],
-  ["My trip is still recording and I parked an hour ago", "missing_or_wrong_trips", "trip-not-ending"],
-  ["My trips aren't on the website", "missing_or_wrong_trips", "web-missing"],
-  ["How do I mark a trip as business?", "managing_trips", "classify"],
-  ["Does driving to the depot count as business?", "managing_trips", "what-is-business"],
-  ["I forgot to track a trip, can I add it?", "managing_trips", "add-past-trip"],
-  ["How do I change the time on a trip?", "managing_trips", "edit-trip"],
-  ["Can I join two trips together?", "managing_trips", "merge-trips"],
-  ["How do I split a trip in two?", "managing_trips", "split-a-trip"],
-  ["How do I delete a trip?", "managing_trips", "delete-trip"],
-  ["How do I tag a trip as Amazon Flex?", "managing_trips", "platform-tag"],
-  ["Can I see miles per client?", "managing_trips", "projects"],
-  ["My employer wants odometer readings", "managing_trips", "odometer"],
-  ["Can it mark my work trips automatically?", "managing_trips", "auto-classify"],
-  ["What's the mileage rate this year?", "tax_and_claims", "rates"],
-  ["Why are some trips at 45p?", "tax_and_claims", "rates"],
-  ["Is the mileage claim money I get paid?", "tax_and_claims", "claim-meaning"],
-  ["Can I claim fuel as well as mileage?", "tax_and_claims", "claim-meaning"],
-  ["How do I fill in my tax return with this?", "tax_and_claims", "sa-wizard"],
-  ["Does MileClear submit my tax return?", "tax_and_claims", "sa-wizard"],
-  ["How do I send my mileage to my accountant?", "tax_and_claims", "exports"],
-  ["Can my accountant log in?", "tax_and_claims", "accountant-access"],
-  ["How is my tax estimate worked out?", "tax_and_claims", "tax-estimate"],
-  ["When do I pay my tax bill?", "tax_and_claims", "payment-plan"],
-  ["This is my first tax return, help", "tax_and_claims", "first-return"],
-  ["My boss pays 30p a mile, can I claim the rest?", "tax_and_claims", "employee"],
-  ["I have a full-time job too", "tax_and_claims", "other-income"],
-  ["Uber sent my earnings to HMRC, how do I check them?", "tax_and_claims", "hmrc-check"],
-  ["My insurer wants proof of my business miles", "tax_and_claims", "certificate"],
-  ["Is MileClear HMRC approved?", "tax_and_claims", "hmrc-approved"],
-  ["Does it do Making Tax Digital?", "tax_and_claims", "mtd"],
-  ["When does the tax year end?", "tax_and_claims", "tax-year"],
-  ["How do I add my Deliveroo earnings?", "money", "earnings"],
-  ["How do I add a parking receipt?", "money", "expenses"],
-  ["Can I just screenshot my Uber earnings?", "money", "snap-statement"],
-  ["Can I upload my Amazon Flex earnings file?", "money", "csv-import"],
-  ["Can it read my bank?", "money", "bank"],
-  ["Can I invoice a client?", "money", "invoices"],
-  ["Do I need to log fuel?", "money", "fuel"],
-  ["I got a parking ticket, can the app prove where I was?", "money", "ticket-defender"],
-  ["Does it know about ULEZ charges?", "money", "caz"],
-  ["How do I add my van?", "vehicles_and_places", "add-vehicle"],
-  ["Will it remind me when my MOT is due?", "vehicles_and_places", "mot-reminders"],
-  ["How do I save my home address?", "vehicles_and_places", "saved-places"],
-  ["How do I set my working hours?", "vehicles_and_places", "work-schedule"],
-  ["What do I get with Pro?", "pro_and_billing", "free-vs-pro"],
-  ["Is tracking free?", "pro_and_billing", "free-vs-pro"],
-  ["How much is Pro?", "pro_and_billing", "price"],
-  ["How do I cancel my subscription?", "pro_and_billing", "cancel"],
-  ["I paid but it still says free", "pro_and_billing", "restore"],
-  ["How do I get Pro for free?", "pro_and_billing", "refer"],
-  ["My company uses MileClear, am I Pro?", "pro_and_billing", "team-pro"],
-  ["I logged in and all my trips are gone", "account_and_app", "sign-in"],
-  ["How do I change my email address?", "account_and_app", "change-email"],
-  ["How do I delete my account?", "account_and_app", "delete-account"],
-  ["Can I download everything you hold about me?", "account_and_app", "my-data"],
-  ["Can I use it on my laptop?", "account_and_app", "website"],
-  ["How do I update the app?", "account_and_app", "updates"],
-  ["How do I speak to someone?", "account_and_app", "contact"],
-  ["Can I put a password on the app?", "account_and_app", "app-lock"],
-  ["Stop sending me emails", "account_and_app", "emails"],
-  ["What can you do?", "account_and_app", "emsee"],
-  ["Is there a group for drivers?", "account_and_app", "community"],
-  ["Who can see my trips?", "account_and_app", "privacy"],
-  ["Where are my stats?", "insights_and_alerts", "insights"],
-  ["How do I see my monthly summary?", "insights_and_alerts", "recaps"],
-  ["What's my streak?", "insights_and_alerts", "achievements"],
-  ["Too many notifications, how do I turn some off?", "insights_and_alerts", "notifications"],
-  ["Where's the cheapest fuel near me?", "insights_and_alerts", "fuel-prices"],
-  ["What are road alerts?", "insights_and_alerts", "road-alerts"],
-  ["How do I compare to other drivers?", "insights_and_alerts", "benchmarks"],
-];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -153,19 +53,41 @@ describe("help knowledge", () => {
 
   it("covers every question in the bank, in the area EmSee would open", () => {
     const byId = new Map(HELP_ENTRIES.map((e) => [e.id, e]));
-    for (const [question, area, id] of QUESTION_BANK) {
+    expect(QUESTION_BANK.length).toBeGreaterThanOrEqual(120);
+    for (const { q, area, id } of QUESTION_BANK) {
       const entry = byId.get(id);
-      expect(entry, `${question} -> ${id}`).toBeDefined();
-      expect(entry!.area, question).toBe(area);
+      expect(entry, `${q} -> ${id}`).toBeDefined();
+      expect(entry!.area, q).toBe(area);
     }
     // Every written answer is reachable from at least one real question.
-    const used = new Set(QUESTION_BANK.map(([, , id]) => id));
+    const used = new Set(QUESTION_BANK.map((b) => b.id));
     for (const e of HELP_ENTRIES) expect(used.has(e.id), `no bank question for ${e.id}`).toBe(true);
+  });
+
+  it("finds the right answer for every bank question in the top 3 matches", () => {
+    const misses: string[] = [];
+    for (const { q, id } of QUESTION_BANK) {
+      const ids = searchHelp(q, 3).map((m) => HELP_ENTRIES.find((e) => e.q === m.q)?.id);
+      if (!ids.includes(id)) misses.push(`${q} -> ${id} (got ${ids.join(", ")})`);
+    }
+    expect(misses).toEqual([]);
+  });
+
+  it("each bank question's expected facts are in its written answer", () => {
+    // The live eval checks EmSee's answer against `expect`; the written answer
+    // must carry those facts first (either the main text or the Android one).
+    const byId = new Map(HELP_ENTRIES.map((e) => [e.id, e]));
+    for (const b of QUESTION_BANK) {
+      const e = byId.get(b.id)!;
+      const text = `${e.q} ${e.a} ${e.android ?? ""}`;
+      for (const re of b.expect) expect(text, `${b.q} -> ${b.id} needs ${re}`).toMatch(re);
+      for (const re of b.reject ?? []) expect(text, `${b.q} -> ${b.id} must not say ${re}`).not.toMatch(re);
+    }
   });
 
   it("keeps to the house wording rules", () => {
     for (const e of HELP_ENTRIES) {
-      const text = `${e.q} ${e.a}`;
+      const text = `${e.q} ${e.a} ${e.android ?? ""}`;
       expect(text, e.id).not.toMatch(/—|–/); // no em or en dashes
       expect(text, e.id).not.toMatch(/HMRC[- ](ready|approved|compliant|recognised|recognized|accepted)/i);
       expect(text, e.id).not.toMatch(/HMRC accepts|submits? (your|the) (tax )?return|files? (your|the) return for you/i);
@@ -181,11 +103,25 @@ describe("help knowledge", () => {
     expect(text).toMatch(/24p a mile/);
     expect(text).toMatch(/£4\.99 a month/);
     expect(text).toMatch(/1 vehicle and 2 saved places/);
-    expect(text).toMatch(/test service only/); // MTD is sandbox only
+    expect(text).toMatch(/HMRC's test service only: nothing is sent to HMRC/); // MTD is sandbox only
+    expect(text).not.toMatch(/Show Phantom|Data Quality|avatar menu|Work & Tax|Tax exports/i); // retired screens
   });
 });
 
 describe("mileclear_help tool", () => {
+  it("finds answers from the driver's own words", async () => {
+    const r = await runAssistantTool(ME, "mileclear_help", { question: "how do i stop it tracking while im on holiday" }, NOW);
+    expect(r.ok).toBe(true);
+    const out = JSON.parse(r.content);
+    expect(out.best_matches[0].q).toMatch(/pause/i);
+    expect(out.areas).toBeDefined();
+  });
+
+  it("needs a question or an area", async () => {
+    const r = await runAssistantTool(ME, "mileclear_help", {}, NOW);
+    expect(r.ok).toBe(false);
+  });
+
   it("returns one area's answers and the other areas to try", async () => {
     const r = await runAssistantTool(ME, "mileclear_help", { area: "pro_and_billing" }, NOW);
     expect(r.ok).toBe(true);
@@ -202,8 +138,9 @@ describe("mileclear_help tool", () => {
 
   it("is registered with the same areas the knowledge has", () => {
     const tool = ASSISTANT_TOOLS.find((t) => t.name === "mileclear_help")!;
-    const props = (tool.input_schema as unknown as { properties: { area: { enum: readonly string[] } } }).properties;
+    const props = (tool.input_schema as unknown as { properties: { area: { enum: readonly string[] }; question: object } }).properties;
     expect([...props.area.enum]).toEqual([...HELP_AREAS]);
+    expect(props.question).toBeDefined();
   });
 
   it("is named in the system prompt, with the rule against guessing", () => {
