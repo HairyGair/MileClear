@@ -89,7 +89,7 @@ const INITIAL_STATE: ScreenState = {
 export default function TaxMtdScreen() {
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: "Tax (MTD)", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+      <Stack.Screen options={{ title: "Quarterly updates", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
       <PremiumGate feature="MTD ITSA">
         <TaxMtdContent />
       </PremiumGate>
@@ -105,7 +105,7 @@ function TaxMtdContent() {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const statusRes = await fetchHmrcStatus();
-      const status = statusRes.data;
+      let status = statusRes.data;
 
       if (!status.connected) {
         setState({
@@ -148,6 +148,17 @@ function TaxMtdContent() {
           // A 400 here means we could not ask HMRC, not that there is
           // nothing due. Say so rather than implying the user is clear.
           obligationsUnavailable = true;
+        }
+      }
+
+      // The stored access token lasts a few hours and the server renews it on
+      // the next HMRC call (the obligations call above). Read the status again
+      // so a token renewed just now isn't shown as "expired".
+      if (isConnectionExpired(status.expiresAt) && status.hasNino) {
+        try {
+          status = (await fetchHmrcStatus()).data;
+        } catch {
+          // keep the first status
         }
       }
 
@@ -299,6 +310,7 @@ function TaxMtdContent() {
           obligations={state.obligations}
           unavailable={state.obligationsUnavailable}
           expired={isConnectionExpired(state.status?.expiresAt)}
+          onConnect={onConnect}
         />
       )}
 
@@ -324,18 +336,22 @@ function Header({
 }) {
   const isConnected = status?.connected === true;
   const sandbox = status?.environment !== "production";
+  const expired = isConnected && isConnectionExpired(status?.expiresAt);
+  const title = expired
+    ? "Test connection expired"
+    : isConnected
+      ? (sandbox ? "Connected to HMRC's test service" : "Connected to HMRC")
+      : "Not connected";
   return (
     <View style={styles.header}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <View
-            style={[styles.statusDot, { backgroundColor: isConnected ? (sandbox ? AMBER : GREEN) : TEXT_3 }]}
-            accessibilityLabel={isConnected ? (sandbox ? "Connected to the test service" : "Connected") : "Not connected"}
+            style={[styles.statusDot, { backgroundColor: expired ? TEXT_3 : isConnected ? (sandbox ? AMBER : GREEN) : TEXT_3 }]}
+            accessibilityLabel={title}
             accessible={true}
           />
-          <Text style={styles.headerTitle}>
-            {isConnected ? (sandbox ? "Connected to HMRC's test service" : "Connected to HMRC") : "Not connected"}
-          </Text>
+          <Text style={styles.headerTitle}>{title}</Text>
         </View>
         {onDisconnect && (
           <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel="Disconnect the test connection">
@@ -468,10 +484,12 @@ function ReadyStep({
   obligations,
   unavailable,
   expired,
+  onConnect,
 }: {
   obligations: HmrcObligation[];
   unavailable: boolean;
   expired: boolean;
+  onConnect: () => void;
 }) {
   const sorted = useMemo(
     () => [...obligations].sort((a, b) => a.due.localeCompare(b.due)),
@@ -492,9 +510,15 @@ function ReadyStep({
         </Text>
         <Text style={styles.stepBody}>
           {expired
-            ? "Your test connection has expired. Connect again to carry on."
+            ? "Connect again to carry on. Your past test updates stay in your history."
             : "We couldn't load your quarterly updates just now, so we can't tell you whether anything is due. Pull down to try again. This does not mean you have nothing to file."}
         </Text>
+        {expired && (
+          <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Connect again">
+            <Text style={styles.primaryButtonText}>Connect again</Text>
+            <Ionicons name="arrow-forward" size={18} color="#000" />
+          </TouchableOpacity>
+        )}
         <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="See update history">
           See update history
         </Text>
@@ -638,9 +662,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 12 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   headerTitle: {
+    flexShrink: 1,
     color: TEXT_1,
     fontSize: 16,
     fontFamily: fonts.semibold,

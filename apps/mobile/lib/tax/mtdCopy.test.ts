@@ -14,6 +14,6 @@ describe("mtdCopy", () => {
   });
   it("words the line", () => {
     expect(connectionLine("2026-10-09T23:28:00Z", "x", now)).toBe("Your test connection has expired. Connect again to carry on.");
-    expect(connectionLine("2026-10-11T00:00:00Z", "11 Oct 2026, 01:00", now)).toBe("Test connection runs until 11 Oct 2026, 01:00. After that, connect again.");
+    expect(connectionLine("2026-10-11T00:00:00Z", "11 Oct 2026, 01:00", now)).toBe("Your test connection renews by itself while you use it.");
   });
 });

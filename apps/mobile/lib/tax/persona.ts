@@ -299,6 +299,11 @@ export function homeLineText(
     const ret = overview.return;
     if (!ret) return thisYearLine(overview, formatPence);
     const days = daysText(ret.daysToDeadline);
+    // The Tax tab asks first when nothing is recorded for the return year and
+    // no start year is saved; Home must not list "things to sort" meanwhile.
+    if (returnCardMode("return", ret, overview.plan?.firstSelfEmployedTaxYear) === "ask") {
+      return `Do you need a ${ret.taxYear} return? · ${days}`;
+    }
     return ret.attentionCount > 0
       ? `${ret.taxYear} return: ${ret.attentionCount} ${ret.attentionCount === 1 ? "thing" : "things"} to sort · ${days}`
       : `${ret.taxYear} return: ready to file · ${days}`;

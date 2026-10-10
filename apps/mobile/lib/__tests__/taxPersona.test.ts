@@ -246,6 +246,12 @@ describe("homeLineText", () => {
       homeLineText("gig", overview({ lead: "this_year", plan: null, thisYear: { ...thisYear, estimatedTaxPence: 0 } }), null, fmt),
     ).toBeNull();
   });
+  it("asks on Home while the Tax tab asks (nothing recorded, no start year)", () => {
+    const empty = ret({ businessMiles: 0, earningsPence: 0, attentionCount: 2 });
+    expect(homeLineText("both", overview({ return: empty }), null, fmt)).toBe(
+      "Do you need a 2025-26 return? · 113 days left",
+    );
+  });
   it("employee needs relief above zero", () => {
     expect(homeLineText("employee", overview({ workType: "employee" }), 41200, fmt)).toBe(
       "Mileage Allowance Relief: £412.00 to claim",

@@ -9,11 +9,11 @@ export function isConnectionExpired(expiresAt: string | undefined | null, now: D
 /** One line on the quarterly updates header explaining the token. */
 export function connectionLine(
   expiresAt: string | undefined | null,
-  formatted: string,
+  _formatted: string,
   now: Date = new Date(),
 ): string {
   if (isConnectionExpired(expiresAt, now)) {
     return "Your test connection has expired. Connect again to carry on.";
   }
-  return `Test connection runs until ${formatted}. After that, connect again.`;
+  return "Your test connection renews by itself while you use it.";
 }
