@@ -51,6 +51,7 @@ describe("helpers", () => {
   it("summaries", () => {
     expect(driveForSummary("both", { employerRatePence: 45 })).toBe("Deliveries and an employer · employer pays 45p");
     expect(driveForSummary("employee")).toBe("An employer");
+    expect(driveForSummary("employee", { employerRatePence: 45 })).toBe("An employer · pays 45p");
     expect(driveForSummary("company", { teamName: "Acme Ltd" })).toBe("A company car · Acme Ltd");
     expect(driveForSummary("personal")).toBe("Just me, not for work");
   });

@@ -72,7 +72,8 @@ export function driveForSummary(
     case "gig":
       return "Deliveries or gig work";
     case "employee":
-      return `An employer${rate}`;
+      // "An employer · pays 45p" (it read "An employer · employer pays 45p").
+      return opts.employerRatePence ? `An employer · pays ${opts.employerRatePence}p` : "An employer";
     case "both":
       return `Deliveries and an employer${rate}`;
     case "company":
