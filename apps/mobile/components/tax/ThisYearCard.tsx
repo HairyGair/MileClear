@@ -84,7 +84,7 @@ export function ThisYearCard({
 
         {!noEarnings && showsDiffersLine(claimPence, thisYear.returnMileagePence) && claimPence != null && (
           <Text style={taxCard.muted} maxFontSizeMultiplier={fontScaleCap.body}>
-            {`Home shows a ${formatPence(claimPence)} mileage claim. Trips that aren't tagged to a gig app count at your employer's rate there; your tax return uses the approved rates for all of them.`}
+            {`Your mileage claim so far is ${formatPence(claimPence)}. It counts trips that aren't tagged to a gig app at your employer's rate; your tax return uses the approved rates for all of them.`}
           </Text>
         )}
 
