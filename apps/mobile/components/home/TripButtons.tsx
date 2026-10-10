@@ -1,6 +1,7 @@
 // Start Trip (the one amber button on Home) and, for gig and Both drivers in
 // Work mode, Start Shift beside it as a dark button with an amber icon
-// (SPEC-VISUAL 5.4). At large text or on a narrow phone they stack.
+// (SPEC-VISUAL 5.4). At large text or on a narrow phone they stack; just
+// below that size the labels shrink a little rather than cut to "Start Sh...".
 
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,9 +24,10 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       style={({ pressed }) => [s.btn, s.trip, !stacked && showShift && { flex: 3 }, pressed && s.pressed]}
       accessibilityRole="button"
       accessibilityLabel="Start Trip"
+      accessibilityHint="Opens the trip screen to record a drive now"
     >
       <Ionicons name="navigate" size={20} color={colors.bg} accessible={false} />
-      <Text style={s.tripText} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={1}>Start Trip</Text>
+      <Text style={s.tripText} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Start Trip</Text>
     </Pressable>
   );
 
@@ -38,6 +40,7 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       style={({ pressed }) => [s.btn, s.shift, !stacked && { flex: 2 }, pressed && s.pressed]}
       accessibilityRole="button"
       accessibilityLabel="Start Shift"
+      accessibilityHint="Starts a work shift. Trips record until you end it"
       accessibilityState={{ disabled: starting, busy: starting }}
     >
       {starting ? (
@@ -45,7 +48,7 @@ export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: 
       ) : (
         <Ionicons name="play" size={18} color={colors.amber} accessible={false} />
       )}
-      <Text style={s.shiftText} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={1}>Start Shift</Text>
+      <Text style={s.shiftText} maxFontSizeMultiplier={fontScaleCap.heading} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Start Shift</Text>
     </Pressable>
   );
 

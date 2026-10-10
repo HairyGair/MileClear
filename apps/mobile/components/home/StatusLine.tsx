@@ -18,6 +18,16 @@ interface Props {
   onAction: () => void;
 }
 
+const HINTS: Record<StatusLineModel["tap"], string> = {
+  live_trip: "Opens the trip being recorded",
+  fix: "Shows how to turn recording back on",
+  sync_status: "Opens sync status to retry",
+  recording_sheet: "Opens recording options",
+  low_power_sheet: "Explains what to do",
+  setup_sheet: "Opens the setup list",
+  trips: "Opens Trips",
+};
+
 function LiveDot({ breathe }: { breathe: boolean }) {
   const reduced = useReducedMotion();
   const opacity = useRef(new Animated.Value(1)).current;
@@ -89,7 +99,7 @@ export function StatusLine({ model, onPress, onAction }: Props) {
       style={s.main}
       accessibilityRole="button"
       accessibilityLabel={paused ? model.title : model.a11yLabel}
-      accessibilityHint={paused ? "Opens recording options" : undefined}
+      accessibilityHint={paused ? "Opens recording options" : HINTS[model.tap]}
     >
       {leading}
       <View style={s.titleWrap}>{title}</View>
@@ -158,7 +168,7 @@ const s = StyleSheet.create({
   ring: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: colors.text2 },
   fix: { fontSize: 14, fontFamily: fonts.bold, color: colors.red },
   resume: {
-    height: 30,
+    minHeight: 30,
     paddingHorizontal: 14,
     borderRadius: 15,
     borderWidth: 1,

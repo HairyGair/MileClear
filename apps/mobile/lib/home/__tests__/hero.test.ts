@@ -51,8 +51,8 @@ describe("selectHero Work", () => {
     const h = figure(selectHero(base({ persona: "company", stats: stats({ businessMiles: 1204 }) })));
     expect(h.label).toBe("Business miles · 2026-27");
     expect(h.figure).toBe("1,204");
-    expect(h.unit).toBe("mi");
-    expect(h.line).toBe("182 this week");
+    expect(h.unit).toBe("miles");
+    expect(h.line).toBe("182 business miles this week");
     expect(h.claimPence).toBeNull();
   });
 
@@ -96,12 +96,17 @@ describe("selectHero Work", () => {
 });
 
 describe("selectHero Personal", () => {
+  it("leaves the week out rather than say 0 this week", () => {
+    const h = figure(selectHero(base({ persona: "personal", week: { totalMiles: 0, businessMiles: 0, totalTrips: 0 } })));
+    expect(h.line).toBe("5 trips this month");
+  });
+
   it("leads with the month's miles", () => {
     const h = figure(selectHero(base({ persona: "personal" })));
     expect(h.label).toBe("October");
     expect(h.figure).toBe("205");
     expect(h.unit).toBe("miles");
-    expect(h.line).toBe("190 this week · 5 trips this month");
+    expect(h.line).toBe("190 miles this week · 5 trips this month");
     expect(h.target).toBe("insights_month");
   });
 

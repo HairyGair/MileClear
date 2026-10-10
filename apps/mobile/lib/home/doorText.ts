@@ -43,7 +43,7 @@ export function changePhrase(percent: number | null | undefined, isPro: boolean)
  * The Insights door.
  *  - Work: "This week: 5 trips, £58 claim built" (Pro adds "up 12% on last week").
  *  - Personal: "This week: 182 miles, longest 41 mi on Monday".
- *  - Sunday evening to Monday noon: "Last week: 182 mi, £58. See your week".
+ *  - Sunday evening to Monday noon: "Last week: 182 mi, £58 claim. See your week".
  * Returns null for a driver with no trips at all (nothing to say yet).
  */
 export function insightsDoorText(args: {
@@ -62,7 +62,7 @@ export function insightsDoorText(args: {
 
   if (args.endOfWeek && lastWeek && lastWeek.totalTrips > 0) {
     const bits = [`${milesFigure(lastWeek.totalMiles)} mi`];
-    if (claimDriver && lastWeek.deductionPence > 0) bits.push(formatPence(lastWeek.deductionPence));
+    if (claimDriver && lastWeek.deductionPence > 0) bits.push(`${formatPence(lastWeek.deductionPence)} claim`);
     return `Last week: ${bits.join(", ")}. See your week`;
   }
 
@@ -94,6 +94,19 @@ export function insightsDoorText(args: {
   }
   const change = changePhrase(thisWeek.change?.totalMilesPercent, isPro);
   return change ? `${text}, ${change} on last week` : text;
+}
+
+/**
+ * The one key figure in a door sentence, drawn bold on Home (SPEC-VISUAL 5.6):
+ * the first amount of money, else the first number with its unit ("113 days",
+ * "22 miles", "139.9p"). Null when the sentence has neither.
+ */
+export function doorKeyFigure(text: string): { before: string; figure: string; after: string } | null {
+  const m =
+    /£[\d,]+(?:\.\d+)?/.exec(text) ??
+    /\b\d[\d,]*(?:\.\d+)?(?:p\b|\s(?:days?|miles?|mi|trips?)\b)/.exec(text);
+  if (!m) return null;
+  return { before: text.slice(0, m.index), figure: m[0], after: text.slice(m.index + m[0].length) };
 }
 
 /** "£412 earned this week · £1.20 a mile"; null when nothing was earned. */

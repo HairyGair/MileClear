@@ -1,13 +1,15 @@
-// The sentence for the "Looks like a shift" ask: "6 trips, 4:10pm to 10:35pm,
-// 38 miles", with the day in front when it was not today. Pure.
+// The sentence for the "Looks like a shift" ask: "6 trips, 16:10 to 22:35,
+// 38 miles", with the day in front when it was not today. 24-hour times, as
+// the Last trip card above it uses. Pure.
 
 import type { ShiftSuggestion } from "../api/shifts";
 
 function clockTime(d: Date): string {
-  const h24 = d.getHours();
-  const mins = d.getMinutes().toString().padStart(2, "0");
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  return `${h12}:${mins}${h24 < 12 ? "am" : "pm"}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function tripsText(n: number): string {
+  return `${n} ${n === 1 ? "trip" : "trips"}`;
 }
 
 function sameDay(a: Date, b: Date): boolean {
@@ -25,11 +27,11 @@ export function describeSuggestion(
   const start = new Date(s.startedAt);
   const end = new Date(s.endedAt);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return `${s.tripCount} trips, ${Math.round(s.totalMiles)} miles`;
+    return `${tripsText(s.tripCount)}, ${Math.round(s.totalMiles)} miles`;
   }
   const day = sameDay(start, now)
     ? ""
     : `${start.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}, `;
   const miles = s.totalMiles < 10 ? s.totalMiles.toFixed(1) : String(Math.round(s.totalMiles));
-  return `${s.tripCount} trips, ${day}${clockTime(start)} to ${clockTime(end)}, ${miles} miles`;
+  return `${tripsText(s.tripCount)}, ${day}${clockTime(start)} to ${clockTime(end)}, ${miles} miles`;
 }

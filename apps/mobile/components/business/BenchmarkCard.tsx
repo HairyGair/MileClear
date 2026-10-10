@@ -14,10 +14,10 @@ import type {
   BenchmarkComparison,
   PlatformBenchmark,
 } from "@mileclear/shared";
-import { colors } from "../../lib/theme";
+import { colors, fonts, radii } from "../../lib/theme";
 
 const CARD_BG = colors.surface;
-const CARD_BORDER = "rgba(255,255,255,0.05)";
+const CARD_BORDER = colors.surfaceBorder;
 const AMBER = colors.amber;
 const GREEN = colors.green;
 const TEXT_1 = colors.text1;
@@ -167,8 +167,7 @@ export function BenchmarkCard({ hideMilesRow = false }: { hideMilesRow?: boolean
   if (data.limitedDataNote && !data.national.weeklyMiles.available) {
     return (
       <View style={s.card}>
-        <Text style={s.label}>HOW YOU COMPARE</Text>
-        <Text style={s.title}>Driver community benchmarks</Text>
+        <Text style={s.title} accessibilityRole="header">How you compare</Text>
         <Text style={s.note}>{data.limitedDataNote}</Text>
         <Text style={s.contributorCount}>
           {data.totalActiveDrivers} {data.totalActiveDrivers === 1 ? "driver" : "drivers"} active in the last 30 days
@@ -186,8 +185,8 @@ export function BenchmarkCard({ hideMilesRow = false }: { hideMilesRow?: boolean
     <View style={s.card}>
       <View style={s.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={s.label}>HOW YOU COMPARE</Text>
-          <Text style={s.title}>Vs UK drivers, last {data.windowDays} days</Text>
+          <Text style={s.title} accessibilityRole="header">How you compare</Text>
+          <Text style={s.label}>Against UK drivers, last {data.windowDays} days</Text>
         </View>
         <View style={s.contributorPill}>
           <Ionicons name="people-outline" size={11} color={TEXT_3} />
@@ -248,7 +247,7 @@ function PlatformSection({ platform }: { platform: PlatformBenchmark }) {
 const s = StyleSheet.create({
   card: {
     backgroundColor: CARD_BG,
-    borderRadius: 14,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: CARD_BORDER,
     padding: 16,
@@ -264,17 +263,18 @@ const s = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 14,
   },
+  // Same title tier as the other Insights cards (InsightCard): sentence
+  // case, 16 bold, with the window as a plain text2 line under it.
   label: {
     color: TEXT_2,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 0.6,
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    marginTop: 2,
   },
   title: {
     color: TEXT_1,
-    fontSize: 17,
-    fontWeight: "700",
-    marginTop: 2,
+    fontSize: 16,
+    fontFamily: fonts.bold,
   },
   contributorPill: {
     flexDirection: "row",

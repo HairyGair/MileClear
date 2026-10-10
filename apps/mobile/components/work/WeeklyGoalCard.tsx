@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { fetchWeeklyProgress, updateProfile } from "../../lib/api/user";
 import type { WeeklyProgress } from "@mileclear/shared";
 import { colors, fonts } from "../../lib/theme";
@@ -63,10 +62,9 @@ export function WeeklyGoalCard() {
     <View style={s.card}>
       <View style={s.header}>
         <View style={s.headerLeft}>
-          <Ionicons name="flag" size={16} color={AMBER} accessible={false} />
-          <Text style={s.title}>Weekly Earnings</Text>
+          <Text style={s.title} accessibilityRole="header">Weekly earnings goal</Text>
         </View>
-        <TouchableOpacity onPress={() => setEditing((v) => !v)} hitSlop={8} accessibilityRole="button" accessibilityLabel={hasGoal ? "Edit weekly goal" : "Set weekly goal"}>
+        <TouchableOpacity onPress={() => setEditing((v) => !v)} hitSlop={12} accessibilityRole="button" accessibilityLabel={hasGoal ? "Edit weekly goal" : "Set weekly goal"}>
           <Text style={s.editBtn}>{hasGoal ? "Edit" : "Set target"}</Text>
         </TouchableOpacity>
       </View>
@@ -121,7 +119,7 @@ export function WeeklyGoalCard() {
 const s = StyleSheet.create({
   card: {
     backgroundColor: CARD_BG,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
@@ -129,7 +127,7 @@ const s = StyleSheet.create({
   },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
+  title: { fontSize: 16, fontFamily: fonts.bold, color: TEXT_1 },
   editBtn: { fontSize: 13, fontFamily: fonts.medium, color: AMBER },
   editRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
   input: {

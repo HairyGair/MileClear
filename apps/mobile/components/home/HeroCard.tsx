@@ -132,6 +132,11 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
 
   const figure = claim != null && counted != null ? formatPence(counted) : model.figure;
   const smallFigure = model.figure.length > 12;
+  // "A quiet month so far" is words, not a number: 22 bold and free to wrap
+  // (SPEC-VISUAL 8), rather than a 44pt line squeezed to fit.
+  const wordsFigure = !/^[£\d]/.test(model.figure);
+  const hint =
+    model.target === "insights_month" ? "Opens Insights for this month" : "Opens the Tax tab";
 
   return (
     <Pressable
@@ -139,6 +144,7 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
       style={({ pressed }) => [s.card, pressed && s.pressed]}
       accessibilityRole="button"
       accessibilityLabel={`${model.a11yLabel}${note ? ` ${note}.` : ""}`}
+      accessibilityHint={hint}
     >
       <View style={s.labelRow}>
         <Text style={s.label} maxFontSizeMultiplier={fontScaleCap.body}>{model.label}</Text>
@@ -147,15 +153,21 @@ export function HeroCard({ model, onPress, recentTrip }: Props) {
         ) : null}
       </View>
       <View style={s.figureRow}>
-        <Text
-          style={[s.figure, smallFigure && s.figureSmall]}
-          maxFontSizeMultiplier={fontScaleCap.display}
-          adjustsFontSizeToFit
-          numberOfLines={1}
-        >
-          {figure}
-          {model.unit ? <Text style={s.unit}>{` ${model.unit}`}</Text> : null}
-        </Text>
+        {wordsFigure ? (
+          <Text style={s.figureWords} maxFontSizeMultiplier={fontScaleCap.heading}>
+            {figure}
+          </Text>
+        ) : (
+          <Text
+            style={[s.figure, smallFigure && s.figureSmall]}
+            maxFontSizeMultiplier={fontScaleCap.display}
+            adjustsFontSizeToFit
+            numberOfLines={1}
+          >
+            {figure}
+            {model.unit ? <Text style={s.unit}>{` ${model.unit}`}</Text> : null}
+          </Text>
+        )}
       </View>
       {model.line ? (
         <Text style={s.line} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={3}>
@@ -191,6 +203,7 @@ const s = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   figureSmall: { fontSize: 30, lineHeight: 38 },
+  figureWords: { fontSize: 22, lineHeight: 28, fontFamily: fonts.bold, color: colors.text1, marginVertical: 6 },
   unit: { fontSize: 18, fontFamily: fonts.semibold, color: colors.text2, letterSpacing: 0 },
   line: { marginTop: 8, fontSize: 16, lineHeight: 22, fontFamily: fonts.regular, color: colors.text1, paddingRight: 22 },
   chevron: { position: "absolute", right: 16, top: "50%", marginTop: -8 },

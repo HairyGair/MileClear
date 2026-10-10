@@ -83,7 +83,7 @@ export function CommunityMonthCard() {
     <View style={styles.card} accessible={false}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Ionicons name="people-outline" size={18} color={colors.amber} accessible={false} />
+          <Ionicons name="people-outline" size={18} color={colors.text2} accessible={false} />
           <Text style={styles.title} accessibilityRole="header">
             {name} in MileClear
           </Text>
@@ -140,9 +140,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.18)",
+    borderColor: colors.surfaceBorder,
   },
   header: {
     flexDirection: "row",
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
-  title: { fontSize: 15, fontFamily: fonts.bold, color: colors.text1 },
+  title: { fontSize: 16, fontFamily: fonts.bold, color: colors.text1 },
   shareBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -163,7 +163,9 @@ const styles = StyleSheet.create({
   },
   shareText: { fontSize: 13, fontFamily: fonts.semibold, color: colors.amber },
   headline: { fontSize: 17, lineHeight: 24, fontFamily: fonts.semibold, color: colors.text1 },
-  em: { color: colors.amber, fontFamily: fonts.bold },
+  // Everyone's totals, not the driver's own: text1 bold, not amber (on
+  // Insights amber means "you, now").
+  em: { color: colors.text1, fontFamily: fonts.bold },
   row: { flexDirection: "row", gap: 10, marginTop: 14 },
   stat: {
     flex: 1,

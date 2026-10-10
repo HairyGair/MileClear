@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { DOOR_ROW_IDS, type DoorRowId } from "../../lib/home/doorPrefs";
 import type { DoorRow } from "../../lib/home/doors";
+import { doorKeyFigure } from "../../lib/home/doorText";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 
@@ -23,6 +24,24 @@ function isHideable(id: string): id is DoorRowId {
   return (DOOR_ROW_IDS as readonly string[]).includes(id);
 }
 
+/** The sentence with its one key figure in bold (SPEC-VISUAL 5.6). */
+function DoorSentence({ text }: { text: string }) {
+  const k = doorKeyFigure(text);
+  return (
+    <Text style={s.text} maxFontSizeMultiplier={fontScaleCap.body}>
+      {k ? (
+        <>
+          {k.before}
+          <Text style={s.figure}>{k.figure}</Text>
+          {k.after}
+        </>
+      ) : (
+        text
+      )}
+    </Text>
+  );
+}
+
 export function DoorRows({ rows, mode, state, onHide }: Props) {
   const router = useRouter();
 
@@ -32,11 +51,11 @@ export function DoorRows({ rows, mode, state, onHide }: Props) {
       const id = row.id;
       trackHomeTap("door_hide", mode, state);
       Alert.alert(
-        "Hide this row?",
+        "Hide this shortcut?",
         "You can bring it back any time in Settings, under Home screen.",
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Hide this row", style: "destructive", onPress: () => onHide(id) },
+          { text: "Hide it", style: "destructive", onPress: () => onHide(id) },
         ]
       );
     },
@@ -62,8 +81,8 @@ export function DoorRows({ rows, mode, state, onHide }: Props) {
               style={({ pressed }) => [s.row, pressed && s.pressed]}
               accessibilityRole="button"
               accessibilityLabel={row.text}
-              accessibilityHint={hideable ? "Opens it. Press and hold to hide this row." : undefined}
-              accessibilityActions={hideable ? [{ name: "hide", label: "Hide this row" }] : undefined}
+              accessibilityHint={hideable ? "Opens it. Press and hold to hide this shortcut." : undefined}
+              accessibilityActions={hideable ? [{ name: "hide", label: "Hide this shortcut" }] : undefined}
               onAccessibilityAction={hideable ? () => confirmHide(row) : undefined}
             >
               <Ionicons
@@ -72,9 +91,7 @@ export function DoorRows({ rows, mode, state, onHide }: Props) {
                 color={row.urgent ? colors.amber : colors.text2}
                 accessible={false}
               />
-              <Text style={s.text} maxFontSizeMultiplier={fontScaleCap.body}>
-                {row.text}
-              </Text>
+              <DoorSentence text={row.text} />
               <Ionicons name="chevron-forward" size={16} color={colors.text3} accessible={false} />
             </Pressable>
           </View>
@@ -102,5 +119,6 @@ const s = StyleSheet.create({
   },
   pressed: { backgroundColor: "rgba(255,255,255,0.04)" },
   text: { flex: 1, fontSize: 15, fontFamily: fonts.medium, color: colors.text1, lineHeight: 21 },
+  figure: { fontFamily: fonts.bold },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline, marginLeft: 52 },
 });

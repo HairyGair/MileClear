@@ -130,7 +130,11 @@ export function selectHero(i: HeroInputs): HeroModel {
     const m = i.month;
     if (!m) return { kind: "loading" };
     const monthName = MONTHS[i.now.getMonth()];
-    const weekPart = i.week ? `${milesFigure(i.week.totalMiles)} this week` : null;
+    // Labelled ("182 miles this week"), and left out when the week has none yet.
+    const weekPart =
+      i.week && round1(i.week.totalMiles) > 0
+        ? `${milesFigure(i.week.totalMiles)} ${milesWord(i.week.totalMiles)} this week`
+        : null;
     if (m.totalMiles < 0.05) {
       const prevMonth = MONTHS[(i.now.getMonth() + 11) % 12];
       const line =
@@ -154,12 +158,11 @@ export function selectHero(i: HeroInputs): HeroModel {
   }
 
   if (i.persona === "company") {
-    const line = i.week ? `${milesFigure(i.week.businessMiles)} this week` : "";
     return figureModel(
       `Business miles · ${stats.taxYear}`,
       formatWholeMiles(stats.businessMiles),
-      "mi",
-      line,
+      "miles",
+      weekBusinessLine(i.week),
       "records",
       null
     );

@@ -7,6 +7,7 @@ import {
   fuelDoorText,
   saSeasonText,
   changePhrase,
+  doorKeyFigure,
   type WeekRecapLike,
 } from "../doorText";
 import { parseHiddenDoorRows, withDoorRowHidden } from "../doorPrefs";
@@ -135,7 +136,7 @@ describe("door sentences", () => {
     );
   });
   it("Monday morning looks back at last week", () => {
-    expect(insightsDoorText(w({ endOfWeek: true, lastWeek: wk() }))).toBe("Last week: 182 mi, £58.00. See your week");
+    expect(insightsDoorText(w({ endOfWeek: true, lastWeek: wk() }))).toBe("Last week: 182 mi, £58.00 claim. See your week");
   });
   it("a quiet week falls back to a plain line, never zeros", () => {
     expect(insightsDoorText(w({ thisWeek: wk({ totalTrips: 0, totalMiles: 0 }) }))).toBe(
@@ -185,5 +186,28 @@ describe("hidden door storage", () => {
     expect(withDoorRowHidden(["fuel"], "tax", true)).toEqual(["tax", "fuel"]);
     expect(withDoorRowHidden(["tax", "fuel"], "tax", false)).toEqual(["fuel"]);
     expect(withDoorRowHidden(["tax"], "tax", true)).toEqual(["tax"]);
+  });
+});
+
+describe("doorKeyFigure", () => {
+  const fig = (t: string) => doorKeyFigure(t)?.figure ?? null;
+  it("bolds the money first", () => {
+    expect(fig("This week: 14 trips, £100.10 claim built")).toBe("£100.10");
+    expect(fig("£412 earned this week · £2.26 a mile")).toBe("£412");
+  });
+  it("else a number with its unit", () => {
+    expect(fig("Need a 2025-26 return? 113 days left")).toBe("113 days");
+    expect(fig("Next badge: Explorer, 22 miles away")).toBe("22 miles");
+    expect(fig("Diesel 139.9p at Tesco Silksworth, 1.2 mi")).toBe("139.9p");
+  });
+  it("keeps the rest of the sentence around it", () => {
+    expect(doorKeyFigure("Next badge: Explorer, 22 miles away")).toEqual({
+      before: "Next badge: Explorer, ",
+      figure: "22 miles",
+      after: " away",
+    });
+  });
+  it("is null with no figure", () => {
+    expect(doorKeyFigure("How MileClear works")).toBeNull();
   });
 });

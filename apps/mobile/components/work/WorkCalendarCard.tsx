@@ -60,15 +60,14 @@ export function WorkCalendarCard() {
     <View style={s.card}>
       <View style={s.header}>
         <View style={s.headerLeft}>
-          <Ionicons name="calendar" size={16} color={AMBER} accessible={false} />
-          <Text style={s.title}>Working Calendar</Text>
+          <Text style={s.title} accessibilityRole="header">Working calendar</Text>
         </View>
         <View style={s.navRow}>
-          <TouchableOpacity onPress={prevMonth} hitSlop={8} accessibilityRole="button" accessibilityLabel="Previous month">
+          <TouchableOpacity onPress={prevMonth} hitSlop={13} accessibilityRole="button" accessibilityLabel="Previous month">
             <Ionicons name="chevron-back" size={18} color={TEXT_2} />
           </TouchableOpacity>
           <Text style={s.monthLabel}>{monthLabel}</Text>
-          <TouchableOpacity onPress={nextMonth} hitSlop={8} accessibilityRole="button" accessibilityLabel="Next month">
+          <TouchableOpacity onPress={nextMonth} hitSlop={13} accessibilityRole="button" accessibilityLabel="Next month">
             <Ionicons name="chevron-forward" size={18} color={TEXT_2} />
           </TouchableOpacity>
         </View>
@@ -136,7 +135,7 @@ export function WorkCalendarCard() {
 const s = StyleSheet.create({
   card: {
     backgroundColor: CARD_BG,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
@@ -144,7 +143,7 @@ const s = StyleSheet.create({
   },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_1 },
+  title: { fontSize: 16, fontFamily: fonts.bold, color: TEXT_1 },
   navRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   monthLabel: { fontSize: 13, fontFamily: fonts.medium, color: TEXT_1, minWidth: 110, textAlign: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap" },

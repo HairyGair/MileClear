@@ -1866,6 +1866,9 @@ export default function DashboardScreen() {
     return (
       <>
         {scorecardModal}
+        {/* The status line's Recording sheet links to this explainer on the
+            shift screen too, so it has to be mounted here as well. */}
+        {workExplainerModal}
         <AppHeader />
         <ScrollView
           style={s.container}
