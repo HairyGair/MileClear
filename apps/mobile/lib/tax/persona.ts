@@ -13,7 +13,9 @@ export function resolvePersona(args: {
   workType: string | null | undefined;
 }): Persona {
   if (args.isPersonal) return "personal";
-  if (args.isCompanyDriver) return "company";
+  // A company-car driver is one through a team, or one who said so in Settings
+  // ("You drive for: A company car"). The second never unlocks anything paid.
+  if (args.isCompanyDriver || args.workType === "company") return "company";
   if (args.workType === "employee") return "employee";
   if (args.workType === "both") return "both";
   return "gig";
@@ -128,7 +130,13 @@ export function overviewOutOfStep(
   user: { workType: string | null | undefined; isCompanyDriver: boolean } | null,
 ): boolean {
   if (!overview || !user) return false;
-  const wt = user.workType === "employee" || user.workType === "both" ? user.workType : "gig";
+  // The server files a company car under the employee persona.
+  const wt =
+    user.workType === "employee" || user.workType === "company"
+      ? "employee"
+      : user.workType === "both"
+        ? "both"
+        : "gig";
   return overview.workType !== wt || overview.isCompanyDriver !== user.isCompanyDriver;
 }
 
@@ -191,7 +199,7 @@ const R = {
   },
   taxDetails: {
     id: "tax_details", icon: "briefcase-outline", label: "Your tax details",
-    hint: "Work type, rates, other income", route: "/settings/work-tax",
+    hint: "You drive for, rates, other income", route: "/settings/work-tax",
   },
 } satisfies Record<string, TaxRowDef>;
 
@@ -244,7 +252,7 @@ export function rowGroups(
           title: "SELF-EMPLOYED TOO?",
           rows: [{
             id: "employee_sa", icon: "calendar-outline", label: "Self Assessment and payment plan",
-            hint: "Set your work type to Both", route: "/settings/work-tax",
+            hint: "Pick Gig work and an employer under You drive for", route: "/settings/work-tax",
           }],
         },
         { title: "SETTINGS", rows: [R.taxDetails] },

@@ -8,7 +8,7 @@ export interface UpdateProfileData {
   email?: string;
   currentPassword?: string;
   userIntent?: "work" | "personal" | "both" | null;
-  workType?: "gig" | "employee" | "both";
+  workType?: "gig" | "employee" | "both" | "company";
   employerMileageRatePence?: number | null;
   employerMileageRatePenceAfter10k?: number | null;
   otherAnnualIncomePence?: number | null;

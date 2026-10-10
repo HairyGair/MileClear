@@ -2,30 +2,31 @@ import { useCallback, useEffect, useState } from "react";
 import { Alert, TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { WorkType } from "@mileclear/shared";
+import { DRIVE_FOR_OPTIONS, driveForOf, driveForPatch, type DriveFor } from "@mileclear/shared";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
 import { fetchProfile, updateProfile } from "../../lib/api/user";
 import { useUser } from "../../lib/user/context";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { useIsPremium } from "../../components/PremiumGate";
 import { usePrompt } from "../../components/prompt";
 
 /**
  * "Your tax details" sub-screen. Owns the settings that feed the Tax tab
- * and the exports:
+ * and the exports, led by "You drive for" (which replaced Dashboard mode and
+ * Work type on 10 Oct 2026):
  *
- *   - Work type (gig / employee / both)
- *   - Employer mileage rate (visible only when employee/both)
+ *   - You drive for (gig / employer / both / company car / just me)
+ *   - Employer mileage rate (employer answers only)
  *   - Other annual income (drives the marginal tax-rate calculation)
- *   (The weekly miles goal moved to settings/preferences on 10 Oct 2026.)
  */
 export default function WorkTaxSettings() {
   const { refreshUser } = useUser();
   const isPremium = useIsPremium();
   const { prompt } = usePrompt();
-  const [workType, setWorkType] = useState<WorkType>("gig");
+  const [driveFor, setDriveFor] = useState<DriveFor>("gig");
+  const [dashboardMode, setDashboardMode] = useState<string | null>(null);
   const [employerRate, setEmployerRate] = useState<number | null>(null);
   const [employerRateAfter10k, setEmployerRateAfter10k] = useState<number | null>(null);
   const [otherIncomePence, setOtherIncomePence] = useState<number | null>(null);
@@ -37,7 +38,8 @@ export default function WorkTaxSettings() {
     (async () => {
       try {
         const res = await fetchProfile();
-        if (res.data.workType) setWorkType(res.data.workType as WorkType);
+        setDriveFor(driveForOf(res.data));
+        setDashboardMode(res.data.dashboardMode ?? null);
         setEmployerRate(res.data.employerMileageRatePence ?? null);
         setEmployerRateAfter10k(res.data.employerMileageRatePenceAfter10k ?? null);
         setOtherIncomePence(res.data.otherAnnualIncomePence ?? null);
@@ -53,18 +55,27 @@ export default function WorkTaxSettings() {
     })();
   }, []);
 
-  // ── Work type ─────────────────────────────────────────────────────
-  const handleWorkType = useCallback(
-    async (wt: WorkType) => {
-      setWorkType(wt);
+  // ── You drive for ─────────────────────────────────────────────────
+  // Replaced Dashboard mode and Work type (10 Oct 2026). Saves into the same
+  // two fields they used; reminders follow it. Just me stops tax and work
+  // reminders (the old Personal mode); anything else switches them back on.
+  const handleDriveFor = useCallback(
+    async (answer: DriveFor) => {
+      if (answer === driveFor) return;
+      const previous = { driveFor, dashboardMode };
+      const patch = driveForPatch(answer, dashboardMode);
+      setDriveFor(answer);
+      setDashboardMode(patch.dashboardMode);
       try {
-        await updateProfile({ workType: wt });
+        await updateProfile(patch);
         refreshUser();
       } catch {
+        setDriveFor(previous.driveFor);
+        setDashboardMode(previous.dashboardMode);
         Alert.alert("Couldn't save that", "Try again in a moment.");
       }
     },
-    [refreshUser]
+    [driveFor, dashboardMode, refreshUser]
   );
 
   // ── Employer rate (two-tier prompt on iOS) ────────────────────────
@@ -245,136 +256,131 @@ export default function WorkTaxSettings() {
   }, [refreshUser]);
 
   // ── Render ────────────────────────────────────────────────────────
-  const workTypeLabel =
-    workType === "gig" ? "Deliveries or gig work"
-    : workType === "employee" ? "An employer, in my own car"
-    : "Gig work and an employer";
+  const hasEmployer = driveFor === "employee" || driveFor === "both";
+  const selfEmployed = driveFor === "gig" || driveFor === "both";
+  const noTaxRows = driveFor === "company" || driveFor === "personal";
 
   return (
     <SettingsScreen>
       <SettingsGroup title="YOU DRIVE FOR">
-        <View style={styles.workTypeRow}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="briefcase-outline" size={18} color={colors.amber} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.label}>You drive for</Text>
-            <Text style={styles.hint}>{workTypeLabel}</Text>
-          </View>
-        </View>
-        <View style={styles.pillRow}>
-          {([
-            { value: "gig" as WorkType, label: "Gig work" },
-            { value: "employee" as WorkType, label: "Employer" },
-            { value: "both" as WorkType, label: "Both" },
-          ]).map((opt) => (
+        {DRIVE_FOR_OPTIONS.map((opt) => {
+          const selected = driveFor === opt.value;
+          return (
             <TouchableOpacity
               key={opt.value}
-              style={[styles.pill, workType === opt.value && styles.pillActive]}
-              onPress={() => handleWorkType(opt.value)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
+              style={styles.optionRow}
+              onPress={() => handleDriveFor(opt.value)}
+              activeOpacity={0.6}
+              accessibilityRole="radio"
               accessibilityLabel={opt.label}
-              accessibilityState={{ selected: workType === opt.value }}
+              accessibilityHint={opt.hint}
+              accessibilityState={{ selected }}
             >
-              <Text style={[styles.pillText, workType === opt.value && styles.pillTextActive]}>
-                {opt.label}
-              </Text>
+              <Ionicons
+                name={selected ? "radio-button-on" : "radio-button-off"}
+                size={22}
+                color={selected ? colors.amber : colors.text3}
+                accessible={false}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.body}>{opt.label}</Text>
+                <Text style={styles.hint} maxFontSizeMultiplier={fontScaleCap.body}>{opt.hint}</Text>
+              </View>
             </TouchableOpacity>
-          ))}
-        </View>
+          );
+        })}
       </SettingsGroup>
 
-      <SettingsGroup title="MILEAGE AND TAX">
-        {(workType === "employee" || workType === "both") && (
+      {noTaxRows ? (
+        <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>
+          {driveFor === "personal"
+            ? "Nothing else to set here. MileClear won't send tax or work reminders. Pick another answer any time to switch them back on."
+            : "Nothing else to set here. Your employer provides the car, so there is no tax claim to work out and no tax reminders."}
+        </Text>
+      ) : (
+        <SettingsGroup title="MILEAGE AND TAX">
+          {hasEmployer && (
+            <SettingsRow
+              icon="cash-outline"
+              label="Employer mileage rate"
+              hint={
+                employerRate
+                  ? employerRateAfter10k != null
+                    ? `${employerRate}p for the first 10,000 miles, then ${employerRateAfter10k}p`
+                    : `${employerRate}p a mile`
+                  : "Not set. Assumes your employer pays nothing."
+              }
+              badge={employerRate ? "Edit" : "Set"}
+              onPress={handleEmployerRate}
+              helpTopicId="employer-mileage"
+            />
+          )}
+          {hasEmployer && (
+            <SettingsRow
+              icon="calculator-outline"
+              label="Work out tax back on work miles"
+              hint="Mileage Allowance Relief: tax back on work miles your employer doesn't fully pay"
+              onPress={() => router.push("/mileage-relief")}
+            />
+          )}
           <SettingsRow
-            icon="cash-outline"
-            label="Employer mileage rate"
+            icon="wallet-outline"
+            label="Other annual income"
             hint={
-              employerRate
-                ? employerRateAfter10k != null
-                  ? `${employerRate}p for the first 10,000 miles, then ${employerRateAfter10k}p`
-                  : `${employerRate}p a mile`
-                : "Not set. Assumes your employer pays nothing."
+              otherIncomePence != null
+                ? `£${(otherIncomePence / 100).toLocaleString("en-GB")} a year, used to work out your tax rate`
+                : "Main job, pension, etc. Sets the right tax bracket."
             }
-            badge={employerRate ? "Edit" : "Set"}
-            onPress={handleEmployerRate}
-            helpTopicId="employer-mileage"
+            badge={otherIncomePence != null ? "Edit" : "Set"}
+            onPress={handleOtherIncome}
           />
-        )}
-        {(workType === "employee" || workType === "both") && (
-          <SettingsRow
-            icon="calculator-outline"
-            label="Mileage Allowance Relief"
-            hint="Tax back on work miles your employer doesn't fully pay"
-            onPress={() => router.push("/mileage-relief")}
-          />
-        )}
-        <SettingsRow
-          icon="wallet-outline"
-          label="Other annual income"
-          hint={
-            otherIncomePence != null
-              ? `£${(otherIncomePence / 100).toLocaleString("en-GB")} a year, used to work out your tax rate`
-              : "Main job, pension, etc. Sets the right tax bracket."
-          }
-          badge={otherIncomePence != null ? "Edit" : "Set"}
-          onPress={handleOtherIncome}
-        />
-      </SettingsGroup>
-
-      {/* Employees have no self-employed income, so quarterly updates and the
-          self-employed settings do not apply to them. Drivers who are both keep them. */}
-      {workType !== "employee" && (
-        <>
-          <SettingsGroup title="QUARTERLY UPDATES">
+          {hasEmployer && (
             <SettingsRow
-              icon="cloud-upload-outline"
-              label="Quarterly updates (test version)"
-              hint="Try quarterly reporting. Nothing is sent to HMRC yet."
-              badge={isPremium ? undefined : "Pro"}
-              onPress={() => router.push("/tax-mtd")}
-              helpTopicId="mtd-itsa"
+              icon="receipt-outline"
+              label="Tax already taken off your pay"
+              hint={
+                // With other income set, the estimate is already only the extra
+                // tax your profit adds, so it isn't taken off again (7 Oct 2026).
+                otherIncomePence != null && otherIncomePence > 0
+                  ? "Not needed: your other income above already covers this"
+                  : payeTaxPaidPence != null
+                    ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} taken off what you still owe`
+                    : "Enter what your employer has taken off so your tax so far is right"
+              }
+              badge={payeTaxPaidPence != null ? "Edit" : "Set"}
+              onPress={handlePayeTaxPaid}
+              helpTopicId="paye-offset"
             />
-          </SettingsGroup>
-
-          <SettingsGroup title="IF YOU WORK FOR YOURSELF">
-            <SettingsRow
-              icon="layers-outline"
-              label="How you count income"
-              hint={taxBasis === "cash" ? "When you're paid (most drivers)" : "When you earn it (when you invoice)"}
-              badge={taxBasis === "cash" ? "Paid" : "Earned"}
-              onPress={handleTaxBasis}
-              helpTopicId="cash-vs-accruals"
-            />
-            <SettingsRow
-              icon="briefcase-outline"
-              label="Your accountant"
-              hint="Name, contact and annual fee, added to your weekly put-by"
-              onPress={() => router.push("/accountant" as never)}
-              helpTopicId="accountant"
-            />
-          </SettingsGroup>
-        </>
+          )}
+        </SettingsGroup>
       )}
 
-      {(workType === "employee" || workType === "both") && (
-        <SettingsGroup title="YOUR JOB">
+      {/* Employees have no self-employed income, so quarterly updates and the
+          self-employed settings only show for gig work and both. */}
+      {selfEmployed && (
+        <SettingsGroup title="IF YOU WORK FOR YOURSELF">
           <SettingsRow
-            icon="receipt-outline"
-            label="Tax already taken off your pay"
-            hint={
-              // With other income set, the estimate is already only the extra
-              // tax your profit adds, so PAYE isn't taken off again (7 Oct 2026).
-              otherIncomePence != null && otherIncomePence > 0
-                ? "Not needed: your other income above already covers this"
-                : payeTaxPaidPence != null
-                  ? `£${(payeTaxPaidPence / 100).toLocaleString("en-GB")} taken off what you still owe`
-                  : "Enter what your employer has taken off so your tax so far is right"
-            }
-            badge={payeTaxPaidPence != null ? "Edit" : "Set"}
-            onPress={handlePayeTaxPaid}
-            helpTopicId="paye-offset"
+            icon="cloud-upload-outline"
+            label="Quarterly updates (test version)"
+            hint="Try quarterly reporting. Nothing is sent to HMRC yet."
+            badge={isPremium ? undefined : "Pro"}
+            onPress={() => router.push("/tax-mtd")}
+            helpTopicId="mtd-itsa"
+          />
+          <SettingsRow
+            icon="layers-outline"
+            label="How you count income"
+            hint={taxBasis === "cash" ? "When you're paid (most drivers)" : "When you earn it (when you invoice)"}
+            badge={taxBasis === "cash" ? "Paid" : "Earned"}
+            onPress={handleTaxBasis}
+            helpTopicId="cash-vs-accruals"
+          />
+          <SettingsRow
+            icon="briefcase-outline"
+            label="Your accountant"
+            hint="Name, contact and annual fee, added to your weekly put-by"
+            onPress={() => router.push("/accountant" as never)}
+            helpTopicId="accountant"
           />
         </SettingsGroup>
       )}
@@ -383,14 +389,21 @@ export default function WorkTaxSettings() {
 }
 
 const styles = StyleSheet.create({
-  workTypeRow: {
+  optionRow: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 13,
     paddingHorizontal: 14,
     gap: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.surfaceBorder,
+    minHeight: 56,
+  },
+  note: {
+    marginTop: spacing.lg,
+    marginHorizontal: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
+    color: colors.text2,
   },
   iconCircle: {
     width: 34,
@@ -406,37 +419,9 @@ const styles = StyleSheet.create({
     color: colors.text1,
   },
   hint: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: fonts.regular,
-    color: colors.text3,
-    marginTop: 2,
-  },
-  pillRow: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  pill: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: radii.sm,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  pillActive: {
-    backgroundColor: colors.amberDim,
-    borderColor: colors.amber,
-  },
-  pillText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
     color: colors.text2,
-  },
-  pillTextActive: {
-    color: colors.amber,
-    fontFamily: fonts.semibold,
+    marginTop: 2,
   },
 });

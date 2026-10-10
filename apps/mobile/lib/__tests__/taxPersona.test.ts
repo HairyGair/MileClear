@@ -61,6 +61,10 @@ describe("resolvePersona", () => {
   it("company driver beats work type", () => {
     expect(resolvePersona({ ...base, isCompanyDriver: true, workType: "both" })).toBe("company");
   });
+  it("a company car chosen in Settings is the company persona too", () => {
+    expect(resolvePersona({ ...base, workType: "company" })).toBe("company");
+    expect(resolvePersona({ ...base, isPersonal: true, workType: "company" })).toBe("personal");
+  });
   it("work types", () => {
     expect(resolvePersona({ ...base, workType: "employee" })).toBe("employee");
     expect(resolvePersona({ ...base, workType: "both" })).toBe("both");
@@ -165,6 +169,8 @@ describe("overview out of step with the profile", () => {
   it("matches when work type and team agree (null work type reads as gig)", () => {
     expect(overviewOutOfStep(o("gig"), { workType: null, isCompanyDriver: false })).toBe(false);
     expect(overviewOutOfStep(o("both"), { workType: "both", isCompanyDriver: false })).toBe(false);
+    // The server files a company car under the employee persona.
+    expect(overviewOutOfStep(o("employee"), { workType: "company", isCompanyDriver: false })).toBe(false);
   });
   it("is out of step after a work type or team change", () => {
     expect(overviewOutOfStep(o("employee"), { workType: "both", isCompanyDriver: false })).toBe(true);
