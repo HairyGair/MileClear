@@ -28,6 +28,7 @@ import {
 } from "../lib/api/invoices";
 import { fetchClients, type Client } from "../lib/api/clients";
 import { fetchProfile } from "../lib/api/user";
+import { summariseInvoiceDetails, listMissing } from "../lib/invoices/details";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { isApiError } from "../lib/api";
 import { usePaywall } from "../components/paywall";
@@ -164,7 +165,7 @@ export default function InvoiceFormScreen() {
     })();
   }, [id]);
 
-  const onSave = useCallback(async () => {
+  const doSave = useCallback(async () => {
     if (!company.trim() && !clientId) {
       Alert.alert("Missing client", "Pick a client or enter a company name.");
       return;
@@ -243,6 +244,32 @@ export default function InvoiceFormScreen() {
       setSaving(false);
     }
   }, [company, clientId, clientEmail, reference, amountInput, lines, vatRate, autoChase, sentDate, dueDate, paidDate, notes, isEditing, id, initialPaidAt, showPaywall]);
+
+  // A new invoice with no name, address or bank details would go out blank
+  // where the client needs to know who to pay. Ask for them first: the details
+  // form opens on top of this one, so coming back leaves the invoice as typed.
+  const onSave = useCallback(async () => {
+    if (!isEditing) {
+      try {
+        const res = await fetchProfile();
+        const { missing } = summariseInvoiceDetails(res.data);
+        if (missing.length > 0) {
+          Alert.alert(
+            "Add your invoice details first",
+            `Your invoice needs ${listMissing(missing)} so your client knows who to pay. It takes a minute and you only do it once.`,
+            [
+              { text: "Skip for now", style: "cancel", onPress: () => void doSave() },
+              { text: "Add details", onPress: () => router.push("/invoice-details" as never) },
+            ]
+          );
+          return;
+        }
+      } catch {
+        // Could not check: never block an invoice on that.
+      }
+    }
+    await doSave();
+  }, [isEditing, doSave]);
 
   // Branded PDF share (Pro). Uses the exports download+share pipeline.
   const onSharePdf = useCallback(async () => {

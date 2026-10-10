@@ -18,6 +18,8 @@ import {
   type InvoiceStatus,
   type PotentialEarningMatch,
 } from "../lib/api/invoices";
+import { fetchProfile } from "../lib/api/user";
+import { summariseInvoiceDetails, listMissing, type InvoiceDetailsSummary } from "../lib/invoices/details";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { EmptyState } from "../components/EmptyState";
@@ -69,6 +71,18 @@ export default function InvoicesScreen() {
   }).length;
   const showFreeCapHint = !isPremium && monthInvoiceCount > 0;
 
+  // The driver's invoice details, re-read whenever this screen regains focus
+  // (so edits made on the details screen show straight away).
+  const [details, setDetails] = useState<InvoiceDetailsSummary | null>(null);
+  const loadDetails = useCallback(async () => {
+    try {
+      const res = await fetchProfile();
+      setDetails(summariseInvoiceDetails(res.data));
+    } catch {
+      // Leave the card as it was; it is a convenience, not the screen's job.
+    }
+  }, []);
+
   const load = useCallback(async () => {
     try {
       const res = await fetchInvoices({
@@ -88,7 +102,8 @@ export default function InvoicesScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load])
+      void loadDetails();
+    }, [load, loadDetails])
   );
 
   const onMarkPaid = useCallback((invoice: Invoice) => {
@@ -177,22 +192,35 @@ export default function InvoicesScreen() {
         }}
       />
 
-      {/* Invoice details: your name, VAT and bank details on every invoice.
-          Used to live in Settings (Business Profile). */}
-      <TouchableOpacity
-        style={styles.detailsRow}
-        onPress={() => router.push("/invoice-details" as never)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel="Invoice details. Logo, name, VAT and bank details on your invoices"
-      >
-        <Ionicons name="business-outline" size={18} color={AMBER} accessible={false} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.detailsTitle}>Invoice details</Text>
-          <Text style={styles.detailsHint}>Logo, name, VAT and bank details on your invoices</Text>
+      {/* Invoice details card: what goes on every invoice, and what is missing. */}
+      <View style={styles.detailsCard} accessible={false}>
+        <View style={styles.detailsHeader}>
+          <Ionicons name="business-outline" size={18} color={AMBER} accessible={false} />
+          <Text style={[styles.detailsTitle, { flex: 1 }]}>Invoice details</Text>
+          <TouchableOpacity
+            onPress={() => router.push("/invoice-details" as never)}
+            hitSlop={8}
+            style={styles.detailsEdit}
+            accessibilityRole="button"
+            accessibilityLabel="Edit invoice details"
+          >
+            <Text style={styles.detailsEditText}>{details && details.missing.length === 3 ? "Add" : "Edit"}</Text>
+          </TouchableOpacity>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
-      </TouchableOpacity>
+        {details === null ? null : details.missing.length > 0 ? (
+          <Text style={styles.detailsHint}>
+            Still needed on your invoices: {listMissing(details.missing)}.
+          </Text>
+        ) : null}
+        {details && (details.name || details.address || details.bankMasked || details.vat) ? (
+          <View style={{ marginTop: 6, gap: 2 }}>
+            {details.name ? <Text style={styles.detailsLine}>{details.name}</Text> : null}
+            {details.address ? <Text style={styles.detailsLine} numberOfLines={2}>{details.address}</Text> : null}
+            {details.bankMasked ? <Text style={styles.detailsLine}>Bank account {details.bankMasked}</Text> : null}
+            {details.vat ? <Text style={styles.detailsLine}>VAT {details.vat}</Text> : null}
+          </View>
+        ) : null}
+      </View>
 
       {/* Summary header */}
       {summary && (
@@ -403,20 +431,20 @@ function formatSummaryPence(pence: number): string {
 }
 
 const styles = StyleSheet.create({
-  detailsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+  detailsCard: {
     marginHorizontal: 16,
     marginTop: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    minHeight: 52,
     backgroundColor: CARD_BG,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
   },
+  detailsHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  detailsEdit: { minHeight: 44, minWidth: 44, alignItems: "flex-end", justifyContent: "center" },
+  detailsEditText: { fontSize: 15, fontFamily: fonts.semibold, color: AMBER },
+  detailsLine: { fontSize: 13, fontFamily: fonts.regular, color: TEXT_1 },
   detailsTitle: { fontSize: 15, fontFamily: fonts.semibold, color: TEXT_1 },
   detailsHint: { fontSize: 13, fontFamily: fonts.regular, color: colors.text2, marginTop: 2 },
   root: { flex: 1, backgroundColor: BG },
