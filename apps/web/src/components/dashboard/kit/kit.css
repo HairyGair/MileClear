@@ -8,7 +8,8 @@
 .mc-num { font-variant-numeric: tabular-nums; }
 .mc-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .mc-icon { flex-shrink: 0; display: block; }
-html.mc-scroll-lock { overflow: hidden; scrollbar-gutter: stable; }
+html.mc-scroll-lock { overflow: hidden; }
+html.mc-scroll-lock--gutter { scrollbar-gutter: stable; }
 
 /* Focus */
 .mc-app :focus-visible { outline: 2px solid var(--mc-amber); outline-offset: 2px; }

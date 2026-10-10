@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 import type { TourEnd } from "../../../lib/dashboard/tour";
 import { Button } from "../kit/Button";
+import { lockScroll, unlockScroll } from "../kit/scrollLock";
 import { resolveTarget } from "./dom";
 import { placeCard, ringRect, type Rect } from "./position";
 import { tripsBody, type StepId, type TourCtx, type TourStep } from "./steps";
@@ -66,9 +67,9 @@ export function Tour({
     if (!d) return;
     opener.current = returnFocus ?? (document.activeElement as HTMLElement | null);
     if (!d.open) d.showModal();
-    document.documentElement.classList.add("mc-scroll-lock");
+    lockScroll();
     return () => {
-      document.documentElement.classList.remove("mc-scroll-lock");
+      unlockScroll();
       if (d.open) d.close();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -188,7 +189,7 @@ export function Tour({
       ended.current = true;
       const d = dlg.current;
       if (d?.open) d.close();
-      document.documentElement.classList.remove("mc-scroll-lock");
+      unlockScroll();
       const back = opener.current;
       const usable = back && back !== document.body && document.contains(back) && !(back as HTMLButtonElement).disabled;
       (usable ? back : document.getElementById("main-content"))?.focus({ preventScroll: true });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { cx } from "./cx";
+import { lockScroll, unlockScroll } from "./scrollLock";
 
 /**
  * Modal built on the native <dialog> (focus trap, Esc and inert background for
@@ -33,11 +34,11 @@ export function Dialog({
     if (!d) return;
     if (open && !d.open) {
       d.showModal();
-      document.documentElement.classList.add("mc-scroll-lock");
+      lockScroll();
     }
     if (!open && d.open) d.close();
     return () => {
-      document.documentElement.classList.remove("mc-scroll-lock");
+      unlockScroll();
     };
   }, [open]);
 
@@ -51,7 +52,7 @@ export function Dialog({
         onClose();
       }}
       onClose={() => {
-        document.documentElement.classList.remove("mc-scroll-lock");
+        unlockScroll();
       }}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
