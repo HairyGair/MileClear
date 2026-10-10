@@ -22,11 +22,11 @@ export default function DataExportsSettings() {
       const json = JSON.stringify(data, null, 2);
       await Share.share({
         message: json,
-        title: "MileClear Data Export",
+        title: "Your MileClear data",
       });
     } catch (err: unknown) {
       Alert.alert(
-        "Export didn't go through",
+        "Couldn't get your data",
         err instanceof Error ? err.message : "Try again in a moment."
       );
     } finally {
@@ -49,8 +49,8 @@ export default function DataExportsSettings() {
       }
 
       Alert.alert(
-        "Found suspicious trips",
-        `We found ${found} trip${found === 1 ? "" : "s"} where the distance might be wrong (sparse GPS, no road match, or unverified). Re-running our routing engine usually corrects these. Apply now?`,
+        "Found some odd trips",
+        `We found ${found} trip${found === 1 ? "" : "s"} where the distance might be wrong (a patchy signal or no road match). Working them out again along the road usually corrects these. Apply now?`,
         [
           { text: "Cancel", style: "cancel", onPress: () => setScanning(false) },
           {
@@ -94,32 +94,26 @@ export default function DataExportsSettings() {
         />
         <SettingsRow
           icon="sync-outline"
-          label="Sync status"
-          hint="Pending uploads + retry failed items"
+          label="Uploads"
+          hint="What is saved to your account, and retry anything stuck"
           onPress={() => router.push("/sync-status")}
-        />
-        <SettingsRow
-          icon="grid-outline"
-          label="Customise dashboard layout"
-          hint="Drag to reorder cards, hide what you don't use"
-          onPress={() => router.push("/customize-layout")}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="DATA QUALITY">
+      <SettingsGroup title="CHECK YOUR TRIPS">
         <SettingsRow
           icon="shield-checkmark-outline"
-          label={scanning ? "Scanning..." : "Recheck suspicious trips"}
-          hint="Find trips with sparse GPS or unverified distances and re-run our routing engine to correct them"
+          label={scanning ? "Scanning..." : "Check my trips for odd ones"}
+          hint="Finds trips whose distance might be wrong and works them out again along the road"
           onPress={handleScanAndFix}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="MY DATA">
+      <SettingsGroup title="YOUR DATA">
         <SettingsRow
           icon="cloud-download-outline"
-          label={exporting ? "Preparing..." : "Export my data"}
-          hint="Full JSON copy of everything we hold (GDPR Article 20)"
+          label={exporting ? "Preparing..." : "Get a copy of your data"}
+          hint="Everything we hold about you, as one file"
           onPress={handleGdprExport}
         />
       </SettingsGroup>

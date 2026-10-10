@@ -26,6 +26,7 @@ export function SettingsRow({
   destructive,
   accessibilityHint,
   helpTopicId,
+  hintTone,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
@@ -38,6 +39,8 @@ export function SettingsRow({
   destructive?: boolean;
   accessibilityHint?: string;
   helpTopicId?: string;
+  /** "bad" draws the hint in red (a problem, always with words like Fix). */
+  hintTone?: "bad";
 }) {
   const labelColor = destructive ? colors.red : colors.text1;
   const iconHue = iconColor ?? (destructive ? colors.red : colors.amber);
@@ -61,7 +64,9 @@ export function SettingsRow({
             <ContextualHelp topicId={helpTopicId} size={14} color={colors.text3} />
           ) : null}
         </View>
-        {hint && <Text style={styles.hint}>{hint}</Text>}
+        {hint && (
+          <Text style={[styles.hint, hintTone === "bad" && { color: colors.red }]}>{hint}</Text>
+        )}
       </View>
       {badge && (
         <View

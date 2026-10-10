@@ -5,10 +5,9 @@ import { useCallback } from "react";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
-import {
-  getNotificationPreferences,
-  type NotificationPreferences,
-} from "../../lib/notifications/preferences";
+import { getNotificationPreferences } from "../../lib/notifications/preferences";
+import { getNotificationPermissionStatus } from "../../lib/notifications";
+import { countNotifications } from "../../lib/settings/notificationGroups";
 import { useUser } from "../../lib/user/context";
 
 /**
@@ -31,13 +30,28 @@ export default function SettingsHub() {
   // (the Pro categories don't count for free users). Refreshed on
   // focus so toggles in /settings/notifications reflect immediately
   // when they back out.
-  const [notifSummary, setNotifSummary] = useState<string>("Loading…");
+  const [notifSummary, setNotifSummary] = useState<string>("Loading...");
+  const [notifBlocked, setNotifBlocked] = useState(false);
   const loadNotifs = useCallback(async () => {
     try {
-      const prefs = await getNotificationPreferences();
-      setNotifSummary(formatNotifSummary(prefs, isPremium));
+      const [prefs, permission] = await Promise.all([
+        getNotificationPreferences(),
+        getNotificationPermissionStatus(),
+      ]);
+      // The count only shows when the phone allows notifications at all.
+      if (permission === "denied") {
+        setNotifBlocked(true);
+        setNotifSummary("Blocked on this phone. Tap to fix");
+      } else if (permission === "undetermined") {
+        setNotifBlocked(false);
+        setNotifSummary("Not turned on yet. Tap to turn on");
+      } else {
+        setNotifBlocked(false);
+        const c = countNotifications(prefs, isPremium);
+        setNotifSummary(`${c.on} of ${c.total} on`);
+      }
     } catch {
-      setNotifSummary("Trip reminders, weekly summary, milestones");
+      setNotifSummary("Choose which ones you get");
     }
   }, [isPremium]);
 
@@ -55,25 +69,10 @@ export default function SettingsHub() {
     <SettingsScreen>
       <SettingsGroup>
         <SettingsRow
-          icon="gift-outline"
-          label="Invite a friend, get Pro free"
-          hint="A free month of Pro for every friend who joins (up to 3)"
-          onPress={go("/refer")}
-        />
-      </SettingsGroup>
-
-      <SettingsGroup>
-        <SettingsRow
           icon="home-outline"
           label="Home screen"
           hint="Choose which shortcuts show on Home"
           onPress={go("/settings/home")}
-        />
-        <SettingsRow
-          icon="apps-outline"
-          label="What you see"
-          hint="Hide Profile cards you don't use"
-          onPress={go("/settings/visibility")}
         />
         <SettingsRow
           icon="options-outline"
@@ -83,8 +82,8 @@ export default function SettingsHub() {
         />
         <SettingsRow
           icon="location-outline"
-          label="Tracking & Locations"
-          hint="GPS detection, geofences, classification, schedule"
+          label="Recording"
+          hint="Automatic trips, saved places, work hours"
           onPress={go("/settings/tracking")}
         />
         <SettingsRow
@@ -109,73 +108,22 @@ export default function SettingsHub() {
           icon="notifications-outline"
           label="Notifications"
           hint={notifSummary}
+          hintTone={notifBlocked ? "bad" : undefined}
           onPress={go("/settings/notifications")}
         />
         <SettingsRow
           icon="cloud-download-outline"
-          label="Data & Exports"
-          hint="Downloads, sync status, GDPR data export"
+          label="Downloads and your data"
+          hint="Spreadsheets, PDFs, uploads, a copy of your data"
           onPress={go("/settings/data-exports")}
         />
         <SettingsRow
-          icon="chatbubbles-outline"
-          label="Community"
-          hint="Join the Discord, link your account for Pro perks"
-          onPress={go("/settings/community")}
-        />
-        <SettingsRow
           icon="help-circle-outline"
-          label="Help & Feedback"
-          hint="Rate, suggest, contact, FAQ"
+          label="Help, feedback and legal"
+          hint="Help, email us, community, invite a friend, terms"
           onPress={go("/settings/help")}
-        />
-        <SettingsRow
-          icon="document-text-outline"
-          label="Legal"
-          hint="Terms of Use, Privacy Policy"
-          onPress={go("/settings/legal")}
         />
       </SettingsGroup>
     </SettingsScreen>
   );
-}
-
-/**
- * Render a one-line summary of which notifications the user has on,
- * e.g. "3 of 4 enabled · trip reminders, streaks, summary".
- * Free users see only the 4 free categories; Pro users see all 9.
- */
-function formatNotifSummary(
-  prefs: NotificationPreferences,
-  isPremium: boolean
-): string {
-  // Free-tier categories (always available)
-  const freeCategories: { key: keyof NotificationPreferences; short: string }[] = [
-    { key: "unclassifiedNudge", short: "trip reminders" },
-    { key: "autoTripLiveActivity", short: "Live Activity" },
-    { key: "shiftReminder", short: "shift alerts" },
-    { key: "streakReminder", short: "streaks" },
-    { key: "eveningDigest", short: "evening summary" },
-  ];
-  // Pro-tier categories
-  const proCategories: { key: keyof NotificationPreferences; short: string }[] = [
-    { key: "weeklySummary", short: "weekly summary" },
-    { key: "shiftSummary", short: "shift summary" },
-    { key: "monthlyRecap", short: "monthly recap" },
-    { key: "milestoneAlerts", short: "milestones" },
-    { key: "taxDeadline", short: "tax deadline" },
-  ];
-
-  const all = isPremium ? [...freeCategories, ...proCategories] : freeCategories;
-  const enabled = all.filter((c) => prefs[c.key]);
-
-  if (enabled.length === 0) {
-    return "All alerts off. Tap to turn some on";
-  }
-
-  // Show a count + the first couple of enabled names
-  const sampleNames = enabled.slice(0, 2).map((c) => c.short).join(", ");
-  const more = enabled.length - 2;
-  const tail = more > 0 ? `, +${more} more` : "";
-  return `${enabled.length} of ${all.length} on: ${sampleNames}${tail}`;
 }
