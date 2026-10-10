@@ -53,7 +53,8 @@ export function WorkSection(p: WorkSectionProps) {
   const card: WorkCardProps = { period: p.period, offset: p.offset, mode: p.mode, isPro: p.isPro, refreshToken: p.refreshToken };
   return (
     <>
-      <TaxYearProgressCard {...card} />
+      {/* The 10,000-mile line only matters for a mileage claim, which a company car has none of. */}
+      {!p.isCompanyDriver && <TaxYearProgressCard {...card} />}
       {!p.isCompanyDriver && <PlatformLeagueCard {...card} />}
       {p.comingUp}
       {p.showEarningsGoal && <WeeklyGoalCard />}

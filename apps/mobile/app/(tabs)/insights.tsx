@@ -221,6 +221,7 @@ export default function InsightsScreen() {
       isPro={isPro}
       avatarId={user?.avatarId}
       region={stats?.region}
+      noClaim={companyApp}
       dialProgress={dialProgress}
       dialLabel={dialLabel}
       celebration={celebration}

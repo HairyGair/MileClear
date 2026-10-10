@@ -215,7 +215,7 @@ export default function InvoicesScreen() {
         {details && (details.name || details.address || details.bankMasked || details.vat) ? (
           <View style={{ marginTop: 6, gap: 2 }}>
             {details.name ? <Text style={styles.detailsLine}>{details.name}</Text> : null}
-            {details.address ? <Text style={styles.detailsLine} numberOfLines={2}>{details.address}</Text> : null}
+            {details.address ? <Text style={styles.detailsLine} numberOfLines={3}>{details.address}</Text> : null}
             {details.bankMasked ? <Text style={styles.detailsLine}>Bank account {details.bankMasked}</Text> : null}
             {details.vat ? <Text style={styles.detailsLine}>VAT {details.vat}</Text> : null}
           </View>

@@ -54,6 +54,8 @@ interface PeriodSummaryCardProps {
   reducedMotion: boolean;
   onUpsell: () => void;
   onHelp: () => void;
+  /** Company-car drivers have no mileage claim, so no claim figure or headline. */
+  noClaim?: boolean;
 }
 
 export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
@@ -138,7 +140,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
     );
   }
 
-  const claim = current.claimPence;
+  const claim = props.noClaim ? null : current.claimPence;
   const workClaimHeadline = !isPersonal && claim !== null && claim > 0 && current.trips > 0;
   const quiet = sentence.kind === "quiet";
 
