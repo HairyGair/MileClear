@@ -6,6 +6,7 @@ import {
   notificationsCheck,
   uploadsCheck,
   settingsHeadline,
+  checkingRow,
   type RecordingCheckInputs,
 } from "../checks";
 import type { LastTripData } from "../../home/lastTrip";
@@ -125,6 +126,22 @@ describe("uploadsCheck", () => {
     expect(r.title).toBe("2 trips couldn't upload");
     expect(r.action).toBe("Retry");
     expect(uploadsCheck({ failedCount: 1, allTrips: false }).title).toBe("1 item couldn't upload");
+  });
+  it("never says saved while something is still waiting to upload", () => {
+    const r = uploadsCheck({ failedCount: 0, allTrips: true, pendingCount: 3 });
+    expect(r.look).toBe("neutral");
+    expect(r.title).toBe("3 waiting to upload");
+  });
+  it("a failure outranks waiting", () => {
+    expect(uploadsCheck({ failedCount: 1, allTrips: true, pendingCount: 3 }).look).toBe("bad");
+  });
+});
+
+describe("checkingRow", () => {
+  it("is never green, so nothing is ticked before the phone has answered", () => {
+    expect(checkingRow("recording").look).toBe("neutral");
+    expect(checkingRow("notifications").look).toBe("neutral");
+    expect(settingsHeadline([checkingRow("recording")])).toEqual({ text: "Checking recording...", red: false });
   });
 });
 

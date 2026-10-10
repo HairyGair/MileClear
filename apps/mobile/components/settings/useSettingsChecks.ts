@@ -19,7 +19,9 @@ import { selectDashboardMessages, type BlockerId } from "../../lib/dashboardMess
 import { useFailedSyncCount, useLastTrip, useRecordingNow } from "../home/useHomeSignals";
 import { getNotificationPreferences, type NotificationPreferences } from "../../lib/notifications/preferences";
 import { useUser } from "../../lib/user/context";
+import { useSync } from "../../lib/sync/context";
 import {
+  checkingRow,
   lastTripCheck,
   notificationsCheck,
   recordingCheck,
@@ -168,9 +170,20 @@ export function useSettingsChecks(): SettingsChecks {
     }, [])
   );
 
+  const { pendingCount } = useSync();
   const now = Date.now();
   const rows = useMemo(() => {
     const msgs = recordingMessages(phone);
+    // Until the phone has answered, the inputs are optimistic defaults
+    // ("always", "granted"), so say "Checking" rather than tick them.
+    if (!phone.loaded) {
+      return [
+        checkingRow("recording"),
+        lastTripCheck({ trip: last.trip, totalTrips: last.trip ? 1 : 0, loading: last.loading, now }),
+        checkingRow("notifications"),
+        uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips, pendingCount }),
+      ];
+    }
     return [
       recordingCheck({
         blocker: msgs.blocker,
@@ -187,11 +200,11 @@ export function useSettingsChecks(): SettingsChecks {
         permission: phone.notifications,
         counts: prefs ? countNotifications(prefs, isPremium) : null,
       }),
-      uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips }),
+      uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips, pendingCount }),
     ];
     // `now` read once per render on purpose, like Home.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phone, recording, last.trip, last.loading, prefs, isPremium, failed.count, failed.allTrips, Math.floor(now / 60000)]);
+  }, [phone, recording, last.trip, last.loading, prefs, isPremium, failed.count, failed.allTrips, pendingCount, Math.floor(now / 60000)]);
 
   const fixLocation = useCallback(async () => {
     await requestOrFixBackgroundLocation();
@@ -225,6 +238,7 @@ export function useSettingsHeadline(): { text: string; red: boolean } {
   const failed = useFailedSyncCount();
   const now = Date.now();
   return useMemo(() => {
+    if (!phone.loaded) return settingsHeadline([checkingRow("recording")]);
     const msgs = recordingMessages(phone);
     const rows = [
       recordingCheck({

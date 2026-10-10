@@ -23,7 +23,7 @@ import {
 } from "../../lib/tracking/batteryAware";
 import { requestOrFixBackgroundLocation } from "../../lib/permissions/location";
 import { requestMotionPermission } from "../../lib/tracking/motionPermission";
-import { recordingCheck } from "../../lib/settings/checks";
+import { checkingRow, recordingCheck } from "../../lib/settings/checks";
 import { phoneRows, type PhoneRow } from "../../lib/settings/phoneChecks";
 import { Linking } from "react-native";
 import { driveForOf } from "@mileclear/shared";
@@ -47,16 +47,20 @@ export default function RecordingSettings() {
   const platform = Platform.OS === "ios" ? "ios" : "android";
   const msgs = recordingMessages(phone);
   const now = Date.now();
-  const status = recordingCheck({
-    blocker: msgs.blocker,
-    pausedUntil: phone.pausedUntil,
-    now,
-    automaticOff: phone.automaticOff,
-    lowPowerMode: phone.lowPower,
-    platform,
-    setup: msgs.setup,
-    recording: null,
-  });
+  // Until the phone has answered, the inputs are optimistic defaults, so no
+  // green ticks yet.
+  const status = phone.loaded
+    ? recordingCheck({
+        blocker: msgs.blocker,
+        pausedUntil: phone.pausedUntil,
+        now,
+        automaticOff: phone.automaticOff,
+        lowPowerMode: phone.lowPower,
+        platform,
+        setup: msgs.setup,
+        recording: null,
+      })
+    : checkingRow("recording");
   const paused = phone.pausedUntil !== null && phone.pausedUntil > now;
 
   // Automatic trips is also on Home, so re-read it every time this shows.
@@ -192,13 +196,19 @@ export default function RecordingSettings() {
       </SettingsGroup>
 
       <SettingsGroup title="WHAT YOUR PHONE ALLOWS">
-        {phoneRows({
-          platform,
-          tier: phone.tier,
-          bgRefreshOff: phone.bgRefreshOff,
-          motion: phone.motion,
-          lowPower: phone.lowPower,
-        }).map((row) => (
+        {!phone.loaded && (
+          <CheckRowView look="neutral" title="Checking your phone's settings..." onPress={() => phone.refresh()} />
+        )}
+        {(phone.loaded
+          ? phoneRows({
+              platform,
+              tier: phone.tier,
+              bgRefreshOff: phone.bgRefreshOff,
+              motion: phone.motion,
+              lowPower: phone.lowPower,
+            })
+          : []
+        ).map((row) => (
           <CheckRowView
             key={row.id}
             look={row.look}
@@ -218,7 +228,7 @@ export default function RecordingSettings() {
           hint={
             !driveDetection
               ? "Only shifts and Start Trip record."
-              : status.look === "ok"
+              : status.look === "ok" || !phone.loaded
                 ? "Drives record by themselves."
                 : "On, but see the checks above."
           }
@@ -228,7 +238,7 @@ export default function RecordingSettings() {
         <SettingsRow
           icon="pause-circle-outline"
           label="Pause recording"
-          hint={paused ? "Paused. Tap the red or amber line above to resume" : "Until 6am tomorrow, or for a week"}
+          hint={paused ? "Paused. Tap Resume at the top to switch it back on" : "Until 6am tomorrow, or for a week"}
           onPress={choosePause}
         />
         <SettingsRow

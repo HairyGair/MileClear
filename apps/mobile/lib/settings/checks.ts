@@ -164,7 +164,12 @@ export function notificationsCheck(args: {
   };
 }
 
-export function uploadsCheck(args: { failedCount: number; allTrips: boolean }): CheckRow {
+export function uploadsCheck(args: {
+  failedCount: number;
+  allTrips: boolean;
+  /** Saved on the phone, not uploaded yet (offline, or mid-upload). */
+  pendingCount?: number;
+}): CheckRow {
   if (args.failedCount > 0) {
     return {
       id: "uploads",
@@ -175,6 +180,19 @@ export function uploadsCheck(args: { failedCount: number; allTrips: boolean }): 
       tap: "sync_status",
     };
   }
+  // Waiting is not a fault (no signal, or the upload is running), but it is
+  // not "uploaded to your account" either.
+  const pending = args.pendingCount ?? 0;
+  if (pending > 0) {
+    return {
+      id: "uploads",
+      look: "neutral",
+      title: `${pending} waiting to upload`,
+      hint: "Saved on this phone. They upload when you're online",
+      action: null,
+      tap: "sync_status",
+    };
+  }
   return {
     id: "uploads",
     look: "ok",
@@ -182,6 +200,21 @@ export function uploadsCheck(args: { failedCount: number; allTrips: boolean }): 
     hint: "Uploaded to your account",
     action: null,
     tap: "sync_status",
+  };
+}
+
+/**
+ * Shown while the phone's permissions are still being read, so a check never
+ * shows a green tick it has not earned (the inputs start optimistic).
+ */
+export function checkingRow(id: "recording" | "notifications"): CheckRow {
+  return {
+    id,
+    look: "neutral",
+    title: id === "recording" ? "Checking recording..." : "Checking notifications...",
+    hint: null,
+    action: null,
+    tap: id === "recording" ? "recording_screen" : "notifications_screen",
   };
 }
 
