@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#030712"/>
+<text x="50" y="37" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="start" >9:41</text>
+<rect x="133" y="11" width="124" height="36" rx="18" fill="#000" />
+<rect x="286" y="30" width="3" height="4" rx="1" fill="#f0f2f5" />
+<rect x="291" y="28" width="3" height="6" rx="1" fill="#f0f2f5" />
+<rect x="296" y="26" width="3" height="8" rx="1" fill="#f0f2f5" />
+<rect x="301" y="24" width="3" height="10" rx="1" fill="#f0f2f5" />
+<path d="M311 27 a9 9 0 0 1 13 0 M313.5 30 a5.5 5.5 0 0 1 8 0" fill="none" stroke="#f0f2f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="317.5" cy="33" r="1.5" fill="#f0f2f5"/>
+<rect x="333" y="26" width="26" height="12" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1" />
+<rect x="335" y="28" width="20" height="8" rx="2" fill="#f0f2f5" />
+<text x="16" y="92" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#f0f2f5" text-anchor="start" >More</text>
+<rect x="16" y="112" width="358" height="72" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<circle cx="52" cy="148" r="22" fill="#4a1d5c" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+<text x="52" y="156.71200000000002" font-family="Ionicons" font-size="24.200000000000003" fill="#c084fc" text-anchor="middle">&#61921;</text>
+<text x="86" y="144" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#f0f2f5" text-anchor="start" >Demo</text>
+<text x="86" y="164" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Pro · renews 3 Nov</text>
+<path d="M352 142 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="20" y="220" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Your car</text>
+<rect x="16" y="230" width="358" height="208" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="263.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61922;</text>
+<text x="64" y="261.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Your cars</text>
+<path d="M352 250.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="282" x2="374" y2="282" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="315.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#63023;</text>
+<text x="64" y="313.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Fuel</text>
+<path d="M352 302.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="334" x2="374" y2="334" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="367.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62864;</text>
+<text x="64" y="365.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Odometer</text>
+<path d="M352 354.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="386" x2="374" y2="386" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="419.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62087;</text>
+<text x="64" y="417.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Road alerts</text>
+<path d="M352 406.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="20" y="472" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Your money</text>
+<rect x="16" y="482" width="358" height="208" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="515.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61958;</text>
+<text x="64" y="513.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Earnings</text>
+<path d="M352 502.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="534" x2="374" y2="534" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="567.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62735;</text>
+<text x="64" y="565.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Expenses</text>
+<path d="M352 554.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="586" x2="374" y2="586" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="619.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62132;</text>
+<text x="64" y="617.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Invoices</text>
+<path d="M352 606.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="638" x2="374" y2="638" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="671.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61895;</text>
+<text x="64" y="669.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Bank</text>
+<path d="M352 658.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="20" y="724" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Your work</text>
+<rect x="16" y="734" width="358" height="156" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="767.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62942;</text>
+<text x="64" y="765.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Shifts</text>
+<path d="M352 754.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="786" x2="374" y2="786" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="819.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62841;</text>
+<text x="64" y="817.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Ticket defender</text>
+<path d="M352 806.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="838" x2="374" y2="838" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="871.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61976;</text>
+<text x="64" y="869.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Ask EmSee</text>
+<path d="M352 858.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="20" y="924" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" ></text>
+<rect x="16" y="934" width="358" height="64" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="973.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62828;</text>
+<text x="64" y="963.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Settings and help</text>
+<text x="64" y="982.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Places, work hours, help, invite a friend</text>
+<path d="M352 960.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="0" y="761" width="390" height="83" rx="0" fill="#030712" />
+<line x1="0" y1="761" x2="390" y2="761" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+<text x="48.75" y="789.64" font-family="Ionicons" font-size="24" fill="#8494a7" text-anchor="middle">&#62339;</text>
+<text x="48.75" y="809" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#8494a7" text-anchor="middle" >Home</text>
+<text x="146.25" y="789.64" font-family="Ionicons" font-size="24" fill="#8494a7" text-anchor="middle">&#61922;</text>
+<text x="146.25" y="809" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#8494a7" text-anchor="middle" >Trips</text>
+<text x="243.75" y="789.64" font-family="Ionicons" font-size="24" fill="#8494a7" text-anchor="middle">&#62132;</text>
+<text x="243.75" y="809" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#8494a7" text-anchor="middle" >Tax</text>
+<text x="341.25" y="789.64" font-family="Ionicons" font-size="24" fill="#f5a623" text-anchor="middle">&#62159;</text>
+<text x="341.25" y="809" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#f5a623" text-anchor="middle" >More</text>
+<rect x="128" y="830" width="134" height="5" rx="2.5" fill="#f0f2f5" />
+</svg>

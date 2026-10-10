@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#030712"/>
+<text x="50" y="37" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="start" >9:41</text>
+<rect x="133" y="11" width="124" height="36" rx="18" fill="#000" />
+<rect x="286" y="30" width="3" height="4" rx="1" fill="#f0f2f5" />
+<rect x="291" y="28" width="3" height="6" rx="1" fill="#f0f2f5" />
+<rect x="296" y="26" width="3" height="8" rx="1" fill="#f0f2f5" />
+<rect x="301" y="24" width="3" height="10" rx="1" fill="#f0f2f5" />
+<path d="M311 27 a9 9 0 0 1 13 0 M313.5 30 a5.5 5.5 0 0 1 8 0" fill="none" stroke="#f0f2f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="317.5" cy="33" r="1.5" fill="#f0f2f5"/>
+<rect x="333" y="26" width="26" height="12" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1" />
+<rect x="335" y="28" width="20" height="8" rx="2" fill="#f0f2f5" />
+<circle cx="36" cy="80" r="20" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<path d="M39 72 l-8 8 8 8" fill="none" stroke="#f0f2f5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="195" y="86" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="middle" >Trip</text>
+<rect x="16" y="116" width="358" height="64" rx="12" fill="#1b1714" />
+<text x="30" y="143.48" font-family="Ionicons" font-size="18" fill="#f5a623" text-anchor="start">&#61715;</text>
+<text x="58" y="142" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f0f2f5" text-anchor="start" >The distance may be off</text>
+<text x="58" y="162" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Your phone sent no route for this drive.</text>
+<text x="360" y="152" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f5a623" text-anchor="end" >Check</text>
+<text x="20" y="216" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Fix this trip</text>
+<rect x="16" y="226" width="358" height="244" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="265.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62900;</text>
+<text x="64" y="255.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Work out the miles again</text>
+<text x="64" y="274.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Uses the road route between the two places</text>
+<path d="M352 252.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="290" x2="374" y2="290" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="329.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62108;</text>
+<text x="64" y="319.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Split into separate trips</text>
+<text x="64" y="338.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >If you stopped on the way</text>
+<path d="M352 316.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="354" x2="374" y2="354" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="393.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62276;</text>
+<text x="64" y="383.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Join with the next trip</text>
+<text x="64" y="402.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Starts 6 min later, 120 m away</text>
+<path d="M352 380.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="418" x2="374" y2="418" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="451.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62864;</text>
+<text x="64" y="449.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Odometer readings</text>
+<path d="M352 438.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="342" y="449.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f5a623" text-anchor="end" >Add</text>
+<text x="20" y="504" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Use this trip</text>
+<rect x="16" y="514" width="358" height="180" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="553.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61865;</text>
+<text x="64" y="543.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Save a place</text>
+<text x="64" y="562.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Name Home or Newcastle Quayside</text>
+<path d="M352 540.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="578" x2="374" y2="578" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="617.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61699;</text>
+<text x="64" y="607.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >New trip from here</text>
+<text x="64" y="626.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Back home, or on to the next drop</text>
+<path d="M352 604.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<line x1="64" y1="642" x2="374" y2="642" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="30" y="675.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62841;</text>
+<text x="64" y="673.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Got a fine for this trip?</text>
+<path d="M352 662.0 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="313" y="658.0" width="29" height="20" rx="8" fill="rgba(245,166,35,0.12)" />
+<text x="327.5" y="672.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f5a623" text-anchor="middle" >Pro</text>
+<text x="145" y="735.48" font-family="Ionicons" font-size="18" fill="#ef4444" text-anchor="start">&#62966;</text>
+<text x="169" y="734" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ef4444" text-anchor="start" >Delete trip</text>
+</svg>
