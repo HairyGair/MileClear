@@ -94,7 +94,10 @@ export async function loadTaxOverview(
   const workType = toWorkType(user.workType);
   const isCompanyDriver = !!membership;
   const selfEmployed = workType === "gig" || workType === "both";
-  const needsRelief = workType === "employee" || workType === "both" || isCompanyDriver;
+  // Mileage Allowance Relief is for your own car. A driver who said "A company
+  // car" has no claim, team or not (Settings tells them so).
+  const needsRelief =
+    user.workType !== "company" && (workType === "employee" || workType === "both" || isCompanyDriver);
   // Same call as getStats(), so claim and /gamification/stats read one row.
   const taxYear = getTaxYear(now);
 

@@ -201,6 +201,8 @@ describe("personas", () => {
     expect(o.return).toBeNull();
     expect(o.thisYear).toBeNull();
     expect(o.plan).toBeNull();
+    // A company car is not your own car: no Mileage Allowance Relief.
+    expect(o.relief).toBeNull();
   });
 
   it("both: every section", async () => {
