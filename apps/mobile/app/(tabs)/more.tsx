@@ -126,7 +126,7 @@ export default function MoreScreen() {
 
         <SettingsGroup title="HELP AND SETTINGS">
           <SettingsRow icon="settings-outline" label="Settings" hint={headline.text} hintTone={headline.red ? "bad" : undefined} onPress={go("/settings")} />
-          <SettingsRow icon="help-circle-outline" label="Help and tutorials" hint="How MileClear works" onPress={go("/help")} />
+          <SettingsRow icon="help-circle-outline" label="Help and how-tos" hint="How MileClear works" onPress={go("/help")} />
           <SettingsRow icon="bulb-outline" label="Feedback" hint="Ideas and problems" onPress={go("/feedback")} />
           <SettingsRow icon="gift-outline" label="Invite a friend, get Pro free" onPress={go("/refer")} />
         </SettingsGroup>

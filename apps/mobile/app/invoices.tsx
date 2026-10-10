@@ -184,7 +184,7 @@ export default function InvoicesScreen() {
         onPress={() => router.push("/invoice-details" as never)}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Invoice details. Your name, VAT and bank details on invoices"
+        accessibilityLabel="Invoice details. Logo, name, VAT and bank details on your invoices"
       >
         <Ionicons name="business-outline" size={18} color={AMBER} accessible={false} />
         <View style={{ flex: 1 }}>

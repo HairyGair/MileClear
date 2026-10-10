@@ -722,11 +722,11 @@ function RootNavigator() {
         <Stack.Screen name="road-alerts" options={{ headerShown: true, title: "Road alerts" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Your email" }} />
         <Stack.Screen name="verify-email" options={{ headerShown: true, title: "Confirm your email" }} />
-        <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change Password" }} />
+        <Stack.Screen name="change-password" options={{ headerShown: true, title: "Change password" }} />
         <Stack.Screen name="active-recording" options={{ headerShown: true, title: "Recording trip" }} />
         <Stack.Screen name="exports" options={{ headerShown: true, title: "Downloads" }} />
         <Stack.Screen name="project-totals" options={{ headerShown: true, title: "Miles by project" }} />
-        <Stack.Screen name="refer" options={{ headerShown: true, title: "Invite Friends" }} />
+        <Stack.Screen name="refer" options={{ headerShown: true, title: "Invite a friend" }} />
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
         <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />
         <Stack.Screen name="open-banking" options={{ headerShown: true, title: "Open Banking" }} />
@@ -776,7 +776,7 @@ function RootNavigator() {
         <Stack.Screen name="ticket-defender" options={{ headerShown: true, title: "Ticket defender" }} />
         <Stack.Screen name="assistant" options={{ headerShown: true, title: "EmSee" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "Your accountant" }} />
-        <Stack.Screen name="help" options={{ headerShown: true, title: "Help and tutorials" }} />
+        <Stack.Screen name="help" options={{ headerShown: true, title: "Help and how-tos" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
