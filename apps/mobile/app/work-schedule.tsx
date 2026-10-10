@@ -226,7 +226,7 @@ export default function WorkScheduleScreen() {
 
   return (
     <View style={s.container}>
-      <Stack.Screen options={{ title: "Work Schedule" }} />
+      <Stack.Screen options={{ title: "Work hours" }} />
       <ScrollView contentContainerStyle={s.content}>
         {/* Schedule editor itself is free as of 8 May 2026 — knowing your
             own working hours is core "fighting your corner" functionality.

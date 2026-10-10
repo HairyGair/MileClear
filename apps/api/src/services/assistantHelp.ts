@@ -282,7 +282,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "auto-classify",
     area: "managing_trips",
     q: "Can trips be classified automatically?",
-    a: "MileClear suggests Business or Personal for journeys you repeat. \"Sort trips automatically\" (More > Settings > Recording) marks trips by your working hours, saved places or time of day without asking. Set your hours in More > Work hours (or Settings > Work hours).",
+    a: "MileClear suggests Business or Personal for journeys you repeat. With Pro, \"Sort trips automatically\" (More > Settings > Recording) marks trips by your working hours, saved places or time of day without asking. Set your hours in More > Work hours (or Settings > Work hours).",
   },
 
   // ── Tax and claims ───────────────────────────────────────────────────────
@@ -338,7 +338,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "employee",
     area: "tax_and_claims",
     q: "I'm an employee and my employer pays me per mile.",
-    a: "Set your work type and your employer's rate in More > Settings > You drive for. If your employer pays less than the approved rates, Tax > Mileage Allowance Relief works out the difference you can claim back from HMRC. It's free.",
+    a: "In More > Settings > You drive for, choose \"An employer, in my own car\" and set your employer's rate. If your employer pays less than the approved rates, Tax > Mileage Allowance Relief works out the difference you can claim back from HMRC. It's free.",
   },
   {
     id: "other-income",
@@ -520,7 +520,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "my-data",
     area: "account_and_app",
     q: "Can I download all my data?",
-    a: "Yes, free: More > Settings > Your data > Get a copy of your data has everything MileClear holds about you. For tax, use Tax > Tax exports instead (Pro).",
+    a: "Yes, free: More > Settings > Your data > Get a copy of your data has everything MileClear holds about you. For tax, use Tax > Downloads instead (Pro).",
   },
   {
     id: "website",

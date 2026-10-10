@@ -141,7 +141,7 @@ function helpReply(): SlashCommandResult {
           {
             name: "Need to link?",
             value:
-              "Open MileClear → Settings → Community → **Connect Discord**.",
+              "Open MileClear → Settings → MileClear community → **Connect Discord**.",
             inline: false,
           },
         ],
@@ -159,7 +159,7 @@ function unlinkedReply(): SlashCommandResult {
       {
         title: "Link your account first",
         description:
-          "Open MileClear → **Settings → Community → Connect Discord**.\n\nOnce linked, your slash commands will show your own data.",
+          "Open MileClear → **Settings → MileClear community → Connect Discord**.\n\nOnce linked, your slash commands will show your own data.",
         color: COLOUR_DIM,
         footer: FOOTER,
       },

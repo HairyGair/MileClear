@@ -461,7 +461,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mc-saved-locations",
     title: "🏠 Saved locations = auto-classify",
     body:
-      "Pin your Home, Work, and Depot in Settings → Tracking & Locations. MileClear classifies trips between them automatically - no more manual tagging.",
+      "Pin your Home, Work, and Depot in More > Saved places. MileClear classifies trips between them automatically - no more manual tagging.",
     category: "mileclear",
   },
   {

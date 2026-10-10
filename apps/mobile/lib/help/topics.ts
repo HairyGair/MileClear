@@ -402,7 +402,7 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "marketing-emails",
         q: "How do I stop the product update emails?",
-        a: "Either tap Unsubscribe in any email's footer (one-click, no login needed), or Profile → Settings → Email Preferences → toggle off Product Updates.\n\nWe keep this separate from transactional emails (verification codes, password reset, billing receipts) - those keep working because you need them. Marketing-only emails are the only ones the toggle silences.",
+        a: "Tap Unsubscribe in any email's footer (one-click, no login needed), or turn off update emails on mileclear.com under Settings → Notifications and emails.\n\nWe keep this separate from transactional emails (verification codes, password reset, billing receipts) - those keep working because you need them. Marketing-only emails are the only ones the toggle silences.",
       },
     ],
   },
