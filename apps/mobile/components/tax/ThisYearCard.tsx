@@ -27,6 +27,7 @@ export function ThisYearCard({
   lead,
   claimPence,
   canAddEarnings,
+  scotland = false,
 }: {
   thisYear: NonNullable<TaxOverview["thisYear"]>;
   plan: TaxOverview["plan"];
@@ -34,6 +35,12 @@ export function ThisYearCard({
   /** Home's mileage claim, to explain a difference (both persona, or an employer rate). */
   claimPence: number | null;
   canAddEarnings: boolean;
+  /**
+   * The driver said they pay Scottish Income Tax (Mileage Allowance Relief
+   * answers, on this phone only; the server does not know). The headroom
+   * line uses the England, Wales and NI 40% threshold, so it is not shown.
+   */
+  scotland?: boolean;
 }) {
   const router = useRouter();
   const [showDerivation, setShowDerivation] = useState(false);
@@ -114,7 +121,7 @@ export function ThisYearCard({
           </View>
         )}
 
-        {thisYear.higherRateHeadroomPence != null && (
+        {thisYear.higherRateHeadroomPence != null && !scotland && (
           <Text style={taxCard.muted} maxFontSizeMultiplier={fontScaleCap.body}>
             {`You're ${formatPence(thisYear.higherRateHeadroomPence)} away from the 40% rate. Every business mile you record keeps more of your profit at 20%.`}
           </Text>

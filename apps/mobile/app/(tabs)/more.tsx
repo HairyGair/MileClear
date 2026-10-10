@@ -14,6 +14,7 @@ import { SettingsRow } from "../../components/settings/SettingsRow";
 import { useAuth } from "../../lib/auth/context";
 import { useUser } from "../../lib/user/context";
 import { useMode } from "../../lib/mode/context";
+import { isWorkDriver } from "../../lib/tax/persona";
 import { useAssistantAvailable } from "../../lib/api/assistant";
 import { useSettingsHeadline } from "../../components/settings/useSettingsChecks";
 import { colors, fonts, radii, spacing } from "../../lib/theme";
@@ -92,9 +93,9 @@ export default function MoreScreen() {
           <SettingsRow icon="trophy-outline" label="Achievements" hint="Your badges" onPress={go("/achievements")} />
           {isWork ? (
             <SettingsRow icon="stats-chart-outline" label="Insights" hint="Your numbers and trends" onPress={go("/(tabs)/insights")} />
-          ) : (
+          ) : !isWorkDriver(user) ? (
             <SettingsRow icon="ribbon-outline" label="Records" hint="Mileage certificate and downloads" onPress={go("/(tabs)/tax")} />
-          )}
+          ) : null}
         </SettingsGroup>
 
         <SettingsGroup title="MONEY">
