@@ -405,10 +405,11 @@ export function TutorialFlow({ source }: { source: TourSource }) {
       content = (
         <>
           <View style={s.drawing} accessible={false}>
+            {/* The route first, the chips after it, so both chips sit on top. */}
+            <MiniRoute route={DEMO_ROUTE} start={DEMO_ROUTE[0]} end={DEMO_ROUTE[DEMO_ROUTE.length - 1]} size={170} dashed={false} />
             <View style={[s.chip, s.chipAmber]}>
               <Text style={s.chipAmberText} maxFontSizeMultiplier={fontScaleCap.body}>Starts at 15 mph</Text>
             </View>
-            <MiniRoute route={DEMO_ROUTE} start={DEMO_ROUTE[0]} end={DEMO_ROUTE[DEMO_ROUTE.length - 1]} size={170} dashed={false} />
             <View style={[s.chip, s.chipEnd]}>
               <Text style={s.chipText} maxFontSizeMultiplier={fontScaleCap.body}>Stops when parked</Text>
             </View>
