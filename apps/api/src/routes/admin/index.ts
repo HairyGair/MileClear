@@ -6,6 +6,7 @@ import { invalidatePremiumCache } from "../../middleware/premium.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
 import { revokeUpstreamForDeletion } from "../../services/accountDeletion.js";
+import { ADMIN_READ_EVENT, createAdminReadThrottle, describeAdminRead } from "../../services/adminReadAudit.js";
 import {
   sendReEngagementEmail,
   sendServiceStatusEmail,
@@ -236,6 +237,23 @@ function csvCell(value: string | number | boolean | null | undefined): string {
 export async function adminRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
   app.addHook("preHandler", adminMiddleware);
+  // Record which admin read which driver's data (GDPR audit H7). Added
+  // before the sub-plugins register so it covers their routes too.
+  const shouldLogAdminRead = createAdminReadThrottle();
+  app.addHook("onResponse", async (request, reply) => {
+    const adminId = request.userId;
+    if (!adminId || !request.isAdmin) return;
+    const d = describeAdminRead({
+      method: request.method,
+      routeUrl: request.routeOptions?.url,
+      statusCode: reply.statusCode,
+      params: request.params,
+      query: request.query,
+    });
+    if (d && shouldLogAdminRead(adminId, d)) {
+      logEvent(ADMIN_READ_EVENT, adminId, { targetUserId: d.targetUserId, what: d.what, ref: d.ref });
+    }
+  });
   // Sep 2026 observability endpoints (support queue, Android testers, Live
   // Activity health, trip quality) live in their own module.
   await app.register(adminObservabilityRoutes);
@@ -817,7 +835,9 @@ export async function adminRoutes(app: FastifyInstance) {
       }),
       prisma.appEvent.findMany({
         where: {
-          type: { startsWith: "admin." },
+          // Reads of this driver's data are kept out of the comms timeline;
+          // they are listed by /admin/audit-log?reads=1.
+          type: { startsWith: "admin.", not: ADMIN_READ_EVENT },
           metadata: { path: "$.targetUserId", equals: userId },
         },
         orderBy: { createdAt: "desc" },
@@ -4095,9 +4115,14 @@ export async function adminRoutes(app: FastifyInstance) {
 
   // GET /admin/audit-log
   // Recent admin actions logged via app_events.
-  app.get("/audit-log", async (_request, reply) => {
+  // ?reads=1 lists admin READS of driver data instead (GDPR audit H7); by
+  // default they are left out so they don't bury the actions.
+  app.get("/audit-log", async (request, reply) => {
+    const reads = (request.query as { reads?: string }).reads === "1";
     const events = await prisma.appEvent.findMany({
-      where: { type: { startsWith: "admin." } },
+      where: reads
+        ? { type: ADMIN_READ_EVENT }
+        : { type: { startsWith: "admin.", not: ADMIN_READ_EVENT } },
       orderBy: { createdAt: "desc" },
       take: 100,
       include: { user: { select: { displayName: true, email: true } } },
