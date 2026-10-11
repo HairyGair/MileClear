@@ -69,13 +69,13 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Why is there always a MileClear notification on my Android?", area: "recording_trips", id: "android-notification", expect: [/recording|monitoring/i] },
 
   // Missing or wrong trips
-  { q: "If a trip from this morning isn't in my list, what should I do?", area: "missing_or_wrong_trips", id: "missing-trip", expect: [/missing a trip you made/i, /trips/i] },
-  { q: "How do I tell you about a trip that didn't record?", area: "missing_or_wrong_trips", id: "missing-trip", expect: [/missing a trip you made/i] },
-  { q: "What are journeys to check?", area: "missing_or_wrong_trips", id: "journeys-to-check", expect: [/add trip/i, /dismiss/i] },
+  { q: "If a trip from this morning isn't in my list, what should I do?", area: "missing_or_wrong_trips", id: "missing-trip", expect: [/missing a trip\? tell us/i, /trips/i] },
+  { q: "How do I tell you about a trip that didn't record?", area: "missing_or_wrong_trips", id: "missing-trip", expect: [/missing a trip\? tell us/i] },
+  { q: "What are journeys to check?", area: "missing_or_wrong_trips", id: "journeys-to-check", expect: [/add trip/i, /not a trip/i] },
   { q: "Why do some trips show up hours later?", area: "missing_or_wrong_trips", id: "late-trip", expect: [/background|open/i] },
-  { q: "How do I fix a long wait splitting my trip in two?", area: "missing_or_wrong_trips", id: "split-trip", expect: [/merge/i, /end a trip after|runs until i tap arrived/i] },
-  { q: "How do I correct the distance on yesterday's trip?", area: "missing_or_wrong_trips", id: "wrong-distance", expect: [/recalculate distance/i] },
-  { q: "What does the low confidence badge on a trip mean?", area: "missing_or_wrong_trips", id: "wrong-distance", expect: [/confidence/i, /recalculate/i] },
+  { q: "How do I fix a long wait splitting my trip in two?", area: "missing_or_wrong_trips", id: "split-trip", expect: [/join/i, /end a trip after|runs until i tap arrived/i] },
+  { q: "How do I correct the distance on yesterday's trip?", area: "missing_or_wrong_trips", id: "wrong-distance", expect: [/work out the miles again/i] },
+  { q: "What does the low confidence badge on a trip mean?", area: "missing_or_wrong_trips", id: "wrong-distance", expect: [/distance may be off/i, /work out the miles again/i] },
   { q: "How can I check all my trips for wrong distances at once?", area: "missing_or_wrong_trips", id: "wrong-distance", expect: [/check my trips for odd ones/i] },
   { q: "What should I do with a trip it logged while I was sat at home?", area: "missing_or_wrong_trips", id: "phantom-trip", expect: [/delete trip/i] },
   { q: "What do I do with a train journey it recorded?", area: "missing_or_wrong_trips", id: "passenger", expect: [/personal|delete/i] },
@@ -84,19 +84,19 @@ export const QUESTION_BANK: BankQuestion[] = [
 
   // Managing trips
   { q: "How do I mark a trip as business?", area: "managing_trips", id: "classify", expect: [/business/i] },
-  { q: "where do i sort my unclassified trips", area: "managing_trips", id: "classify", expect: [/inbox|trips/i] },
+  { q: "where do i sort my unclassified trips", area: "managing_trips", id: "classify", expect: [/to sort/i] },
   { q: "Does driving to the depot count as business?", area: "managing_trips", id: "what-is-business", expect: [/commut/i], toolOptional: true },
   { q: "I forgot to track a trip, can I add it?", area: "managing_trips", id: "add-past-trip", expect: [/add a past trip/i] },
   { q: "How do I log a journey from last week by hand?", area: "managing_trips", id: "add-past-trip", expect: [/add a past trip/i] },
   { q: "How do I change the time on a trip?", area: "managing_trips", id: "edit-trip", expect: [/edit trip/i] },
-  { q: "Can I join two trips together?", area: "managing_trips", id: "merge-trips", expect: [/merge trips|merge/i, /hold/i] },
-  { q: "How do I split a trip in two?", area: "managing_trips", id: "split-a-trip", expect: [/split into several trips/i] },
+  { q: "Can I join two trips together?", area: "managing_trips", id: "merge-trips", expect: [/join trips/i, /hold/i] },
+  { q: "How do I split a trip in two?", area: "managing_trips", id: "split-a-trip", expect: [/split into separate trips/i] },
   { q: "How do I delete a trip?", area: "managing_trips", id: "delete-trip", expect: [/delete trip/i] },
   { q: "How do I tag a trip as Amazon Flex?", area: "managing_trips", id: "platform-tag", expect: [/which app|edit trip/i] },
   { q: "Can I see miles per client?", area: "managing_trips", id: "projects", expect: [/miles by project/i] },
   { q: "How do I keep odometer readings for my employer?", area: "managing_trips", id: "odometer", expect: [/odometer log/i, PRO] },
   { q: "Can it mark my work trips automatically?", area: "managing_trips", id: "auto-classify", expect: [/sort trips automatically|3 times|automatic/i] },
-  { q: "How do I undo an automatic sort on a trip?", area: "managing_trips", id: "auto-classify", expect: [/undo automatic sort/i] },
+  { q: "How do I undo an automatic sort on a trip?", area: "managing_trips", id: "auto-classify", expect: [/sorted for you/i, /undo/i] },
 
   // Tax and claims
   { q: "What's the mileage rate this year?", area: "tax_and_claims", id: "rates", expect: [/55p/, /25p/], toolOptional: true },
