@@ -49,7 +49,7 @@ const RELOCK = [
 export default function SettingsPage() {
   const router = useRouter();
   const { logout } = useAuth();
-  const { user, company, isCompanyDriver } = useUser();
+  const { user, company, isCompanyDriver, seesCompanyDriverApp } = useUser();
   const isPremium = useIsPremium();
   const { mode, isPersonal } = useMode();
   const checks = useSettingsChecks();
@@ -60,7 +60,8 @@ export default function SettingsPage() {
 
   const driveFor: DriveFor = driveForOf(user);
   const companyCar = driveFor === "company" || isCompanyDriver;
-  const showWorkHours = driveFor !== "personal";
+  // Same rule as the More tab (lib/more/rows.ts): every driver but "Just me".
+  const showWorkHours = seesCompanyDriverApp || driveFor !== "personal";
   const car = carSummary(page.cars, { companyCar, failed: page.carsFailed });
   const taxYear = getTaxYear(new Date());
 
