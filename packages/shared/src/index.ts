@@ -19,3 +19,4 @@ export * from "./utils/driveFor.js";
 export * from "./data/help.js";
 export * from "./data/helpSearch.js";
 export * from "./utils/tripFacts.js";
+export * from "./utils/tripOverlap.js";
