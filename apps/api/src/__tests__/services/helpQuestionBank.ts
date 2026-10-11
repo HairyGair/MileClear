@@ -94,7 +94,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I delete a trip?", area: "managing_trips", id: "delete-trip", expect: [/delete trip/i] },
   { q: "How do I tag a trip as Amazon Flex?", area: "managing_trips", id: "platform-tag", expect: [/which app|edit trip/i] },
   { q: "Can I see miles per client?", area: "managing_trips", id: "projects", expect: [/miles by project/i] },
-  { q: "How do I keep odometer readings for my employer?", area: "managing_trips", id: "odometer", expect: [/odometer log/i, PRO] },
+  { q: "How do I keep odometer readings for my employer?", area: "managing_trips", id: "odometer", expect: [/More > Odometer/i, PRO] },
   { q: "Can it mark my work trips automatically?", area: "managing_trips", id: "auto-classify", expect: [/sort trips automatically|3 times|automatic/i] },
   { q: "How do I undo an automatic sort on a trip?", area: "managing_trips", id: "auto-classify", expect: [/undo automatic sort/i] },
 
@@ -133,7 +133,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I add a parking receipt?", area: "money", id: "expenses", expect: [/expenses/i] },
   { q: "Is scanning receipts free?", area: "money", id: "receipts", expect: [FREE, /scan receipt/i] },
   { q: "Why does my lunch expense have a warning on it?", area: "money", id: "meal-warning", expect: [/meal/i] },
-  { q: "Can it read my bank?", area: "money", id: "bank", expect: [/link a bank/i, PRO] },
+  { q: "Can it read my bank?", area: "money", id: "bank", expect: [/More > Bank/i, PRO] },
   { q: "What's the bank inbox for?", area: "money", id: "bank", expect: [/accept as (earning|expense)|ignore/i] },
   { q: "Can I invoice a client?", area: "money", id: "invoices", expect: [/invoices/i, /3 /] },
   { q: "Do I need to log fuel?", area: "money", id: "fuel", expect: [/optional|doesn't|does not/i] },
@@ -141,7 +141,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Does it know about ULEZ charges?", area: "money", id: "caz", expect: [/log charge|expense/i] },
 
   // Vehicles and places
-  { q: "How do I add my van?", area: "vehicles_and_places", id: "add-vehicle", expect: [/vehicles/i, /look up|registration/i] },
+  { q: "How do I add my van?", area: "vehicles_and_places", id: "add-vehicle", expect: [/your cars/i, /look up|registration/i] },
   { q: "How many vehicles can I have on the free plan?", area: "vehicles_and_places", id: "add-vehicle", expect: [/\b1\b|one/i] },
   { q: "Will it remind me when my MOT is due?", area: "vehicles_and_places", id: "mot-reminders", expect: [/14 days/i] },
   { q: "How do I see my car's MOT history?", area: "vehicles_and_places", id: "mot-reminders", expect: [/view mot history/i] },
