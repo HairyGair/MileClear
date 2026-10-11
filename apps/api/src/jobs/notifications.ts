@@ -1,6 +1,7 @@
 import { runTeamMonthReadyJob } from "./teamApprovals.js";
 import { runMilesheetAlarmJob } from "./milesheetAlarm.js";
 import { runMilesheetTrialRemindersJob } from "./milesheetTrial.js";
+import { runPracticeLinksJob } from "./practiceLinks.js";
 import { devicePlatformOf, openSettingsLocationSteps } from "./activationBgLocation.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
@@ -1585,6 +1586,9 @@ export function startNotificationJobs(): void {
     // trial ends. Dry run unless MILESHEET_TRIAL_EMAILS=1; no trials exist
     // until MILESHEET_NEW_TEAMS=open.
     void runJob("milesheet_trial", runMilesheetTrialRemindersJob);
+    // Practice accounts: keep-sharing prompts 30 and 7 days before a link
+    // ends, requests that close themselves, 2-year access-log purge.
+    void runJob("practice_links", () => runPracticeLinksJob());
   };
 
   // Jobs gated to a NARROW time window must tick faster than the window is

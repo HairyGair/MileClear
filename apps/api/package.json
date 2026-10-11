@@ -37,6 +37,7 @@
     "pdfkit": "^0.17.2",
     "plaid": "^41.3.0",
     "postal-mime": "^2.4.4",
+    "qrcode": "1.5.4",
     "stripe": "^20.3.1",
     "tweetnacl": "^1.0.3",
     "zod": "^3.24.0"
@@ -48,6 +49,7 @@
     "@types/node": "^22.0.0",
     "@types/nodemailer": "^7.0.10",
     "@types/pdfkit": "^0.17.5",
+    "@types/qrcode": "1.5.5",
     "prisma": "^6.3.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",

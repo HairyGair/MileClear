@@ -924,6 +924,10 @@ export async function userRoutes(app: FastifyInstance) {
       teamApprovals,
       accountantInvites,
       accountantAccess,
+      practiceMemberships,
+      practiceLinks,
+      practiceRequests,
+      practiceAccessLogs,
       hmrcConnection,
       hmrcReconciliations,
       openBankingConnections,
@@ -1008,6 +1012,39 @@ export async function userRoutes(app: FastifyInstance) {
       prisma.accountantAccess.findMany({
         where: { userId },
         select: { id: true, accountantEmail: true, permissions: true, expiresAt: true, lastAccessedAt: true, createdAt: true },
+      }),
+      // Practice accounts: memberships (as staff), sharing links (as a
+      // client), requests and replies, and every practice read.
+      prisma.practiceMember.findMany({
+        where: { userId },
+        select: { id: true, practiceId: true, role: true, status: true, invitedAt: true, acceptedAt: true, practice: { select: { name: true } } },
+      }),
+      prisma.practiceLink.findMany({
+        where: { clientUserId: userId },
+        select: {
+          id: true,
+          status: true,
+          startedBy: true,
+          shareEarnings: true,
+          shareExpenses: true,
+          sharePersonalTrips: true,
+          consentedAt: true,
+          startedAt: true,
+          endsAt: true,
+          endedAt: true,
+          endedBy: true,
+          invitedPracticeEmail: true,
+          practice: { select: { name: true } },
+        },
+      }),
+      prisma.practiceRequest.findMany({
+        where: { clientUserId: userId },
+        select: { id: true, type: true, note: true, dueDate: true, status: true, driverReply: true, createdAt: true, doneAt: true, practice: { select: { name: true } } },
+      }),
+      prisma.practiceAccessLog.findMany({
+        where: { clientUserId: userId },
+        orderBy: { createdAt: "desc" },
+        select: { practiceName: true, actorName: true, action: true, detail: true, createdAt: true },
       }),
       prisma.hmrcConnection.findUnique({
         where: { userId },
@@ -1223,6 +1260,12 @@ export async function userRoutes(app: FastifyInstance) {
       teamApprovals,
       accountantInvites,
       accountantAccess,
+      practice: {
+        memberships: practiceMemberships,
+        links: practiceLinks,
+        requests: practiceRequests,
+        accessLog: practiceAccessLogs,
+      },
       hmrc: {
         connection: hmrcConnection
           ? { ...hmrcConnection, nino: decryptIfEncrypted(hmrcConnection.nino) }

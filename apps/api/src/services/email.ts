@@ -3304,3 +3304,153 @@ export async function sendMilesheetTrialEndingEmail(
   }
   await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
 }
+
+// ── Practice accounts (Accountant mode phase 1, Oct 2026) ─────────────────
+// Transactional, not marketing: each one is about a sharing link the
+// recipient is part of. Never logs the address or the link (driver emails
+// and invite tokens stay out of logs).
+
+async function sendPracticeMail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  label: string;
+  replyTo?: string;
+}): Promise<void> {
+  if (process.env.NODE_ENV === "test") return;
+  if (!transporter) {
+    console.log(`[EMAIL] ${opts.label} (not sent: no mail transport)`);
+    return;
+  }
+  await transporter.sendMail({
+    from: FROM,
+    to: opts.to,
+    replyTo: opts.replyTo ?? SUPPORT_INBOX,
+    subject: opts.subject,
+    html: opts.html,
+  });
+}
+
+function smallPrint(text: string): string {
+  return `        <p style="color: #6b7689; font-size: 12px; line-height: 1.6; margin: 18px 0 0;">${text}</p>`;
+}
+
+/** A practice asks a driver to share (practice-started link). */
+export async function sendPracticeClientInviteEmail(opts: {
+  to: string;
+  practiceName: string;
+  inviterName: string;
+  url: string;
+}): Promise<void> {
+  const firm = escapeHtml(opts.practiceName);
+  const who = escapeHtml(opts.inviterName);
+  const bodyHtml = [
+    para(
+      `${who} at ${firm} has asked to see your MileClear records, to help with your tax. If you say yes, they can see your business trips, earnings and expenses. They can't see your personal trips or change anything. You can stop sharing at any time.`
+    ),
+    ctaButton("Open in MileClear", opts.url),
+    smallPrint(
+      "Don't use MileClear yet? The button shows you where to get the app. Sign up with this email and the request will be waiting. The invite lasts 30 days."
+    ),
+    smallPrint("Not expecting this? Ignore it. Nothing is shared unless you say yes."),
+  ].join("\n");
+  await sendPracticeMail({
+    to: opts.to,
+    subject: `${opts.practiceName} would like to see your mileage records`,
+    html: emailShell({
+      preheader: `${firm} has asked to see your business records. Nothing is shared unless you say yes.`,
+      title: `${firm} would like to see your records`,
+      bodyHtml,
+      footerHtml: plainFooterHtml(),
+    }),
+    label: "Practice client invite",
+  });
+}
+
+/** A practice owner invites a colleague. */
+export async function sendPracticeStaffInviteEmail(opts: {
+  to: string;
+  practiceName: string;
+  inviterName: string;
+  url: string;
+}): Promise<void> {
+  const firm = escapeHtml(opts.practiceName);
+  const bodyHtml = [
+    para(
+      `${escapeHtml(opts.inviterName)} has added you to ${firm} on MileClear. You'll see the practice's client list: each driver's business miles, trips to sort and quarterly deadlines.`
+    ),
+    ctaButton("Join the practice", opts.url),
+    smallPrint(
+      "Sign in or create a free account with this email. The invite lasts 30 days. Not expecting this? Ignore it."
+    ),
+  ].join("\n");
+  await sendPracticeMail({
+    to: opts.to,
+    subject: `Join ${opts.practiceName} on MileClear`,
+    html: emailShell({
+      preheader: `${firm} has added you to its MileClear practice account.`,
+      title: `Join ${firm} on MileClear`,
+      bodyHtml,
+      footerHtml: plainFooterHtml(),
+    }),
+    label: "Practice staff invite",
+  });
+}
+
+/** A driver asks their accountant, who has no practice account yet. */
+export async function sendPracticeAccountantInviteEmail(opts: {
+  to: string;
+  driverName: string;
+  url: string;
+}): Promise<void> {
+  const driver = escapeHtml(opts.driverName);
+  const bodyHtml = [
+    para(
+      `${driver} records their mileage with MileClear and would like to share their business records with you: business trips, earnings and expenses, read only.`
+    ),
+    para(
+      "Create a free practice account to see them. Practice accounts are free for accountants and bookkeepers, with one list for all your driver clients."
+    ),
+    ctaButton("Create a free practice account", opts.url),
+    smallPrint(
+      `Use this email address when you sign up and ${driver} will be waiting in your client list. Not expecting this? Ignore it.`
+    ),
+  ].join("\n");
+  await sendPracticeMail({
+    to: opts.to,
+    subject: `${opts.driverName} would like to share their mileage records with you`,
+    html: emailShell({
+      preheader: `${driver} would like to share their business records with you on MileClear.`,
+      title: `${driver} wants to share their records`,
+      bodyHtml,
+      footerHtml: plainFooterHtml(),
+    }),
+    label: "Practice accountant invite (driver started)",
+  });
+}
+
+/** Short notices to practice staff: started, stopped, wants to join, replied. */
+export async function sendPracticeNoticeEmail(opts: {
+  to: string;
+  subject: string;
+  title: string;
+  lines: string[];
+  ctaLabel?: string;
+  ctaUrl?: string;
+}): Promise<void> {
+  const bodyHtml = [
+    ...opts.lines.map((l) => para(escapeHtml(l))),
+    opts.ctaLabel && opts.ctaUrl ? ctaButton(escapeHtml(opts.ctaLabel), opts.ctaUrl) : "",
+  ].join("\n");
+  await sendPracticeMail({
+    to: opts.to,
+    subject: opts.subject,
+    html: emailShell({
+      preheader: escapeHtml(opts.lines[0] ?? opts.title),
+      title: escapeHtml(opts.title),
+      bodyHtml,
+      footerHtml: plainFooterHtml(),
+    }),
+    label: "Practice notice",
+  });
+}
