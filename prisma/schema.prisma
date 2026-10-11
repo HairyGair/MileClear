@@ -266,6 +266,10 @@ model User {
   shiftSuggestions    ShiftSuggestion[]
   deletedTrips        DeletedTrip[]
   mileageCertificates MileageCertificate[]
+  practiceMemberships PracticeMember[]
+  practiceLinks       PracticeLink[]      @relation("PracticeClient")
+  practiceRequests    PracticeRequest[]   @relation("PracticeRequestClient")
+  practiceAccessLogs  PracticeAccessLog[] @relation("PracticeAccessClient")
 
   @@map("users")
 }
@@ -1996,4 +2000,206 @@ model AdDailyStat {
   @@unique([campaignId, date])
   @@index([campaignId])
   @@map("ad_daily_stats")
+}
+
+// ── Practice accounts (Accountant mode phase 1, Oct 2026) ─────────────────
+// Free accounts for accountants and bookkeepers. A practice has members
+// (ordinary MileClear users with a role), and links to drivers. Nothing is
+// shared until the driver says yes in the app; a driver-started link also
+// waits for the practice to accept. Design: docs/accountant-mode-oct2026.
+
+model Practice {
+  id               String    @id @default(uuid())
+  name             String    @db.VarChar(160)
+  contactName      String    @db.VarChar(120)
+  /// The firm's work email at sign-up (lower case).
+  email            String    @db.VarChar(255)
+  phone            String?   @db.VarChar(40)
+  /// ICAEW | ACCA | AAT | ATT | CIOT | ICB | IAB | other | none
+  professionalBody String?   @db.VarChar(16)
+  /// Agent Reference Number, free text, optional (phase 3 only).
+  arn              String?   @db.VarChar(20)
+  /// unchecked | checked. Drivers see "Not checked yet" until an admin
+  /// ticks the practice. Checking also covers the current logo.
+  status           String    @default("unchecked") @db.VarChar(12)
+  checkedAt        DateTime?
+  checkedByUserId  String?   @db.VarChar(36)
+  /// Paused by an admin: nothing is shared while set.
+  suspendedAt      DateTime?
+  /// Short code for the join link (mileclear.com/join/CODE). Reset makes
+  /// the old one stop working.
+  joinCode         String    @unique @db.VarChar(16)
+  /// Times a driver pressed "Don't know them? Report this".
+  reportCount      Int       @default(0)
+  lastReportedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  members    PracticeMember[]
+  links      PracticeLink[]
+  requests   PracticeRequest[]
+  accessLogs PracticeAccessLog[]
+  logo       PracticeLogo?
+
+  @@index([status])
+  @@map("practices")
+}
+
+/// The firm's logo. Drivers see it only once an admin has checked the
+/// practice AND this logo (checkedAt set and not older than updatedAt);
+/// until then they see the initials tile. Same storage as UserLogo.
+model PracticeLogo {
+  practiceId String    @id
+  data       Bytes     @db.MediumBlob
+  mime       String    @db.VarChar(40)
+  bytes      Int
+  updatedAt  DateTime
+  checkedAt  DateTime?
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+
+  @@map("practice_logos")
+}
+
+model PracticeMember {
+  id              String    @id @default(uuid())
+  practiceId      String
+  /// Null until a staff invite is accepted by a signed-in user.
+  userId          String?
+  /// owner | staff
+  role            String    @default("staff") @db.VarChar(8)
+  /// invited | active | removed
+  status          String    @default("invited") @db.VarChar(10)
+  invitedEmail    String    @db.VarChar(255)
+  /// sha256 of the invite token; the raw token exists only in the email.
+  inviteTokenHash String?   @unique @db.VarChar(64)
+  inviteExpiresAt DateTime?
+  invitedAt       DateTime  @default(now())
+  acceptedAt      DateTime?
+  removedAt       DateTime?
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, invitedEmail])
+  @@index([userId, status])
+  @@map("practice_members")
+}
+
+model PracticeLink {
+  id                   String    @id @default(uuid())
+  /// Null only while a driver has invited an accountant who has no
+  /// practice yet (invitedPracticeEmail); filled when they sign up.
+  practiceId           String?
+  /// Null while a practice invite waits for someone not on MileClear yet.
+  clientUserId         String?
+  /// invited | pending_practice | active | ended | declined | cancelled
+  status               String    @default("invited") @db.VarChar(20)
+  /// practice | driver
+  startedBy            String    @db.VarChar(10)
+  /// Who the practice invited (lower case). Matched to the driver's
+  /// account email when they sign in.
+  invitedEmail         String?   @db.VarChar(255)
+  invitedName          String?   @db.VarChar(120)
+  /// The accountant's email a driver typed in, when it matched no practice.
+  invitedPracticeEmail String?   @db.VarChar(255)
+  inviteTokenHash      String?   @unique @db.VarChar(64)
+  inviteExpiresAt      DateTime?
+  invitedAt            DateTime?
+  lastResentAt         DateTime?
+  createdByMemberId    String?   @db.VarChar(36)
+  /// What the driver chose to share. Business trips, vehicles and the
+  /// mileage claim are always shared once the link is live.
+  shareEarnings        Boolean   @default(true)
+  shareExpenses        Boolean   @default(true)
+  /// Off by default; only the driver can turn it on.
+  sharePersonalTrips   Boolean   @default(false)
+  /// When the driver said yes in the app.
+  consentedAt          DateTime?
+  /// When the link went live (both sides agreed).
+  startedAt            DateTime?
+  /// Sharing lasts until the 31 January filing deadline for the tax year
+  /// it started in. Null on a live link fails closed.
+  endsAt               DateTime?
+  renewalAskedAt       DateTime?
+  renewalRemindedAt    DateTime?
+  endedAt              DateTime?
+  /// driver | practice | expiry | admin | report
+  endedBy              String?   @db.VarChar(10)
+  /// Last time the practice pressed "Ask again" after an ending.
+  askedAgainAt         DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  practice Practice? @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  client   User?     @relation("PracticeClient", fields: [clientUserId], references: [id], onDelete: Cascade)
+
+  @@unique([practiceId, clientUserId])
+  @@index([clientUserId, status])
+  @@index([practiceId, status])
+  @@index([invitedEmail])
+  @@index([invitedPracticeEmail])
+  @@map("practice_links")
+}
+
+model PracticeRequest {
+  id                String    @id @default(uuid())
+  practiceId        String
+  clientUserId      String
+  /// sort_trips | add_earnings | add_expenses | check_details | other
+  type              String    @db.VarChar(16)
+  note              String?   @db.VarChar(300)
+  dueDate           DateTime? @db.Date
+  /// The period an earnings or expenses request is about.
+  periodStart       DateTime? @db.Date
+  periodEnd         DateTime? @db.Date
+  /// Trips to sort when the request was sent ("Please sort your trips (12)").
+  countAtSend       Int?
+  /// open | done | cancelled
+  status            String    @default("open") @db.VarChar(10)
+  /// auto (closed itself) | driver (tapped Done)
+  doneHow           String?   @db.VarChar(8)
+  doneAt            DateTime?
+  driverReply       String?   @db.VarChar(200)
+  repliedAt         DateTime?
+  lastRemindedAt    DateTime?
+  createdByMemberId String?   @db.VarChar(36)
+  createdByName     String?   @db.VarChar(120)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  practice Practice @relation(fields: [practiceId], references: [id], onDelete: Cascade)
+  client   User     @relation("PracticeRequestClient", fields: [clientUserId], references: [id], onDelete: Cascade)
+
+  @@index([practiceId, status])
+  @@index([clientUserId, status])
+  @@map("practice_requests")
+}
+
+/// Every practice read or download, and every sharing change, so the
+/// driver can see who looked and when. Kept 2 years. Names are copied in
+/// so the row still reads correctly after a staff member leaves.
+model PracticeAccessLog {
+  id           String   @id @default(uuid())
+  practiceId   String?
+  practiceName String   @db.VarChar(160)
+  memberId     String?  @db.VarChar(36)
+  /// Staff member's name when a practice person did it; null for the driver.
+  actorName    String?  @db.VarChar(120)
+  clientUserId String
+  /// viewed_list | viewed_client | viewed_trips | viewed_earnings |
+  /// viewed_expenses | viewed_details | exported_csv | exported_pdf |
+  /// exported_summary | sent_request | started_sharing | kept_sharing |
+  /// changed_sharing | stopped_sharing
+  action       String   @db.VarChar(24)
+  detail       Json?
+  createdAt    DateTime @default(now())
+
+  practice Practice? @relation(fields: [practiceId], references: [id], onDelete: SetNull)
+  client   User      @relation("PracticeAccessClient", fields: [clientUserId], references: [id], onDelete: Cascade)
+
+  @@index([clientUserId, createdAt])
+  @@index([practiceId, createdAt])
+  @@index([createdAt])
+  @@map("practice_access_logs")
 }
