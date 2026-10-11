@@ -28,7 +28,7 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { logEvent } from "../services/appEvents.js";
-import { postFounderAlert } from "../services/discord.js";
+import { postFounderAlert, discordUserLabel } from "../services/discord.js";
 import { sendActivationNudgeEmail, sendBgLocationNudgeEmail } from "../services/email.js";
 import { resolvePremiumStatus } from "../services/referral.js";
 import { classifyProSource, loadSandboxTxnIds } from "../services/subscriptionTruth.js";
@@ -778,7 +778,6 @@ export async function runPayingInactiveAlarmJob(): Promise<void> {
     },
     select: {
       id: true,
-      email: true,
       displayName: true,
       createdAt: true,
       pushToken: true,
@@ -808,7 +807,6 @@ export async function runPayingInactiveAlarmJob(): Promise<void> {
     if (await wasEverNotified(user.id, "notification.pro_inactive")) continue;
 
     logEvent("notification.pro_inactive", user.id, {
-      email: user.email,
       accountAgeDays: Math.round((now.getTime() - user.createdAt.getTime()) / 86_400_000),
     });
 
@@ -830,7 +828,8 @@ export async function runPayingInactiveAlarmJob(): Promise<void> {
     await postFounderAlert({
       severity: "warning",
       title: "Paying user has never activated",
-      detail: `${user.displayName ?? user.email} (${user.email}) — Pro, joined ${user.createdAt.toISOString().slice(0, 10)}, zero trips/invoices/earnings. Worth a personal email before they churn like JRD Electrical.`,
+      detail: `${discordUserLabel(user)} — Pro, joined ${user.createdAt.toISOString().slice(0, 10)}, zero trips/invoices/earnings. Worth a personal email before they churn like JRD Electrical.`,
+      link: `https://mileclear.com/dashboard/admin?user=${user.id}`,
       userId: user.id,
     });
   }

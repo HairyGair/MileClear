@@ -392,7 +392,7 @@ export async function tripRoutes(app: FastifyInstance) {
     const reportedDate = parseReportedDate(parsed.data.reportedDate);
 
     const [user, latestDump] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId }, select: { email: true, displayName: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } }),
       prisma.diagnosticDump.findFirst({
         where: { userId },
         orderBy: { capturedAt: "desc" },
@@ -433,12 +433,12 @@ export async function tripRoutes(app: FastifyInstance) {
     // Best-effort Discord post — import locally to avoid widening the route's
     // import surface, and never let a Discord failure fail the user's report.
     try {
-      const { postToChannel } = await import("../../services/discord.js");
+      const { postToChannel, discordUserLabel } = await import("../../services/discord.js");
       await postToChannel("tripReports", {
         embeds: [
           {
             title: "Missing trip reported",
-            description: `**${user?.displayName || user?.email || userId}**\n\n${driveLine}\n\n> ${note}\n\n${dumpLine}${
+            description: `**${discordUserLabel({ id: userId, displayName: user?.displayName })}**\n\n${driveLine}\n\n> ${note}\n\n${dumpLine}${
               phoneLogSummary ? `\nPhone log: ${phoneLogSummary.line}` : ""
             }`,
             color: 0xf5a623,

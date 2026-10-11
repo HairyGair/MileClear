@@ -10,7 +10,7 @@
 import type { FastifyRequest } from "fastify";
 import geoip from "geoip-lite";
 import { prisma } from "../lib/prisma.js";
-import { postFounderAlert } from "./discord.js";
+import { postFounderAlert, discordUserLabel } from "./discord.js";
 import { slackNewUser } from "./slack.js";
 
 export type Platform = "ios" | "android" | "web" | "unknown";
@@ -90,7 +90,8 @@ export async function onUserRegistered(
         platformsSeen: mergePlatforms(null, platform),
       },
     });
-    const who = user.displayName ? `${user.displayName} (${user.email ?? "no email"})` : (user.email ?? "no email");
+    // No email address: Discord and Slack are third parties (GDPR audit H3).
+    const who = discordUserLabel(user);
     const lines = [
       who,
       `${PLATFORM_LABEL[platform]} · ${METHOD_LABEL[method] ?? method}`,

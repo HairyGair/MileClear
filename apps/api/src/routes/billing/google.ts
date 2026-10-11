@@ -19,6 +19,7 @@ import { notifyBillingEvent } from "../../services/billingAlerts.js";
 import { planFromGoogleSubscription } from "../../services/googlePlayBilling.js";
 import { sendProWelcomeEmail } from "../../services/email.js";
 import { checkOrphanAfterGrace } from "../../services/googleOrphanCheck.js";
+import { discordUserLabel } from "../../services/discord.js";
 
 /**
  * Google Play Billing routes — the Android counterpart to apple.ts.
@@ -111,7 +112,7 @@ export async function googleBillingRoutes(app: FastifyInstance) {
           kind: "subscription.new",
           tier: "celebrate",
           title: "Pro subscription validated (Android) 🎉",
-          body: `${fullUser?.displayName || fullUser?.email || request.userId}'s Google Play subscription just bound to their MileClear account.`,
+          body: `${fullUser?.displayName || request.userId}'s Google Play subscription just bound to their MileClear account.`,
           userId: request.userId!,
           userEmail: fullUser?.email ?? null,
           plan: planFromGoogleSubscription(sub),
@@ -259,7 +260,7 @@ export async function googleBillingRoutes(app: FastifyInstance) {
           kind: "subscription.payment_failed",
           tier: "act_now",
           title: "Google Play subscription on hold",
-          body: `${user.displayName || user.email}'s payment failed and the subscription is on hold.`,
+          body: `${discordUserLabel(user)}'s payment failed and the subscription is on hold.`,
           userId: user.id,
           userEmail: user.email,
           details: { platform: "google" },
@@ -269,7 +270,7 @@ export async function googleBillingRoutes(app: FastifyInstance) {
           kind: "subscription.revoked",
           tier: "act_now",
           title: "Google Play subscription ended",
-          body: `${user.displayName || user.email}'s subscription was revoked or expired (RTDN ${sn.notificationType}).`,
+          body: `${discordUserLabel(user)}'s subscription was revoked or expired (RTDN ${sn.notificationType}).`,
           userId: user.id,
           userEmail: user.email,
           details: { platform: "google" },

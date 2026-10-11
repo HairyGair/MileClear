@@ -173,7 +173,7 @@ export async function billingRoutes(app: FastifyInstance) {
             title: event.livemode
               ? `New Pro subscriber via web 🎉`
               : `[TEST MODE - not real money] Stripe test subscription`,
-            body: `${fullUser?.displayName || fullUser?.email || userId} just subscribed via Stripe Checkout.`,
+            body: `${fullUser?.displayName || userId} just subscribed via Stripe Checkout.`,
             userId,
             userEmail: fullUser?.email ?? null,
             // Stripe Checkout sells one price today (STRIPE_PRICE_ID, monthly);
@@ -246,7 +246,7 @@ export async function billingRoutes(app: FastifyInstance) {
             kind: "subscription.revoked",
             tier: "aware",
             title: "Stripe subscription cancelled",
-            body: `${fullUser?.displayName || fullUser?.email || customerId} cancelled their Stripe subscription. Pro access removed.`,
+            body: `${fullUser?.displayName || customerId} cancelled their Stripe subscription. Pro access removed.`,
             userId: fullUser?.id ?? null,
             userEmail: fullUser?.email ?? null,
             details: { platform: "stripe", customerId },
@@ -286,7 +286,7 @@ export async function billingRoutes(app: FastifyInstance) {
               kind: "subscription.payment_failed",
               tier: "act_now",
               title: "Stripe payment failed on renewal",
-              body: `${user?.displayName || user?.email || customerId}'s renewal payment failed. They've been pushed to update payment; consider following up.`,
+              body: `${user?.displayName || customerId}'s renewal payment failed. They've been pushed to update payment; consider following up.`,
               userId: user?.id ?? null,
               userEmail: user?.email ?? null,
               details: { platform: "stripe", customerId },

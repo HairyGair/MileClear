@@ -107,16 +107,15 @@ export async function slackAndroidRequest(args: {
 export async function slackNewSubscriber(args: {
   title: string;
   body?: string;
-  userEmail?: string;
   userId?: string;
   platform?: string;
   plan?: "monthly" | "annual";
 }): Promise<boolean> {
   const planLabel = args.plan === "annual" ? "Annual (£44.99/yr)" : args.plan === "monthly" ? "Monthly (£4.99/mo)" : null;
-  const head = `*${slackEscape(args.title)}*` + (planLabel ? `  ·  ${planLabel}` : "") + (args.userEmail ? `\n${slackEscape(args.userEmail)}` : "");
+  const head = `*${slackEscape(args.title)}*` + (planLabel ? `  ·  ${planLabel}` : "");
   const meta = [args.platform, args.userId ? `ID ${args.userId}` : null].filter(Boolean).map((s) => slackEscape(String(s)));
   return postToSlackFounder({
-    text: `${args.title}${planLabel ? " (" + planLabel + ")" : ""}${args.userEmail ? ": " + args.userEmail : ""}`,
+    text: `${args.title}${planLabel ? " (" + planLabel + ")" : ""}`,
     blocks: [
       section(head + (args.body ? `\n${slackEscape(args.body)}` : "")),
       ...(meta.length ? [context(meta.join("  ·  "))] : []),

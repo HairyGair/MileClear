@@ -157,7 +157,15 @@ function buildUsersWhere(f: UsersListFilters, sandboxTxns: string[]): Prisma.Use
   const now = new Date();
 
   if (f.q) {
-    and.push({ OR: [{ email: { contains: f.q } }, { displayName: { contains: f.q } }] });
+    // id prefix: Discord/Slack posts name a driver as "Sam (1a2b3c4d)"
+    // rather than by email (GDPR audit H3), so the short id must find them.
+    and.push({
+      OR: [
+        { email: { contains: f.q } },
+        { displayName: { contains: f.q } },
+        { id: { startsWith: f.q } },
+      ],
+    });
   }
   if (f.plan === "premium") and.push({ isPremium: true });
   if (f.plan === "free") and.push({ isPremium: false });

@@ -7,7 +7,7 @@ import { sendFeedbackAcknowledgement, sendFeedbackReplyNotification, sendFeedbac
 import { buildBoard, legacyListVisibility } from "../../services/feedbackBoard.js";
 import { createAppReport, isPrivateFeedbackCategory } from "../../services/supportReports.js";
 import { logEvent } from "../../services/appEvents.js";
-import { postFounderAlert } from "../../services/discord.js";
+import { postFounderAlert, discordUserLabel } from "../../services/discord.js";
 import { sendPushToUser } from "../../lib/push.js";
 
 function sanitizeText(input: string): string {
@@ -141,11 +141,11 @@ export async function feedbackRoutes(app: FastifyInstance) {
           const author = request.userId
             ? await prisma.user.findUnique({
                 where: { id: request.userId },
-                select: { email: true, displayName: true, isPremium: true, _count: { select: { trips: true } } },
+                select: { id: true, displayName: true, isPremium: true, _count: { select: { trips: true } } },
               })
             : null;
           const who = author
-            ? `${author.displayName || author.email} (${author.isPremium ? "Pro" : "free"}, ${author._count.trips} trips)`
+            ? `${discordUserLabel(author)} (${author.isPremium ? "Pro" : "free"}, ${author._count.trips} trips)`
             : "anonymous";
           await postFounderAlert({
             severity: "info",
