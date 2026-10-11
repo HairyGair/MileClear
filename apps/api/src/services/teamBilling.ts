@@ -305,7 +305,7 @@ export async function handleTeamSubscriptionEvent(event: Stripe.Event): Promise<
         kind: "subscription.revoked",
         tier: "act_now",
         title: "Team subscription cancelled",
-        body: `${org.name}'s (${org.billingEmail ?? "no billing email"}) team seat subscription was cancelled. Driver Pro access is UNCHANGED - team Pro follows active membership, not billing. Decide by hand whether to disable the org.`,
+        body: `${org.name}'s team seat subscription was cancelled. Driver Pro access is UNCHANGED - team Pro follows active membership, not billing. Decide by hand whether to disable the org.`,
         userId: null,
         userEmail: org.billingEmail,
         details: { orgId: org.id },

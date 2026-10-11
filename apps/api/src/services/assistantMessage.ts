@@ -14,7 +14,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
-import { postFounderAlert } from "./discord.js";
+import { postFounderAlert, discordUserLabel } from "./discord.js";
 import { sendAdminEmail } from "./email.js";
 
 export const MESSAGE_SENT_EVENT = "assistant.message_sent";
@@ -90,7 +90,7 @@ export async function messageTheTeam(userId: string, rawInput: unknown, now: Dat
     try {
       await postFounderAlert({
         severity: "info",
-        title: `EmSee ${label.toLowerCase()} from ${name}`,
+        title: `EmSee ${label.toLowerCase()} from ${discordUserLabel({ id: userId, displayName: user.displayName, fullName: user.fullName })}`,
         detail: input.message.slice(0, 400),
         userId,
       });
@@ -99,7 +99,7 @@ export async function messageTheTeam(userId: string, rawInput: unknown, now: Dat
         select: { id: true },
       });
       for (const a of admins) {
-        await sendPushToUser(a.id, `EmSee ${label.toLowerCase()}`, `${name}: ${input.message.slice(0, 120)}`, { action: "open_feedback" }, { ignoreQuietHours: true }).catch(() => {});
+        await sendPushToUser(a.id, `EmSee ${label.toLowerCase()}`, `${discordUserLabel({ id: userId, displayName: user.displayName, fullName: user.fullName })}: ${input.message.slice(0, 120)}`, { action: "open_feedback" }, { ignoreQuietHours: true }).catch(() => {});
       }
     } catch (err) {
       console.error("[assistant] team message alert failed:", err);

@@ -3,9 +3,9 @@ import { haversineDistance } from "@mileclear/shared";
 
 // Geographic density for the admin map. Aggregates trip start/end points
 // onto a lat/lng grid and enriches each cell with reach, growth, premium
-// and platform signals. Admin-only — the k-anonymity floor defaults to 1
-// here (admin already sees individual users); it stays configurable so we
-// can compare against the user-facing community-insights floor of 5.
+// and platform signals. Admin-only. The k-anonymity floor defaults to 5
+// (11 Oct 2026, was 1) so a cell never pins one driver's home by default;
+// it stays configurable down to 1 for a deliberate look.
 
 export interface DensityCell {
   lat: number;

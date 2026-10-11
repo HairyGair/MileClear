@@ -18,6 +18,8 @@
  * land here, then in {@link channelWebhookUrl}, then a webhook is
  * created in Discord (Channel → Integrations → Webhooks).
  */
+import { redactNinoInText } from "../lib/redactUrl.js";
+
 export type DiscordChannel =
   | "whatsNew" // #whats-new — build/release notes
   | "announcements" // #announcements — public-facing news (App Store reviews, big milestones)
@@ -77,6 +79,35 @@ export interface DiscordEmbed {
   timestamp?: string; // ISO8601
 }
 
+/**
+ * How a driver is named in a Discord or Slack post: first name plus a short
+ * id, e.g. "Sam (1a2b3c4d)". Never an email address.
+ *
+ * GDPR audit H3 (14 Aug 2026): cron posts to #founder listed up to 45 email
+ * addresses a run, and every alert that fell back to `displayName || email`
+ * did the same. Discord is a third party with its own retention, so it gets
+ * only what a person needs to recognise the driver and find them: the first
+ * word of the name they chose, and the start of their user id, which the admin
+ * user search matches (`q=1a2b3c4d`). The full id still goes in a "User ID"
+ * field where a post has one.
+ *
+ * A "name" that is itself an email address (people type one into the name
+ * box) is treated as no name.
+ */
+export function discordUserLabel(user: {
+  id: string;
+  displayName?: string | null;
+  fullName?: string | null;
+}): string {
+  const shortId = user.id.slice(0, 8);
+  const firstWord = (s: string | null | undefined) => {
+    const w = (s ?? "").trim().split(/\s+/)[0] ?? "";
+    return w && !w.includes("@") ? w.slice(0, 40) : "";
+  };
+  const name = firstWord(user.displayName) || firstWord(user.fullName);
+  return name ? `${name} (${shortId})` : `Driver ${shortId}`;
+}
+
 export interface PostOptions {
   /** Plain message body (Markdown supported). */
   content?: string;
@@ -88,6 +119,46 @@ export interface PostOptions {
   avatarUrl?: string;
   /** Suppress @everyone, @here, and role mentions even if present in content. */
   suppressMentions?: boolean;
+  /**
+   * Let email addresses through the scrub. Only for a post whose whole
+   * point is the address (an Android tester request someone made by giving
+   * it to us, which has to be pasted into Play Console). Everything else
+   * names drivers with discordUserLabel.
+   */
+  allowEmails?: boolean;
+}
+
+const EMAIL_RE = /[A-Z0-9._%+-]+@([A-Z0-9-]+\.)+[A-Z]{2,}/gi;
+export const EMAIL_HIDDEN = "[email hidden]";
+
+/** Replace email addresses, except our own (support@mileclear.com etc.). */
+export function redactEmails(text: string): string {
+  return text.replace(EMAIL_RE, (m) => (/@mileclear\.com$/i.test(m) ? m : EMAIL_HIDDEN));
+}
+
+/**
+ * The last line of defence before a post leaves for Discord (GDPR audit H3):
+ * email addresses and National Insurance Numbers are removed from the
+ * content and every text part of every embed, whichever call site built it.
+ * Pure, so it is unit tested; returns a new object.
+ */
+export function scrubDiscordPost(options: PostOptions): PostOptions {
+  const scrub = (s: string | undefined) => {
+    if (s == null) return s;
+    const noNino = redactNinoInText(s);
+    return options.allowEmails ? noNino : redactEmails(noNino);
+  };
+  return {
+    ...options,
+    content: scrub(options.content),
+    embeds: options.embeds?.map((e) => ({
+      ...e,
+      title: scrub(e.title),
+      description: scrub(e.description),
+      fields: e.fields?.map((f) => ({ ...f, name: scrub(f.name)!, value: scrub(f.value)! })),
+      footer: e.footer ? { text: scrub(e.footer.text)! } : undefined,
+    })),
+  };
 }
 
 /**
@@ -96,7 +167,7 @@ export interface PostOptions {
  * failed. Never throws — Discord posts are best-effort by design.
  *
  * Example:
- *   await postToChannel("botLogs", { content: "Pro signup: " + email });
+ *   await postToChannel("botLogs", { content: "Pro signup: " + discordUserLabel(user) });
  *
  *   await postToChannel("announcements", {
  *     embeds: [{
@@ -120,9 +191,10 @@ export async function postToChannel(
     return false;
   }
 
+  const safe = scrubDiscordPost(options);
   const body: Record<string, unknown> = {};
-  if (options.content) body.content = options.content;
-  if (options.embeds && options.embeds.length > 0) body.embeds = options.embeds;
+  if (safe.content) body.content = safe.content;
+  if (safe.embeds && safe.embeds.length > 0) body.embeds = safe.embeds;
   if (options.username) body.username = options.username;
   if (options.avatarUrl) body.avatar_url = options.avatarUrl;
   if (options.suppressMentions) {
@@ -266,6 +338,8 @@ export async function postFounderAlert(args: {
   detail?: string;
   userId?: string;
   link?: string;
+  /** See PostOptions.allowEmails. */
+  allowEmails?: boolean;
 }): Promise<void> {
   const colour =
     args.severity === "critical"
@@ -287,5 +361,6 @@ export async function postFounderAlert(args: {
       },
     ],
     suppressMentions: true,
+    allowEmails: args.allowEmails,
   });
 }

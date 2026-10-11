@@ -7,6 +7,7 @@ import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/p
 import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
+import { runPrivacyPurgeJob } from "./privacyPurge.js";
 import { runReconciliationJob } from "./reconciliation.js";
 import { runGeofenceRadiusRecommendJob } from "./geofenceRadiusRecommend.js";
 import { runHmrcKeepAliveJob } from "./hmrcKeepAlive.js";
@@ -52,7 +53,7 @@ import {
   runSaDeadlineEmailJob,
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
-import { postFounderAlert } from "../services/discord.js";
+import { postFounderAlert, discordUserLabel } from "../services/discord.js";
 import { shouldSendStuckRecordingAlert } from "../services/stuckRecordingRule.js";
 import { CLEARTRACK_QUIET_DAYS, planClearTrackAlert } from "../services/clearTrackAlertRule.js";
 import { findPhonesQuietAfterLowBattery, PHONE_QUIET_BODY, PHONE_QUIET_TITLE } from "../services/phoneQuiet.js";
@@ -967,7 +968,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
       capturedAt: true,
       verdict: true,
       statusJson: true,
-      user: { select: { email: true } },
+      user: { select: { displayName: true } },
     },
   });
 
@@ -981,7 +982,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   let nativeTotal = 0;
   let permissionGated = 0;
   let userDisabled = 0;
-  const unhealthy: { email: string; userId: string }[] = [];
+  const unhealthy: { label: string; userId: string }[] = [];
   for (const d of latest.values()) {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
     if (status.nativeEngineEnabled !== true) continue; // native-engine devices only
@@ -1003,7 +1004,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
         // problem, not a ClearTrack bug. Counting those as engine errors would
         // flood the rollback signal with the foreground-only cohort (handled by
         // the welcome nudge + dashboard banner, not by rolling the engine back).
-        unhealthy.push({ email: d.user.email ?? d.userId, userId: d.userId });
+        unhealthy.push({ label: discordUserLabel({ id: d.userId, displayName: d.user.displayName }), userId: d.userId });
       } else {
         permissionGated++;
       }
@@ -1052,7 +1053,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   });
   const eligibleIds = eligible.map((d) => d.userId);
 
-  const silent: { email: string; userId: string; staleShift?: boolean }[] = [];
+  const silent: { label: string; userId: string; staleShift?: boolean }[] = [];
   if (eligibleIds.length > 0) {
     const [recentCounts, baselineCounts] = await Promise.all([
       prisma.trip.groupBy({
@@ -1084,7 +1085,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
       const sStatus = (d.statusJson ?? {}) as Record<string, unknown>;
       const asid = sStatus.activeShiftId;
       const staleShift = typeof asid === "string" && asid.length > 0 && asid !== "null";
-      silent.push({ email: d.user.email ?? d.userId, userId: d.userId, staleShift });
+      silent.push({ label: discordUserLabel({ id: d.userId, displayName: d.user.displayName }), userId: d.userId, staleShift });
     }
   }
 
@@ -1110,7 +1111,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // positive had an auto trip AFTER the lock began, and Duncan had none.
   const STUCK_LOCK_MIN_MS = 3 * 60 * 60 * 1000;
   const lockCandidates: {
-    email: string;
+    label: string;
     userId: string;
     heldHours: number;
     lockStartedAt: Date;
@@ -1127,14 +1128,14 @@ async function runNativeEngineHealthJob(): Promise<void> {
     const heldMs = d.capturedAt.getTime() - startedMs;
     if (heldMs < STUCK_LOCK_MIN_MS) continue;
     lockCandidates.push({
-      email: d.user.email ?? d.userId,
+      label: discordUserLabel({ id: d.userId, displayName: d.user.displayName }),
       userId: d.userId,
       heldHours: Math.round(heldMs / 3_600_000),
       lockStartedAt: new Date(startedMs),
     });
   }
 
-  const stuckLock: { email: string; userId: string; heldHours: number }[] = [];
+  const stuckLock: { label: string; userId: string; heldHours: number }[] = [];
   if (lockCandidates.length > 0) {
     // One query for the whole candidate set, from the oldest lock onwards.
     const earliest = new Date(
@@ -1159,7 +1160,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
         (ms) => ms >= c.lockStartedAt.getTime()
       );
       if (capturedSince) continue; // lock open, but the engine is still recording
-      stuckLock.push({ email: c.email, userId: c.userId, heldHours: c.heldHours });
+      stuckLock.push({ label: c.label, userId: c.userId, heldHours: c.heldHours });
     }
   }
 
@@ -1181,7 +1182,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     ...unhealthy.map((u) => u.userId),
     ...silent.map((u) => u.userId),
   ]);
-  const stranded: { email: string; userId: string; detail: string }[] = [];
+  const stranded: { label: string; userId: string; detail: string }[] = [];
   let strandedFunctional = 0;
   for (const d of latest.values()) {
     const status = (d.statusJson ?? {}) as Record<string, unknown>;
@@ -1208,7 +1209,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     // Only escalate stranded devices that are ALSO impaired; a functional one
     // (launching + capturing fine on an older bundle) is noise.
     if (impairedIds.has(d.userId)) {
-      stranded.push({ email: d.user.email ?? d.userId, userId: d.userId, detail });
+      stranded.push({ label: discordUserLabel({ id: d.userId, displayName: d.user.displayName }), userId: d.userId, detail });
     } else {
       strandedFunctional++;
     }
@@ -1256,7 +1257,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
 
   const sections: string[] = [];
   if (unhealthy.length > 0) {
-    const list = unhealthy.slice(0, 15).map((u) => `• ${u.email}${isNew(u.userId)}`).join("\n");
+    const list = unhealthy.slice(0, 15).map((u) => `• ${u.label}${isNew(u.userId)}`).join("\n");
     sections.push(
       `Verdict "error" in the last 12h (background permission granted):\n${list}` +
         (unhealthy.length > 15 ? `\n…and ${unhealthy.length - 15} more` : "")
@@ -1265,7 +1266,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   if (silent.length > 0) {
     const list = silent
       .slice(0, 15)
-      .map((u) => `• ${u.email}${isNew(u.userId)}${u.staleShift ? " — stuck active shift (mutes the engine)" : ""}`)
+      .map((u) => `• ${u.label}${isNew(u.userId)}${u.staleShift ? " — stuck active shift (mutes the engine)" : ""}`)
       .join("\n");
     sections.push(
       `SILENT non-capture — previously-active drivers (≥${BASELINE_MIN_AUTO_TRIPS} auto trips in the prior 14d), app alive, ` +
@@ -1275,7 +1276,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
     );
   }
   if (stranded.length > 0) {
-    const list = stranded.slice(0, 15).map((u) => `• ${u.email}${isNew(u.userId)} — ${u.detail}`).join("\n");
+    const list = stranded.slice(0, 15).map((u) => `• ${u.label}${isNew(u.userId)} — ${u.detail}`).join("\n");
     sections.push(
       `STRANDED + IMPAIRED — on a pre-update-aware bundle AND showing trouble (silent non-capture ` +
         `or error verdict), so no OTA we ship reaches them. These need a binary update ` +
@@ -1287,7 +1288,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   if (stuckLock.length > 0) {
     const list = stuckLock
       .slice(0, 15)
-      .map((u) => `• ${u.email}${isNew(u.userId)} — lock held ${u.heldHours}h`)
+      .map((u) => `• ${u.label}${isNew(u.userId)} — lock held ${u.heldHours}h`)
       .join("\n");
     sections.push(
       `STUCK QUICK-TRIP LOCK — a Start Trip that was never finished AND nothing captured ` +
@@ -1689,6 +1690,12 @@ export function startNotificationJobs(): void {
     const PURGE_INTERVAL_MS = 60 * 60 * 1000;
     void runJob("idempotency_purge", runIdempotencyPurgeJob);
     setInterval(() => void runJob("idempotency_purge", runIdempotencyPurgeJob), PURGE_INTERVAL_MS);
+
+    // Privacy purge: daily. Expired refresh tokens, sign-in and reset codes,
+    // and cached routes nobody has used in 90 days (jobs/privacyPurge.ts).
+    const PRIVACY_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    void runJob("privacy_purge", () => runPrivacyPurgeJob());
+    setInterval(() => void runJob("privacy_purge", () => runPrivacyPurgeJob()), PRIVACY_PURGE_INTERVAL_MS);
 
     // Fuel station cache pre-warm: every 12 minutes. Keeps the 15-minute
     // in-memory cache fresh so user-facing /fuel/prices requests never

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
-import { postFounderAlert } from "./discord.js";
+import { postFounderAlert, discordUserLabel } from "./discord.js";
 import { buildDeviceContext } from "./supportContext.js";
 
 // In-app problem reports and replies (feedback redesign, 6 Oct 2026). They
@@ -83,7 +83,7 @@ async function storeAppMessage(args: {
   body: string;
   inReplyTo?: string | null;
   images: DecodedImage[];
-}): Promise<{ id: string; fromName: string }> {
+}): Promise<{ id: string; fromName: string; alertName: string }> {
   const user = await prisma.user.findUnique({
     where: { id: args.userId },
     select: { email: true, displayName: true, fullName: true },
@@ -113,7 +113,9 @@ async function storeAppMessage(args: {
     },
     select: { id: true },
   });
-  return { id: row.id, fromName };
+  // The Discord alert names the driver without their email (GDPR audit H3).
+  const alertName = discordUserLabel({ id: args.userId, displayName: user.displayName, fullName: user.fullName });
+  return { id: row.id, fromName, alertName };
 }
 
 /** A new private problem report from the app. Returns its thread key. */
@@ -126,7 +128,7 @@ export async function createAppReport(args: {
 }): Promise<string> {
   const threadKey = `app-${randomUUID()}`;
   const subject = reportSubject(args.subject, args.body);
-  const { fromName } = await storeAppMessage({
+  const { alertName } = await storeAppMessage({
     threadKey,
     userId: args.userId,
     subject,
@@ -141,7 +143,7 @@ export async function createAppReport(args: {
   // A subject made from the message's own first line would print it twice.
   const typedSubject = !!args.subject?.trim();
   void notifyAdmins(
-    `Problem report from ${fromName}`,
+    `Problem report from ${alertName}`,
     typedSubject ? `${subject}\n\n${args.body}` : args.body,
     args.userId
   );
@@ -167,7 +169,7 @@ export async function addAppReply(args: {
   });
   const base = first?.subject ?? last?.subject ?? "Problem report";
   const subject = /^\s*re\s*:/i.test(base) ? base : `Re: ${base}`;
-  const { fromName } = await storeAppMessage({
+  const { alertName } = await storeAppMessage({
     threadKey: args.threadKey,
     userId: args.userId,
     subject,
@@ -176,7 +178,7 @@ export async function addAppReply(args: {
     images: args.images,
   });
   logEvent("support.app_reply", args.userId, { threadKey: args.threadKey, screenshots: args.images.length });
-  void notifyAdmins(`Reply from ${fromName}`, `${base}\n\n${args.body}`, args.userId);
+  void notifyAdmins(`Reply from ${alertName}`, `${base}\n\n${args.body}`, args.userId);
 }
 
 /**

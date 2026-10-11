@@ -41,6 +41,9 @@ export async function waitlistRoutes(app: FastifyInstance) {
         title: "Android tester request",
         detail: `${body.email}${body.driverType ? ` · ${body.driverType}` : ""}\nAdd to Play Console › Closed testing › Beta Testers.`,
         link: PLAY_TESTERS_URL,
+        // The address IS the request: it has to be pasted into Play Console.
+        // The only Discord post allowed to carry one (GDPR audit H3).
+        allowEmails: true,
       }).catch((err) => console.error("[waitlist] founder alert failed:", err));
       slackAndroidRequest({
         email: body.email,

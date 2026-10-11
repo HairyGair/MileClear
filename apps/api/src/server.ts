@@ -2,7 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import { ZodError } from "zod";
 import { ApiError } from "./lib/apiError.js";
-import { redactUrlSecrets } from "./lib/redactUrl.js";
+import { redactUrlSecrets, redactNinoInText } from "./lib/redactUrl.js";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
@@ -133,6 +133,18 @@ const app = Fastify({
           url: redactUrlSecrets(request.url),
         };
       },
+      // Error messages can quote a third party's response (an HMRC body, a
+      // JSON parse snippet), so scrub NINOs from them before pino writes
+      // them to the log file. Everything else useful about the error is kept.
+      err(err: Error & { statusCode?: unknown; code?: unknown }) {
+        return {
+          type: err?.constructor?.name ?? "Error",
+          message: redactNinoInText(String(err?.message ?? "")),
+          stack: redactNinoInText(String(err?.stack ?? "")),
+          ...(typeof err?.statusCode === "number" ? { statusCode: err.statusCode } : {}),
+          ...(typeof err?.code === "string" ? { code: err.code } : {}),
+        };
+      },
     },
   },
 });
@@ -201,7 +213,7 @@ app.setErrorHandler((error: Error & { statusCode?: number; validation?: unknown 
     logEvent("error.500", (request as any).userId ?? null, {
       path: redactUrlSecrets(request.url),
       method: request.method,
-      message: error.message,
+      message: redactNinoInText(error.message),
     });
     trackErrorForAlert();
     return reply.status(500).send({ error: "Internal server error" });

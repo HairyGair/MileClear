@@ -13,7 +13,10 @@ vi.mock("../../lib/prisma.js", () => ({
 }));
 vi.mock("../../lib/push.js", () => ({ sendPushToUser: vi.fn().mockResolvedValue(null) }));
 vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
-vi.mock("../../services/discord.js", () => ({ postFounderAlert: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../../services/discord.js", () => ({
+  postFounderAlert: vi.fn().mockResolvedValue(undefined),
+  discordUserLabel: (u: { id: string }) => `Driver ${u.id.slice(0, 8)}`,
+}));
 vi.mock("../../services/email.js", () => ({ sendAdminEmail: vi.fn().mockResolvedValue(undefined) }));
 
 import { prisma } from "../../lib/prisma.js";

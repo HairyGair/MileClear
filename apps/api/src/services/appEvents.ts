@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { redactNinosDeep } from "../lib/redactUrl.js";
 
 // Cache user → {appVersion, buildNumber} for a short window so we don't
 // hit the DB once per event. Heartbeat build values change infrequently
@@ -49,8 +50,11 @@ export function logEvent(
   const baseData = {
     type,
     userId: userId ?? null,
+    // Every string in the payload is scrubbed of National Insurance
+    // Numbers before it is stored (GDPR audit H1, 14 Aug 2026). Call
+    // sites redact their own paths too; this is the backstop.
     metadata: metadata
-      ? (metadata as Prisma.InputJsonValue)
+      ? (redactNinosDeep(metadata) as Prisma.InputJsonValue)
       : Prisma.JsonNull,
   };
 

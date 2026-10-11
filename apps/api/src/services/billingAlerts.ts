@@ -148,7 +148,6 @@ async function notifyAdminByDiscord(input: BillingAlertInput): Promise<boolean> 
     slackNewSubscriber({
       title: input.title,
       body: input.body,
-      userEmail: input.userEmail ?? undefined,
       userId: input.userId ?? undefined,
       platform: input.kind,
       plan: input.plan ?? undefined,
@@ -162,8 +161,16 @@ async function notifyAdminByDiscord(input: BillingAlertInput): Promise<boolean> 
         ? 0x10b981
         : 0x38bdf8;
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
-  if (input.userEmail) fields.push({ name: "User", value: input.userEmail, inline: true });
-  if (input.userId) fields.push({ name: "ID", value: input.userId, inline: true });
+  // No email address in Discord (GDPR audit H3): the id and an admin link
+  // find the driver. The admin email alert above still carries the address.
+  if (input.userId) {
+    fields.push({ name: "ID", value: input.userId, inline: true });
+    fields.push({
+      name: "Admin",
+      value: `[Open user](https://mileclear.com/dashboard/admin?user=${input.userId})`,
+      inline: true,
+    });
+  }
   if (input.originalTransactionId)
     fields.push({
       name: "Transaction",
