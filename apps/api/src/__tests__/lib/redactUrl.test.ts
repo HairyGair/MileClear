@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { redactUrlSecrets, redactNinoInPath } from "../../lib/redactUrl.js";
+import {
+  redactUrlSecrets,
+  redactNinoInPath,
+  redactNinoInText,
+  redactNinosDeep,
+} from "../../lib/redactUrl.js";
 
 // Accountant links are bearer credentials in a URL path. Before 14 Aug 2026
 // they reached the pino request log and the app_events table verbatim, so a
@@ -122,5 +127,50 @@ describe("redactNinoInPath", () => {
     const first = redactNinoInPath(p);
     expect(redactNinoInPath(p)).toBe(first);
     expect(redactNinoInPath(p)).toBe(first);
+  });
+});
+
+// GDPR audit H1 backstop: logEvent scrubs every string in its metadata, so a
+// NINO cannot reach app_events even from a call site that forgets to redact.
+describe("redactNinoInText / redactNinosDeep", () => {
+  it("redacts a NINO quoted in free text", () => {
+    expect(redactNinoInText("Unexpected token in AB123456C response")).toBe(
+      "Unexpected token in :nino response"
+    );
+  });
+
+  it("still redacts the path form, any case", () => {
+    expect(redactNinoInText("/individuals/business/details/ab123456c/list")).toBe(
+      "/individuals/business/details/:nino/list"
+    );
+  });
+
+  it("leaves lowercase hash-like tokens and longer ids alone", () => {
+    expect(redactNinoInText("build ab123456 ok")).toBe("build ab123456 ok");
+    expect(redactNinoInText("XAIS12345678901")).toBe("XAIS12345678901");
+    expect(redactNinoInText("c75f40a6-1b2c-4d5e-8f90-123456789abc")).toBe(
+      "c75f40a6-1b2c-4d5e-8f90-123456789abc"
+    );
+  });
+
+  it("walks nested objects and arrays, keeping other values", () => {
+    const input = {
+      path: "/individuals/business/self-employment/AB123456C/XAIS12345678901/period",
+      httpStatus: 400,
+      ok: false,
+      nested: { body: ["NINO CE654321D is invalid", 3, null] },
+    };
+    expect(redactNinosDeep(input)).toEqual({
+      path: "/individuals/business/self-employment/:nino/XAIS12345678901/period",
+      httpStatus: 400,
+      ok: false,
+      nested: { body: ["NINO :nino is invalid", 3, null] },
+    });
+  });
+
+  it("does not mutate the input", () => {
+    const input = { path: "/x/AB123456C" };
+    redactNinosDeep(input);
+    expect(input.path).toBe("/x/AB123456C");
   });
 });

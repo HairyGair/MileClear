@@ -48,3 +48,36 @@ const NINO_IN_PATH =
 export function redactNinoInPath(path: string): string {
   return path.replace(NINO_IN_PATH, (_m, lead: string) => `${lead}:nino`);
 }
+
+/**
+ * A NINO standing on its own in free text (an error message, a response
+ * snippet). Uppercase only and bounded by word edges: lowercase "ab123456"
+ * is what a short git hash looks like, and HMRC always issues NINOs in
+ * capitals, so matching case-insensitively here would eat harmless values.
+ */
+const NINO_IN_TEXT = /\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]?\b/g;
+
+export function redactNinoInText(text: string): string {
+  return redactNinoInPath(text).replace(NINO_IN_TEXT, ":nino");
+}
+
+/**
+ * Walk a log payload and redact any NINO in any string inside it.
+ *
+ * The backstop to redactNinoInPath: logEvent runs every metadata object
+ * through this, so a future call site that forgets to redact a path (or puts
+ * an HMRC error body in a field) still cannot write a NINO into app_events.
+ * Same shape back; non-string leaves and non-plain objects are untouched.
+ */
+export function redactNinosDeep<T>(value: T): T {
+  if (typeof value === "string") return redactNinoInText(value) as unknown as T;
+  if (Array.isArray(value)) return value.map((v) => redactNinosDeep(v)) as unknown as T;
+  if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = redactNinosDeep(v);
+    }
+    return out as T;
+  }
+  return value;
+}
