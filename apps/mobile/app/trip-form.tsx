@@ -102,6 +102,8 @@ import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
 import { needsTimeConfirm, defaultEndFor, clockTime } from "../lib/trips/manualTimeRule";
+import { claimFirstSplitNote } from "../lib/tutorial/state";
+import { trackTutorial } from "../lib/events/tutorial";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -961,6 +963,9 @@ export default function TripFormScreen() {
     gapMeters: number;
   } | null>(null);
   const [merging, setMerging] = useState(false);
+  // The first time a driver opens the later piece of a split trip, one note
+  // on why a stop made two trips (shown once per phone).
+  const [firstSplitNote, setFirstSplitNote] = useState(false);
   // Split (inverse of merge): offered on tracked trips with enough
   // breadcrumbs for the server's dwell scan to work with.
   const [canSplit, setCanSplit] = useState(false);
@@ -1421,7 +1426,18 @@ export default function TripFormScreen() {
       setProjectLabel(t.projectLabel ?? "");
       if (t.insights) setInsights(t.insights);
       if (t.confidence) setConfidence(t.confidence);
-      if (t.mergeSuggestion) setMergeSuggestion(t.mergeSuggestion);
+      if (t.mergeSuggestion) {
+        setMergeSuggestion(t.mergeSuggestion);
+        if (t.mergeSuggestion.direction === "before") {
+          claimFirstSplitNote()
+            .then((first) => {
+              if (!first) return;
+              setFirstSplitNote(true);
+              trackTutorial("tutorial.split_note_shown", { gapMinutes: Math.round(t.mergeSuggestion!.gapMinutes) });
+            })
+            .catch(() => {});
+        }
+      }
       if (t.cleanAirZones) setCleanAirZones(t.cleanAirZones);
       if (t.diversion) setDiversion(t.diversion);
       // Only the server payload carries these; the local-SQLite fallback
@@ -4141,6 +4157,7 @@ export default function TripFormScreen() {
               confidence ? <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} /> : null
             }
             mergeSuggestion={mergeSuggestion}
+            firstSplitNote={firstSplitNote}
             merging={merging}
             onMerge={handleAcceptMerge}
             cleanAirZones={cleanAirZones}

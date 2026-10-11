@@ -88,6 +88,9 @@ export interface TripSummaryViewProps {
   } | null;
   merging: boolean;
   onMerge: (otherTripId: string) => void;
+  /** The one-time "A stop starts a new trip" note, on the later piece of the
+   *  driver's first split trip (first-run tour, borrowed from direction B). */
+  firstSplitNote?: boolean;
   cleanAirZones: CazTripAssessment | null;
   loggedCazZones: Set<string>;
   loggingCaz: string | null;
@@ -358,6 +361,23 @@ function SubChoice(props: TripSummaryViewProps) {
     );
   }
   return null;
+}
+
+function FirstSplitNote() {
+  return (
+    <View style={[styles.notice, { alignItems: "flex-start" }]} accessible>
+      <Ionicons name="information-circle-outline" size={18} color={colors.amber} accessible={false} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.noticeTitle} maxFontSizeMultiplier={fontScaleCap.heading}>
+          A stop starts a new trip
+        </Text>
+        <Text style={styles.noticeBody} maxFontSizeMultiplier={fontScaleCap.body}>
+          Stop somewhere for 4 minutes or more and the next drive is a new trip, so a shop stop gives you two. Nothing
+          is lost. To join them, tap Merge below.
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 function MergeNotice(props: Pick<TripSummaryViewProps, "mergeSuggestion" | "merging" | "onMerge">) {
@@ -688,6 +708,7 @@ export function TripSummaryView(props: TripSummaryViewProps) {
 
       {/* Notices, only when present */}
       {showConfidenceNotice && <View style={styles.noticeGap}>{props.confidenceBadge}</View>}
+      {props.firstSplitNote && props.mergeSuggestion ? <FirstSplitNote /> : null}
       <MergeNotice mergeSuggestion={props.mergeSuggestion} merging={props.merging} onMerge={props.onMerge} />
       <CazNotice
         cleanAirZones={props.cleanAirZones}

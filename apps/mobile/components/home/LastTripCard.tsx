@@ -22,6 +22,7 @@ import { MiniRoute } from "./MiniRoute";
 import { classifyTripFromHome, type ClassifyResult } from "../../lib/home/classifyTrip";
 import type { LastTripFooter, LastTripView, SyncChip, TripChoice } from "../../lib/home/lastTrip";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
+import { trackTutorial } from "../../lib/events/tutorial";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 
@@ -34,6 +35,9 @@ interface Props {
   state: string;
   /** Re-read the trip and the counts after a choice. */
   onChanged: () => void;
+  /** The one-line note for a driver's very first trip, until it is sorted
+   *  (first-run tour, the just-in-time note borrowed from direction B). */
+  firstSortHint?: string | null;
 }
 
 function ChipView({ chip, text, onPress }: { chip: SyncChip; text: string; onPress?: () => void }) {
@@ -142,7 +146,7 @@ function Footer({ footer, onPress }: { footer: NonNullable<LastTripFooter>; onPr
   );
 }
 
-export function LastTripCard({ view, mode, state, onChanged }: Props) {
+export function LastTripCard({ view, mode, state, onChanged, firstSortHint }: Props) {
   const router = useRouter();
   const { fontScale } = useWindowDimensions();
   // The driver's tap, shown at once; cleared when the stored trip catches up.
@@ -211,6 +215,16 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
     },
     [mode, state, onChanged]
   );
+
+  // The first-trip note shows while the choice is still open, and is measured once.
+  const showFirstSortHint =
+    !!firstSortHint && view.look === "full" && view.showChoice && (chosen ?? view.choice) === "unclassified";
+  const hintLogged = useRef(false);
+  useEffect(() => {
+    if (!showFirstSortHint || hintLogged.current) return;
+    hintLogged.current = true;
+    trackTutorial("tutorial.first_sort_note_shown", { mode });
+  }, [showFirstSortHint, mode]);
 
   if (view.look === "none") return null;
 
@@ -357,6 +371,14 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
       </View>
       {v.showChoice ? (
         <View style={s.choiceWrap}>
+          {showFirstSortHint ? (
+            <View style={s.firstSort}>
+              <Ionicons name="information-circle-outline" size={16} color={colors.amber} accessible={false} />
+              <Text style={s.firstSortText} maxFontSizeMultiplier={fontScaleCap.body}>
+                {firstSortHint}
+              </Text>
+            </View>
+          ) : null}
           <ChoiceControl
             choice={shownChoice}
             autoTag={v.showAutoTag && chosen === null}
@@ -397,6 +419,8 @@ const s = StyleSheet.create({
   },
   shiftChipText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.text2 },
   choiceWrap: { marginTop: 10 },
+  firstSort: { flexDirection: "row", gap: 6, alignItems: "flex-start", marginBottom: 10 },
+  firstSortText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.regular, color: colors.text1 },
   track: {
     flexDirection: "row",
     height: 40,
