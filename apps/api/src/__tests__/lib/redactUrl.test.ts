@@ -24,6 +24,16 @@ describe("redactUrlSecrets", () => {
     );
   });
 
+  it("redacts a practice invite token in a query value", () => {
+    expect(redactUrlSecrets(`/practice-links/lookup?invite=${token}`)).toBe(
+      "/practice-links/lookup?invite=<redacted>"
+    );
+    expect(redactUrlSecrets(`/practice-links/lookup?invite=${token}&x=1`)).toBe(
+      "/practice-links/lookup?invite=<redacted>&x=1"
+    );
+    expect(redactUrlSecrets(`/practice-public/invite/${token}`)).toBe("/practice-public/invite/<redacted>");
+  });
+
   it("redacts it from the accept path the accountant's page calls first", () => {
     expect(redactUrlSecrets(`/accountant/accept/${token}`)).toBe("/accountant/accept/<redacted>");
   });

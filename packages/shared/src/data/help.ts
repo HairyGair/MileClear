@@ -494,9 +494,9 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "accountant",
     area: "tax_and_claims",
     q: "Can my accountant see my records?",
-    a: "With Pro, yes: sign in at mileclear.com, open Tax > Your accountant and use Share your records to send an invite to their email. They get a read-only view for 12 months, without your password. In the app, Tax > Your accountant keeps their name, contact and yearly fee, and adds the fee to your weekly put-by.",
+    a: "Yes, free for every driver. In Your accountant, type their email or practice code and tap Send, or say yes when their practice asks you. They see your business trips, earnings and expenses, read only. Personal trips stay private unless you turn them on. Sharing lasts until the next 31 January deadline and you're asked once a year to keep it going. You can see every time they look or download, and stop sharing at any time. Your accountant's name, contact and yearly fee are kept there too, and the fee is added to your weekly put-by.",
     goTo: "/accountant",
-    keywords: ["accountant", "bookkeeper", "share", "log in", "access", "fee"],
+    keywords: ["accountant", "bookkeeper", "share", "log in", "access", "fee", "practice", "stop sharing"],
   },
   {
     id: "tax-estimate",
@@ -771,7 +771,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "free-vs-pro",
     area: "pro_and_billing",
     q: "What is free and what is Pro?",
-    a: "Free: unlimited trip recording, sorting trips, shifts and scorecards, earnings and expenses by hand, receipt scanning, fuel, Box by box, the tax estimate and payment plan, Mileage Allowance Relief, the odometer log, badges, 1 vehicle and 2 saved places. Pro adds: Downloads and the Self Assessment PDF, the mileage certificate, Snap a statement, CSV import, bank import and Bank payments, unlimited invoices, Ticket defender, the deeper Insights, the journey map, accountant access, work hours sorting, EmSee, and unlimited vehicles and saved places.",
+    a: "Free: unlimited trip recording, sorting trips, shifts and scorecards, earnings and expenses by hand, receipt scanning, fuel, Box by box, the tax estimate and payment plan, Mileage Allowance Relief, the odometer log, badges, 1 vehicle and 2 saved places. Pro adds: Downloads and the Self Assessment PDF, the mileage certificate, Snap a statement, CSV import, bank import and Bank payments, unlimited invoices, Ticket defender, the deeper Insights, the journey map, work hours sorting, EmSee, and unlimited vehicles and saved places.",
     keywords: ["free", "pro", "premium", "what do i get", "included", "difference", "paid"],
   },
   {
@@ -921,7 +921,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "privacy",
     area: "account_and_app",
     q: "Who can see my data?",
-    a: "Only you, plus anyone you choose to share with: your accountant (Pro, set up on mileclear.com) or your employer's team if you join one. Community figures like \"Drivers near you\" only show when at least 5 drivers contribute, so no one can be picked out. The privacy policy is on mileclear.com.",
+    a: "Only you, plus anyone you choose to share with: your accountant (in Your accountant, where you can see every time they look) or your employer's team if you join one. Community figures like \"Drivers near you\" only show when at least 5 drivers contribute, so no one can be picked out. The privacy policy is on mileclear.com.",
     keywords: ["privacy", "who can see", "see", "see my trips", "safe", "share", "data", "private"],
   },
 
