@@ -31,8 +31,16 @@ export function PickerSheet({ visible, title, options, selectedKey, onPick, onCl
   const { height } = useWindowDimensions();
   return (
     <AppModal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close">
-        <Pressable style={[s.sheet, { maxHeight: height * 0.8 }]} onPress={(e) => e.stopPropagation()} accessibilityViewIsModal>
+      {/* Not an accessibility element: on iOS a focusable parent hides
+          everything inside it, so VoiceOver would find one "Close" button and
+          none of the choices. Cancel closes the sheet for VoiceOver. */}
+      <Pressable style={s.backdrop} onPress={onClose} accessible={false}>
+        <Pressable
+          style={[s.sheet, { maxHeight: height * 0.8 }]}
+          onPress={(e) => e.stopPropagation()}
+          accessible={false}
+          accessibilityViewIsModal
+        >
           <View style={s.handle} />
           <Text style={s.title} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>
             {title}

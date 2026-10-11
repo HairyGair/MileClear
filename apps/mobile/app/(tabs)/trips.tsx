@@ -1791,8 +1791,8 @@ export default function TripsScreen() {
 
       {/* "+": a trip now, or one already driven */}
       <AppModal visible={showAddSheet} animationType="fade" onRequestClose={() => setShowAddSheet(false)}>
-        <Pressable style={styles.mergeBackdrop} onPress={() => setShowAddSheet(false)}>
-          <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.mergeBackdrop} onPress={() => setShowAddSheet(false)} accessible={false}>
+          <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
             <View style={styles.mergeHandle} />
             <Text style={styles.mergeTitle}>Add a trip</Text>
             <View style={styles.sheetCard}>
@@ -1837,8 +1837,8 @@ export default function TripsScreen() {
 
       {/* Long-press menu */}
       <AppModal visible={menuTrip != null} animationType="fade" onRequestClose={() => setMenuTrip(null)}>
-        <Pressable style={styles.mergeBackdrop} onPress={() => setMenuTrip(null)}>
-          <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.mergeBackdrop} onPress={() => setMenuTrip(null)} accessible={false}>
+          <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
             <View style={styles.mergeHandle} />
             {menuActions.map((a) => (
               <TouchableOpacity
