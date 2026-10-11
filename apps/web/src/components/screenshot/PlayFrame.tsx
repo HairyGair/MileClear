@@ -264,7 +264,7 @@ export function PlayFeatureGraphic({ src }: { src: string }) {
       </div>
 
       <div style={{ position: "absolute", left: 622, top: 52, transform: "rotate(-5deg)", transformOrigin: "center top", zIndex: 1 }}>
-        <NeutralPhone src={src} width={280} focus={0.5} glow="rgba(234,179,8,0.35)" />
+        <NeutralPhone src={src} width={280} focus={0.62} glow="rgba(234,179,8,0.35)" />
       </div>
     </div>
   );

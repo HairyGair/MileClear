@@ -582,21 +582,22 @@ const U = "/screenshot-source/iphone-1313";
 
 export const UPDATE_SLOTS: ScreenshotSlot[] = [
   {
-    // Demo has nothing in To sort, so this is the Business filter: same
-    // route-first rows, day miles and the All / To sort / Business /
-    // Personal bar.
+    // To sort, scrolled to its "Business or personal?" list: a route
+    // group (two trips on one route) and single trips, each with its own
+    // Business / Personal buttons. Demo's recorded trips, 7 to 11 Oct.
     slot: 1,
     slug: "u-trips",
     set: "update",
     eyebrow: "Mileage tracker for the UK",
     headline: "Every mile.\nSorted in a swipe.",
     subline: "MileClear records your drives on its own. You just sort them.",
-    iphoneSrc: `${U}/trips-business.png`,
+    iphoneSrc: `${U}/trips-tosort.png`,
     accent: "amber",
     layout: "stack",
   },
   {
-    // A real swipe, held open, with the Business button showing. The
+    // A real swipe on a recorded Personal trip, held open, with the
+    // Business button showing. The
     // "Marked Business · Undo" note only appears once a trip is sorted.
     slot: 2,
     slug: "u-swipe",
