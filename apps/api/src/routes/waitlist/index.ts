@@ -1,8 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { sendWaitlistConfirmation } from "../../services/email.js";
-import { postFounderAlert } from "../../services/discord.js";
-import { slackAndroidRequest } from "../../services/slack.js";
 import { z } from "zod";
 
 const waitlistSchema = z.object({
@@ -12,9 +10,6 @@ const waitlistSchema = z.object({
    *  the address to the tester list by hand, so it has to reach him. */
   source: z.enum(["android"]).optional(),
 });
-
-const PLAY_TESTERS_URL =
-  "https://play.google.com/console/u/1/developers/5127901537284136681/app/4974202483934431375/tracks/4699958973638701224?tab=testers";
 
 export async function waitlistRoutes(app: FastifyInstance) {
   app.post("/", async (request, reply) => {
@@ -35,22 +30,9 @@ export async function waitlistRoutes(app: FastifyInstance) {
 
     await sendWaitlistConfirmation(body.email, { android: body.source === "android" });
 
-    if (body.source === "android") {
-      postFounderAlert({
-        severity: "info",
-        title: "Android tester request",
-        detail: `${body.email}${body.driverType ? ` · ${body.driverType}` : ""}\nAdd to Play Console › Closed testing › Beta Testers.`,
-        link: PLAY_TESTERS_URL,
-        // The address IS the request: it has to be pasted into Play Console.
-        // The only Discord post allowed to carry one (GDPR audit H3).
-        allowEmails: true,
-      }).catch((err) => console.error("[waitlist] founder alert failed:", err));
-      slackAndroidRequest({
-        email: body.email,
-        driverType: body.driverType,
-        link: PLAY_TESTERS_URL,
-      }).catch((err) => console.error("[waitlist] slack alert failed:", err));
-    }
+    // The Android closed test ended when MileClear went public on Google Play
+    // (21 Sep 2026), so tester requests no longer alert the team with the
+    // driver's email address (the last Discord/Slack post that carried one).
 
     return { data: { id: entry.id }, message: "You're on the list!" };
   });
