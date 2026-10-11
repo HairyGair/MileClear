@@ -1,6 +1,6 @@
 import { View, Text, Switch, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap } from "../../lib/theme";
 
 /**
  * Settings row with a Switch on the right. Used for booleans where the
@@ -26,8 +26,8 @@ export function ToggleRow({
 }) {
   return (
     <View style={[styles.row, border && styles.border, disabled && styles.disabled]}>
-      <View style={styles.iconCircle}>
-        <Ionicons name={icon} size={18} color={colors.amber} accessible={false} />
+      <View style={styles.iconSlot}>
+        <Ionicons name={icon} size={20} color={colors.text2} accessible={false} />
       </View>
       <View style={styles.body}>
         <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.body}>{label}</Text>
@@ -55,7 +55,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     paddingHorizontal: 14,
-    gap: spacing.md,
+    gap: 14,
+    minHeight: 56,
   },
   border: {
     borderBottomWidth: 1,
@@ -64,12 +65,8 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.5,
   },
-  iconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: radii.md,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    justifyContent: "center",
+  iconSlot: {
+    width: 24,
     alignItems: "center",
   },
   body: {

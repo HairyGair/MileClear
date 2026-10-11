@@ -179,7 +179,7 @@ export default function SettingsPage() {
 
   return (
     <SettingsScreen>
-      <SettingsGroup title="IS MILECLEAR WORKING?">
+      <SettingsGroup title="Is MileClear working?">
         {checks.rows.map((row: CheckRow) => (
           <CheckRowView
             key={row.id}
@@ -192,7 +192,7 @@ export default function SettingsPage() {
         ))}
       </SettingsGroup>
 
-      <SettingsGroup title="YOU AND YOUR CAR">
+      <SettingsGroup title="You and your car">
         <AccountRow
           name={user?.displayName || "Driver"}
           email={user?.email ?? ""}
@@ -203,7 +203,7 @@ export default function SettingsPage() {
           icon="car-outline"
           label="Your car"
           hint={car.text}
-          iconColor={car.tone === "add" ? colors.amber : undefined}
+          hintTone={car.tone === "add" ? "add" : undefined}
           onPress={go("/vehicles")}
         />
         <SettingsRow
@@ -223,7 +223,7 @@ export default function SettingsPage() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="HOW MILECLEAR WORKS FOR YOU">
+      <SettingsGroup title="How MileClear works for you">
         <SettingsRow
           icon="navigate-outline"
           label="Recording options"
@@ -269,7 +269,7 @@ export default function SettingsPage() {
         )}
       </SettingsGroup>
 
-      <SettingsGroup title="YOUR RECORDS">
+      <SettingsGroup title="Your records">
         <SettingsRow
           icon="download-outline"
           label="Downloads"
@@ -285,7 +285,7 @@ export default function SettingsPage() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="HELP">
+      <SettingsGroup title="Help">
         <SettingsRow icon="help-circle-outline" label="Help and how-tos" onPress={go("/help")} />
         <SettingsRow icon="chatbubble-outline" label="Tell us about a problem or idea" onPress={go("/feedback")} />
         <SettingsRow

@@ -261,43 +261,43 @@ export function rowGroups(
     case "gig":
     case "both": {
       const groups: TaxRowGroup[] = [
-        { title: "YOUR RETURN", rows: [R.wizard, R.reconciliation, R.guide] },
+        { title: "Your return", rows: [R.wizard, R.reconciliation, R.guide] },
         {
-          title: "RECORDS",
+          title: "Records",
           rows: [downloads("Trip log, CSV and Self Assessment PDF"), certificate(isPremium), R.accountant],
         },
       ];
-      if (persona === "both") groups.push({ title: "CLAIMS", rows: [reliefRow(reliefPence, formatPence)] });
-      groups.push({ title: "SETTINGS", rows: [R.taxDetails] });
+      if (persona === "both") groups.push({ title: "Claims", rows: [reliefRow(reliefPence, formatPence)] });
+      groups.push({ title: "Settings", rows: [R.taxDetails] });
       return groups;
     }
     case "employee":
       return [
         {
-          title: "RECORDS",
+          title: "Records",
           rows: [downloads("Trip log for your employer"), certificate(isPremium), R.accountant],
         },
         {
-          title: "SELF-EMPLOYED TOO?",
+          title: "Self-employed too?",
           rows: [{
             id: "employee_sa", icon: "calendar-outline", label: "Self Assessment and payment plan",
             hint: "Pick Gig work and an employer under You drive for", route: "/settings/work-tax",
           }],
         },
-        { title: "SETTINGS", rows: [R.taxDetails] },
+        { title: "Settings", rows: [R.taxDetails] },
       ];
     case "company": {
       const groups: TaxRowGroup[] = [
         {
-          title: "RECORDS",
+          title: "Records",
           // Team drivers have Pro through the team; a driver who only said
           // "A company car" does not, so the hint follows their plan.
           rows: [downloads("Trip log, CSV and PDF"), certificate(isPremium)],
         },
       ];
-      if (reliefPence > 0) groups.push({ title: "CLAIMS", rows: [reliefRow(reliefPence, formatPence)] });
+      if (reliefPence > 0) groups.push({ title: "Claims", rows: [reliefRow(reliefPence, formatPence)] });
       // The page shows only "You drive for" for a company car (no rates or income).
-      groups.push({ title: "SETTINGS", rows: [{ ...R.taxDetails, hint: "What you drive for" }] });
+      groups.push({ title: "Settings", rows: [{ ...R.taxDetails, hint: "What you drive for" }] });
       return groups;
     }
     case "personal":

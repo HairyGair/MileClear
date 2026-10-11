@@ -82,7 +82,7 @@ export default function YourDataSettings() {
 
   return (
     <SettingsScreen>
-      <SettingsGroup title="CHECK YOUR TRIPS">
+      <SettingsGroup title="Check your trips">
         <SettingsRow
           icon="shield-checkmark-outline"
           label={scanning ? "Scanning..." : "Check my trips for odd ones"}
@@ -91,7 +91,7 @@ export default function YourDataSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="YOUR DATA">
+      <SettingsGroup title="Your data">
         <SettingsRow
           icon="cloud-download-outline"
           label={exporting ? "Preparing..." : "Get a copy of your data"}

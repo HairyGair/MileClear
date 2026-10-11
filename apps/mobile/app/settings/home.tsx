@@ -55,7 +55,7 @@ export default function HomeScreenSettings() {
         Home shows up to three shortcuts under your last trip. Switch off the ones you don&apos;t want. A shortcut only appears
         when it has something to tell you.
       </Text>
-      <SettingsGroup title="SHORTCUTS ON HOME">
+      <SettingsGroup title="Shortcuts on Home">
         {doorSwitches(hidden, available).map((row) => (
           <ToggleRow
             key={row.id}

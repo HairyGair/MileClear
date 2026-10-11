@@ -104,7 +104,7 @@ export default function NotificationsSettings() {
 
       {visibleNotificationGroups(isPremium, { companyCar }).map((group) => (
         <View key={group.title} style={blocked ? { opacity: 0.5 } : undefined}>
-          <SettingsGroup title={group.title.toUpperCase()}>
+          <SettingsGroup title={group.title}>
             {group.items.map((item) => (
               <ToggleRow
                 key={item.key}

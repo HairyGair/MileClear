@@ -105,17 +105,17 @@ export default function AccountSettings() {
         ) : null}
       </View>
 
-      <SettingsGroup title="YOUR CAR">
+      <SettingsGroup title="Your car">
         <SettingsRow
           icon="car-outline"
           label={page.cars && page.cars.length > 1 ? "Your cars" : "Your car"}
           hint={car.text}
-          iconColor={car.tone === "add" ? colors.amber : undefined}
+          hintTone={car.tone === "add" ? "add" : undefined}
           onPress={() => router.push((page.cars && page.cars.length === 0 ? "/vehicle-form" : "/vehicles") as never)}
         />
       </SettingsGroup>
 
-      <SettingsGroup title="HOW YOU DRIVE">
+      <SettingsGroup title="How you drive">
         <SettingsRow
           icon="briefcase-outline"
           label="You drive for"
@@ -127,7 +127,7 @@ export default function AccountSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="YOUR PLAN">
+      <SettingsGroup title="Your plan">
         <SettingsRow
           icon="star-outline"
           label={page.plan?.isPremium ? "MileClear Pro" : "Free plan"}
@@ -136,7 +136,7 @@ export default function AccountSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="ABOUT YOU">
+      <SettingsGroup title="About you">
         <SettingsRow
           icon="person-outline"
           label="Display name"
@@ -151,7 +151,7 @@ export default function AccountSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="SIGN IN">
+      <SettingsGroup title="Sign in">
         <SettingsRow
           icon="mail-outline"
           label="Email"

@@ -106,7 +106,7 @@ export default function AccountantSettings() {
         </Text>
       </View>
 
-      <SettingsGroup title="ACCOUNTANT">
+      <SettingsGroup title="Accountant">
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Name</Text>
           <TextInput

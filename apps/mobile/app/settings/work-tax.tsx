@@ -268,7 +268,7 @@ export default function WorkTaxSettings() {
 
   return (
     <SettingsScreen>
-      <SettingsGroup title="YOU DRIVE FOR">
+      <SettingsGroup title="You drive for">
         {DRIVE_FOR_OPTIONS.map((opt) => {
           const selected = driveFor === opt.value;
           return (
@@ -311,7 +311,7 @@ export default function WorkTaxSettings() {
             : "Nothing else to set here. Your employer provides the car, so there is no tax claim to work out and no tax reminders."}
         </Text>
       ) : (
-        <SettingsGroup title="MILEAGE AND TAX">
+        <SettingsGroup title="Mileage and tax">
           {hasEmployer && (
             <SettingsRow
               icon="cash-outline"
@@ -371,7 +371,7 @@ export default function WorkTaxSettings() {
       {/* Employees have no self-employed income, so quarterly updates and the
           self-employed settings only show for gig work and both. */}
       {selfEmployed && (
-        <SettingsGroup title="IF YOU WORK FOR YOURSELF">
+        <SettingsGroup title="If you work for yourself">
           <SettingsRow
             icon="cloud-upload-outline"
             label="Quarterly updates (test version)"

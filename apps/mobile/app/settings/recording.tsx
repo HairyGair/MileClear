@@ -185,7 +185,7 @@ export default function RecordingSettings() {
 
   return (
     <SettingsScreen>
-      <SettingsGroup title="IS IT RECORDING?">
+      <SettingsGroup title="Is it recording?">
         <CheckRowView
           look={status.look}
           title={status.title}
@@ -195,7 +195,7 @@ export default function RecordingSettings() {
         />
       </SettingsGroup>
 
-      <SettingsGroup title="WHAT YOUR PHONE ALLOWS">
+      <SettingsGroup title="What your phone allows">
         {!phone.loaded && (
           <CheckRowView look="neutral" title="Checking your phone's settings..." onPress={() => phone.refresh()} />
         )}
@@ -221,7 +221,7 @@ export default function RecordingSettings() {
         ))}
       </SettingsGroup>
 
-      <SettingsGroup title="YOUR CHOICES">
+      <SettingsGroup title="Your choices">
         <ToggleRow
           icon="navigate-outline"
           label="Automatic trips"
@@ -288,7 +288,7 @@ export default function RecordingSettings() {
         )}
       </SettingsGroup>
 
-      <SettingsGroup title="STILL NOT RIGHT?">
+      <SettingsGroup title="Still not right?">
         <SettingsRow
           icon="pulse-outline"
           label="Check recording in detail"

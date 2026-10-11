@@ -3,8 +3,8 @@ import { View, Text, StyleSheet } from "react-native";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 
 /**
- * Card-like wrapper for a list of settings rows. Optional uppercase
- * section title above the card. Auto-injects `border={true}` on every
+ * Card-like wrapper for a list of settings rows. Optional sentence-case
+ * section title above the card ("Your car", never "YOUR CAR"). Auto-injects `border={true}` on every
  * child except the last so the row separator is consistent and callers
  * don't have to count.
  */
@@ -40,11 +40,10 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   title: {
-    fontSize: 11,
+    fontSize: 13,
     fontFamily: fonts.semibold,
-    color: colors.text3,
-    letterSpacing: 1,
-    marginBottom: 6,
+    color: colors.text2,
+    marginBottom: 8,
     marginLeft: 4,
   },
   card: {

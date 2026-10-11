@@ -1,6 +1,6 @@
 import { TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 import { ContextualHelp } from "../ContextualHelp";
 
 /**
@@ -8,7 +8,8 @@ import { ContextualHelp } from "../ContextualHelp";
  * optional badge (e.g. "Pro" or "2 / Free"), trailing chevron.
  *
  * `border` is auto-injected by SettingsGroup so callers usually don't
- * need to pass it. Pass `iconColor` to override the default amber.
+ * need to pass it. Icons are plain grey with no tile (the house style: one
+ * amber thing per view). Pass `iconColor` only for a row that is that thing.
  *
  * Pass `helpTopicId` to surface a (i) info button next to the label
  * that opens a contextual help sheet. Tapping the (i) explicitly does
@@ -39,11 +40,12 @@ export function SettingsRow({
   destructive?: boolean;
   accessibilityHint?: string;
   helpTopicId?: string;
-  /** "bad" draws the hint in red (a problem, always with words like Fix). */
-  hintTone?: "bad";
+  /** "bad" draws the hint in red (a problem, always with words like Fix);
+   *  "add" draws it in amber (the one thing to add, e.g. "Add your car"). */
+  hintTone?: "bad" | "add";
 }) {
   const labelColor = destructive ? colors.red : colors.text1;
-  const iconHue = iconColor ?? (destructive ? colors.red : colors.amber);
+  const iconHue = iconColor ?? (destructive ? colors.red : colors.text2);
 
   return (
     <TouchableOpacity
@@ -54,8 +56,8 @@ export function SettingsRow({
       accessibilityLabel={badge ? `${label}, ${badge}` : label}
       accessibilityHint={accessibilityHint ?? hint}
     >
-      <View style={styles.iconCircle}>
-        <Ionicons name={icon} size={18} color={iconHue} accessible={false} />
+      <View style={styles.iconSlot}>
+        <Ionicons name={icon} size={20} color={iconHue} accessible={false} />
       </View>
       <View style={styles.body}>
         <View style={styles.labelRow}>
@@ -65,7 +67,12 @@ export function SettingsRow({
           ) : null}
         </View>
         {hint && (
-          <Text style={[styles.hint, hintTone === "bad" && { color: colors.red }]} maxFontSizeMultiplier={fontScaleCap.body}>{hint}</Text>
+          <Text
+            style={[
+              styles.hint,
+              hintTone === "bad" && { color: colors.red },
+              hintTone === "add" && { color: colors.amber },
+            ]} maxFontSizeMultiplier={fontScaleCap.body}>{hint}</Text>
         )}
       </View>
       {badge && (
@@ -89,18 +96,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 13,
     paddingHorizontal: 14,
-    gap: spacing.md,
+    gap: 14,
+    minHeight: 56,
   },
   border: {
     borderBottomWidth: 1,
     borderBottomColor: colors.surfaceBorder,
   },
-  iconCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: radii.md,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    justifyContent: "center",
+  iconSlot: {
+    width: 24,
     alignItems: "center",
   },
   body: {

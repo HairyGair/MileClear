@@ -190,7 +190,7 @@ describe("rows", () => {
 
   it("gig", () => {
     expect(ids("gig")).toEqual(["wizard", "reconciliation", "guide", "downloads", "certificate", "accountant", "tax_details"]);
-    expect(titles("gig")).toEqual(["YOUR RETURN", "RECORDS", "SETTINGS"]);
+    expect(titles("gig")).toEqual(["Your return", "Records", "Settings"]);
   });
   it("both adds claims with the pounds", () => {
     expect(ids("both", { ...opts, reliefPence: 41200 })).toContain("relief");
@@ -201,7 +201,7 @@ describe("rows", () => {
   });
   it("employee", () => {
     expect(ids("employee")).toEqual(["downloads", "certificate", "accountant", "employee_sa", "tax_details"]);
-    expect(titles("employee")).toEqual(["RECORDS", "SELF-EMPLOYED TOO?", "SETTINGS"]);
+    expect(titles("employee")).toEqual(["Records", "Self-employed too?", "Settings"]);
   });
   it("company has no accountant, relief only above zero", () => {
     expect(ids("company")).toEqual(["downloads", "certificate", "tax_details"]);
