@@ -180,6 +180,18 @@ describe("words per driver", () => {
     expect(unknown[2].body).toMatch(/If your employer pays under 55p a mile/);
   });
 
+  it("gives gig-and-employer drivers their employer's rate, not 55p for every mile", () => {
+    const known = appPlaces({ driveFor: "both", motorbike: false, employerRatePence: 40, rates: RATES });
+    expect(known[2].body).toBe(
+      "Your mileage claim. Gig app trips add 55p a mile. Your employer pays 40p. If it's under 55p, you can claim the rest from HMRC"
+    );
+    expect(known[2].body).not.toMatch(/Every Business mile/);
+    const bike = appPlaces({ driveFor: "both", motorbike: true, employerRatePence: 20, rates: RATES });
+    expect(bike[2].body).toMatch(/Gig app trips add 24p a mile. Your employer pays 20p. If it's under 24p/);
+    const unknown = appPlaces({ driveFor: "both", motorbike: false, employerRatePence: null, rates: RATES });
+    expect(unknown[2].body).toMatch(/55p, up to 10,000 miles, then 25p/);
+  });
+
   it("has no money line for a company car, and calls Tax the mileage log", () => {
     const places = appPlaces({ driveFor: "company", motorbike: false, employerRatePence: null, rates: RATES });
     expect(places[2].body).toMatch(/mileage log/);

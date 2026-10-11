@@ -294,9 +294,14 @@ export function appPlaces(args: {
     tax = { id: "tax", title: "Tax", body: pays };
   } else {
     tripsLine = "Only Business trips count towards your claim";
-    const money = args.motorbike
-      ? `Every Business mile adds ${rates.motorbike}p`
-      : `Every Business mile adds ${rates.first}p, up to 10,000 miles, then ${rates.after}p`;
+    // Gig work and an employer, with the employer's rate set: trips not
+    // tagged to a gig app count at that rate, so "every mile adds 55p" is wrong.
+    const money =
+      d === "both" && args.employerRatePence
+        ? `Gig app trips add ${first}p a mile. Your employer pays ${args.employerRatePence}p. If it's under ${first}p, you can claim the rest from HMRC`
+        : args.motorbike
+          ? `Every Business mile adds ${rates.motorbike}p`
+          : `Every Business mile adds ${rates.first}p, up to 10,000 miles, then ${rates.after}p`;
     tax = { id: "tax", title: "Tax", body: `Your mileage claim. ${money}` };
   }
 
