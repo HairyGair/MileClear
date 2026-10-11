@@ -46,6 +46,7 @@ import {
   type BsasBusinessType,
 } from "../../services/hmrc/index.js";
 import { logEvent } from "../../services/appEvents.js";
+import { hmrcTaxReturnRoutes } from "./endOfYear.js";
 
 // UK NINO regex. AA prefixes excluded (BG, GB, KN, NK, NT, TN, ZZ are also
 // reserved/invalid but the standard regex catches the common errors).
@@ -56,6 +57,7 @@ function normaliseNino(raw: string): string {
 }
 
 export async function hmrcRoutes(app: FastifyInstance) {
+  await app.register(hmrcTaxReturnRoutes);
   // GET /hmrc/status — connection state for the current user.
   // Returns the four setup flags (connected / hasNino / hasBusinessId /
   // businessId) so the mobile entry screen can render its setup-state
@@ -944,7 +946,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
  * `if ("error" in ctx)` to short-circuit. Centralised so each new route
  * doesn't reimplement the same three checks.
  */
-async function loadConnectionWithNino(
+export async function loadConnectionWithNino(
   userId: string
 ): Promise<{ nino: string } | { error: string; status: 400 }> {
   const conn = await prisma.hmrcConnection.findUnique({
@@ -977,7 +979,7 @@ async function loadConnectionWithNino(
  * source of truth for "what does each HmrcError class become on the
  * wire" so every route handles them identically.
  */
-function handleHmrcError(reply: import("fastify").FastifyReply, err: unknown) {
+export function handleHmrcError(reply: import("fastify").FastifyReply, err: unknown) {
   if (err instanceof HmrcNotConnectedError) {
     return reply.status(400).send({
       error: {
