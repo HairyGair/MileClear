@@ -166,3 +166,46 @@ export function matchSavedPlaces(saved: PickerPlace[], query: string): PickerPla
     .slice(0, SAVED_MATCH_LIMIT)
     .map((s) => s.place);
 }
+
+// ── One-tap place chips on the add-trip form (PROPOSALS 0.2) ────────────────
+
+/** Recent places shown as chips next to the saved ones. */
+export const RECENT_CHIP_LIMIT = 2;
+
+export type PlaceChipKind = "home" | "work" | "depot" | "custom" | "recent";
+
+export interface PlaceChip extends PickerPlace {
+  kind: PlaceChipKind;
+}
+
+function chipKind(type: string | null | undefined): PlaceChipKind {
+  return type === "home" || type === "work" || type === "depot" ? type : "custom";
+}
+
+/**
+ * The chips under From or To: every saved place (Home, Work, Depot first, as
+ * the picker orders them), then the two most recent other places. A chip for
+ * the place already picked at the other end goes last, so To after "From:
+ * Home" leads with somewhere else.
+ */
+export function placeChips(args: {
+  places: PickerPlaces;
+  /** location_type by saved place id. */
+  types: Record<string, string | null | undefined>;
+  otherEnd?: { lat: number; lng: number } | null;
+  haversine: HaversineMiles;
+  recentLimit?: number;
+}): PlaceChip[] {
+  const { places, types, otherEnd, haversine } = args;
+  const limit = args.recentLimit ?? RECENT_CHIP_LIMIT;
+  const saved: PlaceChip[] = places.saved.map((p) => ({
+    ...p,
+    kind: chipKind(types[p.key.replace(/^saved:/, "")]),
+  }));
+  const recent: PlaceChip[] = places.recent.slice(0, limit).map((p) => ({ ...p, kind: "recent" as const }));
+  const all = [...saved, ...recent];
+  if (!otherEnd) return all;
+  const isOther = (c: PlaceChip) =>
+    haversine(c.lat, c.lng, otherEnd.lat, otherEnd.lng) * METRES_PER_MILE < SAME_PLACE_METRES;
+  return [...all.filter((c) => !isOther(c)), ...all.filter(isOther)];
+}
