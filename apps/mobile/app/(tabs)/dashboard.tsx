@@ -51,6 +51,7 @@ import { formatPence, filterTraceOutliers, MAX_FREE_SAVED_LOCATIONS } from "@mil
 import { maybeRequestReview } from "../../lib/rating/index";
 import { maybeSuggestSavedPlaces } from "../../lib/savedPlacesPrompt/index";
 import { requestPromptSlot } from "../../lib/promptGate/index";
+import { WhatsNewSheet } from "../../components/home/WhatsNewSheet";
 import { useMode } from "../../lib/mode/context";
 import { LiveMapTracker } from "../../components/map/LiveMapTracker";
 import { useUser } from "../../lib/user/context";
@@ -1974,6 +1975,7 @@ export default function DashboardScreen() {
       {scorecardModal}
       {workExplainerModal}
       {locPrimerModal}
+      <WhatsNewSheet />
       <HomeIdle
         stats={stats}
         previousYear={previousYear}
