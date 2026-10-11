@@ -27,6 +27,12 @@ import {
   type ClientContext,
   type ServerContext,
 } from "./fraudPreventionHeaders.js";
+import { alertHmrcError, recordHmrcSubmission, type HmrcAudit } from "./audit.js";
+
+/** HMRC's reference for a request, which their support desk asks for. */
+function correlationIdOf(response: Response): string | null {
+  return response.headers?.get?.("X-CorrelationId") ?? null;
+}
 
 export interface HmrcCallOptions {
   userId: string;
@@ -41,6 +47,12 @@ export interface HmrcCallOptions {
   apiVersion: string;
   /** Client context for fraud-prevention headers. Caller extracts from inbound request. */
   client: ClientContext;
+  /**
+   * Set on calls that change something at HMRC (an update, an amendment, a
+   * calculation trigger). The outcome is then recorded as hmrc.submission
+   * for the admin view, success or failure. Never put a NINO in here.
+   */
+  audit?: HmrcAudit;
   /** Server context (our public IP, etc). */
   server: ServerContext;
 }
@@ -304,7 +316,28 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     conn = await refreshSingleFlight(conn);
   }
 
-  let response = await performRequest({ conn, options: opts });
+  let response: Response;
+  try {
+    response = await performRequest({ conn, options: opts });
+  } catch (err) {
+    // A write the app tried but we refused before calling HMRC (old app,
+    // simulator, not the app at all) still belongs in the submission trail,
+    // or a driver's "it wouldn't send" leaves no trace in the admin view.
+    if (opts.audit && err instanceof HmrcError) {
+      recordHmrcSubmission(opts.userId, {
+        ...opts.audit,
+        environment: conn.environment,
+        ok: false,
+        httpStatus: err.httpStatus,
+        hmrcCode: err.hmrcCode,
+        correlationId: null,
+        path: opts.path,
+        appVersion:
+          opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER" ? opts.client.appVersion ?? null : null,
+      });
+    }
+    throw err;
+  }
 
   // Reactive refresh on 401 — token may have been revoked early.
   if (response.status === 401) {
@@ -333,8 +366,39 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     // their review covers every request we make, not just the successful
     // ones. Record the same device identity here as on the success path or
     // a failed test run leaves no evidence of what we actually sent.
+    const correlationId = correlationIdOf(response);
+    const appVersion =
+      opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER" ? opts.client.appVersion ?? null : null;
+    if (opts.audit) {
+      recordHmrcSubmission(opts.userId, {
+        ...opts.audit,
+        environment: conn.environment,
+        ok: false,
+        httpStatus: response.status,
+        hmrcCode: code,
+        correlationId,
+        path: opts.path,
+        appVersion,
+      });
+    }
+    // Any HMRC error in production goes to #founder (throttled, no NINO, no
+    // email). Sandbox errors are our own testing and stay quiet.
+    alertHmrcError({
+      userId: opts.userId,
+      environment: conn.environment,
+      method: opts.method,
+      path: opts.path,
+      httpStatus: response.status,
+      hmrcCode: code,
+      correlationId,
+      operation: opts.audit?.operation,
+    });
+
     logEvent("hmrc.api_error", opts.userId, {
       path: redactNinoInPath(opts.path),
+      method: opts.method,
+      environment: conn.environment,
+      correlationId,
       httpStatus: response.status,
       hmrcCode: code,
       connectionMethod: opts.client.connectionMethod,
@@ -357,9 +421,30 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
   // header short of asking them to review again. A null here means the
   // client could not report its hardware, which is the case worth catching
   // before requesting a re-review.
+  const correlationId = correlationIdOf(response);
+  if (opts.audit) {
+    recordHmrcSubmission(opts.userId, {
+      ...opts.audit,
+      environment: conn.environment,
+      ok: true,
+      httpStatus: response.status,
+      hmrcCode: null,
+      correlationId,
+      path: opts.path,
+      appVersion:
+        opts.client.connectionMethod === "MOBILE_APP_VIA_SERVER" ? opts.client.appVersion ?? null : null,
+    });
+  }
+
   logEvent("hmrc.api_call", opts.userId, {
     path: redactNinoInPath(opts.path),
     method: opts.method,
+    environment: conn.environment,
+    correlationId,
+    // What went out as the server half of Gov-Vendor-Version, and where it
+    // came from ("release" = the deployed app.json, "env" = the fallback).
+    vendorVersion: getHmrcConfig()?.vendorVersion ?? null,
+    vendorVersionSource: getHmrcConfig()?.vendorVersionSource ?? null,
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
     connectionMethod: opts.client.connectionMethod,

@@ -44,6 +44,7 @@ import { adminCommunityRoutes } from "./community.js";
 import { adminMilesheetRoutes } from "./milesheet.js";
 import { adminSupportInboxRoutes } from "./supportInbox.js";
 import { adminPaidAdsRoutes } from "./paidAds.js";
+import { adminHmrcRoutes } from "./hmrc.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { reportPauseDiagnosis } from "../../services/adminObservability.js";
 import { parseReportedDate } from "../../lib/reportedDate.js";
@@ -240,6 +241,9 @@ export async function adminRoutes(app: FastifyInstance) {
   await app.register(adminSupportInboxRoutes);
   // Paid ads: Meta campaign figures beside our clicks and sign-ups.
   await app.register(adminPaidAdsRoutes);
+  // HMRC submissions: every quarterly update, amendment and calculation
+  // trigger, with HMRC's answer and correlation id.
+  await app.register(adminHmrcRoutes);
 
   // GET /admin/analytics
   app.get("/analytics", async (_request, reply) => {
