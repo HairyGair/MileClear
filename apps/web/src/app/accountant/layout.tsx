@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: "Accountant View - MileClear",
   description: "Secure read-only access to mileage and tax data",
   robots: { index: false, follow: false },
+  // The page URL carries the access token: never send it on as a Referer.
+  referrer: "no-referrer",
 };
 
 export default function AccountantLayout({ children }: { children: ReactNode }) {

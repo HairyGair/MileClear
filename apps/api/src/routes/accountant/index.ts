@@ -8,7 +8,7 @@ import { premiumMiddleware } from "../../middleware/premium.js";
 import { sendAccountantInviteEmail } from "../../services/email.js";
 import { fetchExportSummary, fetchExpenseSummary } from "../../services/export-data.js";
 import { generateTripsCsv, generateTripsPdf } from "../../services/export.js";
-import { getTaxYear } from "@mileclear/shared";
+import { getTaxYear, parseTaxYear } from "@mileclear/shared";
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -18,6 +18,17 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 // engagement had ended. Twelve months covers a full tax year plus the
 // 31 January filing deadline, which is the real unit of the relationship.
 const ACCESS_TTL_MS = 365 * 24 * 60 * 60 * 1000;
+
+/** How many of the tax year's business trips the accountant's page lists. */
+const TRIPS_SHOWN = 50;
+
+/**
+ * Where an accountant link lands. The email links to the website page,
+ * and that page calls POST /accountant/accept/:token itself. Same env var
+ * as the email service, so the two cannot point at different hosts. (Until
+ * Oct 2026 the verify route redirected to API_BASE_URL, the API host.)
+ */
+const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
 
 /**
  * Accountant links are bearer credentials that travel in a URL, so the
@@ -34,6 +45,48 @@ function hashToken(token: string): string {
 }
 
 /**
+ * Value written to the legacy plaintext `token` column on new rows. The
+ * column is NOT NULL and unique until the migration that drops it, so it
+ * needs something unique, but it must not be a usable credential: lookups
+ * match on tokenHash. Until Oct 2026 new rows still wrote the real token
+ * here, against the schema comment. The "retired:" prefix can never pass
+ * tokenParamSchema (128 hex), so it cannot be presented as a link either.
+ */
+function legacyTokenPlaceholder(): string {
+  return `retired:${crypto.randomBytes(32).toString("hex")}`;
+}
+
+/**
+ * Why a link does not open, as a stable code the accountant's page turns
+ * into plain English. Status codes alone were not enough: revoked and
+ * expired both came back as 403 and the page said "Something went wrong".
+ */
+export type AccountantLinkProblem = "not_found" | "revoked" | "expired" | "invite_expired";
+
+type Problem = { ok: false; status: number; code: AccountantLinkProblem; error: string };
+
+const PROBLEMS: Record<AccountantLinkProblem, Omit<Problem, "ok">> = {
+  not_found: { status: 404, code: "not_found", error: "This link is not recognised." },
+  revoked: { status: 403, code: "revoked", error: "Your client has removed your access." },
+  expired: { status: 410, code: "expired", error: "Access through this link has ended." },
+  invite_expired: {
+    status: 410,
+    code: "invite_expired",
+    error: "This invite was not opened within 7 days, so it has run out.",
+  },
+};
+
+function problem(code: AccountantLinkProblem): Problem {
+  return { ok: false, ...PROBLEMS[code] };
+}
+
+function tokenWhere(token: string) {
+  // `token` is still matched for rows issued before the hash column
+  // existed; drop that half once the plaintext column is gone.
+  return { OR: [{ tokenHash: hashToken(token) }, { token }] };
+}
+
+/**
  * Resolve a bearer token from an accountant URL to a live access record.
  *
  * Centralised because the dashboard and the export route each did their
@@ -45,43 +98,111 @@ function hashToken(token: string): string {
  * "revoked" and "expired" to different messages for the accountant.
  */
 async function resolveAccountantAccess(token: string) {
-  const tokenHash = hashToken(token);
-
   const access = await prisma.accountantAccess.findFirst({
-    where: { OR: [{ tokenHash }, { token }] },
+    where: tokenWhere(token),
     include: {
       user: { select: { id: true, displayName: true, fullName: true, email: true } },
     },
   });
-  if (!access) return { ok: false as const, status: 404, error: "Access not found or revoked" };
+
+  if (!access) {
+    // No access row. Revoking deletes it, so the invite says why.
+    const invite = await prisma.accountantInvite.findFirst({ where: tokenWhere(token) });
+    if (!invite) return problem("not_found");
+    if (invite.status === "revoked") return problem("revoked");
+    // Accepted once, but the access row now carries a newer link (the
+    // driver re-invited the same address after the 12 months ran out).
+    if (invite.status === "accepted") return problem("expired");
+    if (invite.status === "expired" || invite.expiresAt.getTime() <= Date.now()) {
+      return problem("invite_expired");
+    }
+    // A pending invite nobody has accepted yet: acceptInvite handles it.
+    return problem("not_found");
+  }
 
   // Null expiresAt means a row predating the expiry column that the
   // backfill has not reached. Treat it as expired rather than eternal:
   // failing closed is the whole point of this change.
   if (!access.expiresAt || access.expiresAt.getTime() <= Date.now()) {
-    return {
-      ok: false as const,
-      status: 403,
-      error: "This link has expired. Ask your client to send a new invite.",
-    };
+    return problem("expired");
   }
 
-  // The originating invite must still be accepted — this is how a
+  // The originating invite must still be accepted. This is how a
   // revocation by the user takes effect on an already-issued link.
   const invite = await prisma.accountantInvite.findFirst({
-    where: { OR: [{ tokenHash }, { token }], status: "accepted" },
+    where: { ...tokenWhere(token), status: "accepted" },
   });
-  if (!invite) return { ok: false as const, status: 403, error: "Access has been revoked" };
+  if (!invite) return problem("revoked");
 
   return { ok: true as const, access };
+}
+
+/**
+ * Turn an invite into access. Idempotent: opening the link again (or a
+ * mail scanner opening it first) just confirms the access that exists.
+ */
+async function acceptInvite(
+  token: string
+): Promise<{ ok: true; expiresAt: Date } | Problem> {
+  const existing = await resolveAccountantAccess(token);
+  if (existing.ok) return { ok: true, expiresAt: existing.access.expiresAt! };
+  // Only "not_found" can still be a pending invite waiting to be accepted.
+  if (existing.code !== "not_found") return existing;
+
+  const invite = await prisma.accountantInvite.findFirst({
+    where: { ...tokenWhere(token), status: "pending", expiresAt: { gt: new Date() } },
+  });
+  if (!invite) return problem("not_found");
+
+  const expiresAt = new Date(Date.now() + ACCESS_TTL_MS);
+  await prisma.$transaction([
+    prisma.accountantAccess.upsert({
+      where: { userId_accountantEmail: { userId: invite.userId, accountantEmail: invite.email } },
+      create: {
+        userId: invite.userId,
+        accountantEmail: invite.email,
+        token: legacyTokenPlaceholder(),
+        tokenHash: hashToken(token),
+        permissions: "read",
+        expiresAt,
+      },
+      update: {
+        token: legacyTokenPlaceholder(),
+        tokenHash: hashToken(token),
+        // Re-accepting a fresh invite renews the window rather than
+        // extending the original one indefinitely.
+        expiresAt,
+      },
+    }),
+    prisma.accountantInvite.update({
+      where: { id: invite.id },
+      data: { status: "accepted" },
+    }),
+  ]);
+
+  logEvent("accountant.invite_accepted", invite.userId, {
+    inviteId: invite.id,
+    accountantEmail: invite.email,
+  });
+
+  return { ok: true, expiresAt };
+}
+
+/** "2025-26" style, with the second half one year on from the first. */
+function isValidTaxYear(taxYear: string): boolean {
+  const m = taxYear.match(/^(\d{4})-(\d{2})$/);
+  return !!m && m[2] === String(parseInt(m[1], 10) + 1).slice(2);
 }
 
 const inviteBodySchema = z.object({
   email: z.string().email("Must be a valid email address"),
 });
 
+// Every link ever issued is 128 hex characters (64 random bytes). Anything
+// else is not one of ours, and refusing it here also means the "retired:"
+// placeholder in the legacy column can never be presented as a link.
 const tokenParamSchema = z.object({
-  token: z.string().min(1),
+  token: z.string().regex(/^[0-9a-f]{128}$/i),
 });
 
 // ---------------------------------------------------------------------------
@@ -125,7 +246,9 @@ export async function accountantRoutes(app: FastifyInstance) {
       if (existingInvite) {
         return reply.status(400).send({ error: "An active invite already exists for this email" });
       }
-      if (existingAccess) {
+      // Access that has run out does not block a fresh invite: accepting
+      // it renews the same access row for another 12 months.
+      if (existingAccess && existingAccess.expiresAt && existingAccess.expiresAt.getTime() > Date.now()) {
         return reply.status(400).send({ error: "This accountant already has access to your data" });
       }
 
@@ -136,7 +259,7 @@ export async function accountantRoutes(app: FastifyInstance) {
         data: {
           userId,
           email: normalizedEmail,
-          token,
+          token: legacyTokenPlaceholder(),
           tokenHash: hashToken(token),
           status: "pending",
           expiresAt,
@@ -257,7 +380,31 @@ export async function accountantRoutes(app: FastifyInstance) {
   // Token-based public routes - no auth middleware
   // -------------------------------------------------------------------------
 
-  // GET /accountant/verify/:token - accept invite and create access
+  // POST /accountant/accept/:token - turn the emailed invite into access.
+  // Called by the accountant's page on mileclear.com/accountant/{token}
+  // before it loads anything. Safe to call on every visit.
+  app.post(
+    "/accept/:token",
+    { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const paramsParsed = tokenParamSchema.safeParse(request.params);
+      if (!paramsParsed.success) {
+        const p = problem("not_found");
+        return reply.status(p.status).send({ error: p.error, code: p.code });
+      }
+
+      const result = await acceptInvite(paramsParsed.data.token);
+      if (!result.ok) {
+        return reply.status(result.status).send({ error: result.error, code: result.code });
+      }
+      return reply.send({ data: { accepted: true, expiresAt: result.expiresAt.toISOString() } });
+    }
+  );
+
+  // GET /accountant/verify/:token - kept for any link that points at the
+  // API. It used to accept the invite and redirect to the API host; now it
+  // only sends the accountant to the website page, which does the accepting
+  // and shows a clear message when the link no longer works.
   app.get(
     "/verify/:token",
     { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
@@ -266,72 +413,32 @@ export async function accountantRoutes(app: FastifyInstance) {
       if (!paramsParsed.success) {
         return reply.status(400).send({ error: "Invalid token" });
       }
-
-      const { token } = paramsParsed.data;
-
-      // Match on the hash. `token` is still accepted for invites issued
-      // before the hash column existed; drop that half once backfilled.
-      const tokenHash = hashToken(token);
-      const invite = await prisma.accountantInvite.findFirst({
-        where: {
-          OR: [{ tokenHash }, { token }],
-          status: "pending",
-          expiresAt: { gt: new Date() },
-        },
-      });
-
-      if (!invite) {
-        return reply.status(404).send({ error: "Invite not found, already used, or expired" });
-      }
-
-      // Create (or find) the access record - upsert handles re-verification edge case
-      await prisma.$transaction([
-        prisma.accountantAccess.upsert({
-          where: { userId_accountantEmail: { userId: invite.userId, accountantEmail: invite.email } },
-          create: {
-            userId: invite.userId,
-            accountantEmail: invite.email,
-            token,
-            tokenHash,
-            permissions: "read",
-            expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
-          },
-          update: {
-            token,
-            tokenHash,
-            lastAccessedAt: new Date(),
-            // Re-accepting a fresh invite renews the window rather than
-            // extending the original one indefinitely.
-            expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
-          },
-        }),
-        prisma.accountantInvite.update({
-          where: { id: invite.id },
-          data: { status: "accepted" },
-        }),
-      ]);
-
-      // Redirect to the web dashboard
-      const webBase = process.env.API_BASE_URL || "https://mileclear.com";
-      return reply.redirect(`${webBase}/accountant/${token}`);
+      return reply.redirect(`${WEB_BASE_URL}/accountant/${paramsParsed.data.token}`);
     }
   );
 
-  // GET /accountant/dashboard/:token - return dashboard data
+  // GET /accountant/dashboard/:token?taxYear=2025-26 - the accountant's page.
+  // Business figures only: personal trips are never counted or listed, and
+  // trips the driver has not sorted yet appear as a count, not as business.
   app.get(
     "/dashboard/:token",
     { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const paramsParsed = tokenParamSchema.safeParse(request.params);
       if (!paramsParsed.success) {
-        return reply.status(400).send({ error: "Invalid token" });
+        const p = problem("not_found");
+        return reply.status(p.status).send({ error: p.error, code: p.code });
       }
 
       const { token } = paramsParsed.data;
+      const requestedYear = (request.query as { taxYear?: string }).taxYear;
+      if (requestedYear !== undefined && !isValidTaxYear(requestedYear)) {
+        return reply.status(400).send({ error: "taxYear must look like 2025-26" });
+      }
 
       const resolved = await resolveAccountantAccess(token);
       if (!resolved.ok) {
-        return reply.status(resolved.status).send({ error: resolved.error });
+        return reply.status(resolved.status).send({ error: resolved.error, code: resolved.code });
       }
       const { access } = resolved;
 
@@ -340,6 +447,23 @@ export async function accountantRoutes(app: FastifyInstance) {
         data: { lastAccessedAt: new Date() },
       });
 
+      const userId = access.userId;
+      const currentTaxYear = getTaxYear(new Date());
+
+      // Tax years with records, plus the current one, newest first.
+      const mileageSummaries = await prisma.mileageSummary.findMany({
+        where: { userId },
+        select: { taxYear: true },
+        orderBy: { taxYear: "desc" },
+      });
+      const availableTaxYears = [
+        ...new Set([currentTaxYear, ...mileageSummaries.map((m) => m.taxYear)]),
+      ]
+        .filter(isValidTaxYear)
+        .sort()
+        .reverse();
+      const taxYear = requestedYear ?? currentTaxYear;
+
       // Durable access record. lastAccessedAt is overwritten on each hit,
       // so on its own it cannot answer "how often has my accountant
       // looked, and did they look after I revoked them?". The user can
@@ -347,37 +471,32 @@ export async function accountantRoutes(app: FastifyInstance) {
       logEvent("accountant.dashboard_viewed", access.userId, {
         accessId: access.id,
         accountantEmail: access.accountantEmail,
+        taxYear,
       });
 
-      const userId = access.userId;
-      const currentTaxYear = getTaxYear(new Date());
+      const { start, end } = parseTaxYear(taxYear);
+      const inYear = { userId, isPhantomTrip: false, startedAt: { gte: start, lte: end } };
 
-      // Fetch available tax years from mileage summaries
-      const mileageSummaries = await prisma.mileageSummary.findMany({
-        where: { userId },
-        select: { taxYear: true },
-        orderBy: { taxYear: "desc" },
-      });
-      const availableTaxYears = mileageSummaries.map((m) => m.taxYear);
-      const taxYear = availableTaxYears[0] ?? currentTaxYear;
-
-      // Fetch all dashboard data in parallel
-      const [summary, expenseSummary, recentTrips] = await Promise.all([
+      const [summary, expenseSummary, byClassification, trips] = await Promise.all([
         fetchExportSummary(userId, taxYear),
         fetchExpenseSummary(userId, taxYear),
+        prisma.trip.groupBy({
+          by: ["classification"],
+          where: inYear,
+          _count: { _all: true },
+          _sum: { distanceMiles: true },
+        }),
         // Business trips only. An accountant needs the deductible journeys,
-        // not a list of where their client drove at the weekend, and the
-        // start/end addresses below make that distinction concrete.
+        // not a list of where their client drove at the weekend.
         prisma.trip.findMany({
-          where: { userId, classification: { not: "personal" } },
+          where: { ...inYear, classification: "business" },
           orderBy: { startedAt: "desc" },
-          take: 20,
+          take: TRIPS_SHOWN,
           select: {
             id: true,
             startedAt: true,
             endedAt: true,
             distanceMiles: true,
-            classification: true,
             platformTag: true,
             startAddress: true,
             endAddress: true,
@@ -385,18 +504,43 @@ export async function accountantRoutes(app: FastifyInstance) {
         }),
       ]);
 
+      const group = (c: string) => byClassification.find((g) => g.classification === c);
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      const business = group("business");
+      const unsorted = group("unclassified");
+
       return reply.send({
         data: {
-          user: {
+          client: {
             name: access.user.fullName || access.user.displayName || access.user.email,
             email: access.user.email,
           },
           taxYear,
           availableTaxYears,
-          summary,
-          expenseSummary,
-          recentTrips,
-          accessedAt: new Date().toISOString(),
+          accessExpiresAt: access.expiresAt!.toISOString(),
+          summary: {
+            businessTrips: business?._count._all ?? 0,
+            businessMiles: round2(business?._sum.distanceMiles ?? 0),
+            unsortedTrips: unsorted?._count._all ?? 0,
+            unsortedMiles: round2(unsorted?._sum.distanceMiles ?? 0),
+            mileageDeductionPence: summary.totalDeductionPence,
+            // Per vehicle, business miles only. The export summary's
+            // totalMiles per vehicle includes personal driving.
+            vehicles: summary.vehicleBreakdown
+              .filter((v) => v.businessMiles > 0)
+              .map((v) => ({
+                name: v.vehicleName,
+                vehicleType: v.vehicleType,
+                businessMiles: v.businessMiles,
+                deductionPence: v.deductionPence,
+              })),
+            earningsTotalPence: summary.totalEarningsPence,
+            earningsByPlatform: summary.earningsByPlatform,
+          },
+          expenses: expenseSummary,
+          trips,
+          tripsShownLimit: TRIPS_SHOWN,
+          generatedAt: new Date().toISOString(),
         },
       });
     }
@@ -409,7 +553,8 @@ export async function accountantRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const paramsParsed = tokenParamSchema.safeParse(request.params);
       if (!paramsParsed.success) {
-        return reply.status(400).send({ error: "Invalid token" });
+        const p = problem("not_found");
+        return reply.status(p.status).send({ error: p.error, code: p.code });
       }
 
       const { token } = paramsParsed.data;
@@ -418,13 +563,13 @@ export async function accountantRoutes(app: FastifyInstance) {
       if (!format || !["csv", "pdf"].includes(format)) {
         return reply.status(400).send({ error: "format must be 'csv' or 'pdf'" });
       }
-      if (!taxYear) {
-        return reply.status(400).send({ error: "taxYear is required" });
+      if (!taxYear || !isValidTaxYear(taxYear)) {
+        return reply.status(400).send({ error: "taxYear must look like 2025-26" });
       }
 
       const resolved = await resolveAccountantAccess(token);
       if (!resolved.ok) {
-        return reply.status(resolved.status).send({ error: resolved.error });
+        return reply.status(resolved.status).send({ error: resolved.error, code: resolved.code });
       }
       const { access } = resolved;
 

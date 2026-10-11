@@ -14,6 +14,9 @@ import cookie from "@fastify/cookie";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
+    // Same as server.ts: accountant tokens are 128 hex chars, over
+    // Fastify's default of 100.
+    maxParamLength: 200,
     logger: { level: process.env.TEST_LOG === "1" ? "error" : "silent" },
   });
 
