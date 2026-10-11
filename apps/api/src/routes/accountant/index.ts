@@ -443,7 +443,7 @@ export async function accountantRoutes(app: FastifyInstance) {
       const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, "");
 
       if (format === "csv") {
-        const csv = await generateTripsCsv(access.userId, { taxYear });
+        const csv = await generateTripsCsv(access.userId, { taxYear, classification: "business" });
         const filename = `mileclear-trips-${taxYear}-${dateTag}.csv`;
         return reply
           .header("Content-Type", "text/csv")
@@ -452,7 +452,7 @@ export async function accountantRoutes(app: FastifyInstance) {
       }
 
       // PDF
-      const pdf = await generateTripsPdf(access.userId, { taxYear });
+      const pdf = await generateTripsPdf(access.userId, { taxYear, classification: "business" });
       const filename = `mileclear-trips-${taxYear}-${dateTag}.pdf`;
       return reply
         .header("Content-Type", "application/pdf")
