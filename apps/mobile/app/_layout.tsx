@@ -846,7 +846,7 @@ function RootNavigator() {
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
-        <Stack.Screen name="settings/recording" options={{ headerShown: true, title: "Recording" }} />
+        <Stack.Screen name="settings/recording" options={{ headerShown: true, title: "Recording options" }} />
         <Stack.Screen name="settings/notifications" options={{ headerShown: true, title: "Notifications" }} />
         <Stack.Screen name="settings/account" options={{ headerShown: true, title: "You" }} />
         <Stack.Screen name="settings/plan" options={{ headerShown: true, title: "Your plan" }} />
