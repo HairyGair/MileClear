@@ -138,7 +138,13 @@ export async function createAppReport(args: {
     screenshots: args.images.length,
     source: args.source ?? "report",
   });
-  void notifyAdmins(`Problem report from ${fromName}`, `${subject}\n\n${args.body}`, args.userId);
+  // A subject made from the message's own first line would print it twice.
+  const typedSubject = !!args.subject?.trim();
+  void notifyAdmins(
+    `Problem report from ${fromName}`,
+    typedSubject ? `${subject}\n\n${args.body}` : args.body,
+    args.userId
+  );
   return threadKey;
 }
 
