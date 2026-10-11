@@ -183,7 +183,7 @@ export default function HelpScreen() {
 
         <View style={styles.footerCard}>
           <Text style={styles.footerLabel} maxFontSizeMultiplier={1.2}>
-            STILL STUCK?
+            Still stuck?
           </Text>
           <TouchableOpacity
             style={styles.footerBtn}
@@ -366,12 +366,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.sm,
   },
+  // Sentence case, as Settings and More title their groups.
   sectionTitle: {
-    fontSize: 12,
-    fontFamily: fonts.bold,
+    fontSize: 13,
+    fontFamily: fonts.semibold,
     color: colors.text2,
-    letterSpacing: 1,
-    textTransform: "uppercase",
   },
   sectionCard: {
     backgroundColor: colors.surface,
@@ -461,10 +460,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   footerLabel: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
+    fontSize: 13,
+    fontFamily: fonts.semibold,
     color: colors.text2,
-    letterSpacing: 1,
     marginBottom: 4,
   },
   footerBtn: {
