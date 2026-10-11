@@ -218,7 +218,7 @@ export async function expenseRoutes(app: FastifyInstance) {
       fetchExportSummary(userId, ty),
       prisma.user.findUnique({
         where: { id: userId },
-        select: { otherAnnualIncomePence: true },
+        select: { otherAnnualIncomePence: true, scottishTaxpayer: true },
       }),
     ]);
 
@@ -253,6 +253,8 @@ export async function expenseRoutes(app: FastifyInstance) {
 
     const { incomeTaxPence, class2NiPence, class4NiPence } = estimateUkTax(taxableProfitPence, {
       otherIncomePence: taxUser?.otherAnnualIncomePence ?? null,
+      taxYear: ty,
+      scottishTaxpayer: taxUser?.scottishTaxpayer ?? null,
     });
     const totalTaxOwedPence = incomeTaxPence + class2NiPence + class4NiPence;
     const effectiveRatePercent = grossEarningsPence > 0
@@ -279,6 +281,7 @@ export async function expenseRoutes(app: FastifyInstance) {
         class4NiPence,
         totalTaxOwedPence,
         effectiveRatePercent,
+        scottishTaxpayer: taxUser?.scottishTaxpayer ?? null,
         expensesByCategory,
       },
     });

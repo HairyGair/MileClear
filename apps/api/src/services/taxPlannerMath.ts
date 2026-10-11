@@ -98,9 +98,20 @@ export function isoDay(d: UkDay): string {
  */
 export function billFromProfit(
   taxableProfitPence: number,
-  opts: { otherIncomePence?: number | null; payeDeductedPence?: number | null } = {}
+  opts: {
+    otherIncomePence?: number | null;
+    payeDeductedPence?: number | null;
+    /** The year the bill is for, so its Income Tax bands are used. */
+    taxYear?: string | null;
+    /** Scotland's Income Tax bands when true (11 Oct 2026). */
+    scottishTaxpayer?: boolean | null;
+  } = {}
 ): { billPence: number; deductedAtSourcePence: number } {
-  const t = estimateUkTax(taxableProfitPence, { otherIncomePence: opts.otherIncomePence ?? null });
+  const t = estimateUkTax(taxableProfitPence, {
+    otherIncomePence: opts.otherIncomePence ?? null,
+    taxYear: opts.taxYear ?? null,
+    scottishTaxpayer: opts.scottishTaxpayer ?? null,
+  });
   const deducted = Math.max(0, opts.payeDeductedPence ?? 0);
   // With other income set, estimateUkTax already returns only the EXTRA tax
   // the profit adds on top of it, and PAYE pays the tax on that income, so

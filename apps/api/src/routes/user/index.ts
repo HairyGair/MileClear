@@ -32,6 +32,9 @@ const updateProfileSchema = z.object({
   // users (salary + side gig) enter this so Tax Readiness shows what
   // they still owe, not the gross liability. Optional — null clears.
   payeAnnualPaidTaxPence: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
+  // Pays Scottish Income Tax (lives in Scotland). Switches the Income Tax
+  // bands in every estimate. null clears it back to "not asked".
+  scottishTaxpayer: z.boolean().nullable().optional(),
   // Tax accounting basis. Cash (default) counts income when received;
   // accruals counts when invoiced. Affects invoice → Tax Readiness
   // aggregation logic.
@@ -99,6 +102,7 @@ const USER_SELECT = {
   employerMileageRatePenceAfter10k: true,
   otherAnnualIncomePence: true,
   payeAnnualPaidTaxPence: true,
+  scottishTaxpayer: true,
   taxBasis: true,
   accountantName: true,
   accountantContact: true,
@@ -364,7 +368,7 @@ export async function userRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, payeAnnualPaidTaxPence, taxBasis, accountantName, accountantContact, accountantAnnualFeePence, dashboardMode, email, currentPassword } = parsed.data;
+    const { displayName, fullName, avatarId, userIntent, workType, employerMileageRatePence, employerMileageRatePenceAfter10k, otherAnnualIncomePence, payeAnnualPaidTaxPence, scottishTaxpayer, taxBasis, accountantName, accountantContact, accountantAnnualFeePence, dashboardMode, email, currentPassword } = parsed.data;
 
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -421,6 +425,11 @@ export async function userRoutes(app: FastifyInstance) {
     // "still owed" figure is honest (Laura Joyce 10 May 2026).
     if (payeAnnualPaidTaxPence !== undefined) {
       updateData.payeAnnualPaidTaxPence = payeAnnualPaidTaxPence;
+    }
+
+    // Scottish taxpayer: Scotland's Income Tax bands in every estimate.
+    if (scottishTaxpayer !== undefined) {
+      updateData.scottishTaxpayer = scottishTaxpayer;
     }
 
     // Accountant details (Laura Joyce 11 May 2026). The annual fee is
