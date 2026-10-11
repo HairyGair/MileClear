@@ -27,6 +27,13 @@ const WORK_TYPES = [
   { value: "company", label: "A company car" },
 ];
 
+// Scotland sets its own Income Tax bands; NI is the same everywhere.
+// "" = not answered yet (worked out on the England, Wales and NI rates).
+const SCOTTISH_OPTIONS = [
+  { value: "no", label: "No" },
+  { value: "yes", label: "Yes" },
+];
+
 const TAX_BASIS = [
   { value: "cash", label: "Cash basis (count income when I'm paid)" },
   { value: "accruals", label: "Accruals (count income when I invoice)" },
@@ -45,6 +52,7 @@ export default function WorkTaxPage() {
   const [paye, setPaye] = useState<number | null>(null);
   const [goal, setGoal] = useState<number | null>(null);
   const [basis, setBasis] = useState("cash");
+  const [scottish, setScottish] = useState<"" | "yes" | "no">("");
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +67,7 @@ export default function WorkTaxPage() {
     setPaye(user.payeAnnualPaidTaxPence && user.payeAnnualPaidTaxPence > 0 ? user.payeAnnualPaidTaxPence : null);
     setGoal(user.weeklyEarningsGoalPence && user.weeklyEarningsGoalPence > 0 ? user.weeklyEarningsGoalPence : null);
     setBasis(user.taxBasis ?? "cash");
+    setScottish(user.scottishTaxpayer == null ? "" : user.scottishTaxpayer ? "yes" : "no");
     setReady(true);
     // Load the form once per account. Typing must not be overwritten by a profile refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -84,6 +93,8 @@ export default function WorkTaxPage() {
         employerMileageRatePenceAfter10k: first === null ? null : after,
         otherAnnualIncomePence: otherIncome,
         payeAnnualPaidTaxPence: paye,
+        // Only send it once answered, so saving other fields doesn't answer it for them.
+        ...(scottish !== "" ? { scottishTaxpayer: scottish === "yes" } : {}),
         ...(showGig ? { weeklyEarningsGoalPence: goal, taxBasis: basis } : {}),
       });
       await refresh();
@@ -131,6 +142,14 @@ export default function WorkTaxPage() {
               value={otherIncome}
               onChange={setOtherIncome}
               hint="Pay from a job, a pension or rent. It sets the tax rate on your driving profit. Leave blank if you have none."
+            />
+
+            <SelectField
+              label="Do you pay Scottish income tax?"
+              value={scottish}
+              onChange={(v) => setScottish(v as "" | "yes" | "no")}
+              options={scottish === "" ? [{ value: "", label: "Not answered yet" }, ...SCOTTISH_OPTIONS] : SCOTTISH_OPTIONS}
+              hint="You do if you live in Scotland. Your Income Tax estimate then uses the Scottish rates."
             />
 
             {showEmployee && (
