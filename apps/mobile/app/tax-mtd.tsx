@@ -339,8 +339,7 @@ function TaxMtdContent() {
       {/* Scope signposts (in-year, self-employment-only product). Future tense: nothing is live yet. */}
       {state.step === "ready" && (
         <>
-          <MtdSignpost text="When it goes live, MileClear will send self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those." />
-          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates. The end-of-year tax return below is a test version only. For now, send your real tax return with HMRC or other compatible software." />
+          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return below is a test version only, so for now send your real tax return with HMRC or other compatible software." />
           <TouchableOpacity
             style={[styles.obligationCard, { marginTop: 12 }]}
             onPress={() => router.push("/tax-mtd-year-end" as never)}
@@ -411,8 +410,8 @@ function ConnectStep({ onConnect }: { onConnect: () => void }) {
       <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
       <Text style={styles.stepTitle}>Connect to the test service</Text>
       <Text style={styles.stepBody}>
-        Sign in to HMRC's test service to try quarterly updates. Nothing is sent to
-        HMRC yet, and your real tax account is not changed.
+        Sign in to HMRC's test service to try quarterly updates. Nothing reaches
+        your real tax account.
       </Text>
       <Bullets
         items={[

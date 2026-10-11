@@ -99,7 +99,7 @@ export default function TaxMtdBusinessScreen() {
       <BetaBanner
         label="Test version"
         title="Quarterly updates are a test version"
-        body="Nothing is sent to HMRC yet. This uses HMRC's test service while we wait to be allowed to send real updates."
+        body="Nothing reaches your real tax account. This uses HMRC's test service while we wait to be allowed to send real updates."
       />
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />

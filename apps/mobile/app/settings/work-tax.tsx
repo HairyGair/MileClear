@@ -418,7 +418,7 @@ export default function WorkTaxSettings() {
           <SettingsRow
             icon="cloud-upload-outline"
             label="Quarterly updates (test version)"
-            hint="Try quarterly reporting. Nothing is sent to HMRC yet."
+            hint="Test version: works with HMRC's test service, nothing reaches your tax account."
             badge={isPremium ? undefined : "Pro"}
             onPress={() => router.push("/tax-mtd")}
             helpTopicId="mtd"
