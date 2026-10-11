@@ -120,6 +120,7 @@ import {
   departureFor,
   isFutureDeparture,
   keepWhereIAm,
+  localDayKey,
   missingForSave,
   parseDayKey,
   shouldFillWhereIAm,
@@ -3461,6 +3462,50 @@ export default function TripFormScreen() {
     );
   });
 
+  // ── The past-trip form's exit guard ─────────────────────────────────────
+  // Back (or the edge swipe) on a past-trip form the driver has filled in
+  // asks first, so a slip of the thumb doesn't throw away a trip typed from
+  // memory. Only what the driver chose counts: places that came with the
+  // screen ("New trip from here", "Add the next trip", where I am) and the
+  // day or time it opened with leave straight away.
+  const pastInitialRef = useRef<{ day: string; time: string; classification: string } | null>(null);
+  useEffect(() => {
+    if (loading || !pastTripForm || pastInitialRef.current) return;
+    pastInitialRef.current = {
+      day: whenDay ? localDayKey(whenDay) : "",
+      time: whenTime ? `${whenTime.hours}:${whenTime.minutes}` : "",
+      classification,
+    };
+  }, [loading, pastTripForm, whenDay, whenTime, classification]);
+  const driverPicked = (k: PlaceKind | null) => k === "saved" || k === "recent" || k === "search";
+  const init = pastInitialRef.current;
+  const pastFormFilled =
+    pastTripForm &&
+    !loading &&
+    (driverPicked(fromKindRef.current) ||
+      (endLat != null && driverPicked(toKindRef.current)) ||
+      (init != null &&
+        ((whenDay ? localDayKey(whenDay) : "") !== init.day ||
+          (whenTime ? `${whenTime.hours}:${whenTime.minutes}` : "") !== init.time ||
+          classification !== init.classification)) ||
+      manualDistanceText.trim() !== "" ||
+      notes.trim() !== "" ||
+      projectLabel.trim() !== "" ||
+      odometerStart.trim() !== "" ||
+      odometerEnd.trim() !== "");
+  usePreventRemove(pastFormFilled && !saving && !savedCard, ({ data }) => {
+    const leave = () => navigation.dispatch(data.action);
+    // Saved, or answered "It's the same drive" / "Open that trip": go.
+    if (exitGuardOffRef.current || savedRef.current) {
+      leave();
+      return;
+    }
+    Alert.alert("Discard this trip?", "It hasn't been added yet.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: leave },
+    ]);
+  });
+
   // The driver's answer on the "already has a trip around then" sheet.
   const answerOverlap = useCallback(
     (answer: "same_drive" | "open" | "add_anyway" | "dismissed") => {
@@ -3471,8 +3516,10 @@ export default function TripFormScreen() {
       if (!hit) return;
       if (answer === "same_drive") {
         // Nothing to save: MileClear already has it.
+        exitGuardOffRef.current = true;
         router.back();
       } else if (answer === "open") {
+        exitGuardOffRef.current = true;
         router.replace({ pathname: "/trip-form", params: { id: hit.id } } as never);
       } else if (answer === "add_anyway") {
         overlapAnsweredRef.current = hit.id;
