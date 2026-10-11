@@ -16,6 +16,10 @@
 
 import type { ClientContext, ServerContext } from "./fraudPreventionHeaders.js";
 import { hmrcCall } from "./client.js";
+import { logEvent } from "../appEvents.js";
+
+/** app_event written each time HMRC's obligations are fetched for a driver. */
+export const MTD_OBLIGATIONS_SEEN_EVENT = "hmrc.obligations_seen";
 
 export interface HmrcObligation {
   start: string;        // ISO date (period start)
@@ -128,5 +132,16 @@ export async function fetchObligations(args: {
   }
   // Newest first — drives the "next due" UI naturally.
   flat.sort((a, b) => new Date(a.due).getTime() - new Date(b.due).getTime());
+
+  // What HMRC showed this driver, kept for the quarterly deadline reminders
+  // (jobs/mtdDeadlineReminders.ts). A background job cannot ask HMRC itself:
+  // every call must carry the driver's real phone in the fraud-prevention
+  // headers, so the reminder works from the last thing HMRC told us here.
+  // Dates and statuses only, never the NINO.
+  logEvent(MTD_OBLIGATIONS_SEEN_EVENT, args.userId, {
+    businessId: args.businessId ?? null,
+    obligations: flat.map((o) => ({ start: o.start, end: o.end, due: o.due, status: o.status })),
+  });
+
   return args.status ? flat.filter((o) => o.status === args.status) : flat;
 }

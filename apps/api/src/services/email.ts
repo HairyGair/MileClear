@@ -1737,6 +1737,52 @@ ${SIGN_OFF}`;
   });
 }
 
+/**
+ * Quarterly update reminder for drivers who have connected HMRC
+ * (jobs/mtdDeadlineReminders.ts), 7 days and 1 day before the deadline while
+ * HMRC still shows the quarter open. Wording rule (HMRC, 23 Sep 2026): never
+ * an adjective about MileClear next to HMRC.
+ */
+export async function sendMtdQuarterlyReminderEmail(
+  email: string,
+  displayName: string | null | undefined,
+  data: {
+    periodLabel: string; // e.g. "6 July to 5 October 2026"
+    dueLabel: string; // e.g. "Saturday 7 November 2026"
+    daysLeft: number;
+  },
+  userId: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const when = data.daysLeft <= 1 ? "tomorrow" : `in ${data.daysLeft} days`;
+  const bodyHtml = `
+${para(greeting)}
+${warningCard(`Your quarterly update for <strong style="color:#fca5a5;">${escapeHtml(data.periodLabel)}</strong> is due by <strong style="color:#fca5a5;">${escapeHtml(data.dueLabel)}</strong>. HMRC still shows it as not sent.`)}
+${stepsCard([
+    "Open MileClear and go to Tax, then Your tax details, then Quarterly updates.",
+    "Tap the quarter and check the figures against your records.",
+    "Send it. If something is wrong later, you can send a corrected one.",
+  ])}
+${para("Your figures come from the trips, earnings and expenses already in MileClear, so it's worth sorting any trips still waiting first.")}
+${para("Questions? Just reply to this email.", 8)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: `Your quarterly update is due ${when}.`,
+    eyebrow: "Quarterly update",
+    title: `Your quarterly update is due ${when}`,
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+  await deliver({
+    email,
+    subject: `Your quarterly update is due by ${data.dueLabel}`,
+    html,
+    userId,
+    label: "MTD quarterly reminder",
+    gated: true,
+  });
+}
+
 /** Self Assessment deadline reminder (register / file / payment on account). */
 export async function sendSelfAssessmentDeadlineEmail(
   email: string,

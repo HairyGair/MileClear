@@ -44,6 +44,7 @@ import { runClassifyNudgeJob } from "./classifyNudge.js";
 import { runSaCountdownRemindersJob } from "./saCountdownReminders.js";
 import { runTaxPaymentRemindersJob } from "./taxPaymentReminders.js";
 import { runCazPayRemindersJob } from "./cazPayReminders.js";
+import { runMtdDeadlineRemindersJob } from "./mtdDeadlineReminders.js";
 import {
   runUnclassifiedNudgeEmailJob,
   runWeeklyRecapEmailJob,
@@ -1639,6 +1640,10 @@ export function startNotificationJobs(): void {
     // "Next week on your roads": Sunday 18:00-19:59 UK, road alerts opt-in
     // only, once per driver per week. Off unless ROAD_WEEK_AHEAD_PUSH=1.
     void runJob("road_week_ahead", runRoadWeekAheadJob);
+    // Quarterly update deadlines (Making Tax Digital): 7 days and 1 day before
+    // each deadline at 10:00 UK, push + email, for drivers connected to HMRC.
+    // Does nothing unless HMRC_ENVIRONMENT=production.
+    void runJob("mtd_deadline", runMtdDeadlineRemindersJob);
   };
 
   setTimeout(() => {
