@@ -64,6 +64,14 @@ export function formatWholePounds(pence: number): string {
   return `£${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 }
 
+/**
+ * One limit as a plain line, naming the tax year whose income decides it:
+ * "Over £50,000 in 2024-25: from 6 April 2026". Matches the help answer.
+ */
+export function mtdPhaseLine(phase: MtdPhase): string {
+  return `Over ${formatWholePounds(phase.thresholdPence)} in ${phase.basedOnTaxYear}: from 6 ${phase.startsLabel}`;
+}
+
 function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
