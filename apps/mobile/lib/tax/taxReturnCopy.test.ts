@@ -10,6 +10,7 @@ import {
   toIsoDay,
   periodAnswerLabel,
   accountingTypeLabel,
+  lateAccountingDateNote,
 } from "./taxReturnCopy";
 
 describe("accounting period and method words", () => {
@@ -62,5 +63,21 @@ describe("taxReturnCopy", () => {
       "Structured building allowance: 1 item",
     ]);
     expect(heldAnnualLines(null)).toEqual([]);
+  });
+});
+
+describe("lateAccountingDateNote", () => {
+  it("shows for a period ending 31 March", () => {
+    expect(lateAccountingDateNote("to_31_march", null, "2025-26")).toMatch(/opt out/);
+  });
+  it("shows for own dates ending 31 March to 4 April of the next year", () => {
+    expect(lateAccountingDateNote("custom", new Date(2026, 3, 4), "2025-26")).not.toBeNull();
+    expect(lateAccountingDateNote("custom", new Date(2026, 2, 31), "2025-26")).not.toBeNull();
+  });
+  it("doesn't show for the tax year, no period, or other dates", () => {
+    expect(lateAccountingDateNote("tax_year", null, "2025-26")).toBeNull();
+    expect(lateAccountingDateNote("none", null, "2025-26")).toBeNull();
+    expect(lateAccountingDateNote("custom", new Date(2026, 3, 5), "2025-26")).toBeNull();
+    expect(lateAccountingDateNote("custom", new Date(2025, 11, 31), "2025-26")).toBeNull();
   });
 });

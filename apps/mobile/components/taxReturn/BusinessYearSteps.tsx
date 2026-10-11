@@ -19,7 +19,7 @@ import {
   type PeriodsChoice,
 } from "../../lib/api/hmrcTaxReturn";
 import { isApiError } from "../../lib/api";
-import { accountingTypeLabel, periodAnswerLabel, toIsoDay } from "../../lib/tax/taxReturnCopy";
+import { accountingTypeLabel, lateAccountingDateNote, periodAnswerLabel, toIsoDay } from "../../lib/tax/taxReturnCopy";
 import { colors } from "../../lib/theme";
 
 function errMsg(err: unknown, fallback: string): string {
@@ -326,6 +326,10 @@ export function AccountingPeriodStep({
               <DateTimePickerField label="End date" value={end} onChange={setEnd} mode="date" hideNow />
             </View>
           )}
+          {(() => {
+            const late = choice ? lateAccountingDateNote(choice, choice === "custom" ? end : null, taxYear) : null;
+            return late ? <Note tone="info" text={late} /> : null;
+          })()}
           <Choice
             selected={choice === "none"}
             label="No accounting period ended in this tax year"

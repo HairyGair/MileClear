@@ -71,6 +71,28 @@ export function periodAnswerLabel(
   }
 }
 
+/**
+ * HMRC's late accounting date rule: a period ending 31 March to 4 April is
+ * treated as ending on 5 April. HMRC applies it automatically and only lets a
+ * driver opt out through software; MileClear doesn't offer the opt-out
+ * (Anthony, 12 Oct 2026), so those drivers get a note saying where to do it.
+ * Returns null when the rule doesn't apply.
+ */
+export function lateAccountingDateNote(
+  choice: "tax_year" | "to_31_march" | "custom" | "none",
+  endDate: Date | null,
+  taxYear: string
+): string | null {
+  const y = parseInt(taxYear.slice(0, 4), 10) + 1;
+  let applies = choice === "to_31_march";
+  if (choice === "custom" && endDate) {
+    const md = endDate.getMonth() * 100 + endDate.getDate(); // March = 2
+    applies = endDate.getFullYear() === y && md >= 231 && md <= 304;
+  }
+  if (!applies) return null;
+  return "HMRC treats an accounting period ending between 31 March and 4 April as ending on 5 April, the end of the tax year. That's usually what you want. If you'd rather it didn't, you can opt out in HMRC's online services or other software. MileClear can't do that for you.";
+}
+
 /** Plain words for HMRC's accounting type. */
 export function accountingTypeLabel(t: "CASH" | "ACCRUAL"): string {
   return t === "CASH" ? "Cash basis" : "Traditional accounting";
