@@ -368,7 +368,7 @@ function InlineMapView({
             >
               <Callout>
                 <View style={styles.callout}>
-                  <Text style={styles.calloutTitle}>{s.brand}</Text>
+                  <Text style={styles.calloutTitle} numberOfLines={1}>{s.brand}</Text>
                   {price != null && (
                     <Text style={styles.calloutPrice}>
                       {fuel.label} {formatPpl(price)}
@@ -589,6 +589,7 @@ const styles = StyleSheet.create({
   callout: {
     padding: 6,
     minWidth: 100,
+    maxWidth: 220,
   },
   calloutTitle: {
     fontSize: 13,

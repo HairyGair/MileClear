@@ -64,6 +64,52 @@ export const QUICK_TRIP_NEVER_DROVE_MS = 60 * 60 * 1000;
  */
 export const QUICK_TRIP_UNTIL_ARRIVED_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * Does this Start Trip hold through stops (no 15-minute parked finish, the
+ * "Still on your trip?" reminder instead)?
+ *
+ * Shaun, 10 Oct 2026: Automatic trips off, he used Start Trip, stopped for 18
+ * minutes part way, and the parked rule saved the first 16 miles and handed
+ * back to automatic trips. With them off nothing recorded the other ~100
+ * miles. The parked finish only makes sense when automatic trips will pick up
+ * the next drive, so with them off Start Trip runs until Arrived, as if the
+ * setting were on. `automaticTripsOn` is readDetectionSwitch (a pause still
+ * reads on: it ends by itself).
+ */
+export function startTripHoldsThroughStops(args: {
+  /** The "Start Trip runs until I tap Arrived" setting. */
+  settingOn: boolean;
+  automaticTripsOn: boolean;
+}): { on: boolean; source: "setting" | "automatic_trips_off" | null } {
+  if (args.settingOn) return { on: true, source: "setting" };
+  if (!args.automaticTripsOn) return { on: true, source: "automatic_trips_off" };
+  return { on: false, source: null };
+}
+
+/**
+ * The notification after a background finish (parked or never drove). With
+ * automatic trips off, "your next drives record automatically" is not true.
+ */
+export function quickTripAutoFinishCopy(args: {
+  tripsSaved: number;
+  automaticTripsOn: boolean;
+}): { title: string; body: string; action: "open_trips" | "open_dashboard" } {
+  const next = args.automaticTripsOn
+    ? "Your next drives record automatically."
+    : "Automatic trips are off, so tap Start Trip for your next drive.";
+  return args.tripsSaved > 0
+    ? {
+        title: "Trip saved",
+        body: `You'd parked, so your Start Trip was finished and saved. ${next}`,
+        action: "open_trips",
+      }
+    : {
+        title: "Start Trip ended",
+        body: `Your Start Trip hadn't recorded any driving, so it was switched off to save battery. ${next}`,
+        action: "open_dashboard",
+      };
+}
+
 export type QuickTripLockAction =
   /** A real recording owns the GPS. Yield; change nothing. */
   | "suppress"
@@ -111,9 +157,18 @@ export function quickTripLockDecision(args: {
   lastDrivingMs?: number | null;
   /** The driver's "keep Start Trip going until I tap Arrived" setting. */
   untilArrived?: boolean;
+  /**
+   * Automatic trips switched off (startTripHoldsThroughStops). Exactly like
+   * the setting: no parked finish, no never-drove finish (a driver who waits
+   * over an hour before driving would otherwise get nothing recorded), and
+   * the 12-hour liveness. The 12-hour recovery and 18-hour cap still apply.
+   */
+  automaticTripsOff?: boolean;
 }): QuickTripLockDecision {
   const { nowMs, firstCoordMs, lastCoordMs, quickTripStartMs, lockStartedAtMs, appActive } = args;
   const untilArrived = args.untilArrived === true;
+  const automaticTripsOff = args.automaticTripsOff === true;
+  const holdsThroughStops = untilArrived || automaticTripsOff;
 
   const anchors = [firstCoordMs, quickTripStartMs, lockStartedAtMs].filter(
     (v): v is number => v != null && Number.isFinite(v)
@@ -129,7 +184,7 @@ export function quickTripLockDecision(args: {
   // A real Start Trip, with the app off screen (the open form owns its own
   // Arrive, so never finish from under it): judge it by DRIVING, not by any
   // fix, because walking fixes keep the breadcrumb test below forever live.
-  if (quickTripStartMs != null && !appActive && !untilArrived && args.lastDrivingMs !== undefined) {
+  if (quickTripStartMs != null && !appActive && !holdsThroughStops && args.lastDrivingMs !== undefined) {
     const drove = args.lastDrivingMs;
     if (drove != null && Number.isFinite(drove) && drove >= quickTripStartMs) {
       if (nowMs - drove >= QUICK_TRIP_PARKED_MS) return { action: "finish", reason: "parked" };
@@ -142,7 +197,7 @@ export function quickTripLockDecision(args: {
   if (lastCoordMs != null && nowMs - lastCoordMs < QUICK_TRIP_LIVE_COORD_MS) {
     return { action: "suppress", reason: "live_breadcrumb" };
   }
-  const staleMs = untilArrived ? QUICK_TRIP_UNTIL_ARRIVED_MS : QUICK_TRIP_STALE_MS;
+  const staleMs = holdsThroughStops ? QUICK_TRIP_UNTIL_ARRIVED_MS : QUICK_TRIP_STALE_MS;
   if (quickTripStartMs != null && nowMs - quickTripStartMs < staleMs) {
     return { action: "suppress", reason: "recently_started" };
   }

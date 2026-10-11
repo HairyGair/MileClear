@@ -1769,9 +1769,17 @@ export default function TripFormScreen() {
     setLiveDistance(0);
     setDrivingTrail([]);
     setMode("ready");
+    let automaticTripsOn = true;
+    try {
+      const { readAutomaticTrips } = await import("../lib/tracking/automaticTrips");
+      automaticTripsOn = await readAutomaticTrips();
+    } catch {
+      // the usual wording
+    }
     const alert = startTripFinishedAlert({
       fromReminder,
       tripsSaved: tripsRow ? Number(tripsRow.value) : null,
+      automaticTripsOn,
     });
     Alert.alert(alert.title, alert.body);
     return true;
@@ -2605,12 +2613,13 @@ export default function TripFormScreen() {
         // The one exception to the gpsQuality rule above: a driver who chose
         // "Keep Start Trip going until I tap Arrived" has told us the stops
         // inside it are part of the job, so the server's visit splitter must
-        // leave it whole (driverKeptGoing). Only set with that setting on.
+        // leave it whole (driverKeptGoing). Only set with that setting on, or
+        // with Automatic trips off, where Start Trip holds through stops too.
         let keptGoing = false;
         if (coords) {
           try {
-            const { getStartTripUntilArrived } = await import("../lib/tracking/detection");
-            keptGoing = await getStartTripUntilArrived();
+            const { getStartTripRunsUntilArrived } = await import("../lib/tracking/detection");
+            keptGoing = await getStartTripRunsUntilArrived();
           } catch {
             keptGoing = false;
           }

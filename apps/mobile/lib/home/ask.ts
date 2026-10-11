@@ -16,7 +16,7 @@ export type AskId =
   | "saved_places" // Save the places you visit often
   | "pro" // Pro (free drivers with 5+ trips)
   | "referral" // Invite a friend, get Pro free
-  | "android_beta"; // Android beta (retire when the public Play release ships)
+  | "android_beta"; // Retired 11 Oct 2026 (not in ASK_ORDER): Android is public
 
 export const ASK_ORDER: readonly AskId[] = [
   "acquisition",
@@ -27,7 +27,9 @@ export const ASK_ORDER: readonly AskId[] = [
   "saved_places",
   "pro",
   "referral",
-  "android_beta",
+  // "android_beta" retired 11 Oct 2026: Android has been public on Google Play
+  // since 21 Sep, so "In closed testing" was wrong. The id stays in AskId so
+  // stored dismissals still parse.
 ];
 
 export interface AskInputs {

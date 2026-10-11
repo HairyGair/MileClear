@@ -14,6 +14,8 @@ import {
   getRecentLifecycleEvents,
 } from "../tracking/detection";
 import { mergeDumpEvents } from "../tracking/lifecycleEvents";
+import { isTrackingLogEvent, TRACKING_LOG_CAP, TRACKING_LOG_WINDOW_MS } from "../tracking/trackingLog";
+import { getTrackingLog } from "../tracking/trackingLogStore";
 import { getDatabase } from "../db";
 import { getAppStateInfo } from "../appState";
 import { getRoutingStats } from "../tracking/routingStats";
@@ -205,6 +207,12 @@ function screenDetails(): { modelName: string | null; screenWidth: number; scree
 }
 
 export async function uploadDiagnosticDump(): Promise<void> {
+  // Recording-drop events that could not be sent at the time (offline at the
+  // kerb, or the app closed mid-send) go now, once per app start. Detached:
+  // it must not hold up or fail the dump. See lib/tracking/recordingDrops.ts.
+  import("../tracking/recordingDrops")
+    .then((m) => m.flushEventOutbox())
+    .catch(() => {});
   try {
     const [
       diagnostics,
@@ -214,6 +222,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
       savedLocations,
       activitySummary,
       routingStats,
+      trackingLog,
     ] = await Promise.all([
       getDriveDetectionDiagnostics(),
       getRecentDetectionEvents(DUMP_EVENT_COUNT),
@@ -222,6 +231,7 @@ export async function uploadDiagnosticDump(): Promise<void> {
       getSavedLocations(),
       getActivitySummary(),
       getRoutingStats(24),
+      getTrackingLog(),
     ]);
 
     const appState = getAppStateInfo();
@@ -268,7 +278,17 @@ export async function uploadDiagnosticDump(): Promise<void> {
     // anchors / geofence centres / coordinate buffers to `data`. Scrub every
     // event before upload so the dump never carries a fix. The server runs
     // the same scrub on receipt as a second line of defence.
-    const events = mergeDumpEvents(recentEvents, lifecycleEvents, Date.now());
+    // Then the rolling 24-hour tracking log (trackingLog.ts, 10 Oct 2026):
+    // engine, motion, power, permission and app-state rows that routine
+    // traffic would otherwise have pushed out, so a silent drive can be read
+    // from the dump the next morning. Same row shape, de-duplicated the same way.
+    const now = Date.now();
+    const events = mergeDumpEvents(
+      mergeDumpEvents(recentEvents, lifecycleEvents, now),
+      trackingLog,
+      now,
+      { windowMs: TRACKING_LOG_WINDOW_MS, cap: TRACKING_LOG_CAP, keep: isTrackingLogEvent }
+    );
     const safeEvents = events.map((e) => ({
       ...e,
       data: scrubDiagnosticEventData(e.data),

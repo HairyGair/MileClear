@@ -79,6 +79,7 @@ import {
 } from "../../services/tripSplit.js";
 import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns.js";
 import { visitAutoSplitEnabled } from "../../jobs/visitSplit.js";
+import { parsePhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 import { findSplitFamily, appendToSplitTail } from "../../services/splitTailAppend.js";
 import {
   suggestPlacePairClassification,
@@ -353,6 +354,11 @@ export async function tripRoutes(app: FastifyInstance) {
     extraNote: z.string().trim().max(1000).optional(),
     pausedUntil: z.number().int().positive().optional(),
     pauseStartedAt: z.number().int().positive().optional(),
+    // The phone's own tracking log around departAt (10 Oct 2026, see
+    // services/missingTripPhoneLog.ts). Accepted as anything here and parsed
+    // on its own below, so a malformed log is dropped instead of rejecting
+    // the driver's report.
+    phoneLog: z.unknown().optional(),
   });
   app.post("/report-missing", async (request, reply) => {
     const userId = request.userId!;
@@ -381,6 +387,10 @@ export async function tripRoutes(app: FastifyInstance) {
     // only written when the app sent a valid one, so older rows and older
     // builds look the same: no key.
     const { from, to, departAt, extraNote, pausedUntil, pauseStartedAt } = parsed.data;
+    // Stored on this report's own event, so nothing later overwrites it (the
+    // diagnostic dump is one row per phone and is replaced at every app open).
+    const phoneLog = parsePhoneLog(parsed.data.phoneLog);
+    const phoneLogSummary = phoneLog ? summarisePhoneLog(phoneLog) : null;
     logEvent("trip.report_missing", userId, {
       hasNote: note !== "(no details given)",
       note: note.slice(0, 500),
@@ -391,6 +401,8 @@ export async function tripRoutes(app: FastifyInstance) {
       ...(extraNote ? { extraNote: extraNote.slice(0, 500) } : {}),
       ...(pausedUntil ? { pausedUntil } : {}),
       ...(pauseStartedAt ? { pauseStartedAt } : {}),
+      ...(phoneLog ? { phoneLog } : {}),
+      ...(parsed.data.phoneLog != null && !phoneLog ? { phoneLogRejected: true } : {}),
     });
     const driveLine =
       `Drive: ${formatReportedDate(reportedDate)}` +
@@ -404,7 +416,9 @@ export async function tripRoutes(app: FastifyInstance) {
         embeds: [
           {
             title: "Missing trip reported",
-            description: `**${user?.displayName || user?.email || userId}**\n\n${driveLine}\n\n> ${note}\n\n${dumpLine}`,
+            description: `**${user?.displayName || user?.email || userId}**\n\n${driveLine}\n\n> ${note}\n\n${dumpLine}${
+              phoneLogSummary ? `\nPhone log: ${phoneLogSummary.line}` : ""
+            }`,
             color: 0xf5a623,
             fields: [{ name: "User ID", value: userId, inline: true }],
             timestamp: new Date().toISOString(),

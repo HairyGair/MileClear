@@ -12,8 +12,12 @@ describe("selectAsk", () => {
   it("follows the order from the spec", () => {
     expect(ASK_ORDER).toEqual([
       "acquisition", "vehicle", "odometer", "employer", "shift",
-      "saved_places", "pro", "referral", "android_beta",
+      "saved_places", "pro", "referral",
     ]);
+  });
+
+  it("never shows the retired Android beta card (Android is public)", () => {
+    expect(selectAsk({ statusRed: false, quietToday: false, eligible: { android_beta: true } })).toBeNull();
   });
 
   it("walks down the list as asks drop out", () => {
@@ -39,7 +43,7 @@ describe("selectAsk", () => {
     expect(selectAsk({ statusRed: false, quietToday: false, eligible: {} })).toBeNull();
   });
 
-  it("Pro comes before the referral and Android beta", () => {
+  it("Pro comes before the referral", () => {
     expect(
       selectAsk({ statusRed: false, quietToday: false, eligible: { pro: true, referral: true, android_beta: true } })
     ).toBe("pro");

@@ -25,6 +25,9 @@ export interface QueueItem {
   /** Missing-trip reports only: the day the user said they drove. Null for
    *  reports filed before the date picker (16 Sep 2026). */
   reportedDate: string | null;
+  /** Missing-trip reports only: what the phone's own log showed around the
+   *  departure (10 Oct 2026). Absent from older API responses. */
+  phoneLogLine?: string | null;
   status: string | null;
   replies: number;
   lastReplyBy: "admin" | "user" | null;
@@ -154,6 +157,7 @@ export function SupportQueuePanel({ queue, data, onHandled }: Props) {
             </>
           )}
           {r.summary}
+          {r.phoneLogLine && <span className="adm-cell-sub">Phone log: {r.phoneLogLine}</span>}
         </div>
       ),
     },

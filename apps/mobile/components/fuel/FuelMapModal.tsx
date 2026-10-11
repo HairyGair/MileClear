@@ -271,6 +271,8 @@ const styles = StyleSheet.create({
   callout: {
     padding: 6,
     minWidth: 100,
+    // Long station names shorten with an ellipsis instead of running off screen.
+    maxWidth: 220,
   },
   calloutTitle: {
     fontSize: 13,

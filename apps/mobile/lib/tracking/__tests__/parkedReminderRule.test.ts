@@ -287,6 +287,33 @@ describe("parkedArrivedNotification", () => {
   });
 });
 
+describe("with Automatic trips off", () => {
+  it("the Arrived result does not promise automatic recording", () => {
+    const saved = parkedArrivedNotification("finish", 1, false);
+    expect(saved?.action).toBe("open_trips");
+    expect(saved?.body).toContain("Automatic trips are off");
+    const nothing = parkedArrivedNotification("finish", 0, false);
+    expect(nothing?.action).toBe("open_dashboard");
+    expect(nothing?.body).not.toContain("record automatically");
+  });
+
+  it("the Start Trip screen's alert does not either", () => {
+    expect(
+      startTripFinishedAlert({ fromReminder: false, tripsSaved: 0, automaticTripsOn: false }).body
+    ).toContain("Automatic trips are off");
+    expect(startTripFinishedAlert({ fromReminder: false, tripsSaved: 0 }).body).toContain(
+      "record automatically"
+    );
+  });
+
+  it("user-facing copy has no em dashes", () => {
+    for (const v of Object.values(PARKED_COPY)) {
+      if (typeof v === "string") expect(v).not.toContain("\u2014");
+      else for (const t of Object.values(v)) expect(t).not.toContain("\u2014");
+    }
+  });
+});
+
 describe("foreground presentation", () => {
   it("is quiet only when the app is active AND the Start Trip screen is open", () => {
     expect(parkedReminderForegroundDecision({ appActive: true, startTripScreenVisible: true })).toBe(

@@ -57,7 +57,7 @@ const freeFeatures: FeatureGroup[] = [
       'Works offline - trips record with no signal and sync later',
       'Business and personal classification, platform tagging, shift mode with live earnings',
       'Trip split and merge (2-20 trips), plus Missed Journeys the app proposes for you to accept',
-      '2 saved locations with geofencing (home, work, depot)',
+      '2 saved places (home, work, depot)',
       'Live Activities on the iPhone lock screen',
     ],
   },
@@ -165,7 +165,7 @@ const faqs = [
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes, with no penalty. You can cancel from within the app at any time - go to Profile and scroll to the Subscription section. Your Pro access continues until the end of your current billing period, and you will not be charged again after that. There is no cancellation fee.',
+    a: 'Yes, with no penalty. You can cancel from within the app at any time - go to More > Settings > Your plan. Your Pro access continues until the end of your current billing period, and you will not be charged again after that. There is no cancellation fee.',
   },
   {
     q: 'Is there a free trial?',
@@ -181,7 +181,7 @@ const faqs = [
   },
   {
     q: 'How does payment work?',
-    a: 'On iPhone, Pro is sold through Apple In-App Purchase; on Android, through Google Play Billing; on the web, through Stripe. Your card details stay with Apple, Google or Stripe - we never see them. Manage or cancel from your App Store or Google Play subscriptions, or from MileClear Profile.',
+    a: 'On iPhone, Pro is sold through Apple In-App Purchase; on Android, through Google Play Billing; on the web, through Stripe. Your card details stay with Apple, Google or Stripe - we never see them. Manage or cancel from your App Store or Google Play subscriptions, or from More > Settings > Your plan in MileClear.',
   },
   {
     q: 'Is there a yearly plan?',

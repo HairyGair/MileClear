@@ -3,14 +3,13 @@
 // a label, number, or control might confuse a first-time user:
 //
 //   <View style={row}>
-//     <Text>Tax Readiness</Text>
-//     <ContextualHelp topicId="tax-readiness" />
+//     <Text>Your accountant</Text>
+//     <ContextualHelp topicId="accountant" />
 //   </View>
 //
-// Reads from the shared HELP_SECTIONS registry in lib/help/topics.ts
-// so the sheet's content stays in sync with the full Help & Tutorials
-// screen — update one place, every (i) button across the app picks
-// up the change.
+// Reads the topic from lib/help/topics.ts, which reads @mileclear/shared
+// (data/help.ts): the same words as the Help and how-tos screen, the
+// website and EmSee.
 //
 // If the topic has a goTo, the sheet shows an extra "Open" CTA that
 // deep-links to the relevant screen. Otherwise it's read-and-close.
@@ -25,7 +24,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, usePathname } from "expo-router";
 import { AppModal } from "./AppModal";
 import { getHelpTopic } from "../lib/help/topics";
 import { colors, fonts, radii, spacing } from "../lib/theme";
@@ -53,14 +52,17 @@ export function ContextualHelp({
 }: ContextualHelpProps) {
   const [visible, setVisible] = useState(false);
   const topic = getHelpTopic(topicId);
+  const pathname = usePathname();
+  // No "Open" when the driver is already on the screen the topic is about.
+  const goTo = topic?.goTo && topic.goTo.split("?")[0] !== pathname ? topic.goTo : undefined;
 
   const handleOpenScreen = useCallback(() => {
-    if (!topic?.goTo) return;
+    if (!goTo) return;
     setVisible(false);
     // Small delay so the modal dismiss completes before the navigation
     // — without it iOS occasionally drops the push.
-    setTimeout(() => router.push(topic.goTo as never), 250);
-  }, [topic]);
+    setTimeout(() => router.push(goTo as never), 250);
+  }, [goTo]);
 
   if (!topic) return null;
 
@@ -104,7 +106,7 @@ export function ContextualHelp({
             </ScrollView>
 
             <View style={styles.footer}>
-              {topic.goTo ? (
+              {goTo ? (
                 <TouchableOpacity
                   style={styles.primaryBtn}
                   onPress={handleOpenScreen}
@@ -118,7 +120,7 @@ export function ContextualHelp({
                 </TouchableOpacity>
               ) : null}
               <TouchableOpacity
-                style={[styles.secondaryBtn, !topic.goTo && styles.secondaryBtnFull]}
+                style={[styles.secondaryBtn, !goTo && styles.secondaryBtnFull]}
                 onPress={() => setVisible(false)}
                 accessibilityRole="button"
                 accessibilityLabel="Close help"
