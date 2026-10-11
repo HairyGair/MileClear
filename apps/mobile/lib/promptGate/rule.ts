@@ -6,19 +6,24 @@
 //
 // No React Native imports here, so the rule runs under vitest.
 
-export type PromptId = "location_primer" | "work_explainer" | "saved_places" | "rating";
+export type PromptId = "location_primer" | "whats_new" | "work_explainer" | "saved_places" | "rating";
 
 // Highest first. Why this order:
 // 1. location_primer: without Always location (or any location) automatic
 //    trips do not record at all. Trip capture is priority 1, and every day
 //    it waits is a day of lost mileage.
-// 2. work_explainer: tells a new Work-mode driver what the mode is for. Worth
+// 2. whats_new: the one-time sheet for existing drivers after the first-run
+//    tour shipped (lib/tutorial). Only shown to drivers with Always, so it
+//    never competes with the location ask; above the work explainer so a
+//    driver who still has that unseen gets the news first.
+// 3. work_explainer: tells a new Work-mode driver what the mode is for. Worth
 //    seeing early, but nothing is lost while it waits.
-// 3. saved_places: names stops the driver already visits. Needs 10+ trips, so
+// 4. saved_places: names stops the driver already visits. Needs 10+ trips, so
 //    it is never the first thing a new driver needs.
-// 4. rating: asks for something for us, not the driver. Always last.
+// 5. rating: asks for something for us, not the driver. Always last.
 export const PROMPT_PRIORITY: readonly PromptId[] = [
   "location_primer",
+  "whats_new",
   "work_explainer",
   "saved_places",
   "rating",
