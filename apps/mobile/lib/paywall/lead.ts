@@ -52,7 +52,7 @@ export const PAYWALL_FEATURES: readonly PaywallFeature[] = [
   { id: "open_banking", icon: "card-outline", label: "Open Banking", desc: "Import earnings from your bank" },
   { id: "business_insights", icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L and golden hours" },
   { id: "driving_analytics", icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends and deeper efficiency metrics" },
-  { id: "auto_classify", icon: "calendar-outline", label: "Auto-Classify Rules", desc: "Trips in your work hours marked as business automatically" },
+  { id: "auto_classify", icon: "calendar-outline", label: "Sort by work hours", desc: "Trips in your work hours marked as Business for you. Other sorting is free" },
   { id: "journey_map", icon: "map-outline", label: "Journey Map", desc: "See your recent routes together on one map" },
   { id: "saved_locations", icon: "location-outline", label: "Unlimited Locations", desc: "Save as many depots as you need (free plan: 2)" },
   { id: "vehicles", icon: "car-outline", label: "Unlimited Vehicles", desc: "Add every car, van or motorbike you drive (free plan: 1)" },
@@ -118,7 +118,7 @@ const FEATURE_GATES: Record<
     subline: "Earnings per mile by platform, busy times and road reports from drivers near you.",
     icon: "people-outline",
   },
-  "Auto-Classify Rules": {
+  "Sort by work hours": {
     subline: "Set your work hours once and trips inside them are marked as business automatically.",
     icon: "calendar-outline",
     highlightFeature: "auto_classify",

@@ -234,7 +234,7 @@ export default function WorkScheduleScreen() {
             where the genuine automation value lives (rule engine state +
             background reclassification). */}
         <Text style={s.subtitle}>
-          Set your regular work hours. With Pro, trips during these times can be auto-classified as business.
+          Set your regular work hours. With Pro, trips during these times can be marked as Business for you.
         </Text>
 
         {/* Day selector — quick toggle */}
@@ -366,13 +366,13 @@ export default function WorkScheduleScreen() {
             shift reminders are Pro. Editing the schedule itself (above)
             is free. */}
         {hasAnySlots && (
-          <PremiumGate feature="Auto-Classify Rules">
+          <PremiumGate feature="Sort by work hours">
             <Text style={s.settingsTitle}>Schedule Settings</Text>
 
             <View style={s.settingCard}>
               <View style={s.settingRow}>
                 <View style={s.settingBody}>
-                  <Text style={s.settingLabel}>Auto-classify trips</Text>
+                  <Text style={s.settingLabel}>Mark work-hours trips as Business</Text>
                   <Text style={s.settingHint}>
                     Trips during work hours are automatically classified as business
                   </Text>
@@ -382,7 +382,7 @@ export default function WorkScheduleScreen() {
                   onValueChange={(v) => handleSettingToggle("schedule_auto_classify", v)}
                   trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
                   thumbColor={autoClassify ? AMBER : TEXT_2}
-                  accessibilityLabel="Auto-classify trips during work hours as business"
+                  accessibilityLabel="Mark trips during work hours as Business"
                 />
               </View>
 

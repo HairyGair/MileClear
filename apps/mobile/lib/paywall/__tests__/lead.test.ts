@@ -33,7 +33,7 @@ const LEAD_SOURCES = [
   "Journey Map",
   "Journey Timeline",
   "Community Insights",
-  "Auto-Classify Rules",
+  "Sort by work hours",
   "Quarterly updates",
 ];
 
