@@ -26,6 +26,9 @@ export interface User {
    *  pence. Subtracted from gross liability to compute the "still owed"
    *  figure on Tax Readiness. Added 10 May 2026. */
   payeAnnualPaidTaxPence?: number | null;
+  /** Pays Scottish Income Tax (lives in Scotland). null = not asked yet,
+   *  treated as no. Switches the Income Tax bands in every estimate. */
+  scottishTaxpayer?: boolean | null;
   /** Tax accounting basis. "cash" = count when paid; "accruals" = count
    *  when invoiced. Affects invoice → Tax Readiness aggregation. */
   taxBasis?: "cash" | "accruals";
