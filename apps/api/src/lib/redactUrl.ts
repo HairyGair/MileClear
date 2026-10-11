@@ -55,7 +55,9 @@ export function redactNinoInPath(path: string): string {
  * is what a short git hash looks like, and HMRC always issues NINOs in
  * capitals, so matching case-insensitively here would eat harmless values.
  */
-const NINO_IN_TEXT = /\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]?\b/g;
+// Not inside an ID: a hyphen or word character either side means part of a
+// UUID or token (Apple's apns-id is upper-case hex), not an NI number.
+const NINO_IN_TEXT = /(?<![\w-])[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\d{6}[A-D]?(?![\w-])/g;
 
 export function redactNinoInText(text: string): string {
   return redactNinoInPath(text).replace(NINO_IN_TEXT, ":nino");

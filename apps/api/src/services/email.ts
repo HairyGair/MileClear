@@ -1759,7 +1759,7 @@ export async function sendMtdQuarterlyReminderEmail(
 ${para(greeting)}
 ${warningCard(`Your quarterly update for <strong style="color:#fca5a5;">${escapeHtml(data.periodLabel)}</strong> is due by <strong style="color:#fca5a5;">${escapeHtml(data.dueLabel)}</strong>. HMRC still shows it as not sent.`)}
 ${stepsCard([
-    "Open MileClear and go to Tax, then Your tax details, then Quarterly updates.",
+    "Open MileClear, tap More, then Drive for work?, then Quarterly updates.",
     "Tap the quarter and check the figures against your records.",
     "Send it. If something is wrong later, you can send a corrected one.",
   ])}
@@ -1779,7 +1779,10 @@ ${SIGN_OFF}`;
     html,
     userId,
     label: "MTD quarterly reminder",
-    gated: true,
+    // Not marketing: a reminder about a tax deadline the driver signed up for
+    // by connecting HMRC (Anthony, 11 Oct 2026), so it goes even when
+    // marketing emails are off.
+    gated: false,
   });
 }
 

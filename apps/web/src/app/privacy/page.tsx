@@ -487,7 +487,7 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>DVSA (MOT History)</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your vehicle registration plate to retrieve MOT test history and expiry dates for reminders.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Discord (Internal Service Alerts)</strong></p>
-                <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts identify you by your display name (often just its first word) and your account ID, and can include your subscription status, trip counts and the text of a problem or missing-trip report you send us. They do not include your email address (except when you ask to join the Android test programme, where the address is the request), your National Insurance number, your location data or trip routes. Discord Inc. processes this data on our behalf under its standard data processing terms.</p>
+                <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts identify you by your display name (often just its first word) and your account ID, and can include your subscription status, trip counts and the text of a problem or missing-trip report you send us. They do not include your email address (except when you ask to join the Android test programme, where the address is the request), your National Insurance number, your location data or trip routes. The server is private to our team, and we keep these alerts to the minimum we need to act on them.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Slack (Internal Service Alerts)</strong></p>
                 <p className="legal__card-text legal__text--small">A copy of three kinds of alert goes to our team&apos;s Slack: a new account (the first word of your display name, account ID, platform, sign-in method and approximate town from your IP address), a new subscription (plan, display name and account ID), and an Android test programme request (the email address you gave). Slack Technologies processes this data on our behalf under its data processing terms.</p>
               </div>
@@ -560,7 +560,7 @@ export default function PrivacyPolicy() {
 
               <div className="legal__card">
                 <h3 className="legal__card-title">Data Processing Agreements</h3>
-                <p className="legal__card-text">All third-party processors sign Data Processing Agreements (DPAs) under UK GDPR Article 28, guaranteeing:</p>
+                <p className="legal__card-text">The services that process your data on our behalf (such as hosting, email, payments and bank connections) do so under data processing agreements or terms that meet UK GDPR Article 28, which cover:</p>
                 <ul className="legal__list">
                   <li className="legal__list-item">Processing only on our documented instructions</li>
                   <li className="legal__list-item">Appropriate technical and organisational security measures</li>
