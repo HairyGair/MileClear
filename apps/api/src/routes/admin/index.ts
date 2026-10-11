@@ -5,7 +5,7 @@ import { prisma } from "../../lib/prisma.js";
 import { invalidatePremiumCache } from "../../middleware/premium.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { adminMiddleware } from "../../middleware/admin.js";
-import { stripe } from "../../lib/stripe.js";
+import { revokeUpstreamForDeletion } from "../../services/accountDeletion.js";
 import {
   sendReEngagementEmail,
   sendServiceStatusEmail,
@@ -1741,14 +1741,10 @@ export async function adminRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    // Cancel active Stripe subscription before deleting
-    if (user.stripeSubscriptionId && stripe) {
-      try {
-        await stripe.subscriptions.cancel(user.stripeSubscriptionId);
-      } catch (err) {
-        request.log.error(err, `Failed to cancel Stripe subscription for ${userId}`);
-      }
-    }
+    // Revoke upstream grants and delete the Stripe customer while the
+    // tokens still exist (GDPR audit H6). Best-effort, never blocks.
+    const upstream = await revokeUpstreamForDeletion(userId);
+    logEvent("account.upstream_revoked", null, { deletedUserId: userId, by: "admin", steps: upstream });
 
     logEvent("admin.user_deleted", request.userId!, {
       targetUserId: userId,

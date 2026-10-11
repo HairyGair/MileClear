@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
-import { stripe } from "../../lib/stripe.js";
+import { revokeUpstreamForDeletion } from "../../services/accountDeletion.js";
 import { verifyPassword } from "../../services/auth.js";
 import { sendPushToUser } from "../../lib/push.js";
 import { isPushQuietHours } from "../../services/pushQuietHoursRule.js";
@@ -1311,14 +1311,12 @@ export async function userRoutes(app: FastifyInstance) {
       }
     }
 
-    // Cancel Stripe subscription before deleting account
-    if (user.stripeSubscriptionId && stripe) {
-      try {
-        await stripe.subscriptions.cancel(user.stripeSubscriptionId);
-      } catch (err) {
-        console.error("Failed to cancel subscription:", err);
-      }
-    }
+    // Revoke what lives outside our database (Stripe customer and
+    // subscription, QuickBooks, Xero, TrueLayer, the waitlist row) while the
+    // tokens still exist. Best-effort: never blocks the deletion. Outcomes
+    // are recorded so a failed step can be finished by hand.
+    const upstream = await revokeUpstreamForDeletion(userId);
+    logEvent("account.upstream_revoked", null, { deletedUserId: userId, by: "self", steps: upstream });
 
     request.log.warn(
       { userId, action: "account.delete" },

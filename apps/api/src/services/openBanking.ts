@@ -611,9 +611,44 @@ export async function disconnectConnection(
     throw new Error("Bank connection not found");
   }
 
-  // TrueLayer doesn't have an explicit "remove" API — just mark as disconnected
+  // Ask TrueLayer to drop the bank consent too (GDPR audit H6), so the
+  // stored token stops being a live key to the account. Best-effort: a
+  // failure there must not stop the driver disconnecting here.
+  await revokeTrueLayerAccess(connection).catch((err) => {
+    console.warn(
+      "[openBanking] TrueLayer revoke on disconnect failed:",
+      err instanceof Error ? err.message : err
+    );
+  });
+
   await prisma.plaidConnection.update({
     where: { id: connectionId },
     data: { status: "disconnected" },
   });
+}
+
+/**
+ * Revoke a connection's access at TrueLayer: `DELETE {auth}/api/delete`
+ * with the connection's access token removes the credentials TrueLayer
+ * holds for it, which ends the bank consent. A token that has already
+ * expired is refreshed first, since the delete needs a live one. A 401 at
+ * the delete means TrueLayer no longer recognises the token, which is the
+ * outcome we wanted anyway. Throws on anything else; callers decide whether
+ * that matters (account deletion and disconnect both carry on).
+ */
+export async function revokeTrueLayerAccess(connection: {
+  id: string;
+  accessToken: string;
+  refreshToken: string | null;
+}): Promise<void> {
+  if (!truelayerEnabled) return;
+  const accessToken = await getValidAccessToken(connection);
+  const res = await fetch(`${TRUELAYER_AUTH_BASE}/api/delete`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok && res.status !== 401) {
+    throw new Error(`TrueLayer revoke returned HTTP ${res.status}`);
+  }
 }
