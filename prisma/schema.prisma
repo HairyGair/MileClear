@@ -598,6 +598,23 @@ model Trip {
   // the app offers a merge, "Keep both" clears this via PATCH.
   possibleDuplicateOfId String?
 
+  // Trip facts (11 Oct 2026, decision T-F) so the Trips tab can say why a
+  // trip looks the way it does. Facts only: nothing decides anything from
+  // them. All null on older trips and on trips from app versions that don't
+  // send them, which then show no label.
+  // How it was recorded: automatic / start_trip / shift / added_by_hand /
+  // missing_report / web. Sent by the client; a create without it that has
+  // no route is stored as added_by_hand, anything else stays null.
+  recordedBy     String?   @db.VarChar(20)
+  // Set on every leg of a split (by hand or the server's visit split): the
+  // trip it was split from, and "part 1 of 2". The visit split keeps leg one
+  // on the original row, so leg one's splitFromTripId is its own id.
+  splitFromTripId String?  @db.VarChar(36)
+  splitPart      Int?
+  splitPartCount Int?
+  // Set by a join (POST /trips/merge): how many trips went into it.
+  joinedCount    Int?
+
   createdAt      DateTime  @default(now())
   // Edit audit trail: bumped on every change so the UI can show "edited",
   // and a wrong figure isn't silently rewritten without a trace.
