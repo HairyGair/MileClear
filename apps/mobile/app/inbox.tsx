@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, Stack } from "expo-router";
+import { useFocusEffect, useRouter, Stack } from "expo-router";
 import {
   fetchInbox,
   acceptInboxTransaction,
@@ -19,6 +19,9 @@ import {
   type BankTransaction,
 } from "../lib/api/inbox";
 import { AppModal } from "../components/AppModal";
+import { Button } from "../components/Button";
+import { usePaywall } from "../components/paywall";
+import { useUser } from "../lib/user/context";
 import { EmptyState } from "../components/EmptyState";
 import { EXPENSE_CATEGORIES, GIG_PLATFORMS, formatPence } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
@@ -171,7 +174,48 @@ function CategoryPicker({
   );
 }
 
+// What a free driver sees instead of an empty list: the server only fills
+// Bank payments for Pro drivers with a linked bank, so "All caught up" would
+// be untrue (decision M-J).
+const PRO_ADDS = [
+  "Link your bank once, read-only through Open Banking",
+  "Payouts from the apps you drive for come in as earnings",
+  "Other payments wait here for one tap: earning, expense or ignore",
+];
+
+function BankProView() {
+  const { showPaywall } = usePaywall();
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: "Bank payments" }} />
+      <ScrollView contentContainerStyle={styles.proContent}>
+        <View style={styles.proBadge}>
+          <Ionicons name="business-outline" size={28} color={AMBER} />
+        </View>
+        <Text style={styles.proTitle}>Bring in your earnings automatically</Text>
+        <Text style={styles.proBody}>
+          With Pro, MileClear reads the payments from your bank and sorts them for you, so you don't type
+          them in.
+        </Text>
+        <View style={styles.proCard}>
+          {PRO_ADDS.map((line) => (
+            <View key={line} style={styles.proRow}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={TEXT_2} />
+              <Text style={styles.proRowText}>{line}</Text>
+            </View>
+          ))}
+        </View>
+        <Button title="See Pro" icon="star" onPress={() => showPaywall("bank_payments")} style={{ marginTop: 20 }} />
+        <Text style={styles.proSmall}>MileClear can't move money, and you can unlink your bank at any time.</Text>
+      </ScrollView>
+    </View>
+  );
+}
+
 export default function InboxScreen() {
+  const router = useRouter();
+  const { user } = useUser();
+  const isPro = !!user?.isPremium;
   const [items, setItems] = useState<BankTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -180,6 +224,11 @@ export default function InboxScreen() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
+    if (!isPro) {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       const res = await fetchInbox(1, 100);
       setItems(res.data ?? []);
@@ -189,7 +238,7 @@ export default function InboxScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isPro]);
 
   useFocusEffect(
     useCallback(() => {
@@ -288,9 +337,11 @@ export default function InboxScreen() {
       : "What kind of expense?";
   }, [active]);
 
+  if (!isPro) return <BankProView />;
+
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Inbox" }} />
+      <Stack.Screen options={{ title: "Bank payments" }} />
 
       {/* Summary band */}
       <View style={styles.summary}>
@@ -300,14 +351,25 @@ export default function InboxScreen() {
             {items.length} to review
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={handleRefresh}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          accessibilityRole="button"
-          accessibilityLabel="Refresh inbox"
-        >
-          <Ionicons name="refresh-outline" size={22} color={TEXT_2} />
-        </TouchableOpacity>
+        <View style={styles.summaryActions}>
+          <TouchableOpacity
+            onPress={() => router.push("/open-banking" as never)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Your linked banks"
+            accessibilityHint="Opens Link your bank, to sync or unlink"
+          >
+            <Text style={styles.summaryLink}>Your banks</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel="Refresh bank payments"
+          >
+            <Ionicons name="refresh-outline" size={22} color={TEXT_2} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* List */}
@@ -432,6 +494,24 @@ const styles = StyleSheet.create({
   invoiceMatchTitle: { color: GREEN, fontSize: 14, fontFamily: fonts.semibold },
   invoiceMatchHint: { color: TEXT_3, fontSize: 12, fontFamily: fonts.regular, marginTop: 4, lineHeight: 17 },
   container: { flex: 1, backgroundColor: BG },
+  proContent: { padding: 20, paddingBottom: 40, alignItems: "stretch" },
+  proBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.amberDim,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  proTitle: { fontSize: 20, fontFamily: fonts.bold, color: TEXT_1, textAlign: "center", marginBottom: 10 },
+  proBody: { fontSize: 14, fontFamily: fonts.regular, color: TEXT_2, textAlign: "center", lineHeight: 21, marginBottom: 20 },
+  proCard: { backgroundColor: CARD_BG, borderRadius: 16, borderWidth: 1, borderColor: BORDER, padding: 16 },
+  proRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 6 },
+  proRowText: { flex: 1, fontSize: 15, fontFamily: fonts.medium, color: TEXT_1, lineHeight: 21 },
+  proSmall: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_3, lineHeight: 18, marginTop: 10, textAlign: "center" },
 
   summary: {
     flexDirection: "row",
@@ -443,6 +523,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
   },
+  summaryActions: { flexDirection: "row", alignItems: "center", gap: 18 },
+  summaryLink: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_2 },
   summaryLabel: {
     fontSize: 12,
     fontFamily: fonts.semibold,

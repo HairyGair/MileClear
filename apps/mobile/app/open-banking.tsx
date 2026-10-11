@@ -221,9 +221,9 @@ export default function OpenBankingScreen() {
           <View style={styles.gateIcon}>
             <Ionicons name="business-outline" size={44} color={AMBER} />
           </View>
-          <Text style={styles.gateTitle}>Open Banking</Text>
+          <Text style={styles.gateTitle}>Link your bank</Text>
           <View style={styles.proBadge}>
-            <Text style={styles.proBadgeText}>PRO</Text>
+            <Text style={styles.proBadgeText}>Pro</Text>
           </View>
           <Text style={styles.gateDesc}>
             Link your bank and your Uber, Deliveroo, Amazon Flex and other platform payouts come in as earnings, without typing each one.
@@ -263,9 +263,9 @@ export default function OpenBankingScreen() {
               body="Bank imports are live and still in beta. Your bank's consent screen may show a testing-mode note while our banking partner, TrueLayer, completes its final approval. Your real transactions still come through."
             />
             <View style={styles.titleRow}>
-              <Text style={styles.heading}>Open Banking</Text>
+              <Text style={styles.heading}>Link your bank</Text>
               <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>PRO</Text>
+                <Text style={styles.proBadgeText}>Pro</Text>
               </View>
             </View>
             <Text style={styles.description}>
