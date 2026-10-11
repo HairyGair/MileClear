@@ -1,13 +1,25 @@
 // "Which day?" for the add-trip form (PROPOSALS 0.3): a calendar, Monday
 // first, not a date wheel, so back-filling August is a few taps instead of
 // seventy flicks. Future days are greyed and can't be picked; today is ringed.
+// A dot under a day means MileClear already has a trip then, so the empty
+// days stand out (the phone's trips, and the server's for months older than
+// the phone holds).
 
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
-import { isFutureDay, monthGrid, monthTitle, sameLocalDay } from "../../lib/trips/pastTripRule";
+import {
+  calendarDayLine,
+  isFutureDay,
+  localDayKey,
+  monthGrid,
+  monthTitle,
+  sameLocalDay,
+  tripDayKeys,
+  type DayTrip,
+} from "../../lib/trips/pastTripRule";
 import { shortDay } from "../../lib/tracking/pauseRule";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -18,9 +30,11 @@ interface Props {
   now: Date;
   onUse: (day: Date) => void;
   onClose: () => void;
+  /** The trips that start in [from, to), for the dots and the day's line. */
+  loadTrips?: (from: Date, to: Date) => Promise<DayTrip[]>;
 }
 
-export function DayPickerSheet({ visible, value, now, onUse, onClose }: Props) {
+export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips }: Props) {
   const start = value ?? now;
   const [year, setYear] = useState(start.getFullYear());
   const [month, setMonth] = useState(start.getMonth());
@@ -35,6 +49,24 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose }: Props) {
     // Only on opening: the driver moves months from here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // This month's trips, for the dots. Kept per month while the sheet is open.
+  const [monthTrips, setMonthTrips] = useState<{ key: string; trips: DayTrip[] } | null>(null);
+  const monthKey = `${year}-${month}`;
+  useEffect(() => {
+    if (!visible || !loadTrips) return;
+    let cancelled = false;
+    loadTrips(new Date(year, month, 1), new Date(year, month + 1, 1))
+      .then((trips) => {
+        if (!cancelled) setMonthTrips({ key: `${year}-${month}`, trips });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, loadTrips, year, month]);
+  const trips = monthTrips?.key === monthKey ? monthTrips.trips : null;
+  const dots = trips ? tripDayKeys(trips) : null;
 
   const atThisMonth = year === now.getFullYear() && month === now.getMonth();
   const step = (n: number) => {
@@ -53,6 +85,9 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose }: Props) {
           <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>
             Which day?
           </Text>
+          {loadTrips && (
+            <Text style={styles.sub} maxFontSizeMultiplier={fontScaleCap.body}>Days with a dot already have trips.</Text>
+          )}
 
           <View style={styles.monthRow}>
             <TouchableOpacity
@@ -92,6 +127,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose }: Props) {
                 const future = isFutureDay(d, now);
                 const isToday = sameLocalDay(d, now);
                 const isPicked = picked != null && sameLocalDay(d, picked);
+                const hasTrips = dots?.has(localDayKey(d)) ?? false;
                 return (
                   <TouchableOpacity
                     key={di}
@@ -99,7 +135,7 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose }: Props) {
                     onPress={() => setPicked(d)}
                     disabled={future}
                     accessibilityRole="button"
-                    accessibilityLabel={`${shortDay(d)}${isToday ? ", today" : ""}`}
+                    accessibilityLabel={`${shortDay(d)}${isToday ? ", today" : ""}${hasTrips ? ", has trips" : ""}`}
                     accessibilityState={{ selected: isPicked, disabled: future }}
                   >
                     <View style={[styles.dayCircle, isToday && styles.todayRing, isPicked && styles.pickedCircle]}>
@@ -110,12 +146,18 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose }: Props) {
                         {d.getDate()}
                       </Text>
                     </View>
+                    <View style={[styles.dot, !hasTrips && styles.dotOff]} />
                   </TouchableOpacity>
                 );
               })}
             </View>
           ))}
 
+          {picked && trips && picked.getMonth() === month && picked.getFullYear() === year && (
+            <Text style={styles.dayLine} accessibilityLiveRegion="polite" maxFontSizeMultiplier={fontScaleCap.body}>
+              {calendarDayLine(picked, trips)}
+            </Text>
+          )}
           <TouchableOpacity
             style={[styles.use, !picked && styles.useOff]}
             disabled={!picked}
@@ -153,6 +195,10 @@ const styles = StyleSheet.create({
   },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: 16 },
   title: { fontSize: 22, fontFamily: fonts.bold, color: colors.text1 },
+  sub: { fontSize: 14, fontFamily: fonts.regular, color: colors.text2, marginTop: 4 },
+  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.text3, marginTop: 1 },
+  dotOff: { backgroundColor: "transparent" },
+  dayLine: { fontSize: 15, fontFamily: fonts.semibold, color: colors.text1, marginTop: 12 },
   monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 16, marginBottom: 8 },
   monthBtn: {
     width: 40,
@@ -168,7 +214,7 @@ const styles = StyleSheet.create({
   monthTitle: { fontSize: 18, fontFamily: fonts.semibold, color: colors.text1 },
   weekRow: { flexDirection: "row" },
   weekday: { flex: 1, textAlign: "center", fontSize: 12, fontFamily: fonts.medium, color: colors.text2, paddingVertical: 6 },
-  cell: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 46 },
+  cell: { flex: 1, alignItems: "center", justifyContent: "center", minHeight: 50 },
   dayCircle: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   todayRing: { borderWidth: 1, borderColor: colors.text3 },
   pickedCircle: { backgroundColor: colors.text1 },

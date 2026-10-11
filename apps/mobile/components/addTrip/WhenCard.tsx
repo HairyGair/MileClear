@@ -14,6 +14,7 @@ import {
   isFutureDeparture,
   selectedDayChip,
   startOfLocalDay,
+  type DayTrip,
 } from "../../lib/trips/pastTripRule";
 import { shortDay } from "../../lib/tracking/pauseRule";
 import { DayPickerSheet } from "./DayPickerSheet";
@@ -32,9 +33,11 @@ interface Props {
   disabled?: boolean;
   /** Lines under the time: the overlap line, what else is on that day. */
   children?: ReactNode;
+  /** For the calendar's dots. */
+  loadTrips?: (from: Date, to: Date) => Promise<DayTrip[]>;
 }
 
-export function WhenCard({ day, onDay, time, onTime, now, timeStartsAt, timeHint, disabled, children }: Props) {
+export function WhenCard({ day, onDay, time, onTime, now, timeStartsAt, timeHint, disabled, children, loadTrips }: Props) {
   const [calendar, setCalendar] = useState(false);
   const today = startOfLocalDay(now);
   const yesterday = addLocalDays(today, -1);
@@ -112,6 +115,7 @@ export function WhenCard({ day, onDay, time, onTime, now, timeStartsAt, timeHint
         visible={calendar}
         value={day}
         now={now}
+        loadTrips={loadTrips}
         onClose={() => setCalendar(false)}
         onUse={(d) => {
           setCalendar(false);
