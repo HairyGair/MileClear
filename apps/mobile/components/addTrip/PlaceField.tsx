@@ -84,11 +84,16 @@ interface Props {
   otherEnd?: PlaceValue | null;
   online: boolean;
   disabled?: boolean;
+  /** Told when the driver opens or closes Change on a picked place. */
+  onChanging?: (changing: boolean) => void;
 }
 
-export function PlaceField({ label, value, onChange, source, savedPlaces, otherEnd, online, disabled }: Props) {
+export function PlaceField({ label, value, onChange, source, savedPlaces, otherEnd, online, disabled, onChanging }: Props) {
   const [changing, setChanging] = useState(false);
   const [searching, setSearching] = useState(false);
+  useEffect(() => {
+    onChanging?.(changing);
+  }, [changing, onChanging]);
   const verb = label === "From" ? "set off from" : "go to";
 
   // A new value (a chip, a swap, "Add the next trip") closes the chooser.

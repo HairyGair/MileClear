@@ -2,6 +2,7 @@
 // Shared by "Add a past trip" and the "Missing a trip?" sheet, so both doors
 // ask for a journey the same way (PROPOSALS 0.10, P14).
 
+import { useState } from "react";
 import { StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radii } from "../../lib/theme";
@@ -24,6 +25,9 @@ interface Props {
 }
 
 export function FromToCard({ from, to, onFrom, onTo, onSwap, source, savedPlaces, online, disabled, style }: Props) {
+  // No swap while one end is being changed: the chips are open under it.
+  const [fromChanging, setFromChanging] = useState(false);
+  const [toChanging, setToChanging] = useState(false);
   return (
     <View style={[styles.card, style]}>
       <PlaceField
@@ -35,10 +39,11 @@ export function FromToCard({ from, to, onFrom, onTo, onSwap, source, savedPlaces
         savedPlaces={savedPlaces}
         online={online}
         disabled={disabled}
+        onChanging={setFromChanging}
       />
       <View style={styles.dividerRow}>
         <View style={styles.divider} />
-        {onSwap && from && to && !disabled && (
+        {onSwap && from && to && !disabled && !fromChanging && !toChanging && (
           <TouchableOpacity
             style={styles.swap}
             onPress={onSwap}
@@ -59,6 +64,7 @@ export function FromToCard({ from, to, onFrom, onTo, onSwap, source, savedPlaces
         savedPlaces={savedPlaces}
         online={online}
         disabled={disabled}
+        onChanging={setToChanging}
       />
     </View>
   );
