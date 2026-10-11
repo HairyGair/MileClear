@@ -59,6 +59,8 @@ const OPERATION_LABELS: Record<string, string> = {
   annual_submit: "Allowances and adjustments",
   annual_delete: "Allowances removed",
   final_declaration: "Tax return",
+  accounting_type_update: "Accounting method",
+  periods_of_account_submit: "Accounting period",
 };
 
 function shortDate(iso: string | null): string {

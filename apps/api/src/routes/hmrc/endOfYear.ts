@@ -11,6 +11,10 @@
 //   POST   /hmrc/tax-return/:taxYear/calculation            trigger the intent-to-finalise calculation
 //   GET    /hmrc/tax-return/:taxYear/calculation/:calcId    retrieve it (ready:false while HMRC works)
 //   POST   /hmrc/tax-return/:taxYear/submit                 submit the tax return (HMRC: final declaration)
+//   GET    /hmrc/tax-return/:taxYear/accounting-type        cash basis or traditional, as HMRC holds it
+//   PUT    /hmrc/tax-return/:taxYear/accounting-type        change it (body: { accountingType })
+//   GET    /hmrc/tax-return/:taxYear/periods-of-account     what HMRC holds about the accounting period
+//   PUT    /hmrc/tax-return/:taxYear/periods-of-account     send the driver's answer (body: { choice, startDate?, endDate? })
 //
 // HMRC's journey and wording: docs/hmrc-end-of-year-oct2026.md
 
@@ -47,6 +51,16 @@ import {
   plainTaxReturnError,
   taxYearBounds,
 } from "../../services/hmrc/taxReturn.js";
+import {
+  retrieveAccountingType,
+  updateAccountingType,
+  retrievePeriodsOfAccount,
+  submitPeriodsOfAccount,
+  buildPeriodsOfAccount,
+  describeHeldPeriods,
+  normaliseAccountingType,
+  type HmrcAccountingType,
+} from "../../services/hmrc/yearEndBusinessDetails.js";
 import { handleHmrcError, loadConnectionWithNino } from "./index.js";
 
 const taxYearParam = z.object({
@@ -71,6 +85,24 @@ async function loadContext(userId: string) {
     return { error: "Choose your self-employment business first.", status: 400 as const };
   }
   return { nino: ctx.nino, businessId: conn.businessId };
+}
+
+/**
+ * HMRC's accounting type for the year: the per-year record first, then the
+ * business record. Only changes wording, so a failed lookup gives null.
+ */
+async function resolveAccountingType(args: {
+  userId: string;
+  nino: string;
+  businessId: string;
+  taxYear: string;
+  client: ReturnType<typeof buildClientContext>;
+  server: Awaited<ReturnType<typeof buildServerContext>>;
+}): Promise<HmrcAccountingType | null> {
+  const perYear = await retrieveAccountingType(args).catch(() => null);
+  if (perYear) return perYear;
+  const business = await retrieveBusiness(args).catch(() => null);
+  return normaliseAccountingType(business?.accountingType);
 }
 
 /** Year totals from MileClear data, the same figures the quarterly updates use. */
@@ -156,20 +188,11 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
         client,
         server,
       });
-      // Accounting type only changes the wording, so a failed lookup is not fatal.
-      const business = await retrieveBusiness({
-        userId: request.userId!,
-        nino: ctx.nino,
-        businessId: ctx.businessId,
-        client,
-        server,
-      }).catch(() => null);
-      const totals = await yearTotals(request.userId!, taxYear);
-      const proposal = buildAnnualSubmission({
-        taxYear,
-        accountingType: business?.accountingType ?? null,
-        ...totals,
+      const accountingType = await resolveAccountingType({
+        userId: request.userId!, nino: ctx.nino, businessId: ctx.businessId, taxYear, client, server,
       });
+      const totals = await yearTotals(request.userId!, taxYear);
+      const proposal = buildAnnualSubmission({ taxYear, accountingType, ...totals });
       return reply.send({ data: { held, proposal } });
     } catch (err) {
       return handleHmrcError(reply, plainTaxReturnError(err));
@@ -186,19 +209,11 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
     try {
       const client = buildClientContext(request);
       const server = await buildServerContext();
-      const business = await retrieveBusiness({
-        userId: request.userId!,
-        nino: ctx.nino,
-        businessId: ctx.businessId,
-        client,
-        server,
-      }).catch(() => null);
-      const totals = await yearTotals(request.userId!, taxYear);
-      const proposal = buildAnnualSubmission({
-        taxYear,
-        accountingType: business?.accountingType ?? null,
-        ...totals,
+      const accountingType = await resolveAccountingType({
+        userId: request.userId!, nino: ctx.nino, businessId: ctx.businessId, taxYear, client, server,
       });
+      const totals = await yearTotals(request.userId!, taxYear);
+      const proposal = buildAnnualSubmission({ taxYear, accountingType, ...totals });
       // The body only ever comes from the mapping rules, never from the
       // client, so nothing MileClear can't justify reaches HMRC.
       if (!proposal.body) {
@@ -360,6 +375,25 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
         });
       }
 
+      // HMRC: periods of account "has to be submitted before final declaration".
+      const periods = await retrievePeriodsOfAccount({
+        userId: request.userId!,
+        nino: ctx.nino,
+        businessId: ctx.businessId,
+        taxYear,
+        client,
+        server,
+      });
+      if (!periods) {
+        return reply.status(409).send({
+          error: {
+            code: "PERIODS_OF_ACCOUNT_MISSING",
+            message: "Tell HMRC about your accounting period for this year first. It's one of the end-of-year steps.",
+            retryable: false,
+          },
+        });
+      }
+
       const { correlationId } = await submitFinalDeclaration({
         userId: request.userId!,
         nino: ctx.nino,
@@ -388,6 +422,111 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
           totalIncomeTaxAndNicsDue: calc.totalIncomeTaxAndNicsDue ?? null,
         },
       });
+    } catch (err) {
+      return handleHmrcError(reply, plainTaxReturnError(err));
+    }
+  });
+
+  // ── Accounting method (cash basis or traditional) ───────────────────
+  app.get("/tax-return/:taxYear/accounting-type", pre, async (request, reply) => {
+    const params = taxYearParam.safeParse(request.params);
+    if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
+    const ctx = await loadContext(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+    try {
+      const accountingType = await retrieveAccountingType({
+        userId: request.userId!,
+        nino: ctx.nino,
+        businessId: ctx.businessId,
+        taxYear: params.data.taxYear,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      return reply.send({ data: { accountingType } });
+    } catch (err) {
+      return handleHmrcError(reply, plainTaxReturnError(err));
+    }
+  });
+
+  const accountingTypeBody = z.object({ accountingType: z.enum(["CASH", "ACCRUAL"]) });
+  app.put("/tax-return/:taxYear/accounting-type", pre, async (request, reply) => {
+    const params = taxYearParam.safeParse(request.params);
+    if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
+    const body = accountingTypeBody.safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: "Choose cash basis or traditional accounting." });
+    const ctx = await loadContext(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+    try {
+      await updateAccountingType({
+        userId: request.userId!,
+        nino: ctx.nino,
+        businessId: ctx.businessId,
+        taxYear: params.data.taxYear,
+        accountingType: body.data.accountingType,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      logEvent("hmrc.accounting_type_updated", request.userId!, {
+        taxYear: params.data.taxYear,
+        accountingType: body.data.accountingType,
+      });
+      return reply.send({ data: { accountingType: body.data.accountingType } });
+    } catch (err) {
+      return handleHmrcError(reply, plainTaxReturnError(err));
+    }
+  });
+
+  // ── Periods of account ──────────────────────────────────────────────
+  app.get("/tax-return/:taxYear/periods-of-account", pre, async (request, reply) => {
+    const params = taxYearParam.safeParse(request.params);
+    if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
+    const ctx = await loadContext(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+    try {
+      const held = await retrievePeriodsOfAccount({
+        userId: request.userId!,
+        nino: ctx.nino,
+        businessId: ctx.businessId,
+        taxYear: params.data.taxYear,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      return reply.send({ data: { held, answer: describeHeldPeriods(held, params.data.taxYear) } });
+    } catch (err) {
+      return handleHmrcError(reply, plainTaxReturnError(err));
+    }
+  });
+
+  const periodsBody = z.object({
+    choice: z.enum(["tax_year", "to_31_march", "custom", "none"]),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+  });
+  app.put("/tax-return/:taxYear/periods-of-account", pre, async (request, reply) => {
+    const params = taxYearParam.safeParse(request.params);
+    if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
+    const body = periodsBody.safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: "Choose an answer about your accounting period." });
+    // The HMRC body is built here from the driver's answer, never taken raw.
+    const plan = buildPeriodsOfAccount({ taxYear: params.data.taxYear, ...body.data });
+    if (!plan.body) return reply.status(400).send({ error: plan.error ?? "Check your answer." });
+    const ctx = await loadContext(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+    try {
+      await submitPeriodsOfAccount({
+        userId: request.userId!,
+        nino: ctx.nino,
+        businessId: ctx.businessId,
+        taxYear: params.data.taxYear,
+        body: plan.body,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      logEvent("hmrc.periods_of_account_submitted", request.userId!, {
+        taxYear: params.data.taxYear,
+        choice: body.data.choice,
+      });
+      return reply.send({ data: { sent: plan.body, warnings: plan.warnings } });
     } catch (err) {
       return handleHmrcError(reply, plainTaxReturnError(err));
     }

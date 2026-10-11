@@ -54,9 +54,9 @@ export interface AnnualMappingInput {
   taxYear: string;
   /**
    * HMRC's accounting type for the business, from Business Details. Null
-   * when HMRC did not say. "CASH" = cash basis, "ACCRUALS" = traditional.
+   * when HMRC did not say. "CASH" = cash basis, "ACCRUAL" = traditional.
    */
-  accountingType: "CASH" | "ACCRUALS" | null;
+  accountingType: "CASH" | "ACCRUAL" | null;
   /** Income for the whole tax year, as worked out for the quarterly updates. */
   turnoverPence: number;
   /** Everything claimed against that income: mileage at the flat rate plus other expenses. */
@@ -104,7 +104,7 @@ export function buildAnnualSubmission(input: AnnualMappingInput): AnnualMappingR
   if (input.accountingType === "CASH") {
     equipmentReason =
       "Not sent. HMRC has you on cash basis. Equipment you bought, like a phone holder or a bag, is claimed as an expense in your quarterly updates instead.";
-  } else if (input.accountingType === "ACCRUALS") {
+  } else if (input.accountingType === "ACCRUAL") {
     equipmentReason =
       "Not sent. HMRC has you on traditional accounting. Equipment may need capital allowances, and MileClear doesn't work those out.";
     notes.push(

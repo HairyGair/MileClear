@@ -182,7 +182,7 @@ describe("buildAnnualSubmission (what MileClear will send)", () => {
   });
 
   it("warns when HMRC has the business on traditional accounting", () => {
-    const r = buildAnnualSubmission({ ...base, accountingType: "ACCRUALS" });
+    const r = buildAnnualSubmission({ ...base, accountingType: "ACCRUAL" });
     expect(r.items.find((i) => i.key === "equipment_allowances")!.reason).toMatch(/traditional accounting/);
     expect(r.notes.some((n) => /accountant/.test(n))).toBe(true);
   });
@@ -195,7 +195,7 @@ describe("buildAnnualSubmission (what MileClear will send)", () => {
   });
 
   it("uses no em dashes in driver-facing copy", () => {
-    const r = buildAnnualSubmission({ ...base, accountingType: "ACCRUALS", turnoverPence: 50_000, expensesClaimedPence: 0 });
+    const r = buildAnnualSubmission({ ...base, accountingType: "ACCRUAL", turnoverPence: 50_000, expensesClaimedPence: 0 });
     const all = [...r.items.map((i) => i.reason + i.label), ...r.notes].join(" ");
     expect(all).not.toMatch(/—/);
   });

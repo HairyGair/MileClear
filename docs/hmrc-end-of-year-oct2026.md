@@ -121,18 +121,38 @@ Terminology guide (relevant to copy):
 - Do not use "MTD" in user-facing content. Say "send" a quarterly update.
 - "Refund", not "repayment".
 
-## 2. End-of-year steps HMRC lists that this branch does NOT build
+## 2. End-of-year steps HMRC lists
 
-These are in the same service guide and are needed for production approval of a full end-of-year product.
-They are out of the scope given for this branch and are listed so nobody assumes they are done:
+### Built on branch `mtd-end-of-year-2` (11 Oct 2026)
 
-1. **Confirm accounting method** (cash basis or traditional) for each business before the tax return:
-   Business Details API 2.0 `GET/PUT /individuals/business/details/{nino}/{businessId}/{taxYear}/accounting-type`.
-   "users/agents must confirm their accounting method for all their relevant self-employment or property income
-   sources for that year before submitting an annual tax return."
-2. **Periods of account**: ask whether a period of account ended in the tax year and send it:
-   Business Details API 2.0 `PUT .../{taxYear}/periods-of-account`. "This information must be provided at the
-   end of year, after all four quarterly updates have been made."
+Business Details API **2.0** (beta, Sandbox + Production, the version `businessDetails.ts` already uses).
+Checked against HMRC's OpenAPI files on 11 Oct 2026:
+
+```
+GET /individuals/business/details/{nino}/{businessId}/{taxYear}/accounting-type     200 { "accountingType": "CASH" | "ACCRUAL" }
+PUT /individuals/business/details/{nino}/{businessId}/{taxYear}/accounting-type     204, body { "accountingType": "CASH" | "ACCRUAL" }
+GET /individuals/business/details/{nino}/{businessId}/{taxYear}/periods-of-account  200 { submittedOn, periodsOfAccount, periodsOfAccountDates? }
+PUT /individuals/business/details/{nino}/{businessId}/{taxYear}/periods-of-account  204, body { periodsOfAccount, periodsOfAccountDates? }
+```
+
+- Minimum tax year 2025-26 (2024-25 in the sandbox). Both GETs 404 when HMRC holds nothing.
+- The per-year accounting type says `ACCRUAL`; the older business record says `ACCRUALS`. MileClear treats both as
+  traditional accounting.
+- Periods of account: "This has to be submitted before final declaration." Dates must be sent when
+  `periodsOfAccount` is true and left out when false (`RULE_PERIODS_OF_ACCOUNT`); end dates must fall inside the
+  tax year (`RULE_END_DATE`); start dates inside or before it (`RULE_START_DATE`).
+
+1. **Accounting method**: the app shows what HMRC holds and asks if it's right. Confirming sends nothing
+   ("Software should first show the user what HMRC holds ... In the event the user needs to change the accounting
+   method, software should then call the Update Accounting Type endpoint"). Changing it is an audited PUT
+   (`accounting_type_update`). Choosing traditional accounting warns that MileClear works on cash basis.
+2. **Accounting period**: the app asks whether a period ended in the tax year. Choices: the tax year (6 April to
+   5 April), 1 April to 31 March, different dates, or none. The server builds HMRC's body from that answer and
+   checks the dates first. Audited PUT (`periods_of_account_submit`). The submit route refuses to send the tax return
+   while HMRC holds no periods of account.
+
+### Still not built
+
 3. **Late accounting date rule** election (only for accounting periods ending 31 March to 4 April).
 4. **Losses** (Individual Losses API) and **BSAS accounting adjustments**: MileClear tells the driver to use
    other software or HMRC online services if they have a loss to claim.
