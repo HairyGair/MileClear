@@ -135,7 +135,7 @@ const proFeatures: FeatureGroup[] = [
   {
     title: 'Automation and limits',
     items: [
-      'Auto-Classify Rules - business or personal from your work schedule, with automatic mode switching and shift reminders',
+      'Sort by work hours - trips in your work hours marked as Business, with automatic mode switching and shift reminders (sorting by place and regular journeys is free)',
       'Unlimited vehicles',
       'Unlimited saved locations',
     ],
@@ -157,7 +157,7 @@ const faqs = [
   },
   {
     q: 'What happens when I upgrade to Pro?',
-    a: 'You unlock the print-ready Self Assessment PDF, PDF and CSV exports, the Accountant Portal, Open Banking earnings import, CSV earnings import, Auto-Classify Rules, business insights (golden hours, platform comparison, P&L), Driving Analytics, the Journey Map, and unlimited vehicles, saved locations and invoices. Everything switches on the moment your payment goes through.',
+    a: 'You unlock the print-ready Self Assessment PDF, PDF and CSV exports, the Accountant Portal, Open Banking earnings import, CSV earnings import, sorting by work hours, business insights (golden hours, platform comparison, P&L), Driving Analytics, the Journey Map, and unlimited vehicles, saved locations and invoices. Everything switches on the moment your payment goes through.',
   },
   {
     q: 'Where does MileClear run?',
@@ -223,7 +223,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, Auto-Classify Rules, business insights, Driving Analytics, Journey Map, unlimited vehicles, saved locations and invoices.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, sorting by work hours, business insights, Driving Analytics, Journey Map, unlimited vehicles, saved locations and invoices.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '4.99',

@@ -209,7 +209,7 @@ const faqSchema = {
       name: 'What does MileClear Pro include?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear Pro (£4.99 per month) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, auto-classify rules driven by your Work Schedule, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, unlimited invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
+        text: 'MileClear Pro (£4.99 per month) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, sorting trips by your work hours, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, unlimited invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
       },
     },
     {
@@ -564,8 +564,8 @@ export default function FaqPage() {
                   MileClear Pro (£4.99/month) adds the PDF Self Assessment export
                   with a signed attestation cover sheet, CSV and PDF trip exports, CSV
                   earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open
-                  Banking auto-import via TrueLayer, auto-classify rules driven by your Work
-                  Schedule, the Accountant Portal (read-only dashboard you can invite your
+                  Banking auto-import via TrueLayer, sorting trips by your work
+                  hours, the Accountant Portal (read-only dashboard you can invite your
                   accountant to by email), business insights including earnings per mile, golden
                   hours and weekly P&amp;L, Driving Analytics, the Journey Map, unlimited
                   invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is
