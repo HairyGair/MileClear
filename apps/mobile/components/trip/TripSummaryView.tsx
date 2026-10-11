@@ -98,6 +98,9 @@ export interface TripSummaryViewProps {
   } | null;
   merging: boolean;
   onMerge: (otherTripId: string) => void;
+  /** The one-time "A stop starts a new trip" note, on the later piece of the
+   *  driver's first split trip (first-run tour, borrowed from direction B). */
+  firstSplitNote?: boolean;
   cleanAirZones: CazTripAssessment | null;
   loggedCazZones: Set<string>;
   loggingCaz: string | null;
@@ -263,6 +266,23 @@ function ChoiceSegment({
         {label}
       </Text>
     </TouchableOpacity>
+  );
+}
+
+function FirstSplitNote({ joinLabel }: { joinLabel: string }) {
+  return (
+    <View style={[styles.notice, { alignItems: "flex-start" }]} accessible>
+      <Ionicons name="information-circle-outline" size={18} color={colors.amber} accessible={false} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.noticeTitle} maxFontSizeMultiplier={fontScaleCap.heading}>
+          A stop starts a new trip
+        </Text>
+        <Text style={styles.noticeBody} maxFontSizeMultiplier={fontScaleCap.body}>
+          Stop somewhere for 4 minutes or more and the next drive is a new trip, so a shop stop gives you two. Nothing
+          is lost. To join them, tap {joinLabel} under Fix this trip below.
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -739,6 +759,7 @@ export function TripSummaryView(props: TripSummaryViewProps) {
         {props.vehicleName ? <Row icon="car-outline" label="Vehicle" value={props.vehicleName} /> : null}
       </View>
 
+      {props.firstSplitNote && joinRow ? <FirstSplitNote joinLabel={joinRow.label} /> : null}
       <CazNotice
         cleanAirZones={props.cleanAirZones}
         loggedCazZones={props.loggedCazZones}

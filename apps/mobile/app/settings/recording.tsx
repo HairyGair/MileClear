@@ -115,7 +115,7 @@ export default function RecordingSettings() {
   const chooseJourneyEnd = useCallback(() => {
     Alert.alert(
       "End a trip after",
-      "How long do you usually stop before the next drive is a separate trip? Stops longer than this split your trips; shorter ones stay as one.",
+      "A stop of 4 minutes or more somewhere usually starts a new trip. Shorter stops, like traffic, stay in one. Any stop longer than the time you choose here always ends the trip.",
       [
         ...JOURNEY_END_CHOICES.map((c) => ({
           text: `${c.label} - ${c.hint}`,
@@ -244,7 +244,8 @@ export default function RecordingSettings() {
         <SettingsRow
           icon="timer-outline"
           label="End a trip after"
-          hint={`${journeyLabel} stopped. Longer stops split your trips.`}
+          badge={journeyLabel}
+          hint="A stop of 4 minutes or more somewhere usually starts a new trip. Shorter stops, like traffic, stay in one."
           onPress={chooseJourneyEnd}
         />
         {/* With Automatic trips off, Start Trip always runs until Arrived

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<!-- Direction B: first open of Trips, coach mark explaining why one outing can be two trips -->
+<rect width="390" height="844" fill="#030712"/>
+<text x="46" y="34" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#f0f2f5" text-anchor="start">9:41</text>
+<rect x="133" y="10" width="124" height="34" rx="17" fill="#000"/>
+<rect x="292" y="24" width="3" height="4" rx="1" fill="#f0f2f5"/>
+<rect x="297" y="22" width="3" height="6" rx="1" fill="#f0f2f5"/>
+<rect x="302" y="20" width="3" height="8" rx="1" fill="#f0f2f5"/>
+<rect x="307" y="18" width="3" height="10" rx="1" fill="#f0f2f5"/>
+<rect x="318" y="18" width="24" height="11" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1"/>
+<rect x="320" y="20" width="18" height="7" rx="2" fill="#f0f2f5"/>
+<text x="20" y="92" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="24" font-weight="600" fill="#f0f2f5" text-anchor="start">Trips</text>
+<circle cx="356" cy="84" r="17" fill="#7c3aed"/>
+<rect x="16" y="118" width="358" height="52" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<text x="36" y="150" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#8494a7" text-anchor="start">Missing a trip you made?</text>
+<path d="M349 138 L355 144 L349 150" fill="none" stroke="#8494a7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="16" y="186" width="84" height="36" rx="18" fill="#f5a623"/>
+<text x="58" y="209" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#1a1204" text-anchor="middle">All</text>
+<rect x="106" y="186" width="84" height="36" rx="18" fill="#0a1120" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+<text x="148" y="209" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f0f2f5" text-anchor="middle">Inbox</text>
+<rect x="196" y="186" width="84" height="36" rx="18" fill="#0a1120" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+<text x="238" y="209" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f0f2f5" text-anchor="middle">Business</text>
+<rect x="286" y="186" width="84" height="36" rx="18" fill="#0a1120" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+<text x="328" y="209" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#f0f2f5" text-anchor="middle">Personal</text>
+<text x="20" y="252" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#8494a7" text-anchor="start" letter-spacing="1.2">TODAY</text>
+<rect x="16" y="266" width="358" height="66" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<text x="32" y="294" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start">Tesco Hylton → Home</text>
+<text x="32" y="316" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">17:52 · 2.1 mi</text>
+<rect x="272" y="284" width="86" height="28" rx="14" fill="#0a1120" stroke="rgba(245,166,35,0.35)" stroke-width="1"/>
+<text x="315" y="303" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#f5a623" text-anchor="middle">Sort</text>
+<rect x="16" y="340" width="358" height="66" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<text x="32" y="368" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start">Home → Tesco Hylton</text>
+<text x="32" y="390" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">17:31 · 1.9 mi</text>
+<rect x="272" y="358" width="86" height="28" rx="14" fill="#0a1120" stroke="rgba(245,166,35,0.35)" stroke-width="1"/>
+<text x="315" y="377" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#f5a623" text-anchor="middle">Sort</text>
+<rect x="16" y="414" width="358" height="66" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<text x="32" y="442" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start">Depot → Doxford Park</text>
+<text x="32" y="464" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">12:08 · 6.4 mi</text>
+<rect x="272" y="432" width="86" height="28" rx="14" fill="#0a1120" stroke="rgba(245,166,35,0.35)" stroke-width="1"/>
+<text x="315" y="451" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#f5a623" text-anchor="middle">Sort</text>
+<rect x="0" y="761" width="390" height="83" rx="0" fill="#030712"/>
+<line x1="0" y1="761" x2="390" y2="761" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<path d="M38.75 781 L48.75 772 L58.75 781 M41.75 779 V791 H55.75 V779" fill="none" stroke="#8494a7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="48.75" y="807" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="500" fill="#8494a7" text-anchor="middle">Home</text>
+<rect x="136.25" y="776" width="20" height="11" rx="3" fill="none" stroke="#f5a623" stroke-width="1.8"/><path d="M139.25 776 L142.25 771 H150.25 L153.25 776" fill="none" stroke="#f5a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="141.25" cy="782" r="1.6" fill="#f5a623"/><circle cx="151.25" cy="782" r="1.6" fill="#f5a623"/>
+<text x="146.25" y="807" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="600" fill="#f5a623" text-anchor="middle">Trips</text>
+<path d="M236.75 771 H246.75 L251.75 776 V791 H236.75 Z M240.75 781 H247.75 M240.75 785 H247.75" fill="none" stroke="#8494a7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="243.75" y="807" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="500" fill="#8494a7" text-anchor="middle">Tax</text>
+<circle cx="341.25" cy="781" r="10" fill="none" stroke="#8494a7" stroke-width="1.8"/><circle cx="337.25" cy="781" r="1.4" fill="#8494a7"/><circle cx="341.25" cy="781" r="1.4" fill="#8494a7"/><circle cx="345.25" cy="781" r="1.4" fill="#8494a7"/>
+<text x="341.25" y="807" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="11" font-weight="500" fill="#8494a7" text-anchor="middle">More</text>
+<rect x="128" y="835" width="134" height="5" rx="2.5" fill="#f0f2f5"/>
+<defs><mask id="s3"><rect width="390" height="844" fill="#fff"/><rect x="16" y="266" width="358" height="140" rx="14" fill="#000"/></mask></defs>
+<rect width="390" height="844" fill="rgba(3,7,18,0.80)" mask="url(#s3)"/>
+<rect x="13" y="263" width="364" height="146" rx="17" fill="none" stroke="#f5a623" stroke-width="2"/>
+<rect x="16" y="432" width="358" height="202" rx="18" fill="#f0f2f5"/>
+<path d="M181 432 L190 422 L199 432 Z" fill="#f0f2f5"/>
+<text x="34" y="464" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#0a1120" text-anchor="start">A stop starts a new trip</text>
+<text x="34" y="490" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#334155" text-anchor="start">Stop somewhere for 4 minutes or more</text>
+<text x="34" y="511" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#334155" text-anchor="start">and the next drive is a new trip, so a</text>
+<text x="34" y="532" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#334155" text-anchor="start">shop stop gives you two. Nothing is lost.</text>
+<text x="34" y="553" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#334155" text-anchor="start">To join them, open one, tap More, Merge.</text>
+<text x="34" y="609" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#64748b" text-anchor="start">2 of 3</text>
+<text x="262" y="609" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#475569" text-anchor="end">Skip</text>
+<rect x="276" y="588" width="82" height="34" rx="17" fill="#0a1120"/>
+<text x="317" y="610" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#f0f2f5" text-anchor="middle">Next</text>
+</svg>

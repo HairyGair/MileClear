@@ -61,6 +61,7 @@ import { homePersona, showsStartShift } from "../../lib/home/persona";
 import { describeSuggestion } from "../../lib/home/shiftSuggestion";
 import type { StatusLine } from "../../lib/home/statusLine";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
+import { firstSortHint } from "../../lib/tutorial/rule";
 import type { HeroYearFigure } from "../../lib/heroFigure";
 import { colors, spacing } from "../../lib/theme";
 
@@ -404,7 +405,13 @@ export function HomeIdle(p: Props) {
         {lastTripView.look !== "none" ? (
           <FadeInStagger index={stagger++} delayPer={40}>
             <View style={s.group}>
-              <LastTripCard view={lastTripView} mode={mode} state={p.status.kind} onChanged={onTripChanged} />
+              <LastTripCard
+                view={lastTripView}
+                mode={mode}
+                state={p.status.kind}
+                onChanged={onTripChanged}
+                firstSortHint={totalTrips <= 1 ? firstSortHint(persona) : null}
+              />
             </View>
           </FadeInStagger>
         ) : null}

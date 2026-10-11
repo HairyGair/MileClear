@@ -19,6 +19,11 @@ describe("pickWinner", () => {
     expect(pickWinner(["rating", "saved_places", "work_explainer"])).toBe("work_explainer");
   });
 
+  it("puts existing drivers' What's new below the location ask and above the work explainer", () => {
+    expect(pickWinner(["work_explainer", "whats_new"])).toBe("whats_new");
+    expect(pickWinner(["whats_new", "location_primer"])).toBe("location_primer");
+  });
+
   it("returns null when nothing is waiting", () => {
     expect(pickWinner([])).toBeNull();
   });

@@ -155,7 +155,14 @@ import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize, bootNativeEngineOnLaunch } from "../lib/tracking/detection";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
-import { onOnboardingComplete } from "../lib/onboardingGate";
+import {
+  flushPendingSetup,
+  onFirstRunFinished,
+  quickFirstRun,
+  readLocalOwnerId,
+  resolveFirstRun,
+} from "../lib/tutorial/state";
+import { holdPromptsFor, releasePromptHold } from "../lib/promptGate/index";
 import { applyFreshUpdateOnFirstOpen } from "../lib/updates/firstOpenUpdate";
 import { hydrateLocalData, isHydrationComplete, reconcileSavedLocations, reconcileTrips } from "../lib/sync/hydrate";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
@@ -166,7 +173,6 @@ import { validateGooglePurchase } from "../lib/api/billingGoogle";
 import { validateApplePurchase } from "../lib/api/billing";
 import { PaywallProvider } from "../components/paywall";
 import { PromptProvider } from "../components/prompt";
-import { QuickStartModal } from "../components/QuickStartModal";
 import { AppLockProvider } from "../lib/appLock/context";
 import { AppLockGate } from "../components/AppLockGate";
 
@@ -233,73 +239,38 @@ function RootNavigator() {
   useScreenTracking(isAuthenticated && !isLoading);
 
   const [onboardingChecked, setOnboardingChecked] = useState(false);
-  // Starts true (26 Sep 2026). Onboarding has marked itself complete for
-  // every account since 21 May, so the check below always ends true; but
-  // starting false meant a fresh sign-in, before that check had run, was
-  // redirected from (auth) to the first open sibling, which was onboarding.
-  // It now only shows when SQLite cannot be read (the .catch below).
-  const [onboardingComplete, setOnboardingComplete] = useState(true);
-  useEffect(() => onOnboardingComplete(() => setOnboardingComplete(true)), []);
-  const [quickStartVisible, setQuickStartVisible] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) {
       setOnboardingChecked(true);
       return;
     }
+    // The onboarding_complete flag is what bootNativeEngineOnLaunch (in
+    // lib/tracking/detection) reads before re-attaching the engine on a
+    // background relaunch, so it is still written for every signed-in phone.
+    // The old 7-step onboarding screen it once guarded is gone (Oct 2026):
+    // new accounts get the first-run tour instead (lib/tutorial).
+    //
     // Watchdog (30 Jul 2026): getDatabase() shares ONE connection app-wide,
     // and a boot-path write burst (native-store reconcile on a swollen
-    // buffer) can queue this gate's query for minutes. A HANG is not a
-    // rejection, so the .catch below never fires and showLoading pins its
-    // black touch-blocking overlay over the whole app - indistinguishable
-    // from a dead screen. The hydration gate next door has had a 30s timeout
-    // since day one; this gate gets one too. Onboarding has auto-marked
-    // itself complete since 21 May (both branches write 'true'), so
-    // proceeding as complete matches what the query would conclude anyway.
-    const fallback = setTimeout(() => {
-      setOnboardingComplete(true);
-      setOnboardingChecked(true);
-    }, 15_000);
+    // buffer) can queue this query for minutes. A HANG is not a rejection,
+    // so without the timeout the loading overlay pins its black
+    // touch-blocking cover over the whole app.
+    const fallback = setTimeout(() => setOnboardingChecked(true), 15_000);
     getDatabase()
       .then(async (db) => {
         const row = await db.getFirstAsync<{ value: string }>(
           "SELECT value FROM tracking_state WHERE key = 'onboarding_complete'"
         );
-        clearTimeout(fallback);
-        if (row?.value === "true") {
-          setOnboardingComplete(true);
-        } else {
+        if (row?.value !== "true") {
           await db.runAsync(
             "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('onboarding_complete', 'true')"
           );
-          setOnboardingComplete(true);
         }
-        setOnboardingChecked(true);
-
-        // Quick Start tour AUTO-FIRE DISABLED (21 May 2026).
-        //
-        // Build 67 fresh installs froze immediately after the post-
-        // login dashboard render — the 600ms setTimeout fired the
-        // QuickStartModal and the modal-on-modal interaction (or
-        // AppModal presentationStyle on the dashboard's ScrollView)
-        // locked the UI thread. Retention-killer for every new
-        // App Store install.
-        //
-        // Mark the flag eagerly so any user who relaunches into this
-        // code path doesn't get the tour fired retroactively when we
-        // re-enable it. Users can replay the tour manually from
-        // Settings → Help & Tutorials.
-        await db
-          .runAsync(
-            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('quick_start_shown', '1')"
-          )
-          .catch(() => {
-            // Non-fatal — worst case the tour briefly flickered.
-          });
       })
-      .catch(() => {
+      .catch(() => {})
+      .finally(() => {
         clearTimeout(fallback);
-        setOnboardingComplete(false);
         setOnboardingChecked(true);
       });
     return () => clearTimeout(fallback);
@@ -644,8 +615,94 @@ function RootNavigator() {
     return () => sub.remove();
   }, [isAuthenticated, isLoading, router]);
 
+  // ── First-run tour (Oct 2026, lib/tutorial) ──────────────────────────
+  //
+  // A new account (under a week old, no trips) goes to /welcome before Home;
+  // everyone else goes straight to Home. Decided from the account, not the
+  // phone. "checking" holds the loading overlay; the phone usually knows at
+  // once (a stored answer, or trips on the phone), and only a brand-new
+  // phone waits for the profile and the trip count. Home's pop-ups wait for
+  // the answer through the prompt gate, so none can open over the tour.
+  const { user, refreshUser } = useUser();
+  const [firstRun, setFirstRun] = useState<"checking" | "tour" | "home">("checking");
+  const [firstRunNeedsProfile, setFirstRunNeedsProfile] = useState(false);
+  const settleFirstRun = useRef<((show: "tour" | "home") => void) | null>(null);
+  const routerRef = useRef(router);
+  routerRef.current = router;
+
+  useEffect(
+    () =>
+      onFirstRunFinished(() => {
+        setFirstRun("home");
+        releasePromptHold();
+      }),
+    []
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFirstRun("checking");
+      setFirstRunNeedsProfile(false);
+      settleFirstRun.current = null;
+      releasePromptHold();
+      return;
+    }
+    let settled = false;
+    let resolveHold: (tour: boolean) => void = () => {};
+    holdPromptsFor(new Promise<boolean>((resolve) => (resolveHold = resolve)));
+    // Never hold Home for long: no answer in time is Home, and the phone
+    // decides again on the next open.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const settle = (show: "tour" | "home") => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      setFirstRun(show);
+      resolveHold(show === "tour");
+      if (show === "home") releasePromptHold();
+    };
+    settleFirstRun.current = settle;
+    timer = setTimeout(() => settle("home"), 6000);
+    readLocalOwnerId()
+      .then((ownerId) => (ownerId ? quickFirstRun(ownerId) : null))
+      .then((show) => {
+        if (show) settle(show);
+        else setFirstRunNeedsProfile(true);
+      })
+      .catch(() => setFirstRunNeedsProfile(true));
+    return () => {
+      settled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isAuthenticated]);
+
+  // Once the redirect props say so, move to the tour (after the render that
+  // un-redirects /welcome, or it would be sent straight back).
+  useEffect(() => {
+    if (firstRun === "tour") routerRef.current.replace("/welcome" as never);
+  }, [firstRun]);
+
+  useEffect(() => {
+    if (!firstRunNeedsProfile || !user) return;
+    setFirstRunNeedsProfile(false);
+    resolveFirstRun(user)
+      .then((show) => settleFirstRun.current?.(show))
+      .catch(() => settleFirstRun.current?.("home"));
+  }, [firstRunNeedsProfile, user]);
+
+  // A "You drive for" answer from the tour that had no signal to upload.
+  const flushedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || flushedFor.current === user.id) return;
+    flushedFor.current = user.id;
+    flushPendingSetup(user.id)
+      .then((uploaded) => {
+        if (uploaded) refreshUser();
+      })
+      .catch(() => {});
+  }, [user, refreshUser]);
+
   // Apple In-App Purchase: global listener for StoreKit transactions
-  const { refreshUser } = useUser();
   useEffect(() => {
     if (!isAuthenticated || isLoading || !isIapAvailable()) return;
 
@@ -690,7 +747,7 @@ function RootNavigator() {
   // need a DB lookup before seeing the login screen — and gating on
   // a never-resolving onboardingChecked would freeze them forever on
   // the skeleton overlay. 21 May 2026 retention investigation.
-  const showLoading = isLoading || (isAuthenticated && !onboardingChecked);
+  const showLoading = isLoading || (isAuthenticated && (!onboardingChecked || firstRun === "checking"));
 
   return (
     <>
@@ -709,8 +766,10 @@ function RootNavigator() {
           headerLeft: () => <HeaderBackButton />,
         }}
       >
-        <Stack.Screen name="onboarding" redirect={!isAuthenticated || onboardingComplete} />
-        <Stack.Screen name="(tabs)" redirect={!isAuthenticated || !onboardingComplete} />
+        {/* Order matters: a redirected screen goes to the first open sibling.
+            A new account's first open lands on the tour; everyone else on Home. */}
+        <Stack.Screen name="welcome" redirect={!isAuthenticated || firstRun !== "tour"} options={{ gestureEnabled: false }} />
+        <Stack.Screen name="(tabs)" redirect={!isAuthenticated || firstRun === "tour"} />
         <Stack.Screen name="(auth)" redirect={isAuthenticated} />
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add trip" }} />
         <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split into separate trips" }} />
@@ -782,6 +841,8 @@ function RootNavigator() {
         <Stack.Screen name="assistant" options={{ headerShown: true, title: "Ask EmSee" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "Your accountant" }} />
         <Stack.Screen name="help" options={{ headerShown: true, title: "Help and how-tos" }} />
+        {/* The tour again (Help > Take the tour, What's new). Draws its own top bar. */}
+        <Stack.Screen name="tour" options={{ headerShown: false }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
             individual settings are findable. Profile tab links into here. */}
         <Stack.Screen name="settings/index" options={{ headerShown: true, title: "Settings" }} />
@@ -806,10 +867,6 @@ function RootNavigator() {
         <Stack.Screen name="settings/legal" options={{ headerShown: false }} />
         <Stack.Screen name="settings/business" options={{ headerShown: false }} />
       </Stack>
-      <QuickStartModal
-        visible={quickStartVisible}
-        onClose={() => setQuickStartVisible(false)}
-      />
       {/* Loading overlay - covers Stack while auth/onboarding resolves.
           Mirrors the dashboard's own skeleton layout so the transition from
           auth-loading -> dashboard-loading -> dashboard is visually
@@ -836,9 +893,9 @@ function RootNavigator() {
       )}
       <HydrationOverlay visible={hydrating} step={hydrateStep} done={hydrateDone} total={6} />
       {/* App-lock overlay — only when signed in + onboarded, so it never stacks
-          over the login/onboarding flow. Covers the UI; the native tracking
+          over the login screens or the first-run tour. Covers the UI; the native tracking
           engine (booted at module scope) keeps running while locked. */}
-      {isAuthenticated && onboardingComplete && <AppLockGate />}
+      {isAuthenticated && firstRun !== "tour" && <AppLockGate />}
     </>
   );
 }

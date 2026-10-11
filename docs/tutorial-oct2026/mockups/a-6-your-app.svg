@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<!-- Direction A step 5: the tabs, worded for the driver's answer to You drive for -->
+<rect width="390" height="844" fill="#030712"/>
+<text x="46" y="34" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#f0f2f5" text-anchor="start">9:41</text>
+<rect x="133" y="10" width="124" height="34" rx="17" fill="#000"/>
+<rect x="292" y="24" width="3" height="4" rx="1" fill="#f0f2f5"/>
+<rect x="297" y="22" width="3" height="6" rx="1" fill="#f0f2f5"/>
+<rect x="302" y="20" width="3" height="8" rx="1" fill="#f0f2f5"/>
+<rect x="307" y="18" width="3" height="10" rx="1" fill="#f0f2f5"/>
+<rect x="318" y="18" width="24" height="11" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1"/>
+<rect x="320" y="20" width="18" height="7" rx="2" fill="#f0f2f5"/>
+<path d="M30 72 L22 80 L30 88" fill="none" stroke="#f0f2f5" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="167" cy="80" r="3" fill="#3a4252"/><circle cx="181" cy="80" r="3" fill="#3a4252"/><circle cx="195" cy="80" r="3" fill="#3a4252"/><circle cx="209" cy="80" r="3" fill="#3a4252"/><rect x="214" y="77" width="18" height="6" rx="3" fill="#f5a623"/>
+
+<text x="24" y="140" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#f0f2f5" text-anchor="start">Your app in four places</text>
+<text x="24" y="170" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#94a3b8" text-anchor="start">Set up for: deliveries and gig work</text>
+<rect x="20" y="196" width="350" height="304" rx="18" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<rect x="36" y="214" width="40" height="40" rx="12" fill="#191f2d"/>
+<g><path d="M46 234 L56 225 L66 234 M49 232 V244 H63 V232" fill="none" stroke="#f5a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="92" y="230" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#f0f2f5" text-anchor="start">Home</text>
+<text x="92" y="251" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">Is it recording, your claim, your last trip</text>
+<line x1="92" y1="272" x2="370" y2="272" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<rect x="36" y="290" width="40" height="40" rx="12" fill="#191f2d"/>
+<g><rect x="46" y="305" width="20" height="11" rx="3" fill="none" stroke="#f5a623" stroke-width="1.8"/><path d="M49 305 L52 300 H60 L63 305" fill="none" stroke="#f5a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="92" y="306" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#f0f2f5" text-anchor="start">Trips</text>
+<text x="92" y="327" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">Every drive. Tap Business or Personal</text>
+<line x1="92" y1="348" x2="370" y2="348" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<rect x="36" y="366" width="40" height="40" rx="12" fill="#191f2d"/>
+<g><path d="M49 376 H59 L64 381 V396 H49 Z M53 386 H60 M53 390 H60" fill="none" stroke="#f5a623" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g>
+<text x="92" y="382" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#f0f2f5" text-anchor="start">Tax</text>
+<text x="92" y="403" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">Your mileage claim at 55p a mile</text>
+<line x1="92" y1="424" x2="370" y2="424" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<rect x="36" y="442" width="40" height="40" rx="12" fill="#191f2d"/>
+<g><circle cx="56" cy="462" r="10" fill="none" stroke="#f5a623" stroke-width="1.8"/><circle cx="52" cy="462" r="1.4" fill="#f5a623"/><circle cx="56" cy="462" r="1.4" fill="#f5a623"/><circle cx="60" cy="462" r="1.4" fill="#f5a623"/></g>
+<text x="92" y="458" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#f0f2f5" text-anchor="start">More</text>
+<text x="92" y="479" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start">Your car, Settings, Help and the tour</text>
+<rect x="20" y="524" width="350" height="128" rx="18" fill="rgba(245,166,35,0.12)" stroke="rgba(245,166,35,0.35)" stroke-width="1"/>
+<text x="40" y="556" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#f5a623" text-anchor="start">Your first job</text>
+<text x="40" y="582" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#f0f2f5" text-anchor="start">Go for a drive. When you stop, open</text>
+<text x="40" y="604" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#f0f2f5" text-anchor="start">MileClear and tap Business or Personal</text>
+<text x="40" y="626" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="400" fill="#f0f2f5" text-anchor="start">on your trip. That's it.</text>
+<rect x="20" y="712" width="350" height="56" rx="14" fill="#f5a623"/><text x="195" y="745.6" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#1a1204" text-anchor="middle">Go to Home</text>
+<text x="195" y="800" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="middle">Replay any time: More &gt; Help &gt; Take the tour</text>
+</svg>
