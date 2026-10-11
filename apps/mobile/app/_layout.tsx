@@ -828,6 +828,9 @@ function RootNavigator() {
         <Stack.Screen name="tax-mtd-preview" options={{ headerShown: true, title: "Review update" }} />
         <Stack.Screen name="tax-mtd-submitted" options={{ headerShown: true, title: "Test update done", headerBackVisible: false }} />
         <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Update history" }} />
+        <Stack.Screen name="tax-mtd-year-end" options={{ headerShown: true, title: "End of year" }} />
+        <Stack.Screen name="tax-mtd-year-end-review" options={{ headerShown: true, title: "Check and submit" }} />
+        <Stack.Screen name="tax-mtd-year-end-done" options={{ headerShown: true, title: "Test return submitted", headerBackVisible: false, gestureEnabled: false }} />
         <Stack.Screen name="invoices" options={{ headerShown: true, title: "Invoices" }} />
         <Stack.Screen name="invoice-form" options={{ headerShown: true, title: "Add invoice" }} />
         <Stack.Screen name="clients" options={{ headerShown: true, title: "Clients" }} />
