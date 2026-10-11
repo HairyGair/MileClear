@@ -38,9 +38,11 @@ export function BetaBanner({
     <View style={styles.banner}>
       <View style={styles.header}>
         <Ionicons name={variant === "soon" ? "time-outline" : "flask-outline"} size={16} color={styles.icon.color} />
-        <Text style={[styles.pill, { backgroundColor: styles.pillBg.color, color: styles.pillText.color }]}>
-          {label ?? defaultLabel}
-        </Text>
+        {/* The pill is a View with the text inside: drawn as a Text with its
+            own background and overflow:hidden, the label didn't show on iOS. */}
+        <View style={[styles.pill, { backgroundColor: styles.pillBg.color }]}>
+          <Text style={[styles.pillLabel, { color: styles.pillText.color }]}>{label ?? defaultLabel}</Text>
+        </View>
         <Text style={styles.title}>{title}</Text>
       </View>
       <Text style={styles.body}>{body}</Text>
@@ -67,13 +69,14 @@ const betaStyles = StyleSheet.create({
   },
   icon: { color: colors.amber },
   pill: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    letterSpacing: 0.8,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
-    overflow: "hidden",
+  },
+  pillLabel: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    letterSpacing: 0.8,
   },
   pillBg: { color: "rgba(245, 166, 35, 0.22)" },
   pillText: { color: colors.amber },
@@ -100,13 +103,14 @@ const soonStyles = StyleSheet.create({
   },
   icon: { color: colors.text3 },
   pill: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    letterSpacing: 0.8,
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 999,
-    overflow: "hidden",
+  },
+  pillLabel: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    letterSpacing: 0.8,
   },
   pillBg: { color: "rgba(132, 148, 167, 0.22)" },
   pillText: { color: colors.text2 },
