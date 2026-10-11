@@ -321,7 +321,20 @@ function TaxMtdContent() {
       {state.step === "ready" && (
         <>
           <MtdSignpost text="When it goes live, MileClear will send self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those." />
-          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates. It won't handle the end-of-year Final Declaration: you'll do that with HMRC or other MTD-compatible software." />
+          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates. The end-of-year tax return below is a test version only. For now, send your real tax return with HMRC or other compatible software." />
+          <TouchableOpacity
+            style={[styles.obligationCard, { marginTop: 12 }]}
+            onPress={() => router.push("/tax-mtd-year-end" as never)}
+            accessibilityRole="button"
+            accessibilityLabel="End of year: try the tax return in the test version"
+          >
+            <Ionicons name="flag-outline" size={20} color={AMBER} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.obligationDates}>End of year</Text>
+              <Text style={styles.obligationDue}>Try the tax return in the test version</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
+          </TouchableOpacity>
         </>
       )}
     </ScrollView>

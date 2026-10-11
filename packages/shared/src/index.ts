@@ -21,3 +21,4 @@ export * from "./data/helpSearch.js";
 export * from "./utils/tripFacts.js";
 export * from "./utils/tripOverlap.js";
 export * from "./utils/mtdScope.js";
+export * from "./data/hmrcTaxReturn.js";

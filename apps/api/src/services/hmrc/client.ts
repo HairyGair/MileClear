@@ -55,6 +55,12 @@ export interface HmrcCallOptions {
   audit?: HmrcAudit;
   /** Server context (our public IP, etc). */
   server: ServerContext;
+  /**
+   * Called with HMRC's response headers on a successful call. Used where the
+   * response has no body but a header matters, e.g. the X-CorrelationId on
+   * a 204 tax return submission, which is the only trace HMRC gives back.
+   */
+  onResponseHeaders?: (headers: Headers) => void;
 }
 
 export class HmrcError extends Error {
@@ -468,6 +474,8 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
       ? opts.client.appVersion ?? null
       : null,
   });
+
+  opts.onResponseHeaders?.(response.headers);
 
   // Some endpoints (e.g. the cumulative period-summary PUT) return 204 or a 200
   // with an empty body. response.json() throws on empty input, so read text and
