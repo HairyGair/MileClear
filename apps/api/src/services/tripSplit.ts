@@ -265,6 +265,74 @@ export function encodePolyline(points: Array<{ lat: number; lng: number }>): str
 
 export class SplitValidationError extends Error {}
 
+// ── Split facts (11 Oct 2026, decision T-F) ───────────────────────────────
+//
+// Each leg records the trip it came from and "part 1 of 2", so the Trips tab
+// can say why a drive the driver remembers as one now shows as two. Facts
+// only: nothing here changes where a trip is cut.
+//
+// A leg can be split again (a later append re-runs the visit split on the
+// last leg, or the driver splits a leg by hand). Its new legs then join the
+// same family: they keep the first split's trip id and are numbered in its
+// place, and the legs after it move up, so a drive split twice reads "Part 1
+// of 3" to "Part 3 of 3", not two unrelated "Part 1 of 2"s.
+
+export interface SplitNumbering {
+  /** The trip every leg of this family says it was split from. */
+  rootId: string;
+  /** The part number the first leg of THIS split takes. */
+  firstPart: number;
+  /** How many legs the family has once this split is done. */
+  partCount: number;
+  /** Earlier legs of the family numbered after the trip being split move up by this. */
+  shiftLaterBy: number;
+  /** True when the trip being split was already a numbered leg. */
+  extendsFamily: boolean;
+}
+
+export function planSplitNumbering(
+  parent: { id: string; splitFromTripId?: string | null; splitPart?: number | null; splitPartCount?: number | null },
+  legCount: number
+): SplitNumbering {
+  const numbered =
+    typeof parent.splitFromTripId === "string" &&
+    parent.splitFromTripId.length > 0 &&
+    parent.splitPart != null &&
+    parent.splitPartCount != null &&
+    parent.splitPart >= 1 &&
+    parent.splitPart <= parent.splitPartCount;
+  if (!numbered) {
+    return { rootId: parent.id, firstPart: 1, partCount: legCount, shiftLaterBy: 0, extendsFamily: false };
+  }
+  return {
+    rootId: parent.splitFromTripId!,
+    firstPart: parent.splitPart!,
+    partCount: parent.splitPartCount! + legCount - 1,
+    shiftLaterBy: legCount - 1,
+    extendsFamily: true,
+  };
+}
+
+type SplitTx = Pick<Prisma.TransactionClient, "trip">;
+
+/** Renumber the family's other legs before this split's legs take their places. */
+async function renumberSplitFamily(
+  tx: SplitTx,
+  userId: string,
+  excludeId: string,
+  plan: SplitNumbering
+): Promise<void> {
+  if (!plan.extendsFamily || plan.shiftLaterBy === 0) return;
+  await tx.trip.updateMany({
+    where: { userId, splitFromTripId: plan.rootId, splitPart: { gt: plan.firstPart }, id: { not: excludeId } },
+    data: { splitPart: { increment: plan.shiftLaterBy } },
+  });
+  await tx.trip.updateMany({
+    where: { userId, splitFromTripId: plan.rootId, id: { not: excludeId } },
+    data: { splitPartCount: plan.partCount },
+  });
+}
+
 // ── Automatic visit splitting (27 Aug 2026) ───────────────────────────────
 //
 // The manual flow above asks the user to confirm each cut. That is right for
@@ -480,7 +548,9 @@ export async function executeTripSplit(args: {
 
   // Leg order, for attributing boundary fills once the transaction commits.
   const createdIds: string[] = [];
+  const numbering = planSplitNumbering(parent, legs.length);
   const newTrips = await prisma.$transaction(async (tx) => {
+    await renumberSplitFamily(tx, userId, parent.id, numbering);
     const created: { id: string }[] = [];
     for (let k = 0; k < legs.length; k++) {
       const leg = legs[k];
@@ -529,6 +599,11 @@ export async function executeTripSplit(args: {
             distanceSource: "haversine",
             splitFromTripId: parent.id,
           } as Prisma.InputJsonValue,
+          // Facts for the Trips tab: "Part 1 of 2", and how the drive was recorded.
+          splitFromTripId: numbering.rootId,
+          splitPart: numbering.firstPart + k,
+          splitPartCount: numbering.partCount,
+          recordedBy: parent.recordedBy,
         },
       });
       created.push(legTrip);
@@ -770,6 +845,8 @@ export async function autoSplitVisitWelds(args: {
     }
 
     const madeIds: string[] = [];
+    const numbering = planSplitNumbering(parent, legs.length);
+    await renumberSplitFamily(tx, userId, parent.id, numbering);
 
     // Legs two onward become new trips, taking their breadcrumbs with them.
     for (let k = 1; k < legs.length; k++) {
@@ -810,6 +887,11 @@ export async function autoSplitVisitWelds(args: {
             distanceSource: "haversine",
             autoSplitFromTripId: parent.id,
           } as Prisma.InputJsonValue,
+          // Facts for the Trips tab: "Part 2 of 2", and how the drive was recorded.
+          splitFromTripId: numbering.rootId,
+          splitPart: numbering.firstPart + k,
+          splitPartCount: numbering.partCount,
+          recordedBy: parent.recordedBy,
         },
       });
       madeIds.push(legTrip.id);
@@ -844,6 +926,11 @@ export async function autoSplitVisitWelds(args: {
         distanceMiles: legMiles[0],
         coordinateCount: firstLeg.length,
         routePolyline: encodePolyline(firstLeg),
+        // The original row is leg one, so it names itself as the trip it was
+        // split from (or keeps its family's, when it was already a leg).
+        splitFromTripId: numbering.rootId,
+        splitPart: numbering.firstPart,
+        splitPartCount: numbering.partCount,
       },
     });
 

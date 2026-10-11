@@ -14,6 +14,9 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   getTaxYear,
+  TRIP_RECORDED_BY,
+  resolveRecordedBy,
+  joinedCountOf,
 } from "@mileclear/shared";
 import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges } from "@mileclear/shared";
 import type { CazVehicleClass } from "@mileclear/shared";
@@ -176,6 +179,10 @@ const createTripSchema = z.object({
   // Optional odometer readings (miles) corroborating the distance.
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
+  // How the phone recorded it (Oct 2026, a fact for the Trips tab's labels).
+  // A value this server doesn't know is dropped, never a 400: a 400 deletes
+  // the phone's copy of the trip, and a newer app may know more ways.
+  recordedBy: z.enum(TRIP_RECORDED_BY).optional().catch(undefined),
 })
   // A trip cannot end before it starts. The server accepted this until 7 Aug
   // 2026: Lisa Purchase's backdated manual entries produced a trip whose
@@ -1059,6 +1066,8 @@ export async function tripRoutes(app: FastifyInstance) {
       gpsQuality: (tripData.gpsQuality ?? undefined) as Prisma.InputJsonValue | undefined,
       odometerStart: tripData.odometerStart ?? null,
       odometerEnd: tripData.odometerEnd ?? null,
+      // A fact only: nothing above decided anything from it.
+      recordedBy: resolveRecordedBy(tripData.recordedBy, isManualEntry),
     };
 
     let trip;
@@ -2570,6 +2579,11 @@ export async function tripRoutes(app: FastifyInstance) {
           businessPurpose: businessPurpose ?? null,
           category: category ?? null,
           notes: notes ?? null,
+          // Facts for the Trips tab ("Joined from 3 trips"): how many trips
+          // went in, counting those inside an earlier join, and how the first
+          // one was recorded.
+          joinedCount: joinedCountOf(trips),
+          recordedBy: first.recordedBy ?? null,
         },
       });
 
