@@ -13,12 +13,8 @@ import { describeKnownTrip, type DescribableTrip } from "../../lib/trips/overlap
 export function OverlapLine({ trip, onOpen }: { trip: DescribableTrip; onOpen: () => void }) {
   const w = describeKnownTrip(trip);
   return (
-    <View
-      style={styles.line}
-      accessibilityLiveRegion="polite"
-      accessible
-      accessibilityLabel={`MileClear already has a trip around then: ${w.route}, ${w.times}.`}
-    >
+    // Not one accessibility element: on iOS that would hide the Open button.
+    <View style={styles.line} accessibilityLiveRegion="polite">
       <Ionicons name="alert-circle-outline" size={18} color={colors.amber} accessible={false} />
       <Text style={styles.lineText} maxFontSizeMultiplier={fontScaleCap.body}>
         MileClear already has a trip around then: {w.route}, {w.times}
