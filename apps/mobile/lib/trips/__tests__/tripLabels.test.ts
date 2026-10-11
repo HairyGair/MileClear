@@ -34,9 +34,11 @@ describe("tripTag", () => {
     expect(tripTag(trip({ isManualEntry: true, createdAt: "2026-10-11T20:00:00Z" }), { now: NOW })?.text).toBe("Added by you");
   });
 
-  it("says a trip was saved later only when the save landed over 30 min after the drive", () => {
-    expect(tripTag(trip({ createdAt: "2026-10-11T09:01:00Z" }), { now: NOW })?.kind).toBe("saved_later");
-    expect(tripTag(trip({ createdAt: "2026-10-11T08:59:00Z" }), { now: NOW })).toBeNull();
+  it("reads a save over 30 min after the drive as saved later, but doesn't show it yet (T-F)", () => {
+    expect(isSavedLater(trip({ createdAt: "2026-10-11T09:01:00Z" }))).toBe(true);
+    expect(isSavedLater(trip({ createdAt: "2026-10-11T08:59:00Z" }))).toBe(false);
+    expect(isSavedLater(trip({ createdAt: "2026-10-11T15:00:00Z" }), true)).toBe(false);
+    expect(tripTag(trip({ createdAt: "2026-10-11T09:01:00Z" }), { now: NOW })).toBeNull();
   });
 
   it("does not say saved later for a trip saved with others (a split)", () => {
@@ -86,7 +88,7 @@ describe("tripMadeLine", () => {
   it("says a split leg is part of a longer drive, not saved later", () => {
     const leg = trip({ createdAt: "2026-10-11T18:00:00Z" });
     expect(tripMadeLine(leg, { waitingToUpload: false, splitLeg: true }).text).toBe("Part of a longer drive you split");
-    expect(tripMadeLine(leg, { waitingToUpload: false }).text).toBe("Saved later, when your phone woke up");
+    expect(tripMadeLine(leg, { waitingToUpload: false }).text).toBe("Recorded by MileClear · saved to your account");
   });
 });
 

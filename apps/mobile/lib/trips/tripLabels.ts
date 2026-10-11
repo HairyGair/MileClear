@@ -74,9 +74,7 @@ export function tripTag(
   if (opts.local) return { kind: "waiting", text: "Waiting to upload", icon: "cloud-upload-outline" };
   if (isRecentAutoSort(t, opts.now)) return { kind: "auto_sorted", text: "Sorted for you", icon: "sparkles-outline" };
   if (t.isManualEntry) return { kind: "manual", text: "Added by you", icon: "create-outline" };
-  if (isSavedLater(t, opts.createdInBatch)) {
-    return { kind: "saved_later", text: "Saved later, when your phone woke up", icon: "time-outline" };
-  }
+  // "Saved later" (isSavedLater) waits for the server to record how a trip was saved (T-F): joined trips would read wrongly.
   return null;
 }
 
@@ -117,7 +115,7 @@ export function tripMadeLine(
   // The server notes the trip a leg was split from; it doesn't note which
   // part it is, so the line doesn't say "Part 1 of 2".
   if (opts.splitLeg) return { text: "Part of a longer drive you split", done: false };
-  if (isSavedLater(t)) return { text: "Saved later, when your phone woke up", done: false };
+  // "Saved later" (isSavedLater) waits for the server to record how a trip was saved (T-F).
   return { text: "Recorded by MileClear · saved to your account", done: true };
 }
 

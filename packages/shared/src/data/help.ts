@@ -302,7 +302,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "late-trip",
     area: "missing_or_wrong_trips",
     q: "Why did a trip appear hours after I drove?",
-    a: "Your phone sometimes stops MileClear in the background before it finishes saving a trip. The trip is kept on the phone and saved the next time MileClear gets a chance to run, often when you open the app. Those trips say \"Saved later, when your phone woke up\" in the Trips list. Opening MileClear for a few seconds at the end of a shift helps.",
+    a: "Your phone sometimes stops MileClear in the background before it finishes saving a trip. The trip is kept on the phone and saved the next time MileClear gets a chance to run, often when you open the app. Opening MileClear for a few seconds at the end of a shift helps.",
     appOnly: true,
     keywords: ["late", "hours later", "delayed", "appeared later", "show up later"],
   },
