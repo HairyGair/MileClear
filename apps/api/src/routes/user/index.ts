@@ -774,11 +774,14 @@ export async function userRoutes(app: FastifyInstance) {
   });
 
   // GDPR data export (Art. 15 / Art. 20). Every model that carries this
-  // user's data is included; the only omissions are credentials (refresh
-  // tokens, verification / reset codes, OAuth access tokens, invite tokens)
-  // and the 24h idempotency cache, which holds nothing not exported
-  // elsewhere. Push tokens are included masked. Existing keys keep their
-  // shape; new data is added under new keys.
+  // user's data is included; the only omissions are credentials (password
+  // hash, refresh tokens, verification / reset codes, OAuth access tokens,
+  // invite tokens) and the 24h idempotency cache, which holds nothing not
+  // exported elsewhere. Connections that hold a secret are exported as rows
+  // without it, so their existence is visible. Push tokens are included
+  // masked. The NINO is decrypted: it is the user's own data. Existing keys
+  // keep their shape; new data is added under new keys. When a model gains a
+  // userId, add it here (the 14 Aug 2026 audit found ~25 missing).
   app.get("/export", async (request, reply) => {
     const userId = request.userId!;
 
@@ -837,6 +840,27 @@ export async function userRoutes(app: FastifyInstance) {
             buildNumber: true,
             osVersion: true,
             lastPendingSyncCount: true,
+            // Added 11 Oct 2026: the remaining User columns. passwordHash is
+            // the only one left out (a credential; hasPassword says one exists).
+            passwordHash: true,
+            taxPlanner: true,
+            publicChargePencePerKwh: true,
+            platformsSeen: true,
+            signupPlatform: true,
+            signupLocation: true,
+            referralCode: true,
+            referredByCode: true,
+            lastSyncQueueFailed: true,
+            lastSyncQueuePermFailed: true,
+            secondsSinceLastTripPost: true,
+            daysSinceLastTrip: true,
+            freeDiskBytes: true,
+            backgroundFetchStatus: true,
+            autoRecordingActive: true,
+            recordingStartedAt: true,
+            lastDrivingSpeedAt: true,
+            driveDetectionEnabled: true,
+            updatedAt: true,
           },
         }),
         prisma.vehicle.findMany({ where: { userId } }),
@@ -1069,6 +1093,37 @@ export async function userRoutes(app: FastifyInstance) {
     // Mileage record certificates, each with the frozen figures as issued.
     const mileageCertificates = await prisma.mileageCertificate.findMany({ where: { userId } });
 
+    // Added 11 Oct 2026 (GDPR audit H5 follow-up): the last user-bearing
+    // tables the export still missed. Deleted trips are the archive kept so a
+    // trip can be restored (route included); support messages are the
+    // driver's own problem reports, emails and our replies, with any
+    // screenshots they attached. The staff id on a reply is not theirs.
+    const [deletedTrips, tripDiversions, shiftSuggestions, supportMessages] = await Promise.all([
+      prisma.deletedTrip.findMany({ where: { userId } }),
+      prisma.tripDiversion.findMany({ where: { userId } }),
+      prisma.shiftSuggestion.findMany({ where: { userId } }),
+      prisma.supportEmail.findMany({
+        where: user ? { OR: [{ userId }, { fromEmail: user.email }, { toEmail: user.email }] } : { userId },
+        select: {
+          id: true,
+          threadKey: true,
+          direction: true,
+          channel: true,
+          fromEmail: true,
+          fromName: true,
+          toEmail: true,
+          subject: true,
+          textBody: true,
+          attachments: true,
+          context: true,
+          status: true,
+          receivedAt: true,
+          readByUserAt: true,
+          screenshots: { select: { id: true, mime: true, data: true, createdAt: true } },
+        },
+      }),
+    ]);
+
     // Push tokens are device credentials: show that one is held and its
     // tail, never the full value.
     const maskToken = (t: string | null | undefined) =>
@@ -1099,6 +1154,18 @@ export async function userRoutes(app: FastifyInstance) {
             marketingEmailsDisabledSource: userExtra?.marketingEmailsDisabledSource ?? null,
             // Notes written about the user by an admin: Art. 15 covers these.
             adminNotes: userExtra?.notes ?? null,
+            hasPassword: Boolean(userExtra?.passwordHash),
+            taxPlanner: userExtra?.taxPlanner ?? null,
+            publicChargePencePerKwh: userExtra?.publicChargePencePerKwh ?? null,
+            referralCode: userExtra?.referralCode ?? null,
+            referredByCode: userExtra?.referredByCode ?? null,
+            signup: {
+              platform: userExtra?.signupPlatform ?? null,
+              // Approximate town from the IP address at sign-up.
+              location: userExtra?.signupLocation ?? null,
+              platformsSeen: userExtra?.platformsSeen ?? null,
+            },
+            updatedAt: userExtra?.updatedAt ?? null,
           }
         : null,
       vehicles,
@@ -1137,6 +1204,16 @@ export async function userRoutes(app: FastifyInstance) {
         buildNumber: userExtra?.buildNumber ?? null,
         osVersion: userExtra?.osVersion ?? null,
         lastPendingSyncCount: userExtra?.lastPendingSyncCount ?? null,
+        lastSyncQueueFailed: userExtra?.lastSyncQueueFailed ?? null,
+        lastSyncQueuePermFailed: userExtra?.lastSyncQueuePermFailed ?? null,
+        secondsSinceLastTripPost: userExtra?.secondsSinceLastTripPost ?? null,
+        daysSinceLastTrip: userExtra?.daysSinceLastTrip ?? null,
+        freeDiskBytes: userExtra?.freeDiskBytes ?? null,
+        backgroundFetchStatus: userExtra?.backgroundFetchStatus ?? null,
+        autoRecordingActive: userExtra?.autoRecordingActive ?? null,
+        recordingStartedAt: userExtra?.recordingStartedAt ?? null,
+        lastDrivingSpeedAt: userExtra?.lastDrivingSpeedAt ?? null,
+        driveDetectionEnabled: userExtra?.driveDetectionEnabled ?? null,
       },
       diagnosticDump,
       appEvents,
@@ -1172,6 +1249,18 @@ export async function userRoutes(app: FastifyInstance) {
       waitlistEntry,
       teamInterest,
       mileageCertificates,
+      deletedTrips,
+      tripDiversions,
+      shiftSuggestions,
+      supportMessages: supportMessages.map((m) => ({
+        ...m,
+        screenshots: m.screenshots.map((s) => ({
+          id: s.id,
+          mime: s.mime,
+          createdAt: s.createdAt,
+          dataBase64: Buffer.from(s.data).toString("base64"),
+        })),
+      })),
     };
 
     reply.header("Content-Disposition", "attachment; filename=mileclear-data-export.json");
