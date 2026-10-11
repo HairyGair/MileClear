@@ -24,6 +24,10 @@ describe("redactUrlSecrets", () => {
     );
   });
 
+  it("redacts it from the accept path the accountant's page calls first", () => {
+    expect(redactUrlSecrets(`/accountant/accept/${token}`)).toBe("/accountant/accept/<redacted>");
+  });
+
   it("redacts regardless of hex case", () => {
     const mixed = "A1b2C3d4".repeat(8);
     expect(redactUrlSecrets(`/accountant/verify/${mixed}`)).toBe("/accountant/verify/<redacted>");

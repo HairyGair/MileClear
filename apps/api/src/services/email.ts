@@ -2978,6 +2978,8 @@ export async function sendAccountantInviteEmail(
   token: string
 ): Promise<void> {
   const safeInviterName = escapeHtml(inviterName);
+  // The website page accepts the invite itself (POST /accountant/accept)
+  // and then shows the records, so this one link is the whole journey.
   const dashboardUrl = `${WEB_BASE_URL}/accountant/${token}`;
   const subject = `${inviterName} shared their MileClear data with you`;
   const html = `
@@ -3006,23 +3008,23 @@ export async function sendAccountantInviteEmail(
 
                   <h1 style="margin: 0 0 20px; font-size: 22px; font-weight: 700; color: #f0f2f5;"><span style="color: #f5a623;">${safeInviterName}</span> shared their mileage data with you</h1>
 
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${safeInviterName} has invited you to view their mileage, expenses, and tax data on MileClear. Click below to access their read-only dashboard.</p>
+                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${safeInviterName} has invited you to see their business mileage, earnings and expenses on MileClear. Personal trips are not shared.</p>
 
                   <!-- CTA button -->
                   <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
                     <tr><td style="border-radius: 8px; background: linear-gradient(135deg, #f5a623, #e8950f);">
-                      <a href="${dashboardUrl}" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; color: #030712; text-decoration: none; border-radius: 8px;">View Dashboard</a>
+                      <a href="${dashboardUrl}" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; color: #030712; text-decoration: none; border-radius: 8px;">Open their records</a>
                     </td></tr>
                   </table>
 
                   <!-- Info callout -->
                   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
                     <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">This is a read-only view. You can see trip summaries, mileage deductions, expenses, and download exports. No account required.</p>
+                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">Read only, and no account needed. Pick a tax year to see their business trips, mileage claim and expenses, and download them as CSV or PDF. Anyone with this link can see the same, so please do not forward it.</p>
                     </td></tr>
                   </table>
 
-                  <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0;">If you weren't expecting this invitation, you can safely ignore this email. The link will expire in 7 days.</p>
+                  <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0;">Open the link within 7 days. Once opened, it keeps working for 12 months unless ${safeInviterName} removes your access. If you were not expecting this, you can ignore this email.</p>
 
                 </td></tr>
               </table>
