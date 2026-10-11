@@ -78,6 +78,12 @@ const GOOD_CALC = {
   },
 };
 
+const PERIODS_HELD = {
+  submittedOn: "2026-04-10T10:00:00.000Z",
+  periodsOfAccount: true,
+  periodsOfAccountDates: [{ startDate: "2025-04-06", endDate: "2026-04-05" }],
+};
+
 async function createTestApp() {
   const app = await buildApp();
   await app.register(hmrcRoutes, { prefix: "/hmrc" });
@@ -161,6 +167,7 @@ describe("HMRC tax return routes", () => {
   it("submits against the agreed calculation and logs it", async () => {
     mockCall
       .mockResolvedValueOnce(GOOD_CALC as never)
+      .mockResolvedValueOnce(PERIODS_HELD as never)
       .mockImplementationOnce(async (opts) => {
         opts.onResponseHeaders?.(new Headers({ "X-CorrelationId": "corr-9" }));
         return undefined as never;
@@ -174,7 +181,7 @@ describe("HMRC tax return routes", () => {
     expect(data.calculationId).toBe("calc-1");
     expect(data.correlationId).toBe("corr-9");
     expect(data.environment).toBe("sandbox");
-    const submit = mockCall.mock.calls[1][0];
+    const submit = mockCall.mock.calls[2][0];
     expect(submit.method).toBe("POST");
     expect(submit.path).toBe(`/individuals/calculations/${NINO}/self-assessment/2025-26/calc-1/final-declaration`);
     expect(logEvent).toHaveBeenCalledWith(
@@ -187,6 +194,7 @@ describe("HMRC tax return routes", () => {
   it("turns HMRC's 'tax year not over' error into plain English", async () => {
     mockCall
       .mockResolvedValueOnce(GOOD_CALC as never)
+      .mockResolvedValueOnce(PERIODS_HELD as never)
       .mockRejectedValueOnce(new HmrcError("raw", 400, "RULE_FINAL_DECLARATION_TAX_YEAR", null));
     const res = await app.inject({
       method: "POST", url: "/hmrc/tax-return/2025-26/submit", headers: auth,
@@ -259,6 +267,89 @@ describe("HMRC tax return routes", () => {
     expect(d.quarterly.allSent).toBe(false);
     expect(d.submitted).toBeNull();
     expect(d.yearEnded).toBe(true);
+  });
+
+  it("won't submit until HMRC has the accounting period for the year", async () => {
+    mockCall
+      .mockResolvedValueOnce(GOOD_CALC as never)
+      .mockRejectedValueOnce(new HmrcError("nf", 404, "MATCHING_RESOURCE_NOT_FOUND", null));
+    const res = await app.inject({
+      method: "POST", url: "/hmrc/tax-return/2025-26/submit", headers: auth,
+      payload: { calculationId: "calc-1", declarationAccepted: true, otherIncomeConfirmed: true, declarationVersion: TAX_RETURN_DECLARATION_VERSION },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.code).toBe("PERIODS_OF_ACCOUNT_MISSING");
+    expect(mockCall.mock.calls.some((c) => c[0].path.endsWith("/final-declaration"))).toBe(false);
+  });
+
+  it("reads the accounting method for the year from Business Details 2.0", async () => {
+    mockCall.mockResolvedValueOnce({ accountingType: "CASH" } as never);
+    const res = await app.inject({ method: "GET", url: "/hmrc/tax-return/2025-26/accounting-type", headers: auth });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.accountingType).toBe("CASH");
+    const call = mockCall.mock.calls[0][0];
+    expect(call.path).toBe(`/individuals/business/details/${NINO}/${BIZ}/2025-26/accounting-type`);
+    expect(call.apiVersion).toBe("2.0");
+  });
+
+  it("returns null when HMRC holds no accounting method", async () => {
+    mockCall.mockRejectedValueOnce(new HmrcError("nf", 404, "MATCHING_RESOURCE_NOT_FOUND", null));
+    const res = await app.inject({ method: "GET", url: "/hmrc/tax-return/2025-26/accounting-type", headers: auth });
+    expect(res.json().data.accountingType).toBeNull();
+  });
+
+  it("changes the accounting method with an audited PUT", async () => {
+    mockCall.mockResolvedValueOnce(undefined as never);
+    const res = await app.inject({
+      method: "PUT", url: "/hmrc/tax-return/2025-26/accounting-type", headers: auth,
+      payload: { accountingType: "ACCRUAL" },
+    });
+    expect(res.statusCode).toBe(200);
+    const call = mockCall.mock.calls[0][0];
+    expect(call.method).toBe("PUT");
+    expect(call.body).toEqual({ accountingType: "ACCRUAL" });
+    expect(call.audit).toEqual(expect.objectContaining({ operation: "accounting_type_update", taxYear: "2025-26" }));
+  });
+
+  it("refuses an accounting method HMRC doesn't know", async () => {
+    const res = await app.inject({
+      method: "PUT", url: "/hmrc/tax-return/2025-26/accounting-type", headers: auth,
+      payload: { accountingType: "ACCRUALS" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  it("builds the periods of account body from the driver's answer", async () => {
+    mockCall.mockResolvedValueOnce(undefined as never);
+    const res = await app.inject({
+      method: "PUT", url: "/hmrc/tax-return/2025-26/periods-of-account", headers: auth,
+      payload: { choice: "tax_year", periodsOfAccount: false },
+    });
+    expect(res.statusCode).toBe(200);
+    const call = mockCall.mock.calls[0][0];
+    expect(call.path).toBe(`/individuals/business/details/${NINO}/${BIZ}/2025-26/periods-of-account`);
+    expect(call.body).toEqual({
+      periodsOfAccount: true,
+      periodsOfAccountDates: [{ startDate: "2025-04-06", endDate: "2026-04-05" }],
+    });
+    expect(call.audit).toEqual(expect.objectContaining({ operation: "periods_of_account_submit" }));
+  });
+
+  it("refuses custom dates outside the tax year without calling HMRC", async () => {
+    const res = await app.inject({
+      method: "PUT", url: "/hmrc/tax-return/2025-26/periods-of-account", headers: auth,
+      payload: { choice: "custom", startDate: "2025-01-01", endDate: "2025-03-31" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/end date must be between/);
+    expect(mockCall).not.toHaveBeenCalled();
+  });
+
+  it("shows what HMRC holds about the accounting period as an answer", async () => {
+    mockCall.mockResolvedValueOnce(PERIODS_HELD as never);
+    const res = await app.inject({ method: "GET", url: "/hmrc/tax-return/2025-26/periods-of-account", headers: auth });
+    expect(res.json().data.answer).toEqual({ choice: "tax_year" });
   });
 
   it("rejects a malformed tax year", async () => {

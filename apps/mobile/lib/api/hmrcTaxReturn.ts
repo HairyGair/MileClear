@@ -115,6 +115,49 @@ export function submitTaxReturn(args: {
   });
 }
 
+// ── Accounting method and accounting period (Business Details API 2.0) ──
+
+/** "CASH" = cash basis, "ACCRUAL" = traditional accounting. */
+export type AccountingType = "CASH" | "ACCRUAL";
+
+export type PeriodsChoice = "tax_year" | "to_31_march" | "custom" | "none";
+
+export interface PeriodsAnswer {
+  choice: PeriodsChoice;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface PeriodsHeld {
+  submittedOn: string;
+  periodsOfAccount: boolean;
+  periodsOfAccountDates?: Array<{ startDate: string; endDate: string }>;
+}
+
+export function fetchAccountingType(taxYear: string) {
+  return apiRequest<{ data: { accountingType: AccountingType | null } }>(`${base(taxYear)}/accounting-type`);
+}
+
+export function updateAccountingType(taxYear: string, accountingType: AccountingType) {
+  return apiRequest<{ data: { accountingType: AccountingType } }>(`${base(taxYear)}/accounting-type`, {
+    method: "PUT",
+    body: JSON.stringify({ accountingType }),
+  });
+}
+
+export function fetchPeriodsOfAccount(taxYear: string) {
+  return apiRequest<{ data: { held: PeriodsHeld | null; answer: PeriodsAnswer | null } }>(
+    `${base(taxYear)}/periods-of-account`
+  );
+}
+
+export function sendPeriodsOfAccount(taxYear: string, answer: PeriodsAnswer) {
+  return apiRequest<{ data: { sent: unknown; warnings: string[] } }>(`${base(taxYear)}/periods-of-account`, {
+    method: "PUT",
+    body: JSON.stringify(answer),
+  });
+}
+
 /**
  * Poll until HMRC has finished the calculation. HMRC usually takes 10 to 30
  * seconds. Backoff 2s, 4s, 8s, then every 15s, about 3 minutes in all.

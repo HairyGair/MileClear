@@ -325,6 +325,11 @@ const PLAIN_ERRORS: Record<string, string> = {
     "HMRC found a problem with the figures it holds for this year. Check your quarterly updates, then try again.",
   RULE_PREMATURE_FINALISATION: "It's too early to get the end-of-year calculation for this tax year.",
   RULE_INCORRECT_OR_EMPTY_BODY_SUBMITTED: "There was nothing to send.",
+  // Business Details API 2.0, periods of account.
+  RULE_PERIODS_OF_ACCOUNT: "HMRC needs dates when an accounting period ended in this tax year, and none when it didn't.",
+  RULE_START_DATE: "The accounting period must start on or before the end of this tax year.",
+  RULE_END_DATE: "The accounting period must end inside this tax year.",
+  RULE_END_DATE_BEFORE_START_DATE: "The end date must be after the start date.",
   MATCHING_RESOURCE_NOT_FOUND: "HMRC couldn't find that calculation. Get a new calculation and try again.",
 };
 

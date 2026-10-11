@@ -25,7 +25,9 @@ export type HmrcAuditOperation =
   | "bsas_trigger"
   | "annual_submit"
   | "annual_delete"
-  | "final_declaration";
+  | "final_declaration"
+  | "accounting_type_update"
+  | "periods_of_account_submit";
 
 /** What a write call tells the trail about itself. No personal data. */
 export interface HmrcAudit {

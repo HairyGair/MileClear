@@ -44,6 +44,38 @@ export function shortDate(iso: string): string {
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
+/** A picked date (local time) as YYYY-MM-DD. */
+export function toIsoDay(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+/** Plain words for an accounting period answer. */
+export function periodAnswerLabel(
+  answer: { choice: "tax_year" | "to_31_march" | "custom" | "none"; startDate?: string; endDate?: string },
+  taxYear: string
+): string {
+  const y = parseInt(taxYear.slice(0, 4), 10);
+  switch (answer.choice) {
+    case "tax_year":
+      return `6 April ${y} to 5 April ${y + 1}, the tax year`;
+    case "to_31_march":
+      return `1 April ${y} to 31 March ${y + 1}`;
+    case "none":
+      return "No accounting period ended in this tax year";
+    case "custom":
+      return answer.startDate && answer.endDate
+        ? `${shortDate(answer.startDate)} to ${shortDate(answer.endDate)}`
+        : "Your own dates";
+  }
+}
+
+/** Plain words for HMRC's accounting type. */
+export function accountingTypeLabel(t: "CASH" | "ACCRUAL"): string {
+  return t === "CASH" ? "Cash basis" : "Traditional accounting";
+}
+
 /** "annualInvestmentAllowance" -> "Annual investment allowance". */
 export function fieldLabel(key: string): string {
   const words = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
