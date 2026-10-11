@@ -112,18 +112,34 @@ import { claimFirstSplitNote } from "../lib/tutorial/state";
 import { trackTutorial } from "../lib/events/tutorial";
 import { endTimeFor } from "../lib/trips/missingReportRule";
 import {
+  arrivalAfter,
+  canChain,
+  chainParams,
+  chainSubtitle,
+  dayTripsLine,
   departureFor,
   isFutureDeparture,
   keepWhereIAm,
   missingForSave,
+  parseDayKey,
   shouldFillWhereIAm,
   startOfLocalDay,
+  addLocalDays,
+  type ChainKind,
+  type SavedTripFacts,
 } from "../lib/trips/pastTripRule";
-import { findTripAround, lastTripEndedAt, type KnownTrip } from "../lib/trips/overlapLookup";
+import { findTripAround, knownTripsBetween, lastTripEndedAt, type KnownTrip } from "../lib/trips/overlapLookup";
+import { parseMilesInput } from "../lib/trips/missingReportRule";
+import { shortDay } from "../lib/tracking/pauseRule";
+import { FromToCard } from "../components/addTrip/FromToCard";
+import { WorkedOutLine } from "../components/addTrip/WorkedOutLine";
+import { TripTypeBlock } from "../components/addTrip/TripTypeBlock";
+import { MoreDetails } from "../components/addTrip/MoreDetails";
+import { SavedTripCard } from "../components/addTrip/SavedTripCard";
 import { settleTrips } from "../lib/trips/settle";
 import { trackTripForm, daysBack } from "../lib/events/tripForm";
 import { isOnline, onConnectivityChange } from "../lib/network";
-import { PlaceField, placeWords, usePickerPlaceSource, type PlaceKind } from "../components/addTrip/PlaceField";
+import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } from "../components/addTrip/PlaceField";
 import { WhenCard } from "../components/addTrip/WhenCard";
 import type { ClockValue } from "../components/addTrip/TimeRow";
 import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
@@ -707,10 +723,6 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "personal", label: "Personal" },
   { value: "unclassified", label: "Sort later" },
 ];
-// A new past trip has nothing chosen (PROPOSALS 0.5): "Sort later" was the
-// default the driver never picked, and 46% of trips fleet-wide sat unsorted.
-// Leaving both off still saves it to To sort, and the form says so.
-const NEW_TRIP_CLASSIFICATIONS = CLASSIFICATIONS.filter((c) => c.value !== "unclassified");
 
 export default function TripFormScreen() {
   const router = useRouter();
@@ -772,6 +784,17 @@ export default function TripFormScreen() {
     prefillArrivedAt,
     // Where the past-trip form was opened from, for its events.
     source: sourceParam,
+    // "Add the next trip" / "Add the way back" on the saved card
+    // (lib/trips/pastTripRule.chainParams): the day, the earliest sensible
+    // set-off, and what the trip was for carry over.
+    chain: chainParam,
+    prefillDay,
+    prefillAfter,
+    prefillClassification,
+    prefillPlatform,
+    prefillPurpose,
+    prefillCategory,
+    prefillVehicleId,
   } = useLocalSearchParams<{
     id?: string;
     mode?: string;
@@ -785,7 +808,16 @@ export default function TripFormScreen() {
     prefillDepartedAt?: string;
     prefillArrivedAt?: string;
     source?: string;
+    chain?: string;
+    prefillDay?: string;
+    prefillAfter?: string;
+    prefillClassification?: string;
+    prefillPlatform?: string;
+    prefillPurpose?: string;
+    prefillCategory?: string;
+    prefillVehicleId?: string;
   }>();
+  const chain: ChainKind | null = chainParam === "next" || chainParam === "way_back" ? chainParam : null;
   const isEditing = !!id;
   const hasMissedPrefill = !!missedId;
   // A new hand-typed trip opened from another trip's address ("Start from
@@ -794,8 +826,11 @@ export default function TripFormScreen() {
     !isEditing &&
     !hasMissedPrefill &&
     modeParam === "manual" &&
-    ((!!prefillFromLat && !!prefillFromLng) || (!!prefillToLat && !!prefillToLng));
+    ((!!prefillFromLat && !!prefillFromLng) || (!!prefillToLat && !!prefillToLng) || chainParam === "next" || chainParam === "way_back");
   const { user: currentUser, isCompanyDriver } = useUser();
+  // Only tracks personal driving: the past-trip form doesn't ask Business or
+  // personal (PROPOSALS A.3, driver P).
+  const personalOnly = currentUser?.dashboardMode === "personal";
   const { showPaywall } = usePaywall();
 
   // Honor a `mode=manual` deep link (e.g. the dashboard first-trip nudge's
@@ -877,6 +912,17 @@ export default function TripFormScreen() {
   const [online, setOnline] = useState(isOnline());
   useEffect(() => onConnectivityChange(setOnline), []);
   const placeSource = usePickerPlaceSource();
+  // What MileClear already has on the picked day, for "Also on Sat 3 Oct".
+  const [dayTrips, setDayTrips] = useState<KnownTrip[]>([]);
+  // The card after a past trip is saved (mockup a-saved).
+  const [savedCard, setSavedCard] = useState<{
+    facts: SavedTripFacts;
+    miles: number;
+    detail: string | null;
+    milesFrom: string;
+    savedWhere: string;
+    autoNote: string | null;
+  } | null>(null);
   // For the form's events: when it opened, and whether it ended in a save.
   const openedAtRef = useRef(Date.now());
   const savedRef = useRef(false);
@@ -1166,11 +1212,22 @@ export default function TripFormScreen() {
             if (prefillToAddress) setEndAddress(String(prefillToAddress));
             toKindRef.current = "prefill";
           }
-          if (!hasFrom) {
+          if (!hasFrom && !chainParam) {
             // Same rule as any other new past trip: From starts empty, unless
             // a trip ended within the hour (then it is likely "where I am").
             await fillWhereIAmIfLikely();
           }
+          // The next trip of a day being filled in: same day, and Business or
+          // Personal with its app or purpose as the trip before it. The
+          // set-off time is still the driver's to pick.
+          const day = parseDayKey(prefillDay ? String(prefillDay) : null);
+          if (day) setWhenDay(day);
+          if (prefillClassification === "business" || prefillClassification === "personal") {
+            setClassification(prefillClassification);
+          }
+          if (prefillPlatform) setPlatformTag(String(prefillPlatform) as PlatformTag);
+          if (prefillPurpose) setBusinessPurpose(String(prefillPurpose) as BusinessPurpose);
+          if (prefillCategory) setCategory(String(prefillCategory) as TripCategory);
           setMode("manual");
           return; // finally sets loading=false
         }
@@ -1367,6 +1424,12 @@ export default function TripFormScreen() {
     hasPlacePrefill,
     modeParam,
     fillWhereIAmIfLikely,
+    chainParam,
+    prefillDay,
+    prefillClassification,
+    prefillPlatform,
+    prefillPurpose,
+    prefillCategory,
     prefillFromLat,
     prefillFromLng,
     prefillFromAddress,
@@ -1634,12 +1697,14 @@ export default function TripFormScreen() {
       .then((res) => {
         setVehicles(res.data);
         if (!id) {
-          const primary = res.data.find((v) => v.isPrimary);
+          // The next trip of a day keeps the car of the one before it.
+          const carried = prefillVehicleId ? res.data.find((v) => v.id === String(prefillVehicleId)) : undefined;
+          const primary = carried ?? res.data.find((v) => v.isPrimary);
           if (primary) setVehicleId(primary.id);
         }
       })
       .catch(() => {});
-  }, [id]);
+  }, [id, prefillVehicleId]);
 
   // Auto-calculate distance via the server-side routing service.
   // Cache → GraphHopper → Google. Never silently falls back to crow-flies
@@ -1647,6 +1712,9 @@ export default function TripFormScreen() {
   // surface "couldn't calculate" so the user knows to enter manually
   // rather than seeing a wrong number.
   const [calculatingRoute, setCalculatingRoute] = useState(false);
+  // The last road route, so "Use the road distance" can go back to it after
+  // the driver typed miles.
+  const lastRouteRef = useRef<{ miles: number; source: RouteDistanceResult["source"]; secs: number | null } | null>(null);
   const [routeSource, setRouteSource] = useState<RouteDistanceResult["source"] | null>(null);
   const [routeUnavailable, setRouteUnavailable] = useState(false);
   // Set when the trail began materially after the Start tap, so the review
@@ -1680,12 +1748,18 @@ export default function TripFormScreen() {
     setCalculatingRoute(true);
     setRouteUnavailable(false);
     setRouteSource(null);
+    lastRouteRef.current = null;
     fetchServerRouteDistance({ startLat, startLng, endLat, endLng })
       .then((result) => {
         if (cancelled) return;
         if (result) {
           setDistanceMiles(result.distanceMiles);
           setRouteSource(result.source);
+          lastRouteRef.current = {
+            miles: result.distanceMiles,
+            source: result.source,
+            secs: Number.isFinite(result.durationSecs) && result.durationSecs > 0 ? result.durationSecs : null,
+          };
           setRoutedDurationSecs(
             Number.isFinite(result.durationSecs) && result.durationSecs > 0 ? result.durationSecs : null
           );
@@ -1768,6 +1842,24 @@ export default function TripFormScreen() {
     };
   }, [mode, isEditing, whenDay, whenTime, startedAt, endedAt, settledVersion]);
 
+  // The day's other trips, once a day is picked (phone, and server for days
+  // older than the phone holds).
+  useEffect(() => {
+    if (mode !== "manual" || isEditing || !whenDay) {
+      setDayTrips([]);
+      return;
+    }
+    let cancelled = false;
+    knownTripsBetween(whenDay, addLocalDays(whenDay, 1))
+      .then((r) => {
+        if (!cancelled) setDayTrips(r.trips);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, isEditing, whenDay, settledVersion]);
+
   // The form's own events: opened once, and "left without saving" when the
   // screen goes away without a save.
   const formFacts = useRef({ hadFrom: false, hadTo: false, hadDay: false, hadTime: false });
@@ -1785,9 +1877,10 @@ export default function TripFormScreen() {
     openedAtRef.current = Date.now();
     trackTripForm("trip_form.opened", {
       source: openSourceRef.current,
+      chain,
       prefill: hasMissedPrefill ? "missed_journey" : hasPlacePrefill ? "place" : "none",
     });
-  }, [pastTripForm, hasMissedPrefill, hasPlacePrefill]);
+  }, [pastTripForm, hasMissedPrefill, hasPlacePrefill, chain]);
   useEffect(
     () => () => {
       if (!openedLoggedRef.current || savedRef.current) return;
@@ -2504,23 +2597,6 @@ export default function TripFormScreen() {
     return () => sub.remove();
   }, [isEditing, mode, timeTouched]);
 
-  const handleSwitchToQuick = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setMode("ready");
-    // A live trip starts where the phone is, and the past-trip form may have
-    // left From empty.
-    if (startLat == null || startLng == null) {
-      getCurrentLocation()
-        .then((loc) => {
-          if (!loc) return;
-          setStartLat(loc.lat);
-          setStartLng(loc.lng);
-          setStartAddress(loc.address);
-        })
-        .catch(() => {});
-    }
-  }, [startLat, startLng]);
-
   // ── A new past trip's day and time ──
 
   const pickWhenDay = useCallback(
@@ -2537,6 +2613,13 @@ export default function TripFormScreen() {
       }
     },
     [whenTime]
+  );
+
+  // The calendar's dots: the phone's trips for the month, and the server's
+  // for months older than the phone holds.
+  const loadCalendarTrips = useCallback(
+    (from: Date, to: Date) => knownTripsBetween(from, to).then((r) => r.trips),
+    []
   );
 
   const pickWhenTime = useCallback(
@@ -2787,6 +2870,11 @@ export default function TripFormScreen() {
     // time already written locally, so it is caught here instead. A new
     // hand-typed trip is caught too: the API refuses a create that ends
     // before it starts in the same way, after the form has already closed.
+    // A driver who only tracks personal driving isn't asked Business or
+    // personal (A.3, driver P): their past trips are personal.
+    const saveClassification: TripClassification =
+      !isEditing && mode === "manual" && personalOnly && classification === "unclassified" ? "personal" : classification;
+
     // A new past trip always gets an end (P11: 129 hand trips in 30 days had
     // none): the worked-out one, or start + typed miles at 30 mph, or a
     // minute after the start when there is nothing to work it out from.
@@ -2920,7 +3008,7 @@ export default function TripFormScreen() {
           startLat,
           startLng,
           startedAt: startedAt.toISOString(),
-          classification,
+          classification: saveClassification,
           ...(endLat != null && endLng != null && { endLat, endLng }),
           ...(distanceMiles != null && { distanceMiles }),
           ...(startAddress && { startAddress }),
@@ -2950,8 +3038,9 @@ export default function TripFormScreen() {
               distanceMiles == null || distanceMiles <= 0 ? "none" : routeSource ? "routed" : "typed",
             timeSet: whenTime != null,
             endWorkedOut: !endTimeTouched,
-            classification,
+            classification: saveClassification,
             classificationChosen: classification !== "unclassified",
+            chain,
             overlapShown: overlapShownRef.current.inline || overlapShownRef.current.sheet,
             overlapAnswer: overlapShownRef.current.answer,
             source: openSourceRef.current,
@@ -3174,7 +3263,49 @@ export default function TripFormScreen() {
       // For new manual trips: show the review card before returning.
       // For edits or trips without a final distance to celebrate: fall
       // straight back to the previous screen.
-      if (!isEditing && createdTripId && distanceMiles != null && distanceMiles > 0) {
+      if (!isEditing && mode === "manual" && saveEndedAt) {
+        // A past trip ends on its saved card, which starts the next one.
+        const auto = createAutoApplied && createLearnedSuggestion ? createLearnedSuggestion : null;
+        const finalClass: TripClassification = auto ? auto.classification : saveClassification;
+        const finalPlatform = auto ? auto.platformTag ?? platformTag ?? null : platformTag ?? null;
+        const finalPurpose = auto ? auto.businessPurpose ?? businessPurpose ?? null : businessPurpose ?? null;
+        const start: PlaceValue = { lat: startLat, lng: startLng, address: startAddress };
+        const end: PlaceValue | null = endLat != null && endLng != null ? { lat: endLat, lng: endLng, address: endAddress } : null;
+        const appLabel = GIG_PLATFORMS.find((g) => g.value === finalPlatform)?.label ?? null;
+        const purposeLabel = BUSINESS_PURPOSES.find((b) => b.value === finalPurpose)?.label ?? null;
+        const categoryLabel = TRIP_CATEGORY_META.find((c) => c.value === category)?.label ?? null;
+        setSavedCard({
+          facts: {
+            startLat,
+            startLng,
+            startAddress,
+            startName: placeWords(start, savedPlaces).name,
+            endLat: end?.lat ?? null,
+            endLng: end?.lng ?? null,
+            endAddress: end?.address ?? null,
+            endName: end ? placeWords(end, savedPlaces).name : null,
+            startedAt,
+            endedAt: saveEndedAt,
+            classification: finalClass,
+            platformTag: finalPlatform,
+            businessPurpose: finalPurpose,
+            category: category ?? null,
+            vehicleId: vehicleId ?? null,
+          },
+          miles: distanceMiles ?? 0,
+          detail: finalClass === "business" ? appLabel ?? purposeLabel : finalClass === "personal" ? categoryLabel : null,
+          milesFrom:
+            distanceMiles == null || distanceMiles <= 0
+              ? "No miles yet. You can add them on the trip"
+              : routeSource
+                ? "Worked out from the road route"
+                : "Miles typed in",
+          savedWhere: createdTripId ? "Saved to your account" : "Saved on your phone. It uploads when you're back online.",
+          autoNote: auto
+            ? `Sorted as ${auto.classification === "business" ? "Business" : "Personal"} from ${auto.matchCount} similar ${auto.matchCount === 1 ? "trip" : "trips"}.`
+            : null,
+        });
+      } else if (!isEditing && createdTripId && distanceMiles != null && distanceMiles > 0) {
         setReviewCard({
           tripId: createdTripId,
           distanceMiles,
@@ -3215,7 +3346,7 @@ export default function TripFormScreen() {
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
     odometerStart, odometerEnd, missedId, mode, timeTouched,
-    whenDay, whenTime, routedDurationSecs, endTimeTouched,
+    whenDay, whenTime, routedDurationSecs, endTimeTouched, personalOnly, chain, savedPlaces,
   ]);
 
   /**
@@ -3630,7 +3761,11 @@ export default function TripFormScreen() {
     : mode === "arrived" || mode === "saving"
     ? "Trip complete"
     : mode === "manual"
-    ? "Add a past trip"
+    ? chain === "next"
+      ? "Add the next trip"
+      : chain === "way_back"
+        ? "Add the way back"
+        : "Add a past trip"
     : "Start a trip";
 
 
@@ -3653,6 +3788,190 @@ export default function TripFormScreen() {
     const miles = distanceMiles != null && distanceMiles > 0 ? `${distanceMiles.toFixed(1)} mi` : null;
     return [route, clockTime(startedAt), miles].filter(Boolean).join(" · ");
   })();
+
+  // ── A new past trip's screen (PROPOSALS A.1) ──
+  // From and To, When, the worked-out miles and arrival, Business or
+  // personal, More details, and one amber button that says what is missing.
+  const fromValue: PlaceValue | null =
+    startLat != null && startLng != null ? { lat: startLat, lng: startLng, address: startAddress } : null;
+  const toValue: PlaceValue | null =
+    endLat != null && endLng != null ? { lat: endLat, lng: endLng, address: endAddress } : null;
+  const chainAfter = (() => {
+    if (!chain || !prefillAfter) return null;
+    const d = new Date(String(prefillAfter));
+    return Number.isFinite(d.getTime()) ? d : null;
+  })();
+  const chainAfterToday = chainAfter && whenDay && startOfLocalDay(chainAfter).getTime() === whenDay.getTime() ? chainAfter : null;
+  const dayLine = whenDay ? dayTripsLine(whenDay, dayTrips, new Date(), overlap ? [overlap.id] : []) : null;
+  const pastTripLayout = (
+    <>
+      {!online && (
+        <View style={styles.offline} accessibilityLiveRegion="polite">
+          <Ionicons name="cloud-offline-outline" size={20} color={TEXT_2} accessible={false} />
+          <Text style={styles.offlineText} maxFontSizeMultiplier={fontScaleCap.body}>
+            No signal. The trip saves on your phone.
+          </Text>
+        </View>
+      )}
+
+      <FromToCard
+        from={fromValue}
+        to={toValue}
+        onFrom={(v, kind) => {
+          setStartLat(v.lat);
+          setStartLng(v.lng);
+          setStartAddress(v.address);
+          startAutoFilledRef.current = false;
+          fromKindRef.current = kind;
+        }}
+        onTo={(v, kind) => {
+          setEndLat(v.lat);
+          setEndLng(v.lng);
+          setEndAddress(v.address);
+          toKindRef.current = kind;
+          // A new end is a new road route: typed miles were for the old one.
+          setManualDistanceMode(false);
+          setManualDistanceText("");
+        }}
+        onSwap={() => {
+          if (!fromValue || !toValue) return;
+          setStartLat(toValue.lat);
+          setStartLng(toValue.lng);
+          setStartAddress(toValue.address);
+          setEndLat(fromValue.lat);
+          setEndLng(fromValue.lng);
+          setEndAddress(fromValue.address);
+          const k = fromKindRef.current;
+          fromKindRef.current = toKindRef.current;
+          toKindRef.current = k;
+          startAutoFilledRef.current = false;
+        }}
+        source={placeSource}
+        savedPlaces={savedPlaces}
+        online={online}
+      />
+
+      <View style={styles.addCard}>
+        <WhenCard
+          day={whenDay}
+          onDay={pickWhenDay}
+          time={whenTime}
+          onTime={pickWhenTime}
+          now={new Date()}
+          timeStartsAt={chainAfterToday}
+          timeHint={chainAfterToday && !whenTime ? `after ${clockTime(chainAfterToday)}` : null}
+          loadTrips={loadCalendarTrips}
+        >
+          {overlap && (
+            <OverlapLine
+              trip={overlap}
+              onOpen={() => {
+                overlapShownRef.current.answer = "opened_from_line";
+                trackTripForm("trip_form.overlap_answered", { answer: "opened_from_line", existingTripId: overlap.id });
+                router.push({ pathname: "/trip-form", params: { id: overlap.id } } as never);
+              }}
+            />
+          )}
+          {dayLine && (
+            <Text style={styles.dayLine} maxFontSizeMultiplier={fontScaleCap.body}>{dayLine}</Text>
+          )}
+        </WhenCard>
+      </View>
+
+      <WorkedOutLine
+        hasFrom={fromValue != null}
+        hasTo={toValue != null}
+        calculating={calculatingRoute}
+        distanceMiles={distanceMiles}
+        routed={routeSource != null && distanceMiles != null}
+        routeUnavailable={routeUnavailable}
+        online={online}
+        typing={manualDistanceMode}
+        milesText={manualDistanceText}
+        onMilesText={(t) => {
+          const cleaned = t.replace(/[^0-9.,]/g, "");
+          setManualDistanceText(cleaned);
+          const n = parseMilesInput(cleaned);
+          if (n != null) {
+            setDistanceMiles(n);
+            setRouteSource(null);
+            setRoutedDurationSecs(null);
+          } else if (cleaned === "") {
+            setDistanceMiles(null);
+            setRouteSource(null);
+            setRoutedDurationSecs(null);
+          }
+        }}
+        onStartTyping={() => {
+          setManualDistanceMode(true);
+          if (!manualDistanceText && distanceMiles != null) setManualDistanceText(String(distanceMiles));
+        }}
+        onUseRoad={
+          lastRouteRef.current
+            ? () => {
+                const r = lastRouteRef.current;
+                if (!r) return;
+                setDistanceMiles(r.miles);
+                setRouteSource(r.source);
+                setRoutedDurationSecs(r.secs);
+                setManualDistanceMode(false);
+                setManualDistanceText("");
+              }
+            : null
+        }
+        roadMiles={lastRouteRef.current?.miles ?? null}
+        departure={whenDay && whenTime ? startedAt : null}
+        arrival={whenDay && whenTime ? endedAt : null}
+        arrivalTouched={endTimeTouched}
+        onArrival={(v) => {
+          setEndedAt(arrivalAfter(startedAt, v.hours, v.minutes));
+          setEndTimeTouched(true);
+          setTimeTouched(true);
+        }}
+      />
+
+      <TripTypeBlock
+        classification={classification}
+        onClassification={setClassification}
+        platformTag={platformTag}
+        onPlatform={setPlatformTag}
+        businessPurpose={businessPurpose}
+        onPurpose={setBusinessPurpose}
+        category={category}
+        onCategory={setCategory}
+        isGigDriver={isGigDriver}
+        isEmployeeDriver={isEmployeeDriver}
+        personalOnly={personalOnly}
+      />
+
+      <MoreDetails
+        open={showDetails}
+        onToggle={setShowDetails}
+        vehicleName={selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : null}
+        hasVehicles={vehicles.length > 0}
+        onPickVehicle={handleSelectVehicle}
+        notes={notes}
+        onNotes={setNotes}
+        projectLabel={projectLabel}
+        onProjectLabel={setProjectLabel}
+        projectOptions={projectLabelOptions}
+        odometerStart={odometerStart}
+        onOdometerStart={setOdometerStart}
+        odometerEnd={odometerEnd}
+        onOdometerEnd={setOdometerEnd}
+      />
+
+      <Button
+        title={pastTripMissing ?? "Add trip"}
+        icon={pastTripMissing ? undefined : "checkmark"}
+        onPress={() => handleSave()}
+        loading={saving}
+        disabled={!!pastTripMissing}
+        accessibilityLabel={pastTripMissing ? `Add trip. ${pastTripMissing}` : "Add trip"}
+        style={{ marginTop: 24 }}
+      />
+    </>
+  );
 
   // Pieces of the form shared by a new past trip and an edit, laid out in a
   // different order for each.
@@ -4669,82 +4988,12 @@ export default function TripFormScreen() {
           />
         )}
 
-        {/* ── Manual Entry / Edit Mode ── */}
-        {(mode === "manual" || mode === "editing") && (
-          <>
-            {mode === "manual" && (
-              <TouchableOpacity
-                style={styles.backToQuickLink}
-                onPress={handleSwitchToQuick}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Track a trip live instead"
-              >
-                <Ionicons name="navigate-outline" size={16} color={AMBER} accessible={false} />
-                <Text style={styles.backToQuickText}>Track a trip live instead</Text>
-              </TouchableOpacity>
-            )}
+        {/* ── A new past trip (PROPOSALS Direction A, "From, To, When") ── */}
+        {pastTripForm && pastTripLayout}
 
-            {pastTripForm ? (
-              <>
-                <View style={styles.addCard}>
-                  <PlaceField
-                    label="From"
-                    value={startLat != null && startLng != null ? { lat: startLat, lng: startLng, address: startAddress } : null}
-                    onChange={(v, kind) => {
-                      setStartLat(v.lat);
-                      setStartLng(v.lng);
-                      setStartAddress(v.address);
-                      startAutoFilledRef.current = false;
-                      fromKindRef.current = kind;
-                    }}
-                    source={placeSource}
-                    savedPlaces={savedPlaces}
-                    otherEnd={endLat != null && endLng != null ? { lat: endLat, lng: endLng, address: endAddress } : null}
-                    online={online}
-                  />
-                </View>
-                <View style={styles.addCard}>
-                  <PlaceField
-                    label="To"
-                    value={endLat != null && endLng != null ? { lat: endLat, lng: endLng, address: endAddress } : null}
-                    onChange={(v, kind) => {
-                      setEndLat(v.lat);
-                      setEndLng(v.lng);
-                      setEndAddress(v.address);
-                      toKindRef.current = kind;
-                    }}
-                    source={placeSource}
-                    savedPlaces={savedPlaces}
-                    otherEnd={startLat != null && startLng != null ? { lat: startLat, lng: startLng, address: startAddress } : null}
-                    online={online}
-                  />
-                </View>
-                <View style={styles.addCard}>
-                  <WhenCard
-                    day={whenDay}
-                    onDay={pickWhenDay}
-                    time={whenTime}
-                    onTime={pickWhenTime}
-                    now={new Date()}
-                  >
-                    {overlap && (
-                      <OverlapLine
-                        trip={overlap}
-                        onOpen={() => {
-                          overlapShownRef.current.answer = "opened_from_line";
-                          trackTripForm("trip_form.overlap_answered", { answer: "opened_from_line", existingTripId: overlap.id });
-                          router.push({ pathname: "/trip-form", params: { id: overlap.id } } as never);
-                        }}
-                      />
-                    )}
-                  </WhenCard>
-                </View>
-                {distanceCard}
-                {endTimeField}
-              </>
-            ) : (
-              <>
+        {/* ── Edit Mode ── */}
+        {mode === "editing" && (
+          <>
             {/* Start Location */}
             <LocationPickerField
               label="Start"
@@ -4807,21 +5056,15 @@ export default function TripFormScreen() {
             )}
 
             {endTimeField}
-              </>
-            )}
 
             {/* Classification */}
             <Text style={styles.label}>Business or personal?</Text>
             <View style={styles.classRow}>
-              {(pastTripForm ? NEW_TRIP_CLASSIFICATIONS : CLASSIFICATIONS).map((opt) => (
+              {CLASSIFICATIONS.map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
                   style={[styles.classChip, classification === opt.value && styles.classChipActive]}
-                  onPress={() =>
-                    // On a new trip a second tap takes the choice off again,
-                    // back to To sort.
-                    setClassification(pastTripForm && classification === opt.value ? "unclassified" : opt.value)
-                  }
+                  onPress={() => setClassification(opt.value)}
                   accessibilityRole="button"
                   accessibilityLabel={opt.value === "unclassified" ? "Sort this trip later" : `Mark trip as ${opt.label}`}
                   accessibilityState={{ selected: classification === opt.value }}
@@ -4834,12 +5077,6 @@ export default function TripFormScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {pastTripForm && classification === "unclassified" && (
-              <Text style={styles.notSure} maxFontSizeMultiplier={fontScaleCap.body}>
-                Not sure? Leave it and it goes in To sort.
-              </Text>
-            )}
-
             {/* Category for personal trips */}
             {classification === "personal" && (
               <>
@@ -5074,13 +5311,13 @@ export default function TripFormScreen() {
               </View>
             )}
 
-            {/* Save. On a new past trip it says what is still missing. */}
+            {/* Save */}
             <Button
-              title={isEditing ? "Save changes" : pastTripMissing ?? "Add trip"}
-              icon={pastTripMissing ? undefined : "checkmark"}
+              title="Save changes"
+              icon="checkmark"
               onPress={() => handleSave()}
               loading={saving}
-              disabled={deleting || !!pastTripMissing}
+              disabled={deleting}
               style={{ marginTop: 28 }}
             />
             {isEditing && (
@@ -5108,6 +5345,45 @@ export default function TripFormScreen() {
         onAddAnyway={() => answerOverlap("add_anyway")}
         onClose={() => answerOverlap("dismissed")}
       />
+
+      {savedCard && (
+        <SavedTripCard
+          overlay
+          miles={savedCard.miles}
+          summary={`${
+            savedCard.facts.endName
+              ? `${savedCard.facts.startName} to ${savedCard.facts.endName}`
+              : `From ${savedCard.facts.startName}`
+          } · ${shortDay(savedCard.facts.startedAt)}, ${clockTime(savedCard.facts.startedAt)} to ${clockTime(savedCard.facts.endedAt)}`}
+          classification={savedCard.facts.classification as TripClassification}
+          detail={savedCard.detail}
+          milesFrom={savedCard.milesFrom}
+          savedWhere={savedCard.savedWhere}
+          autoNote={savedCard.autoNote}
+          next={{
+            subtitle: chainSubtitle("next", savedCard.facts, new Date()),
+            onPress: () => {
+              trackTripForm("trip_form.chain_tapped", { kind: "next" });
+              router.replace({ pathname: "/trip-form", params: chainParams("next", savedCard.facts) } as never);
+            },
+          }}
+          wayBack={
+            canChain("way_back", savedCard.facts)
+              ? {
+                  subtitle: chainSubtitle("way_back", savedCard.facts, new Date()),
+                  onPress: () => {
+                    trackTripForm("trip_form.chain_tapped", { kind: "way_back" });
+                    router.replace({ pathname: "/trip-form", params: chainParams("way_back", savedCard.facts) } as never);
+                  },
+                }
+              : null
+          }
+          onDone={() => {
+            setSavedCard(null);
+            router.back();
+          }}
+        />
+      )}
 
       {reviewCard && (
         <PostTripReviewCard
@@ -5276,23 +5552,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.medium,
     color: TEXT_2,
-  },
-  backToQuickLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(245, 166, 35, 0.08)",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.15)",
-  },
-  backToQuickText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: AMBER,
   },
   // "Save as place", "Start from here" and "Go to here" under a trip's
   // start/end address (edit mode only). Wraps rather than truncates on a
@@ -5616,11 +5875,30 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginTop: 12,
   },
-  notSure: {
+  offline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    backgroundColor: CARD_BG,
+  },
+  offlineText: {
+    flex: 1,
     fontSize: 14,
     fontFamily: fonts.regular,
     color: TEXT_2,
-    marginTop: 10,
+  },
+  dayLine: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(255,255,255,0.08)",
   },
   classRow: {
     flexDirection: "row",
