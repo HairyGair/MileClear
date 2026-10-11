@@ -17,6 +17,7 @@ import { getTaxYear } from "@mileclear/shared";
 import { PremiumGate } from "../components/PremiumGate";
 import { BetaBanner } from "../components/BetaBanner";
 import { MtdSignpost } from "../components/MtdSignpost";
+import { MtdScopeCheck } from "../components/MtdScopeCheck";
 import {
   fetchHmrcStatus,
   fetchHmrcBusinesses,
@@ -302,6 +303,8 @@ function TaxMtdContent() {
         </View>
       )}
 
+      {/* Before connecting: does MTD apply to this driver yet? */}
+      {state.step === "connect" && <MtdScopeCheck />}
       {state.step === "connect" && <ConnectStep onConnect={onConnect} />}
       {state.step === "nino" && <NinoStep onDone={load} />}
       {state.step === "business" && <BusinessStep businesses={state.businesses} onDone={load} />}

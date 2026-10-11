@@ -421,7 +421,7 @@ export default function WorkTaxSettings() {
             hint="Try quarterly reporting. Nothing is sent to HMRC yet."
             badge={isPremium ? undefined : "Pro"}
             onPress={() => router.push("/tax-mtd")}
-            helpTopicId="mtd-itsa"
+            helpTopicId="mtd"
           />
           <SettingsRow
             icon="layers-outline"
