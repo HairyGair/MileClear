@@ -2283,8 +2283,21 @@ export default function TripFormScreen() {
 
   const handleSwitchToManual = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    // The start time was set when this screen opened. If it sat open (an
+    // hour, 11 Oct 2026) the past-trip form would carry that old time, so a
+    // new trip whose time nobody has picked starts from now.
+    if (!isEditing && !timeTouched) setStartedAt(new Date());
     setMode("manual");
-  }, []);
+  }, [isEditing, timeTouched]);
+
+  // Same for the past-trip form left open while the phone was put away.
+  useEffect(() => {
+    if (isEditing || mode !== "manual" || timeTouched) return;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") setStartedAt(new Date());
+    });
+    return () => sub.remove();
+  }, [isEditing, mode, timeTouched]);
 
   const handleSwitchToQuick = useCallback(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
