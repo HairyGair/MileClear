@@ -493,8 +493,16 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "tax-estimate",
     area: "tax_and_claims",
     q: "How is the tax estimate worked out?",
-    a: "From your recorded earnings, minus the mileage on your tax return and allowable expenses, giving your profit. MileClear applies the current personal allowance, income tax bands and Class 4 National Insurance, and takes your other income into account if you've entered it in Tax > Your tax details. It's only as good as what you've recorded, and it's an estimate, not a bill.",
+    a: "From your recorded earnings, minus the mileage on your tax return and allowable expenses, giving your profit. MileClear applies the personal allowance, the income tax bands for that tax year (the Scottish ones if you pay Scottish income tax) and Class 4 National Insurance, and takes your other income into account if you've entered it in Tax > Your tax details. It's only as good as what you've recorded, and it's an estimate, not a bill.",
     keywords: ["estimate", "how much tax", "worked out", "calculate", "owe", "tax so far"],
+  },
+  {
+    id: "scottish-income-tax",
+    area: "tax_and_claims",
+    q: "I live in Scotland. Does MileClear use the Scottish tax rates?",
+    a: "Yes, once you tell it. Go to Tax > Your tax details (the same screen as More > Settings > You drive for), tap Scottish income tax and choose Yes. You pay Scottish income tax if you live in Scotland. Your tax estimate, Box by box, the payment plan and Mileage Allowance Relief then use the Scottish rates: 19% starter, 20% basic, 21% intermediate, 42% higher, 45% advanced and 48% top, for the tax year each figure is for. National Insurance and the £12,570 personal allowance are the same across the UK, so they don't change. Box by box asks if you haven't answered yet. Until you answer, MileClear uses the England, Wales and Northern Ireland rates.",
+    goTo: "/settings/work-tax",
+    keywords: ["scotland", "scottish", "scottish rate", "scottish tax", "live in scotland", "intermediate rate", "starter rate", "21%", "42%", "edinburgh", "glasgow"],
   },
   {
     id: "payment-plan",
