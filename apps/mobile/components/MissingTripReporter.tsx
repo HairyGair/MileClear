@@ -22,7 +22,7 @@
 // iPad-safe modal: presentationStyle="overFullScreen" + statusBarTranslucent,
 // plain TouchableOpacity for the CTAs (not an animated button), per the
 // build-60 iPad hit-testing fix.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import {
   View,
@@ -61,7 +61,7 @@ import {
 import { haptic } from "../lib/haptics";
 import { collectMissingTripPhoneLog, withTimeout } from "../lib/tracking/trackingLogStore";
 import { settleTrips } from "../lib/trips/settle";
-import { findTripAround } from "../lib/trips/overlapLookup";
+import { findTripAround, type KnownTrip } from "../lib/trips/overlapLookup";
 import { describeKnownTrip } from "../lib/trips/overlapText";
 import {
   canChain,
@@ -73,9 +73,10 @@ import {
 import { loadSavedPlaces } from "../lib/trips/savedPlaces";
 import type { SavedPlace } from "../lib/trips/placeLabel";
 import { isOnline, onConnectivityChange } from "../lib/network";
-import type { TripClassification } from "@mileclear/shared";
+import { haversineDistance, type TripClassification } from "@mileclear/shared";
 import { FromToCard } from "./addTrip/FromToCard";
 import { WhenCard } from "./addTrip/WhenCard";
+import { OverlapLine } from "./addTrip/OverlapNotice";
 import { SavedTripCard } from "./addTrip/SavedTripCard";
 import { placeWords, usePickerPlaceSource } from "./addTrip/PlaceField";
 import type { ClockValue } from "./addTrip/TimeRow";
@@ -313,6 +314,56 @@ export function MissingTripReporter({
   const close = () => {
     setOpen(false);
   };
+
+  // Cancel (or the back gesture) on a report with anything in it asks first:
+  // the next open starts empty, so closing throws it away.
+  const closeForm = () => {
+    const filled = step === "form" && (from !== null || to !== null || day !== null || time !== null || note.trim() !== "");
+    if (!filled || sending) {
+      close();
+      return;
+    }
+    Alert.alert("Discard this report?", "It hasn't been sent yet.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: close },
+    ]);
+  };
+
+  // The same "MileClear already has a trip around then" line as Add a past
+  // trip, as soon as the day and time are set, so a drive that was recorded
+  // after all can be opened instead of reported. The end is a guess until
+  // the route is known: the straight line, a quarter longer, at 30 mph.
+  const [overlap, setOverlap] = useState<KnownTrip | null>(null);
+  const lastLineRef = useRef<string | null>(null);
+  const departMs = departAt ? departAt.getTime() : null;
+  useEffect(() => {
+    if (!open || step !== "form" || departMs == null) {
+      setOverlap(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const start = new Date(departMs);
+      const guessMiles = from && to ? haversineDistance(from.lat, from.lng, to.lat, to.lng) * 1.25 : null;
+      const end = guessMiles != null && guessMiles > 0
+        ? endTimeFor({ departAt: start, routedSecs: null, typedMiles: guessMiles, now: Date.now() })
+        : null;
+      findTripAround(start, end)
+        .then((hit) => {
+          if (cancelled) return;
+          setOverlap(hit);
+          if (hit && lastLineRef.current !== hit.id) {
+            lastLineRef.current = hit.id;
+            trackReportEvent("trip.report_missing_overlap_line", { existingTripId: hit.id, existingSource: hit.source });
+          }
+        })
+        .catch(() => {});
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, step, departMs, from, to]);
 
   const resume = async () => {
     setResuming(true);
@@ -651,7 +702,7 @@ export function MissingTripReporter({
         animationType="slide"
         presentationStyle="overFullScreen"
         statusBarTranslucent
-        onRequestClose={close}
+        onRequestClose={step === "form" ? closeForm : close}
       >
         <KeyboardAvoidingView
           style={styles.backdrop}
@@ -691,7 +742,19 @@ export function MissingTripReporter({
                       now={new Date()}
                       timeHint="Roughly is fine"
                       disabled={sending}
-                    />
+                    >
+                      {overlap && (
+                        <OverlapLine
+                          trip={overlap}
+                          onOpen={() => {
+                            trackReportEvent("trip.report_missing_overlap_opened", { existingTripId: overlap.id });
+                            setOpen(false);
+                            reset();
+                            router.push({ pathname: "/trip-form", params: { id: overlap.id } } as never);
+                          }}
+                        />
+                      )}
+                    </WhenCard>
                   </View>
                   {tooRecent && (
                     <Text style={styles.timeHint}>
@@ -723,7 +786,7 @@ export function MissingTripReporter({
                       <Text style={styles.sendText}>Send</Text>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.cancel} onPress={close} activeOpacity={0.7}>
+                  <TouchableOpacity style={styles.cancel} onPress={closeForm} activeOpacity={0.7}>
                     <Text style={styles.cancelText}>Cancel</Text>
                   </TouchableOpacity>
                 </>
