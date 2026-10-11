@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Linking, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { checkMtdScope, MTD_SCOPE_TAX_YEARS, type MtdScopeResult } from "@mileclear/shared";
+import {
+  checkMtdScope,
+  mtdPhaseLine,
+  MTD_PHASES,
+  MTD_SCOPE_TAX_YEARS,
+  type MtdScopeResult,
+} from "@mileclear/shared";
 import { fetchSelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { colors, fonts } from "../lib/theme";
 
@@ -85,10 +91,12 @@ export function MtdScopeCheck() {
         </>
       )}
       <View style={styles.limits}>
-        <Text style={styles.small}>HMRC looks at your income before expenses, from your Self Assessment:</Text>
-        <Text style={styles.small}>• Over £50,000: from 6 April 2026</Text>
-        <Text style={styles.small}>• Over £30,000: from 6 April 2027</Text>
-        <Text style={styles.small}>• Over £20,000: from 6 April 2028</Text>
+        <Text style={styles.small}>
+          HMRC looks at your income before expenses for an earlier tax year, from your Self Assessment:
+        </Text>
+        {MTD_PHASES.map((phase) => (
+          <Text key={phase.startsOn} style={styles.small}>• {mtdPhaseLine(phase)}</Text>
+        ))}
         <Text style={styles.small}>
           It counts self-employment income plus any rental (property) income. MileClear only holds your
           driving earnings, so add any rent you get yourself.

@@ -1,4 +1,4 @@
-import { isConnectionExpired, connectionLine } from "../lib/tax/mtdCopy";
+import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText } from "../lib/tax/mtdCopy";
 import { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -70,6 +70,12 @@ interface ScreenState {
    * "nothing to file" — the worst possible way for a tax app to fail.
    */
   obligationsUnavailable: boolean;
+  /**
+   * Why the obligations call failed, in the server's words, and whether
+   * pulling down to retry could help. A refusal such as "update the app"
+   * won't change on a retry, so we don't suggest one.
+   */
+  obligationsError: { message: string; canRetry: boolean } | null;
   businesses: HmrcBusinessSummary[];
   loading: boolean;
   error: string | null;
@@ -82,6 +88,7 @@ const INITIAL_STATE: ScreenState = {
   hasBusinessId: false,
   obligations: [],
   obligationsUnavailable: false,
+  obligationsError: null,
   businesses: [],
   loading: true,
   error: null,
@@ -116,6 +123,7 @@ function TaxMtdContent() {
           hasBusinessId: false,
           obligations: [],
           obligationsUnavailable: false,
+          obligationsError: null,
           businesses: [],
           loading: false,
           error: null,
@@ -128,6 +136,7 @@ function TaxMtdContent() {
       let businesses: HmrcBusinessSummary[] = [];
       let obligations: HmrcObligation[] = [];
       let obligationsUnavailable = false;
+      let obligationsError: ScreenState["obligationsError"] = null;
 
       if (status.hasNino && !status.hasBusinessId) {
         // NINO set, business not — load the business list so the picker
@@ -145,10 +154,17 @@ function TaxMtdContent() {
           const oblig = await fetchHmrcObligations({ status: "Open" });
           obligations = oblig.data.obligations;
         } catch (err) {
-          if (!(isApiError(err) && err.statusCode === 400)) throw err;
-          // A 400 here means we could not ask HMRC, not that there is
-          // nothing due. Say so rather than implying the user is clear.
+          // An expired HMRC connection has its own screen (outer catch).
+          if (isApiError(err) && err.code === "HMRC_REAUTH_REQUIRED") throw err;
+          // Any failure here means we could not ask HMRC, not that there is
+          // nothing due. Say so rather than implying the user is clear, and
+          // use the server's reason so "update the app" isn't hidden behind
+          // "pull down to try again".
           obligationsUnavailable = true;
+          obligationsError = describeMtdLoadError(
+            err,
+            "We couldn't load your quarterly updates just now.",
+          );
         }
       }
 
@@ -176,6 +192,7 @@ function TaxMtdContent() {
         hasBusinessId: status.hasBusinessId,
         obligations,
         obligationsUnavailable,
+        obligationsError,
         businesses,
         loading: false,
         error: null,
@@ -192,14 +209,15 @@ function TaxMtdContent() {
           hasBusinessId: false,
           obligations: [],
           obligationsUnavailable: false,
+          obligationsError: null,
           businesses: [],
           loading: false,
           error: "Your test connection has expired. Connect again to carry on.",
         });
         return;
       }
-      const msg =
-        isApiError(err) ? err.message : err instanceof Error ? err.message : "Couldn't load your connection. Pull down to try again.";
+      const { message, canRetry } = describeMtdLoadError(err, "Couldn't load your connection.");
+      const msg = canRetry ? `${message} Pull down to try again.` : message;
       setState((s) => ({ ...s, loading: false, error: msg }));
     }
   }, []);
@@ -312,6 +330,7 @@ function TaxMtdContent() {
         <ReadyStep
           obligations={state.obligations}
           unavailable={state.obligationsUnavailable}
+          unavailableReason={state.obligationsError}
           expired={isConnectionExpired(state.status?.expiresAt)}
           onConnect={onConnect}
         />
@@ -320,8 +339,7 @@ function TaxMtdContent() {
       {/* Scope signposts (in-year, self-employment-only product). Future tense: nothing is live yet. */}
       {state.step === "ready" && (
         <>
-          <MtdSignpost text="When it goes live, MileClear will send self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those." />
-          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates. The end-of-year tax return below is a test version only. For now, send your real tax return with HMRC or other compatible software." />
+          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return below is a test version only, so for now send your real tax return with HMRC or other compatible software." />
           <TouchableOpacity
             style={[styles.obligationCard, { marginTop: 12 }]}
             onPress={() => router.push("/tax-mtd-year-end" as never)}
@@ -392,8 +410,8 @@ function ConnectStep({ onConnect }: { onConnect: () => void }) {
       <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
       <Text style={styles.stepTitle}>Connect to the test service</Text>
       <Text style={styles.stepBody}>
-        Sign in to HMRC's test service to try quarterly updates. Nothing is sent to
-        HMRC yet, and your real tax account is not changed.
+        Sign in to HMRC's test service to try quarterly updates. Nothing reaches
+        your real tax account.
       </Text>
       <Bullets
         items={[
@@ -499,11 +517,13 @@ function BusinessStep({
 function ReadyStep({
   obligations,
   unavailable,
+  unavailableReason,
   expired,
   onConnect,
 }: {
   obligations: HmrcObligation[];
   unavailable: boolean;
+  unavailableReason: { message: string; canRetry: boolean } | null;
   expired: boolean;
   onConnect: () => void;
 }) {
@@ -527,7 +547,7 @@ function ReadyStep({
         <Text style={styles.stepBody}>
           {expired
             ? "Connect again to carry on. Your past test updates stay in your history."
-            : "We couldn't load your quarterly updates just now, so we can't tell you whether anything is due. Pull down to try again. This does not mean you have nothing to file."}
+            : obligationsErrorText(unavailableReason)}
         </Text>
         {expired && (
           <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Connect again">

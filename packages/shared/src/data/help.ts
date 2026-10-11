@@ -613,7 +613,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "mtd-quarterly-update",
     area: "tax_and_claims",
     q: "What does quarterly reporting mean?",
-    a: "Under Making Tax Digital you tell HMRC your self-employment income and expenses every three months, instead of only once a year. Each update is a running total from 6 April. The quarters end on 5 July, 5 October, 5 January and 5 April, and the updates are due by 7 August, 7 November, 7 February and 7 May. MileClear works the figures out from your earnings, expenses and business miles, and you see them all before anything is sent. An update isn't a tax return: after the tax year you still finish the year with HMRC or other software (MileClear doesn't do that part).",
+    a: "Under Making Tax Digital you tell HMRC your self-employment income and expenses every three months, instead of only once a year. Each update is a running total from 6 April. The quarters end on 5 July, 5 October, 5 January and 5 April, and the updates are due by 7 August, 7 November, 7 February and 7 May. MileClear works the figures out from your earnings, expenses and business miles, and you see them all before anything is sent. An update isn't a tax return: after the tax year you still need to finish the year. MileClear has a test version of End of year, but it only works with HMRC's test service for now, so until HMRC lets us send real ones, send your tax return with HMRC or other software.",
     goTo: "/tax-mtd",
     keywords: ["what is", "every three months", "deadline", "due", "quarter", "7 august", "7 november", "7 february", "7 may", "running total", "cumulative", "final declaration"],
   },

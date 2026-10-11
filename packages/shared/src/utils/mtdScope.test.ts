@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkMtdScope, formatWholePounds, MTD_PHASES, MTD_SCOPE_TAX_YEARS } from "./mtdScope";
+import { checkMtdScope, formatWholePounds, MTD_PHASES, MTD_SCOPE_TAX_YEARS, mtdPhaseLine } from "./mtdScope";
 
 const OCT_2026 = new Date(2026, 9, 11, 12); // 11 Oct 2026, local noon
 const MAY_2027 = new Date(2027, 4, 1, 12);
@@ -14,6 +14,14 @@ describe("the thresholds", () => {
       ["2028-04-06", "2026-27", 2_000_000],
     ]);
     expect(MTD_SCOPE_TAX_YEARS).toEqual(["2024-25", "2025-26", "2026-27"]);
+  });
+
+  it("each line names the tax year whose income decides it", () => {
+    expect(MTD_PHASES.map(mtdPhaseLine)).toEqual([
+      "Over £50,000 in 2024-25: from 6 April 2026",
+      "Over £30,000 in 2025-26: from 6 April 2027",
+      "Over £20,000 in 2026-27: from 6 April 2028",
+    ]);
   });
 });
 

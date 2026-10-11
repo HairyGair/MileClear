@@ -20,7 +20,7 @@ import {
   type HmrcPeriodSummaryListItem,
   type HmrcCalculationListItem,
 } from "../lib/api/hmrc";
-import { isApiError } from "../lib/api";
+import { describeMtdLoadError, isNothingSubmittedError } from "../lib/tax/mtdCopy";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -48,10 +48,13 @@ export default function TaxMtdHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // False for "connect first", where trying again can't change anything.
+  const [canRetry, setCanRetry] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setCanRetry(false);
     try {
       const status = await fetchHmrcStatus();
       if (!status.data.connected || !status.data.businessId) {
@@ -62,15 +65,17 @@ export default function TaxMtdHistoryScreen() {
         return;
       }
 
-      // Fetch in parallel — both are tied to the selected tax year and
-      // independent of each other.
+      // Fetch in parallel: both are tied to the selected tax year and
+      // independent of each other. Only HMRC saying "nothing there" counts
+      // as an empty history; any other failure is shown as an error so it
+      // can't be mistaken for "you haven't sent anything".
       const [periodsRes, calcsRes] = await Promise.all([
         fetchHmrcPeriods(status.data.businessId, selectedYear).catch((err) => {
-          if (isApiError(err) && err.statusCode === 400) return null;
+          if (isNothingSubmittedError(err)) return null;
           throw err;
         }),
         fetchCalculations(selectedYear).catch((err) => {
-          if (isApiError(err) && err.statusCode === 400) return null;
+          if (isNothingSubmittedError(err)) return null;
           throw err;
         }),
       ]);
@@ -79,9 +84,9 @@ export default function TaxMtdHistoryScreen() {
       setCalculations(calcsRes?.data.calculations ?? []);
       setLoading(false);
     } catch (err) {
-      setError(
-        isApiError(err) ? err.message : err instanceof Error ? err.message : "Couldn't load history."
-      );
+      const { message } = describeMtdLoadError(err, "We couldn't load your update history just now.");
+      setError(message);
+      setCanRetry(true);
       setLoading(false);
     }
   }, [selectedYear]);
@@ -131,8 +136,21 @@ export default function TaxMtdHistoryScreen() {
         </View>
       ) : error ? (
         <View style={styles.errorCard}>
-          <Ionicons name="alert-circle-outline" size={20} color={TEXT_3} />
-          <Text style={styles.errorText}>{error}</Text>
+          <View style={styles.errorRow}>
+            <Ionicons name="alert-circle-outline" size={20} color={TEXT_3} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+          {canRetry && (
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={load}
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+            >
+              <Ionicons name="refresh" size={16} color="#000" />
+              <Text style={styles.retryLabel}>Try again</Text>
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
         <>
@@ -184,7 +202,7 @@ export default function TaxMtdHistoryScreen() {
               ))
             )}
             <MtdSignpost
-              text="In this test version these figures come from HMRC's test service, not your real tax record, and nothing is sent to HMRC yet. Once it is live, they will only be an estimate and may change as more is reported about you during the tax year."
+              text="In this test version these figures come from HMRC's test service, not your real tax record. Once it is live, they will only be an estimate and may change as more is reported about you during the tax year."
               showLink={false}
             />
             <MtdSignpost
@@ -256,11 +274,20 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 12,
     padding: 16,
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
+    gap: 12,
   },
+  errorRow: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   errorText: { color: TEXT_2, fontSize: 13, fontFamily: fonts.regular, flex: 1 },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: AMBER,
+    borderRadius: 10,
+    paddingVertical: 10,
+  },
+  retryLabel: { color: "#000", fontSize: 14, fontFamily: fonts.semibold },
 
   section: {
     backgroundColor: CARD_BG,
