@@ -685,7 +685,7 @@ function diversionLabel(d: TripDiversion): string {
 const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
   { value: "business", label: "Business" },
   { value: "personal", label: "Personal" },
-  { value: "unclassified", label: "Classify Later" },
+  { value: "unclassified", label: "Sort later" },
 ];
 
 export default function TripFormScreen() {
@@ -3923,7 +3923,7 @@ export default function TripFormScreen() {
                     }
                   }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Classify trip as ${opt.label}`}
+                  accessibilityLabel={opt.value === "unclassified" ? "Sort this trip later" : `Mark trip as ${opt.label}`}
                   accessibilityState={{ selected: classification === opt.value }}
                 >
                   <Text
@@ -4385,7 +4385,7 @@ export default function TripFormScreen() {
                   style={[styles.classChip, classification === opt.value && styles.classChipActive]}
                   onPress={() => setClassification(opt.value)}
                   accessibilityRole="button"
-                  accessibilityLabel={`Classify trip as ${opt.label}`}
+                  accessibilityLabel={opt.value === "unclassified" ? "Sort this trip later" : `Mark trip as ${opt.label}`}
                   accessibilityState={{ selected: classification === opt.value }}
                 >
                   <Text
