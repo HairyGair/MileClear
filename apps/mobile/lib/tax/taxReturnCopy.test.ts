@@ -7,7 +7,30 @@ import {
   totalDueLine,
   fieldLabel,
   heldAnnualLines,
+  toIsoDay,
+  periodAnswerLabel,
+  accountingTypeLabel,
 } from "./taxReturnCopy";
+
+describe("accounting period and method words", () => {
+  it("formats a picked date as YYYY-MM-DD in local time", () => {
+    expect(toIsoDay(new Date(2026, 3, 5, 23, 30))).toBe("2026-04-05");
+  });
+
+  it("describes each period answer", () => {
+    expect(periodAnswerLabel({ choice: "tax_year" }, "2025-26")).toBe("6 April 2025 to 5 April 2026, the tax year");
+    expect(periodAnswerLabel({ choice: "to_31_march" }, "2025-26")).toBe("1 April 2025 to 31 March 2026");
+    expect(periodAnswerLabel({ choice: "none" }, "2025-26")).toBe("No accounting period ended in this tax year");
+    expect(periodAnswerLabel({ choice: "custom", startDate: "2025-01-01", endDate: "2025-12-31" }, "2025-26")).toBe(
+      "1 Jan 2025 to 31 Dec 2025"
+    );
+  });
+
+  it("names the accounting methods the way HMRC does", () => {
+    expect(accountingTypeLabel("CASH")).toBe("Cash basis");
+    expect(accountingTypeLabel("ACCRUAL")).toBe("Traditional accounting");
+  });
+});
 
 describe("taxReturnCopy", () => {
   it("offers the last ended tax year first, then the current one", () => {

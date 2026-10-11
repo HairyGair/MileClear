@@ -1,7 +1,9 @@
 // End of year, part 1: the checks before HMRC's end-of-year calculation.
 //   1. Are all the quarterly updates for the year in? (HMRC's obligations)
-//   2. Allowances and adjustments: what HMRC holds, and why MileClear sends none.
-//   3. Other income: the tax return covers ALL income, MileClear only holds
+//   2. Accounting method (cash basis or traditional): confirm or change what HMRC holds.
+//   3. Accounting period: tell HMRC whether one ended in the tax year, and when.
+//   4. Allowances and adjustments: what HMRC holds, and why MileClear sends none.
+//   5. Other income: the tax return covers ALL income, MileClear only holds
 //      self-employment, so anything else must reach HMRC some other way first.
 // Then on to tax-mtd-year-end-review for the calculation and the declaration.
 //
@@ -26,7 +28,9 @@ import {
   fetchAnnualReview,
   type TaxReturnStatus,
   type AnnualReview,
+  type AccountingType,
 } from "../lib/api/hmrcTaxReturn";
+import { AccountingMethodStep, AccountingPeriodStep } from "../components/taxReturn/BusinessYearSteps";
 import { isApiError } from "../lib/api";
 import {
   taxReturnYearOptions,
@@ -70,6 +74,8 @@ function YearEndChecks() {
   const [otherIncome, setOtherIncome] = useState<OtherIncome>("unanswered");
   const [otherIncomeSent, setOtherIncomeSent] = useState(false);
   const [nothingElse, setNothingElse] = useState(false);
+  const [method, setMethod] = useState<AccountingType | null>(null);
+  const [periodDone, setPeriodDone] = useState(false);
 
   const load = useCallback(async (year: string) => {
     setLoading(true);
@@ -82,6 +88,8 @@ function YearEndChecks() {
     setOtherIncome("unanswered");
     setOtherIncomeSent(false);
     setNothingElse(false);
+    setMethod(null);
+    setPeriodDone(false);
     try {
       const [st, an] = await Promise.allSettled([fetchTaxReturnStatus(year), fetchAnnualReview(year)]);
       if (st.status === "rejected") throw st.reason;
@@ -99,10 +107,29 @@ function YearEndChecks() {
     load(taxYear);
   }, [taxYear, load]);
 
+  // The accounting method changes the allowances wording, so refresh that
+  // step once the driver confirms or changes it.
+  const onMethodDone = useCallback(
+    (m: AccountingType | null) => {
+      setMethod(m);
+      if (!m) return;
+      fetchAnnualReview(taxYear)
+        .then((r) => {
+          setAnnual(r.data);
+          setAnnualError(null);
+        })
+        .catch(() => {
+          // keep what's on screen
+        });
+    },
+    [taxYear]
+  );
+
   const isTest = status?.environment !== "production";
   const quartersOk = !!status && (status.quarterly.allSent || (isTest && carryOnInTest));
   const incomeOk = otherIncome === "no" || (otherIncome === "yes" && otherIncomeSent);
-  const canContinue = quartersOk && annualRead && incomeOk && nothingElse && !status?.submitted;
+  const canContinue =
+    quartersOk && method !== null && periodDone && annualRead && incomeOk && nothingElse && !status?.submitted;
 
   const onContinue = () => {
     router.push({ pathname: "/tax-mtd-year-end-review" as never, params: { taxYear, environment: status?.environment ?? "sandbox" } });
@@ -207,8 +234,12 @@ function YearEndChecks() {
             )}
           </Section>
 
-          {/* 2. Allowances and adjustments */}
-          <Section step="Step 2" title="Allowances and adjustments">
+          {/* 2 and 3. Accounting method and accounting period (Business Details API) */}
+          <AccountingMethodStep key={`method-${taxYear}`} taxYear={taxYear} step="Step 2" onDone={onMethodDone} />
+          <AccountingPeriodStep key={`period-${taxYear}`} taxYear={taxYear} step="Step 3" onDone={setPeriodDone} />
+
+          {/* 4. Allowances and adjustments */}
+          <Section step="Step 4" title="Allowances and adjustments">
             {annualError ? (
               <Note tone="bad" text={annualError} />
             ) : annual ? (
@@ -240,8 +271,8 @@ function YearEndChecks() {
             ) : null}
           </Section>
 
-          {/* 3. Other income */}
-          <Section step="Step 3" title="Other income">
+          {/* 5. Other income */}
+          <Section step="Step 5" title="Other income">
             <Text style={[s.rowValue, { lineHeight: 21 }]}>
               Do you have any other income for this tax year, such as a job, a pension, savings interest over your
               allowance, or rent?

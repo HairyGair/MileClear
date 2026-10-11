@@ -210,7 +210,7 @@ function CalcAndDeclaration({
 
   return (
     <>
-      <Section step="Step 4" title="Your tax calculation from HMRC">
+      <Section step="Step 6" title="Your tax calculation from HMRC">
         <Body muted>Tax year {taxYear}: {taxYearRangeLabel(taxYear)}</Body>
         <View style={{ paddingVertical: 8, gap: 4 }}>
           <Text style={s.headlineLabel}>{due.label}</Text>
@@ -274,7 +274,7 @@ function CalcAndDeclaration({
         <SecondaryButton label="Get a new calculation" onPress={onRecalculate} />
       </Section>
 
-      <Section step="Step 5" title="Declaration">
+      <Section step="Step 7" title="Declaration">
         <Body>{TAX_RETURN_DECLARATION_INTRO}</Body>
         <Text style={s.declaration}>{TAX_RETURN_DECLARATION_STATEMENT}</Text>
         <TickBox checked={agreed} onToggle={onToggleAgreed} label="I agree to the statement above." disabled={submitting} />
