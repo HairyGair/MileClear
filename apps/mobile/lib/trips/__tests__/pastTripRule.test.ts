@@ -1,6 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   addLocalDays,
+  arrivalAfter,
+  calendarDayLine,
+  canChain,
+  chainParams,
+  chainSubtitle,
+  dayTripsLine,
+  parseDayKey,
+  tripDayKeys,
   dayLabel,
   departureFor,
   isFutureDay,
@@ -150,5 +158,112 @@ describe("monthGrid", () => {
 
   it("names the month", () => {
     expect(monthTitle(2026, 9)).toBe("October 2026");
+  });
+});
+
+describe("arrivalAfter", () => {
+  it("is on the set-off day", () => {
+    const a = arrivalAfter(new Date(2026, 9, 3, 8, 35), 9, 1);
+    expect([a.getDate(), a.getHours(), a.getMinutes()]).toEqual([3, 9, 1]);
+  });
+  it("is the next day past midnight", () => {
+    const a = arrivalAfter(new Date(2026, 9, 3, 23, 40), 0, 20);
+    expect([a.getDate(), a.getHours(), a.getMinutes()]).toEqual([4, 0, 20]);
+  });
+});
+
+describe("day lines", () => {
+  const trip = (id: string, d: number, h1: number, m1: number, h2: number, m2: number) => ({
+    id,
+    startedAt: new Date(2026, 9, d, h1, m1).toISOString(),
+    endedAt: new Date(2026, 9, d, h2, m2).toISOString(),
+  });
+  const sat = new Date(2026, 9, 3);
+
+  it("says what else is on the day", () => {
+    expect(dayTripsLine(sat, [trip("a", 3, 13, 20, 13, 45)], now)).toBe("Also on Sat 3 Oct: 1 trip, 13:20 to 13:45");
+    expect(dayTripsLine(sat, [trip("b", 3, 13, 20, 13, 45), trip("a", 3, 8, 35, 9, 1)], now)).toBe(
+      "Also on Sat 3 Oct: 2 trips, 08:35 and 13:20"
+    );
+    expect(
+      dayTripsLine(sat, [trip("a", 3, 8, 35, 9, 1), trip("b", 3, 12, 0, 12, 30), trip("c", 3, 16, 50, 17, 10)], now)
+    ).toBe("Also on Sat 3 Oct: 3 trips, 08:35 to 17:10");
+    expect(dayTripsLine(new Date(2026, 9, 11), [trip("t", 11, 7, 0, 7, 20)], now)).toBe("Also today: 1 trip, 07:00 to 07:20");
+  });
+
+  it("says nothing for an empty day or other days, and can leave a trip out", () => {
+    expect(dayTripsLine(sat, [], now)).toBeNull();
+    expect(dayTripsLine(sat, [trip("x", 4, 8, 0, 8, 10)], now)).toBeNull();
+    expect(dayTripsLine(sat, [trip("a", 3, 8, 40, 9, 5)], now, ["a"])).toBeNull();
+  });
+
+  it("describes the picked day in the calendar", () => {
+    expect(calendarDayLine(sat, [trip("a", 3, 13, 20, 13, 45)])).toBe("Sat 3 Oct: 1 trip so far, 13:20 to 13:45");
+    expect(calendarDayLine(new Date(2026, 9, 4), [])).toBe("Sun 4 Oct has none");
+  });
+
+  it("dots the days that have trips", () => {
+    const keys = tripDayKeys([trip("a", 3, 8, 0, 8, 10), trip("b", 3, 9, 0, 9, 10), trip("c", 5, 8, 0, 8, 10)]);
+    expect([...keys].sort()).toEqual(["2026-10-03", "2026-10-05"]);
+  });
+});
+
+describe("Add the next trip / Add the way back", () => {
+  const saved = {
+    startLat: 54.99,
+    startLng: -1.61,
+    startAddress: "Home",
+    startName: "Home",
+    endLat: 54.94,
+    endLng: -1.6,
+    endAddress: "Depot",
+    endName: "Depot",
+    startedAt: new Date(2026, 9, 3, 8, 35),
+    endedAt: new Date(2026, 9, 3, 9, 1),
+    classification: "business",
+    platformTag: "uber_eats",
+    vehicleId: "v1",
+  };
+
+  it("starts the next trip where this one ended, same day, after it arrived", () => {
+    const p = chainParams("next", saved);
+    expect(p).toMatchObject({
+      mode: "manual",
+      source: "saved_card",
+      chain: "next",
+      prefillDay: "2026-10-03",
+      prefillAfter: saved.endedAt.toISOString(),
+      prefillFromLat: "54.94",
+      prefillFromAddress: "Depot",
+      prefillClassification: "business",
+      prefillPlatform: "uber_eats",
+      prefillVehicleId: "v1",
+    });
+    expect(p.prefillToLat).toBeUndefined();
+    expect(chainSubtitle("next", saved, now)).toBe("From Depot, Sat 3 Oct, after 09:01");
+  });
+
+  it("swaps the ends for the way back", () => {
+    const p = chainParams("way_back", saved);
+    expect(p).toMatchObject({ prefillFromAddress: "Depot", prefillToAddress: "Home", prefillToLat: "54.99" });
+    expect(chainSubtitle("way_back", saved, now)).toBe("Depot to Home, same day");
+  });
+
+  it("carries nothing over for a trip left in To sort", () => {
+    expect(chainParams("next", { ...saved, classification: "unclassified", platformTag: null }).prefillClassification).toBeUndefined();
+  });
+
+  it("offers no way back for a trip with no end place", () => {
+    const noEnd = { ...saved, endLat: null, endLng: null, endAddress: null, endName: null };
+    expect(canChain("way_back", noEnd)).toBe(false);
+    expect(canChain("next", noEnd)).toBe(true);
+    expect(chainParams("next", noEnd).prefillFromLat).toBeUndefined();
+    expect(chainSubtitle("next", noEnd, now)).toBe("Sat 3 Oct, after 09:01");
+  });
+
+  it("reads the day back", () => {
+    expect(parseDayKey("2026-10-03")?.getDate()).toBe(3);
+    expect(parseDayKey("2026-02-31")).toBeNull();
+    expect(parseDayKey(undefined)).toBeNull();
   });
 });

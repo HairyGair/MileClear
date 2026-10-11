@@ -177,3 +177,156 @@ export function monthTitle(year: number, month: number): string {
   ];
   return `${names[month]} ${year}`;
 }
+
+// ── The worked-out arrival ──────────────────────────────────────────────────
+
+/**
+ * The arrival the driver typed with "Change": the hour and minute on the day
+ * the trip set off, or the next day when that clock time is before the
+ * set-off (a drive past midnight).
+ */
+export function arrivalAfter(start: Date, hours: number, minutes: number): Date {
+  const same = new Date(start.getFullYear(), start.getMonth(), start.getDate(), hours, minutes, 0, 0);
+  if (same.getTime() > start.getTime()) return same;
+  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, hours, minutes, 0, 0);
+}
+
+// ── What else is on that day ────────────────────────────────────────────────
+
+export interface DayTrip {
+  startedAt: string;
+  endedAt: string | null;
+}
+
+function hm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function tripsOnDay<T extends DayTrip>(day: Date, trips: T[]): T[] {
+  return trips
+    .filter((t) => sameLocalDay(new Date(t.startedAt), day))
+    .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
+}
+
+/** "1 trip, 13:20 to 13:45", "2 trips, 08:35 and 13:20", "4 trips, 08:35 to 17:10". */
+function tripsWords(list: DayTrip[]): string {
+  const n = list.length;
+  const first = new Date(list[0].startedAt);
+  if (n === 1) {
+    const end = list[0].endedAt ? new Date(list[0].endedAt) : null;
+    return end && end.getTime() > first.getTime() ? `1 trip, ${hm(first)} to ${hm(end)}` : `1 trip, at ${hm(first)}`;
+  }
+  if (n === 2) return `2 trips, ${hm(first)} and ${hm(new Date(list[1].startedAt))}`;
+  const last = list[n - 1];
+  const lastEnd = new Date(last.endedAt ?? last.startedAt);
+  return `${n} trips, ${hm(first)} to ${hm(lastEnd)}`;
+}
+
+/**
+ * The grey line under When, so the driver sees the day before adding to it
+ * (mockup a-filled): "Also on Sat 3 Oct: 1 trip, 13:20 to 13:45". Null when
+ * the day has none. `excludeIds` leaves out the trip already pointed at.
+ */
+export function dayTripsLine(day: Date, trips: Array<DayTrip & { id: string }>, now: Date, excludeIds: string[] = []): string | null {
+  const list = tripsOnDay(day, trips.filter((t) => !excludeIds.includes(t.id)));
+  if (list.length === 0) return null;
+  const which = sameLocalDay(day, now) ? "Also today" : `Also on ${shortDay(day)}`;
+  return `${which}: ${tripsWords(list)}`;
+}
+
+/** The calendar's line for the picked day: "Sat 3 Oct: 1 trip so far, 13:20
+ *  to 13:45" or "Sun 4 Oct has none". */
+export function calendarDayLine(day: Date, trips: DayTrip[]): string {
+  const list = tripsOnDay(day, trips);
+  if (list.length === 0) return `${shortDay(day)} has none`;
+  const words = tripsWords(list).replace(/^(\d+ trips?)/, "$1 so far");
+  return `${shortDay(day)}: ${words}`;
+}
+
+/** Local day keys ("2026-10-03") that have at least one trip, for the dots. */
+export function tripDayKeys(trips: DayTrip[]): Set<string> {
+  const keys = new Set<string>();
+  for (const t of trips) {
+    const d = new Date(t.startedAt);
+    if (Number.isFinite(d.getTime())) keys.add(localDayKey(d));
+  }
+  return keys;
+}
+
+// ── "Add the next trip" and "Add the way back" (PROPOSALS 0.7) ──────────────
+
+export type ChainKind = "next" | "way_back";
+
+export interface SavedTripFacts {
+  startLat: number;
+  startLng: number;
+  startAddress: string | null;
+  startName: string;
+  endLat: number | null;
+  endLng: number | null;
+  endAddress: string | null;
+  endName: string | null;
+  startedAt: Date;
+  endedAt: Date;
+  classification: string;
+  platformTag?: string | null;
+  businessPurpose?: string | null;
+  category?: string | null;
+  vehicleId?: string | null;
+}
+
+/** The way back needs both ends; the next trip only a day (its From is this
+ *  trip's To when there is one). */
+export function canChain(kind: ChainKind, t: SavedTripFacts): boolean {
+  if (kind === "way_back") return t.endLat != null && t.endLng != null;
+  return true;
+}
+
+/**
+ * The params that open the form on the next trip. The day carries over, the
+ * set-off time stays empty but the wheel opens just after this one arrived,
+ * and Business or Personal with its app or purpose carries over.
+ */
+export function chainParams(kind: ChainKind, t: SavedTripFacts): Record<string, string> {
+  const p: Record<string, string> = {
+    mode: "manual",
+    source: "saved_card",
+    chain: kind,
+    prefillDay: localDayKey(t.startedAt),
+    prefillAfter: t.endedAt.toISOString(),
+  };
+  if (t.endLat != null && t.endLng != null) {
+    p.prefillFromLat = String(t.endLat);
+    p.prefillFromLng = String(t.endLng);
+    if (t.endAddress) p.prefillFromAddress = t.endAddress;
+  }
+  if (kind === "way_back") {
+    p.prefillToLat = String(t.startLat);
+    p.prefillToLng = String(t.startLng);
+    if (t.startAddress) p.prefillToAddress = t.startAddress;
+  }
+  if (t.classification === "business" || t.classification === "personal") p.prefillClassification = t.classification;
+  if (t.platformTag) p.prefillPlatform = t.platformTag;
+  if (t.businessPurpose) p.prefillPurpose = t.businessPurpose;
+  if (t.category) p.prefillCategory = t.category;
+  if (t.vehicleId) p.prefillVehicleId = t.vehicleId;
+  return p;
+}
+
+/** The grey line on each saved-card button. */
+export function chainSubtitle(kind: ChainKind, t: SavedTripFacts, now: Date): string {
+  const day = sameLocalDay(t.startedAt, now) ? "today" : shortDay(t.startedAt);
+  if (kind === "way_back") {
+    return `${t.endName ?? "There"} to ${t.startName}, same day`;
+  }
+  const from = t.endName ? `From ${t.endName}, ` : "";
+  return `${from}${day}, after ${hm(t.endedAt)}`;
+}
+
+/** "2026-10-03" back to that local day, or null. */
+export function parseDayKey(key: string | null | undefined): Date | null {
+  const m = key?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isFinite(d.getTime()) && d.getDate() === Number(m[3]) ? d : null;
+}
