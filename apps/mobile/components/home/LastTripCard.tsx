@@ -155,8 +155,8 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
 
   const openTrips = (target: "last_trip_footer") => {
     trackHomeTap(target, mode, state);
-    // Both footers ("N trips to sort", "We may have missed N drives") open the
-    // Inbox, which lists journeys to check and then trips to classify.
+    // Both footers ("N trips to sort", "We may have missed N drives") open
+    // To sort, which lists drives we may have missed and then trips to sort.
     router.navigate("/(tabs)/trips?filter=unclassified" as never);
   };
 

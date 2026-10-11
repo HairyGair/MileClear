@@ -2273,8 +2273,12 @@ const styles = StyleSheet.create({
     borderColor: colors.surfaceBorder,
     marginBottom: 12,
   },
+  // Each segment sizes to its words, then the spare width is shared, so
+  // "To sort" and its count fit on a small phone.
   segment: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "auto",
     minHeight: 44,
     flexDirection: "row",
     alignItems: "center",

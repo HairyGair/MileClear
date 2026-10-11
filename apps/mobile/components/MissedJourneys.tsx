@@ -186,7 +186,7 @@ export function MissedJourneys({
   startExpanded = false,
   onCountChange,
 }: {
-  /** Open the list straight away (the Inbox view, where it is the content). */
+  /** Open the list straight away (To sort, where it is the content). */
   startExpanded?: boolean;
   /** Told how many journeys are waiting, so the review card can say so. */
   onCountChange?: (count: number) => void;
