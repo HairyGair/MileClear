@@ -132,7 +132,7 @@ function Sharing() {
   return (
     <Card title="Share your records">
       <div className="mc-tax-stack">
-        <p className="mc-tax-text">Your accountant gets a read-only view of your records for 12 months.</p>
+        <p className="mc-tax-text">Your accountant gets a read-only view of your records for 12 months: business trips, mileage claim, earnings and expenses. Your personal trips are not shared.</p>
         <form
           className="mc-tax-fields"
           onSubmit={(e) => {
