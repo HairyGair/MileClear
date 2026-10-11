@@ -3,10 +3,24 @@
 export {
   getHmrcConfig,
   resetHmrcConfig,
+  readReleaseVersion,
+  resolveServerVersion,
   HMRC_SCOPES,
   type HmrcConfig,
   type HmrcEnvironment,
 } from "./config.js";
+
+export {
+  HMRC_SUBMISSION_EVENT,
+  recordHmrcSubmission,
+  shouldAlertHmrcError,
+  alertHmrcError,
+  endpointLabel,
+  resetHmrcAlertThrottle,
+  type HmrcAudit,
+  type HmrcAuditOperation,
+  type HmrcSubmissionRecord,
+} from "./audit.js";
 
 export {
   generateStateToken,
@@ -42,6 +56,7 @@ export {
 export {
   fetchObligations,
   normaliseObligation,
+  MTD_OBLIGATIONS_SEEN_EVENT,
   type HmrcObligation,
   type NormalisedObligation,
   type HmrcObligationsResponse,

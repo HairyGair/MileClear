@@ -670,6 +670,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
           },
           client: buildClientContext(request),
           server: await buildServerContext(),
+          operation: "period_amend",
         });
 
         logEvent("hmrc.period_amended", request.userId!, {

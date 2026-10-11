@@ -145,6 +145,13 @@ export async function triggerBsas(args: {
     },
     client: args.client,
     server: args.server,
+    audit: {
+      operation: "bsas_trigger",
+      taxYear: args.taxYear,
+      periodStart: args.accountingPeriodStartDate,
+      periodEnd: args.accountingPeriodEndDate,
+      businessId: args.businessId,
+    },
   });
 }
 

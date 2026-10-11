@@ -127,6 +127,15 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How can I show my insurer proof of my business miles?", area: "tax_and_claims", id: "certificate", expect: [/mileage certificate/i] },
   { q: "Is MileClear HMRC approved?", area: "tax_and_claims", id: "hmrc-approved", expect: [/\bno\b|isn't|not/i], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },
   { q: "Does it do Making Tax Digital?", area: "tax_and_claims", id: "mtd", expect: [/test/i], reject: [/submits? (your|quarterly) updates? to hmrc/i] },
+  { q: "Can I send real quarterly updates to HMRC yet?", area: "tax_and_claims", id: "mtd", expect: [/test/i], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },
+  { q: "Do I have to do Making Tax Digital?", area: "tax_and_claims", id: "mtd-who", expect: [/50,000/, /30,000/, /20,000/], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },
+  { q: "My income is about £35k, when do I need to start MTD?", area: "tax_and_claims", id: "mtd-who", expect: [/2027/] },
+  { q: "How do I link my HMRC account?", area: "tax_and_claims", id: "mtd-connect", expect: [/your tax details/i, /quarterly updates/i] },
+  { q: "What is a quarterly update?", area: "tax_and_claims", id: "mtd-quarterly-update", expect: [/6 april/i, /7 august|7 november/i] },
+  { q: "When are the quarterly updates due?", area: "tax_and_claims", id: "mtd-quarterly-update", expect: [/7 august/i, /7 may/i] },
+  { q: "I made a mistake in a quarterly update, how do I correct it?", area: "tax_and_claims", id: "mtd-amend", expect: [/running total|send it again|next update/i] },
+  { q: "What does the device details error on quarterly updates mean?", area: "tax_and_claims", id: "mtd-errors", expect: [/update mileclear|app store|google play/i] },
+  { q: "My quarterly update connection has expired, what do I do?", area: "tax_and_claims", id: "mtd-errors", expect: [/connect again/i] },
   { q: "When does the tax year end?", area: "tax_and_claims", id: "tax-year", expect: [/5 april/i], toolOptional: true },
 
   // Money

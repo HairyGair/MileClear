@@ -144,6 +144,7 @@ export async function triggerCalculation(args: {
     apiVersion: CALC_API_VERSION,
     client: args.client,
     server: args.server,
+    audit: { operation: "calculation_trigger", taxYear: args.taxYear },
   });
   return { calculationId: res.calculationId, calculationType: args.calculationType };
 }

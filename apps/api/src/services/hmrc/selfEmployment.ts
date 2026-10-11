@@ -213,6 +213,13 @@ export async function submitPeriodSummary(args: {
     body: args.body,
     client: args.client,
     server: args.server,
+    audit: {
+      operation: "period_submit",
+      taxYear: args.taxYear,
+      periodStart: args.body.periodDates.periodStartDate,
+      periodEnd: args.body.periodDates.periodEndDate,
+      businessId: args.businessId,
+    },
   });
 }
 
@@ -245,6 +252,7 @@ export async function amendPeriodSummary(args: {
     body: args.body,
     client: args.client,
     server: args.server,
+    audit: { operation: "period_amend", taxYear: args.taxYear, businessId: args.businessId },
   });
 }
 
@@ -287,6 +295,11 @@ export async function submitCumulativePeriodSummary(args: {
   body: HmrcCumulativeSubmitBody;
   client: ClientContext;
   server: ServerContext;
+  /**
+   * How the driver sent it, for the submission trail only (the PUT is the
+   * same either way): a first update for the quarter, or a correction.
+   */
+  operation?: "period_submit" | "period_amend";
 }): Promise<void> {
   if (!isValidHmrcTaxYear(args.taxYear)) {
     throw new Error(`Invalid HMRC tax year format: ${args.taxYear} (expected YYYY-YY)`);
@@ -303,6 +316,13 @@ export async function submitCumulativePeriodSummary(args: {
     body: args.body,
     client: args.client,
     server: args.server,
+    audit: {
+      operation: args.operation ?? "period_submit",
+      taxYear: args.taxYear,
+      periodStart: args.body.periodDates.periodStartDate,
+      periodEnd: args.body.periodDates.periodEndDate,
+      businessId: args.businessId,
+    },
   });
 }
 

@@ -779,6 +779,13 @@ export function setupNotificationResponseHandler(): void {
         router.push("/tax-planner" as never);
         return;
 
+      case "open_mtd":
+        // Quarterly update deadline reminders (jobs/mtdDeadlineReminders.ts,
+        // Oct 2026), 7 days and 1 day before each deadline. Older bundles
+        // fall through to the dashboard.
+        router.push("/tax-mtd" as never);
+        return;
+
       case "open_ticket_defender":
         // Clean Air Zone "pay by tomorrow" reminders (jobs/cazPayReminders.ts,
         // Oct 2026, Pro). Older bundles fall through to the dashboard.

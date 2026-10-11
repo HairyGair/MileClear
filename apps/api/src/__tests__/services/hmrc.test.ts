@@ -7,6 +7,8 @@ import {
   buildClientContext,
   getHmrcConfig,
   resetHmrcConfig,
+  readReleaseVersion,
+  resolveServerVersion,
   normaliseObligation,
   HMRC_SCOPES,
   pickPrimarySelfEmployment,
@@ -74,6 +76,17 @@ describe("getHmrcConfig", () => {
   it("throws on invalid environment", () => {
     setHmrcEnv({ HMRC_ENVIRONMENT: "staging" });
     expect(() => getHmrcConfig()).toThrow(/HMRC_ENVIRONMENT/);
+  });
+
+  it("takes the server version from the release, with the env var only as a fallback", () => {
+    expect(resolveServerVersion({ HMRC_VENDOR_VERSION: "1.3.7" } as NodeJS.ProcessEnv).source).toBe("release");
+    const missing = ["/nonexistent/app.json"];
+    expect(resolveServerVersion({ HMRC_VENDOR_VERSION: "1.3.7" } as NodeJS.ProcessEnv, missing)).toEqual({
+      version: "1.3.7",
+      source: "env",
+    });
+    expect(resolveServerVersion({} as NodeJS.ProcessEnv, missing)).toEqual({ version: "", source: "none" });
+    expect(readReleaseVersion(missing)).toBeNull();
   });
 
   it("computes the correct authorize and token URLs", () => {
@@ -168,7 +181,12 @@ describe("buildFraudPreventionHeaders", () => {
     // Client pair = the app's REAL per-device version; server pair = ours.
     // Named per spec (`<software-name>=<version>`); the old `client=`/
     // `server=` keys carried one identical constant for every device.
-    expect(headers["Gov-Vendor-Version"]).toBe("mileclear-ios=1.3.7&mileclear-api=1.2.0");
+    // The server half is the release this checkout ships (apps/mobile/app.json),
+    // not the HMRC_VENDOR_VERSION env var, which went stale on prod at 1.3.7.
+    const release = readReleaseVersion();
+    expect(release).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(config.vendorVersionSource).toBe("release");
+    expect(headers["Gov-Vendor-Version"]).toBe(`mileclear-ios=1.3.7&mileclear-api=${release}`);
     expect(headers["Gov-Vendor-Public-IP"]).toBe("1.2.3.4");
     expect(headers["Gov-Vendor-Forwarded"]).toBe("by=1.2.3.4&for=5.6.7.8");
     // Local-IP no longer sent — validator flags it as UNEXPECTED_HEADER.
@@ -186,6 +204,24 @@ describe("buildFraudPreventionHeaders", () => {
     // Spec: the identifier the user signs in with — NOT the device UUID,
     // which would duplicate Gov-Client-Device-ID.
     expect(headers["Gov-Client-User-IDs"]).toBe("mileclear=driver%40example.com");
+  });
+
+  it("names the Android app and URL-encodes each version", () => {
+    const headers = buildFraudPreventionHeaders({
+      config: { ...config, vendorVersion: "1.3.13" },
+      server,
+      client: mobileClient({ osFamily: "Android", appVersion: "1.3.13 (8)" }),
+    });
+    expect(headers["Gov-Vendor-Version"]).toBe("mileclear-android=1.3.13%20(8)&mileclear-api=1.3.13");
+  });
+
+  it("leaves the server pair out rather than sending a made-up version", () => {
+    const headers = buildFraudPreventionHeaders({
+      config: { ...config, vendorVersion: "", vendorVersionSource: "none" },
+      server,
+      client: mobileClient(),
+    });
+    expect(headers["Gov-Vendor-Version"]).toBe("mileclear-ios=1.3.7");
   });
 
   it("omits Gov-Client-Public-Port when no real port was measured, rather than inventing one", () => {
