@@ -136,6 +136,13 @@ export const ADMIN_NAV: AdminNavGroup[] = [
         ],
       },
       { label: "Comms", href: `${ADMIN_ROOT}/comms`, icon: "comms", hint: "Emails and push notifications" },
+      {
+        label: "HMRC submissions",
+        href: `${ADMIN_ROOT}/hmrc`,
+        icon: "hmrc",
+        hint: "Quarterly updates sent, and what HMRC said",
+        isNew: true,
+      },
     ],
   },
 ];

@@ -32,7 +32,8 @@ export type AdminIconName =
   | "sortUp"
   | "sortDown"
   | "sort"
-  | "inbox";
+  | "inbox"
+  | "hmrc";
 
 const PATHS: Record<AdminIconName, ReactNode> = {
   overview: (
@@ -118,6 +119,14 @@ const PATHS: Record<AdminIconName, ReactNode> = {
     <>
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="M3.5 6.5l8.5 6.5 8.5-6.5" />
+    </>
+  ),
+  // A document with an upward arrow: something sent off.
+  hmrc: (
+    <>
+      <path d="M14 3.5H7.5A1.5 1.5 0 0 0 6 5v14a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 18 19V7.5z" />
+      <path d="M14 3.5v4h4" />
+      <path d="M12 17v-6M9.5 13.5L12 11l2.5 2.5" />
     </>
   ),
   teams: (
