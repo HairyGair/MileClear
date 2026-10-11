@@ -5157,7 +5157,9 @@ export async function adminRoutes(app: FastifyInstance) {
     const q = z
       .object({
         days: z.coerce.number().int().min(1).max(3650).default(90),
-        minUsers: z.coerce.number().int().min(1).max(50).default(1),
+        // Default floor 5, matching community insights (GDPR audit follow-up,
+        // 11 Oct 2026). An admin can still lower it deliberately per view.
+        minUsers: z.coerce.number().int().min(1).max(50).default(5),
         grid: z.coerce.number().min(0.02).max(1).default(0.1),
       })
       .parse(request.query);

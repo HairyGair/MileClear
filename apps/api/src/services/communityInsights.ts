@@ -16,8 +16,11 @@ import type {
 
 const prisma = new PrismaClient();
 
-// Minimum drivers before surfacing platform earnings (privacy threshold)
-const MIN_DRIVERS_THRESHOLD = 3;
+// Minimum distinct drivers behind any figure shown (privacy floor). Was 3
+// while the route's cache comment, the privacy policy and the pickup-wait
+// insights all said 5; raised to 5 on 11 Oct 2026 (GDPR audit follow-up).
+// Applies to platform earnings, peak hours and route speeds alike.
+const MIN_DRIVERS_THRESHOLD = 5;
 // Radius in miles for "nearby" queries
 const NEARBY_RADIUS_MILES = 20;
 // Max lookback for anomalies (broadest window — time-decay handles filtering)
@@ -122,7 +125,9 @@ export async function getCommunityInsights(
       take: 100,
     }),
 
-    // 5. Speed data from trip coordinates near the location
+    // 5. Speed data from trip coordinates near the location. The distinct-
+    // driver floor matters here: in a quiet area one driver's fixes alone
+    // pass the 10-point minimum, and their hourly speeds are then theirs.
     prisma.$queryRaw<Array<{ avgSpeed: number; hour: number; count: bigint }>>`
       SELECT /*+ MAX_EXECUTION_TIME(6000) */ AVG(tc.speed) as avgSpeed, HOUR(tc.recordedAt) as hour, COUNT(*) as count
       FROM trip_coordinates tc
@@ -133,7 +138,7 @@ export async function getCommunityInsights(
       AND tc.speed > 0
       AND tc.recordedAt >= ${lookbackDate}
       GROUP BY HOUR(tc.recordedAt)
-      HAVING COUNT(*) >= 10
+      HAVING COUNT(*) >= 10 AND COUNT(DISTINCT t.userId) >= ${MIN_DRIVERS_THRESHOLD}
       ORDER BY hour
     `.catch(() => []),
   ]);

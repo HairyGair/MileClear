@@ -49,7 +49,7 @@ export default function GeographicDensityPage() {
   // Server params (trigger a refetch)
   const [days, setDays] = useState(90);
   const [grid, setGrid] = useState(0.1);
-  const [floor, setFloor] = useState(1);
+  const [floor, setFloor] = useState(5);
   // Client-only view state
   const [metric, setMetric] = useState<MetricKey>("trips");
   const [mode, setMode] = useState<"starts" | "ends">("starts");
