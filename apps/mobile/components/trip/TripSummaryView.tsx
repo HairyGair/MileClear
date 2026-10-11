@@ -181,13 +181,16 @@ function MapBlock(
   const { height: windowHeight } = useWindowDimensions();
   // 180 on a small phone (SE), 200 otherwise.
   const height = windowHeight < 700 ? 180 : 200;
-  const hasRoute = props.routeCoords.length >= 2;
+  // A trip added by hand has no breadcrumbs, but the server may have its road
+  // route (the matched line). The Trips list draws that, so this does too.
+  const line = props.routeCoords.length >= 2 ? props.routeCoords : props.routeMatched;
+  const hasRoute = line.length >= 2;
 
   if (hasRoute && hasNativeMap) {
     return (
       <View style={[styles.mapBox, { height }]}>
         <TripMapWidget
-          coordinates={props.routeCoords}
+          coordinates={line}
           matchedCoordinates={props.routeMatched.length >= 2 ? props.routeMatched : null}
           height={height}
           lineWidth={4}
@@ -205,9 +208,9 @@ function MapBlock(
   if (props.isManual && ends) {
     return (
       <View style={[styles.mapBox, styles.mapPlaceholder, { height }]}>
-        <MiniRoute route={[]} start={ends.start} end={ends.end} size={height - 72} dashed />
+        <MiniRoute route={hasRoute ? line : []} start={ends.start} end={ends.end} size={height - 72} dashed={!hasRoute} />
         <Text style={styles.mapPlaceholderText} maxFontSizeMultiplier={fontScaleCap.body}>
-          Added by you, so there&apos;s no route to show.
+          {hasRoute ? "Added by you. The road route between the two places." : "Added by you, so there's no route to show."}
         </Text>
       </View>
     );
@@ -574,10 +577,22 @@ export function TripSummaryView(props: TripSummaryViewProps) {
   const hasEnd = props.endLat != null && props.endLng != null;
   const startWord = fromName ?? "the start";
   const endWord = toName ?? "the end";
+  // An end that is already a saved place ("Home") isn't offered again.
+  const canSaveStart = hasStart && !props.startPlaceName;
+  const canSaveEnd = hasEnd && !props.endPlaceName;
   const placeOptions: PickerOption[] = [
-    ...(hasStart ? [{ key: "start", label: `Save ${startWord}`, sub: "Where this trip started", icon: "bookmark-outline" }] : []),
-    ...(hasEnd ? [{ key: "end", label: `Save ${endWord}`, sub: "Where this trip ended", icon: "bookmark-outline" }] : []),
+    ...(canSaveStart ? [{ key: "start", label: `Save ${startWord}`, sub: "Where this trip started", icon: "bookmark-outline" }] : []),
+    ...(canSaveEnd ? [{ key: "end", label: `Save ${endWord}`, sub: "Where this trip ended", icon: "bookmark-outline" }] : []),
   ];
+  const placeNames = [canSaveStart ? fromName : null, canSaveEnd ? toName : null].filter(
+    (n): n is string => !!n
+  );
+  const placeSub =
+    placeNames.length === 2
+      ? `Name ${placeNames[0]} or ${placeNames[1]}`
+      : placeNames.length === 1 && placeOptions.length === 1
+        ? `Name ${placeNames[0]}`
+        : "Name where you went";
   const newTripOptions: PickerOption[] = [
     ...(hasEnd ? [{ key: "from-end", label: `From ${endWord}`, sub: "Starts where this trip ended", icon: "arrow-up-circle-outline" }] : []),
     ...(hasStart ? [{ key: "from-start", label: `From ${startWord}`, sub: "Starts where this trip started", icon: "arrow-up-circle-outline" }] : []),
@@ -840,7 +855,7 @@ export function TripSummaryView(props: TripSummaryViewProps) {
             first
             icon="bookmark-outline"
             label="Save a place"
-            sub={fromName && toName ? `Name ${fromName} or ${toName}` : "Name where you went"}
+            sub={placeSub}
             onPress={() => setSheet("place")}
           />
         )}
