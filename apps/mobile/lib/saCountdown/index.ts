@@ -53,7 +53,7 @@ export function routeForSaAction(action: SaChecklistAction): string | null {
       // deadline is for, whatever today's date.
       return "/(tabs)/trips?filter=unclassified&range=lastTaxYear";
     case "add_trip":
-      return "/trip-form?mode=manual";
+      return "/trip-form?mode=manual&source=sa_countdown";
     case "earnings":
       return "/(tabs)/earnings";
     case "expenses":

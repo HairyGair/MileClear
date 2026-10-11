@@ -1897,7 +1897,7 @@ export default function TripsScreen() {
                   <Button
                     title="Add a past trip"
                     variant="secondary"
-                    onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never)}
+                    onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual", source: "trips_empty" } } as never)}
                   />
                 }
               />
@@ -1915,7 +1915,7 @@ export default function TripsScreen() {
             {!noTripsAtAll && !inToSort && (
               <TouchableOpacity
                 style={styles.footerLink}
-                onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never)}
+                onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual", source: "trips_footer" } } as never)}
                 accessibilityRole="button"
                 accessibilityLabel="Add a past trip"
               >
@@ -1993,7 +1993,7 @@ export default function TripsScreen() {
                 style={styles.sheetRow}
                 onPress={() => {
                   setShowAddSheet(false);
-                  router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never);
+                  router.push({ pathname: "/trip-form", params: { mode: "manual", source: "trips_plus" } } as never);
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Add a past trip. A drive you've already made."

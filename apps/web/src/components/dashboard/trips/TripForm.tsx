@@ -27,6 +27,7 @@ import { isoToLocalHm, isoToLocalYmd, localToIso, toYmd } from "./lib/days";
 import { odometerWarning, validateTrip, type FormErrors } from "./lib/form";
 import { CATEGORY_OPTIONS, PLATFORM_OPTIONS, PURPOSE_OPTIONS, errorText } from "./lib/labels";
 import type { TripDetailData } from "./lib/types";
+import { aroundTripWords, findTripAround, type AroundTrip } from "./lib/overlap";
 import "./trips.css";
 
 export interface TripPrefill {
@@ -117,6 +118,11 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
   const [formError, setFormError] = useState<string | null>(null);
   const placesTouched = useRef(false);
   const odoRef = useRef<HTMLDivElement>(null);
+  // "MileClear already has a trip around then" (add only). A warning, never a
+  // block: Save asks once, and "Add mine as well" saves.
+  const [overlap, setOverlap] = useState<AroundTrip | null>(null);
+  const [overlapAsk, setOverlapAsk] = useState(false);
+  const overlapOk = useRef<string | null>(null);
 
   // Default vehicle once they load (add only).
   useEffect(() => {
@@ -168,6 +174,30 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
     };
   }, [autoWanted, bothPinned, fromLat, fromLng, toLat, toLng]);
 
+  // Look for a trip already there once the day and start time are set.
+  useEffect(() => {
+    if (mode !== "add" || !date || !startTime) {
+      setOverlap(null);
+      return;
+    }
+    const start = new Date(localToIso(date, startTime));
+    if (Number.isNaN(start.getTime())) return;
+    const endIso = endTime ? localToIso(date, endTime) : null;
+    const end = endIso ? new Date(endIso) : null;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      findTripAround(start, end && !Number.isNaN(end.getTime()) ? end : null).then((hit) => {
+        if (cancelled) return;
+        setOverlap(hit);
+        if (!hit) setOverlapAsk(false);
+      });
+    }, RIGHT_AFTER);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mode, date, startTime, endTime]);
+
   const odoWarning = odometerWarning(odoStart, odoEnd, distance);
   const isBusiness = classification === "business";
   const showPlatform = isBusiness && !me.isCompanyDriver && me.user?.workType !== "employee" && me.user?.workType !== "company";
@@ -195,6 +225,10 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
     setFormError(null);
     if (Object.keys(errs).length > 0) {
       window.setTimeout(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(), 0);
+      return;
+    }
+    if (mode === "add" && overlap && overlapOk.current !== overlap.id) {
+      setOverlapAsk(true);
       return;
     }
     setSaving(true);
@@ -314,6 +348,40 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
           <TimeField label="Start time" value={startTime} onChange={setStartTime} error={errors.startTime} required />
           <TimeField label="End time" value={endTime} onChange={setEndTime} error={errors.endTime} required />
         </div>
+        {overlap && (
+          <div className="mc-warn" role="status" style={{ flexDirection: "column" }}>
+            <span style={{ display: "flex", gap: 8 }}>
+              <Icon name="alert-circle-outline" size={16} />
+              <span>
+                MileClear already has a trip around then: {aroundTripWords(overlap)}.{" "}
+                <a className="mc-textlink" href={`/dashboard/trips/${overlap.id}`}>
+                  Open it
+                </a>
+              </span>
+            </span>
+            {overlapAsk && (
+              <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button variant="primary" href="/dashboard/trips">
+                  It&apos;s the same drive
+                </Button>
+                <Button variant="ghost" href={`/dashboard/trips/${overlap.id}`}>
+                  Open that trip to fix it
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    overlapOk.current = overlap.id;
+                    setOverlapAsk(false);
+                    window.setTimeout(() => document.querySelector<HTMLFormElement>("form.mc-tripform")?.requestSubmit(), 0);
+                  }}
+                >
+                  Add mine as well
+                </Button>
+              </span>
+            )}
+          </div>
+        )}
         {recordedTrip && (
           <p className="mc-field__hint" style={{ margin: 0 }}>
             This trip was recorded on your phone, so its start can only move earlier.

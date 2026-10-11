@@ -98,10 +98,10 @@ import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, mark
 import { getLiveActivityContext } from "../lib/liveActivity/context";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
 import * as Notifications from "expo-notifications";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, fontScaleCap } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
-import { needsTimeConfirm, defaultEndFor, clockTime } from "../lib/trips/manualTimeRule";
+import { needsTimeConfirm, clockTime } from "../lib/trips/manualTimeRule";
 import { savedPlaceAt, shortPlaceLabel, type SavedPlace } from "../lib/trips/placeLabel";
 import { SAVED_PLACE_NAME_MAX } from "../lib/api/savedLocations";
 import { loadSavedPlaces } from "../lib/trips/savedPlaces";
@@ -110,6 +110,40 @@ import { recordedByForForm } from "../lib/trips/recordedBy";
 import type { TripFacts } from "@mileclear/shared";
 import { claimFirstSplitNote } from "../lib/tutorial/state";
 import { trackTutorial } from "../lib/events/tutorial";
+import { endTimeFor } from "../lib/trips/missingReportRule";
+import {
+  arrivalAfter,
+  canChain,
+  chainParams,
+  chainSubtitle,
+  dayTripsLine,
+  departureFor,
+  isFutureDeparture,
+  keepWhereIAm,
+  localDayKey,
+  missingForSave,
+  parseDayKey,
+  shouldFillWhereIAm,
+  startOfLocalDay,
+  addLocalDays,
+  type ChainKind,
+  type SavedTripFacts,
+} from "../lib/trips/pastTripRule";
+import { findTripAround, knownTripsBetween, lastTripEndedAt, type KnownTrip } from "../lib/trips/overlapLookup";
+import { parseMilesInput } from "../lib/trips/missingReportRule";
+import { shortDay } from "../lib/tracking/pauseRule";
+import { FromToCard } from "../components/addTrip/FromToCard";
+import { WorkedOutLine } from "../components/addTrip/WorkedOutLine";
+import { TripTypeBlock } from "../components/addTrip/TripTypeBlock";
+import { MoreDetails } from "../components/addTrip/MoreDetails";
+import { SavedTripCard } from "../components/addTrip/SavedTripCard";
+import { settleTrips } from "../lib/trips/settle";
+import { trackTripForm, daysBack } from "../lib/events/tripForm";
+import { isOnline, onConnectivityChange } from "../lib/network";
+import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } from "../components/addTrip/PlaceField";
+import { WhenCard } from "../components/addTrip/WhenCard";
+import type { ClockValue } from "../components/addTrip/TimeRow";
+import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -720,8 +754,8 @@ export default function TripFormScreen() {
   // "Start from here" / "Go to here" under a trip's start/end address: open a
   // new hand-typed trip with that point already in From or To. Chris
   // Saunders, 17 Sep 2026, wanted to reuse an address he had already driven
-  // to instead of hunting for it in the search. The time is left unset, so
-  // Save still asks whether the drive started now.
+  // to instead of hunting for it in the search. The day and time are left
+  // for the driver to pick.
   const openNewTripWith = useCallback(
     (end: "from" | "to", lat: number, lng: number, addr: string | null) => {
       const params: Record<string, string> =
@@ -749,6 +783,19 @@ export default function TripFormScreen() {
     prefillToAddress,
     prefillDepartedAt,
     prefillArrivedAt,
+    // Where the past-trip form was opened from, for its events.
+    source: sourceParam,
+    // "Add the next trip" / "Add the way back" on the saved card
+    // (lib/trips/pastTripRule.chainParams): the day, the earliest sensible
+    // set-off, and what the trip was for carry over.
+    chain: chainParam,
+    prefillDay,
+    prefillAfter,
+    prefillClassification,
+    prefillPlatform,
+    prefillPurpose,
+    prefillCategory,
+    prefillVehicleId,
   } = useLocalSearchParams<{
     id?: string;
     mode?: string;
@@ -761,7 +808,17 @@ export default function TripFormScreen() {
     prefillToAddress?: string;
     prefillDepartedAt?: string;
     prefillArrivedAt?: string;
+    source?: string;
+    chain?: string;
+    prefillDay?: string;
+    prefillAfter?: string;
+    prefillClassification?: string;
+    prefillPlatform?: string;
+    prefillPurpose?: string;
+    prefillCategory?: string;
+    prefillVehicleId?: string;
   }>();
+  const chain: ChainKind | null = chainParam === "next" || chainParam === "way_back" ? chainParam : null;
   const isEditing = !!id;
   const hasMissedPrefill = !!missedId;
   // A new hand-typed trip opened from another trip's address ("Start from
@@ -770,8 +827,11 @@ export default function TripFormScreen() {
     !isEditing &&
     !hasMissedPrefill &&
     modeParam === "manual" &&
-    ((!!prefillFromLat && !!prefillFromLng) || (!!prefillToLat && !!prefillToLng));
+    ((!!prefillFromLat && !!prefillFromLng) || (!!prefillToLat && !!prefillToLng) || chainParam === "next" || chainParam === "way_back");
   const { user: currentUser, isCompanyDriver } = useUser();
+  // Only tracks personal driving: the past-trip form doesn't ask Business or
+  // personal (PROPOSALS A.3, driver P).
+  const personalOnly = currentUser?.dashboardMode === "personal";
   const { showPaywall } = usePaywall();
 
   // Honor a `mode=manual` deep link (e.g. the dashboard first-trip nudge's
@@ -824,6 +884,58 @@ export default function TripFormScreen() {
   const timeConfirmedRef = useRef(false);
   // The routed drive time from /trips/route-distance, feeding the default end.
   const [routedDurationSecs, setRoutedDurationSecs] = useState<number | null>(null);
+
+  // ── A new past trip: when, and where it began (PROPOSALS 0.2, 0.3) ──
+  // The day and the set-off time start empty and are set by the driver, so
+  // nothing has to be undone. startedAt holds the full departure once both are
+  // set; until then it is not used.
+  const [whenDay, setWhenDay] = useState<Date | null>(null);
+  const [whenTime, setWhenTime] = useState<ClockValue | null>(null);
+  // From filled in as "where I am" (only within an hour of a trip ending), so
+  // picking an older day can clear it again.
+  const startAutoFilledRef = useRef(false);
+  // How each end was picked, for the saved event.
+  const fromKindRef = useRef<PlaceKind | null>(null);
+  const toKindRef = useRef<PlaceKind | null>(null);
+  // "MileClear already has a trip around then" (PROPOSALS 0.4).
+  const [overlap, setOverlap] = useState<KnownTrip | null>(null);
+  const [overlapSheet, setOverlapSheet] = useState(false);
+  // The trip the driver answered "Add mine as well" for, so Save stops asking.
+  const overlapAnsweredRef = useRef<string | null>(null);
+  const overlapShownRef = useRef<{ inline: boolean; sheet: boolean; answer: string | null }>({
+    inline: false,
+    sheet: false,
+    answer: null,
+  });
+  const lastWarnedRef = useRef<string | null>(null);
+  // Bumped when the late-trip settle finishes, so the check looks again.
+  const [settledVersion, setSettledVersion] = useState(0);
+  const [online, setOnline] = useState(isOnline());
+  useEffect(() => onConnectivityChange(setOnline), []);
+  const placeSource = usePickerPlaceSource();
+  // What MileClear already has on the picked day, for "Also on Sat 3 Oct".
+  const [dayTrips, setDayTrips] = useState<KnownTrip[]>([]);
+  // The card after a past trip is saved (mockup a-saved).
+  const [savedCard, setSavedCard] = useState<{
+    facts: SavedTripFacts;
+    miles: number;
+    detail: string | null;
+    milesFrom: string;
+    savedWhere: string;
+    autoNote: string | null;
+  } | null>(null);
+  // For the form's events: when it opened, and whether it ended in a save.
+  const openedAtRef = useRef(Date.now());
+  const savedRef = useRef(false);
+  const openSourceRef = useRef<string>(
+    sourceParam
+      ? String(sourceParam)
+      : hasMissedPrefill
+        ? "missed_offer"
+        : hasPlacePrefill
+          ? "trip_place"
+          : "unknown"
+  );
 
   // Trip metadata
   const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
@@ -998,6 +1110,21 @@ export default function TripFormScreen() {
   // Pulsing dot animation
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
+  /** "Where I am" as From, only when the form opens within an hour of a
+   *  trip ending (pastTripRule.shouldFillWhereIAm). True when it filled. */
+  const fillWhereIAmIfLikely = useCallback(async (): Promise<boolean> => {
+    const ended = await lastTripEndedAt();
+    if (!shouldFillWhereIAm({ lastTripEndedAt: ended, openedAt: Date.now() })) return false;
+    const loc = await getCurrentLocation();
+    if (!loc) return false;
+    setStartLat(loc.lat);
+    setStartLng(loc.lng);
+    setStartAddress(loc.address);
+    startAutoFilledRef.current = true;
+    fromKindRef.current = "where_i_am";
+    return true;
+  }, []);
+
   // ── Init: check for in-progress trip or load existing ────────────────────
 
   useEffect(() => {
@@ -1017,11 +1144,13 @@ export default function TripFormScreen() {
             setStartLat(fLat);
             setStartLng(fLng);
             if (prefillFromAddress) setStartAddress(String(prefillFromAddress));
+            fromKindRef.current = "prefill";
           }
           if (Number.isFinite(tLat) && Number.isFinite(tLng)) {
             setEndLat(tLat);
             setEndLng(tLng);
             if (prefillToAddress) setEndAddress(String(prefillToAddress));
+            toKindRef.current = "prefill";
           }
           const dep = prefillDepartedAt ? new Date(String(prefillDepartedAt)) : null;
           const arr = prefillArrivedAt ? new Date(String(prefillArrivedAt)) : null;
@@ -1044,10 +1173,14 @@ export default function TripFormScreen() {
             setEndedAt(times.endedAt);
             setTimeTouched(true);
             setEndTimeTouched(true);
+            setWhenDay(startOfLocalDay(times.startedAt));
+            setWhenTime({ hours: times.startedAt.getHours(), minutes: times.startedAt.getMinutes() });
           } else {
             if (dep && !Number.isNaN(dep.getTime())) {
               setStartedAt(dep);
               setTimeTouched(true);
+              setWhenDay(startOfLocalDay(dep));
+              setWhenTime({ hours: dep.getHours(), minutes: dep.getMinutes() });
             }
             if (arr && !Number.isNaN(arr.getTime())) {
               setEndedAt(arr);
@@ -1059,10 +1192,9 @@ export default function TripFormScreen() {
           return; // finally sets loading=false
         }
 
-        // Place prefill: fill From and/or To and nothing else. The times stay
-        // untouched on purpose, so Save still asks "Did it start at HH:mm
-        // today?" (lib/trips/manualTimeRule.ts). No quick-trip resume either:
-        // the driver asked for a hand-typed trip.
+        // Place prefill: fill From and/or To and nothing else. The day and
+        // time stay empty for the driver to pick (lib/trips/pastTripRule.ts).
+        // No quick-trip resume either: the driver asked for a hand-typed trip.
         if (hasPlacePrefill) {
           const fLat = parseFloat(String(prefillFromLat));
           const fLng = parseFloat(String(prefillFromLng));
@@ -1073,22 +1205,30 @@ export default function TripFormScreen() {
             setStartLat(fLat);
             setStartLng(fLng);
             if (prefillFromAddress) setStartAddress(String(prefillFromAddress));
+            fromKindRef.current = "prefill";
           }
           if (Number.isFinite(tLat) && Number.isFinite(tLng)) {
             setEndLat(tLat);
             setEndLng(tLng);
             if (prefillToAddress) setEndAddress(String(prefillToAddress));
+            toKindRef.current = "prefill";
           }
-          if (!hasFrom) {
-            // Same default as any other new hand-typed trip: start where the
-            // phone is now, which the driver can change.
-            const loc = await getCurrentLocation();
-            if (loc) {
-              setStartLat(loc.lat);
-              setStartLng(loc.lng);
-              setStartAddress(loc.address);
-            }
+          if (!hasFrom && !chainParam) {
+            // Same rule as any other new past trip: From starts empty, unless
+            // a trip ended within the hour (then it is likely "where I am").
+            await fillWhereIAmIfLikely();
           }
+          // The next trip of a day being filled in: same day, and Business or
+          // Personal with its app or purpose as the trip before it. The
+          // set-off time is still the driver's to pick.
+          const day = parseDayKey(prefillDay ? String(prefillDay) : null);
+          if (day) setWhenDay(day);
+          if (prefillClassification === "business" || prefillClassification === "personal") {
+            setClassification(prefillClassification);
+          }
+          if (prefillPlatform) setPlatformTag(String(prefillPlatform) as PlatformTag);
+          if (prefillPurpose) setBusinessPurpose(String(prefillPurpose) as BusinessPurpose);
+          if (prefillCategory) setCategory(String(prefillCategory) as TripCategory);
           setMode("manual");
           return; // finally sets loading=false
         }
@@ -1252,6 +1392,11 @@ export default function TripFormScreen() {
               setUserLng(latest.lng);
             }
           }).catch(() => {});
+        } else if (modeParam === "manual") {
+          // A new past trip: From starts empty with place chips (P5: the
+          // phone's position was the default start of a trip typed in weeks
+          // later). Filled only within an hour of a trip ending.
+          await fillWhereIAmIfLikely();
         } else {
           // Get current location for the ready state map
           const loc = await getCurrentLocation();
@@ -1278,6 +1423,14 @@ export default function TripFormScreen() {
     isEditing,
     hasMissedPrefill,
     hasPlacePrefill,
+    modeParam,
+    fillWhereIAmIfLikely,
+    chainParam,
+    prefillDay,
+    prefillClassification,
+    prefillPlatform,
+    prefillPurpose,
+    prefillCategory,
     prefillFromLat,
     prefillFromLng,
     prefillFromAddress,
@@ -1545,12 +1698,14 @@ export default function TripFormScreen() {
       .then((res) => {
         setVehicles(res.data);
         if (!id) {
-          const primary = res.data.find((v) => v.isPrimary);
+          // The next trip of a day keeps the car of the one before it.
+          const carried = prefillVehicleId ? res.data.find((v) => v.id === String(prefillVehicleId)) : undefined;
+          const primary = carried ?? res.data.find((v) => v.isPrimary);
           if (primary) setVehicleId(primary.id);
         }
       })
       .catch(() => {});
-  }, [id]);
+  }, [id, prefillVehicleId]);
 
   // Auto-calculate distance via the server-side routing service.
   // Cache → GraphHopper → Google. Never silently falls back to crow-flies
@@ -1558,6 +1713,9 @@ export default function TripFormScreen() {
   // surface "couldn't calculate" so the user knows to enter manually
   // rather than seeing a wrong number.
   const [calculatingRoute, setCalculatingRoute] = useState(false);
+  // The last road route, so "Use the road distance" can go back to it after
+  // the driver typed miles.
+  const lastRouteRef = useRef<{ miles: number; source: RouteDistanceResult["source"]; secs: number | null } | null>(null);
   const [routeSource, setRouteSource] = useState<RouteDistanceResult["source"] | null>(null);
   const [routeUnavailable, setRouteUnavailable] = useState(false);
   // Set when the trail began materially after the Start tap, so the review
@@ -1591,12 +1749,18 @@ export default function TripFormScreen() {
     setCalculatingRoute(true);
     setRouteUnavailable(false);
     setRouteSource(null);
+    lastRouteRef.current = null;
     fetchServerRouteDistance({ startLat, startLng, endLat, endLng })
       .then((result) => {
         if (cancelled) return;
         if (result) {
           setDistanceMiles(result.distanceMiles);
           setRouteSource(result.source);
+          lastRouteRef.current = {
+            miles: result.distanceMiles,
+            source: result.source,
+            secs: Number.isFinite(result.durationSecs) && result.durationSecs > 0 ? result.durationSecs : null,
+          };
           setRoutedDurationSecs(
             Number.isFinite(result.durationSecs) && result.durationSecs > 0 ? result.durationSecs : null
           );
@@ -1617,11 +1781,119 @@ export default function TripFormScreen() {
   // set follows the start by the routed drive time rather than the old
   // one-minute stub. Moving the start moves it too. Stops the moment the
   // driver sets or clears the end themselves.
+  //
+  // A new past trip's end is worked out once the set-off time is known: from
+  // the route, or, with typed miles and no route, at 30 mph (the reporter's
+  // rule, lib/trips/missingReportRule.endTimeFor). Never later than now.
   useEffect(() => {
     if (mode !== "manual" || isEditing || endTimeTouched) return;
-    if (routedDurationSecs == null) return;
-    setEndedAt(defaultEndFor(startedAt, routedDurationSecs / 60));
-  }, [mode, isEditing, endTimeTouched, routedDurationSecs, startedAt]);
+    if (!whenTime) return;
+    const typed = routedDurationSecs == null && distanceMiles != null && distanceMiles > 0 ? distanceMiles : null;
+    if (routedDurationSecs == null && typed == null) return;
+    setEndedAt(endTimeFor({ departAt: startedAt, routedSecs: routedDurationSecs, typedMiles: typed, now: Date.now() }));
+  }, [mode, isEditing, endTimeTouched, routedDurationSecs, startedAt, whenTime, distanceMiles]);
+
+  // ── A new past trip: late trips land first, then the overlap check ──
+
+  // Quietly finish any drive still saving and upload the queue while the
+  // driver types (PROPOSALS 0.4 part 1), then look again for a trip already
+  // there. No spinner: nothing waits on it.
+  useEffect(() => {
+    if (mode !== "manual" || isEditing) return;
+    let cancelled = false;
+    settleTrips()
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setSettledVersion((v) => v + 1);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, isEditing]);
+
+  // As soon as the day and time are set, look for a trip at that time.
+  useEffect(() => {
+    if (mode !== "manual" || isEditing || !whenDay || !whenTime) {
+      setOverlap(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      findTripAround(startedAt, endedAt)
+        .then((hit) => {
+          if (cancelled) return;
+          setOverlap(hit);
+          if (hit && lastWarnedRef.current !== hit.id) {
+            lastWarnedRef.current = hit.id;
+            overlapShownRef.current.inline = true;
+            trackTripForm("trip_form.overlap_warned", {
+              where: "inline",
+              existingTripId: hit.id,
+              existingIsManual: hit.isManualEntry,
+              existingSource: hit.source,
+              daysBack: daysBack(startedAt, new Date()),
+            });
+          }
+        })
+        .catch(() => {});
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [mode, isEditing, whenDay, whenTime, startedAt, endedAt, settledVersion]);
+
+  // The day's other trips, once a day is picked (phone, and server for days
+  // older than the phone holds).
+  useEffect(() => {
+    if (mode !== "manual" || isEditing || !whenDay) {
+      setDayTrips([]);
+      return;
+    }
+    let cancelled = false;
+    knownTripsBetween(whenDay, addLocalDays(whenDay, 1))
+      .then((r) => {
+        if (!cancelled) setDayTrips(r.trips);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, isEditing, whenDay, settledVersion]);
+
+  // The form's own events: opened once, and "left without saving" when the
+  // screen goes away without a save.
+  const formFacts = useRef({ hadFrom: false, hadTo: false, hadDay: false, hadTime: false });
+  formFacts.current = {
+    hadFrom: startLat != null,
+    hadTo: endLat != null,
+    hadDay: whenDay != null,
+    hadTime: whenTime != null,
+  };
+  const pastTripForm = mode === "manual" && !isEditing;
+  const openedLoggedRef = useRef(false);
+  useEffect(() => {
+    if (!pastTripForm || openedLoggedRef.current) return;
+    openedLoggedRef.current = true;
+    openedAtRef.current = Date.now();
+    trackTripForm("trip_form.opened", {
+      source: openSourceRef.current,
+      chain,
+      prefill: hasMissedPrefill ? "missed_journey" : hasPlacePrefill ? "place" : "none",
+    });
+  }, [pastTripForm, hasMissedPrefill, hasPlacePrefill, chain]);
+  useEffect(
+    () => () => {
+      if (!openedLoggedRef.current || savedRef.current) return;
+      trackTripForm("trip_form.left", {
+        msOpen: Date.now() - openedAtRef.current,
+        ...formFacts.current,
+        overlapShown: overlapShownRef.current.inline || overlapShownRef.current.sheet,
+        overlapAnswer: overlapShownRef.current.answer,
+      });
+    },
+    []
+  );
 
   // ── Driving state: timer + location watch ────────────────────────────────
 
@@ -2304,8 +2576,18 @@ export default function TripFormScreen() {
     // hour, 11 Oct 2026) the past-trip form would carry that old time, so a
     // new trip whose time nobody has picked starts from now.
     if (!isEditing && !timeTouched) setStartedAt(new Date());
+    if (!isEditing) {
+      // The Start Trip screen's start is where the phone is now. A past trip
+      // starts empty instead, unless a trip ended within the hour.
+      openSourceRef.current = "start_trip";
+      setStartLat(null);
+      setStartLng(null);
+      setStartAddress(null);
+      startAutoFilledRef.current = false;
+      fillWhereIAmIfLikely().catch(() => {});
+    }
     setMode("manual");
-  }, [isEditing, timeTouched]);
+  }, [isEditing, timeTouched, fillWhereIAmIfLikely]);
 
   // Same for the past-trip form left open while the phone was put away.
   useEffect(() => {
@@ -2316,10 +2598,39 @@ export default function TripFormScreen() {
     return () => sub.remove();
   }, [isEditing, mode, timeTouched]);
 
-  const handleSwitchToQuick = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setMode("ready");
-  }, []);
+  // ── A new past trip's day and time ──
+
+  const pickWhenDay = useCallback(
+    (day: Date) => {
+      setWhenDay(day);
+      if (whenTime) setStartedAt(departureFor(day, whenTime.hours, whenTime.minutes));
+      // "Where I am" was only a guess for a trip today.
+      if (startAutoFilledRef.current && !keepWhereIAm(day, new Date())) {
+        startAutoFilledRef.current = false;
+        fromKindRef.current = null;
+        setStartLat(null);
+        setStartLng(null);
+        setStartAddress(null);
+      }
+    },
+    [whenTime]
+  );
+
+  // The calendar's dots: the phone's trips for the month, and the server's
+  // for months older than the phone holds.
+  const loadCalendarTrips = useCallback(
+    (from: Date, to: Date) => knownTripsBetween(from, to).then((r) => ({ trips: r.trips, incomplete: r.incomplete })),
+    []
+  );
+
+  const pickWhenTime = useCallback(
+    (t: ClockValue) => {
+      setWhenTime(t);
+      setStartedAt(departureFor(whenDay ?? startOfLocalDay(new Date()), t.hours, t.minutes));
+      setTimeTouched(true);
+    },
+    [whenDay]
+  );
 
   /**
    * Accept the server's merge suggestion. Routes through the existing
@@ -2444,6 +2755,39 @@ export default function TripFormScreen() {
       return;
     }
 
+    // A new past trip needs the day and the set-off time the driver picked
+    // (PROPOSALS 0.3). The button already says so; this catches a stale tap.
+    if (!isEditing && mode === "manual") {
+      if (!whenDay || !whenTime) {
+        Alert.alert("When did you set off?", "Pick the day and the time you set off, then add the trip.");
+        return;
+      }
+      if (isFutureDeparture(startedAt, new Date())) {
+        Alert.alert("That's later than now", "Pick the time you set off on this drive.");
+        return;
+      }
+    }
+
+    // "MileClear already has a trip around then" (PROPOSALS 0.4). Looked up
+    // afresh here, not taken from the line under When, so a recording that
+    // landed a moment ago still counts. A warning, never a block.
+    if (!isEditing && mode === "manual") {
+      const hit = await findTripAround(startedAt, endedAt).catch(() => null);
+      if (hit && overlapAnsweredRef.current !== hit.id) {
+        setOverlap(hit);
+        setOverlapSheet(true);
+        overlapShownRef.current.sheet = true;
+        trackTripForm("trip_form.overlap_warned", {
+          where: "sheet",
+          existingTripId: hit.id,
+          existingIsManual: hit.isManualEntry,
+          existingSource: hit.source,
+          daysBack: daysBack(startedAt, new Date()),
+        });
+        return;
+      }
+    }
+
     // ── Mistake guards (gentle confirms, never hard blocks) — audit point 9.
     // Only on new trips; an edit shouldn't re-nag. Re-runs the save with
     // skipGuards once the user confirms.
@@ -2527,7 +2871,25 @@ export default function TripFormScreen() {
     // time already written locally, so it is caught here instead. A new
     // hand-typed trip is caught too: the API refuses a create that ends
     // before it starts in the same way, after the form has already closed.
-    if ((isEditing || mode === "manual") && endedAt && startedAt.getTime() > endedAt.getTime()) {
+    // A driver who only tracks personal driving isn't asked Business or
+    // personal (A.3, driver P): their past trips are personal.
+    const saveClassification: TripClassification =
+      !isEditing && mode === "manual" && personalOnly && classification === "unclassified" ? "personal" : classification;
+
+    // A new past trip always gets an end (P11: 129 hand trips in 30 days had
+    // none): the worked-out one, or start + typed miles at 30 mph, or a
+    // minute after the start when there is nothing to work it out from.
+    const saveEndedAt =
+      !isEditing && mode === "manual" && !endedAt
+        ? endTimeFor({
+            departAt: startedAt,
+            routedSecs: routedDurationSecs,
+            typedMiles: distanceMiles != null && distanceMiles > 0 ? distanceMiles : null,
+            now: Date.now(),
+          })
+        : endedAt;
+
+    if ((isEditing || mode === "manual") && saveEndedAt && startedAt.getTime() > saveEndedAt.getTime()) {
       Alert.alert("Check the times", "The start time is after the end time. Set the start earlier, or move the end.");
       return;
     }
@@ -2647,12 +3009,12 @@ export default function TripFormScreen() {
           startLat,
           startLng,
           startedAt: startedAt.toISOString(),
-          classification,
+          classification: saveClassification,
           ...(endLat != null && endLng != null && { endLat, endLng }),
           ...(distanceMiles != null && { distanceMiles }),
           ...(startAddress && { startAddress }),
           ...(endAddress && { endAddress }),
-          ...(endedAt && { endedAt: endedAt.toISOString() }),
+          ...(saveEndedAt && { endedAt: saveEndedAt.toISOString() }),
           ...(platformTag && { platformTag }),
           ...(businessPurpose && { businessPurpose }),
           ...(category && { category }),
@@ -2668,6 +3030,27 @@ export default function TripFormScreen() {
         const tripResult = await syncCreateTrip(data);
         haptic("success");
         createdTripId = tripResult?.data?.id ?? null;
+        if (mode === "manual") {
+          savedRef.current = true;
+          trackTripForm("trip_form.saved", {
+            msToSave: Date.now() - openedAtRef.current,
+            daysBack: daysBack(startedAt, new Date()),
+            milesSource:
+              distanceMiles == null || distanceMiles <= 0 ? "none" : routeSource ? "routed" : "typed",
+            timeSet: whenTime != null,
+            endWorkedOut: !endTimeTouched,
+            classification: saveClassification,
+            classificationChosen: classification !== "unclassified",
+            chain,
+            overlapShown: overlapShownRef.current.inline || overlapShownRef.current.sheet,
+            overlapAnswer: overlapShownRef.current.answer,
+            source: openSourceRef.current,
+            fromKind: fromKindRef.current,
+            toKind: endLat != null ? toKindRef.current : "typed_miles",
+            // Null result: saved on the phone and queued (offline).
+            queued: tripResult == null,
+          });
+        }
         // Trip came from a "missed journey" proposal — mark it accepted so the
         // scanner stops surfacing it. Best-effort; the trip is already saved.
         // The trip's times go with it so the server can check the drive sits
@@ -2881,7 +3264,49 @@ export default function TripFormScreen() {
       // For new manual trips: show the review card before returning.
       // For edits or trips without a final distance to celebrate: fall
       // straight back to the previous screen.
-      if (!isEditing && createdTripId && distanceMiles != null && distanceMiles > 0) {
+      if (!isEditing && mode === "manual" && saveEndedAt) {
+        // A past trip ends on its saved card, which starts the next one.
+        const auto = createAutoApplied && createLearnedSuggestion ? createLearnedSuggestion : null;
+        const finalClass: TripClassification = auto ? auto.classification : saveClassification;
+        const finalPlatform = auto ? auto.platformTag ?? platformTag ?? null : platformTag ?? null;
+        const finalPurpose = auto ? auto.businessPurpose ?? businessPurpose ?? null : businessPurpose ?? null;
+        const start: PlaceValue = { lat: startLat, lng: startLng, address: startAddress };
+        const end: PlaceValue | null = endLat != null && endLng != null ? { lat: endLat, lng: endLng, address: endAddress } : null;
+        const appLabel = GIG_PLATFORMS.find((g) => g.value === finalPlatform)?.label ?? null;
+        const purposeLabel = BUSINESS_PURPOSES.find((b) => b.value === finalPurpose)?.label ?? null;
+        const categoryLabel = TRIP_CATEGORY_META.find((c) => c.value === category)?.label ?? null;
+        setSavedCard({
+          facts: {
+            startLat,
+            startLng,
+            startAddress,
+            startName: placeWords(start, savedPlaces).name,
+            endLat: end?.lat ?? null,
+            endLng: end?.lng ?? null,
+            endAddress: end?.address ?? null,
+            endName: end ? placeWords(end, savedPlaces).name : null,
+            startedAt,
+            endedAt: saveEndedAt,
+            classification: finalClass,
+            platformTag: finalPlatform,
+            businessPurpose: finalPurpose,
+            category: category ?? null,
+            vehicleId: vehicleId ?? null,
+          },
+          miles: distanceMiles ?? 0,
+          detail: finalClass === "business" ? appLabel ?? purposeLabel : finalClass === "personal" ? categoryLabel : null,
+          milesFrom:
+            distanceMiles == null || distanceMiles <= 0
+              ? "No miles yet. You can add them on the trip"
+              : routeSource
+                ? "Worked out from the road route"
+                : "Miles typed in",
+          savedWhere: createdTripId ? "Saved to your account" : "Saved on your phone. It uploads when you're back online.",
+          autoNote: auto
+            ? `Sorted as ${auto.classification === "business" ? "Business" : "Personal"} from ${auto.matchCount} similar ${auto.matchCount === 1 ? "trip" : "trips"}.`
+            : null,
+        });
+      } else if (!isEditing && createdTripId && distanceMiles != null && distanceMiles > 0) {
         setReviewCard({
           tripId: createdTripId,
           distanceMiles,
@@ -2922,6 +3347,7 @@ export default function TripFormScreen() {
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
     odometerStart, odometerEnd, missedId, mode, timeTouched,
+    whenDay, whenTime, routedDurationSecs, endTimeTouched, personalOnly, chain, savedPlaces,
   ]);
 
   /**
@@ -3035,6 +3461,76 @@ export default function TripFormScreen() {
       ]
     );
   });
+
+  // ── The past-trip form's exit guard ─────────────────────────────────────
+  // Back (or the edge swipe) on a past-trip form the driver has filled in
+  // asks first, so a slip of the thumb doesn't throw away a trip typed from
+  // memory. Only what the driver chose counts: places that came with the
+  // screen ("New trip from here", "Add the next trip", where I am) and the
+  // day or time it opened with leave straight away.
+  const pastInitialRef = useRef<{ day: string; time: string; classification: string } | null>(null);
+  useEffect(() => {
+    if (loading || !pastTripForm || pastInitialRef.current) return;
+    pastInitialRef.current = {
+      day: whenDay ? localDayKey(whenDay) : "",
+      time: whenTime ? `${whenTime.hours}:${whenTime.minutes}` : "",
+      classification,
+    };
+  }, [loading, pastTripForm, whenDay, whenTime, classification]);
+  const driverPicked = (k: PlaceKind | null) => k === "saved" || k === "recent" || k === "search";
+  const init = pastInitialRef.current;
+  const pastFormFilled =
+    pastTripForm &&
+    !loading &&
+    (driverPicked(fromKindRef.current) ||
+      (endLat != null && driverPicked(toKindRef.current)) ||
+      (init != null &&
+        ((whenDay ? localDayKey(whenDay) : "") !== init.day ||
+          (whenTime ? `${whenTime.hours}:${whenTime.minutes}` : "") !== init.time ||
+          classification !== init.classification)) ||
+      manualDistanceText.trim() !== "" ||
+      notes.trim() !== "" ||
+      projectLabel.trim() !== "" ||
+      odometerStart.trim() !== "" ||
+      odometerEnd.trim() !== "");
+  usePreventRemove(pastFormFilled && !saving && !savedCard, ({ data }) => {
+    const leave = () => navigation.dispatch(data.action);
+    // Saved, or answered "It's the same drive" / "Open that trip": go.
+    if (exitGuardOffRef.current || savedRef.current) {
+      leave();
+      return;
+    }
+    Alert.alert("Discard this trip?", "It hasn't been added yet.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: leave },
+    ]);
+  });
+
+  // The driver's answer on the "already has a trip around then" sheet.
+  const answerOverlap = useCallback(
+    (answer: "same_drive" | "open" | "add_anyway" | "dismissed") => {
+      const hit = overlap;
+      setOverlapSheet(false);
+      overlapShownRef.current.answer = answer;
+      trackTripForm("trip_form.overlap_answered", { answer, existingTripId: hit?.id ?? null });
+      if (!hit) return;
+      if (answer === "same_drive") {
+        // Nothing to save: MileClear already has it.
+        exitGuardOffRef.current = true;
+        router.back();
+      } else if (answer === "open") {
+        exitGuardOffRef.current = true;
+        router.replace({ pathname: "/trip-form", params: { id: hit.id } } as never);
+      } else if (answer === "add_anyway") {
+        overlapAnsweredRef.current = hit.id;
+        // After the sheet has gone, so a guard alert can show.
+        setTimeout(() => handleSaveRef.current(), 350);
+      }
+    },
+    [overlap, router]
+  );
+  const handleSaveRef = useRef(handleSave);
+  handleSaveRef.current = handleSave;
 
   const handleDelete = useCallback(() => {
     Alert.alert("Delete trip", "Remove this trip? This can't be undone.", [
@@ -3312,8 +3808,359 @@ export default function TripFormScreen() {
     : mode === "arrived" || mode === "saving"
     ? "Trip complete"
     : mode === "manual"
-    ? "Add a past trip"
+    ? chain === "next"
+      ? "Add the next trip"
+      : chain === "way_back"
+        ? "Add the way back"
+        : "Add a past trip"
     : "Start a trip";
+
+
+  // A new past trip: what the Add button still needs, and the driver's own
+  // trip in words for the overlap sheet.
+  const pastTripMissing = pastTripForm
+    ? missingForSave({
+        hasFrom: startLat != null && startLng != null,
+        hasTo: endLat != null && endLng != null,
+        hasMiles: distanceMiles != null && distanceMiles > 0,
+        hasDay: whenDay != null,
+        hasTime: whenTime != null,
+        timeInFuture: whenDay != null && whenTime != null && isFutureDeparture(startedAt, new Date()),
+      })
+    : null;
+  const yourTripWords = (() => {
+    const from = startLat != null && startLng != null ? placeWords({ lat: startLat, lng: startLng, address: startAddress }, savedPlaces).name : null;
+    const to = endLat != null && endLng != null ? placeWords({ lat: endLat, lng: endLng, address: endAddress }, savedPlaces).name : null;
+    const route = from && to ? `${from} to ${to}` : from ? `From ${from}` : to ? `To ${to}` : "Your trip";
+    const miles = distanceMiles != null && distanceMiles > 0 ? `${distanceMiles.toFixed(1)} mi` : null;
+    return [route, clockTime(startedAt), miles].filter(Boolean).join(" · ");
+  })();
+
+  // ── A new past trip's screen (PROPOSALS A.1) ──
+  // From and To, When, the worked-out miles and arrival, Business or
+  // personal, More details, and one amber button that says what is missing.
+  const fromValue: PlaceValue | null =
+    startLat != null && startLng != null ? { lat: startLat, lng: startLng, address: startAddress } : null;
+  const toValue: PlaceValue | null =
+    endLat != null && endLng != null ? { lat: endLat, lng: endLng, address: endAddress } : null;
+  const chainAfter = (() => {
+    if (!chain || !prefillAfter) return null;
+    const d = new Date(String(prefillAfter));
+    return Number.isFinite(d.getTime()) ? d : null;
+  })();
+  const chainAfterToday = chainAfter && whenDay && startOfLocalDay(chainAfter).getTime() === whenDay.getTime() ? chainAfter : null;
+  const dayLine = whenDay ? dayTripsLine(whenDay, dayTrips, new Date(), overlap ? [overlap.id] : []) : null;
+  const pastTripLayout = (
+    <>
+      {!online && (
+        <View style={styles.offline} accessibilityLiveRegion="polite">
+          <Ionicons name="cloud-offline-outline" size={20} color={TEXT_2} accessible={false} />
+          <Text style={styles.offlineText} maxFontSizeMultiplier={fontScaleCap.body}>
+            No signal. The trip saves on your phone.
+          </Text>
+        </View>
+      )}
+
+      <FromToCard
+        from={fromValue}
+        to={toValue}
+        onFrom={(v, kind) => {
+          setStartLat(v.lat);
+          setStartLng(v.lng);
+          setStartAddress(v.address);
+          startAutoFilledRef.current = false;
+          fromKindRef.current = kind;
+        }}
+        onTo={(v, kind) => {
+          setEndLat(v.lat);
+          setEndLng(v.lng);
+          setEndAddress(v.address);
+          toKindRef.current = kind;
+          // A new end is a new road route: typed miles were for the old one.
+          setManualDistanceMode(false);
+          setManualDistanceText("");
+        }}
+        onSwap={() => {
+          if (!fromValue || !toValue) return;
+          setStartLat(toValue.lat);
+          setStartLng(toValue.lng);
+          setStartAddress(toValue.address);
+          setEndLat(fromValue.lat);
+          setEndLng(fromValue.lng);
+          setEndAddress(fromValue.address);
+          const k = fromKindRef.current;
+          fromKindRef.current = toKindRef.current;
+          toKindRef.current = k;
+          startAutoFilledRef.current = false;
+        }}
+        source={placeSource}
+        savedPlaces={savedPlaces}
+        online={online}
+      />
+
+      <View style={styles.addCard}>
+        <WhenCard
+          day={whenDay}
+          onDay={pickWhenDay}
+          time={whenTime}
+          onTime={pickWhenTime}
+          now={new Date()}
+          timeStartsAt={chainAfterToday}
+          timeHint={chainAfterToday && !whenTime ? `after ${clockTime(chainAfterToday)}` : null}
+          loadTrips={loadCalendarTrips}
+        >
+          {overlap && (
+            <OverlapLine
+              trip={overlap}
+              onOpen={() => {
+                overlapShownRef.current.answer = "opened_from_line";
+                trackTripForm("trip_form.overlap_answered", { answer: "opened_from_line", existingTripId: overlap.id });
+                router.push({ pathname: "/trip-form", params: { id: overlap.id } } as never);
+              }}
+            />
+          )}
+          {dayLine && (
+            <Text style={styles.dayLine} maxFontSizeMultiplier={fontScaleCap.body}>{dayLine}</Text>
+          )}
+        </WhenCard>
+      </View>
+
+      <WorkedOutLine
+        hasFrom={fromValue != null}
+        hasTo={toValue != null}
+        calculating={calculatingRoute}
+        distanceMiles={distanceMiles}
+        routed={routeSource != null && distanceMiles != null}
+        routeUnavailable={routeUnavailable}
+        online={online}
+        typing={manualDistanceMode}
+        milesText={manualDistanceText}
+        onMilesText={(t) => {
+          const cleaned = t.replace(/[^0-9.,]/g, "");
+          setManualDistanceText(cleaned);
+          const n = parseMilesInput(cleaned);
+          if (n != null) {
+            setDistanceMiles(n);
+            setRouteSource(null);
+            setRoutedDurationSecs(null);
+          } else if (cleaned === "") {
+            setDistanceMiles(null);
+            setRouteSource(null);
+            setRoutedDurationSecs(null);
+          }
+        }}
+        onStartTyping={() => {
+          setManualDistanceMode(true);
+          if (!manualDistanceText && distanceMiles != null) setManualDistanceText(String(distanceMiles));
+        }}
+        onUseRoad={
+          lastRouteRef.current
+            ? () => {
+                const r = lastRouteRef.current;
+                if (!r) return;
+                setDistanceMiles(r.miles);
+                setRouteSource(r.source);
+                setRoutedDurationSecs(r.secs);
+                setManualDistanceMode(false);
+                setManualDistanceText("");
+              }
+            : null
+        }
+        roadMiles={lastRouteRef.current?.miles ?? null}
+        departure={whenDay && whenTime ? startedAt : null}
+        // No arrival for a set-off later than now: the end is held at now,
+        // so it would read "Arrives about 15:51" for a 15:50 start.
+        arrival={whenDay && whenTime && !isFutureDeparture(startedAt, new Date()) ? endedAt : null}
+        arrivalTouched={endTimeTouched}
+        onArrival={(v) => {
+          setEndedAt(arrivalAfter(startedAt, v.hours, v.minutes));
+          setEndTimeTouched(true);
+          setTimeTouched(true);
+        }}
+      />
+
+      <TripTypeBlock
+        classification={classification}
+        onClassification={setClassification}
+        platformTag={platformTag}
+        onPlatform={setPlatformTag}
+        businessPurpose={businessPurpose}
+        onPurpose={setBusinessPurpose}
+        category={category}
+        onCategory={setCategory}
+        isGigDriver={isGigDriver}
+        isEmployeeDriver={isEmployeeDriver}
+        personalOnly={personalOnly}
+      />
+
+      <MoreDetails
+        open={showDetails}
+        onToggle={setShowDetails}
+        vehicleName={selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model}` : null}
+        hasVehicles={vehicles.length > 0}
+        onPickVehicle={handleSelectVehicle}
+        notes={notes}
+        onNotes={setNotes}
+        projectLabel={projectLabel}
+        onProjectLabel={setProjectLabel}
+        projectOptions={projectLabelOptions}
+        odometerStart={odometerStart}
+        onOdometerStart={setOdometerStart}
+        odometerEnd={odometerEnd}
+        onOdometerEnd={setOdometerEnd}
+      />
+
+      <Button
+        title={pastTripMissing ?? "Add trip"}
+        icon={pastTripMissing ? undefined : "checkmark"}
+        onPress={() => handleSave()}
+        loading={saving}
+        disabled={!!pastTripMissing}
+        accessibilityLabel={pastTripMissing ? `Add trip. ${pastTripMissing}` : "Add trip"}
+        style={{ marginTop: 24 }}
+      />
+    </>
+  );
+
+  // Pieces of the form shared by a new past trip and an edit, laid out in a
+  // different order for each.
+  const distanceCard = (
+    <>
+      {/* Distance card */}
+      <View style={styles.distanceCard}>
+        <Text style={styles.distanceLabel}>Distance</Text>
+        <Text style={styles.distanceValue}>
+          {calculatingRoute ? "Calculating..." : distanceMiles != null ? `${distanceMiles} mi` : "--"}
+        </Text>
+        {!calculatingRoute && distanceMiles != null && routeSource && (
+          <Text style={styles.distanceHint}>{provenanceLabel(routeSource)}</Text>
+        )}
+        {!calculatingRoute && distanceMiles == null && routeUnavailable && (
+          <Text style={[styles.distanceHint, { color: "#f59e0b" }]}>
+            Couldn't calculate route — try again or enter distance manually
+          </Text>
+        )}
+        {!calculatingRoute && distanceMiles == null && !routeUnavailable && (
+          <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
+        )}
+
+        {/* Manual distance entry — the actual field behind "enter distance
+            manually", auto-shown when routing fails, opt-in otherwise. */}
+        {(manualDistanceMode || (routeUnavailable && distanceMiles == null)) && (
+          <View style={styles.manualDistanceRow}>
+            <TextInput
+              style={styles.manualDistanceInput}
+              value={manualDistanceText}
+              onChangeText={(t) => {
+                const cleaned = t.replace(/[^0-9.]/g, "");
+                setManualDistanceText(cleaned);
+                const n = parseFloat(cleaned);
+                if (Number.isFinite(n) && n > 0) {
+                  setDistanceMiles(Math.round(n * 10) / 10);
+                  setRouteSource(null);
+                } else if (cleaned === "") {
+                  setDistanceMiles(null);
+                }
+              }}
+              keyboardType="decimal-pad"
+              placeholder="0.0"
+              placeholderTextColor="#64748b"
+              accessibilityLabel="Enter the trip distance in miles"
+            />
+            <Text style={styles.manualDistanceUnit}>miles</Text>
+          </View>
+        )}
+        {!manualDistanceMode && !(routeUnavailable && distanceMiles == null) && (
+          <TouchableOpacity
+            onPress={() => {
+              setManualDistanceMode(true);
+              setManualDistanceText(distanceMiles != null ? String(distanceMiles) : "");
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Enter distance manually"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.distanceHint, { color: "#f5a623", marginTop: 6 }]}>
+              Enter distance manually
+            </Text>
+          </TouchableOpacity>
+        )}
+
+      </View>
+
+      {/* Odometer (optional) — a trust primitive: readings corroborate the
+          GPS distance and are auditable for HMRC. Collapsed by default. */}
+      <View
+        style={styles.odometerSection}
+        onLayout={(e) => { odometerYRef.current = e.nativeEvent.layout.y; }}
+      >
+        {!odometerOpen ? (
+          <TouchableOpacity
+            onPress={() => setOdometerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Add odometer readings"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[styles.distanceHint, { color: AMBER }]}>
+              {odometerStart || odometerEnd ? "Edit odometer readings" : "+ Add odometer readings (optional)"}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <>
+            <Text style={styles.odometerLabel}>Odometer (miles)</Text>
+            <View style={styles.odometerRow}>
+              <TextInput
+                style={[styles.input, styles.odometerInput]}
+                value={odometerStart}
+                onChangeText={(t) => setOdometerStart(t.replace(/[^0-9.]/g, ""))}
+                placeholder="Start"
+                placeholderTextColor="#64748b"
+                keyboardType="decimal-pad"
+                accessibilityLabel="Odometer reading at the start"
+              />
+              <Ionicons name="arrow-forward" size={16} color="#64748b" />
+              <TextInput
+                style={[styles.input, styles.odometerInput]}
+                value={odometerEnd}
+                onChangeText={(t) => setOdometerEnd(t.replace(/[^0-9.]/g, ""))}
+                placeholder="End"
+                placeholderTextColor="#64748b"
+                keyboardType="decimal-pad"
+                accessibilityLabel="Odometer reading at the end"
+              />
+            </View>
+            {odometerStart && odometerEnd && parseFloat(odometerEnd) > parseFloat(odometerStart) && (
+              <Text style={styles.odometerHint}>
+                Odometer shows {(parseFloat(odometerEnd) - parseFloat(odometerStart)).toFixed(1)} miles
+              </Text>
+            )}
+          </>
+        )}
+      </View>
+
+    </>
+  );
+  const endTimeField = (
+    <>
+      {/* End Time */}
+      <DateTimePickerField
+        label="End time"
+        value={endedAt}
+        onChange={(d) => {
+          setEndedAt(d);
+          setTimeTouched(true);
+          setEndTimeTouched(true);
+        }}
+        onClear={() => {
+          setEndedAt(null);
+          setTimeTouched(true);
+          setEndTimeTouched(true);
+        }}
+        maximumDate={new Date()}
+      />
+
+    </>
+  );
 
   // ── Loading state ────────────────────────────────────────────────────────
 
@@ -4190,22 +5037,12 @@ export default function TripFormScreen() {
           />
         )}
 
-        {/* ── Manual Entry / Edit Mode ── */}
-        {(mode === "manual" || mode === "editing") && (
-          <>
-            {mode === "manual" && (
-              <TouchableOpacity
-                style={styles.backToQuickLink}
-                onPress={handleSwitchToQuick}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel="Track a trip live instead"
-              >
-                <Ionicons name="navigate-outline" size={16} color={AMBER} accessible={false} />
-                <Text style={styles.backToQuickText}>Track a trip live instead</Text>
-              </TouchableOpacity>
-            )}
+        {/* ── A new past trip (PROPOSALS Direction A, "From, To, When") ── */}
+        {pastTripForm && pastTripLayout}
 
+        {/* ── Edit Mode ── */}
+        {mode === "editing" && (
+          <>
             {/* Start Location */}
             <LocationPickerField
               label="Start"
@@ -4224,118 +5061,7 @@ export default function TripFormScreen() {
                 setStartAddress(null);
               }}
             />
-            {/* Distance card */}
-            <View style={styles.distanceCard}>
-              <Text style={styles.distanceLabel}>Distance</Text>
-              <Text style={styles.distanceValue}>
-                {calculatingRoute ? "Calculating..." : distanceMiles != null ? `${distanceMiles} mi` : "--"}
-              </Text>
-              {!calculatingRoute && distanceMiles != null && routeSource && (
-                <Text style={styles.distanceHint}>{provenanceLabel(routeSource)}</Text>
-              )}
-              {!calculatingRoute && distanceMiles == null && routeUnavailable && (
-                <Text style={[styles.distanceHint, { color: "#f59e0b" }]}>
-                  Couldn't calculate route — try again or enter distance manually
-                </Text>
-              )}
-              {!calculatingRoute && distanceMiles == null && !routeUnavailable && (
-                <Text style={styles.distanceHint}>Set both locations to auto-calculate</Text>
-              )}
-
-              {/* Manual distance entry — the actual field behind "enter distance
-                  manually", auto-shown when routing fails, opt-in otherwise. */}
-              {(manualDistanceMode || (routeUnavailable && distanceMiles == null)) && (
-                <View style={styles.manualDistanceRow}>
-                  <TextInput
-                    style={styles.manualDistanceInput}
-                    value={manualDistanceText}
-                    onChangeText={(t) => {
-                      const cleaned = t.replace(/[^0-9.]/g, "");
-                      setManualDistanceText(cleaned);
-                      const n = parseFloat(cleaned);
-                      if (Number.isFinite(n) && n > 0) {
-                        setDistanceMiles(Math.round(n * 10) / 10);
-                        setRouteSource(null);
-                      } else if (cleaned === "") {
-                        setDistanceMiles(null);
-                      }
-                    }}
-                    keyboardType="decimal-pad"
-                    placeholder="0.0"
-                    placeholderTextColor="#64748b"
-                    accessibilityLabel="Enter the trip distance in miles"
-                  />
-                  <Text style={styles.manualDistanceUnit}>miles</Text>
-                </View>
-              )}
-              {!manualDistanceMode && !(routeUnavailable && distanceMiles == null) && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setManualDistanceMode(true);
-                    setManualDistanceText(distanceMiles != null ? String(distanceMiles) : "");
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Enter distance manually"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={[styles.distanceHint, { color: "#f5a623", marginTop: 6 }]}>
-                    Enter distance manually
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-            </View>
-
-            {/* Odometer (optional) — a trust primitive: readings corroborate the
-                GPS distance and are auditable for HMRC. Collapsed by default. */}
-            <View
-              style={styles.odometerSection}
-              onLayout={(e) => { odometerYRef.current = e.nativeEvent.layout.y; }}
-            >
-              {!odometerOpen ? (
-                <TouchableOpacity
-                  onPress={() => setOdometerOpen(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add odometer readings"
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={[styles.distanceHint, { color: AMBER }]}>
-                    {odometerStart || odometerEnd ? "Edit odometer readings" : "+ Add odometer readings (optional)"}
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <>
-                  <Text style={styles.odometerLabel}>Odometer (miles)</Text>
-                  <View style={styles.odometerRow}>
-                    <TextInput
-                      style={[styles.input, styles.odometerInput]}
-                      value={odometerStart}
-                      onChangeText={(t) => setOdometerStart(t.replace(/[^0-9.]/g, ""))}
-                      placeholder="Start"
-                      placeholderTextColor="#64748b"
-                      keyboardType="decimal-pad"
-                      accessibilityLabel="Odometer reading at the start"
-                    />
-                    <Ionicons name="arrow-forward" size={16} color="#64748b" />
-                    <TextInput
-                      style={[styles.input, styles.odometerInput]}
-                      value={odometerEnd}
-                      onChangeText={(t) => setOdometerEnd(t.replace(/[^0-9.]/g, ""))}
-                      placeholder="End"
-                      placeholderTextColor="#64748b"
-                      keyboardType="decimal-pad"
-                      accessibilityLabel="Odometer reading at the end"
-                    />
-                  </View>
-                  {odometerStart && odometerEnd && parseFloat(odometerEnd) > parseFloat(odometerStart) && (
-                    <Text style={styles.odometerHint}>
-                      Odometer shows {(parseFloat(odometerEnd) - parseFloat(odometerStart)).toFixed(1)} miles
-                    </Text>
-                  )}
-                </>
-              )}
-            </View>
-
+            {distanceCard}
             {/* End Location */}
             <LocationPickerField
               label="End"
@@ -4378,22 +5104,7 @@ export default function TripFormScreen() {
               </Text>
             )}
 
-            {/* End Time */}
-            <DateTimePickerField
-              label="End time"
-              value={endedAt}
-              onChange={(d) => {
-                setEndedAt(d);
-                setTimeTouched(true);
-                setEndTimeTouched(true);
-              }}
-              onClear={() => {
-                setEndedAt(null);
-                setTimeTouched(true);
-                setEndTimeTouched(true);
-              }}
-              maximumDate={new Date()}
-            />
+            {endTimeField}
 
             {/* Classification */}
             <Text style={styles.label}>Business or personal?</Text>
@@ -4415,7 +5126,6 @@ export default function TripFormScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-
             {/* Category for personal trips */}
             {classification === "personal" && (
               <>
@@ -4652,7 +5362,7 @@ export default function TripFormScreen() {
 
             {/* Save */}
             <Button
-              title={isEditing ? "Save changes" : "Add trip"}
+              title="Save changes"
               icon="checkmark"
               onPress={() => handleSave()}
               loading={saving}
@@ -4675,6 +5385,55 @@ export default function TripFormScreen() {
       {/* Post-save review card — shown briefly after a manual trip is
           created. Synthesizes the routing + classification work into a
           single confidence-building moment of completion. */}
+      <OverlapSheet
+        visible={overlapSheet}
+        trip={overlap}
+        yours={yourTripWords}
+        onSame={() => answerOverlap("same_drive")}
+        onOpen={() => answerOverlap("open")}
+        onAddAnyway={() => answerOverlap("add_anyway")}
+        onClose={() => answerOverlap("dismissed")}
+      />
+
+      {savedCard && (
+        <SavedTripCard
+          overlay
+          miles={savedCard.miles}
+          summary={`${
+            savedCard.facts.endName
+              ? `${savedCard.facts.startName} to ${savedCard.facts.endName}`
+              : `From ${savedCard.facts.startName}`
+          } · ${shortDay(savedCard.facts.startedAt)}, ${clockTime(savedCard.facts.startedAt)} to ${clockTime(savedCard.facts.endedAt)}`}
+          classification={savedCard.facts.classification as TripClassification}
+          detail={savedCard.detail}
+          milesFrom={savedCard.milesFrom}
+          savedWhere={savedCard.savedWhere}
+          autoNote={savedCard.autoNote}
+          next={{
+            subtitle: chainSubtitle("next", savedCard.facts, new Date()),
+            onPress: () => {
+              trackTripForm("trip_form.chain_tapped", { kind: "next" });
+              router.replace({ pathname: "/trip-form", params: chainParams("next", savedCard.facts) } as never);
+            },
+          }}
+          wayBack={
+            canChain("way_back", savedCard.facts)
+              ? {
+                  subtitle: chainSubtitle("way_back", savedCard.facts, new Date()),
+                  onPress: () => {
+                    trackTripForm("trip_form.chain_tapped", { kind: "way_back" });
+                    router.replace({ pathname: "/trip-form", params: chainParams("way_back", savedCard.facts) } as never);
+                  },
+                }
+              : null
+          }
+          onDone={() => {
+            setSavedCard(null);
+            router.back();
+          }}
+        />
+      )}
+
       {reviewCard && (
         <PostTripReviewCard
           distanceMiles={reviewCard.distanceMiles}
@@ -4842,23 +5601,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.medium,
     color: TEXT_2,
-  },
-  backToQuickLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(245, 166, 35, 0.08)",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.15)",
-  },
-  backToQuickText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: AMBER,
   },
   // "Save as place", "Start from here" and "Go to here" under a trip's
   // start/end address (edit mode only). Wraps rather than truncates on a
@@ -5173,6 +5915,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   // ── Classification / platform chips ──────────────────
+  addCard: {
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginTop: 12,
+  },
+  offline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    backgroundColor: CARD_BG,
+  },
+  offlineText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+  },
+  dayLine: {
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
   classRow: {
     flexDirection: "row",
     gap: 8,

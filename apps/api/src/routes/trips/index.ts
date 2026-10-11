@@ -17,6 +17,9 @@ import {
   TRIP_RECORDED_BY,
   resolveRecordedBy,
   joinedCountOf,
+  overlappingTrips,
+  OVERLAP_LOOKBACK_MS,
+  TRIPS_AROUND_MAX_DAYS,
 } from "@mileclear/shared";
 import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges } from "@mileclear/shared";
 import type { CazVehicleClass } from "@mileclear/shared";
@@ -2300,6 +2303,56 @@ export async function tripRoutes(app: FastifyInstance) {
   app.get("/project-labels", async (request, reply) => {
     const labels = await loadProjectLabels(request.userId!);
     return reply.send({ data: { labels } });
+  });
+
+  // The driver's trips that overlap a time window (add-trip PROPOSALS 0.4,
+  // Oct 2026). Read only. The app asks before saving a hand-added trip, for
+  // days older than the phone holds, so "MileClear already has a trip around
+  // then" works for a back-filled August too; the calendar asks for a month
+  // to put a dot on days that have trips; the website asks before adding.
+  // Lean rows, no suggestions or confidence: this sits behind a form, not a list.
+  const aroundQuery = z
+    .object({
+      from: z.coerce.date(),
+      to: z.coerce.date(),
+    })
+    .refine((q) => q.to.getTime() > q.from.getTime(), { message: "to must be after from" })
+    .refine((q) => q.to.getTime() - q.from.getTime() <= TRIPS_AROUND_MAX_DAYS * 24 * 60 * 60 * 1000, {
+      message: `The window can be at most ${TRIPS_AROUND_MAX_DAYS} days`,
+    });
+  const AROUND_MAX_ROWS = 1000;
+
+  app.get("/around", async (request, reply) => {
+    const parsed = aroundQuery.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+    const { from, to } = parsed.data;
+    const rows = await prisma.trip.findMany({
+      where: {
+        userId: request.userId!,
+        isPhantomTrip: false,
+        // A drive that began the day before can still run into the window.
+        startedAt: { gte: new Date(from.getTime() - OVERLAP_LOOKBACK_MS), lt: to },
+      },
+      orderBy: { startedAt: "asc" },
+      take: AROUND_MAX_ROWS,
+      select: {
+        id: true,
+        startedAt: true,
+        endedAt: true,
+        startAddress: true,
+        endAddress: true,
+        distanceMiles: true,
+        isManualEntry: true,
+        recordedBy: true,
+        createdAt: true,
+      },
+    });
+    const trips = overlappingTrips(rows, from, to).sort(
+      (a, b) => a.startedAt.getTime() - b.startedAt.getTime()
+    );
+    return reply.send({ data: { trips, capped: rows.length >= AROUND_MAX_ROWS } });
   });
 
   // Suggest classification based on past trips near a location

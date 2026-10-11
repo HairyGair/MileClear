@@ -18,40 +18,14 @@ import {
   type PlacePrediction,
 } from "../lib/location/geocoding";
 import { MapPickerModal } from "./MapPickerModal";
-import { haversineDistance } from "@mileclear/shared";
-import { getDatabase } from "../lib/db";
 import {
   matchSavedPlaces,
-  selectPickerPlaces,
   SAVED_PLACES_LIMIT,
   type PickerPlace,
   type PickerPlaces,
-  type RecentTripRow,
-  type SavedPlaceRow,
 } from "../lib/location/recentPlaces";
+import { loadPickerPlaces } from "../lib/location/pickerPlacesStore";
 import { colors, fonts } from "../lib/theme";
-
-// Enough trips to find eight distinct places for most drivers without
-// reading the whole table every time the search box opens.
-const RECENT_TRIP_SCAN = 120;
-
-async function loadPickerPlaces(): Promise<PickerPlaces> {
-  const db = await getDatabase();
-  const [savedPlaces, trips] = await Promise.all([
-    db.getAllAsync<SavedPlaceRow>(
-      `SELECT id, name, latitude, longitude, location_type FROM saved_locations
-       ORDER BY CASE location_type WHEN 'home' THEN 0 WHEN 'work' THEN 1 ELSE 2 END,
-                name COLLATE NOCASE ASC`
-    ),
-    db.getAllAsync<RecentTripRow>(
-      `SELECT started_at, ended_at, start_lat, start_lng, start_address,
-              end_lat, end_lng, end_address
-       FROM trips ORDER BY started_at DESC LIMIT ?`,
-      [RECENT_TRIP_SCAN]
-    ),
-  ]);
-  return selectPickerPlaces({ trips, savedPlaces, haversine: haversineDistance });
-}
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -69,6 +43,11 @@ interface LocationPickerFieldProps {
   onLocationChange: (lat: number, lng: number, address: string | null) => void;
   onClear?: () => void;
   disabled?: boolean;
+  /** Open with the search box showing (the add-trip form's Search chip). */
+  initialSearchOpen?: boolean;
+  /** Leave out the label row and the address box: the add-trip form shows
+   *  the place itself and only needs the search, map and current location. */
+  bare?: boolean;
 }
 
 export function LocationPickerField({
@@ -79,9 +58,11 @@ export function LocationPickerField({
   onLocationChange,
   onClear,
   disabled,
+  initialSearchOpen,
+  bare,
 }: LocationPickerFieldProps) {
   const [loading, setLoading] = useState(false);
-  const [showSearch, setShowSearch] = useState(false);
+  const [showSearch, setShowSearch] = useState(!!initialSearchOpen);
   const [searchText, setSearchText] = useState("");
   const [showMap, setShowMap] = useState(false);
   const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
@@ -236,7 +217,8 @@ export function LocationPickerField({
   };
 
   return (
-    <View style={[styles.container, disabled && styles.disabled]}>
+    <View style={[bare ? styles.bareContainer : styles.container, disabled && styles.disabled]}>
+      {!bare && (
       <View style={styles.headerRow}>
         <Text style={styles.label}>{label}</Text>
         {onClear && hasValue && !disabled && (
@@ -250,8 +232,10 @@ export function LocationPickerField({
           </TouchableOpacity>
         )}
       </View>
+      )}
 
       {/* Address display */}
+      {!bare && (
       <View style={styles.addressBox}>
         {loading ? (
           <ActivityIndicator size="small" color={AMBER} accessibilityLabel="Loading location" />
@@ -268,6 +252,10 @@ export function LocationPickerField({
           <Text style={styles.placeholder}>No location set</Text>
         )}
       </View>
+      )}
+      {bare && loading && (
+        <ActivityIndicator size="small" color={AMBER} style={{ marginTop: 8 }} accessibilityLabel="Loading location" />
+      )}
 
       {/* Action buttons */}
       {!disabled && (
@@ -281,7 +269,7 @@ export function LocationPickerField({
             accessibilityLabel={`Use current location for ${label}`}
           >
             <Ionicons name="locate-outline" size={16} color={AMBER} accessible={false} />
-            <Text style={styles.actionLabel}>Current</Text>
+            <Text style={styles.actionLabel}>{bare ? "Where I am" : "Current"}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -492,6 +480,9 @@ export function LocationPickerField({
 const styles = StyleSheet.create({
   container: {
     marginTop: 16,
+  },
+  bareContainer: {
+    marginTop: 4,
   },
   disabled: {
     opacity: 0.6,

@@ -370,7 +370,7 @@ export default function MileageReliefScreen() {
 
       <TouchableOpacity
         style={s.secondaryBtn}
-        onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never)}
+        onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual", source: "mileage_relief" } } as never)}
       >
         <Text style={s.secondaryBtnText}>Add a past trip</Text>
       </TouchableOpacity>

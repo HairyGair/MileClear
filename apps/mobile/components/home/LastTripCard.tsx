@@ -194,7 +194,7 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint }: Pr
         <Pressable
           onPress={() => {
             trackHomeTap("first_trip_add_past", mode, state);
-            router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never);
+            router.push({ pathname: "/trip-form", params: { mode: "manual", source: "home_last_trip" } } as never);
           }}
           style={s.linkRow}
           accessibilityRole="button"

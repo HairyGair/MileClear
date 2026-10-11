@@ -13,10 +13,17 @@
 // drive was missed. A pause the driver set is named on the sheet itself, with
 // a Resume button, since that answers the report before anyone has to look.
 //
+// 11 Oct 2026 (add-trip PROPOSALS 0.10, decision J): the sheet asks for the
+// journey with the same From / To / When card as "Add a past trip" (place
+// chips, day chips, set-off time), checks for a trip MileClear already has
+// with the same rule, and ends on the form's saved card, so the trip can be
+// marked Business or Personal there and then, or followed by the next one.
+//
 // iPad-safe modal: presentationStyle="overFullScreen" + statusBarTranslucent,
 // plain TouchableOpacity for the CTAs (not an animated button), per the
 // build-60 iPad hit-testing fix.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -34,8 +41,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { reportMissingTrip, fetchServerRouteDistance, type CreateTripData } from "../lib/api/trips";
-import { DateTimePickerField } from "./DateTimePickerField";
-import { LocationPickerField } from "./LocationPickerField";
 import { apiRequest } from "../lib/api/index";
 import { getDatabase } from "../lib/db/index";
 import { resolveLiveRun, describeElapsed } from "../lib/tracking/liveRecording";
@@ -46,17 +51,35 @@ import {
   isTooRecent,
   describeReportNote,
   endTimeFor,
-  findOverlappingTrip,
   parseMilesInput,
   pauseIntervals,
   pauseNotice,
   placeLabel,
-  type LocalTripRow,
   type PauseEventRow,
   type PauseInterval,
 } from "../lib/trips/missingReportRule";
 import { haptic } from "../lib/haptics";
 import { collectMissingTripPhoneLog, withTimeout } from "../lib/tracking/trackingLogStore";
+import { settleTrips } from "../lib/trips/settle";
+import { findTripAround, type KnownTrip } from "../lib/trips/overlapLookup";
+import { describeKnownTrip } from "../lib/trips/overlapText";
+import {
+  canChain,
+  chainParams,
+  chainSubtitle,
+  departureFor,
+  type SavedTripFacts,
+} from "../lib/trips/pastTripRule";
+import { loadSavedPlaces } from "../lib/trips/savedPlaces";
+import type { SavedPlace } from "../lib/trips/placeLabel";
+import { isOnline, onConnectivityChange } from "../lib/network";
+import { haversineDistance, type TripClassification } from "@mileclear/shared";
+import { FromToCard } from "./addTrip/FromToCard";
+import { WhenCard } from "./addTrip/WhenCard";
+import { OverlapLine } from "./addTrip/OverlapNotice";
+import { SavedTripCard } from "./addTrip/SavedTripCard";
+import { placeWords, usePickerPlaceSource } from "./addTrip/PlaceField";
+import type { ClockValue } from "./addTrip/TimeRow";
 
 /** Newest trip on the device, by start time. Null when there are none. */
 async function newestLocalTrip(): Promise<{
@@ -155,21 +178,7 @@ async function liveRecording(): Promise<{ startedAt: number; points: number } | 
  */
 async function settleBeforeReporting(): Promise<{ landed: Awaited<ReturnType<typeof newestLocalTrip>> }> {
   const before = await newestLocalTrip();
-  const work = (async () => {
-    try {
-      const { finalizeStaleAutoRecordings } = await import("../lib/tracking/detection");
-      await finalizeStaleAutoRecordings();
-    } catch {
-      // Nothing recording, or the finalize threw - either way, carry on.
-    }
-    try {
-      const { processSyncQueue } = await import("../lib/sync/index");
-      await processSyncQueue();
-    } catch {
-      // Offline. The report still goes; the queue drains later.
-    }
-  })();
-  await Promise.race([work, new Promise((r) => setTimeout(r, 8000))]);
+  await settleTrips(8000);
   const after = await newestLocalTrip();
   const landed = after && after.id !== before?.id ? after : null;
   return { landed };
@@ -190,20 +199,6 @@ async function readPauseState(): Promise<{ activeUntil: number | null; intervals
     return { activeUntil, intervals: pauseIntervals(rows, activeUntil) };
   } catch {
     return { activeUntil: null, intervals: [] };
-  }
-}
-
-/** Saved trips near a time window, for the "already have a trip" check. */
-async function localTripsAround(start: Date, end: Date): Promise<LocalTripRow[]> {
-  try {
-    const db = await getDatabase();
-    return await db.getAllAsync<LocalTripRow>(
-      `SELECT id, started_at, ended_at, start_address, end_address, distance_miles FROM trips
-       WHERE started_at >= ? AND started_at <= ?`,
-      [new Date(start.getTime() - 24 * 60 * 60 * 1000).toISOString(), end.toISOString()]
-    );
-  } catch {
-    return [];
   }
 }
 
@@ -231,11 +226,11 @@ interface Place {
 type Step = "form" | "offer" | "miles" | "done";
 
 interface Added {
+  /** Null when it saved on the phone and is waiting to upload. */
+  tripId: string | null;
   miles: number;
-  from: string;
-  to: string;
-  departAt: Date;
   typed: boolean;
+  facts: SavedTripFacts;
 }
 
 export function MissingTripReporter({
@@ -247,14 +242,23 @@ export function MissingTripReporter({
    *  the centred "Missing a trip? Tell us" line under To sort and the list. */
   variant?: "card" | "row" | "link";
 } = {}) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("form");
   const [from, setFrom] = useState<Place | null>(null);
   const [to, setTo] = useState<Place | null>(null);
-  // When they set off. Starts empty so the driver has to set it: a default of
-  // "now" would be filed silently as the drive's time (a report that said
-  // only "To Peterborough" once cost an hour on the wrong day).
-  const [departAt, setDepartAt] = useState<Date | null>(null);
+  // When they set off, as a day and a time. Both start empty so the driver
+  // has to set them: a default of "now" would be filed silently as the
+  // drive's time (a report that said only "To Peterborough" once cost an hour
+  // on the wrong day).
+  const [day, setDay] = useState<Date | null>(null);
+  const [time, setTime] = useState<ClockValue | null>(null);
+  const departAt = day && time ? departureFor(day, time.hours, time.minutes) : null;
+  const [classification, setClassification] = useState<TripClassification>("unclassified");
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [online, setOnline] = useState(isOnline());
+  useEffect(() => onConnectivityChange(setOnline), []);
+  const placeSource = usePickerPlaceSource();
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -273,6 +277,9 @@ export function MissingTripReporter({
     let cancelled = false;
     readPauseState().then((p) => {
       if (!cancelled) setPause(p);
+    });
+    loadSavedPlaces().then((p) => {
+      if (!cancelled) setSavedPlaces(p);
     });
     return () => {
       cancelled = true;
@@ -295,7 +302,9 @@ export function MissingTripReporter({
     setStep("form");
     setFrom(null);
     setTo(null);
-    setDepartAt(null);
+    setDay(null);
+    setTime(null);
+    setClassification("unclassified");
     setNote("");
     setMilesText("");
     setAdded(null);
@@ -305,6 +314,56 @@ export function MissingTripReporter({
   const close = () => {
     setOpen(false);
   };
+
+  // Cancel (or the back gesture) on a report with anything in it asks first:
+  // the next open starts empty, so closing throws it away.
+  const closeForm = () => {
+    const filled = step === "form" && (from !== null || to !== null || day !== null || time !== null || note.trim() !== "");
+    if (!filled || sending) {
+      close();
+      return;
+    }
+    Alert.alert("Discard this report?", "It hasn't been sent yet.", [
+      { text: "Keep editing", style: "cancel" },
+      { text: "Discard", style: "destructive", onPress: close },
+    ]);
+  };
+
+  // The same "MileClear already has a trip around then" line as Add a past
+  // trip, as soon as the day and time are set, so a drive that was recorded
+  // after all can be opened instead of reported. The end is a guess until
+  // the route is known: the straight line, a quarter longer, at 30 mph.
+  const [overlap, setOverlap] = useState<KnownTrip | null>(null);
+  const lastLineRef = useRef<string | null>(null);
+  const departMs = departAt ? departAt.getTime() : null;
+  useEffect(() => {
+    if (!open || step !== "form" || departMs == null) {
+      setOverlap(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const start = new Date(departMs);
+      const guessMiles = from && to ? haversineDistance(from.lat, from.lng, to.lat, to.lng) * 1.25 : null;
+      const end = guessMiles != null && guessMiles > 0
+        ? endTimeFor({ departAt: start, routedSecs: null, typedMiles: guessMiles, now: Date.now() })
+        : null;
+      findTripAround(start, end)
+        .then((hit) => {
+          if (cancelled) return;
+          setOverlap(hit);
+          if (hit && lastLineRef.current !== hit.id) {
+            lastLineRef.current = hit.id;
+            trackReportEvent("trip.report_missing_overlap_line", { existingTripId: hit.id, existingSource: hit.source });
+          }
+        })
+        .catch(() => {});
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [open, step, departMs, from, to]);
 
   const resume = async () => {
     setResuming(true);
@@ -419,31 +478,29 @@ export function MissingTripReporter({
     if (!from || !to || !departAt) return;
     const end = endTimeFor({ departAt, routedSecs, typedMiles: typed ? miles : null, now: Date.now() });
 
-    const clash = findOverlappingTrip(await localTripsAround(departAt, end), departAt, end);
+    // The same check as "Add a past trip": any trip that overlaps in time,
+    // on the phone and, for older days, on the server.
+    const clash = await findTripAround(departAt, end).catch(() => null);
     if (clash) {
-      const clashStart = new Date(clash.started_at);
-      const where =
-        clash.start_address && clash.end_address
-          ? `${clash.start_address} to ${clash.end_address}`
-          : clash.start_address || clash.end_address || "A trip";
+      const w = describeKnownTrip(clash);
       const choice = await ask(
-        "You already have a trip at that time",
-        `${where}, from ${clockTime(clashStart)} on ${shortDay(clashStart)}. Add this one as well?`,
-        ["Don't add it", "Add anyway"]
+        "MileClear already has a trip around then",
+        `${w.route}, ${w.day}, ${w.times}, ${w.miles}. ${w.how}.\n\nIs it the drive you're adding?`,
+        ["It's the same drive", "Open that trip to fix it", "Add mine as well"]
       );
       trackReportEvent("trip.report_missing_overlap_prompt", {
-        outcome: choice === 1 ? "added_anyway" : "declined",
+        outcome: choice === 2 ? "added_anyway" : choice === 1 ? "opened" : "declined",
         existingTripId: clash.id,
+        existingSource: clash.source,
       });
-      if (choice === 0) {
+      if (choice !== 2) {
         setOpen(false);
         reset();
+        if (choice === 1) router.push({ pathname: "/trip-form", params: { id: clash.id } } as never);
         return;
       }
     }
 
-    const fromLabel = placeLabel(from.address);
-    const toLabel = placeLabel(to.address);
     const vehicleId = await primaryVehicleId();
     const data: CreateTripData = {
       startLat: from.lat,
@@ -477,7 +534,26 @@ export function MissingTripReporter({
         departAt: departAt.toISOString(),
         overlapWarned: clash !== null,
       });
-      setAdded({ miles, from: fromLabel, to: toLabel, departAt, typed });
+      setAdded({
+        tripId: result?.data?.id ?? null,
+        miles,
+        typed,
+        facts: {
+          startLat: from.lat,
+          startLng: from.lng,
+          startAddress: from.address,
+          startName: placeWords(from, savedPlaces).name,
+          endLat: to.lat,
+          endLng: to.lng,
+          endAddress: to.address,
+          endName: placeWords(to, savedPlaces).name,
+          startedAt: departAt,
+          endedAt: end,
+          classification: "unclassified",
+          vehicleId: vehicleId ?? null,
+        },
+      });
+      setClassification("unclassified");
       setStep("done");
       onTripAdded?.();
     } catch {
@@ -566,6 +642,31 @@ export function MissingTripReporter({
       </View>
     ) : null;
 
+  /** Business or Personal on the saved card, through the same SQLite-first
+   *  update path as the trip screen. Only once the trip has a server id. */
+  const classifyAdded = async (c: TripClassification) => {
+    if (!added?.tripId) return;
+    const before = classification;
+    setClassification(c);
+    try {
+      const { syncUpdateTrip } = await import("../lib/sync/actions");
+      await syncUpdateTrip(added.tripId, { classification: c });
+      trackReportEvent("trip.report_missing_classified", { tripId: added.tripId, classification: c });
+    } catch {
+      setClassification(before);
+      Alert.alert("Couldn't save that", "You can mark it on Trips instead.");
+    }
+  };
+
+  const openChain = (kind: "next" | "way_back") => {
+    if (!added) return;
+    const facts = { ...added.facts, classification };
+    trackReportEvent("trip.report_missing_chain_tapped", { kind });
+    setOpen(false);
+    reset();
+    router.push({ pathname: "/trip-form", params: chainParams(kind, facts) } as never);
+  };
+
   const tooRecent = isTooRecent(departAt, Date.now());
   const canSend = canSendReport({ hasFrom: from !== null, hasTo: to !== null, departAt, extra: note, now: Date.now() });
   const typedMiles = parseMilesInput(milesText);
@@ -601,7 +702,7 @@ export function MissingTripReporter({
         animationType="slide"
         presentationStyle="overFullScreen"
         statusBarTranslucent
-        onRequestClose={close}
+        onRequestClose={step === "form" ? closeForm : close}
       >
         <KeyboardAvoidingView
           style={styles.backdrop}
@@ -617,32 +718,44 @@ export function MissingTripReporter({
                     the trip straight away.
                   </Text>
                   {pauseBanner}
-                  <LocationPickerField
-                    label="From"
-                    lat={from?.lat ?? null}
-                    lng={from?.lng ?? null}
-                    address={from?.address ?? null}
-                    onLocationChange={(lat, lng, address) => setFrom({ lat, lng, address })}
-                    onClear={() => setFrom(null)}
+                  <FromToCard
+                    from={from}
+                    to={to}
+                    onFrom={(v) => setFrom(v)}
+                    onTo={(v) => setTo(v)}
+                    onSwap={() => {
+                      setFrom(to);
+                      setTo(from);
+                    }}
+                    source={placeSource}
+                    savedPlaces={savedPlaces}
+                    online={online}
                     disabled={sending}
+                    style={styles.onSheet}
                   />
-                  <LocationPickerField
-                    label="To"
-                    lat={to?.lat ?? null}
-                    lng={to?.lng ?? null}
-                    address={to?.address ?? null}
-                    onLocationChange={(lat, lng, address) => setTo({ lat, lng, address })}
-                    onClear={() => setTo(null)}
-                    disabled={sending}
-                  />
-                  <DateTimePickerField
-                    label="When did you set off? (roughly)"
-                    value={departAt}
-                    onChange={setDepartAt}
-                    maximumDate={new Date()}
-                    disabled={sending}
-                    hideNow
-                  />
+                  <View style={[styles.whenCard, styles.onSheet]}>
+                    <WhenCard
+                      day={day}
+                      onDay={setDay}
+                      time={time}
+                      onTime={setTime}
+                      now={new Date()}
+                      timeHint="Roughly is fine"
+                      disabled={sending}
+                    >
+                      {overlap && (
+                        <OverlapLine
+                          trip={overlap}
+                          onOpen={() => {
+                            trackReportEvent("trip.report_missing_overlap_opened", { existingTripId: overlap.id });
+                            setOpen(false);
+                            reset();
+                            router.push({ pathname: "/trip-form", params: { id: overlap.id } } as never);
+                          }}
+                        />
+                      )}
+                    </WhenCard>
+                  </View>
                   {tooRecent && (
                     <Text style={styles.timeHint}>
                       That&apos;s the time now. Pick roughly when you set off on this drive.
@@ -673,7 +786,7 @@ export function MissingTripReporter({
                       <Text style={styles.sendText}>Send</Text>
                     )}
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.cancel} onPress={close} activeOpacity={0.7}>
+                  <TouchableOpacity style={styles.cancel} onPress={closeForm} activeOpacity={0.7}>
                     <Text style={styles.cancelText}>Cancel</Text>
                   </TouchableOpacity>
                 </>
@@ -763,20 +876,25 @@ export function MissingTripReporter({
               )}
 
               {step === "done" && added && (
-                <>
-                  <View style={styles.doneIcon}>
-                    <Ionicons name="checkmark-circle" size={40} color={colors.green} />
-                  </View>
-                  <Text style={[styles.title, styles.centre]}>Trip added</Text>
-                  <Text style={styles.doneMiles}>{added.miles.toFixed(1)} miles</Text>
-                  <Text style={[styles.sub, styles.centre]}>
-                    {added.from} to {added.to}, {shortDay(added.departAt)} at {clockTime(added.departAt)}.
-                    It&apos;s in your trips, ready for you to mark as business or personal.
-                  </Text>
-                  <TouchableOpacity style={styles.send} onPress={close} activeOpacity={0.85}>
-                    <Text style={styles.sendText}>Done</Text>
-                  </TouchableOpacity>
-                </>
+                <SavedTripCard
+                  miles={added.miles}
+                  summary={`${added.facts.startName} to ${added.facts.endName ?? placeLabel(to?.address)} · ${shortDay(
+                    added.facts.startedAt
+                  )}, ${clockTime(added.facts.startedAt)} to ${clockTime(added.facts.endedAt)}`}
+                  classification={classification}
+                  milesFrom={added.typed ? "Miles typed in. Times are roughly when you said" : "Worked out from the road route. Times are roughly when you said"}
+                  savedWhere={
+                    added.tripId ? "It's in your trips." : "Saved on your phone. It uploads when you're back online."
+                  }
+                  onClassify={added.tripId ? classifyAdded : null}
+                  next={{ subtitle: chainSubtitle("next", added.facts, new Date()), onPress: () => openChain("next") }}
+                  wayBack={
+                    canChain("way_back", added.facts)
+                      ? { subtitle: chainSubtitle("way_back", added.facts, new Date()), onPress: () => openChain("way_back") }
+                      : null
+                  }
+                  onDone={close}
+                />
               )}
             </ScrollView>
           </View>
@@ -787,6 +905,19 @@ export function MissingTripReporter({
 }
 
 const styles = StyleSheet.create({
+  onSheet: {
+    backgroundColor: colors.bg,
+  },
+  whenCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    marginTop: 12,
+    marginBottom: 12,
+  },
   timeHint: {
     color: colors.amber,
     fontFamily: fonts.medium,
