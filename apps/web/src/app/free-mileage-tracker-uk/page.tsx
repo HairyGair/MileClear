@@ -111,7 +111,7 @@ const faqSchema = {
       name: "What do I need to pay for?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Pro (£4.99/month) gives you: the printable HMRC Self Assessment PDF, CSV export, CSV bulk-import of platform earnings, open-banking earnings sync, Auto-Classify Rules (work-schedule-driven), Business Insights (earnings per mile/hour, platform comparison, golden hours), driving analytics with multi-month trends, unlimited saved locations, unlimited vehicles, accountant sharing, and the Journey Map.",
+        text: "Pro (£4.99/month) gives you: the printable HMRC Self Assessment PDF, CSV export, CSV bulk-import of platform earnings, open-banking earnings sync, sorting trips by your work hours, Business Insights (earnings per mile/hour, platform comparison, golden hours), driving analytics with multi-month trends, unlimited saved locations, unlimited vehicles, accountant sharing, and the Journey Map.",
       },
     },
     {
@@ -317,7 +317,7 @@ export default function FreeMileageTrackerUk() {
                   <li>PDF trip report</li>
                   <li>Bulk CSV earnings import</li>
                   <li>Open Banking earnings sync</li>
-                  <li>Auto-Classify Rules (schedule-driven)</li>
+                  <li>Sorting trips by your work hours</li>
                   <li>Business Insights (£/mile, £/hour, golden hours)</li>
                   <li>Driving Analytics multi-month trends</li>
                   <li>Accountant sharing (read-only dashboard)</li>
@@ -357,7 +357,7 @@ export default function FreeMileageTrackerUk() {
               },
               {
                 q: "What's behind the paywall?",
-                a: "Pro covers: HMRC Self Assessment PDF, CSV export + import, open banking, Auto-Classify Rules, Business Insights, multi-month analytics, accountant sharing, Journey Map, unlimited vehicles and saved locations.",
+                a: "Pro covers: HMRC Self Assessment PDF, CSV export + import, open banking, sorting by work hours, Business Insights, multi-month analytics, accountant sharing, Journey Map, unlimited vehicles and saved locations.",
               },
               {
                 q: "Why is the tracking free?",

@@ -1794,7 +1794,7 @@ ${statGrid([
     },
   ])}
 ${para(`Trips only count towards your tax deduction once they're marked as business. You've got <strong style="color:#f0f2f5;">${data.count}</strong> waiting - that's up to <strong style="color:#f5a623;">${gbp(data.potentialDeductionPence)}</strong> you could be claiming.`)}
-${para("A minute or two sorts them: open the inbox, tap Business or Personal on each, done. Trips from places you visit often can be set to classify themselves under Auto-classify rules.")}
+${para("A minute or two sorts them: open Trips, then To sort, and tap Business or Personal on each. MileClear learns your regular journeys and sorts them for you after a few.")}
 ${ctaButton("Classify my trips", DASHBOARD_URL)}
 ${SIGN_OFF}`;
   const html = emailShell({

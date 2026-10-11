@@ -29,7 +29,7 @@ const pro = [
   "Accountant Portal (read-only dashboard you can invite by email)",
   "Open Banking earnings import and bank-transaction inbox",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
-  "Auto-Classify Rules: business or personal from your work schedule",
+  "Sort by work hours: trips in your work hours marked as Business",
   "Business insights: earnings a mile, platform comparison, golden hours, weekly P&L",
   "Driving Analytics and Journey Map",
   "Unlimited vehicles, saved locations and invoices",

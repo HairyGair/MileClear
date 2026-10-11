@@ -289,7 +289,7 @@ export default function MileageTrackerUk() {
                 {
                   title: "Business or personal classification",
                   body:
-                    "Tap once to classify a trip, set saved locations for one-trip auto-classification, or use Auto-Classify Rules (Pro) to never tap again.",
+                    "Tap once to classify a trip, set saved locations for one-trip auto-classification, MileClear learns your regular journeys and sorts them for you, and with Pro it can mark trips in your work hours as Business.",
                 },
                 {
                   title: "DVLA vehicle lookup",

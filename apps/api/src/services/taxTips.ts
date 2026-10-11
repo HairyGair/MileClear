@@ -503,7 +503,7 @@ export const TAX_TIPS: TaxTip[] = [
     id: "mc-pro-features",
     title: "💎 What Pro unlocks (£4.99/month)",
     body:
-      "HMRC submissions, accountant sharing, Open Banking auto-import, deeper business insights, auto-classify rules, weekly P&L. £44.99/year saves 25%.",
+      "Downloads for your Self Assessment, accountant sharing, Open Banking auto-import, deeper business insights, sorting by work hours, weekly P&L. £44.99/year saves 25%.",
     category: "mileclear",
   },
 ];

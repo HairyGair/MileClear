@@ -13,7 +13,7 @@ test("Help: search filters the topics and shows a friendly empty state", async (
   expect(filtered).toBeGreaterThan(0);
   expect(filtered).toBeLessThan(all);
 
-  await page.getByLabel("Search help").fill("zzzz-nothing-matches");
+  await page.getByLabel("Search help").fill("zzqxj");
   await expect(page.getByText("Nothing found")).toBeVisible();
   await expect(page.locator("details")).toHaveCount(0);
 });

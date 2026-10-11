@@ -183,3 +183,33 @@ describe("POST /trips — endedAt inference for manual entries", () => {
     expect(update![0].data.routePolyline).toBe("poly");
   });
 });
+
+describe("POST /trips — a trip with nothing in it", () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>;
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.trip.create).mockResolvedValue({
+      id: TRIP_ID, userId: USER_ID, startedAt: new Date(STARTED), endedAt: null,
+      distanceMiles: 3, isManualEntry: true, classification: "business",
+    } as any);
+    vi.mocked(prisma.trip.findUnique).mockResolvedValue({
+      startedAt: new Date(STARTED), endedAt: null, distanceMiles: 3, gpsQuality: null,
+    } as any);
+    vi.mocked(resolveRouteDistance).mockResolvedValue(null as any);
+    app = await createTestApp();
+  });
+
+  const empty = { startLat: 53.4, startLng: -2.9, startAddress: "Liverpool", startedAt: STARTED, classification: "business" };
+
+  it("refuses a hand-added trip with no end and no miles, and says what to add", async () => {
+    const res = await app.inject({ method: "POST", url: "/trips", headers: auth, payload: { ...empty, distanceMiles: 0 } });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("Add where the trip ended, or the miles, then save.");
+    expect(prisma.trip.create).not.toHaveBeenCalled();
+  });
+
+  it("still takes a hand-added trip with only the miles typed", async () => {
+    const res = await app.inject({ method: "POST", url: "/trips", headers: auth, payload: { ...empty, distanceMiles: 3 } });
+    expect(res.statusCode).toBe(201);
+  });
+});
