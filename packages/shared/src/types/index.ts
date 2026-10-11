@@ -692,6 +692,17 @@ export interface Trip {
   /** Present only while a quiet classification is still undoable. */
   autoClassifiedAt?: string | null;
   preAutoClassification?: string | null;
+  /** How the trip was recorded ("automatic", "start_trip", "shift",
+   *  "added_by_hand", "missing_report", "web"). Null on trips from before
+   *  Oct 2026 and from app versions that don't say; absent from older servers. */
+  recordedBy?: string | null;
+  /** Set on each leg of a split: the trip it came from (for the server's
+   *  visit split, leg one keeps that trip's own id), its part, and how many. */
+  splitFromTripId?: string | null;
+  splitPart?: number | null;
+  splitPartCount?: number | null;
+  /** How many trips were joined to make this one. Null when it wasn't a join. */
+  joinedCount?: number | null;
   /** Inline classification hint for unclassified rows on the list response. */
   suggestion?: {
     classification: string;

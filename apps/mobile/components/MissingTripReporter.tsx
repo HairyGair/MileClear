@@ -460,6 +460,7 @@ export function MissingTripReporter({
         ? "Added from a missing-trip report. Miles typed in by the driver; times are approximate."
         : "Added from a missing-trip report. Times are approximate.",
       ...(vehicleId ? { vehicleId } : {}),
+      recordedBy: "missing_report",
     };
 
     try {

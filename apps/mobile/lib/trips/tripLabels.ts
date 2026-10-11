@@ -3,11 +3,15 @@
  * (docs/more-trips-oct2026 PROPOSALS 6.3, 6.5 and 6.6). Pure: no React,
  * no database, no Date.now() unless `now` is left out.
  *
- * Only what the app can already tell from the trip is said. The proposal's
- * other labels ("Started with Start Trip", "Part 1 of 2", "Joined from 2
- * trips") need facts the server does not keep yet (decision T-F), so a trip
- * never shows them here. A trip with nothing worth saying gets no tag.
+ * Only what the app can tell from the trip is said. "Started with Start
+ * Trip", "Part 1 of 2", "Joined from 2 trips" and "Saved later" read the
+ * trip facts the server keeps from Oct 2026 (decision T-F: recordedBy,
+ * splitFromTripId + splitPart/splitPartCount, joinedCount). Older trips, and
+ * any trip from a server without them, have none of these and show none of
+ * those labels. A trip with nothing worth saying gets no tag.
  */
+
+import { isJoinedTrip, isSavedLaterTrip, isSplitTrip, splitPartText } from "@mileclear/shared";
 
 export interface LabelTrip {
   isManualEntry: boolean;
@@ -17,9 +21,23 @@ export interface LabelTrip {
   /** When the server saved it. Absent for a trip only on this phone. */
   createdAt?: string | null;
   autoClassifiedAt?: string | null;
+  // Trip facts (T-F). Absent from older servers; null on older trips.
+  recordedBy?: string | null;
+  splitFromTripId?: string | null;
+  splitPart?: number | null;
+  splitPartCount?: number | null;
+  joinedCount?: number | null;
 }
 
-export type TripTagKind = "upload_failed" | "waiting" | "auto_sorted" | "manual" | "saved_later";
+export type TripTagKind =
+  | "upload_failed"
+  | "waiting"
+  | "auto_sorted"
+  | "manual"
+  | "split"
+  | "joined"
+  | "start_trip"
+  | "saved_later";
 
 export interface TripTag {
   kind: TripTagKind;
@@ -53,6 +71,9 @@ export function isRecentAutoSort(t: LabelTrip, now: number = Date.now()): boolea
  * marks a trip saved in the same few seconds as another one on screen: a
  * split makes its legs together, so the late save time is the split's, not
  * the drive's, and nothing is said.
+ *
+ * This is the timing alone. The label also needs the trip facts (see
+ * showsSavedLater): an automatic recording, neither split nor joined.
  */
 export function isSavedLater(t: LabelTrip, createdInBatch = false): boolean {
   if (t.isManualEntry || createdInBatch) return false;
@@ -62,9 +83,20 @@ export function isSavedLater(t: LabelTrip, createdInBatch = false): boolean {
   return created - ended > SAVED_LATER_MS;
 }
 
+/** "Saved later, when your phone woke up" is shown: late, automatic, not split or joined. */
+export function showsSavedLater(t: LabelTrip, createdInBatch = false): boolean {
+  return isSavedLater(t, createdInBatch) && isSavedLaterTrip(t, SAVED_LATER_MS);
+}
+
+/** "Joined from 3 trips", or null. */
+export function joinedText(t: LabelTrip): string | null {
+  return isJoinedTrip(t) ? `Joined from ${t.joinedCount} trips` : null;
+}
+
 /**
  * The one tag under a trip row, most useful first:
- *   upload failed > waiting to upload > sorted for you > added by you > saved later.
+ *   upload failed > waiting to upload > sorted for you > added by you >
+ *   part 1 of 2 > joined from 2 trips > started with Start Trip > saved later.
  */
 export function tripTag(
   t: LabelTrip,
@@ -74,7 +106,14 @@ export function tripTag(
   if (opts.local) return { kind: "waiting", text: "Waiting to upload", icon: "cloud-upload-outline" };
   if (isRecentAutoSort(t, opts.now)) return { kind: "auto_sorted", text: "Sorted for you", icon: "sparkles-outline" };
   if (t.isManualEntry) return { kind: "manual", text: "Added by you", icon: "create-outline" };
-  // "Saved later" (isSavedLater) waits for the server to record how a trip was saved (T-F): joined trips would read wrongly.
+  const part = splitPartText(t);
+  if (part) return { kind: "split", text: part, icon: "cut-outline" };
+  const joined = joinedText(t);
+  if (joined) return { kind: "joined", text: joined, icon: "git-merge-outline" };
+  if (t.recordedBy === "start_trip") return { kind: "start_trip", text: "Started with Start Trip", icon: "navigate-outline" };
+  if (showsSavedLater(t, opts.createdInBatch)) {
+    return { kind: "saved_later", text: "Saved later, when your phone woke up", icon: "time-outline" };
+  }
   return null;
 }
 
@@ -105,18 +144,37 @@ export function isSplitLeg(gpsQuality: unknown): boolean {
   return typeof v === "string" && v.length > 0;
 }
 
+/**
+ * How the trip was made, for the line under the miles on the trip screen,
+ * with its Ionicons name. Only an automatic (or, without the facts, any
+ * recorded) trip that is safely saved gets the green tick.
+ */
+export function tripMadeDetail(
+  t: LabelTrip,
+  opts: { waitingToUpload: boolean; splitLeg?: boolean }
+): { text: string; done: boolean; icon: string } {
+  if (opts.waitingToUpload) return { text: "Waiting to upload", done: false, icon: "cloud-upload-outline" };
+  if (t.isManualEntry) return { text: "Added by you · saved to your account", done: false, icon: "create-outline" };
+  const part = splitPartText(t);
+  if (part) return { text: `${part} of a longer drive`, done: false, icon: "cut-outline" };
+  // A leg from before the server numbered them: it knows the trip it came
+  // from (gpsQuality, or the new column), not which part it is.
+  if (opts.splitLeg || isSplitTrip(t)) return { text: "Part of a longer drive you split", done: false, icon: "cut-outline" };
+  const joined = joinedText(t);
+  if (joined) return { text: joined, done: false, icon: "git-merge-outline" };
+  if (showsSavedLater(t)) return { text: "Saved later, when your phone woke up", done: false, icon: "time-outline" };
+  if (t.recordedBy === "start_trip") return { text: "Recorded with Start Trip · saved to your account", done: false, icon: "navigate-outline" };
+  if (t.recordedBy === "automatic") return { text: "Recorded automatically · saved to your account", done: true, icon: "checkmark-circle" };
+  return { text: "Recorded by MileClear · saved to your account", done: true, icon: "checkmark-circle" };
+}
+
 /** How the trip was made, for the line under the miles on the trip screen. */
 export function tripMadeLine(
   t: LabelTrip,
   opts: { waitingToUpload: boolean; splitLeg?: boolean }
 ): { text: string; done: boolean } {
-  if (opts.waitingToUpload) return { text: "Waiting to upload", done: false };
-  if (t.isManualEntry) return { text: "Added by you · saved to your account", done: false };
-  // The server notes the trip a leg was split from; it doesn't note which
-  // part it is, so the line doesn't say "Part 1 of 2".
-  if (opts.splitLeg) return { text: "Part of a longer drive you split", done: false };
-  // "Saved later" (isSavedLater) waits for the server to record how a trip was saved (T-F).
-  return { text: "Recorded by MileClear · saved to your account", done: true };
+  const { text, done } = tripMadeDetail(t, opts);
+  return { text, done };
 }
 
 /**

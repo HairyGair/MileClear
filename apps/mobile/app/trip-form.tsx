@@ -106,6 +106,8 @@ import { savedPlaceAt, shortPlaceLabel, type SavedPlace } from "../lib/trips/pla
 import { SAVED_PLACE_NAME_MAX } from "../lib/api/savedLocations";
 import { loadSavedPlaces } from "../lib/trips/savedPlaces";
 import { isSplitLeg } from "../lib/trips/tripLabels";
+import { recordedByForForm } from "../lib/trips/recordedBy";
+import type { TripFacts } from "@mileclear/shared";
 import { claimFirstSplitNote } from "../lib/tutorial/state";
 import { trackTutorial } from "../lib/events/tutorial";
 
@@ -929,6 +931,7 @@ export default function TripFormScreen() {
   // whether it is one leg of a split.
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [splitLeg, setSplitLeg] = useState(false);
+  const [tripFacts, setTripFacts] = useState<TripFacts | null>(null);
   // Saved places, so the trip's ends carry the same names as on the Trips list.
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   useEffect(() => {
@@ -1424,6 +1427,15 @@ export default function TripFormScreen() {
       if (od.odometerEnd != null) { setOdometerEnd(String(od.odometerEnd)); setOdometerOpen(true); }
       setCreatedAt(od.createdAt ?? null);
       setSplitLeg(isSplitLeg((t as { gpsQuality?: unknown }).gpsQuality));
+      // Absent from servers before Oct 2026, so the line just says less.
+      const f = t as TripFacts;
+      setTripFacts({
+        recordedBy: f.recordedBy ?? null,
+        splitFromTripId: f.splitFromTripId ?? null,
+        splitPart: f.splitPart ?? null,
+        splitPartCount: f.splitPartCount ?? null,
+        joinedCount: f.joinedCount ?? null,
+      });
       // Show "edited" only when updatedAt is meaningfully after createdAt.
       if (od.updatedAt && od.createdAt && new Date(od.updatedAt).getTime() - new Date(od.createdAt).getTime() > 60_000) {
         setEditedAt(od.updatedAt);
@@ -2651,6 +2663,7 @@ export default function TripFormScreen() {
           ...(keptGoing && { gpsQuality: { driverKeptGoing: true } }),
           ...(odometerStart.trim() && { odometerStart: parseFloat(odometerStart) }),
           ...(odometerEnd.trim() && { odometerEnd: parseFloat(odometerEnd) }),
+          recordedBy: recordedByForForm(mode),
         };
         const tripResult = await syncCreateTrip(data);
         haptic("success");
@@ -4123,6 +4136,7 @@ export default function TripFormScreen() {
             waitingToSync={loadedLocally}
             createdAt={createdAt}
             splitLeg={splitLeg}
+            facts={tripFacts}
             editedAt={editedAt}
             diversionText={diversion ? diversionLabel(diversion) : null}
             routeCoords={routeCoords}
