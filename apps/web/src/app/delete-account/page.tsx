@@ -121,12 +121,12 @@ export default function DeleteAccountPage() {
                 This is the quickest route and takes effect immediately.
               </p>
               <ol className="legal__list">
-                <li className="legal__list-item">Open MileClear and go to <strong>Profile</strong>.</li>
-                <li className="legal__list-item">Scroll to the bottom and tap <strong>Delete Account</strong>.</li>
-                <li className="legal__list-item">Enter your password to confirm. If you only ever signed in with Apple or Google, there is no password step.</li>
+                <li className="legal__list-item">Open MileClear and go to <strong>More &gt; Settings</strong>.</li>
+                <li className="legal__list-item">Tap your name at the top, then <strong>Delete account</strong> at the bottom.</li>
+                <li className="legal__list-item">Enter your password to confirm. If you only ever signed in with Apple or Google, leave the password blank.</li>
               </ol>
               <p className="legal__text legal__text--small">
-                You can also do this on the web at <a href="/dashboard/settings" className="legal__footer-link">mileclear.com/dashboard/settings</a>.
+                You can also do this on the web at <a href="/dashboard/profile" className="legal__footer-link">mileclear.com/dashboard/profile</a>.
               </p>
             </section>
 
