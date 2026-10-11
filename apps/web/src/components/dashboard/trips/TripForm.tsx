@@ -223,6 +223,8 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
           ...(notes.trim() ? { notes: notes.trim() } : {}),
           ...(odoS != null ? { odometerStart: odoS } : {}),
           ...(odoE != null ? { odometerEnd: odoE } : {}),
+          // How it was recorded, for the app's trip labels. Older servers ignore it.
+          recordedBy: "web",
         };
         const res = await api.post<{ data: { id: string } }>("/trips", body);
         if (prefill?.missedId) {
