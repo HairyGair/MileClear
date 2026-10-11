@@ -816,6 +816,22 @@ export function setupNotificationResponseHandler(): void {
         return;
       }
 
+      // Practice accounts (Oct 2026). A practice asked to see the driver's
+      // records: open the consent sheet for that ask.
+      case "practice_consent": {
+        const linkId = typeof data?.linkId === "string" ? data.linkId : null;
+        router.push((linkId ? `/practice-consent?linkId=${encodeURIComponent(linkId)}` : "/accountant") as never);
+        return;
+      }
+
+      // A request ("Please sort your trips"), the keep-sharing prompt, or
+      // the practice accepting the driver: all live on Your accountant.
+      case "practice_request":
+      case "practice_renewal":
+      case "practice_sharing":
+        router.push("/accountant" as never);
+        return;
+
       case "feedback_shipped":
         // An idea the driver suggested has been built (6 Oct 2026).
         router.push("/feedback" as never);

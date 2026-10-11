@@ -7,7 +7,7 @@
 // better silent than asking twice. The order they appear in is lib/home/ask.ts.
 
 import { useCallback, useEffect, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { acquisitionAskEligible } from "../AcquisitionSourceCard";
 import type { UpdateReadingVehicle } from "../odometer/UpdateReadingSheet";
 import { getDatabase } from "../../lib/db/index";
@@ -16,6 +16,10 @@ import { fetchShiftSuggestions, type ShiftSuggestion } from "../../lib/api/shift
 import { shouldShowOdometerPrompt } from "../../lib/odometer/logic";
 import { NOMINATE_PROMPT_STATE_KEY } from "../../lib/nominateManager";
 import { isQuietToday } from "../../lib/home/ask";
+import { createTtlCache } from "../../lib/home/ttlCache";
+import { fetchPracticeLinks } from "../../lib/api/practice";
+import { pickHomePracticeAsk, type HomePracticeAsk } from "../../lib/practice/logic";
+import { takePendingConsent } from "../../lib/practice/pending";
 
 const QUIET_KEY = "home_ask_dismissed_at";
 const VEHICLE_SNOOZE_KEY = "home_vehicle_ask_dismissed_at";
@@ -208,4 +212,33 @@ export function useShiftAsk(enabled: boolean): {
     remove: (id: string) => setItems((prev) => prev.filter((p) => p.id !== id)),
     reload: load,
   };
+}
+
+// ── Practice accounts (Oct 2026) ──────────────────────────────────────────
+// An accountant's practice waiting on the driver: an unanswered ask to
+// share, the keep-sharing prompt, or the oldest open request. Fetched on
+// focus through a short cache so opening Home often is not a request each
+// time. Also opens the consent sheet for an invite or join link that was
+// opened before the driver signed in.
+const practiceCache = createTtlCache(2 * 60 * 1000);
+
+export function usePracticeAsk(): { ask: HomePracticeAsk | null; reload: () => void } {
+  const [ask, setAsk] = useState<HomePracticeAsk | null>(null);
+  const load = useCallback((force = false) => {
+    practiceCache
+      .get("links", fetchPracticeLinks, force)
+      .then((d) => setAsk(pickHomePracticeAsk(d.links, d.requests)))
+      .catch(() => {});
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      takePendingConsent().then((p) => {
+        if (!p) return;
+        const q = p.invite ? `invite=${encodeURIComponent(p.invite)}` : `code=${encodeURIComponent(p.code ?? "")}`;
+        router.push(`/practice-consent?${q}` as never);
+      });
+    }, [load])
+  );
+  return { ask, reload: () => load(true) };
 }

@@ -843,6 +843,10 @@ function RootNavigator() {
         <Stack.Screen name="ticket-defender" options={{ headerShown: true, title: "Ticket defender" }} />
         <Stack.Screen name="assistant" options={{ headerShown: true, title: "Ask EmSee" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "Your accountant" }} />
+        {/* Consent sheet for sharing with an accountant's practice. A sheet with
+            its own grabber and "Not now" (no header), so the decision sits on
+            top of whatever the driver was doing. */}
+        <Stack.Screen name="practice-consent" options={{ headerShown: false, presentation: "modal", title: "Share with your accountant" }} />
         <Stack.Screen name="help" options={{ headerShown: true, title: "Help and how-tos" }} />
         {/* The tour again (Help > Take the tour, What's new). Draws its own top bar. */}
         <Stack.Screen name="tour" options={{ headerShown: false }} />

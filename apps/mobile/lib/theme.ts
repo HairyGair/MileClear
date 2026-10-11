@@ -45,6 +45,10 @@ export const colors = {
   // marks it selected so "selected" never rests on fill alone.
   personal: "#374151",
   personalEdge: "#94a3b8",
+
+  // Practice accounts: the initials tile for an accountant's firm (white 7%
+  // on surface, pre-blended). Never amber (SPEC-VISUAL accountant 4.14).
+  practiceMark: "#1a2335",
 } as const;
 
 // Recent Journeys route colours, newest first. Five, never cycled; older

@@ -5,13 +5,16 @@ const all = Object.fromEntries(ASK_ORDER.map((id) => [id, true])) as Record<AskI
 
 describe("selectAsk", () => {
   it("picks the first eligible in the fixed order", () => {
-    expect(selectAsk({ statusRed: false, quietToday: false, eligible: all })).toBe("acquisition");
-    expect(selectAsk({ statusRed: false, quietToday: false, eligible: { ...all, acquisition: false } })).toBe("vehicle");
+    expect(selectAsk({ statusRed: false, quietToday: false, eligible: all })).toBe("practice");
+    expect(selectAsk({ statusRed: false, quietToday: false, eligible: { ...all, practice: false } })).toBe("acquisition");
+    expect(
+      selectAsk({ statusRed: false, quietToday: false, eligible: { ...all, practice: false, acquisition: false } })
+    ).toBe("vehicle");
   });
 
   it("follows the order from the spec", () => {
     expect(ASK_ORDER).toEqual([
-      "acquisition", "vehicle", "odometer", "employer", "shift",
+      "practice", "acquisition", "vehicle", "odometer", "employer", "shift",
       "saved_places", "pro", "referral",
     ]);
   });

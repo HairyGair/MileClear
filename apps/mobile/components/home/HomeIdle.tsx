@@ -44,6 +44,7 @@ import {
   useAskQuietDay,
   useEmployerAsk,
   useOdometerAsk,
+  usePracticeAsk,
   useShiftAsk,
   useVehicleAskSnooze,
 } from "./useAsks";
@@ -61,6 +62,7 @@ import { homePersona, showsStartShift } from "../../lib/home/persona";
 import { describeSuggestion } from "../../lib/home/shiftSuggestion";
 import type { StatusLine } from "../../lib/home/statusLine";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
+import { requestAskTitle, shortDay } from "../../lib/practice/logic";
 import { firstSortHint } from "../../lib/tutorial/rule";
 import type { HeroYearFigure } from "../../lib/heroFigure";
 import { colors, spacing } from "../../lib/theme";
@@ -202,11 +204,13 @@ export function HomeIdle(p: Props) {
   });
   const shiftEligibleDriver = isWork && showsStartShift(persona);
   const shiftAsk = useShiftAsk(shiftEligibleDriver);
+  const practice = usePracticeAsk();
   const [gradingShift, setGradingShift] = useState(false);
   const [acqOpen, setAcqOpen] = useState(false);
   const [odoOpen, setOdoOpen] = useState(false);
 
   const eligible: Partial<Record<AskId, boolean>> = {
+    practice: !!practice.ask,
     acquisition: acq.eligible,
     vehicle: !p.hasVehicle && !vehicleSnooze.snoozed,
     odometer: !!odo.vehicle,
@@ -231,6 +235,30 @@ export function HomeIdle(p: Props) {
       quiet.markDismissedToday();
     };
     switch (askId) {
+      case "practice": {
+        const a = practice.ask!;
+        if (a.kind === "consent") {
+          return {
+            id: askId, icon: "people-outline", title: `${a.link.practice.name} would like to see your records`,
+            line: "Nothing is shared unless you say yes.", dismissLabel: "Not now, ask me tomorrow",
+            onPress: press(() => router.push(`/practice-consent?linkId=${a.link.id}` as never)), onDismiss: dismiss(),
+          };
+        }
+        if (a.kind === "renewal") {
+          return {
+            id: askId, icon: "refresh-outline", title: `Keep sharing with ${a.link.practice.name}?`,
+            line: `Sharing ends on ${shortDay(a.link.endsAt)}.`, dismissLabel: "Not now, ask me tomorrow",
+            onPress: press(() => router.push("/accountant" as never)), onDismiss: dismiss(),
+          };
+        }
+        const r = a.request;
+        return {
+          id: askId, icon: "document-text-outline", title: requestAskTitle(r),
+          line: r.dueDate ? `Due ${shortDay(r.dueDate)}` : "Tap to see what they need.",
+          dismissLabel: "Not now, ask me tomorrow",
+          onPress: press(() => router.push("/accountant" as never)), onDismiss: dismiss(),
+        };
+      }
       case "acquisition":
         return {
           id: askId, icon: "chatbubble-ellipses-outline", title: "Where did you hear about MileClear?",
@@ -311,7 +339,7 @@ export function HomeIdle(p: Props) {
           onDismiss: dismiss(p.androidBeta.dismiss),
         };
     }
-  }, [askId, mode, p, isWork, router, quiet, vehicleSnooze, odo, employer, shiftAsk, gradingShift, showPaywall]);
+  }, [askId, mode, p, isWork, router, quiet, vehicleSnooze, odo, employer, shiftAsk, gradingShift, showPaywall, practice.ask]);
 
   // ── Layout ──
   const narrow = width < 380 || fontScale > 1.3;
