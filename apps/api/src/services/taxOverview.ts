@@ -169,6 +169,8 @@ export async function loadTaxOverview(
           returnMileagePence: snapshot.ytd.mileageDeductionPence,
           allowableExpensesPence: snapshot.ytd.allowableExpensesPence ?? 0,
           higherRateHeadroomPence: snapshot.ytd.higherRateHeadroomPence ?? null,
+          higherRatePct: snapshot.ytd.higherRatePct ?? 40,
+          scottishTaxpayer: snapshot.ytd.scottishTaxpayer ?? null,
           mileageDerivation: snapshot.ytd.mileageDeductionDerivation,
           earningsDerivation: snapshot.ytd.earningsDerivation ?? null,
         }

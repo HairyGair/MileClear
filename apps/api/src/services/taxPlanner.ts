@@ -76,6 +76,7 @@ interface PlannerUser {
   employerMileageRatePenceAfter10k: number | null;
   otherAnnualIncomePence: number | null;
   payeAnnualPaidTaxPence: number | null;
+  scottishTaxpayer: boolean | null;
   taxBasis: string;
   accountantAnnualFeePence: number | null;
   pushPrefs: Prisma.JsonValue | null;
@@ -90,6 +91,7 @@ const PLANNER_USER_SELECT = {
   employerMileageRatePenceAfter10k: true,
   otherAnnualIncomePence: true,
   payeAnnualPaidTaxPence: true,
+  scottishTaxpayer: true,
   taxBasis: true,
   accountantAnnualFeePence: true,
   pushPrefs: true,
@@ -182,6 +184,8 @@ export async function loadTaxPlan(userId: string, now: Date = new Date()): Promi
       billPence: billFromProfit(profit, {
         otherIncomePence: user.otherAnnualIncomePence,
         payeDeductedPence,
+        taxYear,
+        scottishTaxpayer: user.scottishTaxpayer,
       }).billPence,
       hasEarnings: grossEarningsPence > 0,
     };

@@ -18,7 +18,7 @@ import { buildTaxSnapshot } from "../../services/taxSnapshot.js";
 
 const NOW = new Date("2026-10-10T12:00:00Z");
 
-function setup(opts: { earningsPence: number; otherIncomePence: number | null }) {
+function setup(opts: { earningsPence: number; otherIncomePence: number | null; scottishTaxpayer?: boolean | null }) {
   vi.mocked(prisma.user.findUnique).mockResolvedValue({
     fullName: "A",
     workType: "gig",
@@ -26,6 +26,7 @@ function setup(opts: { earningsPence: number; otherIncomePence: number | null })
     employerMileageRatePenceAfter10k: null,
     otherAnnualIncomePence: opts.otherIncomePence,
     payeAnnualPaidTaxPence: null,
+    scottishTaxpayer: opts.scottishTaxpayer ?? null,
     taxBasis: "cash",
     accountantAnnualFeePence: null,
   } as never);
@@ -62,6 +63,30 @@ describe("higherRateHeadroomPence", () => {
   it("is null once over the threshold", async () => {
     setup({ earningsPence: 3_000_000, otherIncomePence: 3_000_000 });
     expect((await buildTaxSnapshot("u", NOW)).ytd.higherRateHeadroomPence).toBeNull();
+  });
+});
+
+describe("Scottish taxpayer", () => {
+  it("measures headroom to Scotland's 42% rate at 43,662", async () => {
+    setup({ earningsPence: 4_000_000, otherIncomePence: null, scottishTaxpayer: true });
+    const s = await buildTaxSnapshot("u", NOW);
+    expect(s.ytd.higherRateHeadroomPence).toBe(4_366_200 - 4_000_000);
+    expect(s.ytd.higherRatePct).toBe(42);
+    expect(s.ytd.scottishTaxpayer).toBe(true);
+  });
+
+  it("uses the Scottish bands for the estimate (2026-27, 30,000 profit)", async () => {
+    setup({ earningsPence: 3_000_000, otherIncomePence: null, scottishTaxpayer: true });
+    const s = await buildTaxSnapshot("u", NOW);
+    // Income Tax 3,451.07 (see shared incomeTax.test.ts) + Class 4 17,430 x 6% = 1,045.80
+    expect(s.ytd.grossTaxLiabilityPence).toBe(345_107 + 104_580);
+  });
+
+  it("not answered is the rest of the UK", async () => {
+    setup({ earningsPence: 3_000_000, otherIncomePence: null, scottishTaxpayer: null });
+    const s = await buildTaxSnapshot("u", NOW);
+    expect(s.ytd.grossTaxLiabilityPence).toBe(348_600 + 104_580);
+    expect(s.ytd.higherRatePct).toBe(40);
   });
 });
 

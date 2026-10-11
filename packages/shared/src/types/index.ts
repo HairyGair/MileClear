@@ -26,6 +26,9 @@ export interface User {
    *  pence. Subtracted from gross liability to compute the "still owed"
    *  figure on Tax Readiness. Added 10 May 2026. */
   payeAnnualPaidTaxPence?: number | null;
+  /** Pays Scottish Income Tax (lives in Scotland). null = not asked yet,
+   *  treated as no. Switches the Income Tax bands in every estimate. */
+  scottishTaxpayer?: boolean | null;
   /** Tax accounting basis. "cash" = count when paid; "accruals" = count
    *  when invoiced. Affects invoice → Tax Readiness aggregation. */
   taxBasis?: "cash" | "accruals";
@@ -129,6 +132,10 @@ export interface TaxSnapshot {
     /** How far the taxable profit plus other income is below the higher-rate
      *  threshold, when within 15,000 pounds of it; else null. Tax tab, 10 Oct 2026. */
     higherRateHeadroomPence?: number | null;
+    /** The rate that headroom leads to: 40, or 42 for a Scottish taxpayer. Added 11 Oct 2026. */
+    higherRatePct?: number;
+    /** The user's "pays Scottish Income Tax" answer used for this estimate (null = not asked, treated as no). */
+    scottishTaxpayer?: boolean | null;
     /** Allowable (non-motor) expenses netted into the estimate, matching the
      *  Self Assessment wizard. Motor costs covered by AMAP are excluded. */
     allowableExpensesPence?: number;
@@ -2500,6 +2507,10 @@ export interface TaxOverview {
     returnMileagePence: number;
     allowableExpensesPence: number;
     higherRateHeadroomPence: number | null;
+    /** 40, or 42 for a Scottish taxpayer (11 Oct 2026). */
+    higherRatePct?: number;
+    /** The "pays Scottish Income Tax" answer behind this estimate. */
+    scottishTaxpayer?: boolean | null;
     mileageDerivation: NumberDerivation;
     earningsDerivation: NumberDerivation | null;
   };

@@ -36,12 +36,21 @@ export function ThisYearCard({
   claimPence: number | null;
   canAddEarnings: boolean;
   /**
-   * The driver said they pay Scottish Income Tax (Mileage Allowance Relief
-   * answers, on this phone only; the server does not know). The headroom
-   * line uses the England, Wales and NI 40% threshold, so it is not shown.
+   * The driver pays Scottish Income Tax (their tax details answer, or the
+   * Mileage Allowance Relief answer on this phone). Since 11 Oct 2026 the
+   * server works the estimate out on Scotland's bands when it knows, and
+   * sends the higher rate (42%) with the headroom.
    */
   scotland?: boolean;
 }) {
+  // The server's answer wins: it is what the estimate above was worked out on.
+  const scottish = thisYear.scottishTaxpayer ?? scotland;
+  const higherPct = thisYear.higherRatePct ?? (scottish ? 42 : 40);
+  // The rate just below the higher rate: 21% intermediate in Scotland, 20% basic elsewhere.
+  const belowPct = higherPct === 42 ? 21 : 20;
+  // Old servers measured headroom to the 40% line only; hide it for a
+  // Scottish driver unless the server says it measured to 42%.
+  const headroomFits = thisYear.higherRatePct != null || !scottish;
   const router = useRouter();
   const [showDerivation, setShowDerivation] = useState(false);
   const noEarnings = thisYear.grossEarningsPence <= 0;
@@ -121,9 +130,9 @@ export function ThisYearCard({
           </View>
         )}
 
-        {thisYear.higherRateHeadroomPence != null && !scotland && (
+        {thisYear.higherRateHeadroomPence != null && headroomFits && (
           <Text style={taxCard.muted} maxFontSizeMultiplier={fontScaleCap.body}>
-            {`You're ${formatPence(thisYear.higherRateHeadroomPence)} away from the 40% rate. Every business mile you record keeps more of your profit at 20%.`}
+            {`You're ${formatPence(thisYear.higherRateHeadroomPence)} away from the ${higherPct}% rate. Every business mile you record keeps more of your profit at ${belowPct}%.`}
           </Text>
         )}
       </View>

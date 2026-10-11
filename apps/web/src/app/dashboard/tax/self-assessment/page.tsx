@@ -47,6 +47,10 @@ interface SaSummary {
   taxBandBreakdown: { band: string; type: string; ratePct: number | null; amountPence: number; description: string }[];
   totalTaxPence: number;
   effectiveRatePercent: number;
+  /** null = not answered (England, Wales and NI rates used); missing on older servers. */
+  scottishTaxpayer?: boolean | null;
+  incomeTaxRegion?: "rUK" | "scotland";
+  taxRatesProvisional?: boolean;
   sa103Values: Record<string, number>;
 }
 
@@ -118,7 +122,8 @@ function BoxRow({ box, s }: { box: Sa103Box; s: SaSummary }) {
 }
 
 export default function SelfAssessmentPage() {
-  const { isPro } = useMe();
+  const { isPro, refresh: refreshMe } = useMe();
+  const [answering, setAnswering] = useState(false);
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
   const [busy, setBusy] = useState(false);
   const [dlError, setDlError] = useState<string | null>(null);
@@ -135,6 +140,22 @@ export default function SelfAssessmentPage() {
       setDlError(messageOf(e, "Couldn't download the PDF. Check your connection and try again."));
     } finally {
       setBusy(false);
+    }
+  }
+
+  // Asked here when not answered yet; saved to the account, the same answer
+  // as Settings > Work and tax.
+  async function answerScottish(yes: boolean) {
+    setAnswering(true);
+    setDlError(null);
+    try {
+      await api.patch("/user/profile", { scottishTaxpayer: yes });
+      await refreshMe();
+      reload();
+    } catch (e) {
+      setDlError(messageOf(e, "Couldn't save that. Try again in a moment."));
+    } finally {
+      setAnswering(false);
     }
   }
 
@@ -194,6 +215,34 @@ export default function SelfAssessmentPage() {
             </Card>
 
             <Card title="Estimated tax">
+              {data.scottishTaxpayer === null ? (
+                <div className="mc-tax-note">
+                  <p>
+                    <strong>Do you pay Scottish income tax?</strong> You do if you live in Scotland. Scotland has its own
+                    Income Tax rates, so it changes the figures below.
+                  </p>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <Button variant="secondary" loading={answering} onClick={() => answerScottish(true)}>
+                      Yes
+                    </Button>
+                    <Button variant="secondary" disabled={answering} onClick={() => answerScottish(false)}>
+                      No
+                    </Button>
+                  </div>
+                </div>
+              ) : data.scottishTaxpayer !== undefined ? (
+                <p className="mc-tax-note">
+                  {data.incomeTaxRegion === "scotland"
+                    ? "Worked out with the Scottish Income Tax rates."
+                    : "Worked out with the England, Wales and Northern Ireland Income Tax rates."}{" "}
+                  <a href="/dashboard/settings/work-tax">Change</a>
+                </p>
+              ) : null}
+              {data.taxRatesProvisional && (
+                <p className="mc-tax-note">
+                  Provisional: the Income Tax rates for {data.taxYear} aren&apos;t published yet, so the latest published rates are used.
+                </p>
+              )}
               <ul className="mc-tax-kv">
                 {data.taxBandBreakdown.map((r, i) => (
                   <li key={`${r.band}-${i}`}>

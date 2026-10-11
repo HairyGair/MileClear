@@ -31,7 +31,7 @@ export function ReliefCard({
         : `Across ${firstYear} to ${lastYear}.`
       : "";
   const back = scotland
-    ? "What you get back depends on your tax rate."
+    ? "You get back 19% to 48% of this, depending on your Scottish tax rate."
     : "You get back 20% or 40% of this, depending on your tax rate.";
   const sub = has
     ? `${span} ${back}`.trim()

@@ -10,7 +10,9 @@ import {
   formatPence,
   formatMiles,
   HMRC_THRESHOLD_MILES,
-  UK_TAX_2025_26,
+  getIncomeTaxRates,
+  higherRateStartsAtPence,
+  taxRegionFor,
   accountantWeeklyFee,
   type TaxSnapshot,
   type ReadinessItem,
@@ -82,6 +84,7 @@ export async function buildTaxSnapshot(userId: string, now: Date = new Date()): 
           employerMileageRatePenceAfter10k: true,
           otherAnnualIncomePence: true,
           payeAnnualPaidTaxPence: true,
+          scottishTaxpayer: true,
           taxBasis: true,
           accountantAnnualFeePence: true,
         },
@@ -257,8 +260,12 @@ export async function buildTaxSnapshot(userId: string, now: Date = new Date()): 
   // salary, pension etc.) the income-tax portion is calculated as the tax
   // due on (other + profit) minus the tax due on `other` alone, so the
   // estimate reflects their real bracket. NI portions stay bound to profit.
+  // Scottish taxpayers get Scotland's Income Tax bands (NI is UK-wide).
+  const scottishTaxpayer = user?.scottishTaxpayer ?? null;
   const taxEstimate = estimateUkTax(taxableProfitPence, {
     otherIncomePence: user?.otherAnnualIncomePence ?? null,
+    taxYear,
+    scottishTaxpayer,
   });
   const grossTaxLiabilityPence =
     taxEstimate.incomeTaxPence + taxEstimate.class2NiPence + taxEstimate.class4NiPence;
@@ -288,14 +295,17 @@ export async function buildTaxSnapshot(userId: string, now: Date = new Date()): 
 
   // Higher-rate headroom (Tax tab, 10 Oct 2026): when profit plus other income
   // is within 15,000 pounds below the higher-rate threshold, how far below it
-  // is. The 2025-26 threshold is frozen, so the one constant serves every year.
-  const higherRateThresholdPence = UK_TAX_2025_26.basicRateThresholdPence;
+  // is. £50,270 (40%) for the rest of the UK, £43,662 (42%) in Scotland
+  // (11 Oct 2026), from this tax year's bands.
+  const higherRate = higherRateStartsAtPence(getIncomeTaxRates(taxYear, taxRegionFor(scottishTaxpayer)));
+  const higherRateThresholdPence = higherRate.incomePence;
   const totalIncomePence = taxableProfitPence + (user?.otherAnnualIncomePence ?? 0);
   const higherRateHeadroomPence =
     totalIncomePence < higherRateThresholdPence &&
     totalIncomePence >= higherRateThresholdPence - 1_500_000
       ? higherRateThresholdPence - totalIncomePence
       : null;
+  const higherRatePct = Math.round(higherRate.rate * 100);
 
   // Set-aside recommendation: apply the YTD effective rate to last week's
   // gross. Self-corrects as the year progresses and the effective rate
@@ -405,6 +415,8 @@ export async function buildTaxSnapshot(userId: string, now: Date = new Date()): 
       taxBasis: userTaxBasis,
       mileageDeductionPence,
       higherRateHeadroomPence,
+      higherRatePct,
+      scottishTaxpayer,
       allowableExpensesPence,
       taxableProfitPence,
       grossTaxLiabilityPence,

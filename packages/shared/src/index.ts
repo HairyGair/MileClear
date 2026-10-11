@@ -7,6 +7,7 @@ export * from "./utils/privacy.js";
 export * from "./utils/walk.js";
 export * from "./utils/saCountdown.js";
 export * from "./utils/mileageRelief.js";
+export * from "./utils/incomeTax.js";
 export * from "./utils/mileageCertificate.js";
 export * from "./utils/ticketDefender.js";
 export * from "./data/releaseNotes.js";

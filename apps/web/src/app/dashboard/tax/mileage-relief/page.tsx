@@ -39,7 +39,9 @@ function claimBy(d: { year: number; month: number; day: number }): string {
  * same shared function the app uses (calculateMileageAllowanceRelief).
  */
 export default function MileageReliefPage() {
-  const { isEmployee } = useMe();
+  const { isEmployee, user } = useMe();
+  // The account's "pays Scottish income tax" answer; not answered shows both regions.
+  const scottish = user?.scottishTaxpayer;
   const { data, error, loading, reload } = useData<MileageReliefData>(isEmployee ? "mileage-relief" : null, () =>
     api.get<{ data: MileageReliefData }>("/mileage-relief").then((r) => r.data)
   );
@@ -58,9 +60,9 @@ export default function MileageReliefPage() {
         carVanAfter10kPence: data.employerMileageRatePenceAfter10k,
       },
       filesSelfAssessment: null,
-      taxRegion: null,
+      taxRegion: scottish == null ? null : scottish ? "scotland" : "rUK",
     });
-  }, [data, year]);
+  }, [data, year, scottish]);
 
   const back = { href: "/dashboard/tax", label: "Tax" };
 

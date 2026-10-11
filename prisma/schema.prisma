@@ -78,6 +78,11 @@ model User {
   // gross liability — otherwise the card double-counts tax their
   // employer has already collected. Laura Joyce request 10 May 2026.
   payeAnnualPaidTaxPence Int?
+  // Pays Scottish Income Tax (lives in Scotland). Switches the Income Tax
+  // bands in every estimate to Scotland's (starter 19% to top 48%). null =
+  // not asked yet, treated as no; the Self Assessment wizard asks then.
+  // NI and the Personal Allowance are UK-wide, so they do not change.
+  scottishTaxpayer Boolean?
   // Accounting basis for tax computations. Cash-basis (the default since
   // April 2024 for most sole traders) counts income when received and
   // expenses when paid. Accruals counts when invoiced/billed regardless

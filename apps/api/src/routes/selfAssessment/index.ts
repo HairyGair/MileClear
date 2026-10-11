@@ -8,6 +8,11 @@ import {
 } from "../../services/export-data.js";
 import {
   estimateUkTax,
+  getIncomeTaxRates,
+  marginalIncomeTaxSlices,
+  personalAllowanceFor,
+  taxRegionFor,
+  type IncomeTaxRates,
   calculateMileageDeduction,
   parseTaxYear,
   UK_TAX_2025_26,
@@ -132,6 +137,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
               employerMileageRatePence: true,
               employerMileageRatePenceAfter10k: true,
               otherAnnualIncomePence: true,
+              scottishTaxpayer: true,
             },
           }),
         ]);
@@ -234,9 +240,16 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
       // at, the same as the Tax tab. Without it a small profit showed £0 tax
       // for a driver whose job already uses their personal allowance (7 Oct
       // 2026: demo, £509 profit on a £50k salary showed £0 vs £155 on Tax).
+      // Scottish taxpayers: Scotland's Income Tax bands for this tax year
+      // (11 Oct 2026). null = not asked yet, worked out as the rest of the UK
+      // and the wizard asks.
+      const scottishTaxpayer = saUser?.scottishTaxpayer ?? null;
       const taxEstimate = estimateUkTax(taxableProfitPence, {
         otherIncomePence: saUser?.otherAnnualIncomePence ?? null,
+        taxYear: validatedTaxYear,
+        scottishTaxpayer,
       });
+      const incomeTaxRates = getIncomeTaxRates(validatedTaxYear, taxRegionFor(scottishTaxpayer));
       const totalTaxPence =
         taxEstimate.incomeTaxPence +
         taxEstimate.class2NiPence +
@@ -250,6 +263,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
         taxableProfitPence,
         taxEstimate,
         saUser?.otherAnnualIncomePence ?? null,
+        incomeTaxRates,
       );
 
       // SA103S box values - consumed by clients via SA103_BOXES[i].dataKey.
@@ -304,6 +318,11 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
           nonMileageExpensesPence,
           taxableProfitPence,
           taxBandBreakdown,
+          scottishTaxpayer,
+          incomeTaxRegion: incomeTaxRates.region,
+          // True only when this year's bands are not published yet and the
+          // latest year's stand in. Screens say "provisional" then.
+          taxRatesProvisional: incomeTaxRates.provisional,
           totalTaxPence,
           effectiveRatePercent,
           sa103Values,
@@ -313,7 +332,7 @@ export async function selfAssessmentRoutes(app: FastifyInstance) {
   );
 }
 
-function buildTaxBandBreakdown(
+export function buildTaxBandBreakdown(
   taxableProfitPence: number,
   taxEstimate: {
     incomeTaxPence: number;
@@ -321,66 +340,60 @@ function buildTaxBandBreakdown(
     class4NiPence: number;
   },
   otherIncomePence: number | null = null,
+  rates: IncomeTaxRates = getIncomeTaxRates(null, "rUK"),
 ): TaxBandRow[] {
   const T = UK_TAX_2025_26;
   const profit = Math.max(0, taxableProfitPence);
   const other = Math.max(0, otherIncomePence ?? 0);
   const rows: TaxBandRow[] = [];
   const gbp = (p: number) => `£${Math.round(p / 100).toLocaleString("en-GB")}`;
+  const PA = rates.personalAllowancePence;
+  const allowanceLeft = personalAllowanceFor(other + profit, rates);
 
-  // The profit sits on top of any other income (salary, pension): each band
-  // row is the part of the profit that falls in that band. With no other
-  // income this is the profit on its own, as before 7 Oct 2026.
-  const inBand = (lo: number, hi: number) =>
-    Math.max(0, Math.min(other + profit, hi) - Math.max(other, lo));
-
-  const paUsed = inBand(0, T.personalAllowancePence);
+  // The part of the full allowance the profit falls in, on top of other income.
+  const paUsed = Math.max(0, Math.min(other + profit, PA) - Math.min(other, PA));
+  const tapered = allowanceLeft < PA
+    ? `. Income over £100,000 shrinks it by £1 for every £2, so you keep ${gbp(allowanceLeft)} of it`
+    : "";
   rows.push({
     band: "Personal Allowance",
     type: "income_tax",
     ratePct: 0,
     amountPence: 0,
     description:
-      other > 0
-        ? `First ${gbp(T.personalAllowancePence)} of income is tax-free. Your other income (${gbp(other)}) uses ${gbp(Math.min(other, T.personalAllowancePence))} of it; ${gbp(paUsed)} of profit falls in it`
-        : `First £${(T.personalAllowancePence / 100).toLocaleString(
-            "en-GB"
-          )} of profit is tax-free (£${(paUsed / 100).toLocaleString("en-GB")} used)`,
+      (other > 0
+        ? `First ${gbp(PA)} of income is tax-free. Your other income (${gbp(other)}) uses ${gbp(Math.min(other, PA))} of it; ${gbp(paUsed)} of profit falls in it`
+        : `First ${gbp(PA)} of profit is tax-free (${gbp(paUsed)} used)`) + tapered,
   });
 
-  // ratePct is a decimal (0.20 = 20%). Clients multiply by 100 for display.
-  const bands: [string, number, number, number, string][] = [
-    ["Basic Rate", T.personalAllowancePence, T.basicRateThresholdPence, T.basicRate, "20% on income between £12,570 and £50,270"],
-    ["Higher Rate", T.basicRateThresholdPence, T.higherRateThresholdPence, T.higherRate, "40% on income between £50,270 and £125,140"],
-    ["Additional Rate", T.higherRateThresholdPence, Number.MAX_SAFE_INTEGER, T.additionalRate, "45% on income above £125,140"],
-  ];
-  let bandTax = 0;
-  for (const [band, lo, hi, rate, description] of bands) {
-    const taxed = inBand(lo, hi);
-    if (taxed <= 0) continue;
-    const amountPence = Math.round(taxed * rate);
-    bandTax += amountPence;
-    rows.push({
-      band,
-      type: "income_tax",
-      ratePct: rate,
-      amountPence,
-      description: other > 0 ? `${description}: ${gbp(taxed)} of profit` : description.replace("income", "profit"),
-    });
-  }
+  // Band edges as income for someone on the full allowance (how gov.uk shows
+  // them), except at the top where the allowance has gone: £125,140.
+  const asIncome = (taxable: number) => (taxable + PA <= rates.allowanceTaperFromPence ? taxable + PA : taxable);
+  const titleCase = (label: string) => label.replace(/\b\w/g, (c) => c.toUpperCase());
+  const scot = rates.region === "scotland" ? " (Scottish rate)" : "";
 
-  // Anything the bands don't explain (the Personal Allowance shrinking on
-  // income over £100,000) so the rows always add up to the total.
-  const unexplained = taxEstimate.incomeTaxPence - bandTax;
-  if (Math.abs(unexplained) > 100) {
+  // Each row is the part of the profit (and any allowance it costs) taxed in
+  // that band. The rows add up to the Income Tax on the profit.
+  // ratePct is a decimal (0.20 = 20%). Clients multiply by 100 for display.
+  const slices = marginalIncomeTaxSlices(profit, other, rates);
+  let lo = 0;
+  slices.forEach((slice, i) => {
+    const band = rates.bands[i];
+    const hi = band.upToTaxablePence;
+    const pct = `${Math.round(band.rate * 100)}%`;
+    const range = hi == null
+      ? `${pct} on income above ${gbp(asIncome(lo))}`
+      : `${pct} on income between ${gbp(asIncome(lo))} and ${gbp(asIncome(hi))}`;
+    lo = hi ?? lo;
+    if (slice.taxablePence <= 0) return;
     rows.push({
-      band: "Personal Allowance reduced",
+      band: titleCase(band.label),
       type: "income_tax",
-      ratePct: null,
-      amountPence: unexplained,
-      description: "The tax-free allowance shrinks by £1 for every £2 of income over £100,000",
+      ratePct: band.rate,
+      amountPence: Math.round(slice.taxPence),
+      description: (other > 0 ? `${range}: ${gbp(slice.taxablePence)} of profit` : range.replace("income", "profit")) + scot,
     });
-  }
+  });
 
   if (taxEstimate.class2NiPence > 0) {
     rows.push({

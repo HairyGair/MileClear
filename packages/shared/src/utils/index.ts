@@ -5,6 +5,7 @@ import {
   UK_TAX_2025_26,
   getHmrcRatesForTaxYear,
 } from "../constants/index.js";
+import { getIncomeTaxRates, incomeTaxOn, taxRegionFor } from "./incomeTax.js";
 
 /**
  * Calculate the Haversine distance between two coordinates in miles.
@@ -1194,30 +1195,15 @@ export function getMilestoneProgress(
 }
 
 /**
- * Income tax due on a single income figure (pence) using 2025-26 UK bands.
- * Treats the figure as taxable income (i.e. after personal allowance has
- * NOT yet been deducted - the function applies the allowance internally).
- */
-function ukIncomeTaxOn(incomePence: number): number {
-  const T = UK_TAX_2025_26;
-  const income = Math.max(0, incomePence);
-  let tax = 0;
-  if (income > T.higherRateThresholdPence) {
-    tax += (income - T.higherRateThresholdPence) * T.additionalRate;
-    tax += (T.higherRateThresholdPence - T.basicRateThresholdPence) * T.higherRate;
-    tax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
-  } else if (income > T.basicRateThresholdPence) {
-    tax += (income - T.basicRateThresholdPence) * T.higherRate;
-    tax += (T.basicRateThresholdPence - T.personalAllowancePence) * T.basicRate;
-  } else if (income > T.personalAllowancePence) {
-    tax += (income - T.personalAllowancePence) * T.basicRate;
-  }
-  return tax;
-}
-
-/**
  * Estimate UK self-employed income tax + NI for a given taxable profit.
- * Uses 2025-26 tax year bands. All values in pence.
+ * All values in pence.
+ *
+ * Income Tax uses the bands for `opts.taxYear` (default: the latest checked
+ * year) and the driver's region: pass `opts.scottishTaxpayer: true` for the
+ * Scottish rates (starter 19% to top 48%). Profit from self-employment is
+ * non-savings, non-dividend income, which is what Scotland sets rates on.
+ * The Personal Allowance shrinks by £1 for every £2 of income over £100,000
+ * (UK-wide). See incomeTax.ts for the bands and their sources.
  *
  * If the user has other taxable income (main job salary, pension etc.) pass
  * `opts.otherIncomePence` so the marginal income-tax rate on the gig profit
@@ -1225,13 +1211,17 @@ function ukIncomeTaxOn(incomePence: number): number {
  * user's only income, which under-estimates tax for anyone in the higher or
  * additional rate bands.
  *
- * NI bands intentionally aren't shifted by other income: Class 2 + Class 4
- * NI apply to self-employment profit only and are independent of any
- * employed/Class-1 income.
+ * NI bands intentionally aren't shifted by other income or region: Class 4
+ * NI is UK-wide and applies to self-employment profit only, independent of
+ * any employed/Class-1 income.
  */
 export function estimateUkTax(
   taxableProfitPence: number,
-  opts?: { otherIncomePence?: number | null }
+  opts?: {
+    otherIncomePence?: number | null;
+    taxYear?: string | null;
+    scottishTaxpayer?: boolean | null;
+  }
 ): {
   incomeTaxPence: number;
   class2NiPence: number;
@@ -1240,13 +1230,14 @@ export function estimateUkTax(
   const T = UK_TAX_2025_26;
   const profit = Math.max(0, taxableProfitPence);
   const otherIncome = Math.max(0, opts?.otherIncomePence ?? 0);
+  const rates = getIncomeTaxRates(opts?.taxYear, taxRegionFor(opts?.scottishTaxpayer));
 
   // Marginal income tax on the profit: total tax due on (other + profit)
   // minus tax that would be due on `other` alone. This handles the case
   // where part of the profit straddles a tax band.
   const incomeTax = otherIncome > 0
-    ? Math.max(0, ukIncomeTaxOn(otherIncome + profit) - ukIncomeTaxOn(otherIncome))
-    : ukIncomeTaxOn(profit);
+    ? Math.max(0, incomeTaxOn(otherIncome + profit, rates) - incomeTaxOn(otherIncome, rates))
+    : incomeTaxOn(profit, rates);
 
   // Class 2 is no longer owed (from 6 April 2024): above the Small Profits
   // Threshold it is "treated as having been paid", and below it paying is

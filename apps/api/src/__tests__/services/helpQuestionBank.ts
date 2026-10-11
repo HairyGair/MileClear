@@ -115,6 +115,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I export a CSV of my trips?", area: "tax_and_claims", id: "exports", expect: [/downloads/i, /csv/i] },
   { q: "Can my accountant log in to see my figures?", area: "tax_and_claims", id: "accountant", expect: [/mileclear\.com/i, PRO] },
   { q: "How is my tax estimate worked out?", area: "tax_and_claims", id: "tax-estimate", expect: [/earnings/i, /expenses|mileage/i] },
+  { q: "I live in Scotland, how do I get the Scottish tax rates?", area: "tax_and_claims", id: "scottish-income-tax", expect: [/tax details/i, /scottish/i] },
   { q: "How much should I put by each week for tax?", area: "tax_and_claims", id: "payment-plan", expect: [/payment plan/i] },
   { q: "When do I pay my tax bill?", area: "tax_and_claims", id: "payment-plan", expect: [/31 january/i] },
   { q: "This is my first tax return, where do I start?", area: "tax_and_claims", id: "first-return", expect: [/new to self assessment/i] },

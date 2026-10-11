@@ -53,6 +53,13 @@ export interface SelfAssessmentSummary {
   taxBandBreakdown: TaxBandBreakdown[];
   totalTaxPence: number;
   effectiveRatePercent: number;
+  /** The driver's "pays Scottish income tax" answer; null = not answered
+   *  (worked out on the England, Wales and NI rates, and the wizard asks).
+   *  Missing from servers before 11 Oct 2026. */
+  scottishTaxpayer?: boolean | null;
+  incomeTaxRegion?: "rUK" | "scotland";
+  /** True when this year's rates are not published yet and the latest stand in. */
+  taxRatesProvisional?: boolean;
   // SA103 box values
   sa103Values: Record<string, number>;
 }
