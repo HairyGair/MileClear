@@ -7,6 +7,7 @@ import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/p
 import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
+import { runPrivacyPurgeJob } from "./privacyPurge.js";
 import { runReconciliationJob } from "./reconciliation.js";
 import { runGeofenceRadiusRecommendJob } from "./geofenceRadiusRecommend.js";
 import { runHmrcKeepAliveJob } from "./hmrcKeepAlive.js";
@@ -1689,6 +1690,12 @@ export function startNotificationJobs(): void {
     const PURGE_INTERVAL_MS = 60 * 60 * 1000;
     void runJob("idempotency_purge", runIdempotencyPurgeJob);
     setInterval(() => void runJob("idempotency_purge", runIdempotencyPurgeJob), PURGE_INTERVAL_MS);
+
+    // Privacy purge: daily. Expired refresh tokens, sign-in and reset codes,
+    // and cached routes nobody has used in 90 days (jobs/privacyPurge.ts).
+    const PRIVACY_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+    void runJob("privacy_purge", () => runPrivacyPurgeJob());
+    setInterval(() => void runJob("privacy_purge", () => runPrivacyPurgeJob()), PRIVACY_PURGE_INTERVAL_MS);
 
     // Fuel station cache pre-warm: every 12 minutes. Keeps the 15-minute
     // in-memory cache fresh so user-facing /fuel/prices requests never
