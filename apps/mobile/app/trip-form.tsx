@@ -2404,6 +2404,16 @@ export default function TripFormScreen() {
       return;
     }
 
+    // A hand-added trip with no end and no miles says nothing but "I was here
+    // once". "Save anyway" on the no-distance question used to let it through,
+    // and it reached the server as a 0-mile trip with no end time (11 Oct
+    // 2026: a form opened at 07:12 and tapped Add Trip at 08:15). Six such
+    // trips in 60 days, none with a note. Ask for the end instead.
+    if (!isEditing && mode === "manual" && (endLat == null || endLng == null) && !(distanceMiles != null && distanceMiles > 0)) {
+      Alert.alert("Where did it end?", "Add where the trip ended, or type the miles, then save.");
+      return;
+    }
+
     // ── Mistake guards (gentle confirms, never hard blocks) — audit point 9.
     // Only on new trips; an edit shouldn't re-nag. Re-runs the save with
     // skipGuards once the user confirms.
