@@ -6,6 +6,7 @@ import {
   describeStartRange,
   describeTravel,
   describeWindow,
+  describeWindowShort,
   needsTimeChoice,
   startBounds,
   travelMsFor,
@@ -101,6 +102,7 @@ describe("tripTimesFor", () => {
 describe("words", () => {
   it("says the window plainly on one day", () => {
     expect(describeWindow(elisa)).toBe("sometime between 07:07 and 17:45 on Mon 28 Sep");
+    expect(describeWindowShort(elisa)).toBe("Mon 28 Sep, some time after 07:07");
   });
   it("names both days when the window crosses midnight", () => {
     expect(describeWindow({ departedAt: local(28, 19, 51), arrivedAt: local(29, 8, 5) })).toBe(

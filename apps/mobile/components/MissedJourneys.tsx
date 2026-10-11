@@ -24,7 +24,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
-import { colors, fonts } from "../lib/theme";
+import { colors, fonts, radii } from "../lib/theme";
 import {
   fetchMissedJourneys,
   fetchServerRouteDistance,
@@ -38,7 +38,7 @@ import { shortDay } from "../lib/tracking/pauseRule";
 import { findOverlappingTrip, type LocalTripRow } from "../lib/trips/missingReportRule";
 import {
   describeRecordedTimes,
-  describeWindow,
+  describeWindowShort,
   needsTimeChoice,
   travelMsFor,
   tripTimesFor,
@@ -100,17 +100,15 @@ function shortPlace(addr: string | null, lat: number, lng: number): string {
   return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
 }
 
-// When the journey happened, in words. A gap row gives its window ("Sometime
-// between 07:07 and 17:30 on Mon 28 Sep"); a drive we recorded gives its own
-// times; a trip-start offer keeps the time its trip began.
+// When the journey happened, in words. A gap row gives the start of its
+// window ("Thu 1 Oct, some time after 17:20"; Add trip asks for the time); a
+// drive we recorded gives its own times; a trip-start offer keeps the time
+// its trip began.
 function whenLine(p: MissedJourneyProposal): string {
   const w = windowOf(p);
   if (!w) return formatWhen(p.arrivedAt);
   if (p.source === "trip_start") return formatWhen(p.arrivedAt);
-  if (!p.source || p.source === "gap") {
-    const text = describeWindow(w);
-    return text.charAt(0).toUpperCase() + text.slice(1);
-  }
+  if (!p.source || p.source === "gap") return describeWindowShort(w);
   return describeRecordedTimes(w);
 }
 
@@ -188,7 +186,7 @@ export function MissedJourneys({
   startExpanded = false,
   onCountChange,
 }: {
-  /** Open the list straight away (the Inbox view, where it is the content). */
+  /** Open the list straight away (To sort, where it is the content). */
   startExpanded?: boolean;
   /** Told how many journeys are waiting, so the review card can say so. */
   onCountChange?: (count: number) => void;
@@ -389,8 +387,15 @@ export function MissedJourneys({
         ? "A trip that may have started earlier"
         : `${items.length} trips that may have started earlier`
       : items.length === 1
-        ? "A journey you might have missed"
-        : `${items.length} journeys to check`;
+        ? "A drive we may have missed"
+        : `${items.length} drives we may have missed`;
+  // The To sort view's section title (the list there is always open).
+  const sectionTitle =
+    starts === items.length
+      ? items.length === 1
+        ? "A trip that may have started earlier"
+        : "Trips that may have started earlier"
+      : "Drives we may have missed";
 
   const shown = items.slice(0, visibleCount);
   const hidden = items.length - shown.length;
@@ -419,27 +424,31 @@ export function MissedJourneys({
   }
 
   return (
+    <View>
+      {startExpanded ? (
+        <Text style={styles.sectionTitle} accessibilityRole="header">{sectionTitle}</Text>
+      ) : null}
     <View style={styles.card}>
-      <TouchableOpacity
-        style={styles.header}
-        onPress={() => setExpanded(false)}
-        activeOpacity={0.7}
-        accessibilityRole="button"
-        accessibilityLabel={`${header}. Tap to hide.`}
-      >
-        <Ionicons name="git-compare-outline" size={16} color={colors.amber} />
-        <Text style={[styles.headerText, styles.headerTextFill]}>{header}</Text>
-        <Ionicons name="chevron-up" size={18} color={colors.text3} accessible={false} />
-      </TouchableOpacity>
-      {shown.map((p) => (
-        <View key={p.id} style={styles.row}>
+      {!startExpanded ? (
+        <TouchableOpacity
+          style={styles.header}
+          onPress={() => setExpanded(false)}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={`${header}. Tap to hide.`}
+        >
+          <Ionicons name="git-compare-outline" size={16} color={colors.amber} />
+          <Text style={[styles.headerText, styles.headerTextFill]}>{header}</Text>
+          <Ionicons name="chevron-up" size={18} color={colors.text3} accessible={false} />
+        </TouchableOpacity>
+      ) : null}
+      {shown.map((p, i) => (
+        <View key={p.id} style={[styles.row, i === 0 && startExpanded && styles.rowFirst]}>
           <Text style={styles.route} numberOfLines={1}>
-            {shortPlace(p.fromAddress, p.fromLat, p.fromLng)}
-            {"  →  "}
-            {shortPlace(p.toAddress, p.toLat, p.toLng)}
+            {shortPlace(p.fromAddress, p.fromLat, p.fromLng)} to {shortPlace(p.toAddress, p.toLat, p.toLng)}
           </Text>
           <Text style={styles.meta}>
-            {whenLine(p)} · ~{p.estimatedMiles} mi
+            {whenLine(p)} · about {p.estimatedMiles} mi
           </Text>
           {droppedNote(p.source) != null && (
             // Worth distinguishing. A gap row is us guessing from a hole in the
@@ -460,6 +469,8 @@ export function MissedJourneys({
                 onPress={() => extend(p.id)}
                 disabled={busyId === p.id}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Extend trip"
               >
                 <Text style={styles.addText}>Extend trip</Text>
               </TouchableOpacity>
@@ -469,9 +480,11 @@ export function MissedJourneys({
                 onPress={() => add(p)}
                 disabled={addingId != null || busyId === p.id}
                 activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Add trip"
               >
                 {addingId === p.id ? (
-                  <ActivityIndicator size="small" color={colors.bg} />
+                  <ActivityIndicator size="small" color={colors.text1} />
                 ) : (
                   <Text style={styles.addText}>Add trip</Text>
                 )}
@@ -482,11 +495,13 @@ export function MissedJourneys({
               onPress={() => dismiss(p.id)}
               disabled={busyId === p.id}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Not a trip"
             >
               {busyId === p.id ? (
                 <ActivityIndicator size="small" color={colors.text3} />
               ) : (
-                <Text style={styles.dismissText}>Dismiss</Text>
+                <Text style={styles.dismissText}>Not a trip</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -516,19 +531,26 @@ export function MissedJourneys({
         />
       )}
     </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 10,
-    borderRadius: 12,
+    marginBottom: 16,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
     backgroundColor: colors.surface,
-    paddingHorizontal: 14,
-    paddingTop: 12,
-    paddingBottom: 6,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.text2,
+    marginBottom: 8,
   },
   header: {
     flexDirection: "row",
@@ -594,15 +616,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.surfaceBorder,
   },
+  rowFirst: {
+    borderTopWidth: 0,
+  },
   route: {
     color: colors.text1,
-    fontFamily: fonts.medium,
-    fontSize: 14.5,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
   },
   meta: {
     color: colors.text2,
     fontFamily: fonts.regular,
-    fontSize: 12.5,
+    fontSize: 13,
     marginTop: 3,
   },
   actions: {
@@ -611,38 +636,43 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 10,
   },
+  // A quiet button: one drive in a list of several is not the screen's one
+  // amber action (PROPOSALS 6.4).
   addBtn: {
-    paddingVertical: 8,
+    minHeight: 44,
+    minWidth: 104,
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: colors.amber,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
   },
   addText: {
-    color: colors.bg,
-    fontFamily: fonts.bold,
-    fontSize: 13.5,
+    color: colors.text1,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
   },
   dismissBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 12,
   },
   dismissText: {
     color: colors.text2,
     fontFamily: fonts.medium,
-    fontSize: 13.5,
+    fontSize: 15,
   },
   moreBtn: {
-    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: "center",
     borderTopWidth: 1,
     borderTopColor: colors.surfaceBorder,
     alignItems: "center",
   },
   moreText: {
-    color: colors.amber,
-    fontFamily: fonts.medium,
-    fontSize: 13,
+    color: colors.text2,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
   },
 });

@@ -1,4 +1,4 @@
-// Split Trip — un-merge a multi-drop journey into its real legs.
+// Split into separate trips: turn a multi-drop journey back into its real legs.
 //
 // Delivery drivers doing quick drops get a whole run recorded as ONE trip
 // (stops shorter than the stop-detection window never segment). The server
@@ -99,7 +99,7 @@ export default function TripSplitScreen() {
     if (enabledSuggestions.length === 0) return;
     Alert.alert(
       `Split into ${legCount} trips?`,
-      `This replaces the current trip with ${legCount} separate trips. Each keeps this trip's classification and can be edited on its own. The total mileage stays the same.`,
+      `This replaces the trip with ${legCount} separate trips. Each starts as this trip's Business or Personal and can be changed on its own. The total miles stay the same.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -140,9 +140,9 @@ export default function TripSplitScreen() {
         <Text style={styles.emptyTitle}>No split points found</Text>
         <Text style={styles.emptyBody}>
           We couldn't find any stops long enough to split this trip at. Splitting works on
-          automatically tracked trips where the vehicle stopped for a minute or more mid-route.
+          recorded trips where you stopped for a minute or more on the way.
         </Text>
-        <Button title="Go Back" variant="secondary" onPress={() => router.back()} style={{ marginTop: 20 }} />
+        <Button title="Back" variant="secondary" onPress={() => router.back()} style={{ marginTop: 20 }} />
       </View>
     );
   }
@@ -152,7 +152,7 @@ export default function TripSplitScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
         <Text style={styles.intro}>
           We found {suggestions.length} {suggestions.length === 1 ? "stop" : "stops"} along this
-          trip. Choose where to split — each amber pin is a detected stop.
+          trip. Choose where to split it. Each amber pin is a stop.
         </Text>
 
         <TripMapWidget
@@ -185,10 +185,10 @@ export default function TripSplitScreen() {
         </View>
 
         <Text style={styles.hint}>
-          Your {trip.distanceMiles.toFixed(1)} miles stay exactly as recorded — splitting only
+          Your {trip.distanceMiles.toFixed(1)} miles stay exactly as recorded. Splitting only
           divides them into separate trips. Each new trip starts as{" "}
-          {trip.classification === "business" ? "business" : trip.classification === "personal" ? "personal" : "unclassified"}{" "}
-          and can be reclassified individually.
+          {trip.classification === "business" ? "Business" : trip.classification === "personal" ? "Personal" : "not sorted"}{" "}
+          and you can change each one on its own.
         </Text>
       </ScrollView>
 
@@ -196,7 +196,7 @@ export default function TripSplitScreen() {
         <Button
           title={
             enabledSuggestions.length === 0
-              ? "Select at least one stop"
+              ? "Choose at least one stop"
               : `Split into ${legCount} trips`
           }
           icon="git-branch-outline"

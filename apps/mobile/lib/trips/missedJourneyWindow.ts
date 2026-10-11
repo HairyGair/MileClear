@@ -109,6 +109,12 @@ export function describeWindow(window: OfferWindow): string {
   return `sometime between ${clockTime(a)} on ${shortDay(a)} and ${clockTime(b)} on ${shortDay(b)}`;
 }
 
+/** The short form for a row in To sort: "Thu 1 Oct, some time after 17:20".
+ *  The time sheet that opens on Add trip gives the whole window. */
+export function describeWindowShort(window: OfferWindow): string {
+  return `${shortDay(window.departedAt)}, some time after ${clockTime(window.departedAt)}`;
+}
+
 /** A recorded drive's own times: "Mon 28 Sep, 07:07 to 07:25". */
 export function describeRecordedTimes(window: OfferWindow): string {
   const { departedAt: a, arrivedAt: b } = window;

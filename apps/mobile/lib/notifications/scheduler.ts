@@ -194,11 +194,11 @@ export async function checkUnclassifiedTripsNudge(): Promise<void> {
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Trips to classify",
+      title: "Trips to sort",
       body:
         count === 1
-          ? "1 trip needs classifying. Tap to mark it business or personal."
-          : `${count} trips need classifying. Tap to mark them business or personal.`,
+          ? "1 trip to sort. Tap to mark it Business or Personal."
+          : `${count} trips to sort. Tap to mark them Business or Personal.`,
       data: { action: "open_unclassified_trips" },
       ...(require("react-native").Platform.OS === "android" && {
         channelId: "reminders",

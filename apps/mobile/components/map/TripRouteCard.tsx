@@ -55,18 +55,19 @@ function isCoord(lat: unknown, lng: unknown): lat is number {
   );
 }
 
-export function TripRouteCard({
-  tripId,
-  routePolyline,
-  isManualEntry = false,
-  startLat,
-  startLng,
-  endLat,
-  endLng,
-  height = 120,
-  compact = false,
-  style,
-}: TripRouteCardProps) {
+/**
+ * The route points for one trip, from the same place the trip card has always
+ * taken them: the list's encoded polyline, else ONE fetch of /trips/:id
+ * (matched route first, then the raw breadcrumbs), cached for the session.
+ * `null` while that fetch is running. A manual trip never fetches.
+ * The Trips list's small route drawing uses this too, so the list and the
+ * trip screen draw the same route.
+ */
+export function useTripRoutePoints(
+  tripId: string,
+  routePolyline: string | null | undefined,
+  isManualEntry: boolean
+): { route: LatLng[] | null; fetching: boolean } {
   const fromPolyline = useMemo(
     () => samplePoints(safeDecodePolyline(routePolyline), MAX_POINTS),
     [routePolyline]
@@ -103,6 +104,22 @@ export function TripRouteCard({
   }, [tripId, needsFetch]);
 
   const route = fromPolyline.length >= 2 ? fromPolyline : fetched;
+  return { route, fetching: needsFetch && fetched === null };
+}
+
+export function TripRouteCard({
+  tripId,
+  routePolyline,
+  isManualEntry = false,
+  startLat,
+  startLng,
+  endLat,
+  endLng,
+  height = 120,
+  compact = false,
+  style,
+}: TripRouteCardProps) {
+  const { route, fetching } = useTripRoutePoints(tripId, routePolyline, isManualEntry);
   const endpoints: LatLng[] | null =
     isCoord(startLat, startLng) && isCoord(endLat, endLng)
       ? [{ lat: startLat as number, lng: startLng as number }, { lat: endLat as number, lng: endLng as number }]
@@ -123,7 +140,7 @@ export function TripRouteCard({
   }
 
   // Still fetching: hold the space so the card does not jump when it lands.
-  if (needsFetch && fetched === null) {
+  if (fetching) {
     return <View pointerEvents="none" style={[styles.wrap, styles.placeholder, { height }, style]} />;
   }
 
