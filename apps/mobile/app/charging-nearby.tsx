@@ -64,7 +64,7 @@ export default function ChargingNearbyScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ headerShown: true, title: "Nearby Chargers" }} />
+      <Stack.Screen options={{ headerShown: true, title: "Chargers near you" }} />
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={colors.amber} />

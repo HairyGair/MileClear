@@ -141,7 +141,7 @@ export default function AssistantScreen() {
   if (!user || noticeSeen === null || available === null) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "EmSee" }} />
+        <Stack.Screen options={{ title: "Ask EmSee" }} />
         <View style={styles.centreBox}>
           <ActivityIndicator size="large" color={AMBER} accessibilityLabel="Loading" />
         </View>
@@ -152,7 +152,7 @@ export default function AssistantScreen() {
   if (!available) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "EmSee" }} />
+        <Stack.Screen options={{ title: "Ask EmSee" }} />
         <View style={styles.centreBox}>
           <Text style={styles.centreTitle}>Not available yet</Text>
           <Text style={styles.centreBody}>EmSee isn't switched on yet. Check back soon.</Text>
@@ -164,7 +164,7 @@ export default function AssistantScreen() {
   if (!isPremium) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "EmSee" }} />
+        <Stack.Screen options={{ title: "Ask EmSee" }} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={[styles.lockBadge, { alignSelf: "center", marginTop: 12 }]}>
             <Ionicons name="chatbubbles-outline" size={28} color={AMBER} />
@@ -193,7 +193,7 @@ export default function AssistantScreen() {
   if (!noticeSeen) {
     return (
       <View style={styles.container}>
-        <Stack.Screen options={{ title: "EmSee" }} />
+        <Stack.Screen options={{ title: "Ask EmSee" }} />
         <ScrollView contentContainerStyle={styles.content}>
           <View style={[styles.lockBadge, { alignSelf: "center", marginTop: 12 }]}>
             <Ionicons name="lock-closed-outline" size={28} color={AMBER} />
@@ -236,7 +236,7 @@ export default function AssistantScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "EmSee" }} />
+      <Stack.Screen options={{ title: "Ask EmSee" }} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}

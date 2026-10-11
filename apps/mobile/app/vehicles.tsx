@@ -174,7 +174,7 @@ export default function VehiclesScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: "Vehicles" }} />
+      <Stack.Screen options={{ title: "Your cars" }} />
       <FlatList
         data={vehicles}
         keyExtractor={(item) => item.id}

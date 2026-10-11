@@ -715,15 +715,15 @@ function RootNavigator() {
         <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
         <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split Trip" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
-        <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Vehicles" }} />
-        <Stack.Screen name="odometer-log" options={{ headerShown: true, title: "Odometer log" }} />
+        <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Your cars" }} />
+        <Stack.Screen name="odometer-log" options={{ headerShown: true, title: "Odometer" }} />
         <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
         <Stack.Screen name="journey-map" options={{ headerShown: true, title: "Journey map" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work hours" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add earnings" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
-        <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Nearby Chargers" }} />
+        <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Chargers near you" }} />
         <Stack.Screen name="road-alerts" options={{ headerShown: true, title: "Road alerts" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Your email" }} />
         <Stack.Screen name="verify-email" options={{ headerShown: true, title: "Confirm your email" }} />
@@ -732,13 +732,13 @@ function RootNavigator() {
         <Stack.Screen name="exports" options={{ headerShown: true, title: "Downloads" }} />
         <Stack.Screen name="project-totals" options={{ headerShown: true, title: "Miles by project" }} />
         <Stack.Screen name="refer" options={{ headerShown: true, title: "Invite a friend" }} />
-        <Stack.Screen name="achievements" options={{ headerShown: true, title: "Achievements" }} />
+        <Stack.Screen name="achievements" options={{ headerShown: true, title: "Badges" }} />
         <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />
-        <Stack.Screen name="open-banking" options={{ headerShown: true, title: "Open Banking" }} />
+        <Stack.Screen name="open-banking" options={{ headerShown: true, title: "Link your bank" }} />
         <Stack.Screen name="admin-users" options={{ headerShown: true, title: "User Management" }} />
         <Stack.Screen name="admin-user-detail" options={{ headerShown: true, title: "User Detail" }} />
         <Stack.Screen name="admin-health" options={{ headerShown: true, title: "System Health" }} />
-        <Stack.Screen name="feedback" options={{ headerShown: true, title: "Feedback" }} />
+        <Stack.Screen name="feedback" options={{ headerShown: true, title: "Problems and ideas" }} />
         <Stack.Screen name="feedback-form" options={{ headerShown: true, title: "Suggest an idea" }} />
         <Stack.Screen name="report-problem" options={{ headerShown: true, title: "Report a problem" }} />
         <Stack.Screen name="support-thread" options={{ headerShown: true, title: "Conversation" }} />
@@ -775,11 +775,11 @@ function RootNavigator() {
         <Stack.Screen name="client-form" options={{ headerShown: true, title: "Add client" }} />
         <Stack.Screen name="expenses" options={{ headerShown: true, title: "Expenses" }} />
         <Stack.Screen name="expense-form" options={{ headerShown: true, title: "Add Expense" }} />
-        <Stack.Screen name="inbox" options={{ headerShown: true, title: "Inbox" }} />
+        <Stack.Screen name="inbox" options={{ headerShown: true, title: "Bank payments" }} />
         <Stack.Screen name="receipt-scan" options={{ headerShown: true, title: "Scan Receipt" }} />
         <Stack.Screen name="snap-statement" options={{ headerShown: true, title: "Snap a statement" }} />
         <Stack.Screen name="ticket-defender" options={{ headerShown: true, title: "Ticket defender" }} />
-        <Stack.Screen name="assistant" options={{ headerShown: true, title: "EmSee" }} />
+        <Stack.Screen name="assistant" options={{ headerShown: true, title: "Ask EmSee" }} />
         <Stack.Screen name="accountant" options={{ headerShown: true, title: "Your accountant" }} />
         <Stack.Screen name="help" options={{ headerShown: true, title: "Help and how-tos" }} />
         {/* Settings hub + sub-screens. Each is a small focused screen so
