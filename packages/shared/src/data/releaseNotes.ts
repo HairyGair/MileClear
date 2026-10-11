@@ -78,6 +78,48 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 95, cut 11 Oct 2026 from ui-set-oct (main @ 37ecd2f3), submitted to
+    // Apple the same evening. Everything below also reached every older build by
+    // OTA on 11 Oct (plus the add-trip redesign, c283476e), so the email is
+    // phrased as what changed, never "update to get this". Label flow as
+    // before: "Pending Review" now, "Latest" on approval in the same edit that
+    // drops 1.3.12 to "App Store" (then restart the API before send-update).
+    version: "1.3.13",
+    date: "October 2026",
+    label: "Pending Review",
+    items: [
+      "Trips: \"To sort\" replaces Inbox. Each trip leads with its route, like \"Home to Work\", and each day shows its miles",
+      "Swipe a trip right to mark it Business, with Undo",
+      "Labels show where a trip came from, and Trips tells you when we may have missed a drive",
+      "Adding a past trip takes a few taps, and warns you before you save a trip that overlaps one you already have",
+      "\"Missing a trip?\" shows any trip already recorded around that time before you send the report",
+      "More is grouped and easier to scan, with a live fact on each row, like your MOT date or the cheapest fuel near you",
+      "Road alerts and Chargers near you (for electric cars) are in More",
+      "New drivers get a short setup that checks recording works. Replay it from More > Help and how-tos > Take the tour",
+      "Pay Scottish income tax? Tax estimates can now use the Scottish bands",
+      "Help: 98 checked answers, with search",
+      "Saved places: name a suggested place yourself",
+      "Company car drivers no longer see claim figures that don't apply to them",
+      "Trips save and upload more reliably in the background",
+      "A trip can no longer be saved with no route, no end and no miles",
+      "Pro is described as what it is: sorting by work hours. Sorting by place and regular journeys is free",
+    ],
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.3.13",
+    emailTagline:
+      "1.3.13 is shaped by your messages: a To sort list you can swipe through, a tidier More tab, and a quicker way to add a trip we missed.",
+    emailHighlights: [
+      "**To sort** - new trips wait in one list, each led by its route, like \"Home to Work\". Swipe right to mark one Business, with Undo.",
+      "**Missed a drive?** - Trips tells you when we may have missed one, and adding a past trip now takes a few taps.",
+      "**No accidental doubles** - you're warned before saving a trip that overlaps one you already have.",
+      "**A tidier More tab** - grouped, with a live fact on each row, like your MOT date or the cheapest fuel near you.",
+      "**Scottish income tax** - turn it on and your tax estimates use the Scottish bands.",
+      "**Help with search** - 98 checked answers, under More > Help and how-tos.",
+      "**Steadier recording** - finished trips save and upload more reliably in the background.",
+    ],
+  },
+  {
     // Build 93, cut 29 Sep 2026 from main @ af13e88a. Native reason: the
     // first-open update switch (570b9940) only works from inside a binary, so
     // App Store updaters stop running a fortnight-old bundle for one session.
