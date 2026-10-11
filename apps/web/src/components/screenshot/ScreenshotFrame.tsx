@@ -194,7 +194,7 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
       >
         <h1
           style={{
-            fontSize: 96,
+            fontSize: headlineSize(slot.headline, 96, 1160),
             fontWeight: 800,
             lineHeight: 1.0,
             letterSpacing: "-0.025em",
@@ -282,14 +282,18 @@ export default function ScreenshotFrame({ slot, device }: FrameProps) {
           transformOrigin: "center top",
         }}
       >
-        <DeviceMockup
-          src={src}
-          device={device}
-          accent={theme}
-          height={DEVICE_HEIGHT}
-          extraGlow={isStack}
-          callouts={slot.callouts}
-        />
+        {slot.focus ? (
+          <FocusedDevice src={src} accent={theme} focus={slot.focus} />
+        ) : (
+          <DeviceMockup
+            src={src}
+            device={device}
+            accent={theme}
+            height={DEVICE_HEIGHT}
+            extraGlow={isStack}
+            callouts={slot.callouts}
+          />
+        )}
       </div>
 
       {/* Bottom brand mark */}
@@ -763,3 +767,60 @@ function PlaceholderScreen({ device }: { device: "iphone" | "ipad" }) {
   );
 }
 
+
+/** Headline size that keeps the longest line on one line at this width.
+ *  Sora ExtraBold averages ~0.6em a character. */
+export function headlineSize(headline: string, max: number, width: number): number {
+  const longest = Math.max(...headline.split("\n").map((l) => l.length));
+  return Math.min(max, Math.floor(width / (longest * 0.6)));
+}
+
+/**
+ * The top part of a screen, larger, fading out at the bottom: for screens
+ * whose useful part is all at the top. `focus` is the fraction of the
+ * screen height shown. Width-led so it never overflows the canvas.
+ */
+function FocusedDevice({
+  src,
+  accent,
+  focus,
+  width = 1180,
+  maxHeight = 1900,
+}: {
+  src?: string;
+  accent: { primary: string; glow: string };
+  focus: number;
+  width?: number;
+  maxHeight?: number;
+}) {
+  const fullHeight = (width - 44) / (1320 / 2868) + 44;
+  const visible = Math.min(maxHeight, Math.round(fullHeight * focus));
+  return (
+    <div style={{ position: "relative", width, height: maxHeight, display: "flex", alignItems: "center" }}>
+      <div
+        style={{
+          position: "absolute",
+          left: -60,
+          right: -60,
+          top: (maxHeight - visible) / 2 - 60,
+          height: visible,
+          background: `radial-gradient(ellipse at center, ${accent.glow}, transparent 65%)`,
+          filter: "blur(70px)",
+          opacity: 0.8,
+        }}
+      />
+      <div
+        style={{
+          position: "relative",
+          width,
+          height: visible,
+          overflow: "hidden",
+          WebkitMaskImage: "linear-gradient(180deg, #000 0%, #000 84%, transparent 100%)",
+          maskImage: "linear-gradient(180deg, #000 0%, #000 84%, transparent 100%)",
+        }}
+      >
+        <DeviceMockup src={src} device="iphone" accent={accent} height={fullHeight} />
+      </div>
+    </div>
+  );
+}

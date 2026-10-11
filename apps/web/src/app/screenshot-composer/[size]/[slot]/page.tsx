@@ -4,6 +4,8 @@ import { join } from "node:path";
 import ScreenshotFrame from "@/components/screenshot/ScreenshotFrame";
 import { getSlot } from "@/components/screenshot/slots";
 import CreativeFrame, { getCreative } from "@/components/screenshot/CreativeFrame";
+import { PlayFeatureGraphic, PlayScreenshotFrame } from "@/components/screenshot/PlayFrame";
+import { PLAY_ORDER } from "@/components/screenshot/slots";
 
 // Renders a single App Store screenshot composition at the exact pixel
 // dimensions Apple requires. Open the URL in Chrome at 100% zoom, then
@@ -15,6 +17,8 @@ import CreativeFrame, { getCreative } from "@/components/screenshot/CreativeFram
 // /screenshot-composer/iphone/hero → resolves slot by slug
 // /screenshot-composer/header/main  → 3840×1646 product page header
 // /screenshot-composer/search/main  → 3840×2560 search result image
+// /screenshot-composer/play/1       → 1080×1920 Google Play shot (1-8, or a u-* slug)
+// /screenshot-composer/play-feature/main → 1024×500 Play feature graphic
 
 export default async function SlotPage({
   params,
@@ -28,6 +32,24 @@ export default async function SlotPage({
     return (
       <main style={{ background: "#000", minHeight: "100vh", margin: 0, padding: 0 }}>
         <CreativeFrame kind={size} variant={variant} />
+      </main>
+    );
+  }
+  if (size === "play-feature") {
+    return (
+      <main style={{ background: "#000", minHeight: "100vh", margin: 0, padding: 0 }}>
+        <PlayFeatureGraphic src="/screenshot-source/iphone-1313/trips-swipe.png" />
+      </main>
+    );
+  }
+  if (size === "play") {
+    const n = parseInt(slotParam, 10);
+    const slug = Number.isNaN(n) ? slotParam : PLAY_ORDER[n - 1];
+    const playSlot = slug ? getSlot(slug) : undefined;
+    if (!playSlot) notFound();
+    return (
+      <main style={{ background: "#000", minHeight: "100vh", margin: 0, padding: 0 }}>
+        <PlayScreenshotFrame slot={playSlot} />
       </main>
     );
   }

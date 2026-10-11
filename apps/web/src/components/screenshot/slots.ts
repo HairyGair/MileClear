@@ -29,7 +29,7 @@ export interface ScreenshotSlot {
   // product page; the others are custom product pages and product page
   // tests (docs/app-store-pages-oct2026/PLAN.md). Slugs are unique
   // across every set.
-  set?: "main" | "personal" | "test" | "gig" | "tax" | "employee";
+  set?: "main" | "personal" | "test" | "gig" | "tax" | "employee" | "update";
   // Eyebrow text above the headline (small uppercase)
   eyebrow?: string;
   headline: string;
@@ -59,6 +59,17 @@ export interface ScreenshotSlot {
   // only a hint for whoever's iterating.
   needsRecapture?: boolean;
   recaptureNote?: string;
+  // Show only the top part of the screen, larger, fading out at the
+  // bottom. A fraction of the screen height (0.5 = top half). For
+  // screens whose useful part is all at the top, so the phone isn't
+  // half empty. Cropping only: nothing on the screen is changed.
+  focus?: number;
+  // Google Play: a different capture for this slot (for example one
+  // without an Apple Maps mark or iPhone-only setting names), plus
+  // its own subline when the iPhone one would not fit that capture.
+  playSrc?: string;
+  playSubline?: string;
+  playFocus?: number;
 }
 
 // Reorder rationale (21 May 2026):
@@ -562,7 +573,149 @@ export const EMPLOYEE_SLOTS: ScreenshotSlot[] = [
   },
 ];
 
-export const ALL_SLOTS: ScreenshotSlot[] = [...SLOTS, ...PERSONAL_SLOTS, ...TEST_SLOTS, ...GIG_SLOTS, ...TAX_SLOTS, ...EMPLOYEE_SLOTS];
+// 1.3.13 update (Oct 2026): the main product page set, ranked as in
+// docs/update-oct2026-marketing/SCREENSHOTS-BRIEF.md. Captured on the Demo
+// account on the ui-set-oct build, 11 Oct 2026. Where the brief's exact
+// state can't be shown without changing Demo's data, the closest honest
+// screen is used (noted per slot). No prices, no adjective next to HMRC.
+const U = "/screenshot-source/iphone-1313";
+
+export const UPDATE_SLOTS: ScreenshotSlot[] = [
+  {
+    // Demo has nothing in To sort, so this is the Business filter: same
+    // route-first rows, day miles and the All / To sort / Business /
+    // Personal bar.
+    slot: 1,
+    slug: "u-trips",
+    set: "update",
+    eyebrow: "Mileage tracker for the UK",
+    headline: "Every mile.\nSorted in a swipe.",
+    subline: "MileClear records your drives on its own. You just sort them.",
+    iphoneSrc: `${U}/trips-business.png`,
+    accent: "amber",
+    layout: "stack",
+  },
+  {
+    // A real swipe, held open, with the Business button showing. The
+    // "Marked Business · Undo" note only appears once a trip is sorted.
+    slot: 2,
+    slug: "u-swipe",
+    set: "update",
+    eyebrow: "To sort",
+    headline: "Business or personal?\nSwipe.",
+    subline: "Swipe a trip to sort it. Changed your mind? Tap Undo.",
+    iphoneSrc: `${U}/trips-swipe.png`,
+    accent: "emerald",
+    layout: "tilted",
+  },
+  {
+    slot: 3,
+    slug: "u-more",
+    set: "update",
+    eyebrow: "More",
+    headline: "Everything that matters,\nat a glance.",
+    subline: "Your car, fuel prices and shifts, live on every row.",
+    iphoneSrc: `${U}/more-tab.png`,
+    accent: "sky",
+    layout: "tilted-right",
+  },
+  {
+    // The tour replay's phone check (More > Help > Take the tour), the same
+    // check new drivers get. Notifications are still to allow on this phone.
+    slot: 4,
+    slug: "u-setup",
+    set: "update",
+    eyebrow: "New setup",
+    headline: "Set up right,\nfirst time.",
+    subline: "Live ticks show recording works before your first drive.",
+    iphoneSrc: `${U}/tour-check.png`,
+    accent: "violet",
+    layout: "centered",
+    // The check names iPhone settings (Always, Background App Refresh),
+    // so Play shows the tour's first step instead.
+    playSrc: `${U}/tour-how.png`,
+    playSubline: "A short tour shows how it records your drives.",
+  },
+  {
+    // Self Assessment step 2: the 55p rate, the claim and business miles
+    // on one screen (the Tax tab leads with the tax estimate instead).
+    slot: 5,
+    slug: "u-claim",
+    set: "update",
+    eyebrow: "Your mileage claim",
+    headline: "Your claim,\nworked out.",
+    subline: "55p a mile for your first 10,000 business miles.",
+    iphoneSrc: `${U}/sa-mileage.png`,
+    accent: "amber",
+    layout: "tilted",
+  },
+  {
+    slot: 6,
+    slug: "u-trip",
+    set: "update",
+    eyebrow: "Every trip",
+    headline: "Which app?\nOne tap.",
+    subline: "Pick the app or the purpose. Fix anything in seconds.",
+    iphoneSrc: `${U}/trip-route.png`,
+    accent: "rose",
+    layout: "tilted-right",
+    // The route map carries the Apple Maps mark; Play shows the picker.
+    playSrc: `${U}/trip-which-app.png`,
+  },
+  {
+    slot: 7,
+    slug: "u-missed",
+    set: "update",
+    eyebrow: "Peace of mind",
+    headline: "Missed a drive?\nWe'll say.",
+    subline: "Trips tells you, so you can check and add it.",
+    iphoneSrc: `${U}/trips-missed.png`,
+    accent: "sky",
+    layout: "centered",
+  },
+  {
+    slot: 8,
+    slug: "u-boxes",
+    set: "update",
+    eyebrow: "First tax return?",
+    headline: "Plain English,\nbox by box.",
+    subline: "See which Self Assessment boxes your figures go in.",
+    iphoneSrc: `${U}/sa-boxes.png`,
+    accent: "amber",
+    layout: "tilted",
+  },
+  {
+    // Top of the Fuel screen only: the station list below is empty on the
+    // simulator (its location isn't in the UK).
+    slot: 9,
+    slug: "u-fuel",
+    set: "update",
+    eyebrow: "Fuel",
+    headline: "Cheapest fuel\nnear you.",
+    subline: "Today's prices for your own fuel type.",
+    iphoneSrc: `${U}/fuel.png`,
+    accent: "emerald",
+    layout: "centered",
+    focus: 0.5,
+  },
+  {
+    slot: 10,
+    slug: "u-data",
+    set: "update",
+    eyebrow: "Your data",
+    headline: "Your trips\nstay yours.",
+    subline: "Saved on your phone first. Never sold, never used for ads.",
+    iphoneSrc: `${U}/your-data.png`,
+    accent: "violet",
+    layout: "centered",
+    focus: 0.56,
+  },
+];
+
+// Google Play: 8 of the update slots, in the brief's order.
+export const PLAY_ORDER = ["u-trips", "u-swipe", "u-more", "u-setup", "u-claim", "u-trip", "u-fuel", "u-missed"];
+
+export const ALL_SLOTS: ScreenshotSlot[] = [...SLOTS, ...PERSONAL_SLOTS, ...TEST_SLOTS, ...GIG_SLOTS, ...TAX_SLOTS, ...EMPLOYEE_SLOTS, ...UPDATE_SLOTS];
 
 export function getSlot(slugOrNumber: string): ScreenshotSlot | undefined {
   const asNumber = parseInt(slugOrNumber, 10);
