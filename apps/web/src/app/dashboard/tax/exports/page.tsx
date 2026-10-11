@@ -152,7 +152,7 @@ function Exports() {
     },
     {
       key: "odo",
-      title: "Odometer log (CSV)",
+      title: "Odometer readings (CSV)",
       hint: "Start and end readings for each day you drove.",
       button: "Download",
       path: `/exports/odometer-log?${period}${vehicleId ? `&vehicleId=${vehicleId}` : ""}`,

@@ -38,12 +38,12 @@ export default function MorePage() {
       <div className="mc-more-grid">
         <div>
           <SettingsGroup title="Your driving">
-            <SettingsRow icon="car-outline" label="Vehicles" hint="Your cars, MOT and tax dates" href="/dashboard/vehicles" />
-            <SettingsRow icon="speedometer-outline" label="Odometer log" hint="Start and end readings for each day" href="/dashboard/odometer" />
+            <SettingsRow icon="car-outline" label="Your cars" hint="MOT and tax dates" href="/dashboard/vehicles" />
+            <SettingsRow icon="speedometer-outline" label="Odometer" hint="Start and end readings for each day" href="/dashboard/odometer" />
             <SettingsRow icon="time-outline" label="Shifts" hint="Your work sessions" href="/dashboard/shifts" />
             <SettingsRow icon="location-outline" label="Saved places" hint="Home, work and other places you go" href="/dashboard/places" />
             <SettingsRow icon="water-outline" label="Fuel" hint="Fill-ups and prices near you" href="/dashboard/fuel" />
-            <SettingsRow icon="trophy-outline" label="Achievements" hint="Your badges" href="/dashboard/achievements" />
+            <SettingsRow icon="trophy-outline" label="Badges" hint="What you have earned" href="/dashboard/achievements" />
             {mode === "work" ? (
               <SettingsRow icon="stats-chart-outline" label="Insights" hint="Your numbers and trends" href="/dashboard/insights" />
             ) : (
@@ -56,8 +56,8 @@ export default function MorePage() {
             {money && <SettingsRow icon="cash-outline" label="Earnings" hint="What you were paid" href="/dashboard/earnings" />}
             <SettingsRow icon="receipt-outline" label="Expenses" hint="Parking, tolls and other costs" href="/dashboard/expenses" />
             {money && <SettingsRow icon="document-text-outline" label="Invoices" hint="Bill your clients" href="/dashboard/invoices" />}
-            {money && <SettingsRow icon="card-outline" label="Link a bank" hint="Bring in your earnings automatically" href="/dashboard/bank" badge={proBadge} />}
-            {money && <SettingsRow icon="file-tray-full-outline" label="Bank inbox" hint="Payments waiting to be sorted" href="/dashboard/bank/inbox" badge={proBadge} />}
+            {money && <SettingsRow icon="card-outline" label="Link your bank" hint="Bring in your earnings automatically" href="/dashboard/bank" badge={proBadge} />}
+            {money && <SettingsRow icon="file-tray-full-outline" label="Bank payments" hint="Payments waiting to be sorted" href="/dashboard/bank/inbox" badge={proBadge} />}
           </SettingsGroup>
         </div>
 
@@ -65,7 +65,7 @@ export default function MorePage() {
           <SettingsGroup title="Tools">
             <SettingsRow icon="shield-checkmark-outline" label="Ticket defender" hint="Check a fine against your trips" href="/dashboard/ticket-defender" badge={proBadge} />
             {emsee.data?.available === true && (
-              <SettingsRow icon="chatbubble-ellipses-outline" label="EmSee" hint="Ask about MileClear" href="/dashboard/emsee" badge={proBadge} />
+              <SettingsRow icon="chatbubble-ellipses-outline" label="Ask EmSee" hint="Ask about MileClear" href="/dashboard/emsee" badge={proBadge} />
             )}
             <SettingsRow icon="calendar-outline" label="Work schedule" hint="Your working days and hours" href="/dashboard/work-schedule" />
             {team?.role === "admin" && (
@@ -75,8 +75,8 @@ export default function MorePage() {
 
           <SettingsGroup title="Help and settings">
             <SettingsRow icon="settings-outline" label="Settings" hint="Notifications, work and tax, your data" href="/dashboard/settings" />
-            <SettingsRow icon="help-circle-outline" label="Help and tutorials" hint="How MileClear works" href="/dashboard/help" />
-            <SettingsRow icon="chatbubble-outline" label="Feedback" hint="Ideas and problems" href="/dashboard/feedback" />
+            <SettingsRow icon="help-circle-outline" label="Help and how-tos" hint="How MileClear works" href="/dashboard/help" />
+            <SettingsRow icon="chatbubble-outline" label="Tell us about a problem or idea" href="/dashboard/feedback" />
             <SettingsRow icon="gift-outline" label="Invite a friend, get Pro free" href="/dashboard/invite" />
             <SettingsRow icon="logo-discord" label="Join us on Discord" hint="Chat with other drivers" href="/dashboard/settings/community" />
           </SettingsGroup>
