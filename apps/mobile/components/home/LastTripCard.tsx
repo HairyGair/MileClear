@@ -138,7 +138,7 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint }: Pr
             setChosen(shownRef.current);
           }
           if (result === "missing") {
-            Alert.alert("Trip not found", "This trip has been deleted or merged. Your trips list has the latest.");
+            Alert.alert("Trip not found", "This trip has been deleted or joined to another trip. Your trips list has the latest.");
             onChanged();
           } else {
             Alert.alert("Couldn't save that", "Try again in a moment.");

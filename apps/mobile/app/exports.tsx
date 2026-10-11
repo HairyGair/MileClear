@@ -400,14 +400,14 @@ export default function ExportsScreen() {
           disabled={loadingKey !== null}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel="Download Odometer log CSV"
+          accessibilityLabel="Download Odometer readings CSV"
           accessibilityState={{ disabled: loadingKey !== null }}
         >
           <View style={styles.rowIconWrap}>
             <Ionicons name="speedometer-outline" size={20} color={TEXT_3} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>Odometer log (CSV)</Text>
+            <Text style={styles.rowTitle}>Odometer readings (CSV)</Text>
             <Text style={styles.rowDesc}>Start and end readings for each day you drove.</Text>
           </View>
           {loadingKey === "odometer" ? (
