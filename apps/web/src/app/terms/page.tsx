@@ -37,7 +37,7 @@ export default function TermsOfService() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Terms of Service</h1>
-            <p className="legal__date">Last updated: 22 April 2026</p>
+            <p className="legal__date">Last updated: 11 October 2026</p>
           </div>
 
           {/* Quick Navigation */}
@@ -577,7 +577,7 @@ export default function TermsOfService() {
                   <li className="legal__list-item">CSV trip and earnings exports</li>
                   <li className="legal__list-item">Unlimited saved locations (free tier capped at 2)</li>
                   <li className="legal__list-item">CSV earnings import (bulk upload from platform CSVs)</li>
-                  <li className="legal__list-item">Open Banking integration (Plaid) for automatic transaction import</li>
+                  <li className="legal__list-item">Open Banking integration (TrueLayer) for automatic transaction import</li>
                   <li className="legal__list-item">Advanced analytics and business insights</li>
                 </ul>
               </div>
@@ -670,7 +670,7 @@ export default function TermsOfService() {
                 <ul className="legal__list">
                   <li className="legal__list-item">Your trips (dates, routes, distances, classifications)</li>
                   <li className="legal__list-item">Mileage deductions and HMRC calculations</li>
-                  <li className="legal__list-item">Your earnings records (manual, CSV, Plaid-imported)</li>
+                  <li className="legal__list-item">Your earnings records (manual, CSV, Open Banking-imported)</li>
                   <li className="legal__list-item">Fuel logs and maintenance records</li>
                   <li className="legal__list-item">Exports in CSV and PDF format</li>
                 </ul>

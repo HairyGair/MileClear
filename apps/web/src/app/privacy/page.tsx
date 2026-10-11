@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 4 October 2026</p>
+            <p className="legal__date">Last updated: 11 October 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -146,7 +146,8 @@ export default function PrivacyPolicy() {
                 <ul className="legal__list">
                   <li className="legal__list-item">Earnings from gig platforms (manually entered)</li>
                   <li className="legal__list-item">CSV import of earnings data with platform auto-detection</li>
-                  <li className="legal__list-item">Open Banking data via TrueLayer (premium users only) for automatic transaction import</li>
+                  <li className="legal__list-item">Open Banking data via TrueLayer (premium users only, only if you connect a bank): the accounts you choose to share and up to 90 days of their transactions (date, amount, merchant and description), which we keep so you can sort them into earnings and expenses</li>
+                  <li className="legal__list-item">If you connect MileClear to HMRC for Making Tax Digital: your National Insurance number (stored encrypted), your HMRC business ID, and the submissions you make</li>
                   <li className="legal__list-item">Payment method information (card details are processed by Stripe, Apple or Google Play; we never store them)</li>
                   <li className="legal__list-item">Stripe customer ID and subscription ID (web purchases)</li>
                   <li className="legal__list-item">Apple original transaction ID and appAccountToken (your UUID passed to Apple for linking IAP to your account)</li>
@@ -370,11 +371,12 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Notification permission state (granted/denied)</li>
                   <li className="legal__list-item">Background task status (running/stopped)</li>
                   <li className="legal__list-item">App version, build number, platform, and OS version</li>
-                  <li className="legal__list-item">Detection event log (last 50 events with timestamps and types only - no coordinates)</li>
+                  <li className="legal__list-item">Detection event log (recent events with timestamps and types only - no coordinates)</li>
                   <li className="legal__list-item">App configuration settings (speed threshold, quiet hours, auto-recording status)</li>
+                  <li className="legal__list-item">Your phone&apos;s ten most recent trips as stored on the phone (start and end address, distance, times), and the names and types of your saved places, so we can match what the phone recorded against what reached our servers. We already hold these on your account</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
-                  We do <strong>not</strong> collect GPS coordinates, location names, or any personally identifying location data in diagnostics. This data is tied to your account for debugging purposes only.
+                  We do <strong>not</strong> collect GPS coordinates in diagnostics: any coordinate is removed on your phone before upload and again on our server. This data is tied to your account for debugging purposes only, and each upload replaces the previous one.
                 </p>
               </div>
 
@@ -463,17 +465,19 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple (In-App Purchase - iOS)</strong></p>
                 <p className="legal__card-text legal__text--small">iOS subscriptions are processed by Apple via the App Store. We share: transaction ID and receipt data for validation with Apple&apos;s App Store Server API. Payment details are managed entirely by Apple - we never see them. We also pass your MileClear UUID to Apple as the appAccountToken for webhook linking.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>TrueLayer (Open Banking)</strong></p>
-                <p className="legal__card-text legal__text--small">Premium users only. TrueLayer Limited is FCA-authorised to provide Open Banking services in the UK. We share: a request to connect your bank account for earnings auto-import. TrueLayer acts as the intermediary: we never see your bank login, only the read-only transaction data you authorise. Access tokens are encrypted at rest on our servers and you can disconnect at any time in the app.</p>
+                <p className="legal__card-text legal__text--small">Premium users only, and only if you connect a bank. TrueLayer Limited is FCA-authorised to provide Open Banking services in the UK. TrueLayer connects to your bank with your permission and passes us read-only data: your account details and up to 90 days of transactions (date, amount, merchant and description). We keep those transactions on our servers so you can sort them into earnings and expenses, and they are deleted with your account. We never see your bank login. Access tokens are encrypted at rest and you can disconnect at any time in the app.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>DVLA (Vehicle Registration Lookup)</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your vehicle registration plate to confirm make, model, fuel type, and CO2 emissions. Results are cached for 24 hours. DVLA does not store your lookup requests beyond processing.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>GraphHopper, Google Routes, Nominatim and Google Places (Routing and Addresses)</strong></p>
                 <p className="legal__card-text legal__text--small">GraphHopper runs on MileClear&apos;s own server, so trip traces sent to it do not leave our infrastructure. Google Routes (fallback routing) and Google Places (address search) receive coordinates or the text you type; Nominatim (OpenStreetMap Foundation) receives start and end coordinates to produce street addresses. None of these requests carry your name, email or account identifier.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Postcodes.io (Postcode Lookup)</strong></p>
+                <p className="legal__card-text legal__text--small">When you search by postcode, or we look up the postcode for a trip&apos;s start or end, the postcode or coordinates are sent to postcodes.io (a free UK postcode service). No name, email or account identifier is attached.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>UK Government Fuel Finder API</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your device&apos;s approximate location (lat/lng) to retrieve nearby fuel station prices. No personally identifiable data is shared. Fuel Finder is the official UK government mandatory fuel price reporting API.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Resend and Brevo (Email)</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your email address and the content of the emails we send you (verification codes, password resets, welcome and product update emails, support replies). Resend is our primary email provider; Brevo (France) is the fallback. Both are GDPR-compliant email service providers.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Expo Push Service (Push Notifications)</strong></p>
-                <p className="legal__card-text legal__text--small">Push token and notification content only, used to deliver scheduled notifications (weekly summaries, streak reminders, tax deadline alerts).</p>
+                <p className="legal__card-text legal__text--small">Push token and notification content only, used to deliver scheduled notifications (weekly summaries, streak reminders, tax deadline alerts). Expo is run by 650 Industries, Inc. (USA). On iPhone, Live Activity updates for a trip in progress go directly to Apple&apos;s Push Notification service (push token and the trip&apos;s on-screen figures only).</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Apple &amp; Google (Authentication)</strong></p>
                 <p className="legal__card-text legal__text--small">Sign-in only. We share: email address (sometimes) and sign-in request. We verify the token on our servers; Apple/Google do not see your other data.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Google Play (In-App Purchase - Android)</strong></p>
@@ -483,7 +487,9 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>DVSA (MOT History)</strong></p>
                 <p className="legal__card-text legal__text--small">We share: your vehicle registration plate to retrieve MOT test history and expiry dates for reminders.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Discord (Internal Service Alerts)</strong></p>
-                <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts can include your email address, account ID, display name, subscription status and trip counts. They never include your location data or trip routes. Discord Inc. processes this data on our behalf under its standard data processing terms.</p>
+                <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts identify you by your display name (often just its first word) and your account ID, and can include your subscription status, trip counts and the text of a problem or missing-trip report you send us. They do not include your email address (except when you ask to join the Android test programme, where the address is the request), your National Insurance number, your location data or trip routes. Discord Inc. processes this data on our behalf under its standard data processing terms.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Slack (Internal Service Alerts)</strong></p>
+                <p className="legal__card-text legal__text--small">A copy of three kinds of alert goes to our team&apos;s Slack: a new account (the first word of your display name, account ID, platform, sign-in method and approximate town from your IP address), a new subscription (plan, display name and account ID), and an Android test programme request (the email address you gave). Slack Technologies processes this data on our behalf under its data processing terms.</p>
               </div>
 
               {/* EmSee, was Ask MileClear (Pro, Oct 2026). Anthropic's commercial terms and
@@ -528,6 +534,10 @@ export default function PrivacyPolicy() {
                 <h3 className="legal__card-title">Your Chosen Third Parties (Not Sub-Processors)</h3>
                 <p className="legal__card-text"><strong>Accountants (Token-Based Read-Only Access)</strong></p>
                 <p className="legal__card-text legal__text--small">If you grant an accountant access via a token in Settings, they can view your trips, mileage deductions, HMRC calculations, earnings, and fuel logs. They cannot modify or export your data. You fully control access: generate, view, and revoke tokens anytime. Your accountant is your chosen representative, not a sub-processor of MileClear. You are responsible for their privacy practices and data handling.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>HMRC (Making Tax Digital)</strong></p>
+                <p className="legal__card-text legal__text--small">Only if you connect MileClear to your HMRC account and choose to submit. HMRC receives your National Insurance number, your business ID and the income and expense figures you submit. HMRC&apos;s rules also require every request to carry fraud-prevention information: your device ID, device model, operating system and app version, your IP address and port, screen size, time zone and the email address you sign in to MileClear with. Nothing is sent to HMRC until you submit, and you can disconnect at any time.</p>
+                <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Xero and QuickBooks (Accounting Software)</strong></p>
+                <p className="legal__card-text legal__text--small">Only if you connect one. We send the trips, mileage, earnings and expenses you choose to sync to your own Xero (Xero Limited) or QuickBooks (Intuit Inc., USA) account. Their access tokens are encrypted on our servers and you can disconnect at any time.</p>
               </div>
 
               <div className="legal__card">
@@ -870,6 +880,9 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item"><strong>Brevo (France):</strong> Email service, GDPR-compliant EU processor</li>
                   <li className="legal__list-item"><strong>Resend (USA):</strong> Primary email service. Subject to DPA and SCCs</li>
                   <li className="legal__list-item"><strong>Discord (USA):</strong> Internal operational alerts. Subject to Discord&apos;s Data Processing Addendum and SCCs</li>
+                  <li className="legal__list-item"><strong>Slack (USA):</strong> Internal operational alerts (new accounts, new subscriptions, Android test requests). Subject to Slack&apos;s Data Processing Addendum and SCCs</li>
+                  <li className="legal__list-item"><strong>Expo / 650 Industries (USA):</strong> Push notification delivery. Push token and notification content only</li>
+                  <li className="legal__list-item"><strong>Intuit QuickBooks (USA):</strong> Only if you connect QuickBooks; the records you choose to sync</li>
                   <li className="legal__list-item"><strong>Anthropic (USA):</strong> EmSee answers (Pro, only when you ask a question). Subject to Anthropic&apos;s Data Processing Addendum, which includes SCCs and the UK International Data Transfer Addendum</li>
                 </ul>
                 <p className="legal__card-text legal__text--small" style={{marginTop: '1rem'}}>
