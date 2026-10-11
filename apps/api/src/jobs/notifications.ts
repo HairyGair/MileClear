@@ -720,7 +720,7 @@ async function runMorningBriefingJob(): Promise<void> {
         parts.push(`${pct}% to weekly goal`);
       }
       if (unclassifiedCount > 0) {
-        parts.push(`${unclassifiedCount} in your inbox to classify`);
+        parts.push(`${unclassifiedCount} to sort in Trips`);
       }
     } else if (probablyHasUnsyncedTrips) {
       // We have heartbeat-v2 evidence the user drove. Tell them to open
@@ -728,14 +728,14 @@ async function runMorningBriefingJob(): Promise<void> {
       // the server.
       parts.push("Yesterday's trips haven't reached us yet. Open MileClear so they can upload");
       if (unclassifiedCount > 0) {
-        parts.push(`${unclassifiedCount} already in your inbox to classify`);
+        parts.push(`${unclassifiedCount} already waiting to sort in Trips`);
       }
     } else if (unclassifiedCount > 0) {
       // No yesterday trips on the server, but inbox has stuff. Surface
       // that as the headline — much more useful than a passive-aggressive
       // "no trips yesterday" reminder.
       parts.push(
-        `${unclassifiedCount} ${unclassifiedCount === 1 ? "trip is" : "trips are"} waiting in your inbox to classify`
+        `${unclassifiedCount} ${unclassifiedCount === 1 ? "trip is" : "trips are"} waiting to sort in Trips`
       );
       if (isWork && goalPence && goalPence > 0) {
         const pct = Math.min(100, Math.round((weekEarningsPence / goalPence) * 100));
@@ -754,7 +754,7 @@ async function runMorningBriefingJob(): Promise<void> {
       ? "Your daily summary"
       : probablyHasUnsyncedTrips
         ? "Trips waiting to sync"
-        : "Trips to classify";
+        : "Trips to sort";
     const body = parts.join(". ") + ".";
 
     try {
