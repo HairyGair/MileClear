@@ -14,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  AccessibilityInfo,
 } from "react-native";
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Button } from "../../components/Button";
@@ -59,6 +60,23 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 type TripItem = TripWithVehicle & { _isLocal?: boolean };
+
+/** The "Marked Business · Undo" note after a swipe, and what Undo puts back. */
+interface SwipeNotice {
+  item: TripItem;
+  from: TripClassification;
+  to: "business" | "personal";
+  /** Where the row sat, so Undo can put a row that left back in place. */
+  index: number;
+  /** The list it was swiped in. */
+  filter: TripClassification | "all";
+  /** True when the row no longer belongs in that list. */
+  leaves: boolean;
+}
+
+/** How long the note stays, and how long a leaving row stays first. */
+const SWIPE_NOTICE_MS = 4000;
+const SWIPE_LEAVE_MS = 1200;
 
 // ─── Route grouping ──────────────────────────────────────────────────────────
 
@@ -742,6 +760,134 @@ export default function TripsScreen() {
     [filter]
   );
 
+  // Swipe to sort. Until 11 Oct 2026 the row stayed slid open after the tap
+  // and nothing said it had worked. Now the row closes, the chip changes at
+  // once, a short "Marked Business · Undo" shows at the bottom, and a row
+  // that no longer belongs in this list leaves after that, not before.
+  const swipeRefs = useRef(new Map<string, Swipeable>());
+  const [swipeNotice, setSwipeNotice] = useState<SwipeNotice | null>(null);
+  const [leavingIds, setLeavingIds] = useState<Set<string>>(new Set());
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const leaveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const timers = leaveTimers.current;
+    return () => {
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, []);
+
+  const dropLeaving = useCallback((tripId: string) => {
+    const t = leaveTimers.current.get(tripId);
+    if (t) clearTimeout(t);
+    leaveTimers.current.delete(tripId);
+    setLeavingIds((prev) => {
+      if (!prev.has(tripId)) return prev;
+      const next = new Set(prev);
+      next.delete(tripId);
+      return next;
+    });
+  }, []);
+
+  // Puts the row back as it was: back in place if it is still on screen,
+  // or back where it was if it already left.
+  const restoreRow = useCallback(
+    (n: SwipeNotice) => {
+      dropLeaving(n.item.id);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setTrips((prev) => {
+        if (prev.some((t) => t.id === n.item.id)) {
+          return prev.map((t) => (t.id === n.item.id ? { ...t, classification: n.from } : t));
+        }
+        if (filterRef.current !== n.filter) return prev;
+        const next = [...prev];
+        next.splice(Math.min(n.index, next.length), 0, { ...n.item, classification: n.from });
+        return next;
+      });
+      if (n.from === "unclassified") setUnclassifiedCount((prev) => prev + 1);
+    },
+    [dropLeaving]
+  );
+
+  const handleSwipeClassify = useCallback(
+    async (item: TripItem, to: "business" | "personal") => {
+      swipeRefs.current.get(item.id)?.close();
+      const from = item.classification;
+      if (from === to) return;
+      const label = to === "business" ? "Business" : "Personal";
+      const leaves =
+        filter === "unclassified" || ((filter === "business" || filter === "personal") && filter !== to);
+      const notice: SwipeNotice = {
+        item,
+        from,
+        to,
+        index: Math.max(0, trips.findIndex((t) => t.id === item.id)),
+        filter,
+        leaves,
+      };
+
+      haptic("light");
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setTrips((prev) => prev.map((t) => (t.id === item.id ? { ...t, classification: to } : t)));
+      if (from === "unclassified") setUnclassifiedCount((prev) => Math.max(0, prev - 1));
+
+      if (leaves) {
+        // Keep it on screen with its new chip for a moment, then let it go.
+        setLeavingIds((prev) => new Set(prev).add(item.id));
+        const old = leaveTimers.current.get(item.id);
+        if (old) clearTimeout(old);
+        leaveTimers.current.set(
+          item.id,
+          setTimeout(() => {
+            leaveTimers.current.delete(item.id);
+            setLeavingIds((prev) => {
+              const next = new Set(prev);
+              next.delete(item.id);
+              return next;
+            });
+            // The driver may have changed list since; then the reload owns it.
+            if (filterRef.current !== notice.filter) return;
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setTrips((prev) => prev.filter((t) => t.id !== item.id));
+          }, SWIPE_LEAVE_MS)
+        );
+      }
+
+      setSwipeNotice(notice);
+      if (noticeTimer.current) clearTimeout(noticeTimer.current);
+      noticeTimer.current = setTimeout(() => setSwipeNotice(null), SWIPE_NOTICE_MS);
+      AccessibilityInfo.announceForAccessibility(`Marked ${label}. Undo is at the bottom of the screen.`);
+
+      try {
+        await syncUpdateTrip(item.id, { classification: to });
+        markLiveActivityClassified().catch(() => {});
+        setTimeout(() => maybeRequestReview("trip_classified"), 2000);
+      } catch {
+        restoreRow(notice);
+        setSwipeNotice((cur) => (cur?.item.id === item.id ? null : cur));
+        Alert.alert("Couldn't save that", "Try again in a moment.");
+      }
+    },
+    [filter, trips, restoreRow]
+  );
+
+  const handleSwipeUndo = useCallback(async () => {
+    const n = swipeNotice;
+    if (!n) return;
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    setSwipeNotice(null);
+    haptic("selection");
+    restoreRow(n);
+    const back = n.from === "unclassified" ? "To sort" : n.from === "business" ? "Business" : "Personal";
+    AccessibilityInfo.announceForAccessibility(`Undone. Back to ${back}.`);
+    try {
+      await syncUpdateTrip(n.item.id, { classification: n.from });
+    } catch {
+      Alert.alert("Couldn't undo", "Check your connection and try again.");
+    }
+  }, [swipeNotice, restoreRow]);
+
   const handleDeleteTrip = useCallback(
     (tripId: string) => {
       Alert.alert("Delete trip?", "This will permanently remove this trip.", [
@@ -1038,7 +1184,7 @@ export default function TripsScreen() {
         <RectButton
           style={[styles.swipeClassifyAction, { backgroundColor: targetColor }]}
           onPress={() => {
-            handleQuickClassify(item.id, targetClass);
+            handleSwipeClassify(item, targetClass);
           }}
           accessibilityLabel={`Mark as ${targetLabel}`}
         >
@@ -1275,6 +1421,10 @@ export default function TripsScreen() {
 
     return (
       <Swipeable
+        ref={(r) => {
+          if (r) swipeRefs.current.set(item.id, r);
+          else swipeRefs.current.delete(item.id);
+        }}
         renderLeftActions={renderLeftActions}
         renderRightActions={renderRightActions}
         overshootLeft={false}
@@ -1286,8 +1436,9 @@ export default function TripsScreen() {
     );
   };
 
+  // A row swiped out of To sort stays in its group until it leaves.
   const routeGroups: RouteGroup[] = filter === "unclassified"
-    ? groupUnclassifiedTrips(trips.filter((t) => t.classification === "unclassified"))
+    ? groupUnclassifiedTrips(trips.filter((t) => t.classification === "unclassified" || leavingIds.has(t.id)))
     : [];
 
   // The flat list reads day by day: newest day at the top, and inside a day
@@ -1777,6 +1928,31 @@ export default function TripsScreen() {
           </View>
         }
       />
+      {swipeNotice && (
+        // Floats over the bottom of the list, like Road alerts' Undo.
+        <View style={styles.swipeNotice} accessibilityLiveRegion="polite">
+          <Ionicons
+            name={swipeNotice.to === "business" ? "briefcase" : "person"}
+            size={16}
+            color={swipeNotice.to === "business" ? AMBER : TEXT_1}
+            accessible={false}
+          />
+          <Text style={styles.swipeNoticeText} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+            Marked {swipeNotice.to === "business" ? "Business" : "Personal"}
+          </Text>
+          <TouchableOpacity
+            onPress={handleSwipeUndo}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel={`Undo. Puts this trip back to ${
+              swipeNotice.from === "unclassified" ? "To sort" : swipeNotice.from === "business" ? "Business" : "Personal"
+            }`}
+          >
+            <Text style={styles.swipeNoticeUndo} maxFontSizeMultiplier={fontScaleCap.body}>Undo</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {loading && !refreshing && (
         // Skeleton-first loading overlay: ghost trip rows that mimic the
         // list's shape, so the wait reads as the list arriving.
@@ -2588,6 +2764,28 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: radii.lg,
     gap: 4,
   },
+  swipeNotice: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  swipeNoticeText: { flex: 1, color: TEXT_1, fontFamily: fonts.semibold, fontSize: 14 },
+  swipeNoticeUndo: { color: AMBER, fontFamily: fonts.semibold, fontSize: 14 },
   swipeActionText: {
     color: "#fff",
     fontSize: 12,
