@@ -152,7 +152,7 @@ export default function VehicleFormScreen() {
       const colourText = data.colour ? `, ${data.colour}` : "";
       const yearText = data.yearOfManufacture ? ` (${data.yearOfManufacture})` : "";
       Alert.alert(
-        "Vehicle found",
+        "Car found",
         `${data.make}${yearText}${colourText}.\n\nPlease enter the model and check the details.`
       );
     } catch (err: unknown) {
@@ -193,10 +193,10 @@ export default function VehicleFormScreen() {
         );
         if (sameKind.length >= 1) {
           Alert.alert(
-            "Vehicle Limit",
+            "Car limit",
             providedByOthers
-              ? "Free accounts can have 1 vehicle that someone else pays for. Upgrade to Pro for unlimited vehicles."
-              : "Free accounts can have 1 vehicle. Upgrade to Pro for unlimited vehicles.",
+              ? "Free accounts can have 1 car that someone else pays for. Pro adds as many as you need."
+              : "Free accounts can have 1 car. Pro adds as many as you need.",
             [
               { text: "OK", style: "cancel" },
               { text: "See Pro", onPress: () => showPaywall("vehicle_limit") },
@@ -243,8 +243,8 @@ export default function VehicleFormScreen() {
           } catch {
             // The vehicle is kept; the reading can be added from its screen.
             Alert.alert(
-              "Vehicle saved",
-              "We couldn't save the odometer reading. Add it from the vehicle screen.",
+              "Car saved",
+              "We couldn't save the odometer reading. Add it from the car's screen.",
               [{ text: "OK", onPress: () => router.back() }]
             );
             return;
@@ -253,7 +253,7 @@ export default function VehicleFormScreen() {
       }
       router.back();
     } catch (err: unknown) {
-      showSupportAlert("Save Failed", err instanceof Error ? err.message : "Failed to save vehicle.");
+      showSupportAlert("Couldn't save", err instanceof Error ? err.message : "Couldn't save the car.");
     } finally {
       setSaving(false);
     }
@@ -261,7 +261,7 @@ export default function VehicleFormScreen() {
 
   const handleDelete = useCallback(() => {
     Alert.alert(
-      "Delete vehicle",
+      "Delete car",
       `Remove ${make} ${model}? This can't be undone.`,
       [
         { text: "Cancel", style: "cancel" },
@@ -274,7 +274,7 @@ export default function VehicleFormScreen() {
               await deleteVehicle(id!);
               router.back();
             } catch (err: unknown) {
-              Alert.alert("Couldn't delete the vehicle", err instanceof Error ? err.message : "Try again in a moment.");
+              Alert.alert("Couldn't delete the car", err instanceof Error ? err.message : "Try again in a moment.");
               setDeleting(false);
             }
           },
@@ -368,7 +368,7 @@ export default function VehicleFormScreen() {
           placeholder="e.g. Toyota"
           placeholderTextColor={TEXT_3}
           autoCapitalize="words"
-          accessibilityLabel="Vehicle make"
+          accessibilityLabel="Car make"
         />
 
         {/* Model */}
@@ -380,7 +380,7 @@ export default function VehicleFormScreen() {
           placeholder="e.g. Prius"
           placeholderTextColor={TEXT_3}
           autoCapitalize="words"
-          accessibilityLabel="Vehicle model"
+          accessibilityLabel="Car model"
         />
 
         {/* Year */}
@@ -418,7 +418,7 @@ export default function VehicleFormScreen() {
         )}
 
         {/* Vehicle Type */}
-        <Text style={styles.label}>Vehicle Type</Text>
+        <Text style={styles.label}>Type</Text>
         <View style={styles.segmentRow}>
           {VEHICLE_TYPES.map((opt) => (
             <TouchableOpacity
@@ -445,7 +445,7 @@ export default function VehicleFormScreen() {
         </View>
 
         {/* Fuel Type */}
-        <Text style={styles.label}>Fuel Type</Text>
+        <Text style={styles.label}>Fuel</Text>
         <View style={styles.segmentRow}>
           {FUEL_TYPE_OPTIONS.map((opt) => (
             <TouchableOpacity
@@ -509,10 +509,10 @@ export default function VehicleFormScreen() {
           onPress={() => setIsPrimary(!isPrimary)}
           activeOpacity={0.7}
           accessibilityRole="switch"
-          accessibilityLabel="Set as primary vehicle"
+          accessibilityLabel="Set as main car"
           accessibilityState={{ checked: isPrimary }}
         >
-          <Text style={styles.toggleLabel}>Set as primary vehicle</Text>
+          <Text style={styles.toggleLabel}>Set as main car</Text>
           <View style={[styles.toggle, isPrimary && styles.toggleActive]} accessible={false}>
             <View
               style={[styles.toggleThumb, isPrimary && styles.toggleThumbActive]}
@@ -526,12 +526,12 @@ export default function VehicleFormScreen() {
           onPress={() => setProvidedByOthers(!providedByOthers)}
           activeOpacity={0.7}
           accessibilityRole="switch"
-          accessibilityLabel="Someone else pays for this vehicle"
+          accessibilityLabel="Someone else pays for this car"
           accessibilityHint="Its miles still count, but its business trips are left out of your mileage claim"
           accessibilityState={{ checked: providedByOthers }}
         >
           <View style={styles.toggleTextCol}>
-            <Text style={styles.toggleLabel}>Someone else pays for this vehicle</Text>
+            <Text style={styles.toggleLabel}>Someone else pays for this car</Text>
             <Text style={styles.toggleHint}>
               For a client's or employer's van. Its miles still count, but its business trips are left out of your mileage claim.
             </Text>
@@ -587,7 +587,7 @@ export default function VehicleFormScreen() {
           <Button
             variant="ghost"
             danger
-            title="Delete Vehicle"
+            title="Delete car"
             onPress={handleDelete}
             loading={deleting}
             disabled={saving}
