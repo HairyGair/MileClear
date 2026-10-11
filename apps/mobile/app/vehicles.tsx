@@ -187,9 +187,9 @@ export default function VehiclesScreen() {
           !loading ? (
             <EmptyState
               icon="car-outline"
-              title="Add your first vehicle"
+              title="Add your first car"
               description="MileClear uses your vehicle's type and fuel to work out running costs, MPG, and Clean Air Zone charges."
-              action={<Button title="Add Vehicle" icon="add" onPress={handleAdd} />}
+              action={<Button title="Add a car" icon="add" onPress={handleAdd} />}
             />
           ) : null
         }
@@ -202,18 +202,18 @@ export default function VehiclesScreen() {
                   onPress={handleLockedAdd}
                   activeOpacity={0.7}
                   accessibilityRole="button"
-                  accessibilityLabel="Add vehicle: Pro adds unlimited vehicles"
+                  accessibilityLabel="Add a car: Pro adds as many cars as you need"
                 >
                   <View style={styles.lockedAddBtnRow}>
                     <Ionicons name="lock-closed" size={18} color={TEXT_2} />
-                    <Text style={styles.lockedAddBtnText}>Add Vehicle</Text>
+                    <Text style={styles.lockedAddBtnText}>Add a car</Text>
                   </View>
                   <Text style={styles.lockedAddBtnSubtitle}>
-                    Free accounts get 1 vehicle. Upgrade to Pro for unlimited vehicles.
+                    Free accounts get 1 car. Pro adds as many as you need.
                   </Text>
                 </TouchableOpacity>
               ) : (
-                <Button title="Add Vehicle" icon="add" onPress={handleAdd} />
+                <Button title="Add a car" icon="add" onPress={handleAdd} />
               )}
             </View>
           ) : null

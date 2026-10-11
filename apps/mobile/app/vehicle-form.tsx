@@ -297,7 +297,7 @@ export default function VehicleFormScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Stack.Screen
-        options={{ title: isEditing ? "Edit Vehicle" : "Add Vehicle" }}
+        options={{ title: isEditing ? "Edit car" : "Add a car" }}
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* Registration Plate Lookup */}
@@ -574,7 +574,7 @@ export default function VehicleFormScreen() {
 
         {/* Save */}
         <Button
-          title={isEditing ? "Save Changes" : "Add Vehicle"}
+          title={isEditing ? "Save changes" : "Add car"}
           icon="checkmark"
           onPress={handleSave}
           loading={saving}
