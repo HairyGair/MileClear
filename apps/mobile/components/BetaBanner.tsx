@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 
@@ -26,6 +26,9 @@ interface BetaBannerProps {
  *   - beta: amber, "functional but limited" tone
  *   - soon: grey, "not yet ready" tone
  */
+/** Text size (a multiple of the default) at which the title moves below the pill. */
+const STACK_FONT_SCALE = 1.3;
+
 export function BetaBanner({
   label,
   title,
@@ -34,17 +37,34 @@ export function BetaBanner({
 }: BetaBannerProps) {
   const styles = variant === "soon" ? soonStyles : betaStyles;
   const defaultLabel = variant === "soon" ? "Coming soon" : "Beta";
+  // At the largest text sizes the icon and pill leave the title so little
+  // room on the same line that words break mid-way ("versio / n"). Once the
+  // text is scaled up, the title gets its own line below the pill.
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale >= STACK_FONT_SCALE;
+  const iconAndPill = (
+    <>
+      <Ionicons name={variant === "soon" ? "time-outline" : "flask-outline"} size={16} color={styles.icon.color} />
+      {/* The pill is a View with the text inside: drawn as a Text with its
+          own background and overflow:hidden, the label didn't show on iOS. */}
+      <View style={[styles.pill, { backgroundColor: styles.pillBg.color }]}>
+        <Text style={[styles.pillLabel, { color: styles.pillText.color }]}>{label ?? defaultLabel}</Text>
+      </View>
+    </>
+  );
   return (
     <View style={styles.banner}>
-      <View style={styles.header}>
-        <Ionicons name={variant === "soon" ? "time-outline" : "flask-outline"} size={16} color={styles.icon.color} />
-        {/* The pill is a View with the text inside: drawn as a Text with its
-            own background and overflow:hidden, the label didn't show on iOS. */}
-        <View style={[styles.pill, { backgroundColor: styles.pillBg.color }]}>
-          <Text style={[styles.pillLabel, { color: styles.pillText.color }]}>{label ?? defaultLabel}</Text>
+      {stacked ? (
+        <>
+          <View style={styles.header}>{iconAndPill}</View>
+          <Text style={styles.titleStacked}>{title}</Text>
+        </>
+      ) : (
+        <View style={styles.header}>
+          {iconAndPill}
+          <Text style={styles.title}>{title}</Text>
         </View>
-        <Text style={styles.title}>{title}</Text>
-      </View>
+      )}
       <Text style={styles.body}>{body}</Text>
     </View>
   );
@@ -81,6 +101,7 @@ const betaStyles = StyleSheet.create({
   pillBg: { color: "rgba(245, 166, 35, 0.22)" },
   pillText: { color: colors.amber },
   title: { flex: 1, color: colors.text1, fontSize: 13, fontFamily: fonts.semibold },
+  titleStacked: { color: colors.text1, fontSize: 13, fontFamily: fonts.semibold },
   body: { color: colors.text2, fontSize: 12, fontFamily: fonts.regular, lineHeight: 17 },
 });
 
@@ -115,5 +136,6 @@ const soonStyles = StyleSheet.create({
   pillBg: { color: "rgba(132, 148, 167, 0.22)" },
   pillText: { color: colors.text2 },
   title: { flex: 1, color: colors.text1, fontSize: 13, fontFamily: fonts.semibold },
+  titleStacked: { color: colors.text1, fontSize: 13, fontFamily: fonts.semibold },
   body: { color: colors.text2, fontSize: 12, fontFamily: fonts.regular, lineHeight: 17 },
 });
