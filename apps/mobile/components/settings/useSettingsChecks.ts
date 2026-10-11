@@ -25,12 +25,12 @@ import {
   lastTripCheck,
   notificationsCheck,
   recordingCheck,
-  settingsHeadline,
   uploadsCheck,
   type CheckRow,
   type NotificationPermission,
 } from "../../lib/settings/checks";
 import { countNotifications } from "../../lib/settings/notificationGroups";
+import { moreStatus, type MoreStatus } from "../../lib/more/problem";
 
 export interface PhoneState {
   loaded: boolean;
@@ -229,33 +229,49 @@ export function useSettingsChecks(): SettingsChecks {
 }
 
 /**
- * The light version for the More tab's Settings row: just the headline
- * ("Recording automatically", or the first red problem), without reading the
- * last trip or the notification switches.
+ * The light version for the More tab: the red strip under the name card (only
+ * when Settings would show a red line) and the calm Settings row sentence,
+ * without reading the last trip or the notification switches.
  */
-export function useSettingsHeadline(): { text: string; red: boolean } {
+export function useMoreStatus(): {
+  status: MoreStatus;
+  checking: boolean;
+  pendingCount: number;
+  fixLocation: () => Promise<void>;
+  openPhoneSettings: () => void;
+} {
   const phone = usePhoneState();
-  const recording = useRecordingNow();
   const failed = useFailedSyncCount();
+  const { pendingCount } = useSync();
   const now = Date.now();
-  return useMemo(() => {
-    if (!phone.loaded) return settingsHeadline([checkingRow("recording")]);
+  const status = useMemo(() => {
     const msgs = recordingMessages(phone);
-    const rows = [
-      recordingCheck({
-        blocker: msgs.blocker,
-        pausedUntil: phone.pausedUntil,
-        now,
-        automaticOff: phone.automaticOff,
-        lowPowerMode: phone.lowPower,
-        platform: Platform.OS === "ios" ? "ios" : "android",
-        setup: msgs.setup,
-        recording,
-      }),
-      notificationsCheck({ permission: phone.notifications, counts: null }),
-      uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips }),
-    ];
-    return settingsHeadline(rows);
+    return moreStatus({
+      loaded: phone.loaded,
+      recording: null,
+      blocker: msgs.blocker,
+      failedSyncCount: failed.count,
+      failedSyncAllTrips: failed.allTrips,
+      pausedUntil: phone.pausedUntil,
+      now,
+      automaticOff: phone.automaticOff,
+      lowPowerMode: phone.lowPower,
+      platform: Platform.OS === "ios" ? "ios" : "android",
+      setup: null,
+      recovered: null,
+      notifications: phone.notifications,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phone, recording, failed.count, failed.allTrips, Math.floor(now / 60000)]);
+  }, [phone, failed.count, failed.allTrips, Math.floor(now / 60000)]);
+
+  const fixLocation = useCallback(async () => {
+    await requestOrFixBackgroundLocation();
+    phone.refresh();
+  }, [phone]);
+
+  const openPhoneSettings = useCallback(() => {
+    Linking.openSettings().catch(() => {});
+  }, []);
+
+  return { status, checking: !phone.loaded, pendingCount, fixLocation, openPhoneSettings };
 }

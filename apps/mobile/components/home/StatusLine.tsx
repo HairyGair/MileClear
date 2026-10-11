@@ -16,6 +16,8 @@ interface Props {
   onPress: () => void;
   /** The verb on the right (Resume). Only the Paused look has its own button. */
   onAction: () => void;
+  /** Overrides what a screen reader says a tap does (More's strip uses its own). */
+  hint?: string;
 }
 
 const HINTS: Record<StatusLineModel["tap"], string> = {
@@ -58,7 +60,7 @@ function LiveDot({ breathe }: { breathe: boolean }) {
   return <Animated.View style={[s.dot, { opacity }]} accessible={false} />;
 }
 
-export function StatusLine({ model, onPress, onAction }: Props) {
+export function StatusLine({ model, onPress, onAction, hint }: Props) {
   // Tell a screen reader when a problem appears.
   const lastKind = useRef(model.kind);
   useEffect(() => {
@@ -99,7 +101,7 @@ export function StatusLine({ model, onPress, onAction }: Props) {
       style={s.main}
       accessibilityRole="button"
       accessibilityLabel={paused ? model.title : model.a11yLabel}
-      accessibilityHint={paused ? "Opens recording options" : HINTS[model.tap]}
+      accessibilityHint={hint ?? (paused ? "Opens recording options" : HINTS[model.tap])}
     >
       {leading}
       <View style={s.titleWrap}>{title}</View>

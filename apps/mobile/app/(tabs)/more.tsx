@@ -1,153 +1,260 @@
-// More: every destination the old avatar menu held, in plain groups. The
-// tab bar carries Home, Trips, Tax/Insights; everything else is a row here.
-// Visibility rules are the old menu's: company drivers never see earnings
-// rows, EmSee only shows when the server has it, Admin only for admins, and
-// the PRO chips are for free users only.
+// More (Oct 2026 redesign, direction A "Jobs with live sentences"). Grouped by
+// what the driver looks after: car, work, money (or records), progress, tools,
+// help and settings. Each row says one live fact, and only the rows that apply
+// to this driver show (lib/more/rows.ts). When something is broken, Home's red
+// strip sits under the name card; Log out lives at the bottom of Settings.
 
-import { ScrollView, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { useCallback, useMemo } from "react";
+import { Platform, ScrollView, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { driveForOf } from "@mileclear/shared";
 import AppHeader from "../../components/AppHeader";
 import { UserAvatar } from "../../components/avatars/AvatarRegistry";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
-import { useAuth } from "../../lib/auth/context";
+import { StatusLine } from "../../components/home/StatusLine";
 import { useUser } from "../../lib/user/context";
 import { useMode } from "../../lib/mode/context";
-import { isWorkDriver } from "../../lib/tax/persona";
 import { useAssistantAvailable } from "../../lib/api/assistant";
-import { useSettingsHeadline } from "../../components/settings/useSettingsChecks";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { useMoreStatus } from "../../components/settings/useSettingsChecks";
+import { useMoreFacts } from "../../components/more/useMoreFacts";
+import { moreGroups, PRO_ROWS, type MoreRowId } from "../../lib/more/rows";
+import {
+  badgesLine,
+  bankLine,
+  bankRoute,
+  carsLine,
+  earningsLine,
+  expensesLine,
+  fuelLine,
+  insightsLine,
+  invoicesLine,
+  mainCar,
+  odometerLine,
+  placesLine,
+  planLine,
+  roadLine,
+  settingsLine,
+  shiftsLine,
+  workHoursLine,
+  type Line,
+} from "../../lib/more/sentences";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
+
+interface RowView {
+  icon: string;
+  label: string;
+  line?: Line;
+  route: string;
+  /** Shows the soft "Pro" chip (free drivers, whole-row Pro features only). */
+  pro?: boolean;
+}
 
 export default function MoreScreen() {
   const router = useRouter();
-  const { user, seesCompanyDriverApp: companyApp, isLoading } = useUser();
-  const { logout } = useAuth();
+  const { user, company, isCompanyDriver, seesCompanyDriverApp: companyApp, isLoading } = useUser();
   const { isWork } = useMode();
   const assistantAvailable = useAssistantAvailable();
-  const headline = useSettingsHeadline();
+  const more = useMoreStatus();
 
-  // A paying subscriber should not be advertised features they own, and the
-  // profile is null while loading: treat both as Pro rather than flash "PRO".
-  const proBadge = isLoading || user?.isPremium ? undefined : "PRO";
+  // A paying subscriber should not be advertised features they own, team
+  // company drivers get Pro through their team, and the profile is null while
+  // loading: treat all three as Pro rather than flash "Pro".
+  const isPro = isLoading || !!user?.isPremium || isCompanyDriver;
+  const driveFor = driveForOf(user);
+  const companyCar = companyApp || driveFor === "company";
+
+  // Facts first need to know which rows could show; employees' money rows show
+  // only when they have something there, so those are always read for them.
+  const probeGroups = moreGroups({
+    driveFor,
+    companyApp,
+    isWork,
+    electric: false,
+    hasShifts: true,
+    hasEarnings: true,
+    hasInvoices: true,
+    bankLinked: true,
+    assistant: assistantAvailable === true,
+    isAdmin: !!user?.isAdmin,
+  });
+  const want = useMemo(
+    () => new Set<MoreRowId>(probeGroups.flatMap((g) => g.rows)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [probeGroups.map((g) => g.rows.join(",")).join("|")]
+  );
+  const facts = useMoreFacts({ userId: user?.id, isPro, isWork, want });
+
+  const car = mainCar(facts.cars);
+  const electric = car?.fuelType === "electric";
+  const groups = moreGroups({
+    driveFor,
+    companyApp,
+    isWork,
+    electric,
+    hasShifts: !!facts.lastShift,
+    hasEarnings: (facts.earningsEver ?? 0) > 0,
+    hasInvoices: (facts.invoices?.total ?? 0) > 0,
+    bankLinked: (facts.bank?.banks.length ?? 0) > 0,
+    assistant: assistantAvailable === true,
+    isAdmin: !!user?.isAdmin,
+  });
+
+  const now = new Date();
+  const rows: Record<MoreRowId, RowView> = {
+    cars: { icon: "car-outline", label: "Your cars", line: carsLine(facts.cars, now, { companyCar }), route: "/vehicles" },
+    fuel: {
+      icon: "water-outline",
+      label: "Fuel",
+      line: { text: fuelLine({ lastFillUpAt: facts.lastFillUpAt, cheapestPence: facts.cheapestPence, electric }) },
+      route: "/(tabs)/fuel",
+    },
+    odometer: { icon: "speedometer-outline", label: "Odometer", line: odometerLine(facts.cars), route: "/odometer-log" },
+    places: { icon: "location-outline", label: "Saved places", line: { text: placesLine(facts.places) }, route: "/saved-locations" },
+    road: { icon: "construct-outline", label: "Road alerts", line: { text: roadLine(facts.road) }, route: "/road-alerts" },
+    chargers: { icon: "flash-outline", label: "Chargers near you", line: { text: "Charge points and prices nearby" }, route: "/charging-nearby" },
+    shifts: { icon: "time-outline", label: "Shifts", line: { text: shiftsLine(facts.lastShift) }, route: "/shifts" },
+    work_hours: { icon: "calendar-outline", label: "Work hours", line: { text: workHoursLine(facts.slots) }, route: "/work-schedule" },
+    manager: { icon: "people-outline", label: "Invite your manager", line: { text: "If your employer pays your mileage" }, route: "/nominate-manager" },
+    earnings: { icon: "cash-outline", label: "Earnings", line: { text: earningsLine(facts.earnings, now) }, route: "/(tabs)/earnings" },
+    expenses: { icon: "receipt-outline", label: "Expenses", line: { text: expensesLine(facts.expenses, now) }, route: "/expenses" },
+    invoices: { icon: "document-text-outline", label: "Invoices", line: { text: invoicesLine(facts.invoices) }, route: "/invoices" },
+    bank: {
+      icon: "business-outline",
+      label: "Bank",
+      line: { text: bankLine(facts.bank, isPro) },
+      route: bankRoute(facts.bank, isPro),
+      pro: true,
+    },
+    records: { icon: "ribbon-outline", label: "Records", line: { text: "Mileage certificate and downloads" }, route: "/(tabs)/tax" },
+    drive_for_work: {
+      icon: "briefcase-outline",
+      label: "Drive for work?",
+      line: { text: "Tell us and the Tax tab appears" },
+      route: "/settings/work-tax",
+    },
+    insights: { icon: "stats-chart-outline", label: "Insights", line: { text: insightsLine(facts.week) }, route: "/(tabs)/insights" },
+    badges: { icon: "trophy-outline", label: "Badges", line: { text: badgesLine(facts.badges) }, route: "/achievements" },
+    ticket: { icon: "shield-checkmark-outline", label: "Ticket defender", line: { text: "Check a fine against your trips" }, route: "/ticket-defender" },
+    emsee: { icon: "chatbubbles-outline", label: "Ask EmSee", line: { text: "Questions about your trips and tax" }, route: "/assistant" },
+    settings: {
+      icon: "settings-outline",
+      label: "Settings",
+      line: {
+        text: settingsLine({
+          problem: !!more.status.problem,
+          recordingNote: more.status.recordingNote,
+          checking: more.checking,
+          pendingUploads: more.pendingCount,
+        }),
+      },
+      route: "/settings",
+    },
+    help: { icon: "help-circle-outline", label: "Help and how-tos", route: "/help" },
+    feedback: { icon: "chatbubble-outline", label: "Tell us about a problem or idea", route: "/feedback" },
+    invite: { icon: "gift-outline", label: "Invite a friend, get Pro free", route: "/refer" },
+    admin: { icon: "shield-outline", label: "Admin panel", route: "/(tabs)/admin" },
+  };
 
   // Tab screens switch tabs; everything else is pushed on the root stack.
-  const go = (route: string) => () => {
-    if (route.startsWith("/(tabs)/")) {
-      router.navigate(route as never);
-    } else {
-      router.push(route as never);
+  const go = useCallback(
+    (route: string) => () => {
+      if (route.startsWith("/(tabs)/")) router.navigate(route as never);
+      else router.push(route as never);
+    },
+    [router]
+  );
+
+  const onProblem = useCallback(() => {
+    const p = more.status.problem;
+    if (!p) return;
+    switch (p.tap) {
+      case "fix_location":
+        void more.fixLocation();
+        break;
+      case "fix_background_refresh":
+      case "fix_notifications":
+        more.openPhoneSettings();
+        break;
+      case "sync_status":
+        router.push("/sync-status" as never);
+        break;
     }
-  };
+  }, [more, router]);
+
+  const plan = planLine(facts.plan ?? (user ? { isPremium: !!user.isPremium } : null), {
+    teamName: isCompanyDriver ? company?.orgName ?? null : null,
+  });
+  const name = user ? user.displayName || "Driver" : "Loading...";
+
+  const platform = Platform.OS === "ios" ? "ios" : "android";
+  const version = Constants.expoConfig?.version ?? "";
+  const build =
+    platform === "ios" ? Constants.expoConfig?.ios?.buildNumber : String(Constants.expoConfig?.android?.versionCode ?? "");
 
   return (
     <View style={styles.container}>
       <AppHeader title="More" hideAvatar />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           style={styles.profileCard}
           onPress={go("/settings")}
           activeOpacity={0.7}
           accessibilityRole="button"
-          accessibilityLabel={
-            user
-              ? `${user.displayName || "Driver"}, ${user.email}. Open settings`
-              : "Open settings"
-          }
+          accessibilityLabel={user ? `${name}${plan ? `, ${plan}` : ""}. Open settings` : "Open settings"}
         >
-          <UserAvatar
-            avatarId={user?.avatarId}
-            name={user?.displayName}
-            email={user?.email}
-            size={44}
-          />
+          <UserAvatar avatarId={user?.avatarId} name={user?.displayName} email={user?.email} size={44} />
           <View style={styles.profileInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name} numberOfLines={1}>
-                {user ? user.displayName || "Driver" : "Loading..."}
-              </Text>
-              {user?.isPremium && (
-                <View style={styles.proChip}>
-                  <Text style={styles.proChipText}>PRO</Text>
-                </View>
-              )}
-            </View>
-            {user?.email ? (
-              <Text style={styles.email} numberOfLines={1}>
-                {user.email}
+            <Text style={styles.name} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+              {name}
+            </Text>
+            {plan ? (
+              <Text style={styles.plan} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                {plan}
               </Text>
             ) : null}
           </View>
           <Ionicons name="chevron-forward" size={16} color={colors.text3} accessible={false} />
         </TouchableOpacity>
 
-        <SettingsGroup title="YOUR DRIVING">
-          <SettingsRow icon="key-outline" label="Vehicles" hint="Your cars, MOT and tax dates" onPress={go("/vehicles")} />
-          <SettingsRow icon="speedometer-outline" label="Odometer log" hint="Start and end readings for each day" onPress={go("/odometer-log")} />
-          <SettingsRow icon="time-outline" label="Shifts" hint="Your work sessions" onPress={go("/shifts")} />
-          <SettingsRow icon="location-outline" label="Saved places" hint="Home, work and other places you go" onPress={go("/saved-locations")} />
-          <SettingsRow icon="water-outline" label="Fuel" hint="Fill-ups and prices near you" onPress={go("/(tabs)/fuel")} />
-          <SettingsRow icon="trophy-outline" label="Achievements" hint="Your badges" onPress={go("/achievements")} />
-          {isWork ? (
-            <SettingsRow icon="stats-chart-outline" label="Insights" hint="Your numbers and trends" onPress={go("/(tabs)/insights")} />
-          ) : !isWorkDriver(user) ? (
-            <SettingsRow icon="ribbon-outline" label="Records" hint="Mileage certificate and downloads" onPress={go("/(tabs)/tax")} />
-          ) : null}
-        </SettingsGroup>
+        {more.status.problem ? (
+          <View style={styles.problem}>
+            <StatusLine
+              model={more.status.problem.model}
+              onPress={onProblem}
+              onAction={onProblem}
+              hint={more.status.problem.hint}
+            />
+          </View>
+        ) : null}
 
-        <SettingsGroup title="MONEY">
-          {!companyApp && (
-            <SettingsRow icon="cash-outline" label="Earnings" hint="What you were paid" onPress={go("/(tabs)/earnings")} />
-          )}
-          <SettingsRow icon="receipt-outline" label="Expenses" hint="Parking, tolls and other costs" onPress={go("/expenses")} />
-          {!companyApp && (
-            <SettingsRow icon="document-text-outline" label="Invoices" hint="Bill your clients" onPress={go("/invoices")} />
-          )}
-          {!companyApp && (
-            <SettingsRow icon="business-outline" label="Link a bank" hint="Bring in your earnings automatically" badge={proBadge} onPress={go("/open-banking")} />
-          )}
-          {!companyApp && (
-            <SettingsRow icon="mail-unread-outline" label="Bank inbox" hint="Payments waiting to be sorted" badge={proBadge} onPress={go("/inbox")} />
-          )}
-        </SettingsGroup>
-
-        <SettingsGroup title="TOOLS">
-          <SettingsRow icon="shield-checkmark-outline" label="Ticket defender" hint="Check a fine against your trips" badge={proBadge} onPress={go("/ticket-defender")} />
-          {assistantAvailable === true && (
-            <SettingsRow icon="chatbubbles-outline" label="EmSee" hint="Ask about MileClear" badge={proBadge} onPress={go("/assistant")} />
-          )}
-          {isWork && !companyApp && (user?.workType === "employee" || user?.workType === "both") && (
-            <SettingsRow icon="people-outline" label="Invite your manager" hint="If your employer pays your mileage" onPress={go("/nominate-manager")} />
-          )}
-          <SettingsRow icon="calendar-outline" label="Work hours" hint="Your working days and hours" onPress={go("/work-schedule")} />
-        </SettingsGroup>
-
-        <SettingsGroup title="HELP AND SETTINGS">
-          <SettingsRow icon="settings-outline" label="Settings" hint={headline.text} hintTone={headline.red ? "bad" : undefined} onPress={go("/settings")} />
-          <SettingsRow icon="help-circle-outline" label="Help and how-tos" hint="How MileClear works" onPress={go("/help")} />
-          <SettingsRow icon="bulb-outline" label="Feedback" hint="Ideas and problems" onPress={go("/feedback")} />
-          <SettingsRow icon="gift-outline" label="Invite a friend, get Pro free" onPress={go("/refer")} />
-        </SettingsGroup>
-
-        {user?.isAdmin && (
-          <SettingsGroup title="ADMIN">
-            <SettingsRow icon="shield-outline" iconColor={colors.red} label="Admin panel" onPress={go("/(tabs)/admin")} />
+        {groups.map((g) => (
+          <SettingsGroup key={g.title} title={g.title}>
+            {g.rows.map((id) => {
+              const r = rows[id];
+              const pro = !isPro && (PRO_ROWS.includes(id) || r.pro);
+              return (
+                <SettingsRow
+                  key={id}
+                  icon={r.icon as never}
+                  label={r.label}
+                  hint={r.line?.text}
+                  hintTone={r.line?.tone}
+                  badge={pro ? "Pro" : undefined}
+                  onPress={go(r.route)}
+                />
+              );
+            })}
           </SettingsGroup>
-        )}
+        ))}
 
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={logout}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel="Log out"
-        >
-          <Ionicons name="log-out-outline" size={18} color={colors.red} accessible={false} />
-          <Text style={styles.logoutLabel}>Log out</Text>
-        </TouchableOpacity>
+        {version ? (
+          <Text style={styles.version} maxFontSizeMultiplier={fontScaleCap.body}>
+            {`Version ${version}${build ? ` (${build})` : ""}`}
+          </Text>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -168,27 +275,14 @@ const styles = StyleSheet.create({
     borderColor: colors.surfaceBorder,
   },
   profileInfo: { flex: 1 },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  name: { flexShrink: 1, fontSize: 16, fontFamily: fonts.bold, color: colors.text1 },
-  proChip: {
-    backgroundColor: colors.amberDim,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: radii.sm,
-  },
-  proChipText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.amber },
-  email: { fontSize: 13, fontFamily: fonts.regular, color: colors.text2, marginTop: 2 },
-  logoutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
+  name: { fontSize: 16, fontFamily: fonts.bold, color: colors.text1 },
+  plan: { fontSize: 13, fontFamily: fonts.regular, color: colors.text2, marginTop: 2 },
+  problem: { marginTop: spacing.md },
+  version: {
+    textAlign: "center",
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.text3,
     marginTop: spacing.xl,
-    minHeight: 48,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.3)",
-    backgroundColor: "rgba(239, 68, 68, 0.06)",
   },
-  logoutLabel: { fontSize: 15, fontFamily: fonts.semibold, color: colors.red },
 });
