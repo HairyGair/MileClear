@@ -2618,7 +2618,7 @@ export default function TripFormScreen() {
   // The calendar's dots: the phone's trips for the month, and the server's
   // for months older than the phone holds.
   const loadCalendarTrips = useCallback(
-    (from: Date, to: Date) => knownTripsBetween(from, to).then((r) => r.trips),
+    (from: Date, to: Date) => knownTripsBetween(from, to).then((r) => ({ trips: r.trips, incomplete: r.incomplete })),
     []
   );
 

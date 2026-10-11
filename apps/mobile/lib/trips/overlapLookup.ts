@@ -88,11 +88,14 @@ export async function knownTripsBetween(
   from: Date,
   to: Date,
   now: number = Date.now()
-): Promise<{ trips: KnownTrip[]; askedServer: boolean; serverFailed: boolean }> {
+): Promise<{ trips: KnownTrip[]; askedServer: boolean; serverFailed: boolean; incomplete: boolean }> {
   const phone = await phoneTripsBetween(from, to);
   const holds = await phoneHoldsFromNow(now);
-  if (!needsServerCheck({ windowStart: from.getTime(), phoneHoldsFrom: holds }) || !isOnline()) {
-    return { trips: phone, askedServer: false, serverFailed: false };
+  const needed = needsServerCheck({ windowStart: from.getTime(), phoneHoldsFrom: holds });
+  if (!needed || !isOnline()) {
+    // Offline with a window older than the phone holds: the list may be
+    // missing trips, and the caller can say so.
+    return { trips: phone, askedServer: false, serverFailed: false, incomplete: needed };
   }
   try {
     const server = await fetchTripsAround(from, to);
@@ -103,9 +106,9 @@ export async function knownTripsBetween(
     const trips = [...phone, ...extra].sort(
       (a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()
     );
-    return { trips, askedServer: true, serverFailed: false };
+    return { trips, askedServer: true, serverFailed: false, incomplete: false };
   } catch {
-    return { trips: phone, askedServer: true, serverFailed: true };
+    return { trips: phone, askedServer: true, serverFailed: true, incomplete: true };
   }
 }
 

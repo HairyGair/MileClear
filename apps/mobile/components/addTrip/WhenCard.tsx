@@ -14,10 +14,9 @@ import {
   isFutureDeparture,
   selectedDayChip,
   startOfLocalDay,
-  type DayTrip,
 } from "../../lib/trips/pastTripRule";
 import { shortDay } from "../../lib/tracking/pauseRule";
-import { DayPickerSheet } from "./DayPickerSheet";
+import { DayPickerSheet, type MonthTrips } from "./DayPickerSheet";
 import { TimeRow, type ClockValue } from "./TimeRow";
 
 interface Props {
@@ -34,7 +33,7 @@ interface Props {
   /** Lines under the time: the overlap line, what else is on that day. */
   children?: ReactNode;
   /** For the calendar's dots. */
-  loadTrips?: (from: Date, to: Date) => Promise<DayTrip[]>;
+  loadTrips?: (from: Date, to: Date) => Promise<MonthTrips>;
 }
 
 export function WhenCard({ day, onDay, time, onTime, now, timeStartsAt, timeHint, disabled, children, loadTrips }: Props) {

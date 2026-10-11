@@ -22,6 +22,11 @@ import {
 } from "../../lib/trips/pastTripRule";
 import { shortDay } from "../../lib/tracking/pauseRule";
 
+export interface MonthTrips {
+  trips: DayTrip[];
+  incomplete: boolean;
+}
+
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 interface Props {
@@ -30,8 +35,10 @@ interface Props {
   now: Date;
   onUse: (day: Date) => void;
   onClose: () => void;
-  /** The trips that start in [from, to), for the dots and the day's line. */
-  loadTrips?: (from: Date, to: Date) => Promise<DayTrip[]>;
+  /** The trips that start in [from, to), for the dots and the day's line.
+   *  `incomplete` when some of them could not be checked (an older month
+   *  with no signal, or the server didn't answer). */
+  loadTrips?: (from: Date, to: Date) => Promise<MonthTrips>;
 }
 
 export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips }: Props) {
@@ -51,21 +58,25 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
   }, [visible]);
 
   // This month's trips, for the dots. Kept per month while the sheet is open.
-  const [monthTrips, setMonthTrips] = useState<{ key: string; trips: DayTrip[] } | null>(null);
+  const [monthTrips, setMonthTrips] = useState<{ key: string; trips: DayTrip[]; incomplete: boolean } | null>(null);
   const monthKey = `${year}-${month}`;
   useEffect(() => {
     if (!visible || !loadTrips) return;
     let cancelled = false;
     loadTrips(new Date(year, month, 1), new Date(year, month + 1, 1))
-      .then((trips) => {
-        if (!cancelled) setMonthTrips({ key: `${year}-${month}`, trips });
+      .then((r) => {
+        if (!cancelled) setMonthTrips({ key: `${year}-${month}`, trips: r.trips, incomplete: r.incomplete });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [visible, loadTrips, year, month]);
-  const trips = monthTrips?.key === monthKey ? monthTrips.trips : null;
+  const loaded = monthTrips?.key === monthKey ? monthTrips : null;
+  // Some of the month couldn't be checked: the dots it has are real, but an
+  // empty day may not be empty, so the sheet says so and never "has none".
+  const unchecked = loaded?.incomplete === true;
+  const trips = loaded ? loaded.trips : null;
   const dots = trips ? tripDayKeys(trips) : null;
 
   const atThisMonth = year === now.getFullYear() && month === now.getMonth();
@@ -75,7 +86,14 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
     setMonth(d.getMonth());
   };
 
+  // Always six rows, so the sheet keeps its height from month to month and
+  // the arrows stay under the driver's thumb while they tap back through
+  // the months.
   const weeks = monthGrid(year, month);
+  while (weeks.length < 6) weeks.push([null, null, null, null, null, null, null]);
+  const pickedHere = picked != null && trips != null && picked.getMonth() === month && picked.getFullYear() === year;
+  const pickedHasTrips = pickedHere && trips!.some((t) => sameLocalDay(new Date(t.startedAt), picked!));
+  const dayLine = pickedHere && (!unchecked || pickedHasTrips) ? calendarDayLine(picked!, trips!) : null;
 
   return (
     <AppModal visible={visible} onRequestClose={onClose}>
@@ -86,7 +104,11 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
             Which day?
           </Text>
           {loadTrips && (
-            <Text style={styles.sub} maxFontSizeMultiplier={fontScaleCap.body}>Days with a dot already have trips.</Text>
+            <Text style={styles.sub} accessibilityLiveRegion="polite" maxFontSizeMultiplier={fontScaleCap.body}>
+              {unchecked
+                ? "Couldn't check this month's trips just now."
+                : "Days with a dot already have trips."}
+            </Text>
           )}
 
           <View style={styles.monthRow}>
@@ -153,11 +175,15 @@ export function DayPickerSheet({ visible, value, now, onUse, onClose, loadTrips 
             </View>
           ))}
 
-          {picked && trips && picked.getMonth() === month && picked.getFullYear() === year && (
-            <Text style={styles.dayLine} accessibilityLiveRegion="polite" maxFontSizeMultiplier={fontScaleCap.body}>
-              {calendarDayLine(picked, trips)}
-            </Text>
-          )}
+          {/* The line's space is kept when it is empty, for the same reason. */}
+          <Text
+            style={styles.dayLine}
+            accessible={dayLine != null}
+            accessibilityLiveRegion="polite"
+            maxFontSizeMultiplier={fontScaleCap.body}
+          >
+            {dayLine ?? " "}
+          </Text>
           <TouchableOpacity
             style={[styles.use, !picked && styles.useOff]}
             disabled={!picked}
