@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#030712"/>
+<text x="50" y="37" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="start" >9:41</text>
+<rect x="133" y="11" width="124" height="36" rx="18" fill="#000" />
+<rect x="286" y="30" width="3" height="4" rx="1" fill="#f0f2f5" />
+<rect x="291" y="28" width="3" height="6" rx="1" fill="#f0f2f5" />
+<rect x="296" y="26" width="3" height="8" rx="1" fill="#f0f2f5" />
+<rect x="301" y="24" width="3" height="10" rx="1" fill="#f0f2f5" />
+<path d="M311 27 a9 9 0 0 1 13 0 M313.5 30 a5.5 5.5 0 0 1 8 0" fill="none" stroke="#f0f2f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="317.5" cy="33" r="1.5" fill="#f0f2f5"/>
+<rect x="333" y="26" width="26" height="12" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1" />
+<rect x="335" y="28" width="20" height="8" rx="2" fill="#f0f2f5" />
+<circle cx="195" cy="230" r="34" fill="rgba(16,185,129,0.16)"/>
+<text x="195" y="247.28" font-family="Ionicons" font-size="48" fill="#10b981" text-anchor="middle">&#61982;</text>
+<text x="195" y="302" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="#f0f2f5" text-anchor="middle" >Trip added</text>
+<text x="195" y="348" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="34" font-weight="700" fill="#f0f2f5" text-anchor="middle" >12.4 miles</text>
+<text x="195" y="380" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" fill="#8494a7" text-anchor="middle" >Home to Depot · Sat 3 Oct, 08:35 to 09:01</text>
+<rect x="115.0" y="398" width="160.0" height="24" rx="8" fill="rgba(245,166,35,0.12)" />
+<text x="123.0" y="414.18" font-family="Ionicons" font-size="13" fill="#f5a623" text-anchor="start">&#61873;</text>
+<text x="140.0" y="414.5" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#f5a623" text-anchor="start" >Business · Uber Eats</text>
+<text x="195" y="452" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="middle" >Worked out from the road route</text>
+<text x="195" y="470" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="middle" >Saved to your account</text>
+<rect x="16" y="560" width="358" height="60" rx="14" fill="#f5a623" />
+<text x="36" y="596.2" font-family="Ionicons" font-size="20" fill="#030712" text-anchor="start">&#61747;</text>
+<text x="66" y="587" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#030712" text-anchor="start" >Add the next trip</text>
+<text x="66" y="606" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" fill="rgba(3,7,18,0.72)" text-anchor="start" >From Depot, Sat 3 Oct, after 09:01</text>
+<rect x="16" y="630" width="358" height="60" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.14)" stroke-width="1" />
+<text x="36" y="666.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62782;</text>
+<text x="66" y="657" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#f0f2f5" text-anchor="start" >Add the way back</text>
+<text x="66" y="676" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Depot to Home, same day</text>
+<text x="195" y="724" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#8494a7" text-anchor="middle" >Done</text>
+<rect x="128" y="830" width="134" height="5" rx="2.5" fill="#f0f2f5" />
+</svg>

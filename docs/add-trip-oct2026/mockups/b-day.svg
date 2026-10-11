@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#030712"/>
+<text x="50" y="37" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="start" >9:41</text>
+<rect x="133" y="11" width="124" height="36" rx="18" fill="#000" />
+<rect x="286" y="30" width="3" height="4" rx="1" fill="#f0f2f5" />
+<rect x="291" y="28" width="3" height="6" rx="1" fill="#f0f2f5" />
+<rect x="296" y="26" width="3" height="8" rx="1" fill="#f0f2f5" />
+<rect x="301" y="24" width="3" height="10" rx="1" fill="#f0f2f5" />
+<path d="M311 27 a9 9 0 0 1 13 0 M313.5 30 a5.5 5.5 0 0 1 8 0" fill="none" stroke="#f0f2f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="317.5" cy="33" r="1.5" fill="#f0f2f5"/>
+<rect x="333" y="26" width="26" height="12" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1" />
+<rect x="335" y="28" width="20" height="8" rx="2" fill="#f0f2f5" />
+<circle cx="36" cy="80" r="20" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<path d="M39 72 l-8 8 8 8" fill="none" stroke="#f0f2f5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="195" y="86" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="middle" >Fill in a day</text>
+<rect x="16" y="116" width="358" height="64" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="30" y="155.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#61910;</text>
+<text x="64" y="144" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Saturday 3 October</text>
+<text x="64" y="163" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >Change day</text>
+<path d="M352 142 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="20" y="206" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >MileClear already has</text>
+<rect x="16" y="218" width="358" height="60" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="32" y="244" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Home to Tesco Extra</text>
+<text x="32" y="263" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >08:40 to 09:05 · recorded</text>
+<text x="342" y="255" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="700" fill="#f0f2f5" text-anchor="end" >9.3 mi</text>
+<text x="20" y="300" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#94a3b8" text-anchor="start" >Nothing from 09:05 to the end of the day</text>
+<text x="20" y="328" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Add the stops you made after that</text>
+<rect x="16" y="340" width="358" height="276" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<line x1="40" y1="376" x2="40" y2="416" stroke="rgba(255,255,255,0.18)" stroke-width="2" stroke-dasharray="3 4"/>
+<text x="342" y="401" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#8494a7" text-anchor="end" >6.1 mi</text>
+<circle cx="40" cy="368" r="7" fill="#f0f2f5" stroke="#f0f2f5" stroke-width="1.6"/>
+<text x="60" y="373" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Tesco Extra</text>
+<text x="151.8" y="373" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >· left about 10:15</text>
+<line x1="40" y1="432" x2="40" y2="472" stroke="rgba(255,255,255,0.18)" stroke-width="2" stroke-dasharray="3 4"/>
+<text x="342" y="457" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#8494a7" text-anchor="end" >3.4 mi</text>
+<circle cx="40" cy="424" r="7" fill="#030712" stroke="#f0f2f5" stroke-width="1.6"/>
+<text x="60" y="429" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Depot</text>
+<text x="105.0" y="429" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >· left about 10:50</text>
+<line x1="40" y1="488" x2="40" y2="528" stroke="rgba(255,255,255,0.18)" stroke-width="2" stroke-dasharray="3 4"/>
+<text x="342" y="513" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#8494a7" text-anchor="end" >5.8 mi</text>
+<circle cx="40" cy="480" r="7" fill="#030712" stroke="#f0f2f5" stroke-width="1.6"/>
+<text x="60" y="485" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Eldon Square</text>
+<text x="159.60000000000002" y="485" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >· left about 11:30</text>
+<circle cx="40" cy="536" r="7" fill="#030712" stroke="#f0f2f5" stroke-width="1.6"/>
+<text x="60" y="541" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Home</text>
+<text x="32" y="593.48" font-family="Ionicons" font-size="18" fill="#8494a7" text-anchor="start">&#61699;</text>
+<text x="60" y="593" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#8494a7" text-anchor="start" >Add a stop</text>
+<text x="20" y="638" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Business or personal?</text>
+<rect x="16.0" y="648" width="175.0" height="48" rx="14" fill="rgba(245,166,35,0.12)" stroke="rgba(245,166,35,0.35)" stroke-width="1" />
+<text x="59.5" y="678.48" font-family="Ionicons" font-size="18" fill="#f5a623" text-anchor="start">&#61873;</text>
+<text x="83.5" y="678" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f5a623" text-anchor="start" >Business</text>
+<rect x="199.0" y="648" width="175.0" height="48" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.10)" stroke-width="1" />
+<text x="242.5" y="678.48" font-family="Ionicons" font-size="18" fill="#8494a7" text-anchor="start">&#62636;</text>
+<text x="266.5" y="678" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Personal</text>
+<text x="20" y="716" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >For all 3. You can change each one after.</text>
+<rect x="16" y="758" width="358" height="52" rx="14" fill="#f5a623" />
+<text x="195" y="790" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#030712" text-anchor="middle" >Add 3 trips</text>
+<rect x="128" y="830" width="134" height="5" rx="2.5" fill="#f0f2f5" />
+</svg>

@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844">
+<rect width="390" height="844" fill="#030712"/>
+<text x="50" y="37" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="start" >9:41</text>
+<rect x="133" y="11" width="124" height="36" rx="18" fill="#000" />
+<rect x="286" y="30" width="3" height="4" rx="1" fill="#f0f2f5" />
+<rect x="291" y="28" width="3" height="6" rx="1" fill="#f0f2f5" />
+<rect x="296" y="26" width="3" height="8" rx="1" fill="#f0f2f5" />
+<rect x="301" y="24" width="3" height="10" rx="1" fill="#f0f2f5" />
+<path d="M311 27 a9 9 0 0 1 13 0 M313.5 30 a5.5 5.5 0 0 1 8 0" fill="none" stroke="#f0f2f5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="317.5" cy="33" r="1.5" fill="#f0f2f5"/>
+<rect x="333" y="26" width="26" height="12" rx="3.5" fill="none" stroke="#f0f2f5" stroke-width="1" />
+<rect x="335" y="28" width="20" height="8" rx="2" fill="#f0f2f5" />
+<circle cx="36" cy="80" r="20" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+<path d="M39 72 l-8 8 8 8" fill="none" stroke="#f0f2f5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="195" y="86" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" fill="#f0f2f5" text-anchor="middle" >Add a past trip</text>
+<rect x="16" y="112" width="358" height="36" rx="10" fill="#111a2b" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+<text x="28" y="135.48" font-family="Ionicons" font-size="18" fill="#8494a7" text-anchor="start">&#62043;</text>
+<text x="54" y="135" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" fill="#8494a7" text-anchor="start" >No signal. The trip saves on your phone.</text>
+<rect x="16" y="158" width="358" height="144" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="32" y="182" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" fill="#8494a7" text-anchor="start" >From</text>
+<text x="32" y="205" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#f0f2f5" text-anchor="start" >Home</text>
+<text x="82.4" y="205" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >· saved place</text>
+<text x="342" y="199" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#8494a7" text-anchor="end" >Change</text>
+<line x1="32" y1="230" x2="374" y2="230" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="32" y="254" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" fill="#8494a7" text-anchor="start" >To</text>
+<text x="32" y="277" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="600" fill="#f0f2f5" text-anchor="start" >Depot</text>
+<text x="92.0" y="277" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#8494a7" text-anchor="start" >· saved place</text>
+<text x="342" y="271" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="14" font-weight="600" fill="#8494a7" text-anchor="end" >Change</text>
+<circle cx="352" cy="230" r="15" fill="#030712" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+<text x="352" y="235.76" font-family="Ionicons" font-size="16" fill="#8494a7" text-anchor="middle">&#62899;</text>
+<rect x="16" y="316" width="358" height="132" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="32" y="340" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" fill="#8494a7" text-anchor="start" >When</text>
+<rect x="30" y="352" width="63.0" height="32" rx="16.0" fill="#111a2b" stroke="rgba(255,255,255,0.10)" stroke-width="1" />
+<text x="43" y="373.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#f0f2f5" text-anchor="start" >Today</text>
+<rect x="101.0" y="352" width="94.2" height="32" rx="16.0" fill="#f0f2f5" />
+<text x="114.0" y="373.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#030712" text-anchor="start" >Yesterday</text>
+<rect x="203.2" y="352" width="124.0" height="32" rx="16.0" fill="#111a2b" stroke="rgba(255,255,255,0.10)" stroke-width="1" />
+<text x="216.2" y="373.76" font-family="Ionicons" font-size="16" fill="#8494a7" text-anchor="start">&#61910;</text>
+<text x="238.2" y="373.0" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Pick a day</text>
+<line x1="32" y1="392" x2="374" y2="392" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+<text x="32" y="427.2" font-family="Ionicons" font-size="20" fill="#8494a7" text-anchor="start">&#62942;</text>
+<text x="64" y="426" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Set off at</text>
+<text x="342" y="427" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="17" font-weight="700" fill="#f0f2f5" text-anchor="end" >17:10</text>
+<path d="M352 414 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="16" y="460" width="358" height="96" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="32" y="484" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" fill="#8494a7" text-anchor="start" >Miles</text>
+<rect x="30" y="494" width="140" height="40" rx="10" fill="#030712" stroke="rgba(245,166,35,0.35)" stroke-width="1" />
+<text x="46" y="520" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#94a3b8" text-anchor="start" >e.g. 12.5</text>
+<text x="184" y="510" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#8494a7" text-anchor="start" >No signal, so we couldn't</text>
+<text x="184" y="526" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#8494a7" text-anchor="start" >work out the road distance</text>
+<text x="32" y="548" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="1" font-weight="500" fill="#f0f2f5" text-anchor="start" ></text>
+<text x="20" y="582" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="600" fill="#8494a7" text-anchor="start" >Business or personal?</text>
+<rect x="16.0" y="592" width="175.0" height="48" rx="14" fill="rgba(245,166,35,0.12)" stroke="rgba(245,166,35,0.35)" stroke-width="1" />
+<text x="59.5" y="622.48" font-family="Ionicons" font-size="18" fill="#f5a623" text-anchor="start">&#61873;</text>
+<text x="83.5" y="622" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f5a623" text-anchor="start" >Business</text>
+<rect x="199.0" y="592" width="175.0" height="48" rx="14" fill="#0a1120" stroke="rgba(255,255,255,0.10)" stroke-width="1" />
+<text x="242.5" y="622.48" font-family="Ionicons" font-size="18" fill="#8494a7" text-anchor="start">&#62636;</text>
+<text x="266.5" y="622" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="start" >Personal</text>
+<rect x="16" y="648" width="358" height="52" rx="16" fill="#0a1120" stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+<text x="32" y="679" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" fill="#f0f2f5" text-anchor="start" >Which app</text>
+<text x="342" y="679" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#f0f2f5" text-anchor="end" >Uber Eats</text>
+<path d="M352 668 l6 6 -6 6" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="16" y="758" width="358" height="52" rx="14" fill="#f5a623" />
+<text x="195" y="790" font-family="Plus Jakarta Sans, -apple-system, Helvetica, Arial, sans-serif" font-size="16" font-weight="700" fill="#030712" text-anchor="middle" >Add trip</text>
+<rect x="128" y="830" width="134" height="5" rx="2.5" fill="#f0f2f5" />
+</svg>
