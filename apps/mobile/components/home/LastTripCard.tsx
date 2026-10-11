@@ -19,6 +19,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { MiniRoute } from "./MiniRoute";
+import { ClassifyControl } from "./ClassifyControl";
 import { classifyTripFromHome, type ClassifyResult } from "../../lib/home/classifyTrip";
 import type { LastTripFooter, LastTripView, SyncChip, TripChoice } from "../../lib/home/lastTrip";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
@@ -60,68 +61,6 @@ function ChipView({ chip, text, onPress }: { chip: SyncChip; text: string; onPre
     );
   }
   return body;
-}
-
-function ChoiceControl({
-  choice,
-  autoTag,
-  onChoose,
-  label,
-}: {
-  choice: TripChoice;
-  autoTag: boolean;
-  onChoose: (c: "business" | "personal") => void;
-  label: string;
-}) {
-  const unsorted = choice === "unclassified";
-  const business = choice === "business";
-  const personal = choice === "personal";
-  return (
-    <View
-      style={[s.track, unsorted && { borderColor: colors.amberGlow }]}
-      accessibilityRole="radiogroup"
-      accessibilityLabel={label}
-    >
-      <Pressable
-        onPress={() => onChoose("business")}
-        style={[s.half, business && s.halfBusiness]}
-        hitSlop={{ top: 2, bottom: 2 }}
-        accessibilityRole="radio"
-        accessibilityLabel="Business"
-        accessibilityState={{ selected: business, checked: business }}
-      >
-        <Ionicons
-          name={business ? "briefcase" : "briefcase-outline"}
-          size={16}
-          color={business ? colors.bg : colors.text2}
-          accessible={false}
-        />
-        <Text style={[s.halfText, business && s.halfTextBusiness]} maxFontSizeMultiplier={fontScaleCap.body}>
-          Business
-        </Text>
-        {business && autoTag ? <Text style={s.auto}>Auto</Text> : null}
-      </Pressable>
-      <Pressable
-        onPress={() => onChoose("personal")}
-        style={[s.half, personal && s.halfPersonal]}
-        hitSlop={{ top: 2, bottom: 2 }}
-        accessibilityRole="radio"
-        accessibilityLabel="Personal"
-        accessibilityState={{ selected: personal, checked: personal }}
-      >
-        <Ionicons
-          name={personal ? "person" : "person-outline"}
-          size={16}
-          color={personal ? colors.text1 : colors.text2}
-          accessible={false}
-        />
-        <Text style={[s.halfText, personal && s.halfTextPersonal]} maxFontSizeMultiplier={fontScaleCap.body}>
-          Personal
-        </Text>
-        {personal && autoTag ? <Text style={[s.auto, { color: colors.text1 }]}>Auto</Text> : null}
-      </Pressable>
-    </View>
-  );
 }
 
 function Footer({ footer, onPress }: { footer: NonNullable<LastTripFooter>; onPress: () => void }) {
@@ -357,7 +296,7 @@ export function LastTripCard({ view, mode, state, onChanged }: Props) {
       </View>
       {v.showChoice ? (
         <View style={s.choiceWrap}>
-          <ChoiceControl
+          <ClassifyControl
             choice={shownChoice}
             autoTag={v.showAutoTag && chosen === null}
             onChoose={(c) => choose(v, c)}
@@ -397,32 +336,6 @@ const s = StyleSheet.create({
   },
   shiftChipText: { fontSize: 11, fontFamily: fonts.semibold, color: colors.text2 },
   choiceWrap: { marginTop: 10 },
-  track: {
-    flexDirection: "row",
-    height: 40,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    backgroundColor: colors.surface,
-    padding: 2,
-    gap: 2,
-  },
-  half: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  halfBusiness: { backgroundColor: colors.amber, borderColor: colors.amber },
-  halfPersonal: { backgroundColor: colors.personal, borderColor: colors.personalEdge },
-  halfText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1 },
-  halfTextBusiness: { color: colors.bg, fontFamily: fonts.bold },
-  halfTextPersonal: { color: colors.text1, fontFamily: fonts.bold },
-  auto: { fontSize: 11, fontFamily: fonts.bold, color: colors.bg },
   note: { marginTop: 6, fontSize: 12, fontFamily: fonts.regular, color: colors.text2, minHeight: 16 },
   footerLine: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline, marginTop: 12, marginHorizontal: -16 },
   footer: {
