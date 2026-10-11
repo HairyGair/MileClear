@@ -35,7 +35,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "I've just downloaded it, what now?", area: "getting_started", id: "first-steps", expect: [/vehicle/i, /always|all the time/i] },
   { q: "What should I set up first on a new phone?", area: "getting_started", id: "first-steps", expect: [/vehicle/i] },
   { q: "How do I watch the tutorial again?", area: "getting_started", id: "tour", expect: [/take the tour/i] },
-  { q: "Why is one drive two trips?", area: "missing_or_wrong_trips", id: "split-trip", expect: [/4 minutes/i, /merge/i] },
+  { q: "Why is one drive two trips?", area: "missing_or_wrong_trips", id: "split-trip", expect: [/4 minutes/i, /join/i] },
   { q: "What's all the stuff on the home screen?", area: "getting_started", id: "home-screen", expect: [/start trip/i, /status|recording/i] },
   { q: "How do I hide one of the shortcuts on home?", area: "getting_started", id: "home-screen", expect: [/hold/i, /home screen/i] },
   { q: "How do I switch to personal mode?", area: "getting_started", id: "work-personal-mode", expect: [/top of home|work \| personal|switch/i] },
