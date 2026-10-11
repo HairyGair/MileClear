@@ -3921,7 +3921,9 @@ export default function TripFormScreen() {
         }
         roadMiles={lastRouteRef.current?.miles ?? null}
         departure={whenDay && whenTime ? startedAt : null}
-        arrival={whenDay && whenTime ? endedAt : null}
+        // No arrival for a set-off later than now: the end is held at now,
+        // so it would read "Arrives about 15:51" for a 15:50 start.
+        arrival={whenDay && whenTime && !isFutureDeparture(startedAt, new Date()) ? endedAt : null}
         arrivalTouched={endTimeTouched}
         onArrival={(v) => {
           setEndedAt(arrivalAfter(startedAt, v.hours, v.minutes));
