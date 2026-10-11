@@ -176,7 +176,9 @@ async function clientGate(
   if (!res.ok) {
     const p = problemResponse(res.code);
     let extra: Record<string, unknown> = {};
-    if (res.link) {
+    // Name only for someone who shared before (stopped or ended), never
+    // for an invite the driver has not answered.
+    if (res.link?.startedAt) {
       const u = await prisma.user.findUnique({
         where: { id: params.data.clientId },
         select: { fullName: true, displayName: true },

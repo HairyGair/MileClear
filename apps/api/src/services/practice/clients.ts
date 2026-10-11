@@ -300,15 +300,17 @@ export async function loadClientList(
   const ended: EndedRow[] = [];
   for (const l of links) {
     if (live.includes(l)) continue;
-    const name = l.client ? nameOf(l.client) : l.invitedName;
-    // The practice already knows the email it typed; a driver who asked to
-    // join shows their account email so the practice can recognise them.
-    const email = l.client?.email ?? l.invitedEmail ?? null;
+    // Before a driver has said yes, the practice sees only what it typed
+    // (the email and name it invited), never the account's own name. A
+    // driver who asked to join, or who shared before, shows as themselves.
+    const sharedBefore = l.startedBy === "driver" || !!l.startedAt || !!l.consentedAt;
+    const name = sharedBefore && l.client ? nameOf(l.client) : l.invitedName;
+    const email = sharedBefore && l.client ? l.client.email : l.invitedEmail ?? null;
     if (l.status === "invited") {
       const expired = !l.inviteExpiresAt || l.inviteExpiresAt.getTime() <= now.getTime();
       waiting.push({
         linkId: l.id,
-        clientId: l.client?.id ?? null,
+        clientId: null,
         name,
         email,
         state: expired ? "invite_expired" : l.client ? "waiting_for_client" : "invited_not_joined",

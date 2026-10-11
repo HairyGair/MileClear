@@ -168,6 +168,64 @@ describe("practice routes", () => {
     expect(res.json().code).toBe("practice_paused");
   });
 
+  // ── Client list ──────────────────────────────────────────────────────
+
+  it("lists live clients with business miles only, and never names an invitee before they say yes", async () => {
+    const liveClient = {
+      id: CLIENT,
+      email: "dave@example.com",
+      fullName: "Dave Mills",
+      displayName: "Dave",
+      workType: "gig",
+      lastTripAt: null,
+      vehicles: [{ vehicleType: "car", isPrimary: true }],
+    };
+    const invitee = { ...liveClient, id: "00000000-0000-0000-0000-00000000cc09", email: "pat@example.com", fullName: "Account Name" };
+    vi.mocked(prisma.practiceLink.findMany).mockResolvedValue([
+      { ...linkRow(), invitedEmail: null, invitedName: null, inviteExpiresAt: null, invitedAt: null, lastResentAt: null, askedAgainAt: null, updatedAt: new Date(), client: liveClient },
+      {
+        ...linkRow({ id: "00000000-0000-0000-0000-00000000ee09", status: "invited", consentedAt: null, startedAt: null, endsAt: null }),
+        clientUserId: invitee.id,
+        invitedEmail: "pat@example.com",
+        invitedName: "Pat (as typed)",
+        inviteExpiresAt: new Date(Date.now() + 10 * DAY),
+        invitedAt: new Date(),
+        lastResentAt: null,
+        askedAgainAt: null,
+        updatedAt: new Date(),
+        client: invitee,
+      },
+    ] as never);
+    vi.mocked(prisma.trip.groupBy).mockImplementation((async (args: { where: { classification: string } }) =>
+      args.where.classification === "business"
+        ? [{ userId: CLIENT, _sum: { distanceMiles: 120.44 } }]
+        : [{ userId: CLIENT, _count: { _all: 7 } }]) as never);
+    vi.mocked(prisma.earning.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.expense.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.hmrcConnection.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.appEvent.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.practiceRequest.groupBy).mockResolvedValue([] as never);
+    vi.mocked(prisma.practiceAccessLog.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.practiceAccessLog.createMany).mockResolvedValue({ count: 1 } as never);
+
+    const res = await app.inject({ method: "GET", url: "/practice/clients", headers: auth });
+    expect(res.statusCode).toBe(200);
+    const data = res.json().data;
+    expect(data.clients).toHaveLength(1);
+    expect(data.clients[0]).toMatchObject({ clientId: CLIENT, businessMiles: 120.4, toSort: 7, earningsCount: 0 });
+    // Only the live client's totals were read, and only business miles.
+    const bizCall = vi.mocked(prisma.trip.groupBy).mock.calls.find((c) => (c[0] as { where: { classification: string } }).where.classification === "business")!;
+    expect((bizCall[0] as { where: { userId: { in: string[] } } }).where.userId).toEqual({ in: [CLIENT] });
+    expect(data.waiting).toEqual([
+      expect.objectContaining({ state: "waiting_for_client", name: "Pat (as typed)", email: "pat@example.com", clientId: null }),
+    ]);
+    expect(JSON.stringify(data)).not.toContain("Account Name");
+    // The list view is logged once per client per day.
+    expect(vi.mocked(prisma.practiceAccessLog.createMany).mock.calls[0][0]!.data).toEqual([
+      expect.objectContaining({ clientUserId: CLIENT, action: "viewed_list" }),
+    ]);
+  });
+
   // ── Business only ────────────────────────────────────────────────────
 
   it("lists business trips only when personal trips are not shared, even if asked for them", async () => {
