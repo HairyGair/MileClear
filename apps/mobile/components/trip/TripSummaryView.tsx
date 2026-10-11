@@ -24,7 +24,8 @@ import { MiniRoute } from "../home/MiniRoute";
 import { PickerSheet, type PickerOption } from "./PickerSheet";
 import { useReducedMotion } from "../../lib/accessibility";
 import { dayLabel } from "../../lib/trips/dayOrder";
-import { distanceWarning, tripMadeLine } from "../../lib/trips/tripLabels";
+import { distanceWarning, tripMadeDetail } from "../../lib/trips/tripLabels";
+import type { TripFacts } from "@mileclear/shared";
 import { colors, fonts, radii, fontScaleCap } from "../../lib/theme";
 
 // Maps are invisible in Expo Go; the summary draws its own placeholder then,
@@ -61,6 +62,8 @@ export interface TripSummaryViewProps {
   createdAt: string | null;
   /** The server marks a trip made by splitting a longer one. */
   splitLeg: boolean;
+  /** How the trip was recorded, split or joined (Oct 2026). Null from older servers. */
+  facts?: TripFacts | null;
   editedAt: string | null;
   diversionText: string | null;
   routeCoords: LatLng[];
@@ -522,8 +525,9 @@ export function TripSummaryView(props: TripSummaryViewProps) {
   const miles = props.distanceMiles != null ? Math.round(props.distanceMiles * 10) / 10 : null;
   const unclassified = classification === "unclassified";
 
-  const made = tripMadeLine(
+  const made = tripMadeDetail(
     {
+      ...(props.facts ?? {}),
       isManualEntry: props.isManual,
       classification,
       startedAt: startedAt.toISOString(),
@@ -532,15 +536,7 @@ export function TripSummaryView(props: TripSummaryViewProps) {
     },
     { waitingToUpload: props.waitingToSync, splitLeg: props.splitLeg }
   );
-  const madeIcon: keyof typeof Ionicons.glyphMap = made.done
-    ? "checkmark-circle"
-    : props.waitingToSync
-      ? "cloud-upload-outline"
-      : props.isManual
-        ? "create-outline"
-        : props.splitLeg
-          ? "cut-outline"
-          : "time-outline";
+  const madeIcon = made.icon as keyof typeof Ionicons.glyphMap;
   const extras: string[] = [];
   if (props.editedAt) {
     const e = new Date(props.editedAt);

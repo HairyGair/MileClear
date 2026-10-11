@@ -147,3 +147,71 @@ describe("dayMilesText", () => {
     expect(dayMilesText([])).toBe("0.0\u00a0mi");
   });
 });
+
+describe("labels from the trip facts (T-F)", () => {
+  it("Part 1 of 2 on a numbered split leg", () => {
+    const leg = trip({ splitFromTripId: "p", splitPart: 1, splitPartCount: 2, recordedBy: "automatic" });
+    expect(tripTag(leg, { now: NOW })).toMatchObject({ kind: "split", text: "Part 1 of 2" });
+    expect(tripMadeLine(leg, { waitingToUpload: false })).toEqual({ text: "Part 1 of 2 of a longer drive", done: false });
+  });
+
+  it("Joined from N trips on a join", () => {
+    const joined = trip({ joinedCount: 3, recordedBy: "automatic" });
+    expect(tripTag(joined, { now: NOW })).toMatchObject({ kind: "joined", text: "Joined from 3 trips" });
+    expect(tripMadeLine(joined, { waitingToUpload: false }).text).toBe("Joined from 3 trips");
+  });
+
+  it("Started with Start Trip", () => {
+    const st = trip({ recordedBy: "start_trip" });
+    expect(tripTag(st, { now: NOW })).toMatchObject({ kind: "start_trip", text: "Started with Start Trip" });
+    expect(tripMadeLine(st, { waitingToUpload: false })).toEqual({
+      text: "Recorded with Start Trip · saved to your account",
+      done: false,
+    });
+  });
+
+  it("an automatic trip saved on time says nothing in the list and ticks on the trip screen", () => {
+    const auto = trip({ recordedBy: "automatic" });
+    expect(tripTag(auto, { now: NOW })).toBeNull();
+    expect(tripMadeLine(auto, { waitingToUpload: false })).toEqual({
+      text: "Recorded automatically · saved to your account",
+      done: true,
+    });
+  });
+
+  it("Saved later only for a late automatic trip that was neither split nor joined", () => {
+    const late = { createdAt: "2026-10-11T09:01:00Z" };
+    expect(tripTag(trip({ ...late, recordedBy: "automatic" }), { now: NOW })).toMatchObject({
+      kind: "saved_later",
+      text: "Saved later, when your phone woke up",
+    });
+    expect(tripMadeLine(trip({ ...late, recordedBy: "automatic" }), { waitingToUpload: false })).toEqual({
+      text: "Saved later, when your phone woke up",
+      done: false,
+    });
+    // Exactly 30 minutes is not later.
+    expect(tripTag(trip({ createdAt: "2026-10-11T09:00:00Z", recordedBy: "automatic" }), { now: NOW })).toBeNull();
+    // Not for Start Trip, a shift or a trip without the facts.
+    expect(tripTag(trip({ ...late, recordedBy: "start_trip" }), { now: NOW })?.kind).toBe("start_trip");
+    expect(tripTag(trip({ ...late, recordedBy: "shift" }), { now: NOW })).toBeNull();
+    expect(tripTag(trip({ ...late, recordedBy: null }), { now: NOW })).toBeNull();
+    // A split leg or a join is saved when it was split or joined.
+    expect(tripTag(trip({ ...late, recordedBy: "automatic", splitFromTripId: "p", splitPart: 2, splitPartCount: 2 }), { now: NOW })?.kind).toBe("split");
+    expect(tripTag(trip({ ...late, recordedBy: "automatic", joinedCount: 2 }), { now: NOW })?.kind).toBe("joined");
+    // Still never for a trip saved alongside others on screen.
+    expect(tripTag(trip({ ...late, recordedBy: "automatic" }), { now: NOW, createdInBatch: true })).toBeNull();
+  });
+
+  it("keeps the existing order: upload trouble, sorted for you and added by you come first", () => {
+    const leg = trip({ splitFromTripId: "p", splitPart: 1, splitPartCount: 2, autoClassifiedAt: "2026-10-10T08:31:00Z" });
+    expect(tripTag(leg, { now: NOW })?.kind).toBe("auto_sorted");
+    expect(tripTag(leg, { now: NOW, local: true })?.kind).toBe("waiting");
+    const missing = trip({ isManualEntry: true, recordedBy: "missing_report" });
+    expect(tripTag(missing, { now: NOW })?.text).toBe("Added by you");
+  });
+
+  it("an older leg the server didn't number still says it was split", () => {
+    expect(tripMadeLine(trip({ splitFromTripId: "p" }), { waitingToUpload: false }).text).toBe("Part of a longer drive you split");
+    expect(tripTag(trip({ splitFromTripId: "p" }), { now: NOW })).toBeNull();
+  });
+});
