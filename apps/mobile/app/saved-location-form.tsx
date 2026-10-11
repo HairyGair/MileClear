@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { MapPickerModal } from "../components/MapPickerModal";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
-import { fetchSavedLocation } from "../lib/api/savedLocations";
+import { fetchSavedLocation, SAVED_PLACE_NAME_MAX } from "../lib/api/savedLocations";
 import {
   syncCreateSavedLocation,
   syncUpdateSavedLocation,
@@ -423,11 +423,16 @@ export default function SavedLocationFormScreen() {
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="e.g. Home, Warehouse, Office"
+          placeholder="e.g. Home, Warehouse, Mum's"
           placeholderTextColor={TEXT_3}
           autoCapitalize="words"
           autoCorrect={false}
-          maxLength={60}
+          // A name suggested from the trip's address is selected on tap, so
+          // typing your own name replaces it in one go.
+          selectTextOnFocus={!isEditing && !!nameParam}
+          returnKeyType="done"
+          clearButtonMode="while-editing"
+          maxLength={SAVED_PLACE_NAME_MAX}
           accessibilityLabel="Location name"
         />
 

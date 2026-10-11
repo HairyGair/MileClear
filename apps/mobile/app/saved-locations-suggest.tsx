@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Stack } from "expo-router";
 import {
   fetchSavedLocationSuggestions,
+  SAVED_PLACE_NAME_MAX,
   type SuggestedSavedLocation,
 } from "../lib/api/savedLocations";
 import { syncCreateSavedLocation } from "../lib/sync/actions";
@@ -35,7 +37,8 @@ import type { LocationType } from "@mileclear/shared";
  *
  * Each row defaults to the server's `suggestedType` (home / work / other)
  * but the user picks the actual label via a 4-button row before tapping
- * Save. Dismiss (skip) removes the suggestion from the list for the
+ * Save. "Name it yourself" opens a text field (prefilled with the current
+ * name) for a name the chips don't cover ("Mum's", "Tesco depot"). Dismiss (skip) removes the suggestion from the list for the
  * current session — we don't persist dismissals server-side yet (one of
  * Anthony's iteration variables for later: "should we remember 'no
  * thanks' decisions across sessions?").
@@ -49,6 +52,15 @@ const TYPE_OPTIONS: { value: SuggestionType; label: string; icon: keyof typeof I
   { value: "depot", label: "Depot", icon: "business-outline" },
   { value: "other", label: "Other", icon: "location-outline" },
 ];
+
+type RowState = {
+  type: SuggestionType;
+  name: string;
+  saving: boolean;
+  saved: boolean;
+  editing: boolean;
+  custom: boolean;
+};
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -70,9 +82,9 @@ export default function SavedLocationsSuggestScreen() {
   const [existingCount, setExistingCount] = useState<number | null>(null);
   // Per-row state: the type the user is currently choosing (defaults from
   // server's suggestedType), the editable name, and the row's saving state.
-  const [rowState, setRowState] = useState<
-    Record<string, { type: SuggestionType; name: string; saving: boolean; saved: boolean }>
-  >({});
+  // `editing` shows the name field; `custom` means the driver typed the name,
+  // so picking a chip afterwards no longer replaces it.
+  const [rowState, setRowState] = useState<Record<string, RowState>>({});
 
   useEffect(() => {
     getDatabase()
@@ -117,6 +129,8 @@ export default function SavedLocationsSuggestScreen() {
             name: defaultName,
             saving: false,
             saved: false,
+            editing: false,
+            custom: false,
           };
         }
         setRowState(initial);
@@ -138,7 +152,7 @@ export default function SavedLocationsSuggestScreen() {
       // overwrite it; otherwise leave it alone.
       const canonicalNames = new Set(["", "Home", "Work", "Depot", "Other", "Saved place"]);
       let nextName = current.name;
-      if (canonicalNames.has(current.name)) {
+      if (!current.custom && canonicalNames.has(current.name)) {
         nextName =
           type === "home"
             ? "Home"
@@ -149,6 +163,22 @@ export default function SavedLocationsSuggestScreen() {
                 : current.name;
       }
       return { ...s, [id]: { ...current, type, name: nextName } };
+    });
+  }, []);
+
+  const handleStartEditing = useCallback((id: string) => {
+    setRowState((s) => {
+      const current = s[id];
+      if (!current || current.saving || current.saved) return s;
+      return { ...s, [id]: { ...current, editing: true } };
+    });
+  }, []);
+
+  const handleNameChange = useCallback((id: string, name: string) => {
+    setRowState((s) => {
+      const current = s[id];
+      if (!current || current.saving || current.saved) return s;
+      return { ...s, [id]: { ...current, name, custom: true } };
     });
   }, []);
 
@@ -189,7 +219,7 @@ export default function SavedLocationsSuggestScreen() {
         });
         setRowState((s) => ({
           ...s,
-          [suggestion.id]: { ...row, saving: false, saved: true },
+          [suggestion.id]: { ...row, name, editing: false, saving: false, saved: true },
         }));
         // Re-register the anchor so detection still works correctly.
         registerGeofences().catch(() => {});
@@ -248,7 +278,11 @@ export default function SavedLocationsSuggestScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: "Suggested Places" }} />
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         <View style={styles.intro}>
           <Text style={styles.introBody}>
             MileClear spotted {suggestions.length} {suggestions.length === 1 ? "place" : "places"} you've
@@ -355,8 +389,29 @@ export default function SavedLocationsSuggestScreen() {
                     ))}
                   </View>
 
+                  {row.editing ? (
+                    <PlaceNameField
+                      value={row.name}
+                      onChangeText={(t) => handleNameChange(s.id, t)}
+                      editable={!row.saving}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.nameItLink}
+                      onPress={() => handleStartEditing(s.id)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8 }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Name it yourself"
+                      accessibilityHint="Type your own name for this place"
+                    >
+                      <Ionicons name="create-outline" size={15} color={AMBER} />
+                      <Text style={styles.nameItText}>Name it yourself</Text>
+                    </TouchableOpacity>
+                  )}
+
                   <Button
-                    title={`Save as ${row.name || "…"}`}
+                    title={`Save as ${row.name.trim() || "…"}`}
                     icon="checkmark"
                     onPress={() => handleSave(s)}
                     loading={row.saving}
@@ -380,6 +435,46 @@ export default function SavedLocationsSuggestScreen() {
         </TouchableOpacity>
       </ScrollView>
     </View>
+  );
+}
+
+/**
+ * The "Name it yourself" text field. It focuses itself just after it
+ * appears, with the suggested name selected, so typing replaces it. (On iOS
+ * `autoFocus` skips `selectTextOnFocus`, which left typing tacked onto the
+ * end: "WorkBridges Tesco".)
+ */
+function PlaceNameField({
+  value,
+  onChangeText,
+  editable,
+}: {
+  value: string;
+  onChangeText: (text: string) => void;
+  editable: boolean;
+}) {
+  const ref = useRef<TextInput>(null);
+  useEffect(() => {
+    const t = setTimeout(() => ref.current?.focus(), 150);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <TextInput
+      ref={ref}
+      style={styles.nameInput}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder="e.g. Mum's, Tesco depot"
+      placeholderTextColor={TEXT_3}
+      selectTextOnFocus
+      clearButtonMode="while-editing"
+      autoCapitalize="words"
+      autoCorrect={false}
+      returnKeyType="done"
+      maxLength={SAVED_PLACE_NAME_MAX}
+      editable={editable}
+      accessibilityLabel="Place name"
+    />
   );
 }
 
@@ -469,6 +564,31 @@ const styles = StyleSheet.create({
   },
   typeChipTextActive: {
     color: colors.bg,
+  },
+  nameItLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  nameItText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: AMBER,
+  },
+  nameInput: {
+    marginTop: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: fonts.regular,
+    color: TEXT_1,
   },
   savedRow: {
     flexDirection: "row",

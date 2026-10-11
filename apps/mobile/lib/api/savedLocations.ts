@@ -1,6 +1,10 @@
 import { apiRequest } from "./index";
 import type { SavedLocation, LocationType } from "@mileclear/shared";
 
+/** Longest place name the server accepts (z.string().max(100) in
+ *  apps/api/src/routes/savedLocations). Every name field uses this. */
+export const SAVED_PLACE_NAME_MAX = 100;
+
 export interface CreateSavedLocationData {
   name: string;
   locationType: LocationType;

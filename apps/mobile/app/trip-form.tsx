@@ -102,7 +102,8 @@ import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
 import { needsTimeConfirm, defaultEndFor, clockTime } from "../lib/trips/manualTimeRule";
-import { savedPlaceAt, type SavedPlace } from "../lib/trips/placeLabel";
+import { savedPlaceAt, shortPlaceLabel, type SavedPlace } from "../lib/trips/placeLabel";
+import { SAVED_PLACE_NAME_MAX } from "../lib/api/savedLocations";
 import { loadSavedPlaces } from "../lib/trips/savedPlaces";
 import { isSplitLeg } from "../lib/trips/tripLabels";
 import { claimFirstSplitNote } from "../lib/tutorial/state";
@@ -696,14 +697,18 @@ export default function TripFormScreen() {
 
   // "Save as place" under a trip's start/end address: open the saved-location
   // form with the pin and address already filled, so the driver only names it.
+  // The name starts as the address's place ("Kenton Lane"); the driver can
+  // keep it or type their own ("Mum's", "Tesco depot").
   const openSaveAsPlace = useCallback(
     (lat: number, lng: number, addr: string | null) => {
+      const suggestedName = shortPlaceLabel(addr, SAVED_PLACE_NAME_MAX);
       router.push({
         pathname: "/saved-location-form",
         params: {
           lat: String(lat),
           lng: String(lng),
           ...(addr ? { address: addr } : {}),
+          ...(suggestedName ? { name: suggestedName } : {}),
         },
       });
     },
