@@ -148,27 +148,32 @@ export function PlaceField({ label, value, onChange, source, savedPlaces, otherE
 
       {choosing && !disabled && (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.chipRow}
-          >
-            {chips.map((c) => (
-              <TouchableOpacity
-                key={c.key}
-                style={styles.chip}
-                onPress={() => onChange({ lat: c.lat, lng: c.lng, address: c.label }, c.kind === "recent" ? "recent" : "saved")}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`${label}: ${c.label}, ${c.kind === "recent" ? "recent place" : "saved place"}`}
-              >
-                <Ionicons name={CHIP_ICON[c.kind]} size={16} color={colors.text2} accessible={false} />
-                <Text style={styles.chipText} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
-                  {c.kind === "recent" ? shortPlaceLabel(c.label, 20) || c.label : c.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          {/* The search chip stays put at the end of the row, outside the
+              scroll, so it is never hidden behind four or five place chips. */}
+          <View style={styles.chipLine}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={styles.chipScroll}
+              contentContainerStyle={styles.chipRow}
+            >
+              {chips.map((c) => (
+                <TouchableOpacity
+                  key={c.key}
+                  style={styles.chip}
+                  onPress={() => onChange({ lat: c.lat, lng: c.lng, address: c.label }, c.kind === "recent" ? "recent" : "saved")}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label}: ${c.label}, ${c.kind === "recent" ? "recent place" : "saved place"}`}
+                >
+                  <Ionicons name={CHIP_ICON[c.kind]} size={16} color={colors.text2} accessible={false} />
+                  <Text style={styles.chipText} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                    {c.kind === "recent" ? shortPlaceLabel(c.label, 20) || c.label : c.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
             <TouchableOpacity
               style={[styles.chip, styles.searchChip, searching && styles.searchChipOn]}
               onPress={() => setSearching((v) => !v)}
@@ -182,7 +187,7 @@ export function PlaceField({ label, value, onChange, source, savedPlaces, otherE
                 <Text style={styles.chipText} maxFontSizeMultiplier={fontScaleCap.body}>Search</Text>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
           {searching && (
             <>
               {!online && (
@@ -228,6 +233,8 @@ const styles = StyleSheet.create({
   picked: { fontSize: 17, color: colors.text1 },
   pickedName: { fontFamily: fonts.bold, color: colors.text1 },
   pickedDetail: { fontFamily: fonts.regular, fontSize: 14, color: colors.text2 },
+  chipLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  chipScroll: { flexGrow: 0, flexShrink: 1 },
   chipRow: { gap: 8, paddingRight: 8 },
   chip: {
     flexDirection: "row",
