@@ -243,8 +243,9 @@ export function MissingTripReporter({
   variant = "card",
 }: {
   onTripAdded?: () => void;
-  /** "row" is the bare trigger row for the Trips review card: no card styling of its own. */
-  variant?: "card" | "row";
+  /** "row" is a bare trigger row with no card styling of its own; "link" is
+   *  the centred "Missing a trip? Tell us" line under To sort and the list. */
+  variant?: "card" | "row" | "link";
 } = {}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("form");
@@ -571,7 +572,7 @@ export function MissingTripReporter({
   return (
     <>
       <TouchableOpacity
-        style={variant === "row" ? styles.linkRow : styles.link}
+        style={variant === "row" ? styles.linkRow : variant === "link" ? styles.linkCentred : styles.link}
         onPress={() => {
           // Fresh sheet each time: a time left over from an earlier open
           // would be filed silently as this report's drive.
@@ -580,11 +581,17 @@ export function MissingTripReporter({
         }}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel="Missing a trip you made? Tap to tell us."
+        accessibilityLabel={variant === "link" ? "Missing a trip? Tell us." : "Missing a trip you made? Tap to tell us."}
       >
         <Ionicons name="help-circle-outline" size={16} color={colors.text2} />
-        <Text style={styles.linkText}>Missing a trip you made?</Text>
-        <Ionicons name="chevron-forward" size={15} color={colors.text3} style={styles.linkChevron} />
+        {variant === "link" ? (
+          <Text style={styles.linkText}>Missing a trip? Tell us</Text>
+        ) : (
+          <>
+            <Text style={styles.linkText}>Missing a trip you made?</Text>
+            <Ionicons name="chevron-forward" size={15} color={colors.text3} style={styles.linkChevron} />
+          </>
+        )}
       </TouchableOpacity>
 
       <Modal
@@ -805,6 +812,14 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: 14,
     paddingVertical: 10,
+  },
+  linkCentred: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 14,
   },
   linkText: {
     color: colors.text2,

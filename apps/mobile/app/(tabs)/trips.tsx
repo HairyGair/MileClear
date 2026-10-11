@@ -18,7 +18,9 @@ import {
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
-import { TripRouteCard } from "../../components/map/TripRouteCard";
+import { TripThumb } from "../../components/trips/TripThumb";
+import { MissedDrivesStrip } from "../../components/trips/MissedDrivesStrip";
+import { ClassifyControl } from "../../components/home/ClassifyControl";
 import { fetchOdometerDays, type OdometerDay } from "../../lib/api/odometer";
 import { dayLineA11y, dayLineText, loadedRange, selectDayLines } from "../../lib/odometer/logic";
 import { fetchTrips, fetchTripSummary, fetchProjectLabels, fetchUnclassifiedCount, fetchMissedJourneys, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
@@ -28,7 +30,9 @@ import { processSyncQueue } from "../../lib/sync";
 import { isNetworkError } from "../../lib/sync/errors";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
-import { groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
+import { dayLabel, groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
+import { createdInBatchIds, dayMilesText, isRecentAutoSort, suggestionLine, tripTag } from "../../lib/trips/tripLabels";
+import { routeText } from "../../lib/home/lastTrip";
 import { mergeTripPage, uniqueById } from "../../lib/trips/pageMerge";
 import { tripEndLabel, type SavedPlace } from "../../lib/trips/placeLabel";
 import { getDatabase } from "../../lib/db";
@@ -37,11 +41,10 @@ import { maybeRequestReview } from "../../lib/rating/index";
 import { GIG_PLATFORMS, getTaxYear, parseTaxYear } from "@mileclear/shared";
 import type { TripClassification, PlatformTag } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
-import { colors, fonts, radii, spacing } from "../../lib/theme";
+import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { TripNoteEditor, displayNote } from "../../components/TripNoteEditor";
 import { EmptyState } from "../../components/EmptyState";
 import { ErrorState } from "../../components/ErrorState";
-import { TripsReviewStrip } from "../../components/trips/TripsReviewStrip";
 import { MissingTripReporter } from "../../components/MissingTripReporter";
 import { MissedJourneys } from "../../components/MissedJourneys";
 import { TrackingOffBanner } from "../../components/TrackingOffBanner";
@@ -81,7 +84,7 @@ export interface RouteGroup {
   startLng: number;
   endLat: number;
   endLng: number;
-  /** Display label: "Start address → End address" using the first trip that has addresses. */
+  /** Raw address label for grouping; the card itself shows the short place names. */
   routeLabel: string;
   totalDistanceMiles: number;
 }
@@ -164,7 +167,7 @@ function groupUnclassifiedTrips(trips: TripItem[]): RouteGroup[] {
 
 const FILTERS: { label: string; value: TripClassification | "all" }[] = [
   { label: "All", value: "all" },
-  { label: "Inbox", value: "unclassified" },
+  { label: "To sort", value: "unclassified" },
   { label: "Business", value: "business" },
   { label: "Personal", value: "personal" },
 ];
@@ -178,7 +181,7 @@ const DATE_RANGES: { label: string; value: DateRange }[] = [
   { label: "Last month", value: "lastMonth" },
   { label: "This tax year", value: "taxYear" },
   { label: "Last tax year", value: "lastTaxYear" },
-  { label: "Custom…", value: "custom" },
+  { label: "Choose dates", value: "custom" },
 ];
 
 // Decrement a "YYYY-YY" tax-year string by one year (e.g. "2026-27" -> "2025-26").
@@ -262,9 +265,9 @@ function rangeLabel(
       if (customFrom && customTo) {
         const fmt = (d: Date) =>
           d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-        return `${fmt(customFrom)} – ${fmt(customTo)}`;
+        return `${fmt(customFrom)} to ${fmt(customTo)}`;
       }
-      return "Custom";
+      return "Choose dates";
   }
 }
 
@@ -286,22 +289,17 @@ function formatTime(iso: string): string {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-// A quiet server classification stays undoable in the list for a week;
-// after that it reads like any other classified trip.
-const AUTO_UNDO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Low or medium confidence gets a pill; high stays visually clean. */
-function showConfidenceFor(item: TripItem): boolean {
-  const level = item.confidence?.level;
-  return level === "low" || level === "medium";
-}
-
-function isRecentAutoTrip(item: TripItem): boolean {
-  return (
-    item.classification !== "unclassified" &&
-    !!item.autoClassifiedAt &&
-    Date.now() - new Date(item.autoClassifiedAt).getTime() < AUTO_UNDO_WINDOW_MS
-  );
+/** Trips on this phone whose upload has failed for good (red "Retry" tag). */
+async function loadFailedTripIds(): Promise<Set<string>> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ entity_id: string }>(
+      "SELECT DISTINCT entity_id FROM sync_queue WHERE entity_type = 'trip' AND status = 'permanently_failed'"
+    );
+    return new Set(rows.map((r) => r.entity_id));
+  } catch {
+    return new Set();
+  }
 }
 
 /** Saved places from the local database, for the route line's names. */
@@ -320,7 +318,7 @@ async function loadSavedPlaces(): Promise<SavedPlace[]> {
 export default function TripsScreen() {
   const router = useRouter();
   // "?filter=unclassified" is how the classify reminders (evening digest,
-  // weekly nudge, the app's own reminder) open the Inbox. Until 28 Sep 2026
+  // weekly nudge, the app's own reminder) open To sort. Until 28 Sep 2026
   // nothing read it, so every one of those taps landed on All instead.
   // "&range=lastTaxYear" narrows it to the tax year the 31 January Self
   // Assessment deadline is for (the "Ready for 31 January?" checklist).
@@ -356,15 +354,17 @@ export default function TripsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [unclassifiedCount, setUnclassifiedCount] = useState(0);
-  // Journeys to check (missed-journey proposals). null = not known yet, or the
-  // fetch failed; the review card then treats it as none.
+  // Drives to check (missed-journey proposals). null = not known yet, or the
+  // fetch failed; the strip then shows nothing.
   const [missedCount, setMissedCount] = useState<number | null>(null);
-  const [countsLoaded, setCountsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   // Whether the driver has tagged any trip with a Project / client. Only
   // then is the "Miles by project" link worth its row. One grouped query.
   const [hasProjectLabels, setHasProjectLabels] = useState(false);
   const [classifyingId, setClassifyingId] = useState<string | null>(null);
+  // Trips whose upload failed for good, and the "+" sheet.
+  const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
+  const [showAddSheet, setShowAddSheet] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Record<string, ClassificationSuggestion>>({});
   // Summary stats backed by /trips/summary (server-side aggregate). Lets the
@@ -381,7 +381,7 @@ export default function TripsScreen() {
   const [mergePlatform, setMergePlatform] = useState<string | null>(null);
   const [mergeLoading, setMergeLoading] = useState(false);
 
-  // Route grouping state (inbox view)
+  // Route grouping state (To sort view)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [batchClassifyingKey, setBatchClassifyingKey] = useState<string | null>(null);
 
@@ -390,15 +390,13 @@ export default function TripsScreen() {
       const res = await fetchUnclassifiedCount();
       setUnclassifiedCount(res.count);
     } catch {
-      // Ignore: the review card just keeps the last count
-    } finally {
-      setCountsLoaded(true);
+      // Ignore: the To sort count just keeps the last value
     }
   }, []);
 
-  // Journeys to check feed the review card. A failure leaves the last known
+  // Drives to check feed the strip at the top. A failure leaves the last known
   // count (or none) rather than claiming there is nothing to check. Not run
-  // for the Inbox view or on filter taps: there MissedJourneys loads its own.
+  // for To sort or on filter taps: there MissedJourneys loads its own.
   const loadMissedCount = useCallback(() => {
     fetchMissedJourneys()
       .then((r) => setMissedCount((r.proposals ?? []).length))
@@ -505,6 +503,7 @@ export default function TripsScreen() {
           const unsynced = await getLocalUnsyncedTrips({ classification, platformTag });
           const apiIds = new Set(res.data.map((t) => t.id));
           const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
+          loadFailedTripIds().then(setFailedIds).catch(() => {});
           const allTrips = uniqueById([...uniqueLocal, ...res.data]);
           // Animate the data swap-in. Pairs with the configureNext call in
           // handleFilterChange / handlePlatformChange so the chip → list
@@ -528,6 +527,7 @@ export default function TripsScreen() {
             platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
           const local = await getLocalTrips({ classification, platformTag });
           setTrips(local as TripItem[]);
+          loadFailedTripIds().then(setFailedIds).catch(() => {});
           setLoadError(local.length === 0);
           setIsOffline(isNetworkError(err));
           setTotalPages(1);
@@ -622,7 +622,7 @@ export default function TripsScreen() {
     [loadTrips, loadSummary, loadUnclassifiedCount]
   );
 
-  // A reminder tapped while Trips is already mounted: switch to the Inbox,
+  // A reminder tapped while Trips is already mounted: switch to To sort,
   // then clear the param so the next tap (after the driver has moved back
   // to All) is seen as a change too.
   useEffect(() => {
@@ -701,7 +701,7 @@ export default function TripsScreen() {
   }, [isOffline, onEndReached]);
 
   // Quick classify a trip directly from the list
-  // Reverse a quiet server classification. The trip returns to the inbox
+  // Reverse a quiet server classification. The trip returns to To sort
   // and the server counts the undo against that route from now on.
   const handleUndoClassification = useCallback(async (tripId: string) => {
     setClassifyingId(tripId);
@@ -738,7 +738,7 @@ export default function TripsScreen() {
         ));
         setUnclassifiedCount((prev) => Math.max(0, prev - 1));
 
-        // If viewing inbox and trip is now classified, remove it from view
+        // In To sort, a trip that now has an answer leaves the view
         if (filter === "unclassified") {
           setTrips((prev) => prev.filter((t) => t.id !== tripId));
         }
@@ -797,12 +797,12 @@ export default function TripsScreen() {
     // Unsynced trips can only take a note from here; the rest needs the server copy.
     if (item._isLocal) return [note];
     return [
-      ...(isRecentAutoTrip(item)
-        ? [{ label: "Undo automatic sort", onPress: () => handleUndoClassification(item.id) }]
+      ...(isRecentAutoSort(item)
+        ? [{ label: "Put back in To sort", onPress: () => handleUndoClassification(item.id) }]
         : []),
       note,
       {
-        label: "Merge trips",
+        label: "Join trips",
         onPress: () => {
           setMergeMode(true);
           setSelectedIds(new Set([item.id]));
@@ -853,7 +853,7 @@ export default function TripsScreen() {
       loadUnclassifiedCount();
     } catch (err: unknown) {
       // Merge is a direct API call, not an offline-first queued write.
-      const { title, message } = describeError(err, "Couldn't merge the trips", { savedLocally: false });
+      const { title, message } = describeError(err, "Couldn't join the trips", { savedLocally: false });
       Alert.alert(title, message);
     } finally {
       setMergeLoading(false);
@@ -863,7 +863,7 @@ export default function TripsScreen() {
   // Possible double-count. The server marks the newer of two trips that
   // overlap in time and share both ends (a drive added by hand whose
   // recording landed later, or a missed-journey gap the app then filled).
-  // Nothing is removed until the driver chooses: Merge folds the pair into
+  // Nothing is removed until the driver chooses: Join folds the pair into
   // one trip through the ordinary merge endpoint, Keep both clears the mark.
   const [duplicateBusyId, setDuplicateBusyId] = useState<string | null>(null);
 
@@ -884,7 +884,7 @@ export default function TripsScreen() {
         loadSummary();
         loadUnclassifiedCount();
       } catch (err: unknown) {
-        const { title, message } = describeError(err, "Couldn't merge the trips", { savedLocally: false });
+        const { title, message } = describeError(err, "Couldn't join the trips", { savedLocally: false });
         Alert.alert(title, message);
       } finally {
         setDuplicateBusyId(null);
@@ -956,7 +956,7 @@ export default function TripsScreen() {
         // Batch classifying a whole route group is a power-user moment
         setTimeout(() => maybeRequestReview("batch_classified"), 2000);
       } catch (err) {
-        const { title, message } = describeError(err, "Couldn't classify the trips");
+        const { title, message } = describeError(err, "Couldn't sort the trips");
         Alert.alert(title, message);
       } finally {
         setBatchClassifyingKey(null);
@@ -964,8 +964,6 @@ export default function TripsScreen() {
     },
     []
   );
-
-  const openNoteEditor = useCallback((tripId: string) => setEditingNoteId(tripId), []);
 
   // Save a trip note. Only writes when the text actually changed, so tapping
   // a note and away without editing never clobbers an internal marker.
@@ -985,22 +983,30 @@ export default function TripsScreen() {
     []
   );
 
+  // Trips the server saved together (a split's legs), so their late save
+  // time isn't read as a late drive.
+  const batchIds = useMemo(() => createdInBatchIds(trips), [trips]);
+
   // showDate: the day list already heads each day, so its rows leave the
-  // date out; the Inbox's route groups mix days, so theirs keep it.
+  // date out; To sort's route groups mix days, so theirs keep it.
   const renderTrip = ({ item, showDate = false }: { item: TripItem; showDate?: boolean }) => {
     const isUnclassified = item.classification === "unclassified";
     const isBusiness = item.classification === "business";
     const isClassifying = classifyingId === item.id;
     const tripSuggestion = isUnclassified ? suggestions[item.id] : null;
-    const isRecentAuto = isRecentAutoTrip(item);
+    const suggestionText = suggestionLine(tripSuggestion);
+    const isRecentAuto = isRecentAutoSort(item);
     const fromLabel = tripEndLabel(item.startAddress, item.startLat, item.startLng, savedPlaces);
     const toLabel = tripEndLabel(item.endAddress, item.endLat, item.endLng, savedPlaces);
-    const hasMeta =
-      showDate || !!item.platformTag || !!item._isLocal || !!item.isManualEntry || showConfidenceFor(item);
+    const route = routeText(fromLabel, toLabel);
     const isSelected = mergeMode && selectedIds.has(item.id);
     const note = displayNote(item.notes);
     const isEditingNote = editingNoteId === item.id;
-    const inInbox = filter === "unclassified";
+    const tag = tripTag(item, {
+      local: !!item._isLocal,
+      uploadFailed: failedIds.has(item.id),
+      createdInBatch: batchIds.has(item.id),
+    });
     // The trip this one may be a double of, if it is loaded on this screen.
     const duplicateOther = item.possibleDuplicateOfId
       ? trips.find((t) => t.id === item.possibleDuplicateOfId) ?? null
@@ -1010,26 +1016,17 @@ export default function TripsScreen() {
       trips.findIndex((t) => t.id === duplicateOther.id) > trips.findIndex((t) => t.id === item.id);
     const isDuplicateBusy = duplicateBusyId === item.id;
 
-    // iOS Mail-style left bar — single coloured stripe telling the
-    // classification at a glance. Replaces the heavier right-aligned
-    // Business/Personal pill which forced a multi-row header layout.
-    const classificationBarColour = isBusiness
-      ? AMBER
-      : isUnclassified
-        ? "#f5a623" // gold for needs-action
-        : "#475569"; // dim slate for personal — present but quiet
+    // Line 2: "08:05 · 12.4 mi · Uber Eats". Personal trips leave the app out.
+    const platformLabel =
+      item.platformTag && item.classification !== "personal"
+        ? (PLATFORM_LABELS[item.platformTag] ?? item.platformTag)
+        : null;
+    const when = showDate ? `${dayLabel(new Date(item.startedAt))} ${formatTime(item.startedAt)}` : formatTime(item.startedAt);
+    const line2 = [when, `${item.distanceMiles.toFixed(1)}\u00a0mi`, platformLabel].filter(Boolean).join(" · ");
 
-    // Confidence pill (replaces the unexplained amber dot). Shows only
-    // when confidence is low or medium so high-confidence trips stay
-    // visually clean. Includes accessibilityLabel that explains the
-    // signal rather than just "dot".
-    const confidence = item.confidence?.level;
-    const showConfidence = showConfidenceFor(item);
-
-    // Swipe actions — Anthony 16 May audit. Right swipe = quick classify
-    // (cycles Business / Personal / unclassified to the OTHER state),
-    // left swipe = delete. Disabled in merge-mode where taps mean
-    // multi-select.
+    // Swipe actions (Anthony 16 May audit). Right swipe = quick classify to
+    // the OTHER state, left swipe = delete. Disabled in join mode, where taps
+    // mean multi-select.
     const renderRightActions = () => (
       <RectButton
         style={styles.swipeDeleteAction}
@@ -1043,13 +1040,11 @@ export default function TripsScreen() {
       </RectButton>
     );
 
-    // Right-swipe (drag left-to-right) classifies. For unclassified
-    // trips it suggests Business; for already-classified trips it
-    // flips to the opposite class — matching the "primary positive
-    // action" iOS gesture pattern.
+    // Right-swipe (drag left-to-right) classifies. For unsorted trips it
+    // suggests Business; for sorted trips it flips to the other one.
     const targetClass: TripClassification = isBusiness ? "personal" : "business";
     const targetLabel = targetClass === "business" ? "Business" : "Personal";
-    const targetColor = targetClass === "business" ? AMBER : "#374151";
+    const targetColor = targetClass === "business" ? AMBER : colors.personal;
     const renderLeftActions = () =>
       mergeMode ? null : (
         <RectButton
@@ -1057,7 +1052,7 @@ export default function TripsScreen() {
           onPress={() => {
             handleQuickClassify(item.id, targetClass);
           }}
-          accessibilityLabel={`Classify as ${targetLabel}`}
+          accessibilityLabel={`Mark as ${targetLabel}`}
         >
           <Ionicons
             name={targetClass === "business" ? "briefcase" : "person"}
@@ -1075,13 +1070,12 @@ export default function TripsScreen() {
         </RectButton>
       );
 
+    const sortedWord = isUnclassified ? "not sorted yet" : isBusiness ? "Business" : "Personal";
+    const tagWords = tag ? `. ${tag.text}${tag.kind === "auto_sorted" ? ", you can undo it" : ""}` : "";
+
     const cardInner = (
       <TouchableOpacity
-        style={[
-          styles.tripCard,
-          isUnclassified && styles.tripCardUnclassified,
-          isSelected && styles.tripCardSelected,
-        ]}
+        style={[styles.tripCard, isSelected && styles.tripCardSelected]}
         onPress={() => {
           if (mergeMode) {
             toggleSelect(item.id);
@@ -1094,267 +1088,162 @@ export default function TripsScreen() {
         accessibilityRole="button"
         accessibilityLabel={
           mergeMode
-            ? `${isSelected ? "Deselect" : "Select"} trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
-            : `Trip on ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${item.classification !== "unclassified" ? `, ${item.classification}` : ", needs classifying"}${confidence && confidence !== "high" ? `, ${confidence} confidence` : ""}${isRecentAuto ? ", sorted automatically" : ""}. Tap to open. Swipe right to classify as ${targetLabel}. Swipe left to delete.`
+            ? `${isSelected ? "Deselect" : "Select"} ${route}, ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
+            : `${route}. ${formatDate(item.startedAt)} at ${formatTime(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${platformLabel ? `, ${platformLabel}` : ""}, ${sortedWord}${tagWords}. Tap to open. Swipe right to mark ${targetLabel}. Swipe left to delete.`
         }
         accessibilityState={mergeMode ? { selected: isSelected } : undefined}
         accessibilityHint={mergeMode ? undefined : "Long press for more options"}
         accessibilityActions={
-          !mergeMode && isRecentAuto ? [{ name: "undo", label: "Undo automatic sort" }] : undefined
+          !mergeMode && isRecentAuto ? [{ name: "undo", label: "Put back in To sort" }] : undefined
         }
         onAccessibilityAction={(e) => {
           if (e.nativeEvent.actionName === "undo") handleUndoClassification(item.id);
         }}
       >
-        {/* Left classification bar */}
-        <View style={[styles.classificationBar, { backgroundColor: classificationBarColour }]} />
+        <View style={styles.tripMainRow}>
+          {mergeMode && (
+            <View
+              style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
+              accessible={false}
+            >
+              {isSelected && <Ionicons name="checkmark" size={14} color={BG} accessible={false} />}
+            </View>
+          )}
 
-        <View style={styles.tripCardBody}>
-          {/* Compact row (4 Oct 2026): a small route thumbnail and three
-              short lines, so five or six trips fit on a screen. The
-              full-width map it replaced is on the trip screen. */}
-          <View style={styles.tripMainRow}>
-            {mergeMode && (
-              <View
-                style={[styles.selectCircle, isSelected && styles.selectCircleActive]}
-                accessible={false}
-              >
-                {isSelected && <Ionicons name="checkmark" size={14} color={BG} accessible={false} />}
+          {/* Home's small route drawing, from the same route the trip screen
+              draws. Taps and swipes pass straight through. */}
+          <TripThumb
+            tripId={item.id}
+            routePolyline={item.routePolyline}
+            isManualEntry={!!item.isManualEntry}
+            startLat={item.startLat}
+            startLng={item.startLng}
+            endLat={item.endLat}
+            endLng={item.endLng}
+            size={THUMB_SIZE}
+          />
+
+          <View style={styles.tripText}>
+            {/* Line 1: the route. Both ends are already short; if it still
+                won't fit, the first place gives way so the destination reads. */}
+            {fromLabel && toLabel ? (
+              <View style={styles.routeRow} accessible={false}>
+                <Text style={[styles.routeTitle, styles.routeFrom]} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                  {fromLabel}
+                </Text>
+                <Text style={[styles.routeTitle, styles.routeTo]} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                  {` to ${toLabel}`}
+                </Text>
               </View>
+            ) : (
+              <Text style={styles.routeTitle} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                {route}
+              </Text>
             )}
 
-            {/* Where it went. Shown for every trip, classified or not: the
-                route is what the Business / Personal choice is about
-                (Anthony, 2 Sep 2026). Taps and swipes pass straight
-                through. The icon shows when there is no map to draw. */}
-            <View style={styles.tripThumb} accessible={false}>
-              <Ionicons
-                name={item.isManualEntry ? "create-outline" : "map-outline"}
-                size={20}
-                color={TEXT_3}
-                accessible={false}
-              />
-              <TripRouteCard
-                tripId={item.id}
-                routePolyline={item.routePolyline}
-                isManualEntry={item.isManualEntry}
-                startLat={item.startLat}
-                startLng={item.startLng}
-                endLat={item.endLat}
-                endLng={item.endLng}
-                height={THUMB_SIZE}
-                compact
-                style={styles.tripThumbMap}
-              />
-            </View>
-
-            <View style={styles.tripText}>
-              {/* Line 1: distance · time, classification on the right */}
-              <View style={styles.tripPrimaryRow}>
-                <Text style={styles.distanceCompact}>
-                  {item.distanceMiles.toFixed(1)} mi
-                </Text>
-                <Text style={styles.dotSep}>·</Text>
-                <Text style={styles.timeCompact}>{formatTime(item.startedAt)}</Text>
-                <View style={{ flex: 1 }} />
-                {isUnclassified ? (
-                  <View style={styles.unclassifiedBadge}>
-                    <Ionicons name="help-circle" size={11} color={AMBER} accessible={false} />
-                    <Text style={styles.unclassifiedBadgeText}>Classify</Text>
-                  </View>
-                ) : (
+            {/* Line 2: time, miles, app; the Business or Personal chip on the right */}
+            <View style={styles.line2Row}>
+              <Text style={styles.line2} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                {line2}
+              </Text>
+              {!isUnclassified && (
+                <View style={[styles.chip, isBusiness ? styles.chipBusiness : styles.chipPersonal]} accessible={false}>
+                  <Ionicons
+                    name={isBusiness ? "briefcase" : "person"}
+                    size={12}
+                    color={isBusiness ? AMBER : TEXT_1}
+                    accessible={false}
+                  />
                   <Text
-                    style={[
-                      styles.classificationBadge,
-                      isBusiness ? styles.businessBadge : styles.personalBadge,
-                    ]}
+                    style={[styles.chipText, { color: isBusiness ? AMBER : TEXT_1 }]}
+                    maxFontSizeMultiplier={fontScaleCap.body}
                   >
                     {isBusiness ? "Business" : "Personal"}
                   </Text>
-                )}
-                {isRecentAuto && (
-                  <Ionicons
-                    name="sparkles-outline"
-                    size={12}
-                    color={TEXT_3}
-                    style={styles.autoSortedIcon}
-                    accessible={false}
-                  />
-                )}
-                {!inInbox && !!note && (
-                  <TouchableOpacity
-                    onPress={() => openNoteEditor(item.id)}
-                    hitSlop={8}
-                    style={styles.noteGlyphBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel={note ? "Edit note" : "Add note"}
-                  >
-                    <Ionicons
-                      name={note ? "chatbox-ellipses" : "chatbox-outline"}
-                      size={14}
-                      color={note ? AMBER : TEXT_3}
-                      accessible={false}
-                    />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Line 2: from → to, on a line of its own so both ends read */}
-              {(fromLabel || toLabel) && (
-                <Text style={styles.routeCompact} numberOfLines={1} ellipsizeMode="tail">
-                  {fromLabel}
-                  {fromLabel && toLabel ? <Text style={styles.arrowSubtle}> → </Text> : null}
-                  {toLabel}
-                </Text>
-              )}
-
-              {/* Line 3, only when there is something to say. The vehicle
-                  is on the trip screen; truncated here it read as
-                  "Vauxhall A...". */}
-              {hasMeta && (
-                <View style={styles.tripSecondaryRow}>
-                  {showDate && <Text style={styles.dateCompact}>{formatDate(item.startedAt)}</Text>}
-                  {item.platformTag && (
-                    <Text style={styles.platformBadge}>
-                      {PLATFORM_LABELS[item.platformTag] ?? item.platformTag}
-                    </Text>
-                  )}
-                  {item._isLocal && <Text style={styles.syncBadge}>Pending</Text>}
-                  {item.isManualEntry && <Text style={styles.manualBadge}>Manual</Text>}
-                  {showConfidence && (
-                    <View
-                      style={[
-                        styles.confidencePill,
-                        confidence === "low" && styles.confidencePillLow,
-                      ]}
-                      accessible={true}
-                      accessibilityLabel={`${confidence} confidence: MileClear is less sure about this classification`}
-                    >
-                      <Text style={styles.confidencePillText}>
-                        {confidence === "low" ? "Review" : "?"}
-                      </Text>
-                    </View>
-                  )}
                 </View>
               )}
             </View>
-          </View>
 
-          {/* Free-text note — prominent in Inbox, subtle elsewhere */}
-          {isEditingNote ? (
-            <View style={styles.noteEditWrap}>
-              <TripNoteEditor initial={note} onSave={(text) => saveNote(item.id, item.notes, text)} />
-            </View>
-          ) : inInbox ? (
-            <TouchableOpacity
-              style={styles.noteRowInbox}
-              onPress={() => openNoteEditor(item.id)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={note ? `Note: ${note}. Tap to edit.` : "Add a note"}
-            >
-              <Ionicons
-                name={note ? "create" : "add-circle-outline"}
-                size={15}
-                color={note ? AMBER : TEXT_3}
-                accessible={false}
-              />
-              <Text style={[styles.noteTextInbox, !note && styles.notePlaceholder]} numberOfLines={3}>
-                {note || "Add a note"}
-              </Text>
-            </TouchableOpacity>
-          ) : note ? (
-            <TouchableOpacity
-              style={styles.noteRowSubtle}
-              onPress={() => openNoteEditor(item.id)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Note: ${note}. Tap to edit.`}
-            >
-              <Ionicons name="chatbox-ellipses-outline" size={12} color={TEXT_3} accessible={false} />
-              <Text style={styles.noteTextSubtle} numberOfLines={1}>{note}</Text>
-            </TouchableOpacity>
-          ) : null}
-
-        {/* Quick classify buttons for unclassified trips */}
-        {isUnclassified && (
-          <View style={styles.quickClassifyWrap}>
-            {tripSuggestion && (
-              <View style={styles.inlineSuggestion}>
-                <Ionicons name="sparkles" size={12} color={AMBER} />
-                <Text style={styles.inlineSuggestionText}>
-                  Looks like {tripSuggestion.classification} ({tripSuggestion.matchCount} previous trip{tripSuggestion.matchCount !== 1 ? "s" : ""} here)
+            {/* Line 3, only when it helps: one tag. */}
+            {tag && (
+              <View style={styles.tagRow}>
+                <Ionicons
+                  name={tag.icon as keyof typeof Ionicons.glyphMap}
+                  size={12}
+                  color={tag.kind === "upload_failed" ? RED : TEXT_2}
+                  accessible={false}
+                />
+                <Text
+                  style={[styles.tagText, tag.kind === "upload_failed" && { color: RED }]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={fontScaleCap.body}
+                >
+                  {tag.text}
                 </Text>
+                {tag.kind === "auto_sorted" && !mergeMode && (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      handleUndoClassification(item.id);
+                    }}
+                    disabled={isClassifying}
+                    hitSlop={{ top: 14, bottom: 14, left: 8, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Undo. Puts this trip back in To sort"
+                  >
+                    <Text style={styles.tagAction} maxFontSizeMultiplier={fontScaleCap.body}>· Undo</Text>
+                  </Pressable>
+                )}
+                {tag.kind === "upload_failed" && (
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      router.push("/sync-status" as never);
+                    }}
+                    hitSlop={{ top: 14, bottom: 14, left: 8, right: 12 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry. Opens uploads"
+                  >
+                    <Text style={[styles.tagAction, { color: RED }]} maxFontSizeMultiplier={fontScaleCap.body}>· Retry</Text>
+                  </Pressable>
+                )}
               </View>
             )}
-            <View style={styles.quickClassifyRow}>
-              <TouchableOpacity
-                style={[
-                  styles.quickClassifyBtn,
-                  styles.quickClassifyBusiness,
-                  tripSuggestion?.classification === "business" && styles.quickClassifySuggested,
-                ]}
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  handleQuickClassify(item.id, "business");
-                }}
-                disabled={isClassifying}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`Classify as Business${tripSuggestion?.classification === "business" ? " (suggested)" : ""}`}
-                accessibilityState={{ disabled: isClassifying }}
-              >
-                {isClassifying ? (
-                  <ActivityIndicator size="small" color={BG} accessibilityLabel="Classifying" />
-                ) : (
-                  <>
-                    {tripSuggestion?.classification === "business" && (
-                      <Ionicons name="sparkles" size={12} color={BG} accessible={false} />
-                    )}
-                    <Ionicons name="briefcase" size={14} color={BG} accessible={false} />
-                    <Text style={styles.quickClassifyBtnTextDark}>Business</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.quickClassifyBtn,
-                  tripSuggestion?.classification === "personal"
-                    ? styles.quickClassifyPersonalSuggested
-                    : styles.quickClassifyPersonal,
-                ]}
-                onPress={(e) => {
-                  e.stopPropagation?.();
-                  handleQuickClassify(item.id, "personal");
-                }}
-                disabled={isClassifying}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={`Classify as Personal${tripSuggestion?.classification === "personal" ? " (suggested)" : ""}`}
-                accessibilityState={{ disabled: isClassifying }}
-              >
-                {isClassifying ? (
-                  <ActivityIndicator size="small" color={TEXT_2} accessibilityLabel="Classifying" />
-                ) : (
-                  <>
-                    {tripSuggestion?.classification === "personal" && (
-                      <Ionicons name="sparkles" size={12} color={BG} accessible={false} />
-                    )}
-                    <Ionicons name="car" size={14} color={tripSuggestion?.classification === "personal" ? BG : TEXT_2} accessible={false} />
-                    <Text style={tripSuggestion?.classification === "personal" ? styles.quickClassifyBtnTextDark : styles.quickClassifyBtnTextLight}>Personal</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+          </View>
+        </View>
+
+        {/* A note is edited here from the long-press menu; it shows on the trip screen. */}
+        {isEditingNote && (
+          <View style={styles.noteEditWrap}>
+            <TripNoteEditor initial={note} onSave={(text) => saveNote(item.id, item.notes, text)} />
           </View>
         )}
+
+        {/* Unsorted: Home's Business / Personal control under the text. The
+            suggestion is words above it, never an amber half. */}
+        {isUnclassified && !mergeMode && (
+          <View style={styles.classifyWrap}>
+            {suggestionText && (
+              <Text style={styles.suggestionText} maxFontSizeMultiplier={fontScaleCap.body}>
+                {suggestionText}
+              </Text>
+            )}
+            <ClassifyControl
+              choice="unclassified"
+              onChoose={(c) => handleQuickClassify(item.id, c)}
+              busy={isClassifying}
+              label={`Business or personal? ${route}`}
+            />
+          </View>
+        )}
+
         {/* Possible double-count: only shown while the other trip is on
             screen too, so the driver can see both before choosing. */}
         {duplicateOther && !mergeMode && (
           <View style={styles.duplicateWrap}>
             <View style={styles.duplicateNoteRow}>
-              <Ionicons name="copy-outline" size={12} color={AMBER} accessible={false} />
-              <Text style={styles.duplicateNoteText}>
+              <Ionicons name="copy-outline" size={14} color={AMBER} accessible={false} />
+              <Text style={styles.duplicateNoteText} maxFontSizeMultiplier={fontScaleCap.body}>
                 Looks like the same journey as the one {duplicateOtherIsBelow ? "below" : "above"}
               </Text>
             </View>
@@ -1367,9 +1256,9 @@ export default function TripsScreen() {
                 }}
                 disabled={isDuplicateBusy}
                 accessibilityRole="button"
-                accessibilityLabel="Merge the two trips into one"
+                accessibilityLabel="Join the two trips into one"
               >
-                <Text style={styles.duplicateBtnPrimaryText}>{isDuplicateBusy ? "Working" : "Merge"}</Text>
+                <Text style={styles.duplicateBtnPrimaryText}>{isDuplicateBusy ? "Working" : "Join"}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.duplicateBtn}
@@ -1386,13 +1275,12 @@ export default function TripsScreen() {
             </View>
           </View>
         )}
-        </View>{/* /tripCardBody */}
       </TouchableOpacity>
     );
 
-    // Don't wrap in Swipeable while in merge-mode — taps should toggle
-    // selection, not be eaten by gesture handlers. Also skip for local
-    // (unsynced) trips since the delete action requires a server round-trip.
+    // Don't wrap in Swipeable while joining: taps should toggle selection,
+    // not be eaten by gesture handlers. Also skip for local (unsynced) trips
+    // since the delete action requires a server round-trip.
     if (mergeMode || item._isLocal) {
       return cardInner;
     }
@@ -1420,6 +1308,27 @@ export default function TripsScreen() {
   // every time a page arrives, so the oldest day on screen fills in as the
   // next page loads.
   const dayRows = useMemo<DayRow<TripItem>[]>(() => groupTripsByDay(trips), [trips]);
+
+  // The day's miles beside each day header, from the trips loaded for it.
+  const dayMiles = useMemo(() => {
+    const out = new Map<string, string>();
+    let key: string | null = null;
+    let list: TripItem[] = [];
+    const flush = () => {
+      if (key) out.set(key, dayMilesText(list));
+    };
+    for (const row of dayRows) {
+      if (row.kind === "header") {
+        flush();
+        key = row.dayKey;
+        list = [];
+      } else {
+        list.push(row.trip);
+      }
+    }
+    flush();
+    return out;
+  }, [dayRows]);
 
   // Odometer line under each day header (SPEC-UX 2.3). One request covers the
   // days on screen; a failure just means no lines, never an error.
@@ -1449,11 +1358,20 @@ export default function TripsScreen() {
   const renderDayRow = ({ item }: { item: DayRow<TripItem> }) => {
     if (item.kind === "header") {
       const odo = odoLines.get(item.dayKey);
+      const miles = dayMiles.get(item.dayKey);
       return (
-        <View>
-          <Text style={[styles.dayHeader, odo ? { marginBottom: 0 } : null]} accessibilityRole="header">
-            {item.label}
-          </Text>
+        <View style={styles.dayHeaderWrap}>
+          <View
+            style={styles.dayHeaderRow}
+            accessible
+            accessibilityRole="header"
+            accessibilityLabel={miles ? `${item.label}, ${miles.replace("\u00a0mi", " miles")}` : item.label}
+          >
+            <Text style={styles.dayHeader} maxFontSizeMultiplier={fontScaleCap.heading}>{item.label}</Text>
+            {miles ? (
+              <Text style={styles.dayMiles} maxFontSizeMultiplier={fontScaleCap.heading}>{miles}</Text>
+            ) : null}
+          </View>
           {odo ? (
             <TouchableOpacity
               style={styles.odoLine}
@@ -1481,42 +1399,57 @@ export default function TripsScreen() {
   const activeDateLabel = dateRange === "all" ? null : rangeLabel(dateRange, customFrom, customTo);
   const activeFilterCount = (activePlatformLabel ? 1 : 0) + (activeDateLabel ? 1 : 0);
 
-  // A brand-new driver with no trips and nothing to sort: no review card, just
-  // the empty state.
+  // A brand-new driver with no trips and nothing to sort: just the empty state.
   const noTripsAtAll =
     !loading && filter === "all" && trips.length === 0 && unclassifiedCount === 0 &&
     (missedCount ?? 0) === 0 &&
     dateRange === "all" && platformFilter === "all";
 
+  // To sort: a trip on its own is an ordinary row; several on the same route
+  // share one card and one Business / Personal choice for them all.
   const renderRouteGroup = ({ item: group }: { item: RouteGroup }) => {
+    if (group.trips.length === 1) {
+      return renderTrip({ item: group.trips[0], showDate: true });
+    }
     const isExpanded = expandedGroups.has(group.key);
     const isBatchClassifying = batchClassifyingKey === group.key;
-    const isSingleton = group.trips.length === 1;
-
-    // Date info from trips
+    const n = group.trips.length;
     const sortedTrips = [...group.trips].sort(
       (a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
     );
     const latestTrip = sortedTrips[0];
-    const latestDate = formatDate(latestTrip.startedAt);
-    const latestTime = formatTime(latestTrip.startedAt);
+    const fromLabel = tripEndLabel(latestTrip.startAddress, latestTrip.startLat, latestTrip.startLng, savedPlaces);
+    const toLabel = tripEndLabel(latestTrip.endAddress, latestTrip.endLat, latestTrip.endLng, savedPlaces);
+    const route = routeText(fromLabel, toLabel);
+    const summaryLine = `${n} trips · ${group.totalDistanceMiles.toFixed(1)}\u00a0mi · latest ${dayLabel(new Date(latestTrip.startedAt))} ${formatTime(latestTrip.startedAt)}`;
 
     return (
       <View style={styles.routeGroup}>
-        {/* Group header */}
-        <TouchableOpacity
-          style={styles.routeGroupHeader}
-          onPress={() => toggleGroupExpanded(group.key)}
-          activeOpacity={0.75}
-          accessibilityRole="button"
-          accessibilityLabel={`Route group: ${group.routeLabel}, ${group.trips.length} trip${group.trips.length !== 1 ? "s" : ""}, ${group.totalDistanceMiles.toFixed(1)} miles total. Tap to ${isExpanded ? "collapse" : "expand"}.`}
-          accessibilityState={{ expanded: isExpanded }}
-        >
-          <View style={styles.routeGroupHeaderTop}>
-            <View style={styles.routeGroupInfo}>
-              <Ionicons name="git-branch-outline" size={14} color={AMBER} accessible={false} />
-              <Text style={styles.routeGroupLabel} numberOfLines={1}>
-                {group.routeLabel}
+        <View style={styles.tripCard}>
+          <TouchableOpacity
+            style={styles.tripMainRow}
+            onPress={() => toggleGroupExpanded(group.key)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel={`${route}, ${n} trips, ${group.totalDistanceMiles.toFixed(1)} miles in all. Tap to ${isExpanded ? "hide" : "show"} them.`}
+            accessibilityState={{ expanded: isExpanded }}
+          >
+            <TripThumb
+              tripId={latestTrip.id}
+              routePolyline={latestTrip.routePolyline}
+              isManualEntry={!!latestTrip.isManualEntry}
+              startLat={latestTrip.startLat}
+              startLng={latestTrip.startLng}
+              endLat={latestTrip.endLat}
+              endLng={latestTrip.endLng}
+              size={THUMB_SIZE}
+            />
+            <View style={styles.tripText}>
+              <Text style={styles.routeTitle} numberOfLines={1} maxFontSizeMultiplier={fontScaleCap.body}>
+                {route}
+              </Text>
+              <Text style={styles.line2} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+                {summaryLine}
               </Text>
             </View>
             <Ionicons
@@ -1525,101 +1458,23 @@ export default function TripsScreen() {
               color={TEXT_3}
               accessible={false}
             />
+          </TouchableOpacity>
+          <View style={styles.classifyWrap}>
+            <ClassifyControl
+              choice="unclassified"
+              onChoose={(c) => handleBatchClassify(group, c)}
+              busy={isBatchClassifying}
+              businessText={`Business (${n})`}
+              personalText={`Personal (${n})`}
+              label={`Mark all ${n} trips, ${route}`}
+            />
           </View>
+        </View>
 
-          {/* Date and time */}
-          <Text style={styles.routeGroupDate}>
-            {isSingleton
-              ? `${latestDate} at ${latestTime}`
-              : `Latest: ${latestDate} at ${latestTime}`}
-          </Text>
-
-          {/* The route, before the Business / Personal buttons that ask
-              about it. The group's latest trip stands for the group. */}
-          <TripRouteCard
-            tripId={latestTrip.id}
-            routePolyline={latestTrip.routePolyline}
-            isManualEntry={latestTrip.isManualEntry}
-            startLat={latestTrip.startLat}
-            startLng={latestTrip.startLng}
-            endLat={latestTrip.endLat}
-            endLng={latestTrip.endLng}
-            height={140}
-            style={styles.routeGroupMap}
-          />
-
-          <View style={styles.routeGroupMeta}>
-            <View style={styles.routeGroupMetaPill}>
-              <Text style={styles.routeGroupMetaText}>
-                {group.trips.length} trip{group.trips.length !== 1 ? "s" : ""}
-              </Text>
-            </View>
-            <View style={styles.routeGroupMetaPill}>
-              <Text style={styles.routeGroupMetaText}>
-                {group.totalDistanceMiles.toFixed(1)} mi total
-              </Text>
-            </View>
-          </View>
-
-          {/* Batch action buttons */}
-          <View style={styles.routeGroupActions}>
-            <TouchableOpacity
-              style={[styles.routeGroupBtn, styles.routeGroupBtnBusiness]}
-              onPress={(e) => {
-                e.stopPropagation?.();
-                handleBatchClassify(group, "business");
-              }}
-              disabled={isBatchClassifying}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Classify all ${group.trips.length} trip${group.trips.length !== 1 ? "s" : ""} as Business`}
-              accessibilityState={{ disabled: isBatchClassifying, busy: isBatchClassifying }}
-            >
-              {isBatchClassifying ? (
-                <ActivityIndicator size="small" color={BG} accessibilityLabel="Classifying" />
-              ) : (
-                <>
-                  <Ionicons name="briefcase" size={14} color={BG} accessible={false} />
-                  <Text style={styles.routeGroupBtnTextDark}>
-                    {isSingleton ? "Business" : `Business (${group.trips.length})`}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.routeGroupBtn, styles.routeGroupBtnPersonal]}
-              onPress={(e) => {
-                e.stopPropagation?.();
-                handleBatchClassify(group, "personal");
-              }}
-              disabled={isBatchClassifying}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={`Classify all ${group.trips.length} trip${group.trips.length !== 1 ? "s" : ""} as Personal`}
-              accessibilityState={{ disabled: isBatchClassifying, busy: isBatchClassifying }}
-            >
-              {isBatchClassifying ? (
-                <ActivityIndicator size="small" color={TEXT_2} accessibilityLabel="Classifying" />
-              ) : (
-                <>
-                  <Ionicons name="car" size={14} color={TEXT_2} accessible={false} />
-                  <Text style={styles.routeGroupBtnTextLight}>
-                    {isSingleton ? "Personal" : `Personal (${group.trips.length})`}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-
-        {/* Expanded individual trips */}
         {isExpanded && (
           <View style={styles.routeGroupTrips}>
-            {group.trips.map((trip) => (
-              <View key={trip.id} style={styles.routeGroupTripItem}>
-                {renderTrip({ item: trip, showDate: true })}
-              </View>
+            {sortedTrips.map((trip) => (
+              <View key={trip.id}>{renderTrip({ item: trip, showDate: true })}</View>
             ))}
           </View>
         )}
@@ -1627,64 +1482,71 @@ export default function TripsScreen() {
     );
   };
 
+  const inToSort = filter === "unclassified";
+
   return (
     <View style={styles.container}>
       <AppHeader
         title="Trips"
-        addRoute="/trip-form"
         right={
           <>
-          {/* The Recent Journeys map left Home (Oct 2026); this is its entry point. */}
-          <TouchableOpacity
-            style={styles.filtersButton}
-            onPress={() => router.push("/journey-map" as never)}
-            hitSlop={4}
-            accessibilityRole="button"
-            accessibilityLabel="Journey map. Opens a map of your recent routes."
-          >
-            <Ionicons name="map-outline" size={16} color={TEXT_2} accessible={false} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filtersButton, activeFilterCount > 0 && styles.filtersButtonActive]}
-            onPress={() => setShowFiltersSheet(true)}
-            hitSlop={4}
-            accessibilityRole="button"
-            accessibilityLabel={
-              activeFilterCount > 0
-                ? `Filters, ${[activePlatformLabel, activeDateLabel].filter(Boolean).join(", ")} active. Opens filter options.`
-                : "Filters. Opens platform and date range options."
-            }
-          >
-            <Ionicons
-              name={activeFilterCount > 0 ? "funnel" : "funnel-outline"}
-              size={16}
-              color={activeFilterCount > 0 ? AMBER : TEXT_2}
-              accessible={false}
-            />
-            {activeFilterCount > 0 && (
-              <View style={styles.filtersCountBadge} accessible={false}>
-                <Text style={styles.filtersCountText}>{activeFilterCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+            {/* The Recent Journeys map left Home (Oct 2026); this is its entry point. */}
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => router.push("/journey-map" as never)}
+              accessibilityRole="button"
+              accessibilityLabel="Journey map. Opens a map of your recent routes."
+            >
+              <Ionicons name="map-outline" size={20} color={TEXT_2} accessible={false} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.headerButton, activeFilterCount > 0 && styles.headerButtonActive]}
+              onPress={() => setShowFiltersSheet(true)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                activeFilterCount > 0
+                  ? `Filters, ${[activePlatformLabel, activeDateLabel].filter(Boolean).join(", ")} on. Opens filter options.`
+                  : "Filters. Opens app and date options."
+              }
+            >
+              <Ionicons
+                name={activeFilterCount > 0 ? "funnel" : "funnel-outline"}
+                size={19}
+                color={activeFilterCount > 0 ? AMBER : TEXT_2}
+                accessible={false}
+              />
+              {activeFilterCount > 0 && (
+                <View style={styles.filtersCountBadge} accessible={false}>
+                  <Text style={styles.filtersCountText}>{activeFilterCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {/* "+" asks which: a trip now, or one already driven (T-B1). */}
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => setShowAddSheet(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Add trip"
+              accessibilityHint="Choose Start a trip now or Add a past trip"
+            >
+              <Ionicons name="add" size={24} color={TEXT_1} accessible={false} />
+            </TouchableOpacity>
           </>
         }
       />
       <FlatList
-        key={filter === "unclassified" ? "grouped" : "flat"}
-        data={filter === "unclassified" ? (routeGroups as any[]) : dayRows}
+        key={inToSort ? "grouped" : "flat"}
+        data={inToSort ? (routeGroups as any[]) : dayRows}
         keyExtractor={(item) => {
-          if (filter === "unclassified") return (item as RouteGroup).key;
+          if (inToSort) return (item as RouteGroup).key;
           const row = item as DayRow<TripItem>;
           return row.kind === "header" ? row.key : row.trip.id;
         }}
-        renderItem={filter === "unclassified" ? (renderRouteGroup as any) : (renderDayRow as any)}
+        renderItem={inToSort ? (renderRouteGroup as any) : (renderDayRow as any)}
         onEndReached={onEndReachedSafe}
         onEndReachedThreshold={0.3}
-        // Each row carries a small map thumbnail (a lite / cached snapshot,
-        // not a live map). Keep the render window tight so the list mounts
-        // a screen or two of them, not the whole page. Day headers are
-        // items too, hence 10 for about six trips on the first screen.
+        // Day headers are items too, hence 10 for about six trips on the
+        // first screen.
         windowSize={7}
         initialNumToRender={10}
         maxToRenderPerBatch={8}
@@ -1702,41 +1564,32 @@ export default function TripsScreen() {
             {/* Safety: warn (any filter) if auto-detection is off, so missing
                 trips don't go unexplained. One tap re-enables. */}
             <TrackingOffBanner />
-            {noTripsAtAll ? (
-              // Brand-new drivers are the ones who most need "Missing a trip?".
-              <View style={styles.soloReporter}>
-                <MissingTripReporter variant="row" onTripAdded={onRefresh} />
-              </View>
-            ) : (
-              <TripsReviewStrip
-                unclassifiedCount={unclassifiedCount}
-                missedCount={missedCount}
-                loading={!countsLoaded}
-                offline={isOffline}
-                inInbox={filter === "unclassified"}
-                onOpenInbox={() => handleFilterChange("unclassified")}
-                reporter={<MissingTripReporter variant="row" onTripAdded={onRefresh} />}
-              />
+
+            {/* Only when there's something to check (T-B5). */}
+            {!inToSort && (
+              <MissedDrivesStrip count={missedCount} onPress={() => handleFilterChange("unclassified")} />
             )}
 
-            {/* Four equal segments, no sideways scroll: with the Filters
-                button up in the header the row has the full width, so
-                "Personal" fits whole even at large text. The Inbox shows a
-                dot, not a number; the count lives in the review card. */}
+            {isOffline && (
+              <Text style={styles.offlineLine} maxFontSizeMultiplier={fontScaleCap.body}>
+                Offline. Showing trips saved on this phone.
+              </Text>
+            )}
+
+            {/* One slate track, four segments (Home's mode pill). To sort
+                carries the same count as the tab badge. */}
             <View style={styles.segmented} accessibilityRole="tablist">
               {FILTERS.map((f) => {
                 const selected = filter === f.value;
+                const count = f.value === "unclassified" ? unclassifiedCount : 0;
                 return (
                   <TouchableOpacity
                     key={f.label}
                     style={[styles.segment, selected && styles.segmentActive]}
                     onPress={() => handleFilterChange(f.value)}
-                    hitSlop={{ top: 4, bottom: 4 }}
                     accessibilityRole="tab"
                     accessibilityLabel={
-                      f.value === "unclassified" && unclassifiedCount > 0
-                        ? `${f.label}, ${unclassifiedCount} trip${unclassifiedCount !== 1 ? "s" : ""} to classify`
-                        : f.label
+                      count > 0 ? `${f.label}, ${count} trip${count !== 1 ? "s" : ""} to sort` : f.label
                     }
                     accessibilityState={{ selected }}
                   >
@@ -1747,26 +1600,22 @@ export default function TripsScreen() {
                     >
                       {f.label}
                     </Text>
-                    {f.value === "unclassified" && unclassifiedCount > 0 && (
-                      <View
-                        style={[styles.segmentDot, selected && styles.segmentDotActive]}
-                        accessible={false}
-                      />
+                    {count > 0 && (
+                      <View style={styles.segmentCount} accessible={false}>
+                        <Text style={styles.segmentCountText} maxFontSizeMultiplier={1.3}>
+                          {count > 99 ? "99+" : count}
+                        </Text>
+                      </View>
                     )}
                   </TouchableOpacity>
                 );
               })}
             </View>
 
-            {/* Inbox: journeys to check come first, then the trips to classify. */}
-            {filter === "unclassified" && (
-              <View style={{ display: (missedCount ?? 0) > 0 ? "flex" : "none" }}>
-                <Text style={styles.inboxSectionLabel}>JOURNEYS TO CHECK</Text>
-                <MissedJourneys startExpanded onCountChange={setMissedCount} />
-              </View>
-            )}
-            {filter === "unclassified" && routeGroups.length > 0 && (
-              <Text style={styles.inboxSectionLabel}>TO CLASSIFY</Text>
+            {/* To sort: drives we may have missed first, then the trips to sort. */}
+            {inToSort && <MissedJourneys startExpanded onCountChange={setMissedCount} />}
+            {inToSort && routeGroups.length > 0 && (
+              <Text style={styles.sectionTitle} accessibilityRole="header">Business or personal?</Text>
             )}
 
             {/* Stats summary - shown when any filter (date range OR platform)
@@ -1782,17 +1631,7 @@ export default function TripsScreen() {
                 personalMiles: trips.filter((t) => t.classification === "personal").reduce((s, t) => s + t.distanceMiles, 0),
                 personalTrips: trips.filter((t) => t.classification === "personal").length,
               };
-              const platformLabel =
-                platformFilter === "all"
-                  ? null
-                  : (PLATFORM_LABELS[platformFilter] ?? platformFilter);
-              const headerLabel = [
-                dateRange !== "all" ? rangeLabel(dateRange, customFrom, customTo) : null,
-                platformLabel,
-              ]
-                .filter(Boolean)
-                .join(" · ")
-                .toUpperCase();
+              const headerLabel = [activeDateLabel, activePlatformLabel].filter(Boolean).join(" · ");
               return (
                 <View style={styles.rangeStatsCard}>
                   <Text style={styles.rangeStatsLabel}>{headerLabel}</Text>
@@ -1814,10 +1653,10 @@ export default function TripsScreen() {
                       <>
                         <View style={styles.rangeStatDivider} />
                         <View style={styles.rangeStatItem}>
-                          <Text style={[styles.rangeStatValue, styles.rangeStatBusiness]}>
+                          <Text style={styles.rangeStatValue}>
                             {stats.businessMiles.toFixed(1)}
                           </Text>
-                          <Text style={styles.rangeStatUnit}>business mi</Text>
+                          <Text style={styles.rangeStatUnit}>Business mi</Text>
                         </View>
                       </>
                     )}
@@ -1828,7 +1667,7 @@ export default function TripsScreen() {
                           <Text style={styles.rangeStatValue}>
                             {stats.personalMiles.toFixed(1)}
                           </Text>
-                          <Text style={styles.rangeStatUnit}>personal mi</Text>
+                          <Text style={styles.rangeStatUnit}>Personal mi</Text>
                         </View>
                       </>
                     )}
@@ -1837,13 +1676,15 @@ export default function TripsScreen() {
               );
             })()}
 
-            {/* Merge mode banner */}
+            {/* Join mode banner */}
             {mergeMode && (
               <View style={styles.mergeBanner}>
                 <View style={styles.mergeBannerLeft}>
-                  <Ionicons name="git-merge-outline" size={18} color="#60a5fa" />
+                  <Ionicons name="git-merge-outline" size={18} color={TEXT_2} accessible={false} />
                   <Text style={styles.mergeBannerText}>
-                    {selectedIds.size} trip{selectedIds.size !== 1 ? "s" : ""} selected
+                    {selectedIds.size < 2
+                      ? "Tap the trips to join"
+                      : `${selectedIds.size} trips chosen`}
                   </Text>
                 </View>
                 <View style={styles.mergeBannerActions}>
@@ -1852,7 +1693,7 @@ export default function TripsScreen() {
                     onPress={exitMergeMode}
                     activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel="Cancel merge mode"
+                    accessibilityLabel="Cancel joining trips"
                   >
                     <Text style={styles.mergeBannerCancelText}>Cancel</Text>
                   </TouchableOpacity>
@@ -1865,16 +1706,15 @@ export default function TripsScreen() {
                     disabled={selectedIds.size < 2}
                     activeOpacity={0.7}
                     accessibilityRole="button"
-                    accessibilityLabel={`Merge ${selectedIds.size} selected trip${selectedIds.size !== 1 ? "s" : ""}`}
+                    accessibilityLabel={`Join ${selectedIds.size} trip${selectedIds.size !== 1 ? "s" : ""}`}
                     accessibilityState={{ disabled: selectedIds.size < 2 }}
-                    accessibilityHint={selectedIds.size < 2 ? "Select at least 2 trips to merge" : undefined}
+                    accessibilityHint={selectedIds.size < 2 ? "Choose at least 2 trips to join" : undefined}
                   >
-                    <Ionicons name="git-merge-outline" size={14} color={selectedIds.size >= 2 ? BG : TEXT_3} />
                     <Text style={[
                       styles.mergeBannerBtnText,
                       selectedIds.size < 2 && styles.mergeBannerBtnTextDisabled,
                     ]}>
-                      Merge
+                      Join
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -1894,26 +1734,26 @@ export default function TripsScreen() {
                   loadTrips(1);
                 }}
               />
-            ) : filter === "unclassified" ? (
+            ) : inToSort ? (
               (missedCount ?? 0) > 0 ? null : (
                 <EmptyState
                   icon="checkmark-circle-outline"
-                  title="All caught up"
-                  description="Every trip is sorted and there's nothing to check."
-                  iconColor={colors.amber}
+                  title="All sorted"
+                  description="Every trip has Business or Personal and there's nothing to check."
+                  iconColor={colors.green}
                 />
               )
             ) : filter === "business" || filter === "personal" ? (
               <EmptyState
                 icon="filter-outline"
-                title={`No ${filter} trips`}
+                title={`No ${filter === "business" ? "Business" : "Personal"} trips yet`}
                 description={`Trips you mark ${filter === "business" ? "Business" : "Personal"} show here.`}
               />
             ) : (
               <EmptyState
                 icon="car-outline"
                 title="No trips yet"
-                description="Drives record by themselves once you set off. You can also add one by hand."
+                description="Drives record by themselves once you set off. You can also add one yourself."
                 action={
                   <Button
                     title="Add a past trip"
@@ -1933,40 +1773,79 @@ export default function TripsScreen() {
                 style={{ marginBottom: 12 }}
               />
             )}
-            {/* Page progress: visible whenever the list has scrolled or
-                paginated. Tells the user where they are in the dataset
-                without requiring a "Load more" button. */}
-            {!loading && trips.length > 0 && filter !== "unclassified" && (
-              <Text style={styles.pageProgress}>
-                {page >= totalPages
-                  ? `Showing all ${trips.length} trip${trips.length === 1 ? "" : "s"}`
-                  : `Showing ${trips.length} of ${summary?.totalTrips ?? "..."} trips · page ${page} of ${totalPages}`}
-              </Text>
-            )}
-            {!noTripsAtAll && (
-              <Button
-                title="Add a past trip"
-                variant="secondary"
-                icon="add"
+            {!noTripsAtAll && !inToSort && (
+              <TouchableOpacity
+                style={styles.footerLink}
                 onPress={() => router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never)}
-              />
+                accessibilityRole="button"
+                accessibilityLabel="Add a past trip"
+              >
+                <Ionicons name="add" size={16} color={TEXT_2} accessible={false} />
+                <Text style={styles.footerLinkText} maxFontSizeMultiplier={fontScaleCap.body}>Add a past trip</Text>
+              </TouchableOpacity>
             )}
+            {/* Brand-new drivers are the ones who most need "Missing a trip?". */}
+            <MissingTripReporter variant="link" onTripAdded={onRefresh} />
           </View>
         }
       />
       {loading && !refreshing && (
-        // Skeleton-first loading overlay: instead of a centred amber spinner,
-        // show ghost trip rows that mimic the actual list shape. Reduces the
-        // perceived wait on cold opens — the user sees layout immediately
-        // and waits less time staring at a blank screen.
+        // Skeleton-first loading overlay: ghost trip rows that mimic the
+        // list's shape, so the wait reads as the list arriving.
         <View style={styles.loadingOverlay} pointerEvents="none">
           <View style={styles.loadingSkeletonStack}>
             {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} height={84} radius={radii.md} />
+              <Skeleton key={i} height={84} radius={radii.lg} />
             ))}
           </View>
         </View>
       )}
+
+      {/* "+": a trip now, or one already driven */}
+      <AppModal visible={showAddSheet} animationType="fade" onRequestClose={() => setShowAddSheet(false)}>
+        <Pressable style={styles.mergeBackdrop} onPress={() => setShowAddSheet(false)}>
+          <Pressable style={styles.mergeSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.mergeHandle} />
+            <Text style={styles.mergeTitle}>Add a trip</Text>
+            <View style={styles.sheetCard}>
+              <TouchableOpacity
+                style={styles.sheetRow}
+                onPress={() => {
+                  setShowAddSheet(false);
+                  router.push("/trip-form" as never);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Start a trip now. Records this drive until you arrive."
+              >
+                <Ionicons name="navigate-outline" size={20} color={TEXT_2} accessible={false} />
+                <View style={styles.sheetRowText}>
+                  <Text style={styles.sheetRowTitle}>Start a trip now</Text>
+                  <Text style={styles.sheetRowSub}>Records this drive until you arrive</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+              </TouchableOpacity>
+              <View style={styles.sheetDivider} />
+              <TouchableOpacity
+                style={styles.sheetRow}
+                onPress={() => {
+                  setShowAddSheet(false);
+                  router.push({ pathname: "/trip-form", params: { mode: "manual" } } as never);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Add a past trip. A drive you've already made."
+              >
+                <Ionicons name="create-outline" size={20} color={TEXT_2} accessible={false} />
+                <View style={styles.sheetRowText}>
+                  <Text style={styles.sheetRowTitle}>Add a past trip</Text>
+                  <Text style={styles.sheetRowSub}>A drive you've already made</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={TEXT_3} accessible={false} />
+              </TouchableOpacity>
+            </View>
+            <Button title="Cancel" variant="ghost" onPress={() => setShowAddSheet(false)} />
+          </Pressable>
+        </Pressable>
+      </AppModal>
 
       {/* Long-press menu */}
       <AppModal visible={menuTrip != null} animationType="fade" onRequestClose={() => setMenuTrip(null)}>
@@ -1998,21 +1877,21 @@ export default function TripsScreen() {
         </Pressable>
       </AppModal>
 
-      {/* Merge classification modal */}
+      {/* Join sheet */}
       {mergeModalVisible && (
         <AppModal visible={true} animationType="slide" onRequestClose={() => setMergeModalVisible(false)}>
           <Pressable
             style={styles.mergeBackdrop}
             onPress={() => setMergeModalVisible(false)}
             accessibilityRole="button"
-            accessibilityLabel="Close merge dialog"
+            accessibilityLabel="Close"
           >
             <View style={styles.mergeSheet} onStartShouldSetResponder={() => true} accessibilityViewIsModal={true}>
               <View style={styles.mergeHandle} />
 
-              <Text style={styles.mergeTitle}>Merge {selectedIds.size} Trips</Text>
+              <Text style={styles.mergeTitle}>Join {selectedIds.size} trips</Text>
 
-              {/* Preview: first → last trip summary */}
+              {/* Preview: first trip's start to last trip's end */}
               {(() => {
                 const selected = trips
                   .filter((t) => selectedIds.has(t.id))
@@ -2021,36 +1900,33 @@ export default function TripsScreen() {
                 const last = selected[selected.length - 1];
                 const totalMiles = selected.reduce((sum, t) => sum + t.distanceMiles, 0);
                 if (!first || !last) return null;
+                const fromName =
+                  tripEndLabel(first.startAddress, first.startLat, first.startLng, savedPlaces) ||
+                  `${first.startLat.toFixed(4)}, ${first.startLng.toFixed(4)}`;
+                const toName =
+                  tripEndLabel(last.endAddress, last.endLat, last.endLng, savedPlaces) || "End not recorded";
                 return (
                   <View style={styles.mergePreview}>
                     <View style={styles.mergePreviewRow}>
-                      <Ionicons name="location" size={14} color={GREEN} />
-                      <Text style={styles.mergePreviewText} numberOfLines={1}>
-                        {first.startAddress || `${first.startLat.toFixed(4)}, ${first.startLng.toFixed(4)}`}
-                      </Text>
+                      <View style={styles.previewRing} />
+                      <Text style={styles.mergePreviewText} numberOfLines={1}>{fromName}</Text>
                     </View>
-                    <View style={styles.mergePreviewDots}>
-                      <View style={styles.mergePreviewDot} />
-                      <View style={styles.mergePreviewDot} />
-                      <View style={styles.mergePreviewDot} />
-                    </View>
+                    <View style={styles.previewLine} />
                     <View style={styles.mergePreviewRow}>
-                      <Ionicons name="flag" size={14} color={RED} />
-                      <Text style={styles.mergePreviewText} numberOfLines={1}>
-                        {last.endAddress || last.startAddress || "End point"}
-                      </Text>
+                      <View style={styles.previewDot} />
+                      <Text style={styles.mergePreviewText} numberOfLines={1}>{toName}</Text>
                     </View>
                     <View style={styles.mergePreviewStats}>
-                      <Text style={styles.mergePreviewStat}>{totalMiles.toFixed(1)} mi total</Text>
+                      <Text style={styles.mergePreviewStat}>{totalMiles.toFixed(1)} mi in all</Text>
                       <Text style={styles.mergePreviewStat}>
-                        {formatTime(first.startedAt)} to {last.endedAt ? formatTime(last.endedAt) : "ongoing"}
+                        {formatTime(first.startedAt)} to {last.endedAt ? formatTime(last.endedAt) : "still going"}
                       </Text>
                     </View>
                   </View>
                 );
               })()}
 
-              <Text style={styles.mergeLabel} accessibilityRole="header">Classification</Text>
+              <Text style={styles.mergeLabel} accessibilityRole="header">Business or personal?</Text>
               <View style={styles.mergeClassRow}>
                 {(["business", "personal"] as const).map((cls) => (
                   <TouchableOpacity
@@ -2066,13 +1942,13 @@ export default function TripsScreen() {
                     accessibilityState={{ selected: mergeClassification === cls }}
                   >
                     <Ionicons
-                      name={cls === "business" ? "briefcase" : "car"}
+                      name={cls === "business" ? "briefcase" : "person"}
                       size={16}
-                      color={mergeClassification === cls ? BG : TEXT_2}
+                      color={mergeClassification === cls ? (cls === "business" ? BG : TEXT_1) : TEXT_2}
                     />
                     <Text style={[
                       styles.mergeClassBtnText,
-                      mergeClassification === cls && styles.mergeClassBtnTextActive,
+                      mergeClassification === cls && (cls === "business" ? styles.mergeClassBtnTextActive : styles.mergeClassBtnTextPersonal),
                     ]}>
                       {cls === "business" ? "Business" : "Personal"}
                     </Text>
@@ -2082,14 +1958,14 @@ export default function TripsScreen() {
 
               {mergeClassification === "business" && (
                 <>
-                  <Text style={styles.mergeLabel}>Platform (optional)</Text>
+                  <Text style={styles.mergeLabel}>Which app (optional)</Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mergePlatformScroll}>
                     <TouchableOpacity
                       style={[styles.mergePlatformChip, !mergePlatform && styles.mergePlatformChipActive]}
                       onPress={() => setMergePlatform(null)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel="No platform"
+                      accessibilityLabel="No app"
                       accessibilityState={{ selected: !mergePlatform }}
                     >
                       <Text style={[styles.mergePlatformText, !mergePlatform && styles.mergePlatformTextActive]}>None</Text>
@@ -2119,18 +1995,13 @@ export default function TripsScreen() {
                 disabled={mergeLoading}
                 activeOpacity={0.7}
                 accessibilityRole="button"
-                accessibilityLabel={`Merge ${selectedIds.size} trips into one`}
+                accessibilityLabel={`Join ${selectedIds.size} trips into one`}
                 accessibilityState={{ disabled: mergeLoading, busy: mergeLoading }}
               >
                 {mergeLoading ? (
-                  <ActivityIndicator size="small" color={BG} accessibilityLabel="Merging trips" />
+                  <ActivityIndicator size="small" color={BG} accessibilityLabel="Joining trips" />
                 ) : (
-                  <>
-                    <Ionicons name="git-merge-outline" size={18} color={BG} />
-                    <Text style={styles.mergeConfirmText}>
-                      Merge into 1 Trip
-                    </Text>
-                  </>
+                  <Text style={styles.mergeConfirmText}>Join into one trip</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -2138,9 +2009,8 @@ export default function TripsScreen() {
         </AppModal>
       )}
 
-      {/* Filters sheet - platform + date range, folded behind the single
-          "Filters" control in row 1. Same chips, same handlers as before;
-          only the location moved. */}
+      {/* Filters sheet - app + date range, folded behind the single Filters
+          control in the header. */}
       <AppModal
         visible={showFiltersSheet}
         animationType="slide"
@@ -2158,14 +2028,14 @@ export default function TripsScreen() {
             <Text style={styles.mergeTitle}>Filters</Text>
 
             <View style={styles.filtersSection}>
-              <Text style={styles.filtersSectionLabel}>Platform</Text>
+              <Text style={styles.filtersSectionLabel}>Which app</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.dateRangeRow}
-                accessibilityLabel="Platform filter"
+                accessibilityLabel="App filter"
               >
-                {([{ value: "all" as const, label: "Any platform" }, ...GIG_PLATFORMS]).map((p) => {
+                {([{ value: "all" as const, label: "Any app" }, ...GIG_PLATFORMS]).map((p) => {
                   const active = platformFilter === p.value;
                   return (
                     <TouchableOpacity
@@ -2173,7 +2043,7 @@ export default function TripsScreen() {
                       style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
                       onPress={() => handlePlatformChange(p.value as PlatformTag | "all")}
                       accessibilityRole="button"
-                      accessibilityLabel={`Platform: ${p.label}`}
+                      accessibilityLabel={`App: ${p.label}`}
                       accessibilityState={{ selected: active }}
                     >
                       <Text
@@ -2191,12 +2061,12 @@ export default function TripsScreen() {
             </View>
 
             <View style={styles.filtersSection}>
-              <Text style={styles.filtersSectionLabel}>Date range</Text>
+              <Text style={styles.filtersSectionLabel}>Dates</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.dateRangeRow}
-                accessibilityLabel="Date range filter"
+                accessibilityLabel="Date filter"
               >
                 {DATE_RANGES.map((r) => {
                   const active = dateRange === r.value;
@@ -2227,7 +2097,7 @@ export default function TripsScreen() {
                         loadSummary();
                       }}
                       accessibilityRole="button"
-                      accessibilityLabel={`Date range: ${label}`}
+                      accessibilityLabel={`Dates: ${label}`}
                       accessibilityState={{ selected: active }}
                     >
                       <Text
@@ -2294,9 +2164,9 @@ export default function TripsScreen() {
             onPress={(e) => e.stopPropagation()}
           >
             <View style={styles.mergeHandle} />
-            <Text style={styles.mergeTitle}>Custom date range</Text>
+            <Text style={styles.mergeTitle}>Choose dates</Text>
             <Text style={styles.customRangeHint}>
-              Pick a start and end date. The trip list and stats update to that range.
+              Pick a start and end date. The trip list and totals change to match.
             </Text>
             <DateTimePickerField
               label="From"
@@ -2346,9 +2216,7 @@ export default function TripsScreen() {
 
 // ── Style constants ────────────────────────────────────────────────
 //
-// Local aliases for theme tokens. Defined here so the find/replace pass
-// across the styles block is one-line per replacement instead of touching
-// hundreds of style declarations. Same naming pattern dashboard.tsx uses.
+// Local aliases for theme tokens.
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -2356,11 +2224,10 @@ const AMBER = colors.amber;
 const TEXT_1 = colors.text1;
 const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
-const GREEN = colors.green;
 const RED = colors.red;
-// Route thumbnail on each trip row: small enough for five or six rows per
-// screen, big enough to tell a known route at a glance.
-const THUMB_SIZE = 64;
+// Home's mini route on each row (PROPOSALS 6.3).
+const THUMB_SIZE = 56;
+const THUMB_GAP = 12;
 
 const styles = StyleSheet.create({
   container: {
@@ -2370,115 +2237,24 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
   },
-  // Day header in the flat list. Matches the month header on the shifts
-  // screen: small, muted, tracked, sitting just above its first card.
-  odoLine: {
-    minHeight: 44,
+  headerButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
-  },
-  odoLineText: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    fontVariant: ["tabular-nums"],
-  },
-  dayHeader: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    color: TEXT_3,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
-  },
-  // Collapsed control for platform + date range - opens the Filters sheet.
-  // Icon only, so it can never crowd the classification chips off screen.
-  // Four equal segments under the review card.
-  soloReporter: {
-    backgroundColor: colors.surface,
+    alignItems: "center",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
-    borderRadius: radii.md,
-    marginBottom: 16,
-    overflow: "hidden",
   },
-  segmented: {
-    flexDirection: "row",
-    gap: 6,
-    marginBottom: 16,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 40,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 4,
-    borderRadius: radii.pill,
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  segmentActive: {
-    backgroundColor: AMBER,
-    borderColor: AMBER,
-  },
-  segmentText: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-  },
-  segmentTextActive: {
-    color: BG,
-  },
-  segmentDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: AMBER,
-  },
-  segmentDotActive: {
-    backgroundColor: BG,
-  },
-  inboxSectionLabel: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    color: TEXT_3,
-    letterSpacing: 0.6,
-    marginBottom: 8,
-  },
-  projectRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    minHeight: 44,
-    marginBottom: 16,
-  },
-  projectRowText: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: fonts.medium,
-    color: colors.text1,
-  },
-  filtersButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-  },
-  filtersButtonActive: {
-    backgroundColor: "rgba(245, 166, 35, 0.15)",
-    borderColor: "rgba(245, 166, 35, 0.4)",
+  headerButtonActive: {
+    backgroundColor: colors.amberDim,
+    borderColor: colors.amberGlow,
   },
   filtersCountBadge: {
     position: "absolute",
-    top: -3,
-    right: -3,
+    top: -2,
+    right: -2,
     minWidth: 16,
     height: 16,
     borderRadius: 8,
@@ -2492,65 +2268,171 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: BG,
   },
+  offlineLine: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    marginBottom: 12,
+  },
+  // One slate track with four segments: Home's mode pill.
+  segmented: {
+    flexDirection: "row",
+    padding: 3,
+    gap: 2,
+    borderRadius: radii.pill + 4,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    marginBottom: 12,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  segmentActive: {
+    backgroundColor: colors.personal,
+    borderColor: colors.personalEdge,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+  },
+  segmentTextActive: {
+    color: TEXT_1,
+  },
+  segmentCount: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: AMBER,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  segmentCountText: {
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    color: BG,
+    fontVariant: ["tabular-nums"],
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+    marginBottom: 8,
+  },
+  // Day header: "Today" on the left, the day's miles on the right.
+  dayHeaderWrap: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  dayHeaderRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  dayHeader: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+  },
+  dayMiles: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+    fontVariant: ["tabular-nums"],
+  },
+  odoLine: {
+    minHeight: 44,
+    justifyContent: "center",
+    marginTop: -10,
+    marginBottom: -10,
+  },
+  odoLineText: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: TEXT_3,
+    fontVariant: ["tabular-nums"],
+  },
+  projectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 48,
+    marginBottom: 8,
+  },
+  projectRowText: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: fonts.medium,
+    color: colors.text1,
+  },
   // Filters sheet body
   filtersSectionLabel: {
-    fontSize: 12,
-    fontFamily: fonts.bold,
-    color: TEXT_3,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 10,
   },
   filtersSection: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   filtersSheetFooter: {
     flexDirection: "row",
     gap: 10,
     marginTop: 4,
   },
-  // Date-range chip row (smaller / more secondary than classification pills)
   dateRangeRow: {
     flexDirection: "row",
     gap: 8,
     paddingHorizontal: 0,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   dateRangeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    borderRadius: radii.pill + 2,
     backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.hairline,
   },
   dateRangeChipActive: {
-    backgroundColor: "rgba(245, 166, 35, 0.15)",
-    borderColor: "rgba(245, 166, 35, 0.4)",
+    backgroundColor: colors.personal,
+    borderColor: colors.personalEdge,
   },
   dateRangeChipText: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: fonts.medium,
     color: TEXT_2,
   },
   dateRangeChipTextActive: {
-    color: AMBER,
+    color: TEXT_1,
     fontFamily: fonts.semibold,
   },
-  // Stats summary card shown above the trip list when a date range is active
+  // Totals card shown above the list when a date range or app is chosen
   rangeStatsCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: radii.lg,
+    padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.12)",
+    borderColor: colors.surfaceBorder,
   },
   rangeStatsLabel: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    color: AMBER,
-    letterSpacing: 1,
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
     marginBottom: 10,
   },
   rangeStatsRow: {
@@ -2569,177 +2451,123 @@ const styles = StyleSheet.create({
     color: TEXT_1,
     letterSpacing: -0.4,
   },
-  rangeStatBusiness: {
-    color: GREEN,
-  },
   rangeStatUnit: {
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: fonts.regular,
     color: TEXT_3,
-    letterSpacing: 0.2,
   },
   rangeStatDivider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: colors.hairline,
   },
   customRangeHint: {
-    fontSize: 12,
+    fontSize: 14,
     fontFamily: fonts.regular,
     color: TEXT_2,
-    lineHeight: 17,
+    lineHeight: 20,
     marginBottom: 16,
   },
-  // Trip cards — compact layout (Anthony 16 May audit)
+  // Trip row (PROPOSALS 6.3): standard card, radius 16, 10 apart.
   tripCard: {
     backgroundColor: CARD_BG,
-    borderRadius: 12,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.surfaceBorder,
     marginBottom: 10,
-    flexDirection: "row",
-    overflow: "hidden",
-  },
-  tripCardUnclassified: {
-    borderColor: "rgba(245, 166, 35, 0.25)",
-  },
-  // Left coloured bar — classification at a glance (iOS Mail style)
-  classificationBar: {
-    width: 5,
-    alignSelf: "stretch",
-  },
-  tripCardBody: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
   },
   tripMainRow: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  // Placeholder look (and icon) sits underneath; the map covers it.
-  tripThumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: 10,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  tripThumbMap: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 10,
+    gap: THUMB_GAP,
   },
   tripText: {
     flex: 1,
     minWidth: 0,
   },
-  routeGroupMap: {
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  noteGlyphBtn: { paddingHorizontal: 4, paddingVertical: 2 },
-  noteEditWrap: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
-  },
-  noteRowInbox: {
+  routeRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.surfaceBorder,
+    alignItems: "baseline",
   },
-  noteTextInbox: {
-    flex: 1,
+  routeTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
     color: TEXT_1,
+  },
+  // The first place gives way before the destination does.
+  routeFrom: {
+    flexShrink: 3,
+  },
+  routeTo: {
+    flexShrink: 1,
+  },
+  line2Row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 3,
+  },
+  line2: {
+    flex: 1,
     fontSize: 13,
     fontFamily: fonts.regular,
-    lineHeight: 18,
+    color: TEXT_2,
+    fontVariant: ["tabular-nums"],
   },
-  notePlaceholder: {
-    color: TEXT_3,
-    fontStyle: "italic",
+  // Home's chips: soft amber with a briefcase, slate with a person.
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
-  noteRowSubtle: {
+  chipBusiness: {
+    backgroundColor: colors.amberDim,
+  },
+  chipPersonal: {
+    backgroundColor: colors.personal,
+  },
+  chipText: {
+    fontSize: 12,
+    fontFamily: fonts.bold,
+  },
+  tagRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    marginTop: 5,
+    marginTop: 4,
   },
-  noteTextSubtle: {
-    flex: 1,
-    color: TEXT_2,
-    fontSize: 11.5,
-    fontFamily: fonts.regular,
-  },
-  tripPrimaryRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  // Wraps rather than clips when a trip has several badges at once.
-  tripSecondaryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    columnGap: 8,
-    rowGap: 4,
-    marginTop: 5,
-  },
-  distanceCompact: {
-    fontSize: 16,
-    fontFamily: fonts.bold,
-    color: "#fff",
-  },
-  timeCompact: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-  },
-  routeCompact: {
-    fontSize: 13,
-    fontFamily: fonts.medium,
-    color: TEXT_1,
-    marginTop: 3,
-  },
-  arrowSubtle: {
-    color: TEXT_3,
-  },
-  dotSep: {
-    fontSize: 13,
-    color: TEXT_3,
-    marginHorizontal: 2,
-  },
-  dateCompact: {
+  tagText: {
+    flexShrink: 1,
     fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
-  // Confidence pill — replaces unexplained amber dot
-  confidencePill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: "rgba(245, 166, 35, 0.15)",
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.35)",
-  },
-  confidencePillLow: {
-    backgroundColor: "rgba(239, 68, 68, 0.15)",
-    borderColor: "rgba(239, 68, 68, 0.4)",
-  },
-  confidencePillText: {
-    fontSize: 10,
+  tagAction: {
+    fontSize: 12,
     fontFamily: fonts.bold,
-    color: AMBER,
-    letterSpacing: 0.3,
+    color: TEXT_1,
+  },
+  // Under the text, lined up with it rather than the thumbnail.
+  classifyWrap: {
+    marginTop: 12,
+    marginLeft: THUMB_SIZE + THUMB_GAP,
+  },
+  suggestionText: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: TEXT_2,
+    marginBottom: 6,
+  },
+  noteEditWrap: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.surfaceBorder,
   },
   // Swipe action buttons (Anthony 16 May audit — native iOS feel)
   swipeClassifyAction: {
@@ -2747,8 +2575,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
+    borderTopLeftRadius: radii.lg,
+    borderBottomLeftRadius: radii.lg,
     gap: 4,
   },
   swipeDeleteAction: {
@@ -2757,8 +2585,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 10,
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
+    borderTopRightRadius: radii.lg,
+    borderBottomRightRadius: radii.lg,
     gap: 4,
   },
   swipeActionText: {
@@ -2766,63 +2594,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.semibold,
   },
-  tripHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  tripHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  tripDate: {
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-    color: "#fff",
-  },
-  confidenceDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginLeft: 6,
-  },
-  classificationBadge: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  businessBadge: {
-    color: BG,
-    backgroundColor: AMBER,
-  },
-  personalBadge: {
-    color: TEXT_2,
-    backgroundColor: "#374151",
-  },
-  unclassifiedBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(245, 166, 35, 0.1)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  autoSortedIcon: {
-    marginLeft: 6,
-  },
   duplicateWrap: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: "rgba(245, 166, 35, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.25)",
+    marginTop: 12,
+    padding: 12,
+    borderRadius: radii.md,
+    backgroundColor: colors.amberDim,
   },
   duplicateNoteRow: {
     flexDirection: "row",
@@ -2832,18 +2608,19 @@ const styles = StyleSheet.create({
   },
   duplicateNoteText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: fonts.medium,
-    color: "#d4a053",
+    color: TEXT_1,
   },
   duplicateActions: {
     flexDirection: "row",
     gap: 8,
   },
   duplicateBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
   },
@@ -2852,157 +2629,33 @@ const styles = StyleSheet.create({
     borderColor: AMBER,
   },
   duplicateBtnPrimaryText: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
+    fontSize: 14,
+    fontFamily: fonts.bold,
     color: BG,
   },
   duplicateBtnText: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
-  },
-  unclassifiedBadgeText: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-  tripDetails: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  distanceText: {
-    fontSize: 20,
-    fontFamily: fonts.bold,
-    color: "#fff",
-  },
-  timeText: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-  },
-  addressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  addressText: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    flexShrink: 1,
-  },
-  arrowText: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-  },
-  tripMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  platformBadge: {
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  metaText: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-  },
-  manualBadge: {
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  syncBadge: {
-    fontSize: 11,
-    fontFamily: fonts.semibold,
-    color: BG,
-    backgroundColor: AMBER,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  // Quick classify buttons
-  quickClassifyWrap: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
-  },
-  quickClassifyRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  quickClassifyBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  quickClassifyBusiness: {
-    backgroundColor: AMBER,
-  },
-  quickClassifyPersonal: {
-    backgroundColor: "#374151",
-  },
-  quickClassifySuggested: {
-    borderWidth: 2,
-    borderColor: "#ca8a04",
-  },
-  quickClassifyPersonalSuggested: {
-    backgroundColor: AMBER,
-  },
-  inlineSuggestion: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginBottom: 8,
-  },
-  inlineSuggestionText: {
-    fontSize: 12,
-    fontFamily: fonts.medium,
-    color: "#d4a053",
-  },
-  quickClassifyBtnTextDark: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: BG,
-  },
-  quickClassifyBtnTextLight: {
     fontSize: 14,
     fontFamily: fonts.semibold,
     color: TEXT_2,
   },
   // Footer
   footer: {
-    marginTop: 16,
+    marginTop: 8,
     paddingBottom: 20,
+    alignItems: "center",
   },
-  pageProgress: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_3,
-    textAlign: "center",
-    marginBottom: 12,
+  footerLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 44,
+    paddingHorizontal: 14,
+  },
+  footerLinkText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
   },
   // Loading overlay
   loadingOverlay: {
@@ -3014,82 +2667,83 @@ const styles = StyleSheet.create({
   loadingSkeletonStack: {
     gap: spacing.md,
   },
-  // Select mode
+  // Join mode
   tripCardSelected: {
-    borderColor: "#60a5fa",
-    backgroundColor: "rgba(96, 165, 250, 0.06)",
+    borderColor: colors.amberGlow,
+    backgroundColor: "#11161f",
   },
   selectCircle: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: "#374151",
+    borderColor: colors.personalEdge,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
   },
   selectCircleActive: {
-    backgroundColor: "#60a5fa",
-    borderColor: "#60a5fa",
+    backgroundColor: AMBER,
+    borderColor: AMBER,
   },
-  // Merge banner
   mergeBanner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "rgba(96, 165, 250, 0.08)",
+    backgroundColor: CARD_BG,
     borderWidth: 1,
-    borderColor: "rgba(96, 165, 250, 0.25)",
-    borderRadius: 12,
-    padding: 12,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radii.lg,
+    paddingVertical: 6,
+    paddingLeft: 14,
+    paddingRight: 6,
     marginBottom: 12,
   },
   mergeBannerLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flexShrink: 1,
   },
   mergeBannerText: {
     fontSize: 14,
     fontFamily: fonts.semibold,
-    color: "#93c5fd",
+    color: TEXT_1,
+    flexShrink: 1,
   },
   mergeBannerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 4,
   },
   mergeBannerCancel: {
+    minHeight: 44,
+    justifyContent: "center",
     paddingHorizontal: 12,
-    paddingVertical: 6,
   },
   mergeBannerCancelText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: fonts.medium,
     color: TEXT_2,
   },
   mergeBannerBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "#60a5fa",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
+    minHeight: 44,
+    justifyContent: "center",
+    backgroundColor: AMBER,
+    paddingHorizontal: 18,
+    borderRadius: 12,
   },
   mergeBannerBtnDisabled: {
-    backgroundColor: "rgba(255,255,255,0.08)",
+    backgroundColor: colors.hairline,
   },
   mergeBannerBtnText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: fonts.bold,
     color: BG,
   },
   mergeBannerBtnTextDisabled: {
     color: TEXT_3,
   },
-  // Merge modal
+  // Sheets
   mergeBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
@@ -3097,14 +2751,14 @@ const styles = StyleSheet.create({
   },
   mergeSheet: {
     backgroundColor: CARD_BG,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
     paddingTop: 8,
     paddingHorizontal: 20,
     paddingBottom: 40,
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.surfaceBorder,
   },
   mergeHandle: {
     width: 36,
@@ -3115,42 +2769,84 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   mergeTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: fonts.bold,
     color: TEXT_1,
     marginBottom: 16,
   },
-  mergePreview: {
-    backgroundColor: "rgba(255,255,255,0.03)",
+  sheetCard: {
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 12,
+    borderColor: colors.surfaceBorder,
+    backgroundColor: BG,
+    marginBottom: 12,
+    overflow: "hidden",
+  },
+  sheetRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 60,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  sheetRowText: {
+    flex: 1,
+  },
+  sheetRowTitle: {
+    fontSize: 15,
+    fontFamily: fonts.medium,
+    color: TEXT_1,
+  },
+  sheetRowSub: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    marginTop: 2,
+  },
+  sheetDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.hairline,
+    marginLeft: 48,
+  },
+  mergePreview: {
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    borderRadius: radii.md,
     padding: 14,
     marginBottom: 20,
   },
   mergePreviewRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
   },
   mergePreviewText: {
-    fontSize: 14,
-    fontFamily: fonts.medium,
-    color: TEXT_2,
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
     flex: 1,
   },
-  mergePreviewDots: {
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 3,
-    paddingLeft: 6,
-    paddingVertical: 4,
+  previewRing: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: TEXT_1,
   },
-  mergePreviewDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: TEXT_3,
+  previewDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: AMBER,
+  },
+  previewLine: {
+    width: 2,
+    height: 14,
+    marginLeft: 4,
+    marginVertical: 3,
+    backgroundColor: colors.hairline,
   },
   mergePreviewStats: {
     flexDirection: "row",
@@ -3158,7 +2854,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
+    borderTopColor: colors.surfaceBorder,
   },
   mergePreviewStat: {
     fontSize: 13,
@@ -3170,8 +2866,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: TEXT_2,
     marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   mergeClassRow: {
     flexDirection: "row",
@@ -3184,19 +2878,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingVertical: 12,
-    borderRadius: 10,
-    backgroundColor: CARD_BG,
+    minHeight: 48,
+    borderRadius: radii.md,
+    backgroundColor: BG,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.surfaceBorder,
   },
   mergeClassBtnBusiness: {
     backgroundColor: AMBER,
     borderColor: AMBER,
   },
   mergeClassBtnPersonal: {
-    backgroundColor: "#60a5fa",
-    borderColor: "#60a5fa",
+    backgroundColor: colors.personal,
+    borderColor: colors.personalEdge,
   },
   mergeClassBtnText: {
     fontSize: 15,
@@ -3205,30 +2899,36 @@ const styles = StyleSheet.create({
   },
   mergeClassBtnTextActive: {
     color: BG,
+    fontFamily: fonts.bold,
+  },
+  mergeClassBtnTextPersonal: {
+    color: TEXT_1,
+    fontFamily: fonts.bold,
   },
   mergePlatformScroll: {
     marginBottom: 20,
   },
   mergePlatformChip: {
+    minHeight: 44,
+    justifyContent: "center",
     paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: CARD_BG,
+    borderRadius: radii.pill + 2,
+    backgroundColor: BG,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: colors.hairline,
     marginRight: 8,
   },
   mergePlatformChipActive: {
-    backgroundColor: "rgba(245, 166, 35, 0.15)",
-    borderColor: "rgba(245, 166, 35, 0.4)",
+    backgroundColor: colors.personal,
+    borderColor: colors.personalEdge,
   },
   mergePlatformText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: fonts.medium,
     color: TEXT_2,
   },
   mergePlatformTextActive: {
-    color: AMBER,
+    color: TEXT_1,
     fontFamily: fonts.semibold,
   },
   mergeConfirmBtn: {
@@ -3236,104 +2936,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#60a5fa",
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: AMBER,
+    minHeight: 52,
+    borderRadius: radii.md,
   },
   mergeConfirmText: {
     fontSize: 16,
     fontFamily: fonts.bold,
     color: BG,
   },
-  // Route group (inbox grouped view)
+  // To sort: several trips on one route
   routeGroup: {
-    marginBottom: 14,
-  },
-  routeGroupHeader: {
-    backgroundColor: "#0d1726",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(245, 166, 35, 0.2)",
-    padding: 14,
-  },
-  routeGroupHeaderTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  routeGroupInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flex: 1,
-    marginRight: 8,
-  },
-  routeGroupLabel: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-    flex: 1,
-  },
-  routeGroupDate: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    marginTop: 4,
-    marginLeft: 22,
-  },
-  routeGroupMeta: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 12,
-  },
-  routeGroupMetaPill: {
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  routeGroupMetaText: {
-    fontSize: 12,
-    fontFamily: fonts.medium,
-    color: TEXT_2,
-  },
-  routeGroupActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  routeGroupBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  routeGroupBtnBusiness: {
-    backgroundColor: AMBER,
-  },
-  routeGroupBtnPersonal: {
-    backgroundColor: "#374151",
-  },
-  routeGroupBtnTextDark: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: BG,
-  },
-  routeGroupBtnTextLight: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-    color: TEXT_2,
+    marginBottom: 0,
   },
   routeGroupTrips: {
-    marginTop: 4,
+    marginBottom: 6,
     paddingLeft: 12,
     borderLeftWidth: 2,
-    borderLeftColor: "rgba(245, 166, 35, 0.15)",
-  },
-  routeGroupTripItem: {
-    marginTop: 4,
+    borderLeftColor: colors.hairline,
   },
 });

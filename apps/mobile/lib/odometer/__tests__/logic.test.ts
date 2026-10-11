@@ -235,8 +235,8 @@ describe("vehicleCardMeta", () => {
 
 describe("Trips day line", () => {
   it("words estimated and recorded days", () => {
-    expect(dayLineText(day({}))).toBe("Odometer 45,210 to 45,262 est.");
-    expect(dayLineText(day({ openingRecorded: true }))).toBe("Odometer 45,210 to 45,262 est.");
+    expect(dayLineText(day({}))).toBe("Odometer about 45,210 to 45,262");
+    expect(dayLineText(day({ openingRecorded: true }))).toBe("Odometer about 45,210 to 45,262");
     expect(dayLineText(day({ openingRecorded: true, closingRecorded: true }))).toBe(
       "Odometer 45,210 to 45,262 (recorded)"
     );

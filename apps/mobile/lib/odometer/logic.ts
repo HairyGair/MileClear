@@ -286,9 +286,10 @@ export function dayHasFigures(day: OdometerDay): boolean {
   return day.opening != null && day.closing != null;
 }
 
+/** "Odometer 41,816 to 41,831 (recorded)", or "Odometer about 41,795 to 41,816". */
 export function dayLineText(day: OdometerDay): string {
-  const base = `Odometer ${formatOdo(day.opening ?? 0)} to ${formatOdo(day.closing ?? 0)}`;
-  return day.openingRecorded && day.closingRecorded ? `${base} (recorded)` : `${base} est.`;
+  const range = `${formatOdo(day.opening ?? 0)} to ${formatOdo(day.closing ?? 0)}`;
+  return day.openingRecorded && day.closingRecorded ? `Odometer ${range} (recorded)` : `Odometer about ${range}`;
 }
 
 export function dayLineA11y(day: OdometerDay): string {
