@@ -22,6 +22,8 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding: spacing.md,
+    // 16 at the sides, the same gutter as More and Tax.
+    paddingHorizontal: 16,
     paddingBottom: spacing.xl,
   },
 });
