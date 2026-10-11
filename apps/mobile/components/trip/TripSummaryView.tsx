@@ -20,7 +20,11 @@ import type {
   CazTripAssessment,
 } from "@mileclear/shared";
 import { TripMapWidget } from "../map/TripMapWidget";
+import { MiniRoute } from "../home/MiniRoute";
+import { PickerSheet, type PickerOption } from "./PickerSheet";
 import { useReducedMotion } from "../../lib/accessibility";
+import { dayLabel } from "../../lib/trips/dayOrder";
+import { distanceWarning, tripMadeLine } from "../../lib/trips/tripLabels";
 import { colors, fonts, radii, fontScaleCap } from "../../lib/theme";
 
 // Maps are invisible in Expo Go; the summary draws its own placeholder then,
@@ -42,6 +46,9 @@ export interface TripSummaryViewProps {
   endedAt: Date | null;
   startAddress: string | null;
   endAddress: string | null;
+  /** Saved place names ("Home", "Depot") for each end, as the Trips list shows them. */
+  startPlaceName: string | null;
+  endPlaceName: string | null;
   startLat: number | null;
   startLng: number | null;
   endLat: number | null;
@@ -50,6 +57,10 @@ export interface TripSummaryViewProps {
   isManual: boolean;
   /** Loaded from the phone because the server fetch failed. */
   waitingToSync: boolean;
+  /** When the server saved the trip, for "Saved later". */
+  createdAt: string | null;
+  /** The server marks a trip made by splitting a longer one. */
+  splitLeg: boolean;
   editedAt: string | null;
   diversionText: string | null;
   routeCoords: LatLng[];
@@ -78,8 +89,7 @@ export interface TripSummaryViewProps {
 
   // Notices
   confidenceLevel: "high" | "medium" | "low" | null;
-  /** The ConfidenceBadge, drawn by the parent (it owns that component). */
-  confidenceBadge: ReactNode;
+  confidenceReasons: string[];
   mergeSuggestion: {
     direction: "before" | "after";
     gapMinutes: number;
@@ -115,12 +125,7 @@ export interface TripSummaryViewProps {
 
 // ── Formatting ──────────────────────────────────────────────────────────
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function dateLabel(d: Date): string {
-  return `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
-}
 
 function clock(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -142,6 +147,21 @@ function splitAddress(addr: string | null): { first: string; rest: string | null
   return { first: addr.slice(0, i).trim(), rest: addr.slice(i + 1).trim() || null };
 }
 
+/** A saved place's name first (as the Trips list shows it), the address under it. */
+function placeLines(name: string | null, addr: string | null): { first: string; rest: string | null } | null {
+  if (name) {
+    const a = splitAddress(addr);
+    const rest = a ? (a.rest ?? a.first) : null;
+    return { first: name, rest: rest && rest !== name ? rest : null };
+  }
+  return splitAddress(addr);
+}
+
+/** "Client Meeting" -> "Client meeting". Brand names (the apps) stay as they are. */
+function sentenceCase(label: string): string {
+  return label.charAt(0) + label.slice(1).toLowerCase();
+}
+
 function useAnimatedToggle() {
   const reduced = useReducedMotion();
   return (apply: () => void) => {
@@ -152,7 +172,9 @@ function useAnimatedToggle() {
 
 // ── Pieces ──────────────────────────────────────────────────────────────
 
-function MapBlock(props: Pick<TripSummaryViewProps, "routeCoords" | "routeMatched" | "isManual">) {
+function MapBlock(
+  props: Pick<TripSummaryViewProps, "routeCoords" | "routeMatched" | "isManual" | "startLat" | "startLng" | "endLat" | "endLng">
+) {
   const { height: windowHeight } = useWindowDimensions();
   // 180 on a small phone (SE), 200 otherwise.
   const height = windowHeight < 700 ? 180 : 200;
@@ -171,70 +193,36 @@ function MapBlock(props: Pick<TripSummaryViewProps, "routeCoords" | "routeMatche
     );
   }
 
+  // A trip added by hand draws the dashed start-to-end line the Trips list
+  // and Home use for it, so the two screens agree.
+  const ends =
+    props.startLat != null && props.startLng != null && props.endLat != null && props.endLng != null
+      ? { start: { lat: props.startLat, lng: props.startLng }, end: { lat: props.endLat, lng: props.endLng } }
+      : null;
+  if (props.isManual && ends) {
+    return (
+      <View style={[styles.mapBox, styles.mapPlaceholder, { height }]}>
+        <MiniRoute route={[]} start={ends.start} end={ends.end} size={height - 72} dashed />
+        <Text style={styles.mapPlaceholderText} maxFontSizeMultiplier={fontScaleCap.body}>
+          Added by you, so there&apos;s no route to show.
+        </Text>
+      </View>
+    );
+  }
+
   const placeholder = props.isManual
-    ? { icon: "create-outline" as const, text: "Added by hand, so there's no route to show." }
+    ? { icon: "create-outline" as const, text: "Added by you, so there's no route to show." }
     : !hasRoute
       ? { icon: "map-outline" as const, text: "The route isn't on this phone yet." }
       : { icon: "map-outline" as const, text: "Map not available here." };
 
   return (
     <View style={[styles.mapBox, styles.mapPlaceholder, { height }]}>
-      <Ionicons name={placeholder.icon} size={28} color="rgba(245, 166, 35, 0.3)" accessible={false} />
+      <Ionicons name={placeholder.icon} size={28} color={colors.text3} accessible={false} />
       <Text style={styles.mapPlaceholderText} maxFontSizeMultiplier={fontScaleCap.body}>
         {placeholder.text}
       </Text>
     </View>
-  );
-}
-
-function Pill({ text, icon }: { text: string; icon?: keyof typeof Ionicons.glyphMap }) {
-  return (
-    <View style={styles.pill}>
-      {icon && <Ionicons name={icon} size={12} color={colors.text2} accessible={false} />}
-      <Text style={styles.pillText} maxFontSizeMultiplier={fontScaleCap.heading}>
-        {text}
-      </Text>
-    </View>
-  );
-}
-
-function Chip({
-  label,
-  icon,
-  selected,
-  onPress,
-  accessibilityLabel,
-}: {
-  label: string;
-  icon?: string;
-  selected: boolean;
-  onPress: () => void;
-  accessibilityLabel: string;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.chip, selected && styles.chipSelected]}
-      onPress={onPress}
-      hitSlop={{ top: 4, bottom: 4 }}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
-    >
-      {icon ? (
-        <Ionicons
-          name={icon as keyof typeof Ionicons.glyphMap}
-          size={14}
-          color={selected ? colors.bg : colors.text2}
-          accessible={false}
-        />
-      ) : null}
-      <Text
-        style={[styles.chipText, selected && styles.chipTextSelected]}
-        maxFontSizeMultiplier={fontScaleCap.display}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
   );
 }
 
@@ -275,124 +263,6 @@ function ChoiceSegment({
         {label}
       </Text>
     </TouchableOpacity>
-  );
-}
-
-function SubChoice(props: TripSummaryViewProps) {
-  const { classification } = props;
-  if (classification === "personal") {
-    return (
-      <View style={styles.subChoice}>
-        <Text style={styles.subLabel} maxFontSizeMultiplier={fontScaleCap.heading}>Category</Text>
-        <View style={styles.chipWrap}>
-          <Chip
-            label="None"
-            selected={!props.category}
-            onPress={() => props.onCategory(undefined)}
-            accessibilityLabel="Category: None"
-          />
-          {TRIP_CATEGORY_META.map((c) => (
-            <Chip
-              key={c.value}
-              label={c.label}
-              icon={c.icon}
-              selected={props.category === c.value}
-              onPress={() => props.onCategory(c.value as TripCategory)}
-              accessibilityLabel={`Category: ${c.label}`}
-            />
-          ))}
-        </View>
-      </View>
-    );
-  }
-  if (classification === "business" && (props.isGigDriver || props.isEmployeeDriver)) {
-    // A "both" driver gets the app chips and the purpose chips, as the old form showed.
-    return (
-      <>
-        {props.isGigDriver && (
-      <View style={styles.subChoice}>
-        <Text style={styles.subLabel} maxFontSizeMultiplier={fontScaleCap.heading}>Which app?</Text>
-        <View style={styles.chipWrap}>
-          <Chip
-            label="None"
-            selected={!props.platformTag}
-            onPress={() => props.onPlatform(undefined)}
-            accessibilityLabel="App: None"
-          />
-          {GIG_PLATFORMS.map((p) => (
-            <Chip
-              key={p.value}
-              label={p.label}
-              selected={props.platformTag === p.value}
-              onPress={() => props.onPlatform(p.value as PlatformTag)}
-              accessibilityLabel={`App: ${p.label}`}
-            />
-          ))}
-        </View>
-      </View>
-        )}
-        {props.isEmployeeDriver && (
-      <View style={styles.subChoice}>
-        <Text style={styles.subLabel} maxFontSizeMultiplier={fontScaleCap.heading}>Purpose</Text>
-        <View style={styles.chipWrap}>
-          <Chip
-            label="None"
-            selected={!props.businessPurpose}
-            onPress={() => props.onPurpose(undefined)}
-            accessibilityLabel="Purpose: None"
-          />
-          {BUSINESS_PURPOSES.map((bp) => (
-            <Chip
-              key={bp.value}
-              label={bp.label}
-              icon={bp.icon}
-              selected={props.businessPurpose === bp.value}
-              onPress={() => props.onPurpose(bp.value as BusinessPurpose)}
-              accessibilityLabel={`Purpose: ${bp.label}`}
-            />
-          ))}
-        </View>
-      </View>
-        )}
-      </>
-    );
-  }
-  return null;
-}
-
-function MergeNotice(props: Pick<TripSummaryViewProps, "mergeSuggestion" | "merging" | "onMerge">) {
-  const m = props.mergeSuggestion;
-  if (!m) return null;
-  const gap = m.gapMinutes < 1 ? "under 1" : m.gapMinutes.toFixed(0);
-  const dist = m.gapMeters < 100 ? "under 100" : m.gapMeters.toFixed(0);
-  return (
-    <View style={styles.notice}>
-      <Ionicons name="git-merge-outline" size={18} color={colors.amber} accessible={false} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.noticeTitle} maxFontSizeMultiplier={fontScaleCap.heading}>
-          Looks like a quick stop
-        </Text>
-        <Text style={styles.noticeBody} maxFontSizeMultiplier={fontScaleCap.body}>
-          {m.direction === "after"
-            ? `Another trip starts ${gap} min later`
-            : `Another trip ended ${gap} min earlier`}
-          {` and ${dist} m away. Join them into one trip?`}
-        </Text>
-      </View>
-      <TouchableOpacity
-        style={styles.mergeButton}
-        onPress={() => props.onMerge(m.otherTripId)}
-        disabled={props.merging}
-        accessibilityRole="button"
-        accessibilityLabel="Merge with the other trip"
-      >
-        {props.merging ? (
-          <ActivityIndicator color={colors.bg} size="small" />
-        ) : (
-          <Text style={styles.mergeButtonText} maxFontSizeMultiplier={fontScaleCap.display}>Merge</Text>
-        )}
-      </TouchableOpacity>
-    </View>
   );
 }
 
@@ -453,69 +323,117 @@ function CazNotice(
   );
 }
 
-function ReadOnlyRow({ label, value, onPress, lines }: { label: string; value: string; onPress?: () => void; lines?: number }) {
-  const body = (
-    <View style={styles.readRow}>
-      <Text style={styles.readLabel} maxFontSizeMultiplier={fontScaleCap.heading}>{label}</Text>
-      <Text style={styles.readValue} numberOfLines={lines} maxFontSizeMultiplier={fontScaleCap.body}>
-        {value}
-      </Text>
-    </View>
-  );
-  if (!onPress) return body;
+/** Home's amber strip: "The distance may be off", why, and "Check". */
+function DistanceWarning({
+  level,
+  reasons,
+  onCheck,
+  busy,
+}: {
+  level: TripSummaryViewProps["confidenceLevel"];
+  reasons: string[];
+  onCheck: () => void;
+  busy: boolean;
+}) {
+  const w = distanceWarning(level, reasons);
+  if (!w) return null;
   return (
     <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
+      style={styles.warning}
+      onPress={onCheck}
+      disabled={busy}
+      activeOpacity={0.8}
       accessibilityRole="button"
-      accessibilityLabel={`${label}: ${value}. Tap to edit.`}
+      accessibilityLabel={`${w.title}. ${w.body} Check`}
+      accessibilityHint="Works out the miles again along the roads"
     >
-      {body}
+      <Ionicons name="alert-circle" size={20} color={colors.amber} accessible={false} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.warningTitle} maxFontSizeMultiplier={fontScaleCap.heading}>{w.title}</Text>
+        <Text style={styles.warningBody} maxFontSizeMultiplier={fontScaleCap.body}>{w.body}</Text>
+      </View>
+      {busy ? (
+        <ActivityIndicator color={colors.amber} size="small" />
+      ) : (
+        <Text style={styles.warningAction} maxFontSizeMultiplier={fontScaleCap.body}>Check</Text>
+      )}
     </TouchableOpacity>
   );
 }
 
-function MoreRow({
+/** One row in a grouped card: grey icon, title (and a grey line), value, chevron. */
+function Row({
   icon,
   label,
+  sub,
+  value,
+  valueAccent,
+  chip,
   onPress,
   busy,
-  chip,
-  danger,
-  disabled,
+  first,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  onPress: () => void;
-  busy?: boolean;
+  sub?: string;
+  value?: string;
+  /** The value is an invitation ("Add"), not a fact. */
+  valueAccent?: boolean;
   chip?: string;
-  danger?: boolean;
-  disabled?: boolean;
+  onPress?: () => void;
+  busy?: boolean;
+  first?: boolean;
 }) {
-  const tint = danger ? DESTRUCTIVE : colors.text2;
-  return (
-    <TouchableOpacity
-      style={styles.moreRow}
-      onPress={onPress}
-      disabled={disabled || busy}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-    >
-      <Ionicons name={icon} size={20} color={tint} accessible={false} />
-      <Text
-        style={[styles.moreLabel, danger && { color: DESTRUCTIVE }]}
-        numberOfLines={2}
-        maxFontSizeMultiplier={fontScaleCap.body}
-      >
-        {label}
-      </Text>
+  const body = (
+    <>
+      <Ionicons name={icon} size={20} color={colors.text2} accessible={false} />
+      <View style={styles.rowText}>
+        <Text style={styles.rowLabel} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+          {label}
+        </Text>
+        {sub ? (
+          <Text style={styles.rowSub} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.body}>
+            {sub}
+          </Text>
+        ) : null}
+      </View>
+      {value ? (
+        <Text
+          style={[styles.rowValue, valueAccent && { color: colors.amber }]}
+          numberOfLines={1}
+          maxFontSizeMultiplier={fontScaleCap.body}
+        >
+          {value}
+        </Text>
+      ) : null}
       {chip ? (
         <View style={styles.proChip}>
           <Text style={styles.proChipText} maxFontSizeMultiplier={fontScaleCap.none}>{chip}</Text>
         </View>
       ) : null}
-      {busy ? <ActivityIndicator color={colors.amber} size="small" /> : null}
+      {busy ? <ActivityIndicator color={colors.text2} size="small" /> : null}
+      {onPress && !busy ? <Ionicons name="chevron-forward" size={16} color={colors.text3} accessible={false} /> : null}
+    </>
+  );
+  const style = [styles.row, !first && styles.rowBorder];
+  if (!onPress) {
+    return (
+      <View style={style} accessible accessibilityLabel={value ? `${label}: ${value}` : label}>
+        {body}
+      </View>
+    );
+  }
+  return (
+    <TouchableOpacity
+      style={style}
+      onPress={onPress}
+      disabled={busy}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+      accessibilityLabel={[label, value, sub].filter(Boolean).join(". ")}
+      accessibilityState={{ busy: !!busy }}
+    >
+      {body}
     </TouchableOpacity>
   );
 }
@@ -549,45 +467,136 @@ function CollapsibleRow({
   );
 }
 
+type Sheet = "app" | "purpose" | "category" | "place" | "newTrip" | null;
+
+const NONE = "__none__";
+
 // ── The summary ─────────────────────────────────────────────────────────
 
 /**
- * What a saved trip opens as: the route, where it went, how far, and the one
- * decision that matters (business or personal). Everything else is behind
- * "Edit trip" or "More". Presentational: trip-form owns the data and every
- * save, this just draws it and calls back.
+ * What a saved trip opens as: the route, where it went, how far, how it was
+ * made, and the one decision that matters (business or personal). The rest
+ * sits in two short groups: "Fix this trip" and "Use this trip"
+ * (PROPOSALS 6.5). Presentational: trip-form owns the data and every save,
+ * this just draws it and calls back.
  */
 export function TripSummaryView(props: TripSummaryViewProps) {
   const [speedOpen, setSpeedOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [sheet, setSheet] = useState<Sheet>(null);
   const animate = useAnimatedToggle();
 
   const { startedAt, endedAt, classification } = props;
-  const from = splitAddress(props.startAddress);
-  const to = splitAddress(props.endAddress);
+  const from = placeLines(props.startPlaceName, props.startAddress);
+  const to = placeLines(props.endPlaceName, props.endAddress);
+  const fromName = from?.first ?? null;
+  const toName = to?.first ?? null;
 
   const mins = endedAt ? Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 60000)) : null;
   const whenLine = endedAt
-    ? `${dateLabel(startedAt)}  ·  ${clock(startedAt)} to ${clock(endedAt)}  ·  ${durationLabel(mins ?? 0)}`
-    : `${dateLabel(startedAt)}  ·  started ${clock(startedAt)}`;
+    ? `${dayLabel(startedAt)} · ${clock(startedAt)} to ${clock(endedAt)} · ${durationLabel(mins ?? 0)}`
+    : `${dayLabel(startedAt)} · started ${clock(startedAt)}`;
 
   const miles = props.distanceMiles != null ? Math.round(props.distanceMiles * 10) / 10 : null;
   const unclassified = classification === "unclassified";
 
-  const pills: { text: string; icon?: keyof typeof Ionicons.glyphMap }[] = [];
-  pills.push({ text: props.isManual ? "Added by hand" : "Recorded by GPS" });
+  const made = tripMadeLine(
+    {
+      isManualEntry: props.isManual,
+      classification,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt ? endedAt.toISOString() : null,
+      createdAt: props.createdAt,
+    },
+    { waitingToUpload: props.waitingToSync, splitLeg: props.splitLeg }
+  );
+  const madeIcon: keyof typeof Ionicons.glyphMap = made.done
+    ? "checkmark-circle"
+    : props.waitingToSync
+      ? "cloud-upload-outline"
+      : props.isManual
+        ? "create-outline"
+        : props.splitLeg
+          ? "cut-outline"
+          : "time-outline";
+  const extras: string[] = [];
   if (props.editedAt) {
     const e = new Date(props.editedAt);
-    pills.push({ text: `Edited ${e.getDate()} ${MONTHS[e.getMonth()]}` });
+    extras.push(`Edited ${e.getDate()} ${MONTHS[e.getMonth()]}`);
   }
-  if (props.waitingToSync) pills.push({ text: "Waiting to sync" });
 
-  const showConfidenceNotice = props.confidenceLevel != null && props.confidenceLevel !== "high";
   const showSpeed = !props.isManual && props.speedAndStops != null;
+
+  // Which app for gig drivers, Purpose for drivers who drive for an employer,
+  // Category for Personal trips. One row each, opening a short picker.
+  const showApp = classification === "business" && props.isGigDriver;
+  const showPurpose = classification === "business" && props.isEmployeeDriver;
+  const showCategory = classification === "personal";
+  const platformLabel = GIG_PLATFORMS.find((p) => p.value === props.platformTag)?.label;
+  const purposeMeta = BUSINESS_PURPOSES.find((p) => p.value === props.businessPurpose);
+  const categoryMeta = TRIP_CATEGORY_META.find((c) => c.value === props.category);
+  const note = props.notes.trim();
+  const project = props.projectLabel.trim();
+
+  const appOptions: PickerOption[] = [
+    { key: NONE, label: "None" },
+    ...GIG_PLATFORMS.map((p) => ({ key: p.value, label: p.label })),
+  ];
+  const purposeOptions: PickerOption[] = [
+    { key: NONE, label: "None" },
+    ...BUSINESS_PURPOSES.map((p) => ({ key: p.value, label: sentenceCase(p.label), icon: p.icon })),
+  ];
+  const categoryOptions: PickerOption[] = [
+    { key: NONE, label: "None" },
+    ...TRIP_CATEGORY_META.map((c) => ({ key: c.value, label: sentenceCase(c.label), icon: c.icon })),
+  ];
+
+  const hasStart = props.startLat != null && props.startLng != null;
+  const hasEnd = props.endLat != null && props.endLng != null;
+  const startWord = fromName ?? "the start";
+  const endWord = toName ?? "the end";
+  const placeOptions: PickerOption[] = [
+    ...(hasStart ? [{ key: "start", label: `Save ${startWord}`, sub: "Where this trip started", icon: "bookmark-outline" }] : []),
+    ...(hasEnd ? [{ key: "end", label: `Save ${endWord}`, sub: "Where this trip ended", icon: "bookmark-outline" }] : []),
+  ];
+  const newTripOptions: PickerOption[] = [
+    ...(hasEnd ? [{ key: "from-end", label: `From ${endWord}`, sub: "Starts where this trip ended", icon: "arrow-up-circle-outline" }] : []),
+    ...(hasStart ? [{ key: "from-start", label: `From ${startWord}`, sub: "Starts where this trip started", icon: "arrow-up-circle-outline" }] : []),
+    ...(hasEnd ? [{ key: "to-end", label: `To ${endWord}`, sub: "Ends where this trip ended", icon: "flag-outline" }] : []),
+    ...(hasStart ? [{ key: "to-start", label: `To ${startWord}`, sub: "Ends where this trip started", icon: "flag-outline" }] : []),
+  ];
+
+  const pickNewTrip = (key: string) => {
+    const start = [props.startLat!, props.startLng!, props.startAddress] as const;
+    const end = [props.endLat!, props.endLng!, props.endAddress] as const;
+    if (key === "from-end") props.onNewTripFrom(...end);
+    else if (key === "from-start") props.onNewTripFrom(...start);
+    else if (key === "to-end") props.onNewTripTo(...end);
+    else if (key === "to-start") props.onNewTripTo(...start);
+  };
+
+  const m = props.mergeSuggestion;
+  const joinRow = m
+    ? {
+        label: m.direction === "after" ? "Join with the next trip" : "Join with the trip before",
+        sub:
+          (m.direction === "after"
+            ? `Starts ${m.gapMinutes < 1 ? "under 1" : m.gapMinutes.toFixed(0)} min later`
+            : `Ended ${m.gapMinutes < 1 ? "under 1" : m.gapMinutes.toFixed(0)} min earlier`) +
+          `, ${m.gapMeters < 100 ? "under 100" : m.gapMeters.toFixed(0)} m away`,
+      }
+    : null;
 
   return (
     <View>
-      <MapBlock routeCoords={props.routeCoords} routeMatched={props.routeMatched} isManual={props.isManual} />
+      <MapBlock
+        routeCoords={props.routeCoords}
+        routeMatched={props.routeMatched}
+        isManual={props.isManual}
+        startLat={props.startLat}
+        startLng={props.startLng}
+        endLat={props.endLat}
+        endLng={props.endLng}
+      />
 
       <Text style={styles.when} maxFontSizeMultiplier={fontScaleCap.body}>{whenLine}</Text>
       {props.changesSaved && (
@@ -645,25 +654,29 @@ export function TripSummaryView(props: TripSummaryViewProps) {
           </Text>
         )}
       </View>
-      <View style={styles.pillRow}>
-        {pills.map((p) => (
-          <Pill key={p.text} text={p.text} icon={p.icon} />
-        ))}
-        {props.diversionText ? <Pill text={props.diversionText} icon="git-branch-outline" /> : null}
+
+      {/* How the trip was made: a green tick only when it's recorded and saved. */}
+      <View style={styles.madeRow}>
+        <Ionicons name={madeIcon} size={16} color={made.done ? colors.green : colors.text2} accessible={false} />
+        <Text style={styles.madeText} maxFontSizeMultiplier={fontScaleCap.body}>
+          {[made.text, ...extras].join(" · ")}
+        </Text>
       </View>
+      {props.diversionText ? (
+        <View style={styles.madeRow}>
+          <Ionicons name="git-branch-outline" size={16} color={colors.text2} accessible={false} />
+          <Text style={styles.madeText} maxFontSizeMultiplier={fontScaleCap.body}>{props.diversionText}</Text>
+        </View>
+      ) : null}
 
       {/* Business or personal */}
-      <View style={styles.questionRow}>
-        <Text
-          style={[styles.question, unclassified && { color: colors.amber }]}
-          maxFontSizeMultiplier={fontScaleCap.heading}
-        >
-          Business or personal?
-        </Text>
-        {unclassified && (
-          <Text style={styles.notSorted} maxFontSizeMultiplier={fontScaleCap.body}>Not sorted yet</Text>
-        )}
-      </View>
+      <Text
+        style={[styles.question, unclassified && { color: colors.amber }]}
+        maxFontSizeMultiplier={fontScaleCap.heading}
+        accessibilityRole="header"
+      >
+        Business or personal?
+      </Text>
       <View
         style={[styles.track, unclassified && { borderColor: colors.amberGlow }]}
         accessibilityRole="radiogroup"
@@ -684,26 +697,54 @@ export function TripSummaryView(props: TripSummaryViewProps) {
         {props.savedNote ?? " "}
       </Text>
 
-      <SubChoice {...props} />
+      {/* Which app, Purpose (or Category), Note: rows that open a short picker. */}
+      <View style={styles.group}>
+        {showApp && (
+          <Row
+            first
+            icon="phone-portrait-outline"
+            label="Which app"
+            value={platformLabel ?? "None"}
+            onPress={() => setSheet("app")}
+          />
+        )}
+        {showPurpose && (
+          <Row
+            first={!showApp}
+            icon="flag-outline"
+            label="Purpose"
+            value={purposeMeta ? sentenceCase(purposeMeta.label) : "None"}
+            onPress={() => setSheet("purpose")}
+          />
+        )}
+        {showCategory && (
+          <Row
+            first
+            icon="pricetag-outline"
+            label="Category"
+            value={categoryMeta ? sentenceCase(categoryMeta.label) : "None"}
+            onPress={() => setSheet("category")}
+          />
+        )}
+        <Row
+          first={!showApp && !showPurpose && !showCategory}
+          icon="create-outline"
+          label="Note"
+          sub={note || undefined}
+          value={note ? undefined : "Add"}
+          valueAccent={!note}
+          onPress={props.onEdit}
+        />
+        {project ? <Row icon="briefcase-outline" label="Project" value={project} onPress={props.onEdit} /> : null}
+        {props.vehicleName ? <Row icon="car-outline" label="Vehicle" value={props.vehicleName} /> : null}
+      </View>
 
-      {/* Notices, only when present */}
-      {showConfidenceNotice && <View style={styles.noticeGap}>{props.confidenceBadge}</View>}
-      <MergeNotice mergeSuggestion={props.mergeSuggestion} merging={props.merging} onMerge={props.onMerge} />
       <CazNotice
         cleanAirZones={props.cleanAirZones}
         loggedCazZones={props.loggedCazZones}
         loggingCaz={props.loggingCaz}
         onLogCaz={props.onLogCaz}
       />
-
-      {/* Read only details */}
-      {props.notes.trim() ? (
-        <ReadOnlyRow label="Note" value={props.notes.trim()} lines={3} onPress={props.onEdit} />
-      ) : null}
-      {props.projectLabel.trim() ? (
-        <ReadOnlyRow label="Project" value={props.projectLabel.trim()} onPress={props.onEdit} />
-      ) : null}
-      {props.vehicleName ? <ReadOnlyRow label="Vehicle" value={props.vehicleName} /> : null}
 
       <TouchableOpacity
         style={styles.editButton}
@@ -726,85 +767,139 @@ export function TripSummaryView(props: TripSummaryViewProps) {
         </CollapsibleRow>
       )}
 
-      <CollapsibleRow title="More" open={moreOpen} onToggle={() => animate(() => setMoreOpen((v) => !v))}>
-        <View style={styles.moreGroup}>
-          {!props.isManual && (
-            <MoreRow
-              icon="shield-checkmark-outline"
-              label="Got a fine for this trip?"
-              chip={props.showProChip ? "PRO" : undefined}
-              onPress={props.onFine}
-            />
-          )}
-          {props.canSplit && (
-            <MoreRow icon="git-branch-outline" label="Split into several trips" onPress={props.onSplit} />
-          )}
-          <MoreRow
-            icon="refresh"
-            label="Recalculate distance"
-            onPress={props.onRecalculate}
-            busy={props.recalculating}
+      {/* Only when the distance may be off; never red, nothing is broken. */}
+      <View style={{ marginTop: 16 }}>
+        <DistanceWarning
+          level={props.confidenceLevel}
+          reasons={props.confidenceReasons}
+          onCheck={props.onRecalculate}
+          busy={props.recalculating}
+        />
+      </View>
+
+      <Text style={styles.groupTitle} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>
+        Fix this trip
+      </Text>
+      <View style={styles.group}>
+        <Row
+          first
+          icon="swap-vertical-outline"
+          label="Work out the miles again"
+          sub="Uses the road route between the two places"
+          onPress={props.onRecalculate}
+          busy={props.recalculating}
+        />
+        {props.canSplit && (
+          <Row icon="cut-outline" label="Split into separate trips" sub="If you stopped on the way" onPress={props.onSplit} />
+        )}
+        {joinRow && m && (
+          <Row
+            icon="git-merge-outline"
+            label={joinRow.label}
+            sub={joinRow.sub}
+            onPress={() => props.onMerge(m.otherTripId)}
+            busy={props.merging}
           />
-          <MoreRow
-            icon="speedometer-outline"
-            label={props.hasOdometer ? "Edit odometer readings" : "Add odometer readings"}
-            onPress={props.onEditOdometer}
+        )}
+        <Row
+          icon="speedometer-outline"
+          label="Odometer readings"
+          value={props.hasOdometer ? "Edit" : "Add"}
+          valueAccent={!props.hasOdometer}
+          onPress={props.onEditOdometer}
+        />
+      </View>
+
+      <Text style={styles.groupTitle} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>
+        Use this trip
+      </Text>
+      <View style={styles.group}>
+        {placeOptions.length > 0 && (
+          <Row
+            first
+            icon="bookmark-outline"
+            label="Save a place"
+            sub={fromName && toName ? `Name ${fromName} or ${toName}` : "Name where you went"}
+            onPress={() => setSheet("place")}
           />
-          {props.startLat != null && props.startLng != null && (
-            <MoreRow
-              icon="bookmark-outline"
-              label="Save start as a place"
-              onPress={() => props.onSavePlace(props.startLat!, props.startLng!, props.startAddress)}
-            />
-          )}
-          {props.endLat != null && props.endLng != null && (
-            <MoreRow
-              icon="bookmark-outline"
-              label="Save end as a place"
-              onPress={() => props.onSavePlace(props.endLat!, props.endLng!, props.endAddress)}
-            />
-          )}
-          {props.endLat != null && props.endLng != null && (
-            <MoreRow
-              icon="arrow-up-circle-outline"
-              label="New trip from the end of this one"
-              onPress={() => props.onNewTripFrom(props.endLat!, props.endLng!, props.endAddress)}
-            />
-          )}
-          {props.startLat != null && props.startLng != null && (
-            <MoreRow
-              icon="arrow-up-circle-outline"
-              label="New trip from the start of this one"
-              onPress={() => props.onNewTripFrom(props.startLat!, props.startLng!, props.startAddress)}
-            />
-          )}
-          {props.endLat != null && props.endLng != null && (
-            <MoreRow
-              icon="flag-outline"
-              label="New trip to the end of this one"
-              onPress={() => props.onNewTripTo(props.endLat!, props.endLng!, props.endAddress)}
-            />
-          )}
-          {props.startLat != null && props.startLng != null && (
-            <MoreRow
-              icon="flag-outline"
-              label="New trip to the start of this one"
-              onPress={() => props.onNewTripTo(props.startLat!, props.startLng!, props.startAddress)}
-            />
-          )}
-          {props.confidenceLevel === "high" && <View style={styles.moreBadge}>{props.confidenceBadge}</View>}
-        </View>
-        <View style={[styles.moreGroup, { marginTop: 12 }]}>
-          <MoreRow
-            icon="trash-outline"
-            label="Delete trip"
-            danger
-            onPress={props.onDelete}
-            busy={props.deleting}
-            disabled={props.deleting}
+        )}
+        {newTripOptions.length > 0 && (
+          <Row
+            first={placeOptions.length === 0}
+            icon="add"
+            label="New trip from here"
+            sub="Back home, or on to the next drop"
+            onPress={() => setSheet("newTrip")}
           />
-        </View>
-      </CollapsibleRow>
+        )}
+        {!props.isManual && (
+          <Row
+            first={placeOptions.length === 0 && newTripOptions.length === 0}
+            icon="shield-checkmark-outline"
+            label="Got a fine for this trip?"
+            chip={props.showProChip ? "Pro" : undefined}
+            onPress={props.onFine}
+          />
+        )}
+      </View>
+
+      <TouchableOpacity
+        style={styles.deleteButton}
+        onPress={props.onDelete}
+        disabled={props.deleting}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel="Delete trip"
+      >
+        {props.deleting ? (
+          <ActivityIndicator color={DESTRUCTIVE} size="small" />
+        ) : (
+          <Ionicons name="trash-outline" size={18} color={DESTRUCTIVE} accessible={false} />
+        )}
+        <Text style={styles.deleteText} maxFontSizeMultiplier={fontScaleCap.display}>Delete trip</Text>
+      </TouchableOpacity>
+
+      <PickerSheet
+        visible={sheet === "app"}
+        title="Which app"
+        options={appOptions}
+        selectedKey={props.platformTag ?? NONE}
+        onPick={(k) => props.onPlatform(k === NONE ? undefined : (k as PlatformTag))}
+        onClose={() => setSheet(null)}
+      />
+      <PickerSheet
+        visible={sheet === "purpose"}
+        title="Purpose"
+        options={purposeOptions}
+        selectedKey={props.businessPurpose ?? NONE}
+        onPick={(k) => props.onPurpose(k === NONE ? undefined : (k as BusinessPurpose))}
+        onClose={() => setSheet(null)}
+      />
+      <PickerSheet
+        visible={sheet === "category"}
+        title="Category"
+        options={categoryOptions}
+        selectedKey={props.category ?? NONE}
+        onPick={(k) => props.onCategory(k === NONE ? undefined : (k as TripCategory))}
+        onClose={() => setSheet(null)}
+      />
+      <PickerSheet
+        visible={sheet === "place"}
+        title="Save a place"
+        options={placeOptions}
+        onPick={(k) => {
+          if (k === "start") props.onSavePlace(props.startLat!, props.startLng!, props.startAddress);
+          else if (k === "end") props.onSavePlace(props.endLat!, props.endLng!, props.endAddress);
+        }}
+        onClose={() => setSheet(null)}
+      />
+      <PickerSheet
+        visible={sheet === "newTrip"}
+        title="New trip from here"
+        options={newTripOptions}
+        onPick={pickNewTrip}
+        onClose={() => setSheet(null)}
+      />
     </View>
   );
 }
@@ -817,7 +912,7 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: 52,
     marginTop: 16,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.hairline,
@@ -828,7 +923,7 @@ const styles = StyleSheet.create({
     color: colors.text1,
   },
   mapBox: {
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     overflow: "hidden",
     marginBottom: 16,
   },
@@ -918,45 +1013,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: colors.text2,
   },
-  pillRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 6,
-    marginBottom: 24,
-  },
-  pill: {
+  madeRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radii.pill,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    maxWidth: "100%",
-  },
-  pillText: {
-    fontSize: 12,
-    fontFamily: fonts.medium,
-    color: colors.text2,
-    flexShrink: 1,
-  },
-  questionRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "baseline",
     gap: 8,
-    marginBottom: 10,
+    marginTop: 6,
+  },
+  madeText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: fonts.regular,
+    color: colors.text2,
   },
   question: {
     fontSize: 16,
     fontFamily: fonts.semibold,
     color: colors.text1,
-  },
-  notSorted: {
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    color: colors.text3,
+    marginTop: 22,
+    marginBottom: 10,
   },
   track: {
     flexDirection: "row",
@@ -990,54 +1064,60 @@ const styles = StyleSheet.create({
   segmentText: {
     fontSize: 16,
   },
-  subChoice: {
-    marginBottom: 8,
-  },
-  subLabel: {
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: colors.text2,
-    marginBottom: 8,
-  },
-  chipWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    minHeight: 36,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: radii.pill,
+  group: {
+    borderRadius: radii.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.surfaceBorder,
+    overflow: "hidden",
   },
-  chipSelected: {
-    backgroundColor: colors.amber,
-    borderColor: colors.amber,
-  },
-  chipText: {
-    fontSize: 14,
+  groupTitle: {
+    fontSize: 13,
     fontFamily: fonts.semibold,
     color: colors.text2,
+    marginTop: 24,
+    marginBottom: 8,
+    marginLeft: 4,
   },
-  chipTextSelected: {
-    color: colors.bg,
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  noticeGap: {
-    marginTop: 8,
+  rowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.hairline,
+  },
+  rowText: {
+    flex: 1,
+  },
+  rowLabel: {
+    fontSize: 16,
+    fontFamily: fonts.regular,
+    color: colors.text1,
+  },
+  rowSub: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.text2,
+    marginTop: 2,
+  },
+  rowValue: {
+    maxWidth: "45%",
+    fontSize: 15,
+    fontFamily: fonts.medium,
+    color: colors.text2,
   },
   notice: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginTop: 8,
+    marginTop: 12,
     padding: 14,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     backgroundColor: colors.amberDim,
     borderWidth: 1,
     borderColor: colors.amberGlow,
@@ -1060,19 +1140,32 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginTop: 2,
   },
-  mergeButton: {
-    minHeight: 44,
-    minWidth: 72,
-    paddingHorizontal: 14,
-    borderRadius: radii.sm,
-    backgroundColor: colors.amber,
+  // Home's warning strip
+  warning: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 12,
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: colors.amberDim,
   },
-  mergeButtonText: {
+  warningTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: colors.text1,
+  },
+  warningBody: {
     fontSize: 14,
+    fontFamily: fonts.regular,
+    color: colors.text2,
+    marginTop: 2,
+  },
+  warningAction: {
+    fontSize: 15,
     fontFamily: fonts.bold,
-    color: colors.bg,
+    color: colors.amber,
   },
   cazHeader: {
     flexDirection: "row",
@@ -1122,21 +1215,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     marginTop: 4,
   },
-  readRow: {
-    marginTop: 14,
-  },
-  readLabel: {
-    fontSize: 12,
-    fontFamily: fonts.semibold,
-    color: colors.text3,
-    marginBottom: 2,
-  },
-  readValue: {
-    fontSize: 16,
-    fontFamily: fonts.regular,
-    color: colors.text1,
-    lineHeight: 22,
-  },
   collapseRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1150,44 +1228,28 @@ const styles = StyleSheet.create({
     color: colors.text2,
     flexShrink: 1,
   },
-  moreGroup: {
-    borderRadius: radii.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.surfaceBorder,
-    overflow: "hidden",
-  },
-  moreRow: {
+  deleteButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "center",
+    gap: 8,
     minHeight: 52,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hairline,
+    marginTop: 24,
   },
-  moreLabel: {
-    flex: 1,
+  deleteText: {
     fontSize: 16,
-    fontFamily: fonts.regular,
-    color: colors.text1,
-  },
-  moreBadge: {
-    padding: 12,
+    fontFamily: fonts.semibold,
+    color: DESTRUCTIVE,
   },
   proChip: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: colors.amberDim,
-    borderWidth: 1,
-    borderColor: colors.amberGlow,
   },
   proChipText: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: fonts.bold,
     color: colors.amber,
-    letterSpacing: 0.5,
   },
 });

@@ -35,6 +35,7 @@ import { createdInBatchIds, dayMilesText, isRecentAutoSort, suggestionLine, trip
 import { routeText } from "../../lib/home/lastTrip";
 import { mergeTripPage, uniqueById } from "../../lib/trips/pageMerge";
 import { tripEndLabel, type SavedPlace } from "../../lib/trips/placeLabel";
+import { loadSavedPlaces } from "../../lib/trips/savedPlaces";
 import { getDatabase } from "../../lib/db";
 import { learnFromClassification } from "../../lib/classification";
 import { maybeRequestReview } from "../../lib/rating/index";
@@ -299,19 +300,6 @@ async function loadFailedTripIds(): Promise<Set<string>> {
     return new Set(rows.map((r) => r.entity_id));
   } catch {
     return new Set();
-  }
-}
-
-/** Saved places from the local database, for the route line's names. */
-async function loadSavedPlaces(): Promise<SavedPlace[]> {
-  try {
-    const db = await getDatabase();
-    const rows = await db.getAllAsync<{ name: string; latitude: number; longitude: number; radius_meters: number }>(
-      "SELECT name, latitude, longitude, radius_meters FROM saved_locations"
-    );
-    return rows.map((r) => ({ name: r.name, lat: r.latitude, lng: r.longitude, radiusMeters: r.radius_meters }));
-  } catch {
-    return [];
   }
 }
 

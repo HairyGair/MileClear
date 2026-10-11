@@ -102,6 +102,9 @@ import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
 import { needsTimeConfirm, defaultEndFor, clockTime } from "../lib/trips/manualTimeRule";
+import { savedPlaceAt, type SavedPlace } from "../lib/trips/placeLabel";
+import { loadSavedPlaces } from "../lib/trips/savedPlaces";
+import { isSplitLeg } from "../lib/trips/tripLabels";
 
 /**
  * One-time contextual notification permission ask for users who skipped onboarding.
@@ -634,64 +637,6 @@ const reviewCardStyles = StyleSheet.create({
 });
 
 /**
- * Per-trip confidence badge. Renders a high/medium/low pill with
- * tap-to-expand reasons — gives users (and HMRC, if it ever comes to a
- * review) visibility into the quality of the evidence behind a trip's
- * claimed mileage.
- */
-function ConfidenceBadge({
-  level,
-  reasons,
-}: {
-  level: "high" | "medium" | "low";
-  reasons: string[];
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const config = (
-    {
-      high: { color: "#10b981", icon: "shield-checkmark", label: "High confidence" },
-      medium: { color: "#f5a623", icon: "shield-half", label: "Medium confidence" },
-      low: { color: "#ef4444", icon: "alert-circle", label: "Low confidence" },
-    } as const
-  )[level];
-
-  return (
-    <TouchableOpacity
-      style={[
-        styles.confidenceBadge,
-        { borderColor: config.color, backgroundColor: `${config.color}15` },
-      ]}
-      onPress={() => setExpanded((v) => !v)}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`${config.label}. Tap to ${expanded ? "hide" : "see"} reasons.`}
-    >
-      <View style={styles.confidenceBadgeRow}>
-        <Ionicons name={config.icon as never} size={16} color={config.color} />
-        <Text style={[styles.confidenceBadgeLabel, { color: config.color }]}>
-          {config.label}
-        </Text>
-        <Ionicons
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={14}
-          color={config.color}
-          style={{ marginLeft: "auto" }}
-        />
-      </View>
-      {expanded && reasons.length > 0 && (
-        <View style={styles.confidenceReasons}>
-          {reasons.map((r, i) => (
-            <Text key={i} style={styles.confidenceReasonText}>
-              • {r}
-            </Text>
-          ))}
-        </View>
-      )}
-    </TouchableOpacity>
-  );
-}
-
-/**
  * User-facing label for the routing provenance. We show this so users
  * can verify the distance is auditable — important for HMRC mileage
  * claims where "where did this number come from?" is a real question.
@@ -970,6 +915,21 @@ export default function TripFormScreen() {
   const [odometerEnd, setOdometerEnd] = useState("");
   // Edit audit trail — "Edited <date>" when the trip has been changed.
   const [editedAt, setEditedAt] = useState<string | null>(null);
+  // For the "how this trip was made" line: when the server saved it, and
+  // whether it is one leg of a split.
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [splitLeg, setSplitLeg] = useState(false);
+  // Saved places, so the trip's ends carry the same names as on the Trips list.
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedPlaces().then((p) => {
+      if (!cancelled) setSavedPlaces(p);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Clean Air Zone charges this trip likely incurred + which we've logged.
   const [cleanAirZones, setCleanAirZones] = useState<CazTripAssessment | null>(null);
   // Diversion label (server-flagged: went round a road closure on the usual route).
@@ -1441,6 +1401,8 @@ export default function TripFormScreen() {
       const od = t as { odometerStart?: number | null; odometerEnd?: number | null; updatedAt?: string; createdAt?: string };
       if (od.odometerStart != null) { setOdometerStart(String(od.odometerStart)); setOdometerOpen(true); }
       if (od.odometerEnd != null) { setOdometerEnd(String(od.odometerEnd)); setOdometerOpen(true); }
+      setCreatedAt(od.createdAt ?? null);
+      setSplitLeg(isSplitLeg((t as { gpsQuality?: unknown }).gpsQuality));
       // Show "edited" only when updatedAt is meaningfully after createdAt.
       if (od.updatedAt && od.createdAt && new Date(od.updatedAt).getTime() - new Date(od.createdAt).getTime() > 60_000) {
         setEditedAt(od.updatedAt);
@@ -2322,12 +2284,12 @@ export default function TripFormScreen() {
   const handleAcceptMerge = useCallback(async (otherTripId: string) => {
     if (!id || merging) return;
     Alert.alert(
-      "Merge trips",
-      "Combine these two into a single trip? The original two will be replaced by the merged trip. This can't be undone.",
+      "Join trips",
+      "Join these two into one trip? The two trips are replaced by the joined one. This can't be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Merge",
+          text: "Join",
           style: "default",
           onPress: async () => {
             setMerging(true);
@@ -2340,7 +2302,7 @@ export default function TripFormScreen() {
               router.back();
             } catch (err) {
               Alert.alert(
-                "Couldn't merge",
+                "Couldn't join the trips",
                 err instanceof Error ? err.message : "Try again."
               );
               setMerging(false);
@@ -3978,7 +3940,7 @@ export default function TripFormScreen() {
             {/* Business purpose quick-select for employee drivers */}
             {classification === "business" && isEmployeeDriver && (
               <>
-                {isGigDriver && <Text style={styles.chipSectionLabel}>Business Purpose</Text>}
+                {isGigDriver && <Text style={styles.chipSectionLabel}>Purpose</Text>}
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -4106,6 +4068,8 @@ export default function TripFormScreen() {
             endedAt={endedAt}
             startAddress={startAddress}
             endAddress={endAddress}
+            startPlaceName={savedPlaceAt(savedPlaces, startLat, startLng)}
+            endPlaceName={savedPlaceAt(savedPlaces, endLat, endLng)}
             startLat={startLat}
             startLng={startLng}
             endLat={endLat}
@@ -4113,6 +4077,8 @@ export default function TripFormScreen() {
             distanceMiles={distance}
             isManual={editingIsManual}
             waitingToSync={loadedLocally}
+            createdAt={createdAt}
+            splitLeg={splitLeg}
             editedAt={editedAt}
             diversionText={diversion ? diversionLabel(diversion) : null}
             routeCoords={routeCoords}
@@ -4137,9 +4103,7 @@ export default function TripFormScreen() {
                 : null
             }
             confidenceLevel={confidence?.level ?? null}
-            confidenceBadge={
-              confidence ? <ConfidenceBadge level={confidence.level} reasons={confidence.reasons} /> : null
-            }
+            confidenceReasons={confidence?.reasons ?? []}
             mergeSuggestion={mergeSuggestion}
             merging={merging}
             onMerge={handleAcceptMerge}
@@ -4185,7 +4149,7 @@ export default function TripFormScreen() {
 
             {/* Start Location */}
             <LocationPickerField
-              label="Start Location"
+              label="Start"
               lat={startLat}
               lng={startLng}
               address={startAddress}
@@ -4315,7 +4279,7 @@ export default function TripFormScreen() {
 
             {/* End Location */}
             <LocationPickerField
-              label="End Location"
+              label="End"
               lat={endLat}
               lng={endLng}
               address={endAddress}
@@ -4332,7 +4296,7 @@ export default function TripFormScreen() {
             />
             {/* Start Time */}
             <DateTimePickerField
-              label="Start Time"
+              label="Start time"
               value={startedAt}
               onChange={(d) => {
                 setStartedAt(d);
@@ -4357,7 +4321,7 @@ export default function TripFormScreen() {
 
             {/* End Time */}
             <DateTimePickerField
-              label="End Time"
+              label="End time"
               value={endedAt}
               onChange={(d) => {
                 setEndedAt(d);
@@ -4373,7 +4337,7 @@ export default function TripFormScreen() {
             />
 
             {/* Classification */}
-            <Text style={styles.label}>Classification</Text>
+            <Text style={styles.label}>Business or personal?</Text>
             <View style={styles.classRow}>
               {CLASSIFICATIONS.map((opt) => (
                 <TouchableOpacity
@@ -4507,7 +4471,7 @@ export default function TripFormScreen() {
                 {/* Business purpose (employee drivers) */}
                 {isEmployeeDriver && (
                   <>
-                    <Text style={styles.label}>Business Purpose</Text>
+                    <Text style={styles.label}>Purpose</Text>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
@@ -4629,7 +4593,7 @@ export default function TripFormScreen() {
 
             {/* Save */}
             <Button
-              title={isEditing ? "Save changes" : "Add Trip"}
+              title={isEditing ? "Save changes" : "Add trip"}
               icon="checkmark"
               onPress={() => handleSave()}
               loading={saving}
@@ -5341,32 +5305,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: fonts.semibold,
     color: AMBER,
-  },
-  confidenceBadge: {
-    marginTop: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  confidenceBadgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  confidenceBadgeLabel: {
-    fontSize: 13,
-    fontFamily: fonts.semibold,
-  },
-  confidenceReasons: {
-    marginTop: 8,
-    gap: 4,
-  },
-  confidenceReasonText: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: TEXT_2,
-    lineHeight: 17,
   },
   diversionCard: {
     flexDirection: "row",
