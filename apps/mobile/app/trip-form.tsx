@@ -105,6 +105,7 @@ import { needsTimeConfirm, defaultEndFor, clockTime } from "../lib/trips/manualT
 import { savedPlaceAt, type SavedPlace } from "../lib/trips/placeLabel";
 import { loadSavedPlaces } from "../lib/trips/savedPlaces";
 import { isSplitLeg } from "../lib/trips/tripLabels";
+import { recordedByForForm } from "../lib/trips/recordedBy";
 import { claimFirstSplitNote } from "../lib/tutorial/state";
 import { trackTutorial } from "../lib/events/tutorial";
 
@@ -2646,6 +2647,7 @@ export default function TripFormScreen() {
           ...(keptGoing && { gpsQuality: { driverKeptGoing: true } }),
           ...(odometerStart.trim() && { odometerStart: parseFloat(odometerStart) }),
           ...(odometerEnd.trim() && { odometerEnd: parseFloat(odometerEnd) }),
+          recordedBy: recordedByForForm(mode),
         };
         const tripResult = await syncCreateTrip(data);
         haptic("success");

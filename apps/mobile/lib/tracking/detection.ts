@@ -2670,6 +2670,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         recordedAt: c.recorded_at,
       })),
       gpsQuality: tripQuality,
+      recordedBy: "automatic",
     });
 
     // Store classification source on the local trip row

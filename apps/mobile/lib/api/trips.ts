@@ -156,6 +156,9 @@ export interface CreateTripData {
   gpsQuality?: Partial<import("@mileclear/shared").TripQuality>;
   odometerStart?: number | null;
   odometerEnd?: number | null;
+  /** How the phone recorded it, for the Trips tab's labels. A fact only:
+   *  servers before Oct 2026 drop it. */
+  recordedBy?: import("@mileclear/shared").TripRecordedBy;
 }
 
 export interface UpdateTripData {

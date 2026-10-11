@@ -25,6 +25,7 @@ import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
+import { recordedByForTrail } from "../trips/recordedBy";
 import {
   ARRIVED_PENDING_SHIFT_ID,
   PENDING_ARRIVED_KEY,
@@ -818,6 +819,7 @@ async function processShiftTripsOnce(
         gpsQuality: options?.driverKeptGoing
           ? { ...tripQuality, driverKeptGoing: true }
           : tripQuality,
+        recordedBy: recordedByForTrail(shiftId),
       });
       created++;
     } catch (err) {
