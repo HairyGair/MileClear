@@ -186,7 +186,19 @@ const createTripSchema = z.object({
   .refine((d) => !d.endedAt || d.endedAt.getTime() >= d.startedAt.getTime(), {
     message: "End time cannot be before the start time",
     path: ["endedAt"],
-  });
+  })
+  // A trip with no route, no end and no miles holds nothing: the "Log a past
+  // trip" form saved six of these as 0-mile entries (28 Aug to 11 Oct 2026),
+  // three of them marked Business. The app now asks where it ended; this stops
+  // the same from older app versions.
+  .refine(
+    (d) =>
+      (d.coordinates?.length ?? 0) > 0 ||
+      (d.endLat != null && d.endLng != null) ||
+      !!d.endAddress?.trim() ||
+      (d.distanceMiles ?? 0) > 0,
+    { message: "Add where the trip ended, or the miles, then save.", path: ["endLat"] }
+  );
 
 const updateTripSchema = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
