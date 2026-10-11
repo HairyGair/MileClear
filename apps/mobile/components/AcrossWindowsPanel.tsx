@@ -48,8 +48,8 @@ export function AcrossWindowsPanel({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.scrim} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.scrim} onPress={onClose} accessible={false}>
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
           <View style={styles.handle} />
 
           <View style={styles.header}>

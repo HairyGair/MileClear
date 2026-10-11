@@ -153,8 +153,8 @@ export function LinkEarningSheet({
 
   return (
     <AppModal visible={visible} animationType="slide" onRequestClose={handleDone}>
-      <Pressable style={styles.scrim} onPress={handleDone}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+      <Pressable style={styles.scrim} onPress={handleDone} accessible={false}>
+        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} accessible={false} accessibilityViewIsModal>
           <View style={styles.handle} />
 
           {/* Header */}

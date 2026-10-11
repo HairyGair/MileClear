@@ -1871,8 +1871,7 @@ export default function TripsScreen() {
           <Pressable
             style={styles.mergeBackdrop}
             onPress={() => setMergeModalVisible(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
+            accessible={false}
           >
             <View style={styles.mergeSheet} onStartShouldSetResponder={() => true} accessibilityViewIsModal={true}>
               <View style={styles.mergeHandle} />
@@ -1992,6 +1991,8 @@ export default function TripsScreen() {
                   <Text style={styles.mergeConfirmText}>Join into one trip</Text>
                 )}
               </TouchableOpacity>
+              {/* The backdrop isn't a VoiceOver button (it would hide the sheet), so Cancel closes it. */}
+              <Button title="Cancel" variant="ghost" onPress={() => setMergeModalVisible(false)} />
             </View>
           </Pressable>
         </AppModal>
@@ -2007,10 +2008,13 @@ export default function TripsScreen() {
         <Pressable
           style={styles.mergeBackdrop}
           onPress={() => setShowFiltersSheet(false)}
+          accessible={false}
         >
           <Pressable
             style={styles.mergeSheet}
             onPress={(e) => e.stopPropagation()}
+            accessible={false}
+            accessibilityViewIsModal
           >
             <View style={styles.mergeHandle} />
             <Text style={styles.mergeTitle}>Filters</Text>
@@ -2146,10 +2150,13 @@ export default function TripsScreen() {
         <Pressable
           style={styles.mergeBackdrop}
           onPress={() => setShowCustomPicker(false)}
+          accessible={false}
         >
           <Pressable
             style={styles.mergeSheet}
             onPress={(e) => e.stopPropagation()}
+            accessible={false}
+            accessibilityViewIsModal
           >
             <View style={styles.mergeHandle} />
             <Text style={styles.mergeTitle}>Choose dates</Text>
