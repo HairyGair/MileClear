@@ -712,8 +712,8 @@ function RootNavigator() {
         <Stack.Screen name="onboarding" redirect={!isAuthenticated || onboardingComplete} />
         <Stack.Screen name="(tabs)" redirect={!isAuthenticated || !onboardingComplete} />
         <Stack.Screen name="(auth)" redirect={isAuthenticated} />
-        <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add Trip" }} />
-        <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split Trip" }} />
+        <Stack.Screen name="trip-form" options={{ headerShown: true, title: "Add trip" }} />
+        <Stack.Screen name="trip-split" options={{ headerShown: true, title: "Split into separate trips" }} />
         <Stack.Screen name="vehicle-form" options={{ headerShown: true, title: "Add Vehicle" }} />
         <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Vehicles" }} />
         <Stack.Screen name="odometer-log" options={{ headerShown: true, title: "Odometer log" }} />
