@@ -1052,6 +1052,21 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // DELETE /admin/waitlist { email }
+  // Erasure on request for the pre-launch / Android-tester waitlist, which is
+  // keyed by email alone, has no account, and so had no deletion path (GDPR
+  // audit, 14 Aug 2026). Account deletion removes the matching row itself.
+  // The address is not written to the audit event: only that one was removed.
+  app.delete("/waitlist", async (request, reply) => {
+    const parsed = z.object({ email: z.string().trim().email() }).safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: "A valid email is required" });
+    }
+    const { count } = await prisma.waitlistEntry.deleteMany({ where: { email: parsed.data.email } });
+    logEvent("admin.waitlist_entry_deleted", request.userId!, { removed: count });
+    return reply.send({ data: { removed: count } });
+  });
+
   // GET /admin/team-interest[?view=waitlist|interest]
   // The "MileClear for teams" register. Rows newest first plus the totals
   // that decide whether an employer tier gets built: how many companies,
