@@ -22,7 +22,10 @@ export type HmrcAuditOperation =
   | "period_submit"
   | "period_amend"
   | "calculation_trigger"
-  | "bsas_trigger";
+  | "bsas_trigger"
+  | "annual_submit"
+  | "annual_delete"
+  | "final_declaration";
 
 /** What a write call tells the trail about itself. No personal data. */
 export interface HmrcAudit {

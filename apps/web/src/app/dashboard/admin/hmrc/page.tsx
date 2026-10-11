@@ -56,6 +56,9 @@ const OPERATION_LABELS: Record<string, string> = {
   period_amend: "Correction",
   calculation_trigger: "Tax calculation",
   bsas_trigger: "Adjustable summary",
+  annual_submit: "Allowances and adjustments",
+  annual_delete: "Allowances removed",
+  final_declaration: "Tax return",
 };
 
 function shortDate(iso: string | null): string {

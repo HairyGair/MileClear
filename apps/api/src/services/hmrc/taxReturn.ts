@@ -401,6 +401,7 @@ export async function submitFinalDeclaration(args: CalcArgs): Promise<{ correlat
     apiVersion: CALC_API_VERSION,
     client: args.client,
     server: args.server,
+    audit: { operation: "final_declaration", taxYear: args.taxYear },
     onResponseHeaders: (h) => {
       correlationId = h.get("x-correlationid");
     },

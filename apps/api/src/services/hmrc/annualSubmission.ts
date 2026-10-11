@@ -110,6 +110,7 @@ export async function submitAnnualSubmission(
     body: args.body,
     client: args.client,
     server: args.server,
+    audit: { operation: "annual_submit", taxYear: args.taxYear, businessId: args.businessId },
   });
 }
 
@@ -144,5 +145,6 @@ export async function deleteAnnualSubmission(args: AnnualArgs): Promise<void> {
     apiVersion: SE_API_VERSION,
     client: args.client,
     server: args.server,
+    audit: { operation: "annual_delete", taxYear: args.taxYear, businessId: args.businessId },
   });
 }
