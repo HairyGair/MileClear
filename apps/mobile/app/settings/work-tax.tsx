@@ -20,6 +20,7 @@ import { usePrompt } from "../../components/prompt";
  *   - You drive for (gig / employer / both / company car / just me)
  *   - Employer mileage rate (employer answers only)
  *   - Other annual income (drives the marginal tax-rate calculation)
+ *   - Scottish income tax (switches the Income Tax bands, 11 Oct 2026)
  */
 export default function WorkTaxSettings() {
   const { refreshUser } = useUser();
@@ -36,6 +37,7 @@ export default function WorkTaxSettings() {
   const [otherIncomePence, setOtherIncomePence] = useState<number | null>(null);
   const [payeTaxPaidPence, setPayeTaxPaidPence] = useState<number | null>(null);
   const [taxBasis, setTaxBasis] = useState<"cash" | "accruals">("cash");
+  const [scottishTaxpayer, setScottishTaxpayer] = useState<boolean | null>(null);
 
   // Load on mount
   useEffect(() => {
@@ -47,6 +49,7 @@ export default function WorkTaxSettings() {
         setEmployerRate(res.data.employerMileageRatePence ?? null);
         setEmployerRateAfter10k(res.data.employerMileageRatePenceAfter10k ?? null);
         setOtherIncomePence(res.data.otherAnnualIncomePence ?? null);
+        setScottishTaxpayer(res.data.scottishTaxpayer ?? null);
         const profile = res.data as unknown as {
           payeAnnualPaidTaxPence?: number | null;
           taxBasis?: "cash" | "accruals" | null;
@@ -190,6 +193,32 @@ export default function WorkTaxSettings() {
     if (res.action !== "submit") return;
     await save(res.value);
   }, [otherIncomePence, refreshUser, prompt]);
+
+  // ── Scottish income tax ───────────────────────────────────────────
+  // Scotland sets its own Income Tax bands on wages and profits. NI is the
+  // same everywhere, so only the Income Tax part of the estimates changes.
+  const handleScottish = useCallback(() => {
+    const save = async (answer: boolean) => {
+      const previous = scottishTaxpayer;
+      setScottishTaxpayer(answer);
+      try {
+        await updateProfile({ scottishTaxpayer: answer });
+        refreshUser();
+      } catch {
+        setScottishTaxpayer(previous);
+        Alert.alert("Couldn't save", "Try again in a moment.");
+      }
+    };
+    Alert.alert(
+      "Do you pay Scottish income tax?",
+      "You do if you live in Scotland. We use it to work out your Income Tax with the Scottish rates.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "No", onPress: () => void save(false) },
+        { text: "Yes", onPress: () => void save(true) },
+      ]
+    );
+  }, [scottishTaxpayer, refreshUser]);
 
   // ── PAYE tax already paid this year ──────────────────────────────
   const handlePayeTaxPaid = useCallback(async () => {
@@ -346,6 +375,20 @@ export default function WorkTaxSettings() {
             }
             badge={otherIncomePence != null ? "Edit" : "Set"}
             onPress={handleOtherIncome}
+          />
+          <SettingsRow
+            icon="flag-outline"
+            label="Scottish income tax"
+            hint={
+              scottishTaxpayer == null
+                ? "Do you pay Scottish income tax? You do if you live in Scotland."
+                : scottishTaxpayer
+                  ? "Yes. Your Income Tax uses the Scottish rates."
+                  : "No. Your Income Tax uses the England, Wales and NI rates."
+            }
+            badge={scottishTaxpayer == null ? "Set" : scottishTaxpayer ? "Yes" : "No"}
+            onPress={handleScottish}
+            helpTopicId="scottish-income-tax"
           />
           {hasEmployer && (
             <SettingsRow

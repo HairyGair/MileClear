@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { downloadAndShareExport } from "../lib/api/exports";
-import { fetchProfile } from "../lib/api/user";
+import { fetchProfile, updateProfile } from "../lib/api/user";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
@@ -273,9 +273,34 @@ function StepExpenses({ summary }: { summary: SelfAssessmentSummary }) {
   );
 }
 
-function StepTaxEstimate({ summary }: { summary: SelfAssessmentSummary }) {
+function StepTaxEstimate({
+  summary,
+  onScottishAnswer,
+}: {
+  summary: SelfAssessmentSummary;
+  /** Saves the "pays Scottish income tax" answer and reloads the figures. */
+  onScottishAnswer: (answer: boolean) => Promise<void>;
+}) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
   const incomeTax = summary.taxBandBreakdown.filter((b) => b.type === "income_tax" && b.amountPence > 0);
   const niRows = summary.taxBandBreakdown.filter((b) => b.type !== "income_tax" && b.amountPence > 0);
+  // Strictly null: an older server without the field sends undefined, and
+  // there is nothing to ask then because it can't use the answer.
+  const askScottish = summary.scottishTaxpayer === null;
+  const scottish = summary.incomeTaxRegion === "scotland";
+
+  const answer = async (yes: boolean) => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onScottishAnswer(yes);
+    } catch {
+      Alert.alert("Couldn't save", "Try again in a moment.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <>
@@ -285,6 +310,51 @@ function StepTaxEstimate({ summary }: { summary: SelfAssessmentSummary }) {
           An estimated breakdown for {summary.taxYear}. Your actual bill may differ, so check with an accountant if you want to be sure.
         </Text>
       </SectionCard>
+
+      {askScottish ? (
+        <SectionCard>
+          <Text style={styles.cardTitle}>Do you pay Scottish income tax?</Text>
+          <Text style={styles.cardSubDesc}>
+            You do if you live in Scotland. Scotland has its own Income Tax rates, so it changes the figures below.
+          </Text>
+          <View style={styles.answerRow}>
+            {([
+              { v: true, label: "Yes" },
+              { v: false, label: "No" },
+            ] as const).map((o) => (
+              <TouchableOpacity
+                key={o.label}
+                style={[styles.emptyBtn, styles.answerBtn, saving && { opacity: 0.5 }]}
+                disabled={saving}
+                onPress={() => void answer(o.v)}
+                accessibilityRole="button"
+                accessibilityLabel={`${o.label}, ${o.v ? "I pay" : "I don't pay"} Scottish income tax`}
+              >
+                <Text style={styles.emptyBtnText}>{o.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </SectionCard>
+      ) : summary.scottishTaxpayer !== undefined ? (
+        <View style={styles.noteBox}>
+          <Text style={styles.noteText}>
+            {scottish
+              ? "Worked out with the Scottish Income Tax rates. "
+              : "Worked out with the England, Wales and Northern Ireland Income Tax rates. "}
+            <Text style={{ color: AMBER }} onPress={() => router.push("/settings/work-tax")}>
+              Change
+            </Text>
+          </Text>
+        </View>
+      ) : null}
+
+      {summary.taxRatesProvisional ? (
+        <View style={styles.noteBox}>
+          <Text style={styles.noteText}>
+            Provisional: the Income Tax rates for {summary.taxYear} aren't published yet, so the latest published rates are used.
+          </Text>
+        </View>
+      ) : null}
 
       <SectionCard>
         <Text style={styles.cardTitle}>Taxable profit</Text>
@@ -461,6 +531,18 @@ export default function SelfAssessmentScreen() {
     fetchSummary(selectedYear);
   }, [selectedYear, fetchSummary]);
 
+  // The wizard asks "do you pay Scottish income tax?" when it isn't answered,
+  // saves it to the account (the same answer as Your tax details) and
+  // reloads the figures with the right bands.
+  const handleScottishAnswer = useCallback(
+    async (answer: boolean) => {
+      await updateProfile({ scottishTaxpayer: answer });
+      const res = await fetchSelfAssessmentSummary(selectedYear);
+      setSummary(res.data);
+    },
+    [selectedYear],
+  );
+
   const handleNext = useCallback(() => {
     if (step < TOTAL_STEPS - 1) setStep((s) => s + 1);
   }, [step]);
@@ -608,7 +690,7 @@ export default function SelfAssessmentScreen() {
             {step === 0 && <StepIncome summary={summary} />}
             {step === 1 && <StepMileage summary={summary} />}
             {step === 2 && <StepExpenses summary={summary} />}
-            {step === 3 && <StepTaxEstimate summary={summary} />}
+            {step === 3 && <StepTaxEstimate summary={summary} onScottishAnswer={handleScottishAnswer} />}
             {step === 4 && (
               <StepSa103Guide
                 summary={summary}
@@ -1187,6 +1269,16 @@ const styles = StyleSheet.create({
     color: AMBER,
     fontFamily: fonts.semibold,
     fontSize: 14,
+  },
+  answerRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 12,
+  },
+  answerBtn: {
+    alignSelf: "auto",
+    flex: 1,
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 13,

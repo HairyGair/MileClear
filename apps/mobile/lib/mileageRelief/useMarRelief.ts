@@ -15,6 +15,8 @@ import {
   type TaxRegion,
 } from "@mileclear/shared";
 import { getDatabase } from "../db";
+import { useUser } from "../user/context";
+import { updateProfile } from "../api/user";
 
 export const MAR_PREFS_KEY = "mileage_relief_prefs_v1";
 
@@ -113,17 +115,40 @@ export function useMarRelief(data: MileageReliefData | null) {
     }, [reloadPrefs]),
   );
 
-  const updatePrefs = useCallback((next: ReliefPrefs) => {
-    setPrefs(next);
-    void saveReliefPrefs(next);
-  }, []);
+  // One answer to "do you pay Scottish Income Tax": the account's (Settings >
+  // Your tax details, 11 Oct 2026) fills in when this phone has no answer,
+  // and answering here saves it to the account too, so the tax estimates use it.
+  const { user, refreshUser } = useUser();
+  const accountScottish = user?.scottishTaxpayer;
+  const effectivePrefs = useMemo<ReliefPrefs>(
+    () =>
+      prefs.region == null && typeof accountScottish === "boolean"
+        ? { ...prefs, region: accountScottish ? "scotland" : "rUK" }
+        : prefs,
+    [prefs, accountScottish],
+  );
 
-  const results = useMemo(() => (data ? computeMarYears(data, prefs) : []), [data, prefs]);
+  const updatePrefs = useCallback(
+    (next: ReliefPrefs) => {
+      setPrefs(next);
+      void saveReliefPrefs(next);
+      if (next.region != null && next.region !== effectivePrefs.region) {
+        updateProfile({ scottishTaxpayer: next.region === "scotland" })
+          .then(() => refreshUser())
+          .catch(() => {
+            // Not fatal: the answer is still saved on this phone.
+          });
+      }
+    },
+    [effectivePrefs.region, refreshUser],
+  );
+
+  const results = useMemo(() => (data ? computeMarYears(data, effectivePrefs) : []), [data, effectivePrefs]);
 
   const totalReliefPence = results.reduce((a, r) => a + r.result.reliefPence, 0);
 
   return {
-    prefs,
+    prefs: effectivePrefs,
     updatePrefs,
     results,
     /** Null until the miles and the driver's answers have both loaded. */
