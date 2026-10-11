@@ -648,3 +648,25 @@ export async function fetchProjectLabels(): Promise<string[]> {
   const res = await apiRequest<{ data: { labels: string[] } }>(`/trips/project-labels`);
   return res.data.labels;
 }
+
+/** One of the driver's trips from GET /trips/around: just enough to say
+ *  "MileClear already has a trip around then" and to dot the calendar. */
+export interface TripAround {
+  id: string;
+  startedAt: string;
+  endedAt: string | null;
+  startAddress: string | null;
+  endAddress: string | null;
+  distanceMiles: number;
+  isManualEntry: boolean;
+  recordedBy: string | null;
+  createdAt: string;
+}
+
+/** The driver's trips that overlap [from, to] (at most 42 days). Throws on a
+ *  network or server failure, so callers can tell "none" from "couldn't ask". */
+export async function fetchTripsAround(from: Date, to: Date): Promise<TripAround[]> {
+  const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
+  const res = await apiRequest<{ data: { trips: TripAround[] } }>(`/trips/around?${params.toString()}`);
+  return res.data.trips;
+}
