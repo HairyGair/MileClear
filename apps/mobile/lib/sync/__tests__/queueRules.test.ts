@@ -4,7 +4,15 @@
  * trips held back behind a saved place the server refused on the free plan.
  */
 import { describe, it, expect } from "vitest";
-import { isAlreadyApplied, isTripCreateBody, parkedItemAction, type ParkedItemInput } from "../queueRules";
+import {
+  isAlreadyApplied,
+  isTripCreateBody,
+  parkedItemAction,
+  removalDeletesLocalRow,
+  removeConfirmation,
+  retryButtonLabel,
+  type ParkedItemInput,
+} from "../queueRules";
 import { isItemForbidden, isAuthError, isDefiniteClientRejection } from "../errors";
 import { tripCreateBodyFromRow, isPseudoShiftId, type LocalTripRow } from "../tripPayload";
 import { ApiError } from "../../api/apiError";
@@ -146,5 +154,42 @@ describe("tripCreateBodyFromRow", () => {
   it("strips the phone's own UI markers from notes", () => {
     expect(tripCreateBodyFromRow(row({ notes: "__unconfirmed__|x" }), []).notes).toBeUndefined();
     expect(tripCreateBodyFromRow(row({ notes: "Parcel run" }), []).notes).toBe("Parcel run");
+  });
+});
+
+describe("Uploads screen: parked items and removal", () => {
+  it("a parked item gets a Try again button; others keep Retry", () => {
+    expect(retryButtonLabel("permanently_failed")).toBe("Try again");
+    expect(retryButtonLabel("failed")).toBe("Retry");
+    expect(retryButtonLabel("pending")).toBe("Retry");
+  });
+
+  it("removing a queued trip asks in plain words and deletes the unsynced trip row", () => {
+    const ask = removeConfirmation("trip", "create");
+    expect(ask.message).toBe("This trip hasn't reached your account yet. Delete it from this phone?");
+    expect(ask.confirmLabel).toBe("Delete");
+    expect(removalDeletesLocalRow("trip", "create")).toBe(true);
+  });
+
+  it("removing anything else only drops the queue row, and the copy has no em dash", () => {
+    expect(removalDeletesLocalRow("trip", "update")).toBe(false);
+    expect(removalDeletesLocalRow("earning", "create")).toBe(false);
+    for (const [t, a] of [["trip", "create"], ["earning", "update"]]) {
+      const c = removeConfirmation(t, a);
+      expect(`${c.title}${c.message}${c.confirmLabel}`).not.toMatch(/\u2014/);
+    }
+  });
+
+  it("a parked trip create is revived, never dropped, while its row is unsynced", () => {
+    expect(
+      parkedItemAction({
+        entityType: "trip",
+        action: "create",
+        localRowExists: true,
+        localRowSynced: false,
+        lastError: "Start date cannot be in the future",
+        payload: { startedAt: "2026-10-12T10:00:00.000Z", startLat: 51.5, startLng: -0.1 },
+      })
+    ).toBe("revive");
   });
 });

@@ -14,8 +14,12 @@
 //
 // So the rule is now: only the one verdict that is known garbage (a distance
 // over the server's cap) consumes the buffer, and it is checked BEFORE the
-// request as well. Every other refusal keeps the fixes and backs off, so the
-// drive is still there for the app update, the clock fix or the next attempt.
+// request as well. Every other refusal hands the drive to the sync queue
+// (a local trip row plus a queued create) and clears the live buffer, so the
+// drive is kept for a retry (app update, clock fix, "Try again") and the next
+// drive is not held up behind it. A first design kept the drive in the live
+// buffer with a wait; the next recording-open wiped it (nativeLocation clears
+// the buffer when a new recording opens), so it lives in the queue instead.
 
 /** The server's cap on one trip's distance (apps/api trips createTripSchema). */
 export const SERVER_MAX_DISTANCE_MILES = 2000;
@@ -27,55 +31,6 @@ export const COORDINATE_TARGET = 19500;
 /** Over the server's cap: known garbage (a flight the flight rule missed). */
 export function exceedsServerDistance(miles: number): boolean {
   return Number.isFinite(miles) && miles > SERVER_MAX_DISTANCE_MILES;
-}
-
-// ── Backoff after a refusal that is not known garbage ─────────────────────
-
-const MIN = 60_000;
-/** 15 min, 1 h, 6 h, then every 24 h. */
-export const REJECT_BACKOFF_MS: readonly number[] = [15 * MIN, 60 * MIN, 6 * 60 * MIN, 24 * 60 * MIN];
-
-export interface RejectBackoff {
-  /** Which recording this belongs to (its first fix's recorded_at). */
-  key: string;
-  attempts: number;
-  /** Epoch ms before which finalize must not try again. */
-  nextAt: number;
-}
-
-/** Wait after the Nth refusal (1-based): 15 min, 1 h, 6 h, 24 h, 24 h, ... */
-export function rejectBackoffDelayMs(attempts: number): number {
-  const i = Math.max(1, Math.floor(attempts)) - 1;
-  return REJECT_BACKOFF_MS[Math.min(i, REJECT_BACKOFF_MS.length - 1)];
-}
-
-/** The state after one more refusal of the recording `key`. A different
- *  recording starts again from the first step. */
-export function nextRejectBackoff(prev: RejectBackoff | null, key: string, now: number): RejectBackoff {
-  const attempts = prev && prev.key === key ? prev.attempts + 1 : 1;
-  return { key, attempts, nextAt: now + rejectBackoffDelayMs(attempts) };
-}
-
-/** Is this recording still inside its wait? Another recording never is. A
- *  clock that moved backwards cannot hold a drive for longer than the longest
- *  step. */
-export function rejectBackoffActive(state: RejectBackoff | null, key: string, now: number): boolean {
-  if (!state || state.key !== key) return false;
-  if (!Number.isFinite(state.nextAt)) return false;
-  if (state.nextAt - now > REJECT_BACKOFF_MS[REJECT_BACKOFF_MS.length - 1]) return false;
-  return now < state.nextAt;
-}
-
-export function parseRejectBackoff(
-  key: string | null | undefined,
-  attempts: string | null | undefined,
-  nextAt: string | null | undefined
-): RejectBackoff | null {
-  if (!key) return null;
-  const a = Number(attempts);
-  const n = Number(nextAt);
-  if (!Number.isFinite(a) || a < 1 || !Number.isFinite(n)) return null;
-  return { key, attempts: a, nextAt: n };
 }
 
 // ── Coordinates for the wire ──────────────────────────────────────────────
@@ -106,6 +61,7 @@ export function normaliseRecordedAt(v: unknown): string | null {
 }
 
 const R_METRES = 6371008.8;
+const METRES_PER_MILE = 1609.344;
 function metres(a: WireFix, b: WireFix): number {
   const toRad = Math.PI / 180;
   const dLat = (b.lat - a.lat) * toRad;
@@ -273,4 +229,51 @@ export function pruneFlightCutState(state: FlightCutState, processedMax: string 
     after: state.after.filter(later),
     reported: state.reported.filter((k) => later(k.split("|")[1] ?? "")),
   };
+}
+
+// ── Bad first / last fix ──────────────────────────────────────────────────
+
+/** A step faster than this between two fixes is not a car. */
+export const ENDPOINT_MAX_MPH = 200;
+/** A fix this close to latitude 0, longitude 0 is a cold-start placeholder. */
+export const NULL_ISLAND_METRES = 1000;
+
+function stepMph(a: WireFix, b: WireFix): number | null {
+  const ta = Date.parse(a.recorded_at);
+  const tb = Date.parse(b.recorded_at);
+  if (!Number.isFinite(ta) || !Number.isFinite(tb)) return null;
+  const miles = metres(a, b) / METRES_PER_MILE;
+  const hours = Math.abs(tb - ta) / 3_600_000;
+  if (hours <= 0) return miles > 0.1 ? Infinity : 0;
+  return miles / hours;
+}
+
+/** Drop fixes that cannot be real ends of a drive: anything within ~1 km of
+ *  0,0 (a cold-start placeholder), and a first or last fix that sits more than
+ *  200 mph from its neighbour while that neighbour agrees with the next one
+ *  (a stale far-away position). filterTraceOutliers keeps the endpoints on
+ *  purpose, so one such fix could turn a real short drive into thousands of
+ *  miles and get it cleared as "implausible". Returns the input untouched when
+ *  nothing needs dropping or fewer than two fixes would remain. */
+export function trimBadEndpoints<T extends WireFix>(fixes: ReadonlyArray<T>): { coords: T[]; dropped: number } {
+  const zero: WireFix = { lat: 0, lng: 0, recorded_at: "" };
+  let out = fixes.filter((f) => !(Number.isFinite(f.lat) && Number.isFinite(f.lng) && metres(f, zero) < NULL_ISLAND_METRES));
+  for (let guard = 0; guard < 5 && out.length >= 3; guard++) {
+    const a = stepMph(out[0], out[1]);
+    const b = stepMph(out[1], out[2]);
+    if (a !== null && a > ENDPOINT_MAX_MPH && (b === null || b <= ENDPOINT_MAX_MPH)) {
+      out = out.slice(1);
+      continue;
+    }
+    const n = out.length;
+    const c = stepMph(out[n - 2], out[n - 1]);
+    const d = stepMph(out[n - 3], out[n - 2]);
+    if (c !== null && c > ENDPOINT_MAX_MPH && (d === null || d <= ENDPOINT_MAX_MPH)) {
+      out = out.slice(0, n - 1);
+      continue;
+    }
+    break;
+  }
+  if (out.length < 2 || out.length === fixes.length) return { coords: fixes.slice(), dropped: 0 };
+  return { coords: out, dropped: fixes.length - out.length };
 }

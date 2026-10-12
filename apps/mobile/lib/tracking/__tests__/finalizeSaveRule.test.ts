@@ -9,22 +9,18 @@ import {
   SERVER_MAX_COORDINATES,
   downsampleCoordinates,
   exceedsServerDistance,
-  nextRejectBackoff,
   normaliseRecordedAt,
   parseFlightCutState,
-  parseRejectBackoff,
   planFlightCut,
   prepareCoordinatesForServer,
   pruneFlightCutState,
-  rejectBackoffActive,
-  rejectBackoffDelayMs,
+  trimBadEndpoints,
   type WireFix,
 } from "../finalizeSaveRule";
 import { cutFlights, findFlights } from "../flightRule";
 import { ApiError } from "../../api/apiError";
 import { isKeepAndBackOffRejection, isKnownGarbageRejection } from "../../sync/errors";
 
-const MIN = 60_000;
 const T0 = Date.parse("2026-10-12T10:00:00Z");
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -37,59 +33,17 @@ describe("exceedsServerDistance", () => {
   });
 });
 
-describe("backoff after a refusal", () => {
-  it("waits 15 min, 1 h, 6 h, then a day, for ever", () => {
-    expect([1, 2, 3, 4, 5, 9].map(rejectBackoffDelayMs)).toEqual([15 * MIN, 60 * MIN, 360 * MIN, 1440 * MIN, 1440 * MIN, 1440 * MIN]);
-  });
-
-  it("counts up for the same recording and starts again for another", () => {
-    const a = nextRejectBackoff(null, "rec-1", 1000);
-    expect(a).toEqual({ key: "rec-1", attempts: 1, nextAt: 1000 + 15 * MIN });
-    const b = nextRejectBackoff(a, "rec-1", 2000);
-    expect(b.attempts).toBe(2);
-    expect(b.nextAt).toBe(2000 + 60 * MIN);
-    expect(nextRejectBackoff(b, "rec-2", 3000).attempts).toBe(1);
-  });
-
-  it("holds the recording until the time is up, and never holds a different one", () => {
-    const s = nextRejectBackoff(null, "rec-1", T0);
-    expect(rejectBackoffActive(s, "rec-1", T0 + 14 * MIN)).toBe(true);
-    expect(rejectBackoffActive(s, "rec-1", T0 + 15 * MIN)).toBe(false);
-    expect(rejectBackoffActive(s, "rec-2", T0 + MIN)).toBe(false);
-    expect(rejectBackoffActive(null, "rec-1", T0)).toBe(false);
-  });
-
-  it("a clock set far back cannot hold a drive for more than the longest step", () => {
-    const s = nextRejectBackoff(null, "rec-1", T0);
-    expect(rejectBackoffActive(s, "rec-1", T0 - 30 * 24 * 60 * MIN)).toBe(false);
-  });
-
-  it("reads the stored strings, and refuses nonsense", () => {
-    expect(parseRejectBackoff("k", "2", "123")).toEqual({ key: "k", attempts: 2, nextAt: 123 });
-    expect(parseRejectBackoff(null, "2", "123")).toBeNull();
-    expect(parseRejectBackoff("k", "x", "123")).toBeNull();
-    expect(parseRejectBackoff("k", "0", "123")).toBeNull();
-  });
-});
-
-describe("a clock-ahead 400 keeps the buffer and backs off (the wiring decision)", () => {
+describe("which refusals clear the drive and which hand it to the queue", () => {
   const clockAhead = new ApiError({ code: "VALIDATION", message: "Start date cannot be in the future", statusCode: 400, retryable: false });
   const flight = new ApiError({ code: "VALIDATION", message: "Distance exceeds reasonable limit", statusCode: 400, retryable: false });
 
-  it("is not known garbage, so it is never consumed", () => {
+  it("a clock-ahead 400 is not known garbage: it is queued, never cleared", () => {
     expect(isKnownGarbageRejection(clockAhead)).toBe(false);
     expect(isKeepAndBackOffRejection(clockAhead)).toBe(true);
   });
-  it("the distance verdict is the one that is consumed", () => {
+  it("only the distance verdict clears", () => {
     expect(isKnownGarbageRejection(flight)).toBe(true);
     expect(isKeepAndBackOffRejection(flight)).toBe(false);
-  });
-  it("finalize then waits through the schedule", () => {
-    let st = nextRejectBackoff(null, "rec", T0);
-    expect(rejectBackoffActive(st, "rec", T0 + MIN)).toBe(true); // next minute: returns early, keeps everything
-    st = nextRejectBackoff(st, "rec", T0 + 15 * MIN);
-    expect(rejectBackoffActive(st, "rec", T0 + 16 * MIN)).toBe(true);
-    expect(rejectBackoffActive(st, "rec", T0 + 15 * MIN + 61 * MIN)).toBe(false);
   });
 });
 
@@ -266,5 +220,55 @@ describe("planFlightCut", () => {
   it("reads a damaged stored state as empty", () => {
     expect(parseFlightCutState("{not json")).toEqual({ after: [], reported: [] });
     expect(parseFlightCutState('{"after":[1,"a"],"reported":"x"}')).toEqual({ after: ["a"], reported: [] });
+  });
+});
+
+describe("trimBadEndpoints (one bad end fix must not make a short drive look like thousands of miles)", () => {
+  const drive = (n: number): WireFix[] =>
+    Array.from({ length: n }, (_, i) => ({ lat: 52 + i * 0.0009, lng: -1, recorded_at: iso(T0 + i * 10_000) })); // ~35 mph
+
+  it("leaves a normal drive alone", () => {
+    const d = drive(30);
+    const r = trimBadEndpoints(d);
+    expect(r.dropped).toBe(0);
+    expect(r.coords).toEqual(d);
+  });
+
+  it("drops a cold-start 0,0 first fix", () => {
+    const d = drive(30);
+    d[0] = { lat: 0, lng: 0, recorded_at: d[0].recorded_at };
+    const r = trimBadEndpoints(d);
+    expect(r.dropped).toBe(1);
+    expect(r.coords[0]).toBe(d[1]);
+  });
+
+  it("drops a stale far-away first fix and a far-away last fix", () => {
+    const d = drive(30);
+    d[0] = { lat: 40, lng: 10, recorded_at: d[0].recorded_at };
+    d[29] = { lat: 60, lng: -8, recorded_at: d[29].recorded_at };
+    const r = trimBadEndpoints(d);
+    expect(r.dropped).toBe(2);
+    expect(r.coords[0]).toBe(d[1]);
+    expect(r.coords[r.coords.length - 1]).toBe(d[28]);
+  });
+
+  it("the trimmed drive is a few hundred metres, not thousands of miles", () => {
+    const d = drive(30);
+    d[0] = { lat: 0, lng: 0, recorded_at: d[0].recorded_at };
+    const km = (a: WireFix, b: WireFix) => Math.hypot((a.lat - b.lat) * 111, (a.lng - b.lng) * 68);
+    const sum = (c: WireFix[]) => c.slice(1).reduce((t, f, i) => t + km(c[i], f), 0);
+    expect(sum(d) / 1.609).toBeGreaterThan(2000); // as it would be sent
+    expect(sum(trimBadEndpoints(d).coords) / 1.609).toBeLessThan(5);
+  });
+
+  it("keeps a real drive whose start is a long gap away (slow, not fast)", () => {
+    const d = drive(30);
+    d[0] = { lat: 52 - 0.1, lng: -1, recorded_at: iso(T0 - 30 * 60_000) }; // 7 miles in 30 min
+    expect(trimBadEndpoints(d).dropped).toBe(0);
+  });
+
+  it("does not strip a trace that is genuinely too long (the cap check still clears it)", () => {
+    const flightLike = [0, 1, 2, 3].map((i) => ({ lat: 40 + i * 2, lng: 0, recorded_at: iso(T0 + i * 3_600_000) }));
+    expect(trimBadEndpoints(flightLike).dropped).toBe(0);
   });
 });
