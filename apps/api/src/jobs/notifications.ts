@@ -1065,7 +1065,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // app demonstrably alive (a dump in the window = an app open) — and ZERO
   // auto-captured trips recently. That combination isn't "stopped driving";
   // it's the engine missing drives.
-  const RECENT_DAYS = 4;
+  const RECENT_DAYS = 4; // SILENT_SEEN_LOOKBACK_DAYS (clearTrackAlertRule.ts) must match
   const BASELINE_MIN_AUTO_TRIPS = 4; // ≥4 auto trips in the prior 14 days = an active driver
   const nowMs = Date.now();
   const recentCutoff = new Date(nowMs - RECENT_DAYS * 24 * 60 * 60 * 1000);

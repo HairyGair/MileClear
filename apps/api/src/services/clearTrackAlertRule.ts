@@ -48,8 +48,11 @@ export function planClearTrackAlert(
 }
 
 export const SILENT_FIRST_SEEN_EVENT = "alert.cleartrack_silent_seen";
-/** How long a first-seen event suppresses a new one. */
-export const SILENT_SEEN_LOOKBACK_DAYS = 7;
+/** How far back a first-seen event counts. Matches the job's silence window
+ *  (no automatic trip in 4 days), so an event in range is always newer than
+ *  the driver's last trip: one left over from an earlier silent spell, before
+ *  they recorded again, cannot skip the 24-hour wait. */
+export const SILENT_SEEN_LOOKBACK_DAYS = 4;
 /** A silent driver is only named once first seen at least this long ago. */
 export const SILENT_CONFIRM_MS = 24 * 60 * 60 * 1000;
 
