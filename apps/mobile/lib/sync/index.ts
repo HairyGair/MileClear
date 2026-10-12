@@ -486,9 +486,11 @@ async function reviveHeldItems(): Promise<void> {
  * through, so every phone looks at its parked rows once more. 2026-09-28: the
  * server stopped rejecting trips for a shift id that is not a UUID, the queue
  * stopped turning 404'd edits into broken creates, and edits now wait behind
- * their create instead of 404ing.
+ * their create instead of 404ing. 2026-10-12: a web page in place of our
+ * reply (Wi-Fi sign-in, network filter) no longer uses up a try, so trips
+ * parked by one get another go.
  */
-export const PARKED_REVIVAL_REVISION = "2026-09-28";
+export const PARKED_REVIVAL_REVISION = "2026-10-12";
 const PARKED_REVIVAL_KEY = "sync_parked_revival";
 
 const LOCAL_TABLE: Record<string, string> = {

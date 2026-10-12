@@ -31,6 +31,11 @@ describe("isNetworkError", () => {
     expect(isNetworkError(new Error("Failed to fetch"))).toBe(true);
     expect(isNetworkError(new Error("The request timed out"))).toBe(true);
   });
+  it("matches a web page in place of our reply (Wi-Fi sign-in, filter)", () => {
+    expect(isNetworkError(new SyntaxError("JSON Parse error: Unexpected character: <"))).toBe(true);
+    expect(isNetworkError(new SyntaxError("Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"))).toBe(true);
+    expect(isNetworkError(new SyntaxError("JSON Parse error: Unexpected end of input"))).toBe(false);
+  });
   it("does not match a server rejection", () => {
     expect(isNetworkError(apiErr(400))).toBe(false);
     expect(isNetworkError(new Error("Validation failed"))).toBe(false);

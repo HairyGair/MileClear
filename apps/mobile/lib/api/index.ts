@@ -183,13 +183,33 @@ export async function apiRequest<T>(
     }
   }
 
+  // Our API only ever answers JSON. A web page (it starts with "<") means
+  // something between the phone and us answered instead: a Wi-Fi sign-in
+  // page, a network filter, a proxy. That is a connection problem, not the
+  // server's verdict, so it throws as one and the sync queue keeps the item
+  // for later. 5xx pages are left alone: Apache answers those while the API
+  // restarts, and the queue already handles them by status.
+  const text = await res.text();
+  if (/^\s*</.test(text) && res.status < 500) {
+    throw new Error(NOT_OUR_REPLY);
+  }
+
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: "Request failed" }));
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = { error: "Request failed" };
+    }
     throw parseApiError(body, res.status);
   }
 
-  return res.json();
+  return JSON.parse(text);
 }
+
+/** Starts with "Network error" so the sync queue treats it as offline. */
+export const NOT_OUR_REPLY =
+  "Network error: your connection sent back a web page instead of MileClear. If you're on public Wi-Fi, sign in to it or switch to mobile data, then try again.";
 
 /**
  * Peek at a 401 response body without consuming the original Response.

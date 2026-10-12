@@ -24,6 +24,11 @@ export function isNetworkError(err: unknown): boolean {
   if (msg.includes("REFRESH_NETWORK_ERROR")) return true;
   if (msg.includes("Failed to fetch")) return true;
   if (msg.includes("timed out") || msg.includes("timeout")) return true;
+  // A web page came back instead of our reply: Wi-Fi sign-in pages, network
+  // filters, a proxy. Our API only ever answers JSON, so this was never the
+  // server judging the item. Zoe Slaughter's Sunday trips (11 Oct 2026) burnt
+  // all five tries on "JSON Parse error: Unexpected character: <" and parked.
+  if (/Unexpected (character|token):? '?</.test(msg)) return true;
   return false;
 }
 
