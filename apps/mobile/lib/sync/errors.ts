@@ -147,3 +147,21 @@ export function isDefiniteClientRejection(err: unknown): boolean {
   }
   return false;
 }
+
+/** The server refused a trip save for good, and sending the same fixes again
+ *  can only get the same answer: a 4xx validation verdict, minus every 4xx
+ *  that says "not now" or "not this way" rather than "not this payload".
+ *
+ *  Narrower than isDefiniteClientRejection on purpose. That one also covers
+ *  404, 408 and 409, which syncCreateTrip treats as a rejection of the queued
+ *  row; for a RECORDING that still sits in the buffer, those (and 401/403,
+ *  429 and every network, 5xx and not-our-reply error) must keep the fixes
+ *  and be retried. 12 Oct 2026: a 400 "Distance exceeds reasonable limit" for
+ *  a 2,000-mile flight left the buffer armed and finalize ran again every
+ *  minute, ten times, until the driver had landed. */
+export function isDefinitiveSaveRejection(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return false;
+  const c = err.statusCode;
+  if (c < 400 || c >= 500) return false;
+  return c !== 401 && c !== 403 && c !== 404 && c !== 408 && c !== 409 && c !== 429;
+}

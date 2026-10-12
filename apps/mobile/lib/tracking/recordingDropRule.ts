@@ -23,6 +23,11 @@ export type DropReason =
   | "walk"
   /** A sparse straight line over an implausible distance. */
   | "crow_flies"
+  /** An aeroplane, not a drive: the airborne fixes were cut out (flightRule.ts). */
+  | "flight"
+  /** The server refused the trip for good (a 4xx that will never pass). The
+   *  fixes are cleared so the save is not retried every minute for ever. */
+  | "rejected"
   /** The tail trim left nothing (should never happen; logged so it shows). */
   | "tail_trim"
   /** Joined onto the previous trip (a fuel stop, a drop-off). Not lost. */
@@ -46,6 +51,8 @@ const LOST: ReadonlySet<DropReason> = new Set<DropReason>([
   "too_short",
   "walk",
   "crow_flies",
+  "flight",
+  "rejected",
   "tail_trim",
   "switched_off",
   "cancelled",

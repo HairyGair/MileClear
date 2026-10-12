@@ -14,6 +14,7 @@ import {
   isRateLimited,
   isAuthError,
   isDefiniteClientRejection,
+  isDefinitiveSaveRejection,
 } from "../errors";
 
 const apiErr = (statusCode: number) =>
@@ -95,5 +96,23 @@ describe("isLocalSystemError (superset preserves legacy create-handler behaviour
     expect(isLocalSystemError(new Error("SecureStore unavailable"))).toBe(true);
     expect(isLocalSystemError(new Error("Session expired"))).toBe(true);
     expect(isLocalSystemError(new Error("REFRESH_NETWORK_ERROR"))).toBe(true);
+  });
+});
+
+describe("isDefinitiveSaveRejection (a recording's save)", () => {
+  it("is true for a validation verdict that will never pass", () => {
+    // 12 Oct 2026: "Distance exceeds reasonable limit", HTTP 400.
+    for (const s of [400, 410, 413, 422]) expect(isDefinitiveSaveRejection(apiErr(s)), String(s)).toBe(true);
+  });
+  it("is false for every 4xx that means not now or not this way", () => {
+    for (const s of [401, 403, 404, 408, 409, 429]) expect(isDefinitiveSaveRejection(apiErr(s)), String(s)).toBe(false);
+  });
+  it("is false for 5xx, network errors, the web-page-instead-of-us error and unknowns", () => {
+    for (const s of [500, 502, 503, 504]) expect(isDefinitiveSaveRejection(apiErr(s)), String(s)).toBe(false);
+    expect(isDefinitiveSaveRejection(new TypeError("Network request failed"))).toBe(false);
+    expect(isDefinitiveSaveRejection(new Error("Network error: your connection sent back a web page instead of MileClear."))).toBe(false);
+    expect(isDefinitiveSaveRejection(new SyntaxError("JSON Parse error: Unexpected character: <"))).toBe(false);
+    expect(isDefinitiveSaveRejection(new Error("Session expired"))).toBe(false);
+    expect(isDefinitiveSaveRejection(null)).toBe(false);
   });
 });
