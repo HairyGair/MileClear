@@ -13,6 +13,27 @@ import { Skeleton } from "../kit/States";
 import { activeNavKey, navItems } from "./nav";
 import { usePageMeta } from "./pageMeta";
 import { TourProvider, useTour } from "../tour/TourProvider";
+import { papi } from "../../../lib/practice";
+
+/** True when this person is also staff at an accountancy practice. */
+function useIsPracticeMember(): boolean {
+  const [member, setMember] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    papi
+      .get("/practice/me")
+      .then(() => {
+        if (!cancelled) setMember(true);
+      })
+      .catch(() => {
+        /* not part of a practice: nothing to show */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return member;
+}
 
 function Wordmark() {
   return (
@@ -112,6 +133,7 @@ function AvatarMenu() {
   const { user, isPro, isAdmin } = useMe();
   const { logout } = useAuth();
   const tour = useTour();
+  const isPracticeMember = useIsPracticeMember();
   const file = resolveAvatarFile(user?.avatarId);
   const name = user?.displayName || user?.fullName || user?.email || "You";
   const initial = name.trim().charAt(0).toUpperCase();
@@ -142,6 +164,7 @@ function AvatarMenu() {
         { label: "Settings", href: "/dashboard/settings" },
         { label: "Take the tour", onClick: () => tour.startFromMenu() },
         { label: "Get the app", href: "/app", external: true },
+        ...(isPracticeMember ? [{ label: "Switch to your practice", href: "/practice" }] : []),
         ...(isAdmin ? [{ label: "Admin", href: "/dashboard/admin" }] : []),
         {
           label: "Log out",

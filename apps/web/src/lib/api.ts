@@ -71,7 +71,7 @@ function redirectToLogin() {
   const path = window.location.pathname;
   // Already on an auth page (e.g. a wrong password): don't reload it.
   if (path === "/login" || path === "/register" || path === "/verify" || path === "/forgot-password") return;
-  if (path.startsWith("/dashboard")) {
+  if (path.startsWith("/dashboard") || path.startsWith("/practice")) {
     window.location.href = `/login?next=${encodeURIComponent(path + window.location.search)}`;
   } else {
     window.location.href = "/login";

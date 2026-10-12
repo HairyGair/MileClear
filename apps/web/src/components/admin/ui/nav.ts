@@ -116,6 +116,13 @@ export const ADMIN_NAV: AdminNavGroup[] = [
           { label: "Needs attention", href: `${ADMIN_ROOT}/milesheet/attention` },
         ],
       },
+      {
+        label: "Practices",
+        href: `${ADMIN_ROOT}/practices`,
+        icon: "teams",
+        hint: "Accountants' practice accounts: check new ones and their logos",
+        isNew: true,
+      },
     ],
   },
   {
