@@ -84,6 +84,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // phrased as what changed, never "update to get this". Label flow as
     // before: "Pending Review" now, "Latest" on approval in the same edit that
     // drops 1.3.12 to "App Store" (then restart the API before send-update).
+    // 12 Oct: the sign-in screen and the stuck-uploads fix reached builds 94,
+    // 93, 90 and Android by OTA (not 95, in review: OTA it on approval), and
+    // the "Trip still recording" fix is server-side, so all three are listed.
     version: "1.3.13",
     date: "October 2026",
     label: "Pending Review",
@@ -101,6 +104,9 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Saved places: name a suggested place yourself",
       "Company car drivers no longer see claim figures that don't apply to them",
       "Trips save and upload more reliably in the background",
+      "Trips no longer get stuck uploading when a Wi-Fi sign-in page or network filter answers instead of MileClear, and trips held back that way upload by themselves",
+      "A new sign-in screen, with Sign in with Google on iPhone as well as Android",
+      "\"Trip still recording\" only reaches you when a drive really hasn't saved",
       "A trip can no longer be saved with no route, no end and no miles",
       "Pro is described as what it is: sorting by work hours. Sorting by place and regular journeys is free",
     ],
@@ -116,7 +122,8 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**A tidier More tab** - grouped, with a live fact on each row, like your MOT date or the cheapest fuel near you.",
       "**Scottish income tax** - turn it on and your tax estimates use the Scottish bands.",
       "**Help with search** - 98 checked answers, under More > Help and how-tos.",
-      "**Steadier recording** - finished trips save and upload more reliably in the background.",
+      "**Steadier recording** - finished trips save and upload more reliably in the background, even on Wi-Fi that asks you to sign in.",
+      "**Sign in with Google** - now on iPhone too, on a new sign-in screen.",
     ],
   },
   {
