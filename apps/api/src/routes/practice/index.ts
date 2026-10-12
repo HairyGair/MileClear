@@ -184,6 +184,7 @@ async function clientGate(
         select: { fullName: true, displayName: true },
       });
       extra = {
+        linkId: res.link.id,
         clientName: u ? clientName(u) : null,
         endedAt: (res.link.endedAt ?? res.link.endsAt)?.toISOString() ?? null,
         endedBy: res.link.endedBy,
