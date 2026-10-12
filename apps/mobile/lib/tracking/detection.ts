@@ -209,6 +209,7 @@ import {
   QUICK_TRIP_LIVE_COORD_MS as QUICK_TRIP_LIVE_COORD_MS_RULE,
 } from "./quickTripLock";
 import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
+import { findFlights, cutFlights } from "./flightRule";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
@@ -1691,9 +1692,67 @@ async function _finalizeAutoTripInner(): Promise<void> {
   const db = await getDatabase();
 
   // Read all buffered coordinates
-  const rawCoords = await db.getAllAsync<BufferedCoordinate>(
+  let rawCoords = await db.getAllAsync<BufferedCoordinate>(
     "SELECT lat, lng, speed, accuracy, activity, activity_confidence, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
+
+  // ── Flights (12 Oct 2026, Edinburgh to Toronto). An aeroplane is not a
+  // drive. The phone recorded the flight as a 6.9-hour "drive" of over 2,000
+  // miles, the server refused it, and the save was retried every minute until
+  // the driver had landed. Cut the airborne stretch out BEFORE anything else
+  // sees it, report it as a lost recording of reason "flight", and carry on
+  // with whatever car legs sit either side (the drive to the airport, the
+  // drive away after landing) as separate legs. See flightRule.ts for the rule
+  // and why it cannot fire on a drive, a GPS spike or a train.
+  //
+  // This is the one place every automatic recording passes through (app open,
+  // headless task, orphan sweep, stale sweeper, lock-screen action), so the
+  // whole of it is covered here. Never lets a failure in the rule stop a
+  // finalize: on any error the recording is judged as before.
+  const flightLegStarts = new Set<number>();
+  if (rawCoords.length >= 2) {
+    try {
+      const flights = findFlights(rawCoords);
+      if (flights.length > 0) {
+        for (const f of flights) {
+          const before = rawCoords[f.startIdx];
+          const after = rawCoords[f.endIdx];
+          logDetectionEvent("finalize_flight_cut", {
+            kind: f.kind,
+            miles: f.miles,
+            spanSec: f.spanSec,
+            fastSec: f.fastSec,
+            peakMph: f.peakMph,
+            removedCoords: f.removedCount,
+            totalCoords: rawCoords.length,
+          }).catch(() => {});
+          await noteRecordingDropped({
+            reason: "flight",
+            detail: `${f.kind}_peak_${f.peakMph}mph`,
+            startedAt: before.recorded_at,
+            endedAt: after.recorded_at,
+            coords: f.removedCount,
+            distanceMiles: f.miles,
+            ...(finalizeSource ? { source: finalizeSource } : {}),
+          });
+          // The airborne fixes are decided: remove them from the buffer now so
+          // a re-run (a crash before the car legs are saved) cannot see them.
+          // The two boundary fixes stay: they are the ground at each end.
+          await db.runAsync(
+            "DELETE FROM detection_coordinates WHERE recorded_at > ? AND recorded_at < ?",
+            [before.recorded_at, after.recorded_at]
+          );
+        }
+        const cut = cutFlights(rawCoords, flights);
+        rawCoords = cut.kept;
+        for (const i of cut.legStarts) flightLegStarts.add(i);
+      }
+    } catch (err) {
+      logDetectionEvent("finalize_flight_check_failed", {
+        error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      }).catch(() => {});
+    }
+  }
 
   // Safety: if auto_recording_active got stuck ON across a crash, the buffer
   // can contain ancient coords plus fresh ones, separated by a large time
@@ -1715,7 +1774,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
       const curr = new Date(rawCoords[i].recorded_at).getTime();
-      if (curr - prev > splitMs) {
+      // A flight between two fixes starts a new leg whatever the gap: a short
+      // hop must not glue the drive to the airport onto the drive from it.
+      if (curr - prev > splitMs || flightLegStarts.has(i)) {
         segments.push([]);
       }
       segments[segments.length - 1].push(rawCoords[i]);
@@ -2885,6 +2946,40 @@ async function _finalizeAutoTripInner(): Promise<void> {
     logDetectionEvent("finalize_save_failed", {
       error: errorMessage.slice(0, 500),
     }).catch(() => {});
+    // A definitive 4xx (a validation verdict such as "Distance exceeds
+    // reasonable limit") will get the same answer every time, so keeping the
+    // fixes only makes finalize run again about once a minute for ever (12 Oct
+    // 2026: ten attempts on a flight, each logged as an error). Say so once,
+    // clear the buffer and stop. syncCreateTrip has already removed the local
+    // row for this. Network failures, 5xx, auth, 404/408/409/429 and the "web
+    // page instead of MileClear" error all fall through to the keep-and-retry
+    // path below, exactly as before.
+    const { isDefinitiveSaveRejection } = await import("../sync/errors");
+    if (isDefinitiveSaveRejection(err)) {
+      logDetectionEvent("finalize_save_rejected", {
+        error: errorMessage.slice(0, 200),
+        distance: totalDistance,
+      }).catch(() => {});
+      await noteRecordingDropped({
+        reason: "rejected",
+        detail: errorMessage,
+        ...dropSpan(allCoords),
+        distanceMiles: totalDistance,
+      });
+      try {
+        await consumeProcessedBuffer();
+        try {
+          const { setDepartureAnchor } = await import("../geofencing/index");
+          await setDepartureAnchor();
+        } catch {}
+      } catch (consumeErr) {
+        logDetectionEvent("finalize_rejected_consume_failed", {
+          error: consumeErr instanceof Error ? consumeErr.message.slice(0, 120) : String(consumeErr),
+        }).catch(() => {});
+      }
+      endLiveActivity().catch(() => {});
+      return;
+    }
     // The fixes stay on the phone and the next app open finalises again, so
     // this is not a loss yet, but it is a drive with no trip for now.
     await noteRecordingDropped({ reason: "error", detail: errorMessage, ...dropSpan(allCoords) });
