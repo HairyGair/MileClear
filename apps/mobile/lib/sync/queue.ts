@@ -2,6 +2,7 @@
 
 import { randomUUID } from "expo-crypto";
 import { getDatabase } from "../db/index";
+import { removalDeletesLocalRow } from "./queueRules";
 
 export type EntityType = "trip" | "earning" | "fuel_log" | "shift" | "saved_location";
 export type SyncAction = "create" | "update" | "delete";
@@ -28,6 +29,29 @@ export async function enqueueSync(
   );
 
   return id;
+}
+
+/**
+ * Remove one queue item for the Uploads screen. For a queued trip create it
+ * also removes the local trip row, but only while that row has never synced
+ * (a synced row is the server's copy and is left alone), and any other queued
+ * work for the same trip.
+ */
+export async function discardQueueItem(id: string): Promise<void> {
+  const db = await getDatabase();
+  const item = await db.getFirstAsync<{ entity_type: string; entity_id: string; action: string }>(
+    "SELECT entity_type, entity_id, action FROM sync_queue WHERE id = ?",
+    [id]
+  );
+  if (item && removalDeletesLocalRow(item.entity_type, item.action)) {
+    await db.runAsync("DELETE FROM trips WHERE id = ? AND synced_at IS NULL", [item.entity_id]);
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'trip' AND status != 'synced'",
+      [item.entity_id]
+    );
+    return;
+  }
+  await db.runAsync("DELETE FROM sync_queue WHERE id = ?", [id]);
 }
 
 export async function getPendingCount(): Promise<number> {

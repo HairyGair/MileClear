@@ -71,6 +71,44 @@ export function parkedItemAction(input: ParkedItemInput): ParkedItemAction {
   return "revive";
 }
 
+/** The label on an Uploads-screen item's retry button. A parked item is a
+ *  real trip or entry the server refused, not rubbish, so it gets a plain
+ *  "Try again" instead of nothing (12 Oct 2026: finalize now hands refused
+ *  drives to the queue). */
+export function retryButtonLabel(status: string): string {
+  return status === "permanently_failed" ? "Try again" : "Retry";
+}
+
+export interface RemoveConfirmation {
+  title: string;
+  message: string;
+  confirmLabel: string;
+}
+
+/** What the Uploads screen asks before removing an item. A trip that has not
+ *  reached the account is the driver's only copy, so the words say so. */
+export function removeConfirmation(entityType: string, action: string): RemoveConfirmation {
+  if (entityType === "trip" && action === "create") {
+    return {
+      title: "Delete this trip?",
+      message: "This trip hasn't reached your account yet. Delete it from this phone?",
+      confirmLabel: "Delete",
+    };
+  }
+  return {
+    title: "Remove from queue",
+    message: "This removes the sync attempt. Your local data is kept, it just won't be uploaded. Are you sure?",
+    confirmLabel: "Remove",
+  };
+}
+
+/** Removing a queued create for a trip also removes the trip row that has not
+ *  synced: otherwise the trip sits in the list for ever with nothing left to
+ *  upload it. Every other item only loses its queue row. */
+export function removalDeletesLocalRow(entityType: string, action: string): boolean {
+  return entityType === "trip" && action === "create";
+}
+
 /** A body POST /trips can accept at all: a start time and a start point. */
 export function isTripCreateBody(payload: Record<string, unknown> | null): boolean {
   if (!payload) return false;

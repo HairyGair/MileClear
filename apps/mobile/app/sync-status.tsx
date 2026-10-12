@@ -23,6 +23,8 @@ import {
   onSyncStateChange,
   type SyncState,
 } from "../lib/sync/index";
+import { discardQueueItem } from "../lib/sync/queue";
+import { removeConfirmation, retryButtonLabel } from "../lib/sync/queueRules";
 import { Button } from "../components/Button";
 import { colors, fonts } from "../lib/theme";
 
@@ -161,14 +163,13 @@ function StatusHeader({
 interface QueueItemRowProps {
   item: QueueItem;
   onRetry: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (item: QueueItem) => void;
 }
 
 function QueueItemRow({ item, onRetry, onDelete }: QueueItemRowProps) {
   const [expanded, setExpanded] = useState(false);
   const hasFailed =
     item.status === "failed" || item.status === "permanently_failed";
-  const isPermanent = item.status === "permanently_failed";
   const color = statusColor(item.status);
 
   return (
@@ -229,21 +230,21 @@ function QueueItemRow({ item, onRetry, onDelete }: QueueItemRowProps) {
 
       {/* Action buttons */}
       <View style={styles.itemActions}>
-        {!isPermanent && (
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={() => onRetry(item.id)}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={`Retry ${actionLabel(item.action)} ${entityLabel(item.entity_type)}`}
-          >
-            <Ionicons name="refresh-outline" size={14} color={AMBER} />
-            <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
-        )}
+        {/* Parked items get a button too: they can be real trips the server
+            refused, and Delete must not be the only choice. */}
+        <TouchableOpacity
+          style={styles.retryBtn}
+          onPress={() => onRetry(item.id)}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel={`${retryButtonLabel(item.status)} ${actionLabel(item.action)} ${entityLabel(item.entity_type)}`}
+        >
+          <Ionicons name="refresh-outline" size={14} color={AMBER} />
+          <Text style={styles.retryBtnText}>{retryButtonLabel(item.status)}</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteBtn}
-          onPress={() => onDelete(item.id)}
+          onPress={() => onDelete(item)}
           activeOpacity={0.75}
           accessibilityRole="button"
           accessibilityLabel={`Remove ${actionLabel(item.action)} ${entityLabel(item.entity_type)} from queue`}
@@ -370,22 +371,19 @@ export default function SyncStatusScreen() {
   );
 
   const handleDelete = useCallback(
-    (id: string) => {
+    (item: QueueItem) => {
+      const ask = removeConfirmation(item.entity_type, item.action);
       Alert.alert(
-        "Remove from queue",
-        "This removes the sync attempt. Your local data is kept — it just won't be uploaded. Are you sure?",
+        ask.title,
+        ask.message,
         [
           { text: "Cancel", style: "cancel" },
           {
-            text: "Remove",
+            text: ask.confirmLabel,
             style: "destructive",
             onPress: async () => {
               try {
-                const db = await getDatabase();
-                await db.runAsync(
-                  "DELETE FROM sync_queue WHERE id = ?",
-                  [id]
-                );
+                await discardQueueItem(item.id);
                 await loadAll();
               } catch {
                 Alert.alert("Couldn't remove the item", "Try again in a moment.");

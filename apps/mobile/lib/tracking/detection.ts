@@ -34,7 +34,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 // exports at runtime (inside functions), never at module-eval time, so the
 // live bindings are resolved by the time anything runs.
 import { ensureAnchorGeofenceArmed } from "../geofencing";
-import { signalTripStart } from "../api/trips";
+import { signalTripStart, type CreateTripData } from "../api/trips";
 import { decideAutoTripLiveActivity } from "../liveActivity/autoTripRule";
 import { getStepsBetween } from "./stepCount";
 
@@ -212,14 +212,12 @@ import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
 import { findFlights, cutFlights, type FlightSpan } from "./flightRule";
 import {
   exceedsServerDistance,
-  nextRejectBackoff,
   normaliseRecordedAt,
   parseFlightCutState,
-  parseRejectBackoff,
   planFlightCut,
   prepareCoordinatesForServer,
   pruneFlightCutState,
-  rejectBackoffActive,
+  trimBadEndpoints,
   SERVER_MAX_COORDINATES,
   type FlightCutState,
 } from "./finalizeSaveRule";
@@ -1934,32 +1932,6 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
   }
 
-  // ── Refused earlier, waiting to try again (12 Oct 2026 review). The server
-  // refused this recording with a 4xx that is not known garbage; the fixes were
-  // KEPT and a wait set (15 min, 1 h, 6 h, then daily). Until it passes, do
-  // nothing and keep everything, instead of retrying every minute. Keyed to the
-  // recording's first fix, so a different recording is never held by it.
-  const recordingKey = allCoords[0]?.recorded_at ?? "";
-  if (allCoords.length >= 2) {
-    try {
-      const rows = await db.getAllAsync<{ key: string; value: string }>(
-        "SELECT key, value FROM tracking_state WHERE key IN ('finalize_reject_key', 'finalize_reject_attempts', 'finalize_reject_next_at')"
-      );
-      const v = (k: string) => rows.find((r) => r.key === k)?.value;
-      const backoff = parseRejectBackoff(v("finalize_reject_key"), v("finalize_reject_attempts"), v("finalize_reject_next_at"));
-      if (rejectBackoffActive(backoff, recordingKey, Date.now())) {
-        logDetectionEvent("finalize_reject_wait", {
-          attempts: backoff?.attempts,
-          waitMs: backoff ? backoff.nextAt - Date.now() : 0,
-          coordCount: allCoords.length,
-        }).catch(() => {});
-        return;
-      }
-    } catch {
-      // Best effort: with no state the save is simply tried.
-    }
-  }
-
   logDetectionEvent("finalize_called", { coordCount: allCoords.length }).catch(() => {});
 
   // Stop watchdog - recording is ending
@@ -1998,7 +1970,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       await db.runAsync("DELETE FROM detection_coordinates");
     }
     await db.runAsync(
-      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor', 'finalize_reject_key', 'finalize_reject_attempts', 'finalize_reject_next_at')"
+      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
     );
     // The flight markers go with the fixes they were for. With deferred legs,
     // only the ones behind the processed leg: a later leg still needs its.
@@ -2166,12 +2138,26 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Filter GPS outliers (poor accuracy + speed-jump teleports) before
   // calculating distance. Always keeps first + last so start/end addresses
   // stay consistent with what the user saw on the map.
-  const filteredCoords = filterTraceOutliers(coords);
-  if (filteredCoords.length !== coords.length) {
+  //
+  // Then drop a cold-start 0,0 fix or a stale far-away first/last fix
+  // (trimBadEndpoints): filterTraceOutliers keeps the endpoints on purpose, so
+  // one such fix could turn a real short drive into thousands of miles and
+  // have it cleared as implausible (12 Oct 2026 review). The drive is saved
+  // WITHOUT those fixes.
+  const outlierFiltered = filterTraceOutliers(coords);
+  const endpointTrim = trimBadEndpoints(outlierFiltered);
+  const filteredCoords = endpointTrim.coords;
+  if (endpointTrim.dropped > 0) {
+    logDetectionEvent("finalize_bad_endpoints_dropped", {
+      dropped: endpointTrim.dropped,
+      kept: filteredCoords.length,
+    }).catch(() => {});
+  }
+  if (outlierFiltered.length !== coords.length) {
     logDetectionEvent("finalize_outliers_filtered", {
       raw: coords.length,
       kept: filteredCoords.length,
-      dropped: coords.length - filteredCoords.length,
+      dropped: coords.length - outlierFiltered.length,
     }).catch(() => {});
   }
 
@@ -2191,6 +2177,10 @@ async function _finalizeAutoTripInner(): Promise<void> {
   }
   const first = filteredCoords[0];
   const last = filteredCoords[filteredCoords.length - 1];
+  // What is actually stored and sent (a raw native epoch becomes ISO; an ISO
+  // string is unchanged). The repeat-run guards below look for either form.
+  const wireStartedAt = normaliseRecordedAt(first.recorded_at) ?? first.recorded_at;
+  const wireEndedAt = normaliseRecordedAt(last.recorded_at) ?? last.recorded_at;
 
   // Idempotency guard for the delete-after-save ordering: a process death
   // between a successful save and consumeProcessedBuffer() re-runs this
@@ -2200,8 +2190,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // already saved — consume the buffer and stop instead of duplicating.
   try {
     const already = await db.getFirstAsync<{ id: string }>(
-      "SELECT id FROM trips WHERE started_at = ? LIMIT 1",
-      [first.recorded_at]
+      "SELECT id FROM trips WHERE started_at = ? OR started_at = ? LIMIT 1",
+      [first.recorded_at, wireStartedAt]
     );
     if (already) {
       logDetectionEvent("finalize_dedup_local_skip", { tripId: already.id }).catch(() => {});
@@ -2223,7 +2213,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // this is known garbage (a flight the flight rule missed), reported as lost
   // and cleared. Worked out from the FULL set of fixes, before any thinning.
   // Every other refusal keeps the drive (see the catch at the end).
-  if (exceedsServerDistance(totalDistance)) {
+  // Compared as the server will see it: rounded to 2 places, endpoints already
+  // cleaned above, so only a trace that is still over the cap is cleared.
+  if (exceedsServerDistance(Math.round(totalDistance * 100) / 100)) {
     logDetectionEvent("finalize_implausible_distance", {
       distance: totalDistance,
       coordCount: filteredCoords.length,
@@ -2248,9 +2240,6 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // a long dense recording can exceed it). The distance above came from the
   // full set; this only shapes the breadcrumb trail.
   const wire = prepareCoordinatesForServer(filteredCoords);
-  const wireStartedAt = normaliseRecordedAt(first.recorded_at) ?? wire.coords[0]?.recorded_at ?? first.recorded_at;
-  const wireEndedAt =
-    normaliseRecordedAt(last.recorded_at) ?? wire.coords[wire.coords.length - 1]?.recorded_at ?? last.recorded_at;
   if (wire.droppedBadTime > 0 || wire.coords.length < wire.beforeThinning) {
     logDetectionEvent("finalize_coords_prepared", {
       droppedBadTime: wire.droppedBadTime,
@@ -2621,6 +2610,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
   }
 
+  // Set just before the create so a refusal can hand the same body to the queue.
+  let pendingCreateBody: CreateTripData | null = null;
   try {
     // ── Multi-stop merge check ──
     // If a recent trip ended nearby, merge this segment into it instead of
@@ -2643,7 +2634,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // this segment's last coord timestamp means a prior pass already merged
       // this very segment and died before consuming the buffer. Re-merging
       // would double-count its distance onto the same trip.
-      if (recentTrip.ended_at === last.recorded_at) {
+      if (recentTrip.ended_at === last.recorded_at || recentTrip.ended_at === wireEndedAt) {
         logDetectionEvent("finalize_dedup_local_skip", {
           tripId: recentTrip.id,
           kind: "merged",
@@ -2867,7 +2858,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
 
     const { syncCreateTrip } = await import("../sync/actions");
-    const tripResult = await syncCreateTrip({
+    const createBody: CreateTripData = {
       startLat: first.lat,
       startLng: first.lng,
       endLat: last.lat,
@@ -2889,7 +2880,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
       })),
       gpsQuality: tripQuality,
       recordedBy: "automatic",
-    });
+    };
+    pendingCreateBody = createBody;
+    const tripResult = await syncCreateTrip(createBody);
 
     // Store classification source on the local trip row
     const savedTripId = tripResult?.data?.id;
@@ -3140,40 +3133,56 @@ async function _finalizeAutoTripInner(): Promise<void> {
       endLiveActivity().catch(() => {});
       return;
     }
-    if (isKeepAndBackOffRejection(err)) {
-      let attempts = 1;
+    if (isKeepAndBackOffRejection(err) && pendingCreateBody) {
+      // Any other payload refusal can be a real drive (more than 20,000
+      // fixes, a phone clock a day ahead, a tag the server does not know
+      // yet). Do NOT keep it in the live buffer: opening the next recording
+      // clears that buffer (nativeLocation) and a held oldest leg would block
+      // every later drive. Hand it to the sync queue instead: a local trip row
+      // plus a queued create. The queue parks a 4xx create as
+      // permanently_failed with the row and payload KEPT, the driver sees the
+      // trip in their list, and "Try again" on the Uploads screen resends it.
+      // Then consume the buffer so new drives are unaffected.
+      let queued = false;
       try {
-        const rows = await db.getAllAsync<{ key: string; value: string }>(
-          "SELECT key, value FROM tracking_state WHERE key IN ('finalize_reject_key', 'finalize_reject_attempts', 'finalize_reject_next_at')"
-        );
-        const v = (k: string) => rows.find((r) => r.key === k)?.value;
-        const next = nextRejectBackoff(
-          parseRejectBackoff(v("finalize_reject_key"), v("finalize_reject_attempts"), v("finalize_reject_next_at")),
-          recordingKey,
-          Date.now()
-        );
-        attempts = next.attempts;
-        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalize_reject_key', ?)", [next.key]);
-        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalize_reject_attempts', ?)", [String(next.attempts)]);
-        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalize_reject_next_at', ?)", [String(next.nextAt)]);
-      } catch {
-        // No state, no wait: it is simply tried again, as any error is.
+        const { syncCreateTrip } = await import("../sync/actions");
+        await syncCreateTrip(pendingCreateBody, { queueOnly: true });
+        queued = true;
+      } catch (queueErr) {
+        logDetectionEvent("finalize_queue_after_reject_failed", {
+          error: queueErr instanceof Error ? queueErr.message.slice(0, 120) : String(queueErr),
+        }).catch(() => {});
       }
       logDetectionEvent("finalize_save_rejected", {
         error: errorMessage.slice(0, 200),
         distance: totalDistance,
-        verdict: "keep_and_back_off",
-        attempts,
+        verdict: "queued",
+        queued,
       }).catch(() => {});
-      // One report per step of the wait, not one a minute. Not lost: kept.
-      await noteRecordingDropped({
-        reason: "rejected",
-        detail: `try_${attempts}: ${errorMessage}`,
-        ...dropSpan(allCoords),
-        distanceMiles: totalDistance,
-      });
-      endLiveActivity().catch(() => {});
-      return;
+      if (queued) {
+        // Reported once: the queue does the retrying from here.
+        await noteRecordingDropped({
+          reason: "rejected",
+          detail: `queued: ${errorMessage}`,
+          ...dropSpan(allCoords),
+          distanceMiles: totalDistance,
+        });
+        try {
+          await consumeProcessedBuffer();
+          try {
+            const { setDepartureAnchor } = await import("../geofencing/index");
+            await setDepartureAnchor();
+          } catch {}
+        } catch (consumeErr) {
+          logDetectionEvent("finalize_rejected_consume_failed", {
+            error: consumeErr instanceof Error ? consumeErr.message.slice(0, 120) : String(consumeErr),
+          }).catch(() => {});
+        }
+        endLiveActivity().catch(() => {});
+        return;
+      }
+      // Could not queue it (a local database error): fall through to the
+      // plain error path, which keeps the fixes and retries.
     }
     // The fixes stay on the phone and the next app open finalises again, so
     // this is not a loss yet, but it is a drive with no trip for now.

@@ -41,7 +41,16 @@ import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/sa
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
-export async function syncCreateTrip(data: CreateTripData) {
+/**
+ * @param options.queueOnly Write the local trip row and queue the create
+ *   WITHOUT trying the server now. Used by finalize when the server has just
+ *   refused a recording with a 4xx that is not known garbage (12 Oct 2026
+ *   review): the drive must not be deleted (this function deletes the local
+ *   row on a 4xx) and must not sit in the live buffer (a new recording
+ *   clears it). The queue engine parks a 4xx create as permanently_failed
+ *   with the local row and payload KEPT, and the Uploads screen can retry it.
+ */
+export async function syncCreateTrip(data: CreateTripData, options?: { queueOnly?: boolean }) {
   const db = await getDatabase();
 
   // Dedup: skip if a trip with nearly identical start and end times already exists.
@@ -89,6 +98,11 @@ export async function syncCreateTrip(data: CreateTripData) {
       data.notes ?? null,
     ]
   );
+
+  if (options?.queueOnly) {
+    await enqueueSync("trip", localId, "create", data as unknown as Record<string, unknown>);
+    return null;
+  }
 
   // Attempt API call immediately — only enqueue on network failure to prevent
   // race condition with processSyncQueue() that causes duplicate trips

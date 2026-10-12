@@ -72,7 +72,8 @@ vi.mock("../../classification", () => ({
   learnFromClassification: vi.fn(),
 }));
 
-import { syncUpdateTrip, syncDeleteTrip } from "../actions";
+import { syncUpdateTrip, syncDeleteTrip, syncCreateTrip } from "../actions";
+import { ApiError } from "../../api/apiError";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -195,5 +196,44 @@ describe("syncDeleteTrip on synced trip", () => {
       (call: unknown[]) => /UPDATE sync_queue SET status = 'synced'/.test(String(call[0]))
     );
     expect(markSyncedCall).toBeDefined();
+  });
+});
+
+// ── 12 Oct 2026: a drive the server refused is handed to the queue ───────
+describe("syncCreateTrip with queueOnly (a refused recording kept for a retry)", () => {
+  const body = {
+    startLat: 51.5,
+    startLng: -0.1,
+    endLat: 51.6,
+    endLng: -0.2,
+    distanceMiles: 8.2,
+    startedAt: "2026-10-12T10:00:00.000Z",
+    endedAt: "2026-10-12T10:20:00.000Z",
+    classification: "business" as const,
+    coordinates: [{ lat: 51.5, lng: -0.1, recordedAt: "2026-10-12T10:00:00.000Z" }],
+    recordedBy: "automatic" as const,
+  };
+
+  it("writes the local trip row and queues the create, without asking the server", async () => {
+    const result = await syncCreateTrip(body as never, { queueOnly: true });
+    expect(result).toBeNull();
+    expect(mocks.apiCreateTrip).not.toHaveBeenCalled();
+    expect(mocks.db.runAsync.mock.calls.some((c: unknown[]) => /INSERT INTO trips/.test(String(c[0])))).toBe(true);
+    expect(mocks.db.runAsync.mock.calls.some((c: unknown[]) => /DELETE FROM trips/.test(String(c[0])))).toBe(false);
+    expect(mocks.enqueueSync).toHaveBeenCalledWith(
+      "trip",
+      expect.any(String),
+      "create",
+      expect.objectContaining({ startedAt: body.startedAt, coordinates: body.coordinates })
+    );
+  });
+
+  it("the direct path still deletes the row on a 4xx and throws (so finalize can queue it)", async () => {
+    mocks.apiCreateTrip.mockRejectedValueOnce(
+      new ApiError({ code: "VALIDATION", message: "Start date cannot be in the future", statusCode: 400, retryable: false })
+    );
+    await expect(syncCreateTrip(body as never)).rejects.toThrow(/future/);
+    expect(mocks.db.runAsync.mock.calls.some((c: unknown[]) => /DELETE FROM trips/.test(String(c[0])))).toBe(true);
+    expect(mocks.enqueueSync).not.toHaveBeenCalled();
   });
 });

@@ -235,3 +235,40 @@ describe("ending a shift the server already ended", () => {
     expect(sqlCalls(/permanently_failed/)).toHaveLength(0);
   });
 });
+
+describe("a queued trip create the server refuses with a 4xx (a drive finalize handed over)", () => {
+  it("is parked with its trip row and payload kept, and the next drive still uploads", async () => {
+    setup({
+      items: [
+        item({ id: "refused", entity_id: "local-a" }),
+        item({ id: "later", entity_id: "local-b" }),
+      ],
+      unfinishedCreates: ["local-a", "local-b"],
+    });
+    mocks.apiRequest
+      .mockRejectedValueOnce(
+        new ApiError({ code: "VALIDATION", message: "Start date cannot be in the future", statusCode: 400, retryable: false })
+      )
+      .mockResolvedValueOnce({ data: { id: "server-b" } });
+
+    await processSyncQueue();
+
+    const parked = sqlCalls(/SET status = 'permanently_failed'/);
+    expect(parked).toHaveLength(1);
+    expect(parked[0][1][2]).toBe("refused");
+    // Nothing deletes the trip row or the queue row.
+    expect(sqlCalls(/DELETE FROM trips/)).toHaveLength(0);
+    expect(sqlCalls(/DELETE FROM sync_queue/)).toHaveLength(0);
+    // The drive after it was not held up.
+    expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+    expect(mocks.db.execAsync.mock.calls.some((c: unknown[]) => /server-b/.test(String(c[0])))).toBe(true);
+  });
+
+  it("is sent again once the Uploads screen resets it to pending", async () => {
+    setup({ items: [item({ id: "refused", entity_id: "local-a" })], unfinishedCreates: ["local-a"] });
+    mocks.apiRequest.mockResolvedValueOnce({ data: { id: "server-a" } });
+    await processSyncQueue();
+    expect(mocks.apiRequest.mock.calls[0][1].body).toContain("startedAt");
+    expect(mocks.db.execAsync.mock.calls.some((c: unknown[]) => /server-a/.test(String(c[0])))).toBe(true);
+  });
+});
