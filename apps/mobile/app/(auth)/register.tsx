@@ -14,6 +14,7 @@ import {
 import { Linking } from "react-native";
 import { Link, router } from "expo-router";
 import { useAuth } from "../../lib/auth/context";
+import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
 import { getDatabase } from "../../lib/db";
 import { colors, fonts } from "../../lib/theme";
 
@@ -37,7 +38,7 @@ export default function RegisterScreen() {
   const [referralCode, setReferralCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [, setSocialLoading] = useState<string | null>(null);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   useEffect(() => {
@@ -166,7 +167,14 @@ export default function RegisterScreen() {
             />
           )}
 
-          {/* Google Sign-In temporarily disabled — iOS-only clearance */}
+          <View style={s.googleWrap}>
+            <GoogleSignInButton
+              label="Sign up with Google"
+              loading={socialLoading === "google"}
+              disabled={socialLoading !== null || loading}
+              onPress={() => handleSocialLogin("google")}
+            />
+          </View>
 
           {/* Divider */}
           <View style={s.divider}>
@@ -451,20 +459,8 @@ const s = StyleSheet.create({
     height: 50,
     marginBottom: 12,
   },
-  googleButton: {
-    height: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    marginBottom: 4,
-  },
-  googleButtonText: {
-    color: TEXT_1,
-    fontSize: 16,
-    fontFamily: fonts.semibold,
+  googleWrap: {
+    marginTop: 0,
   },
   divider: {
     flexDirection: "row",

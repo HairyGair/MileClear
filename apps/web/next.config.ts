@@ -100,13 +100,15 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               // unpkg stays only while the admin UserDetailModal still loads Leaflet from it.
               // Driver pages bundle Leaflet from npm. GA4 loads (after cookie consent) from googletagmanager.
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.googletagmanager.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com",
+              // accounts.google.com/gsi: the Sign in with Google button on /login and /register.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://www.googletagmanager.com https://accounts.google.com/gsi/client",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://accounts.google.com/gsi/style",
+              "frame-src 'self' https://accounts.google.com/gsi/",
               "font-src 'self' https://fonts.gstatic.com",
               // blob: for logos and QR codes fetched with auth; the API origin for
               // checked practice logos shown to drivers (practice accounts).
               `img-src 'self' data: blob: https://api.mileclear.com ${apiOrigin()} https://tile.openstreetmap.org https://unpkg.com https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com`,
-              `connect-src 'self' https://api.mileclear.com ${apiOrigin()} https://exp.host https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com`,
+              `connect-src 'self' https://api.mileclear.com ${apiOrigin()} https://exp.host https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://accounts.google.com/gsi/`,
               "frame-ancestors 'none'",
             ].join("; "),
           },

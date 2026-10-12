@@ -1,0 +1,319 @@
+/* Sign-in, "Split" look (12 Oct 2026): a map with a recorded drive on the
+   left, the form on the right; they stack on a phone. Colours match the app
+   (apps/mobile/lib/theme.ts). Scoped to .signin so nothing leaks. */
+
+.signin {
+  --si-bg: #030712;
+  --si-panel: #070d1a;
+  --si-surface: #0a1120;
+  --si-border: rgba(255, 255, 255, 0.10);
+  --si-hairline: rgba(255, 255, 255, 0.06);
+  --si-amber: #f5a623;
+  --si-amber-hover: #ffb84a;
+  --si-text-1: #f0f2f5;
+  --si-text-2: #cbd5e1;
+  --si-text-3: #94a3b8;
+  --si-red: #f87171;
+
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--si-bg);
+  color: var(--si-text-1);
+  font-family: var(--mc-font), system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+
+.signin a {
+  color: var(--si-amber);
+  text-decoration: none;
+  font-weight: 700;
+}
+.signin a:hover {
+  color: var(--si-amber-hover);
+  text-decoration: underline;
+}
+.signin a:focus-visible,
+.signin button:focus-visible,
+.signin input:focus-visible {
+  outline: 2px solid var(--si-amber);
+  outline-offset: 2px;
+}
+
+/* ── Left: the map ─────────────────────────────────────────────── */
+.signin__panel {
+  flex: 1 1 480px;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--si-panel);
+  border-right: 1px solid var(--si-hairline);
+  padding: 48px 56px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.signin__map {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.signin__brand {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--si-text-1) !important;
+  font-size: 20px;
+  font-weight: 700 !important;
+  letter-spacing: -0.3px;
+  align-self: flex-start;
+}
+.signin__brand:hover {
+  text-decoration: none !important;
+}
+.signin__brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+.signin__brand span {
+  color: var(--si-amber);
+}
+
+.signin__pitch {
+  position: relative;
+  margin-top: auto;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.signin__pitch h2 {
+  margin: 0;
+  font-size: 40px;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+.signin__pitch p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--si-text-3);
+}
+
+/* ── Right: the form ───────────────────────────────────────────── */
+.signin__main {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  box-sizing: border-box;
+}
+
+.signin__form-wrap {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.signin__title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+}
+
+.signin__lead {
+  margin: -6px 0 10px;
+  font-size: 15px;
+  color: var(--si-text-3);
+}
+
+.signin__error {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  color: var(--si-red);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.signin__form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.signin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.signin__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.signin__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--si-text-2);
+}
+
+.signin__label-row a {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.signin__input-wrap {
+  position: relative;
+}
+
+.signin__input {
+  width: 100%;
+  height: 48px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid var(--si-border);
+  background: var(--si-surface);
+  color: var(--si-text-1);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 0 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.signin__input::placeholder {
+  color: #64748b;
+}
+.signin__input:focus {
+  outline: none;
+  border-color: rgba(245, 166, 35, 0.55);
+  box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.12);
+}
+.signin__input--password {
+  padding-right: 52px;
+}
+
+.signin__eye {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--si-text-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.signin__eye:hover {
+  color: var(--si-text-1);
+}
+
+.signin__submit {
+  margin-top: 6px;
+  height: 50px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--si-amber);
+  color: var(--si-bg);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.signin__submit:hover:not(:disabled) {
+  background: var(--si-amber-hover);
+}
+.signin__submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.signin__aside {
+  margin: 18px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--si-text-3);
+}
+.signin__aside a {
+  font-weight: 600;
+}
+
+/* Apple, Google and the divider, restyled for this page. */
+.signin .oauth {
+  margin: 0;
+}
+.signin .oauth__buttons {
+  gap: 12px;
+}
+.signin .oauth__btn--apple {
+  min-height: 40px;
+  height: 40px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #000000;
+  border: 0;
+  font-weight: 600;
+}
+.signin .oauth__btn--apple:hover:not(:disabled) {
+  background: #e8e8ea;
+}
+.signin .oauth__divider {
+  margin: 20px 0 4px;
+  gap: 14px;
+}
+.signin .oauth__divider::before,
+.signin .oauth__divider::after {
+  background: rgba(255, 255, 255, 0.08);
+}
+.signin .oauth__divider span {
+  font-size: 13px;
+  color: var(--si-text-3);
+}
+.signin .oauth__loading {
+  color: var(--si-text-3);
+}
+
+/* ── Phone: the map becomes a short band above the form ─────────── */
+@media (max-width: 899px) {
+  .signin__panel {
+    flex-basis: 100%;
+    min-height: 150px;
+    padding: 24px 20px;
+    border-right: 0;
+    border-bottom: 1px solid var(--si-hairline);
+  }
+  /* The map sits to the right so the route clears the wordmark. */
+  .signin__map {
+    left: 40%;
+    width: 60%;
+  }
+  /* The strip is too short for the headline; the form says "Sign in". */
+  .signin__pitch {
+    display: none;
+  }
+  .signin__main {
+    flex-basis: 100%;
+    align-items: flex-start;
+    padding: 28px 16px 40px;
+  }
+}

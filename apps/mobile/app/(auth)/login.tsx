@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,37 +10,44 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/auth/context";
+import { GoogleSignInButton } from "../../components/auth/GoogleSignInButton";
+import { RouteHero } from "../../components/auth/RouteHero";
 import { colors, fonts } from "../../lib/theme";
 
 let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
 try { AppleAuthentication = require("expo-apple-authentication"); } catch {}
 
-const AMBER = colors.amber;
-const CARD_BG = colors.surface;
-const BORDER = colors.surfaceBorder;
-const TEXT_1 = colors.text1;
-const TEXT_2 = colors.text2;
-const TEXT_3 = colors.text3;
-const BG = colors.bg;
+// Sign-in, "Route" look (12 Oct 2026): a map with a recorded drive on top,
+// then Apple, Google and email. The email form opens in place so the first
+// thing a new driver sees is what MileClear does, not two empty boxes.
+// Apple and Google also create an account for someone new, hence the terms line.
+
+const HERO_HEIGHT = 360;
+const HERO_HEIGHT_EMAIL = 190;
 
 export default function LoginScreen() {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const [mode, setMode] = useState<"choose" | "email">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [socialLoading, setSocialLoading] = useState<string | null>(null);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [socialLoading, setSocialLoading] = useState<"apple" | "google" | null>(null);
+  const [focusedField, setFocusedField] = useState<"email" | "password" | null>(null);
+  const passwordRef = useRef<TextInput>(null);
 
-  // Whether ANY social button renders above the divider. Apple on iOS,
-  // Google on Android. Drives the "or" divider so it can never separate
-  // nothing, which is what Android showed before.
-  const socialAvailable =
-    (Platform.OS === "ios" && !!AppleAuthentication) || Platform.OS === "android";
+  const appleAvailable = Platform.OS === "ios" && !!AppleAuthentication;
+  const busy = loading || socialLoading !== null;
 
   const handleSocialLogin = async (provider: "apple" | "google") => {
     setError("");
@@ -52,7 +59,7 @@ export default function LoginScreen() {
         await loginWithGoogle();
       }
     } catch (e: any) {
-      // Don't show error if user cancelled
+      // Don't show an error when the driver cancelled
       if (e.code !== "ERR_REQUEST_CANCELED" && e.code !== "SIGN_IN_CANCELLED") {
         setError(e.message || `${provider === "apple" ? "Apple" : "Google"} sign-in failed`);
       }
@@ -64,11 +71,11 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     setError("");
     if (!email.trim()) {
-      setError("Email is required");
+      setError("Enter your email address");
       return;
     }
     if (!password) {
-      setError("Password is required");
+      setError("Enter your password");
       return;
     }
 
@@ -76,11 +83,23 @@ export default function LoginScreen() {
     try {
       await login(email.trim().toLowerCase(), password);
     } catch (e: any) {
-      setError(e.message || "Login failed");
+      setError(e.message || "Sign-in failed");
     } finally {
       setLoading(false);
     }
   };
+
+  const openEmail = () => {
+    setError("");
+    setMode("email");
+  };
+
+  const backToChoices = () => {
+    setError("");
+    setMode("choose");
+  };
+
+  const heroHeight = (mode === "email" ? HERO_HEIGHT_EMAIL : HERO_HEIGHT) + insets.top;
 
   return (
     <KeyboardAvoidingView
@@ -88,158 +107,208 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={s.scrollContent}
+        contentContainerStyle={[s.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         keyboardShouldPersistTaps="handled"
+        bounces={false}
       >
-        {/* Brand */}
-        <View style={s.brandWrap}>
-          <Image
-            source={require("../../assets/branding/logo-original.png")}
-            style={s.brandIcon}
-            resizeMode="contain"
-            accessible={false}
-          />
-          <View style={s.brandText}>
-            <Text style={s.brandName}>Mile</Text>
-            <Text style={s.brandNameAccent}>Clear</Text>
+        {/* Map with a recorded drive, fading into the page */}
+        <View style={[s.hero, { height: heroHeight }]}>
+          <RouteHero width={screenWidth} height={heroHeight} topInset={insets.top} />
+          <View style={[s.brandWrap, { top: insets.top + 20 }]}>
+            <Image
+              source={require("../../assets/branding/logo-original.png")}
+              style={s.brandIcon}
+              resizeMode="contain"
+              accessible={false}
+            />
+            <Text style={s.brandName} accessibilityRole="header">
+              Mile<Text style={s.brandAccent}>Clear</Text>
+            </Text>
           </View>
+          {mode === "choose" && (
+            <View style={s.chip} accessible={false} importantForAccessibility="no-hide-descendants">
+              <Text style={s.chipLabel}>Recorded by itself</Text>
+              <Text style={s.chipValue}>
+                12.4 mi <Text style={s.chipAccent}>· Business</Text>
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Form card */}
-        <View style={s.card}>
-          <Text style={s.title}>Sign in</Text>
+        <View style={s.body}>
+          {mode === "choose" ? (
+            <>
+              <Text style={s.headline} accessibilityRole="header">
+                Every mile,{"\n"}counted.
+              </Text>
+              <Text style={s.sub}>
+                MileClear records your drives on its own, so your mileage claim is ready when you need it.
+              </Text>
+            </>
+          ) : (
+            <Text style={s.title} accessibilityRole="header">Sign in with email</Text>
+          )}
 
           {error ? (
-            <View
-              style={s.errorWrap}
-              accessibilityLiveRegion="polite"
-              accessibilityRole="alert"
-            >
+            <View style={s.errorWrap} accessibilityLiveRegion="polite" accessibilityRole="alert">
               <Text style={s.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          {/* Social sign-in buttons.
-              iOS: Apple only. Android: Google only (no Apple Sign-In there). */}
-          {Platform.OS === "ios" && AppleAuthentication && (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-              cornerRadius={12}
-              style={s.appleButton}
-              onPress={() => handleSocialLogin("apple")}
-            />
-          )}
-
-          {/* Google Sign-In: ANDROID ONLY.
-              Still disabled on iOS (iOS-only clearance) - this does not change
-              that. But Android has no Apple Sign-In, so without this the only
-              way in is email and password, which costs signups on the platform
-              where one-tap Google is the norm. */}
-          {Platform.OS === "android" && (
-            <TouchableOpacity
-              style={s.googleButton}
-              onPress={() => handleSocialLogin("google")}
-              disabled={socialLoading !== null}
-              accessibilityRole="button"
-              accessibilityLabel="Sign in with Google"
-            >
-              {socialLoading === "google" ? (
-                <ActivityIndicator color={TEXT_1} />
-              ) : (
-                <View style={s.googleButtonInner}>
-                  <Ionicons name="logo-google" size={18} color={TEXT_1} />
-                  <Text style={s.googleButtonText}>Sign in with Google</Text>
+          {mode === "choose" ? (
+            <View style={s.buttons}>
+              {appleAvailable && AppleAuthentication && (
+                <View pointerEvents={busy ? "none" : "auto"} style={busy && socialLoading !== "apple" ? s.dimmed : undefined}>
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    cornerRadius={14}
+                    style={s.appleButton}
+                    onPress={() => handleSocialLogin("apple")}
+                  />
                 </View>
               )}
-            </TouchableOpacity>
-          )}
 
-          {/* Divider — only when there is actually a social button above it to
-              divide from. It used to render unconditionally, so Android showed
-              an "or" separating the heading from the email field with nothing
-              in between. */}
-          {socialAvailable && (
-            <View style={s.divider}>
-              <View style={s.dividerLine} />
-              <Text style={s.dividerText}>or</Text>
-              <View style={s.dividerLine} />
+              <GoogleSignInButton
+                loading={socialLoading === "google"}
+                disabled={busy}
+                onPress={() => handleSocialLogin("google")}
+              />
+
+              <TouchableOpacity
+                style={[s.outlineButton, busy && s.dimmed]}
+                onPress={openEmail}
+                disabled={busy}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in with email"
+              >
+                <Ionicons name="mail-outline" size={19} color={colors.text1} />
+                <Text style={s.outlineButtonText}>Sign in with email</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={s.form}>
+              <View style={s.field}>
+                <Text style={s.label}>Email</Text>
+                <TextInput
+                  style={[s.input, focusedField === "email" && s.inputFocused]}
+                  value={email}
+                  onChangeText={setEmail}
+                  onFocus={() => setFocusedField("email")}
+                  onBlur={() => setFocusedField(null)}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.text3}
+                  keyboardType="email-address"
+                  textContentType="username"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoFocus
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  editable={!loading}
+                  accessibilityLabel="Email address"
+                />
+              </View>
+
+              <View style={s.field}>
+                <View style={s.labelRow}>
+                  <Text style={s.label}>Password</Text>
+                  <Link href="/(auth)/forgot-password" asChild>
+                    <TouchableOpacity
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      accessibilityRole="link"
+                      accessibilityLabel="Forgot password"
+                    >
+                      <Text style={s.forgotText}>Forgot?</Text>
+                    </TouchableOpacity>
+                  </Link>
+                </View>
+                <View>
+                  <TextInput
+                    ref={passwordRef}
+                    style={[s.input, s.passwordInput, focusedField === "password" && s.inputFocused]}
+                    value={password}
+                    onChangeText={setPassword}
+                    onFocus={() => setFocusedField("password")}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="Your password"
+                    placeholderTextColor={colors.text3}
+                    secureTextEntry={!showPassword}
+                    textContentType="password"
+                    autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="go"
+                    onSubmitEditing={handleLogin}
+                    editable={!loading}
+                    accessibilityLabel="Password"
+                  />
+                  <TouchableOpacity
+                    style={s.eyeButton}
+                    onPress={() => setShowPassword((v) => !v)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={colors.text3} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[s.primaryButton, loading && s.dimmed]}
+                onPress={handleLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in"
+                accessibilityState={{ disabled: loading, busy: loading }}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.bg} accessibilityLabel="Signing in" />
+                ) : (
+                  <Text style={s.primaryButtonText}>Sign in</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={s.backLink}
+                onPress={backToChoices}
+                disabled={loading}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="Other ways to sign in"
+              >
+                <Ionicons name="chevron-back" size={16} color={colors.text2} />
+                <Text style={s.backLinkText}>Other ways to sign in</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          <Text style={s.label}>Email</Text>
-          <TextInput
-            style={[
-              s.input,
-              focusedField === "email" && s.inputFocused,
-            ]}
-            value={email}
-            onChangeText={setEmail}
-            onFocus={() => setFocusedField("email")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="you@example.com"
-            placeholderTextColor={TEXT_3}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!loading}
-            accessibilityLabel="Email address"
-          />
-
-          <Text style={s.label}>Password</Text>
-          <TextInput
-            style={[
-              s.input,
-              focusedField === "password" && s.inputFocused,
-            ]}
-            value={password}
-            onChangeText={setPassword}
-            onFocus={() => setFocusedField("password")}
-            onBlur={() => setFocusedField(null)}
-            placeholder="Enter your password"
-            placeholderTextColor={TEXT_3}
-            secureTextEntry
-            editable={!loading}
-            accessibilityLabel="Password"
-          />
-
-          <Link href="/(auth)/forgot-password" asChild>
-            <TouchableOpacity
-              style={s.forgotWrap}
-              accessibilityRole="link"
-              accessibilityLabel="Forgot password"
-            >
-              <Text style={s.forgotText}>Forgot password?</Text>
-            </TouchableOpacity>
-          </Link>
-
-          <TouchableOpacity
-            style={[s.button, loading && s.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel="Sign in"
-            accessibilityState={{ disabled: loading }}
-          >
-            {loading ? (
-              <ActivityIndicator color={BG} accessibilityLabel="Loading" />
-            ) : (
-              <Text style={s.buttonText}>Sign in</Text>
-            )}
-          </TouchableOpacity>
+          <View style={s.spacer} />
 
           <View style={s.footer}>
-            <Text style={s.footerText}>Don't have an account? </Text>
+            <Text style={s.footerText}>New to MileClear? </Text>
             <Link href="/(auth)/register" asChild>
-              <TouchableOpacity
-                accessibilityRole="link"
-                accessibilityLabel="Create an account"
-              >
-                <Text style={s.link}>Create one</Text>
+              <TouchableOpacity accessibilityRole="link" accessibilityLabel="Create an account">
+                <Text style={s.link}>Create an account</Text>
               </TouchableOpacity>
             </Link>
           </View>
+          {mode === "choose" && (
+            <Text style={s.terms}>
+              By continuing you agree to our{" "}
+              <Text style={s.termsLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/terms").catch(() => {})} accessibilityRole="link">
+                terms
+              </Text>{" "}
+              and{" "}
+              <Text style={s.termsLink} onPress={() => WebBrowser.openBrowserAsync("https://mileclear.com/privacy").catch(() => {})} accessibilityRole="link">
+                privacy policy
+              </Text>
+              .
+            </Text>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -249,180 +318,235 @@ export default function LoginScreen() {
 const s = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BG,
+    backgroundColor: colors.bg,
   },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
-    padding: 24,
   },
-  // Brand
+  // Hero
+  hero: {
+    width: "100%",
+    overflow: "hidden",
+    backgroundColor: "#070d1a",
+  },
   brandWrap: {
+    position: "absolute",
+    left: 24,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 32,
+    gap: 10,
   },
   brandIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 12,
-  },
-  brandText: {
-    flexDirection: "row",
-    marginLeft: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 9,
   },
   brandName: {
-    fontSize: 26,
-    fontFamily: fonts.semibold,
-    color: TEXT_1,
-  },
-  brandNameAccent: {
-    fontSize: 26,
-    fontFamily: fonts.semibold,
-    color: AMBER,
-  },
-  // Card
-  card: {
-    backgroundColor: CARD_BG,
-    borderRadius: 16,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  title: {
     fontSize: 20,
-    fontFamily: fonts.light,
-    color: TEXT_1,
-    marginBottom: 24,
+    fontFamily: fonts.bold,
+    color: colors.text1,
     letterSpacing: -0.3,
   },
-  label: {
+  brandAccent: {
+    color: colors.amber,
+  },
+  chip: {
+    position: "absolute",
+    right: 24,
+    bottom: 64,
+    backgroundColor: "rgba(10,17,32,0.92)",
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  chipLabel: {
     fontSize: 12,
-    color: TEXT_2,
-    marginBottom: 6,
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
+    color: colors.text3,
+    fontFamily: fonts.regular,
+  },
+  chipValue: {
+    fontSize: 17,
+    color: colors.text1,
+    fontFamily: fonts.bold,
+  },
+  chipAccent: {
+    color: colors.amber,
+  },
+  // Body
+  body: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 4,
+  },
+  headline: {
+    fontSize: 34,
+    lineHeight: 38,
+    fontFamily: fonts.bold,
+    color: colors.text1,
+    letterSpacing: -0.8,
+  },
+  sub: {
+    marginTop: 12,
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.text3,
+    fontFamily: fonts.regular,
+  },
+  title: {
+    fontSize: 26,
+    fontFamily: fonts.bold,
+    color: colors.text1,
+    letterSpacing: -0.5,
+  },
+  buttons: {
+    marginTop: 28,
+    gap: 12,
+  },
+  appleButton: {
+    height: 54,
+    width: "100%",
+  },
+  outlineButton: {
+    height: 54,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  outlineButtonText: {
+    color: colors.text1,
+    fontSize: 17,
+    fontFamily: fonts.semibold,
+  },
+  dimmed: {
+    opacity: 0.6,
+  },
+  // Email form
+  form: {
+    marginTop: 24,
+    gap: 16,
+  },
+  field: {
+    gap: 6,
+  },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+  },
+  label: {
+    fontSize: 14,
+    color: "#cbd5e1",
+    fontFamily: fonts.semibold,
+  },
+  forgotText: {
+    fontSize: 14,
+    color: colors.amber,
     fontFamily: fonts.semibold,
   },
   input: {
-    backgroundColor: "rgba(255,255,255,0.03)",
+    height: 52,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderColor: "rgba(255,255,255,0.10)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
-    color: TEXT_1,
-    marginBottom: 18,
+    color: colors.text1,
     fontFamily: fonts.regular,
   },
+  passwordInput: {
+    paddingRight: 52,
+  },
   inputFocused: {
-    borderColor: "rgba(245, 166, 35, 0.35)",
+    borderColor: "rgba(245,166,35,0.5)",
   },
-  button: {
-    backgroundColor: AMBER,
-    borderRadius: 12,
-    paddingVertical: 16,
+  eyeButton: {
+    position: "absolute",
+    right: 4,
+    top: 4,
+    width: 44,
+    height: 44,
     alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryButton: {
     marginTop: 4,
-    ...Platform.select({
-      ios: {
-        shadowColor: AMBER,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-      },
-      android: { elevation: 4 },
-    }),
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: colors.amber,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: BG,
-    fontSize: 16,
+  primaryButtonText: {
+    color: colors.bg,
+    fontSize: 17,
     fontFamily: fonts.bold,
-    letterSpacing: 0.3,
   },
+  backLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+  },
+  backLinkText: {
+    color: colors.text2,
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+  },
+  // Error
   errorWrap: {
+    marginTop: 16,
     backgroundColor: "rgba(220, 38, 38, 0.1)",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 16,
     borderWidth: 1,
     borderColor: "rgba(220, 38, 38, 0.2)",
   },
   errorText: {
     color: "#f87171",
-    fontSize: 13,
+    fontSize: 14,
+    lineHeight: 20,
     textAlign: "center",
     fontFamily: fonts.regular,
+  },
+  // Footer
+  spacer: {
+    flex: 1,
+    minHeight: 28,
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 24,
+    alignItems: "center",
   },
   footerText: {
-    color: TEXT_2,
-    fontSize: 14,
+    color: colors.text3,
+    fontSize: 15,
     fontFamily: fonts.regular,
   },
   link: {
-    color: AMBER,
-    fontSize: 14,
-    fontFamily: fonts.semibold,
+    color: colors.amber,
+    fontSize: 15,
+    fontFamily: fonts.bold,
   },
-  forgotWrap: {
-    alignSelf: "flex-end",
-    marginBottom: 16,
-    marginTop: -8,
-  },
-  forgotText: {
-    color: TEXT_2,
-    fontSize: 13,
+  terms: {
+    marginTop: 14,
+    textAlign: "center",
+    color: colors.text2,
+    fontSize: 12,
+    lineHeight: 18,
     fontFamily: fonts.regular,
   },
-  // Social buttons
-  appleButton: {
-    height: 50,
-    marginBottom: 12,
-  },
-  googleButton: {
-    height: 50,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-    marginBottom: 4,
-  },
-  googleButtonInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  googleButtonText: {
-    color: TEXT_1,
-    fontSize: 16,
-    fontFamily: fonts.semibold,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  dividerText: {
-    color: TEXT_3,
-    fontSize: 13,
-    marginHorizontal: 16,
-    textTransform: "lowercase",
-    fontFamily: fonts.regular,
+  termsLink: {
+    color: colors.text3,
+    textDecorationLine: "underline",
   },
 });
