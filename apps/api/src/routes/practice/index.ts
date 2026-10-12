@@ -25,6 +25,7 @@ import {
   PRACTICE_REQUESTS_PER_WEEK,
   PRACTICE_STAFF_CAP,
   linkEndsAt,
+  mileageRateNote,
   mtdQuarters,
   parsePastedInvites,
   practicePeriod,
@@ -710,7 +711,7 @@ export async function practiceRoutes(app: FastifyInstance) {
 
     await refreshAutoRequests([clientId], now);
 
-    const [user, figures, expenses, unsorted, recentTrips, businessCount, hmrc, sent, requests] = await Promise.all([
+    const [user, figures, expenses, unsorted, recentTrips, businessCount, hmrc, sent, requests, byVehicle] = await Promise.all([
       prisma.user.findUnique({
         where: { id: clientId },
         select: {
@@ -718,7 +719,7 @@ export async function practiceRoutes(app: FastifyInstance) {
           displayName: true,
           workType: true,
           lastTripAt: true,
-          vehicles: { select: { vehicleType: true, isPrimary: true } },
+          vehicles: { select: { id: true, vehicleType: true, isPrimary: true } },
         },
       }),
       loadPeriodFigures(clientId, bounds),
@@ -753,12 +754,26 @@ export async function practiceRoutes(app: FastifyInstance) {
         take: 20,
         select: requestSelect,
       }),
+      // Which vehicles the period's business miles were driven in, for the
+      // rate note (motorbikes are 24p flat).
+      prisma.trip.groupBy({
+        by: ["vehicleId"],
+        where: { userId: clientId, isPhantomTrip: false, classification: "business", startedAt: { gte: bounds.start, lte: bounds.end } },
+        _count: { _all: true },
+      }),
     ]);
     if (!user) return reply.status(404).send({ error: "This client's account was closed.", code: "account_closed" });
 
     const employee = user.workType === "employee";
     const earningsShared = link.shareEarnings && !employee;
     const primary = user.vehicles.find((v) => v.isPrimary) ?? user.vehicles[0];
+    const typeById = new Map(user.vehicles.map((v) => [v.id, v.vehicleType]));
+    const rateVehicleTypes = [
+      ...new Set(
+        byVehicle
+          .map((g) => (g.vehicleId ? typeById.get(g.vehicleId) : primary?.vehicleType) ?? primary?.vehicleType ?? "car")
+      ),
+    ];
     const daysQuiet = user.lastTripAt ? Math.floor((now.getTime() - user.lastTripAt.getTime()) / DAY_MS) : null;
 
     const chase: Array<Record<string, unknown>> = [];
@@ -797,6 +812,11 @@ export async function practiceRoutes(app: FastifyInstance) {
           toSort: unsorted._count._all,
           toSortFrom: unsorted._min.startedAt?.toISOString() ?? null,
           toSortTo: unsorted._max.startedAt?.toISOString() ?? null,
+          rateVehicleTypes,
+          rateNote:
+            user.workType === "employee"
+              ? `Mileage claim for ${period.taxYear}`
+              : mileageRateNote(period.taxYear, rateVehicleTypes.length ? rateVehicleTypes : [primary?.vehicleType ?? "car"]),
         },
         quarters: quarters.map((q) => ({
           ...q,

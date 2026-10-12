@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  mileageRateNote,
   accessLogSentence,
   linkEndsAt,
   mtdQuarters,
@@ -122,5 +123,17 @@ describe("pasted invite lists", () => {
       { line: 4, raw: "a@x.com", email: "a@x.com", name: null, valid: true },
       { line: 4, raw: "b@y.com", email: "b@y.com", name: null, valid: true },
     ]);
+  });
+});
+
+describe("mileage rate note", () => {
+  it("uses the tax-year rates for the vehicles driven", () => {
+    expect(mileageRateNote("2026-27", ["car"])).toBe("At 55p a mile (2026-27), 25p after 10,000");
+    expect(mileageRateNote("2025-26", ["van"])).toBe("At 45p a mile (2025-26), 25p after 10,000");
+    expect(mileageRateNote("2026-27", ["motorbike"])).toBe("At 24p a mile for a motorbike (2026-27)");
+    expect(mileageRateNote("2026-27", ["car", "motorbike"])).toBe(
+      "55p a mile by car or van (25p after 10,000), 24p a mile by motorbike (2026-27)"
+    );
+    expect(mileageRateNote("2026-27", [])).toBe("At 55p a mile (2026-27), 25p after 10,000");
   });
 });

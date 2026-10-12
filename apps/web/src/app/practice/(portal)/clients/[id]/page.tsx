@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getHmrcRatesForTaxYear, practicePeriods, ukDateKey, type PracticePeriodKey } from "@mileclear/shared";
+import { practicePeriods, ukDateKey, type PracticePeriodKey } from "@mileclear/shared";
 import {
   Button,
   Card,
@@ -56,11 +56,6 @@ function readTab(): Tab {
   return t && TABS.includes(t) ? t : "overview";
 }
 
-function rateNote(taxYear: string, workType: string): string {
-  if (workType === "employee") return `Mileage claim for ${taxYear}`;
-  const p = getHmrcRatesForTaxYear(taxYear).car.first10000;
-  return `At ${p}p a mile (${taxYear}), 25p after 10,000`;
-}
 
 export default function ClientPage() {
   const params = useParams<{ id: string }>();
@@ -299,7 +294,7 @@ export default function ClientPage() {
           <div className="mc-stack">
             <div className="pc-tiles">
               <StatTile label="Business miles" value={milesText(figures.businessMiles)} unit="mi" note={`${figures.businessTrips} business trips`} />
-              <StatTile label="Mileage claim" value={poundsText(figures.claimPence)} note={rateNote(data.period.taxYear, client.workType)} />
+              <StatTile label="Mileage claim" value={poundsText(figures.claimPence)} note={figures.rateNote} />
               <StatTile
                 label="Earnings"
                 value={figures.earningsShared ? poundsText(figures.earningsPence ?? 0) : null}

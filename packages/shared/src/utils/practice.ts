@@ -1,3 +1,5 @@
+import { getHmrcRatesForTaxYear } from "../constants/index.js";
+
 // Practice accounts (Accountant mode phase 1, Oct 2026).
 //
 // Pure helpers both sides share: MTD quarter dates and the periods the
@@ -454,4 +456,24 @@ export function parsePastedInvites(text: string): PastedInvite[] {
     });
   });
   return out;
+}
+
+// ── Mileage rate note (client page) ─────────────────────────────────────
+
+/**
+ * The rate line under the mileage claim, for the vehicle types the
+ * client's business miles were driven in, from the tax-year rates:
+ * "At 55p a mile (2026-27), 25p after 10,000", "At 24p a mile (2026-27)"
+ * for motorbikes, or both for a mix.
+ */
+export function mileageRateNote(taxYear: string, vehicleTypes: string[]): string {
+  const rates = getHmrcRatesForTaxYear(taxYear);
+  const bike = vehicleTypes.includes("motorbike");
+  const carVan = vehicleTypes.some((t) => t !== "motorbike") || vehicleTypes.length === 0;
+  const car = `${rates.car.first10000}p a mile`;
+  const after = `${rates.car.after10000}p after 10,000`;
+  const moto = `${rates.motorbike.flat}p a mile`;
+  if (bike && !carVan) return `At ${moto} for a motorbike (${taxYear})`;
+  if (bike && carVan) return `${car} by car or van (${after}), ${moto} by motorbike (${taxYear})`;
+  return `At ${car} (${taxYear}), ${after}`;
 }
