@@ -23,13 +23,11 @@ export function UpdateChip({ update }: { update: UpdateState }) {
   }
 }
 
-export function WaitingChip({ state, name }: { state: WaitingState; name: string | null }) {
-  const first = name ? name.trim().split(/\s+/)[0] : "client";
+export function WaitingChip({ state }: { state: WaitingState; name?: string | null }) {
   switch (state) {
-    case "invited_not_joined":
-      return <StatusChip tone="neutral" icon="mail-outline" label="Invited, not joined" />;
-    case "waiting_for_client":
-      return <StatusChip tone="neutral" icon="time-outline" label={`Waiting for ${first}`} />;
+    case "invited":
+      // Same label whether or not they already use MileClear.
+      return <StatusChip tone="neutral" icon="mail-outline" label="Invited" />;
     case "wants_to_join":
       return <StatusChip tone="amber" icon="people-outline" label="Wants to join" />;
     case "said_no":

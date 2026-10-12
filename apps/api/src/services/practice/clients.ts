@@ -114,8 +114,9 @@ export interface ClientRow {
 }
 
 export type WaitingState =
-  | "invited_not_joined"
-  | "waiting_for_client"
+  // One state for every unanswered practice invite, whether or not the
+  // email has a MileClear account: the practice must not be able to tell.
+  | "invited"
   | "wants_to_join"
   | "said_no"
   | "invite_expired";
@@ -303,7 +304,7 @@ export async function loadClientList(
     // Before a driver has said yes, the practice sees only what it typed
     // (the email and name it invited), never the account's own name. A
     // driver who asked to join, or who shared before, shows as themselves.
-    const sharedBefore = l.startedBy === "driver" || !!l.startedAt || !!l.consentedAt;
+    const sharedBefore = l.status !== "invited" && (l.startedBy === "driver" || !!l.startedAt || !!l.consentedAt);
     const name = sharedBefore && l.client ? nameOf(l.client) : l.invitedName;
     const email = sharedBefore && l.client ? l.client.email : l.invitedEmail ?? null;
     if (l.status === "invited") {
@@ -313,7 +314,7 @@ export async function loadClientList(
         clientId: null,
         name,
         email,
-        state: expired ? "invite_expired" : l.client ? "waiting_for_client" : "invited_not_joined",
+        state: expired ? "invite_expired" : "invited",
         invitedAt: l.invitedAt?.toISOString() ?? null,
         lastResentAt: l.lastResentAt?.toISOString() ?? null,
         startedBy: l.startedBy,
@@ -363,8 +364,7 @@ export async function loadClientList(
   // Practice decisions first.
   const order: Record<WaitingState, number> = {
     wants_to_join: 0,
-    waiting_for_client: 1,
-    invited_not_joined: 2,
+    invited: 1,
     invite_expired: 3,
     said_no: 4,
   };

@@ -762,7 +762,7 @@ function WaitingList({
                         </Button>
                       </>
                     )}
-                    {(r.state === "invited_not_joined" || r.state === "waiting_for_client" || r.state === "invite_expired") && (
+                    {(r.state === "invited" || r.state === "invite_expired") && (
                       <>
                         <button
                           type="button"

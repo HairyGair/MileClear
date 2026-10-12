@@ -16,7 +16,7 @@ vi.mock("../../lib/prisma.js", () => ({
   prisma: {
     practiceMember: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn(), findUnique: vi.fn() },
     practice: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-    practiceLink: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), count: vi.fn() },
+    practiceLink: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), count: vi.fn(), create: vi.fn() },
     practiceAccessLog: { create: vi.fn(), findMany: vi.fn(), createMany: vi.fn() },
     practiceRequest: {
       findMany: vi.fn(),
@@ -217,13 +217,67 @@ describe("practice routes", () => {
     const bizCall = vi.mocked(prisma.trip.groupBy).mock.calls.find((c) => (c[0] as { where: { classification: string } }).where.classification === "business")!;
     expect((bizCall[0] as { where: { userId: { in: string[] } } }).where.userId).toEqual({ in: [CLIENT] });
     expect(data.waiting).toEqual([
-      expect.objectContaining({ state: "waiting_for_client", name: "Pat (as typed)", email: "pat@example.com", clientId: null }),
+      expect.objectContaining({ state: "invited", name: "Pat (as typed)", email: "pat@example.com", clientId: null }),
     ]);
     expect(JSON.stringify(data)).not.toContain("Account Name");
     // The list view is logged once per client per day.
     expect(vi.mocked(prisma.practiceAccessLog.createMany).mock.calls[0][0]!.data).toEqual([
       expect.objectContaining({ clientUserId: CLIENT, action: "viewed_list" }),
     ]);
+  });
+
+  // ── Invites never reveal who has an account ──────────────────────────
+
+  it("an invite looks the same to the practice whether or not the email has a MileClear account", async () => {
+    const existingId = "00000000-0000-0000-0000-00000000cc07";
+    const email = "pat@example.com";
+    vi.mocked(prisma.practiceMember.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.practiceLink.findFirst).mockResolvedValue(null as never);
+    vi.mocked(prisma.practiceLink.create).mockResolvedValue({ id: "00000000-0000-0000-0000-00000000ee07" } as never);
+    vi.mocked(prisma.practiceLink.count).mockResolvedValue(0 as never);
+
+    async function run(hasAccount: boolean) {
+      vi.mocked(prisma.user.findMany).mockResolvedValue((hasAccount ? [{ id: existingId, email }] : []) as never);
+      vi.mocked(prisma.user.findUnique).mockResolvedValue((hasAccount ? { id: existingId } : null) as never);
+      vi.mocked(prisma.practiceLink.findUnique).mockResolvedValue(null as never);
+      vi.mocked(prisma.practiceLink.findMany).mockResolvedValue([] as never);
+      const check = await app.inject({ method: "POST", url: "/practice/invites/check", headers: auth, payload: { text: `${email}, Pat` } });
+      const invite = await app.inject({ method: "POST", url: "/practice/invites", headers: auth, payload: { email, name: "Pat" } });
+
+      // The list afterwards: the stored row differs only in clientUserId,
+      // which the practice must never see the effect of.
+      const now = new Date("2026-10-10T09:00:00Z");
+      vi.mocked(prisma.practiceLink.findMany).mockResolvedValue([
+        {
+          ...linkRow({ id: "00000000-0000-0000-0000-00000000ee07", status: "invited", consentedAt: null, startedAt: null, endsAt: null }),
+          clientUserId: hasAccount ? existingId : null,
+          invitedEmail: email,
+          invitedName: "Pat",
+          inviteExpiresAt: new Date(now.getTime() + 30 * DAY),
+          invitedAt: now,
+          lastResentAt: null,
+          askedAgainAt: null,
+          updatedAt: now,
+          client: hasAccount
+            ? { id: existingId, email, fullName: "Their Own Name", displayName: "Own", workType: "gig", lastTripAt: null, vehicles: [] }
+            : null,
+        },
+      ] as never);
+      const list = await app.inject({ method: "GET", url: "/practice/clients", headers: auth });
+      return {
+        check: [check.statusCode, check.json()],
+        invite: [invite.statusCode, invite.json()],
+        list: [list.statusCode, list.json()],
+      };
+    }
+
+    const withAccount = await run(true);
+    const withoutAccount = await run(false);
+    expect(withAccount).toEqual(withoutAccount);
+    expect(withAccount.invite[1]).toEqual({ data: { outcome: "invited" } });
+    const waiting = (withAccount.list[1] as { data: { waiting: unknown[] } }).data.waiting;
+    expect(waiting).toEqual([expect.objectContaining({ state: "invited", name: "Pat", email, clientId: null })]);
+    expect(JSON.stringify(withAccount)).not.toContain("Their Own Name");
   });
 
   // ── Business only ────────────────────────────────────────────────────

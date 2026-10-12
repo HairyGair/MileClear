@@ -148,7 +148,7 @@ export interface ClientRow {
   renewalAskedAt: string | null;
 }
 
-export type WaitingState = "invited_not_joined" | "waiting_for_client" | "wants_to_join" | "said_no" | "invite_expired";
+export type WaitingState = "invited" | "wants_to_join" | "said_no" | "invite_expired";
 
 export interface WaitingRow {
   linkId: string;
@@ -240,6 +240,8 @@ export interface ClientOverview {
     toSort: number;
     toSortFrom: string | null;
     toSortTo: string | null;
+    rateVehicleTypes: string[];
+    rateNote: string;
   };
   quarters: (MtdQuarter & { update: UpdateState })[];
   recentTrips: TripRow[];
