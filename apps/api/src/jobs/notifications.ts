@@ -56,8 +56,14 @@ import {
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert, discordUserLabel } from "../services/discord.js";
-import { shouldSendStuckRecordingAlert } from "../services/stuckRecordingRule.js";
-import { CLEARTRACK_QUIET_DAYS, planClearTrackAlert } from "../services/clearTrackAlertRule.js";
+import { recordingAlreadySaved, RECORDING_SAVED_WINDOW_MS, shouldSendStuckRecordingAlert } from "../services/stuckRecordingRule.js";
+import {
+  CLEARTRACK_QUIET_DAYS,
+  planClearTrackAlert,
+  planSilentNaming,
+  SILENT_FIRST_SEEN_EVENT,
+  SILENT_SEEN_LOOKBACK_DAYS,
+} from "../services/clearTrackAlertRule.js";
 import { findPhonesQuietAfterLowBattery, PHONE_QUIET_BODY, PHONE_QUIET_TITLE } from "../services/phoneQuiet.js";
 import {
   runFirstTripCelebrationJob,
@@ -777,6 +783,18 @@ async function runMorningBriefingJob(): Promise<void> {
 // whatever the prices, with the price divided by ten. Replaced by the opt-in
 // jobs in ./fuelAlerts.ts (cheapest fuel near you; EV running costs).
 
+/** One cheap query: has an automatic trip covering this recording been saved? */
+async function autoTripSavedAround(userId: string, lastDrivingMs: number): Promise<boolean> {
+  if (!Number.isFinite(lastDrivingMs)) return false;
+  const since = new Date(lastDrivingMs - RECORDING_SAVED_WINDOW_MS);
+  const trips = await prisma.trip.findMany({
+    where: { userId, isManualEntry: false, endedAt: { gte: since }, createdAt: { gte: since } },
+    select: { endedAt: true, createdAt: true },
+    take: 5,
+  });
+  return recordingAlreadySaved(trips, lastDrivingMs);
+}
+
 async function runDiagnosticScanJob(): Promise<void> {
   // Scan all existing diagnostic dumps for fixable issues and alert users.
   // This catches users who uploaded a dump previously but weren't alerted
@@ -801,13 +819,24 @@ async function runDiagnosticScanJob(): Promise<void> {
     where: { createdAt: { gte: freshCutoff } },
     select: {
       userId: true,
+      createdAt: true,
       statusJson: true,
       user: { select: { pushToken: true, email: true, displayName: true } },
     },
   });
 
+  // Newest dump per user only. diagnostic_dumps.userId is unique today, so this
+  // is a guard: if that ever changes, an older dump saying autoRecordingActive
+  // must not alert over a newer one that says it stopped. (No orderBy in the
+  // query: statusJson is wide and sorting it blows MySQL's sort buffer.)
+  const newestByUser = new Map<string, (typeof dumps)[number]>();
+  for (const d of dumps) {
+    const cur = newestByUser.get(d.userId);
+    if (!cur || d.createdAt > cur.createdAt) newestByUser.set(d.userId, d);
+  }
+
   let sent = 0;
-  for (const dump of dumps) {
+  for (const dump of newestByUser.values()) {
     if (!dump.user.pushToken) continue;
 
     const status = dump.statusJson as Record<string, unknown>;
@@ -903,7 +932,10 @@ async function runDiagnosticScanJob(): Promise<void> {
         trackingState,
         minElapsedMs: 15 * 60 * 1000,
         maxElapsedMs: 24 * 60 * 60 * 1000,
-      })
+      }) &&
+      // 12 Oct 2026: 96% of these fired after the recording had already been
+      // saved as a trip. A real stuck recording has no saved trip around it.
+      !(await autoTripSavedAround(dump.userId, parseInt(lastDrivingStr!, 10)))
     ) {
       checks.push({
         condition: true,
@@ -1111,7 +1143,13 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // and detection resumed. So the duration alone would have paged four times
   // for nothing. The discriminator is duration AND silence: every false
   // positive had an auto trip AFTER the lock began, and Duncan had none.
-  const STUCK_LOCK_MIN_MS = 3 * 60 * 60 * 1000;
+  //
+  // 12 Oct 2026: raised from 3h to 5h. A driver was flagged at 4h while
+  // genuinely part-way through a 3.5 hour, 142 mile Start Trip that saved
+  // fine a second later. Long legitimate drives (and waits on a Start Trip)
+  // routinely pass 3h, so the lock needs to be held well past that before
+  // it is worth waking the founder.
+  const STUCK_LOCK_MIN_MS = 5 * 60 * 60 * 1000;
   const lockCandidates: {
     label: string;
     userId: string;
@@ -1226,6 +1264,39 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // emailed in the last week are being handled, and #founder only hears about
   // a driver once a week. Both read from app_events so a restart forgets
   // nothing.
+  //
+  // Silent bucket, 12 Oct 2026: 80% of drivers flagged more than three days
+  // earlier recorded again within three days with no contact, so a driver is
+  // only named once they have been silent on two runs at least 24h apart. The
+  // first sighting is stored as an app_event (a restart forgets nothing). This
+  // runs AFTER the stranded check above, which still sees the full silent list.
+  if (silent.length > 0) {
+    const seenRows = await prisma.appEvent.findMany({
+      where: {
+        userId: { in: silent.map((u) => u.userId) },
+        type: SILENT_FIRST_SEEN_EVENT,
+        createdAt: { gte: new Date(nowMs - SILENT_SEEN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000) },
+      },
+      select: { userId: true, createdAt: true },
+    });
+    const seenAtMs = new Map<string, number>();
+    for (const r of seenRows) {
+      if (!r.userId) continue;
+      const t = r.createdAt.getTime();
+      const prev = seenAtMs.get(r.userId);
+      if (prev === undefined || t < prev) seenAtMs.set(r.userId, t);
+    }
+    const silentPlan = planSilentNaming(
+      silent.map((u) => u.userId),
+      seenAtMs,
+      nowMs
+    );
+    for (const id of silentPlan.firstSeenIds) logEvent(SILENT_FIRST_SEEN_EVENT, id, {});
+    silent.splice(0, silent.length, ...silent.filter((u) => silentPlan.nameIds.has(u.userId)));
+    console.log(
+      `[native-health] silent bucket: ${silentPlan.nameIds.size} confirmed, ${silentPlan.firstSeenIds.size} first seen, ${silentPlan.waitingCount} waiting for the 24h recheck`
+    );
+  }
   const flaggedIds = [...unhealthy, ...silent, ...stranded, ...stuckLock].map((u) => u.userId);
   if (flaggedIds.length === 0) return;
   const quietSince = new Date(Date.now() - CLEARTRACK_QUIET_DAYS * 24 * 60 * 60 * 1000);

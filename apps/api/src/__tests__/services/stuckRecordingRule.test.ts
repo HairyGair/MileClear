@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   shouldSendStuckRecordingAlert,
   isStartTripReminderOwned,
+  recordingAlreadySaved,
 } from "../../services/stuckRecordingRule.js";
 
 const NOW = 1_800_000_000_000;
@@ -94,5 +95,31 @@ describe("shouldSendStuckRecordingAlert", () => {
   });
   it("handles a missing trackingState", () => {
     expect(shouldSendStuckRecordingAlert({ ...base, trackingState: undefined })).toBe(true);
+  });
+});
+
+describe("recordingAlreadySaved (12 Oct 2026: 96% of scan alerts followed a saved trip)", () => {
+  const last = NOW - 40 * MIN;
+  const at = (ms: number) => new Date(ms);
+  it("is true when an auto trip ended at the last-driving moment and was created after", () => {
+    expect(recordingAlreadySaved([{ endedAt: at(last + MIN), createdAt: at(last + 5 * MIN) }], last)).toBe(true);
+  });
+  it("is true when the trip ended up to 45 minutes before the last-driving moment", () => {
+    expect(recordingAlreadySaved([{ endedAt: at(last - 44 * MIN), createdAt: at(last - 43 * MIN) }], last)).toBe(true);
+  });
+  it("is false for an earlier drive that ended well before", () => {
+    expect(recordingAlreadySaved([{ endedAt: at(last - 3 * 60 * MIN), createdAt: at(last - 3 * 60 * MIN) }], last)).toBe(false);
+  });
+  it("is false when the trip was created long before the recording", () => {
+    expect(recordingAlreadySaved([{ endedAt: at(last), createdAt: at(last - 2 * 60 * MIN) }], last)).toBe(false);
+  });
+  it("ignores trips with no end time", () => {
+    expect(recordingAlreadySaved([{ endedAt: null, createdAt: at(last + MIN) }], last)).toBe(false);
+  });
+  it("is false with no trips (a genuinely stuck recording still alerts)", () => {
+    expect(recordingAlreadySaved([], last)).toBe(false);
+  });
+  it("is false for a non-finite last-driving time", () => {
+    expect(recordingAlreadySaved([{ endedAt: at(last), createdAt: at(last) }], NaN)).toBe(false);
   });
 });

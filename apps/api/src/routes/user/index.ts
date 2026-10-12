@@ -11,7 +11,6 @@ import { issueVerificationCode } from "../../services/verificationCodes.js";
 import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup.js";
 import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
-import { shouldSendStuckRecordingAlert } from "../../services/stuckRecordingRule.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
@@ -181,9 +180,6 @@ async function analyzeDiagnosticAndAlert(
   const bgPermission = statusJson.backgroundPermission as string | undefined;
   const taskRunning = statusJson.taskRunning as boolean | undefined;
   const enabled = statusJson.enabled as boolean | undefined;
-  const autoRecording = statusJson.autoRecordingActive as boolean | undefined;
-  const lastDrivingStr = (statusJson.trackingState as Array<{ key: string; value: string }> | undefined)
-    ?.find((s) => s.key === "last_driving_speed_at")?.value;
 
   // Helper: send alert to user + notify all admins
   async function sendAlertWithAdminNotify(
@@ -239,29 +235,12 @@ async function analyzeDiagnosticAndAlert(
     );
   }
 
-  // Alert 3: Stuck recording (active but no driving for >30 min). Skipped for
-  // a Start Trip: the phone's own "Still on your trip?" reminder covers it.
-  if (autoRecording === true && lastDrivingStr) {
-    const trackingState = statusJson.trackingState as Array<{ key: string; value: string }> | undefined;
-    if (
-      shouldSendStuckRecordingAlert({
-        autoRecording,
-        lastDrivingStr,
-        nowMs: Date.now(),
-        trackingState,
-        minElapsedMs: 30 * 60 * 1000,
-      })
-    ) {
-      await sendAlertWithAdminNotify(
-        userId,
-        "alert.stuck_recording",
-        "A trip is waiting to save",
-        "It looks like a recording is still running. Open MileClear to save the trip.",
-        { action: "open_trips" },
-        { elapsedMs: Date.now() - parseInt(lastDrivingStr, 10) },
-      );
-    }
-  }
+  // Alert 3 (stuck recording) used to fire here and was removed 12 Oct 2026.
+  // A dump uploads when the app opens, which is exactly when the app finishes
+  // the pending recording itself, so the push raced the save: of 202 alerts in
+  // 14 days, 71 were already saved and 99 were saved within 10 minutes. The
+  // diagnostic scan (jobs/notifications.ts) still catches a genuinely stuck
+  // recording, and checks the trip has not been saved first.
 }
 
 /** PNG (89 50 4E 47) or JPEG (FF D8 FF) magic bytes — the only formats
