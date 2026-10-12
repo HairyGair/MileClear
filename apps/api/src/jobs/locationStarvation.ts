@@ -1,9 +1,9 @@
 // Location-starvation push: tell an Android driver their phone is holding back
 // MileClear's location, once, when the pattern is unmistakable.
 //
-//   "Android is holding back your trips"
-//   "Your phone is limiting MileClear's battery, so drives aren't saving. Tap
-//    to set MileClear to Unrestricted."
+//   "Your drives may not be saving"
+//   "Your phone may be limiting MileClear in the background, so drives aren't
+//    saving. Tap to open battery settings."
 //
 // Why (12 Oct 2026): the phone reports every recording it throws away as
 // `trip.recording_dropped` (sent since 10 Oct). In the first 2.5 days there
@@ -17,11 +17,17 @@
 // scripts/location-starvation-effect.mjs).
 //
 // Who (all must hold):
-//   - Android (the drop event says so);
-//   - 3 or more "starved" drops in the last 72h: reason too_short or no_coords,
-//     3 location points or fewer, and 60 seconds or longer where the phone
-//     said how long (a 10 second blip is a pocket wobble, not starvation);
-//   - no automatic trip saved since the newest starved drop (a phone that
+//   - Android (the drop event says so), and not clearly an iPhone now (the
+//     latest diagnostic dump says ios, or the account has only ever been seen
+//     on iOS);
+//   - 3 or more "starved" drops whose DRIVE happened in the last 72h (the
+//     drop's endedAt, else droppedAt, else upload time: a batch of old drops
+//     uploaded together from the phone's outbox must not look recent). A
+//     starved drop is one the phone itself called lost, with 1 to 3 location
+//     points, and for 2 or 3 points a duration of 60 seconds or more
+//     (duration is first-to-last fix, so it is 0 for a single fix; a 2-fix
+//     drop with no duration is unknowable and does not count);
+//   - no automatic trip ended after the newest starved drop (a phone that
 //     recovered on its own is left alone);
 //   - the latest diagnostic dump does not already say MileClear is
 //     unrestricted (batteryOptimisation.ignoring === true), and the driver has
@@ -44,21 +50,25 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
-import { logEvent } from "../services/appEvents.js";
 
 export const LOCATION_STARVATION_EVENT = "notification.location_starvation";
 export const LOCATION_STARVATION_OPENED_EVENT = "notification.location_starvation_opened";
 export const LOCATION_STARVATION_DRY_RUN_EVENT = "location_starvation.dry_run";
 export const LOCATION_STARVATION_ACTION = "open_battery_settings";
-export const LOCATION_STARVATION_TITLE = "Android is holding back your trips";
+export const LOCATION_STARVATION_TITLE = "Your drives may not be saving";
 export const LOCATION_STARVATION_BODY =
-  "Your phone is limiting MileClear's battery, so drives aren't saving. Tap to set MileClear to Unrestricted.";
+  "Your phone may be limiting MileClear in the background, so drives aren't saving. Tap to open battery settings.";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 export const STARVATION_WINDOW_MS = 72 * HOUR_MS;
 export const STARVATION_MIN_DROPS = 3;
 export const STARVATION_MAX_COORDS = 3;
+/** The phone's event outbox keeps events up to 14 days (OUTBOX_MAX_AGE_MS in
+ *  the app), so an upload can be that much later than the drive. */
+export const STARVATION_UPLOAD_LAG_MS = 14 * DAY_MS;
+/** Rows are small; this only stops a runaway read. */
+export const STARVATION_DROP_QUERY_CAP = 20000;
 export const STARVATION_MIN_DURATION_SEC = 60;
 export const STARVATION_COOLDOWN_MS = 30 * DAY_MS;
 export const STARVATION_SUPPORT_QUIET_MS = 7 * DAY_MS;
@@ -74,18 +84,60 @@ export function locationStarvationEnabled(env: NodeJS.ProcessEnv = process.env):
   return env.LOCATION_STARVATION_PUSH === "1";
 }
 
-/** Is this `trip.recording_dropped` metadata a starved recording? */
+/**
+ * Is this `trip.recording_dropped` metadata a starved recording?
+ *
+ * 12 Oct 2026 review: the first version counted false starts (a recording
+ * opened and closed with no fixes at all, or a 10 second wobble). Now the
+ * phone's own verdict is required (`lost === true`, which already leaves out
+ * orphan sweeps and joined or duplicate recordings) and at least one fix must
+ * exist. `durationSec` is first-to-last fix time, so a single fix has 0 and is
+ * accepted; with 2 or 3 fixes the recording must have lasted a minute, and a
+ * missing duration cannot be judged so it does not count.
+ */
 export function isStarvedDrop(metadata: unknown): boolean {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return false;
   const m = metadata as Record<string, unknown>;
   if (m.platform !== "android") return false;
   if (m.reason !== "too_short" && m.reason !== "no_coords") return false;
-  // Missing coords on a no_coords drop means none; missing on too_short is
-  // unknowable, so it does not count.
-  const coords = typeof m.coords === "number" ? m.coords : m.reason === "no_coords" ? 0 : null;
-  if (coords === null || coords > STARVATION_MAX_COORDS) return false;
-  if (typeof m.durationSec === "number" && m.durationSec < STARVATION_MIN_DURATION_SEC) return false;
+  if (m.lost !== true) return false;
+  const coords = m.coords;
+  if (typeof coords !== "number" || coords < 1 || coords > STARVATION_MAX_COORDS) return false;
+  if (coords >= 2) {
+    if (typeof m.durationSec !== "number" || m.durationSec < STARVATION_MIN_DURATION_SEC) return false;
+  }
   return true;
+}
+
+/**
+ * When the drive happened, not when the event reached the server. The phone
+ * queues events in an outbox (up to 14 days) and sends them in a batch, so
+ * createdAt can be days after the drive. endedAt, else droppedAt, else upload.
+ */
+export function dropDriveTimeMs(metadata: unknown, createdAt: Date): number {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    const m = metadata as Record<string, unknown>;
+    for (const v of [m.endedAt, m.droppedAt]) {
+      if (typeof v === "string") {
+        const t = Date.parse(v);
+        if (Number.isFinite(t)) return t;
+      }
+    }
+  }
+  return createdAt.getTime();
+}
+
+/**
+ * True only when the driver's current phone is clearly an iPhone: the latest
+ * dump says ios, or (no usable dump platform) the account has only ever been
+ * seen on iOS. A dump from an Android phone wins over history, so someone who
+ * moved from iPhone to Android is still included.
+ */
+export function currentPhoneIsIos(dumpPlatform: string | null | undefined, platformsSeen: string | null | undefined): boolean {
+  if (dumpPlatform === "ios") return true;
+  if (dumpPlatform === "android") return false;
+  const seen = new Set((platformsSeen ?? "").split(",").map((p) => p.trim()).filter(Boolean));
+  return seen.has("ios") && !seen.has("android");
 }
 
 /** Read `batteryOptimisation.ignoring` from a diagnostic dump's statusJson. */
@@ -99,10 +151,13 @@ export function dumpBatteryIgnoring(statusJson: unknown): boolean | null {
 
 export interface StarvationCandidate {
   hasPushToken: boolean;
-  /** Times (ms) of this driver's starved drops. */
+  /** Drive times (ms, see dropDriveTimeMs) of this driver's starved drops. */
   starvedDropTimes: number[];
-  /** When the newest automatic trip was saved (ms), if any in the window. */
+  /** When the newest automatic trip ENDED (ms), if any in the window. Drive
+   *  time, comparable with starvedDropTimes (not when it was uploaded). */
   lastAutoTripAt: number | null;
+  /** The driver's current phone is clearly an iPhone (currentPhoneIsIos). */
+  currentlyIos: boolean;
   /** From the latest diagnostic dump; null when unknown. */
   batteryIgnoring: boolean | null;
   /** battery_opt_nudge.resolved in the last 30 days: they already fixed it. */
@@ -117,6 +172,7 @@ export interface StarvationCandidate {
 
 export type StarvationSkip =
   | "no_token"
+  | "ios_now"
   | "too_few_drops"
   | "trip_saved_since"
   | "already_unrestricted"
@@ -133,6 +189,7 @@ export function decideLocationStarvation(
   now: number,
   live: boolean
 ): StarvationDecision {
+  if (c.currentlyIos) return { send: false, reason: "ios_now" };
   const inWindow = c.starvedDropTimes.filter((t) => t >= now - STARVATION_WINDOW_MS && t <= now);
   if (inWindow.length < STARVATION_MIN_DROPS) return { send: false, reason: "too_few_drops" };
   const lastStarvedAt = Math.max(...inWindow);
@@ -193,6 +250,7 @@ export async function planLocationStarvation(
   const since = new Date(nowMs - STARVATION_WINDOW_MS);
   const skipped: Record<StarvationSkip, number> = {
     no_token: 0,
+    ios_now: 0,
     too_few_drops: 0,
     trip_saved_since: 0,
     already_unrestricted: 0,
@@ -200,20 +258,31 @@ export async function planLocationStarvation(
     cooldown: 0,
   };
 
+  // Query by upload time, then judge by drive time in JS: the phone's outbox
+  // holds events up to 14 days, so a drop uploaded now can be from last week.
   const drops = await prisma.appEvent.findMany({
     where: {
       type: "trip.recording_dropped",
-      createdAt: { gte: since },
+      createdAt: { gte: new Date(nowMs - STARVATION_WINDOW_MS - STARVATION_UPLOAD_LAG_MS) },
       userId: { not: null },
       metadata: { path: "$.platform", equals: "android" },
     },
     select: { userId: true, metadata: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: STARVATION_DROP_QUERY_CAP,
   });
+  if (drops.length >= STARVATION_DROP_QUERY_CAP) {
+    console.warn(
+      `[jobs/locationStarvation] drop query hit its ${STARVATION_DROP_QUERY_CAP} row cap; the oldest uploads were not read`
+    );
+  }
   const dropTimes = new Map<string, number[]>();
   for (const d of drops) {
     if (!d.userId || !isStarvedDrop(d.metadata)) continue;
+    const t = dropDriveTimeMs(d.metadata, d.createdAt);
+    if (t < nowMs - STARVATION_WINDOW_MS || t > nowMs) continue;
     const a = dropTimes.get(d.userId) ?? [];
-    a.push(d.createdAt.getTime());
+    a.push(t);
     dropTimes.set(d.userId, a);
   }
   const ids: string[] = [];
@@ -225,23 +294,25 @@ export async function planLocationStarvation(
 
   const thirtyDays = new Date(nowMs - STARVATION_COOLDOWN_MS);
   const [users, trips, dumps, resolved, support, pushed, dryRuns] = await Promise.all([
-    prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, pushToken: true } }),
+    prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, pushToken: true, platformsSeen: true } }),
     // "Automatic" = not a manual entry; phantom trips are not real drives.
+    // Compared by when the trip ENDED (drive time), like the drops, not when
+    // it was created or uploaded.
     prisma.trip.groupBy({
       by: ["userId"],
       where: {
         userId: { in: ids },
         isManualEntry: false,
         isPhantomTrip: false,
-        createdAt: { gte: since },
+        endedAt: { gte: since },
       },
-      _max: { createdAt: true },
+      _max: { endedAt: true },
     }),
     // One dump row per user (userId is unique), so no orderBy while selecting
     // statusJson: that throws MysqlError 1038 on prod.
     prisma.diagnosticDump.findMany({
       where: { userId: { in: ids } },
-      select: { userId: true, statusJson: true },
+      select: { userId: true, platform: true, statusJson: true },
     }),
     prisma.appEvent.findMany({
       where: { type: "battery_opt_nudge.resolved", userId: { in: ids }, createdAt: { gte: thirtyDays } },
@@ -267,8 +338,9 @@ export async function planLocationStarvation(
 
   const lastTrip = new Map<string, number>();
   for (const t of trips) {
-    if (t._max.createdAt) lastTrip.set(t.userId, t._max.createdAt.getTime());
+    if (t._max.endedAt) lastTrip.set(t.userId, t._max.endedAt.getTime());
   }
+  const dumpPlatform = new Map(dumps.map((d) => [d.userId, d.platform]));
   const ignoring = new Map(dumps.map((d) => [d.userId, dumpBatteryIgnoring(d.statusJson)]));
   const resolvedSet = new Set(resolved.map((r) => r.userId));
   const supportAt = newestByUser(support);
@@ -282,6 +354,7 @@ export async function planLocationStarvation(
         hasPushToken: !!u.pushToken,
         starvedDropTimes: dropTimes.get(u.id) ?? [],
         lastAutoTripAt: lastTrip.get(u.id) ?? null,
+        currentlyIos: currentPhoneIsIos(dumpPlatform.get(u.id), u.platformsSeen),
         batteryIgnoring: ignoring.get(u.id) ?? null,
         batteryResolvedRecently: resolvedSet.has(u.id),
         lastSupportReplyAt: supportAt.get(u.id) ?? null,
@@ -321,12 +394,26 @@ export async function runLocationStarvationJob(now: Date = new Date()): Promise<
     .map(([k, v]) => `${k} ${v}`)
     .join(", ");
 
-  if (!live) {
-    for (const s of capped) {
-      logEvent(LOCATION_STARVATION_DRY_RUN_EVENT, s.userId, {
+  // The cooldown and the dry-run marker are read back from these rows, so they
+  // are written with an AWAITED createMany (not fire-and-forget logEvent): a
+  // write that fails silently would let the same driver be pushed again on the
+  // next run. If the write throws, nothing is sent.
+  const rows = (type: string) =>
+    capped.map((s) => ({
+      type,
+      userId: s.userId,
+      metadata: {
         starvedDrops: s.starvedDrops,
         lastStarvedAt: new Date(s.lastStarvedAt).toISOString(),
-      });
+      },
+    }));
+
+  if (!live) {
+    try {
+      if (capped.length > 0) await prisma.appEvent.createMany({ data: rows(LOCATION_STARVATION_DRY_RUN_EVENT) });
+    } catch (err) {
+      console.error("[jobs/locationStarvation] could not write dry-run markers:", err);
+      return { error: "marker_write_failed" };
     }
     console.log(
       `[jobs/locationStarvation] DRY RUN: would push ${plan.send.length} ` +
@@ -344,13 +431,13 @@ export async function runLocationStarvationJob(now: Date = new Date()): Promise<
     // Builds without the open_battery_settings case land on Home.
     data: { type: "location_starvation", action: LOCATION_STARVATION_ACTION },
   }));
-  // Log before sending so a crash mid-send cannot lead to a second push on
+  // Write before sending so a crash mid-send cannot lead to a second push on
   // the next run (the cooldown reads these rows).
-  for (const s of capped) {
-    logEvent(LOCATION_STARVATION_EVENT, s.userId, {
-      starvedDrops: s.starvedDrops,
-      lastStarvedAt: new Date(s.lastStarvedAt).toISOString(),
-    });
+  try {
+    if (capped.length > 0) await prisma.appEvent.createMany({ data: rows(LOCATION_STARVATION_EVENT) });
+  } catch (err) {
+    console.error("[jobs/locationStarvation] could not write cooldown rows, sending nothing:", err);
+    return { error: "cooldown_write_failed" };
   }
   if (messages.length > 0) await sendPushNotifications(messages);
   console.log(`[jobs/locationStarvation] sent ${messages.length} (skipped ${skips}).`);

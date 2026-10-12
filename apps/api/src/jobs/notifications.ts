@@ -57,7 +57,7 @@ import {
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert, discordUserLabel } from "../services/discord.js";
-import { recordingAlreadySaved, RECORDING_SAVED_WINDOW_MS, shouldSendStuckRecordingAlert } from "../services/stuckRecordingRule.js";
+import { recordingAlreadySaved, shouldSendStuckRecordingAlert } from "../services/stuckRecordingRule.js";
 import {
   CLEARTRACK_QUIET_DAYS,
   planClearTrackAlert,
@@ -784,16 +784,33 @@ async function runMorningBriefingJob(): Promise<void> {
 // whatever the prices, with the price divided by ten. Replaced by the opt-in
 // jobs in ./fuelAlerts.ts (cheapest fuel near you; EV running costs).
 
-/** One cheap query: has an automatic trip covering this recording been saved? */
+/**
+ * One cheap query: has an automatic trip covering this recording been saved?
+ * The startedAt bound (24h, the scan's own ceiling on how stale a recording
+ * can be) lets MySQL use the (userId, startedAt) index; the end-time test
+ * lives in recordingAlreadySaved.
+ */
 async function autoTripSavedAround(userId: string, lastDrivingMs: number): Promise<boolean> {
   if (!Number.isFinite(lastDrivingMs)) return false;
-  const since = new Date(lastDrivingMs - RECORDING_SAVED_WINDOW_MS);
-  const trips = await prisma.trip.findMany({
-    where: { userId, isManualEntry: false, endedAt: { gte: since }, createdAt: { gte: since } },
-    select: { endedAt: true, createdAt: true },
-    take: 5,
-  });
-  return recordingAlreadySaved(trips, lastDrivingMs);
+  try {
+    const trips = await prisma.trip.findMany({
+      where: {
+        userId,
+        isManualEntry: false,
+        startedAt: { gte: new Date(lastDrivingMs - 24 * 60 * 60 * 1000) },
+      },
+      select: { endedAt: true },
+      orderBy: { startedAt: "desc" },
+      take: 10,
+    });
+    return recordingAlreadySaved(trips, lastDrivingMs);
+  } catch (err) {
+    // One failed query must not end the scan for every driver after this one.
+    // Treat the recording as saved (no alert for this driver this tick); the
+    // next scan tries again.
+    console.error(`[jobs/notifications] stuck-recording trip check failed for ${userId.slice(0, 8)}:`, err);
+    return true;
+  }
 }
 
 async function runDiagnosticScanJob(): Promise<void> {
@@ -1066,7 +1083,7 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // app demonstrably alive (a dump in the window = an app open) — and ZERO
   // auto-captured trips recently. That combination isn't "stopped driving";
   // it's the engine missing drives.
-  const RECENT_DAYS = 4; // SILENT_SEEN_LOOKBACK_DAYS (clearTrackAlertRule.ts) must match
+  const RECENT_DAYS = 4;
   const BASELINE_MIN_AUTO_TRIPS = 4; // ≥4 auto trips in the prior 14 days = an active driver
   const nowMs = Date.now();
   const recentCutoff = new Date(nowMs - RECENT_DAYS * 24 * 60 * 60 * 1000);
@@ -1272,26 +1289,37 @@ async function runNativeEngineHealthJob(): Promise<void> {
   // first sighting is stored as an app_event (a restart forgets nothing). This
   // runs AFTER the stranded check above, which still sees the full silent list.
   if (silent.length > 0) {
-    const seenRows = await prisma.appEvent.findMany({
-      where: {
-        userId: { in: silent.map((u) => u.userId) },
-        type: SILENT_FIRST_SEEN_EVENT,
-        createdAt: { gte: new Date(nowMs - SILENT_SEEN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000) },
-      },
-      select: { userId: true, createdAt: true },
-    });
-    const seenAtMs = new Map<string, number>();
+    // 14-day lookback (not 4): a driver silent for more than 4 days would lose
+    // their first-seen event and be hidden again for 24h. Events older than the
+    // driver's newest automatic trip are dropped inside planSilentNaming.
+    const silentIds = silent.map((u) => u.userId);
+    const [seenRows, lastTripRows] = await Promise.all([
+      prisma.appEvent.findMany({
+        where: {
+          userId: { in: silentIds },
+          type: SILENT_FIRST_SEEN_EVENT,
+          createdAt: { gte: new Date(nowMs - SILENT_SEEN_LOOKBACK_DAYS * 24 * 60 * 60 * 1000) },
+        },
+        select: { userId: true, createdAt: true },
+      }),
+      prisma.trip.groupBy({
+        by: ["userId"],
+        where: { userId: { in: silentIds }, isManualEntry: false },
+        _max: { startedAt: true },
+      }),
+    ]);
+    const seenAtMs = new Map<string, number[]>();
     for (const r of seenRows) {
       if (!r.userId) continue;
-      const t = r.createdAt.getTime();
-      const prev = seenAtMs.get(r.userId);
-      if (prev === undefined || t < prev) seenAtMs.set(r.userId, t);
+      const a = seenAtMs.get(r.userId) ?? [];
+      a.push(r.createdAt.getTime());
+      seenAtMs.set(r.userId, a);
     }
-    const silentPlan = planSilentNaming(
-      silent.map((u) => u.userId),
-      seenAtMs,
-      nowMs
-    );
+    const lastAutoTripMs = new Map<string, number>();
+    for (const r of lastTripRows) {
+      if (r._max.startedAt) lastAutoTripMs.set(r.userId, r._max.startedAt.getTime());
+    }
+    const silentPlan = planSilentNaming(silentIds, seenAtMs, lastAutoTripMs, nowMs);
     for (const id of silentPlan.firstSeenIds) logEvent(SILENT_FIRST_SEEN_EVENT, id, {});
     silent.splice(0, silent.length, ...silent.filter((u) => silentPlan.nameIds.has(u.userId)));
     console.log(

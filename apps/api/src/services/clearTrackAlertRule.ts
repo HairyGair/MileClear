@@ -48,11 +48,13 @@ export function planClearTrackAlert(
 }
 
 export const SILENT_FIRST_SEEN_EVENT = "alert.cleartrack_silent_seen";
-/** How far back a first-seen event counts. Matches the job's silence window
- *  (no automatic trip in 4 days), so an event in range is always newer than
- *  the driver's last trip: one left over from an earlier silent spell, before
- *  they recorded again, cannot skip the 24-hour wait. */
-export const SILENT_SEEN_LOOKBACK_DAYS = 4;
+/** How far back first-seen events are fetched. A driver silent for more than 4
+ *  days (the job's silence window) would lose their first-seen event from a
+ *  4-day lookback and be hidden again for 24h, so this is 14 days. The cost is
+ *  that an event from an EARLIER silent spell can now be in range, so
+ *  planSilentNaming ignores events older than the driver's last automatic
+ *  trip (they recorded again since, so that spell is over). */
+export const SILENT_SEEN_LOOKBACK_DAYS = 14;
 /** A silent driver is only named once first seen at least this long ago. */
 export const SILENT_CONFIRM_MS = 24 * 60 * 60 * 1000;
 
@@ -66,21 +68,27 @@ export interface SilentNamingPlan {
 }
 
 /**
- * Two-strike rule for the silent bucket. `seenAtMs` maps a user to the time of
- * their first-seen event within the lookback (earliest if several). A driver
- * who records a trip never reaches this function again, so they drop out
- * without any clean-up.
+ * Two-strike rule for the silent bucket. `seenAtMs` maps a user to the times of
+ * their first-seen events within the lookback; `lastAutoTripMs` maps a user to
+ * the start of their newest automatic trip. Only events newer than that trip
+ * count (an older one belongs to a silent spell that ended when they recorded
+ * again), and of those the earliest is the sighting that starts the 24h wait.
  */
 export function planSilentNaming(
   silentIds: Iterable<string>,
-  seenAtMs: ReadonlyMap<string, number>,
+  seenAtMs: ReadonlyMap<string, readonly number[]>,
+  lastAutoTripMs: ReadonlyMap<string, number>,
   nowMs: number
 ): SilentNamingPlan {
   const nameIds = new Set<string>();
   const firstSeenIds = new Set<string>();
   let waitingCount = 0;
   for (const id of new Set(silentIds)) {
-    const seen = seenAtMs.get(id);
+    const lastTrip = lastAutoTripMs.get(id) ?? -Infinity;
+    let seen: number | undefined;
+    for (const t of seenAtMs.get(id) ?? []) {
+      if (t > lastTrip && (seen === undefined || t < seen)) seen = t;
+    }
     if (seen === undefined) {
       firstSeenIds.add(id);
     } else if (nowMs - seen >= SILENT_CONFIRM_MS) {
