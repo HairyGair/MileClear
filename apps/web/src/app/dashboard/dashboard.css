@@ -3837,6 +3837,11 @@
   justify-content: center;
 }
 
+/* A dark color-scheme on the page gives Google's frame a white backdrop. */
+.oauth__google-btn iframe {
+  color-scheme: normal;
+}
+
 .oauth__loading {
   font-size: 0.8125rem;
   color: var(--text-muted);
