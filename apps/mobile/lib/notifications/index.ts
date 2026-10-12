@@ -803,6 +803,37 @@ export function setupNotificationResponseHandler(): void {
         router.push("/settings/recording" as never);
         return;
 
+      case "open_battery_settings": {
+        // "Android is holding back your trips" (jobs/locationStarvation.ts,
+        // Oct 2026): sent to Android phones that keep getting one or two
+        // location points per drive. Opens the same screen as the Home battery
+        // card (vendor power screen if the phone has one, else the stock
+        // list, else the app's own settings). Older bundles fall through to
+        // Home, which shows that card. Not Android: just Home.
+        router.navigate("/(tabs)/dashboard");
+        if (Platform.OS !== "android") break;
+        import("../api/index")
+          .then(({ apiRequest }) =>
+            apiRequest("/user/event", {
+              method: "POST",
+              body: JSON.stringify({ type: "notification.location_starvation_opened" }),
+            })
+          )
+          .catch(() => {});
+        import("../tracking/batteryOptimisation")
+          .then(async (m) => {
+            const state = await m.getBatteryOptimisationState();
+            const screen = state?.vendor ? "vendor" : "stock";
+            if (await m.openBatteryOptimisationSettings(screen)) return;
+            if (screen === "vendor" && (await m.openBatteryOptimisationSettings("stock"))) return;
+            await Linking.openSettings();
+          })
+          .catch(() => {
+            Linking.openSettings().catch(() => {});
+          });
+        break;
+      }
+
       case "open_feedback":
         // Admin push when a user submits feedback (24 Aug 2026). Older
         // bundles fall through to the dashboard, which is harmless.
