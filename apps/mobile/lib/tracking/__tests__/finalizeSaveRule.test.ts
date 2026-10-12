@@ -261,6 +261,21 @@ describe("trimBadEndpoints (one bad end fix must not make a short drive look lik
     expect(sum(trimBadEndpoints(d).coords) / 1.609).toBeLessThan(5);
   });
 
+  it("keeps a late-wake departure anchor planted up to 5 km before the first real fix, 30 s earlier", () => {
+    for (const km of [2.7, 3, 5]) {
+      const d = drive(30);
+      // Anchor: km kilometres south of the first real fix, 30 s before it.
+      const anchor = { lat: d[0].lat - km / 111.2, lng: -1, recorded_at: iso(T0 - 30_000) };
+      expect(trimBadEndpoints([anchor, ...d]).dropped).toBe(0);
+    }
+  });
+
+  it("keeps a last fix that settles a few hundred metres away seconds later", () => {
+    const d = drive(30);
+    d.push({ lat: d[29].lat + 0.25 / 111.2, lng: -1, recorded_at: iso(T0 + 29 * 10_000 + 2_000) });
+    expect(trimBadEndpoints(d).dropped).toBe(0);
+  });
+
   it("keeps a real drive whose start is a long gap away (slow, not fast)", () => {
     const d = drive(30);
     d[0] = { lat: 52 - 0.1, lng: -1, recorded_at: iso(T0 - 30 * 60_000) }; // 7 miles in 30 min

@@ -2883,6 +2883,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     };
     pendingCreateBody = createBody;
     const tripResult = await syncCreateTrip(createBody);
+    // Saved: a later 4xx in this block must not queue the same drive again.
+    pendingCreateBody = null;
 
     // Store classification source on the local trip row
     const savedTripId = tripResult?.data?.id;

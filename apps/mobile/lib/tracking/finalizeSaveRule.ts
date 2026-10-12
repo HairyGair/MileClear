@@ -237,6 +237,12 @@ export function pruneFlightCutState(state: FlightCutState, processedMax: string 
 export const ENDPOINT_MAX_MPH = 200;
 /** A fix this close to latitude 0, longitude 0 is a cold-start placeholder. */
 export const NULL_ISLAND_METRES = 1000;
+/** ...and the jump must also be this long. A late wake plants the departure
+ *  anchor up to 5 km before the first real fix, 30 s earlier, which reads as
+ *  well over 200 mph from 2.7 km; it is the real start of the drive and must
+ *  stay. The fixes this guard exists for (another city or country) are tens to
+ *  thousands of miles out. 12 Oct 2026 review. */
+export const ENDPOINT_MIN_JUMP_METRES = 16_093; // 10 miles
 
 function stepMph(a: WireFix, b: WireFix): number | null {
   const ta = Date.parse(a.recorded_at);
@@ -250,8 +256,8 @@ function stepMph(a: WireFix, b: WireFix): number | null {
 
 /** Drop fixes that cannot be real ends of a drive: anything within ~1 km of
  *  0,0 (a cold-start placeholder), and a first or last fix that sits more than
- *  200 mph from its neighbour while that neighbour agrees with the next one
- *  (a stale far-away position). filterTraceOutliers keeps the endpoints on
+ *  200 mph and at least 10 miles from its neighbour while that neighbour
+ *  agrees with the next one (a stale far-away position). filterTraceOutliers keeps the endpoints on
  *  purpose, so one such fix could turn a real short drive into thousands of
  *  miles and get it cleared as "implausible". Returns the input untouched when
  *  nothing needs dropping or fewer than two fixes would remain. */
@@ -261,14 +267,14 @@ export function trimBadEndpoints<T extends WireFix>(fixes: ReadonlyArray<T>): { 
   for (let guard = 0; guard < 5 && out.length >= 3; guard++) {
     const a = stepMph(out[0], out[1]);
     const b = stepMph(out[1], out[2]);
-    if (a !== null && a > ENDPOINT_MAX_MPH && (b === null || b <= ENDPOINT_MAX_MPH)) {
+    if (a !== null && a > ENDPOINT_MAX_MPH && metres(out[0], out[1]) >= ENDPOINT_MIN_JUMP_METRES && (b === null || b <= ENDPOINT_MAX_MPH)) {
       out = out.slice(1);
       continue;
     }
     const n = out.length;
     const c = stepMph(out[n - 2], out[n - 1]);
     const d = stepMph(out[n - 3], out[n - 2]);
-    if (c !== null && c > ENDPOINT_MAX_MPH && (d === null || d <= ENDPOINT_MAX_MPH)) {
+    if (c !== null && c > ENDPOINT_MAX_MPH && metres(out[n - 2], out[n - 1]) >= ENDPOINT_MIN_JUMP_METRES && (d === null || d <= ENDPOINT_MAX_MPH)) {
       out = out.slice(0, n - 1);
       continue;
     }
