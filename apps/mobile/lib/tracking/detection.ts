@@ -209,7 +209,20 @@ import {
   QUICK_TRIP_LIVE_COORD_MS as QUICK_TRIP_LIVE_COORD_MS_RULE,
 } from "./quickTripLock";
 import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
-import { findFlights, cutFlights } from "./flightRule";
+import { findFlights, cutFlights, type FlightSpan } from "./flightRule";
+import {
+  exceedsServerDistance,
+  nextRejectBackoff,
+  normaliseRecordedAt,
+  parseFlightCutState,
+  parseRejectBackoff,
+  planFlightCut,
+  prepareCoordinatesForServer,
+  pruneFlightCutState,
+  rejectBackoffActive,
+  SERVER_MAX_COORDINATES,
+  type FlightCutState,
+} from "./finalizeSaveRule";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 
 const DETECTION_TASK_NAME = "mileclear-drive-detection";
@@ -1709,48 +1722,90 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // headless task, orphan sweep, stale sweeper, lock-screen action), so the
   // whole of it is covered here. Never lets a failure in the rule stop a
   // finalize: on any error the recording is judged as before.
-  const flightLegStarts = new Set<number>();
+  //
+  // 12 Oct 2026 review: iOS can kill finalize part-way and re-run it at the
+  // next boot. So the cut is decided in memory first (planFlightCut), the
+  // "a leg starts after this fix" marker is stored BEFORE the airborne fixes
+  // are deleted, and every run (not just the one that cut) re-reads the
+  // markers: a short-hop flight's two drives are never joined by a straight
+  // line on a re-run. The drop report is keyed by the flight's span, so a
+  // re-run does not report the same flight twice.
+  let flightLegStarts = new Set<number>();
+  let flightCutStored: FlightCutState = { after: [], reported: [] };
+  try {
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'flight_cut'"
+    );
+    flightCutStored = parseFlightCutState(row?.value);
+  } catch {}
   if (rawCoords.length >= 2) {
+    let flights: FlightSpan[] = [];
     try {
-      const flights = findFlights(rawCoords);
-      if (flights.length > 0) {
-        for (const f of flights) {
-          const before = rawCoords[f.startIdx];
-          const after = rawCoords[f.endIdx];
-          logDetectionEvent("finalize_flight_cut", {
-            kind: f.kind,
-            miles: f.miles,
-            spanSec: f.spanSec,
-            fastSec: f.fastSec,
-            peakMph: f.peakMph,
-            removedCoords: f.removedCount,
-            totalCoords: rawCoords.length,
-          }).catch(() => {});
-          await noteRecordingDropped({
-            reason: "flight",
-            detail: `${f.kind}_peak_${f.peakMph}mph`,
-            startedAt: before.recorded_at,
-            endedAt: after.recorded_at,
-            coords: f.removedCount,
-            distanceMiles: f.miles,
-            ...(finalizeSource ? { source: finalizeSource } : {}),
-          });
-          // The airborne fixes are decided: remove them from the buffer now so
-          // a re-run (a crash before the car legs are saved) cannot see them.
-          // The two boundary fixes stay: they are the ground at each end.
-          await db.runAsync(
-            "DELETE FROM detection_coordinates WHERE recorded_at > ? AND recorded_at < ?",
-            [before.recorded_at, after.recorded_at]
-          );
-        }
-        const cut = cutFlights(rawCoords, flights);
-        rawCoords = cut.kept;
-        for (const i of cut.legStarts) flightLegStarts.add(i);
-      }
+      flights = findFlights(rawCoords);
     } catch (err) {
       logDetectionEvent("finalize_flight_check_failed", {
         error: err instanceof Error ? err.message.slice(0, 120) : String(err),
       }).catch(() => {});
+    }
+    let plan: ReturnType<typeof planFlightCut<BufferedCoordinate>> | null = null;
+    try {
+      plan = planFlightCut(rawCoords, flights, flightCutStored, (c) => cutFlights(c, flights));
+    } catch (err) {
+      logDetectionEvent("finalize_flight_check_failed", {
+        error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      }).catch(() => {});
+    }
+    if (plan) {
+      const before = rawCoords;
+      // The in-memory result is right for THIS run whatever the writes below
+      // do: detection is deterministic, so a re-run reaches the same cut.
+      rawCoords = plan.kept;
+      flightLegStarts = plan.legStartIdx;
+      if (flights.length > 0) {
+        // Writes and reports in their own try: a failure here must not stop
+        // the car legs being saved.
+        try {
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('flight_cut', ?)",
+            [JSON.stringify(plan.state)]
+          );
+          flightCutStored = plan.state;
+          // The airborne fixes are decided: remove them from the buffer so a
+          // re-run cannot see them. The two boundary fixes stay: they are the
+          // ground at each end.
+          for (const r of plan.deleteRanges) {
+            await db.runAsync(
+              "DELETE FROM detection_coordinates WHERE recorded_at > ? AND recorded_at < ?",
+              [r.afterExclusive, r.beforeExclusive]
+            );
+          }
+          for (const idx of plan.toReport) {
+            const f = flights[idx];
+            logDetectionEvent("finalize_flight_cut", {
+              kind: f.kind,
+              miles: f.miles,
+              spanSec: f.spanSec,
+              fastSec: f.fastSec,
+              peakMph: f.peakMph,
+              removedCoords: f.removedCount,
+              totalCoords: before.length,
+            }).catch(() => {});
+            await noteRecordingDropped({
+              reason: "flight",
+              detail: `${f.kind}_peak_${f.peakMph}mph`,
+              startedAt: before[f.startIdx].recorded_at,
+              endedAt: before[f.endIdx].recorded_at,
+              coords: f.removedCount,
+              distanceMiles: f.miles,
+              ...(finalizeSource ? { source: finalizeSource } : {}),
+            });
+          }
+        } catch (err) {
+          logDetectionEvent("finalize_flight_write_failed", {
+            error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+          }).catch(() => {});
+        }
+      }
     }
   }
 
@@ -1879,6 +1934,32 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
   }
 
+  // ── Refused earlier, waiting to try again (12 Oct 2026 review). The server
+  // refused this recording with a 4xx that is not known garbage; the fixes were
+  // KEPT and a wait set (15 min, 1 h, 6 h, then daily). Until it passes, do
+  // nothing and keep everything, instead of retrying every minute. Keyed to the
+  // recording's first fix, so a different recording is never held by it.
+  const recordingKey = allCoords[0]?.recorded_at ?? "";
+  if (allCoords.length >= 2) {
+    try {
+      const rows = await db.getAllAsync<{ key: string; value: string }>(
+        "SELECT key, value FROM tracking_state WHERE key IN ('finalize_reject_key', 'finalize_reject_attempts', 'finalize_reject_next_at')"
+      );
+      const v = (k: string) => rows.find((r) => r.key === k)?.value;
+      const backoff = parseRejectBackoff(v("finalize_reject_key"), v("finalize_reject_attempts"), v("finalize_reject_next_at"));
+      if (rejectBackoffActive(backoff, recordingKey, Date.now())) {
+        logDetectionEvent("finalize_reject_wait", {
+          attempts: backoff?.attempts,
+          waitMs: backoff ? backoff.nextAt - Date.now() : 0,
+          coordCount: allCoords.length,
+        }).catch(() => {});
+        return;
+      }
+    } catch {
+      // Best effort: with no state the save is simply tried.
+    }
+  }
+
   logDetectionEvent("finalize_called", { coordCount: allCoords.length }).catch(() => {});
 
   // Stop watchdog - recording is ending
@@ -1917,8 +1998,25 @@ async function _finalizeAutoTripInner(): Promise<void> {
       await db.runAsync("DELETE FROM detection_coordinates");
     }
     await db.runAsync(
-      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
+      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor', 'finalize_reject_key', 'finalize_reject_attempts', 'finalize_reject_next_at')"
     );
+    // The flight markers go with the fixes they were for. With deferred legs,
+    // only the ones behind the processed leg: a later leg still needs its.
+    try {
+      if (deferredCoords.length > 0 && allCoords.length > 0) {
+        const left = pruneFlightCutState(flightCutStored, allCoords[allCoords.length - 1].recorded_at);
+        if (left.after.length > 0 || left.reported.length > 0) {
+          await db.runAsync(
+            "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('flight_cut', ?)",
+            [JSON.stringify(left)]
+          );
+        } else {
+          await db.runAsync("DELETE FROM tracking_state WHERE key = 'flight_cut'");
+        }
+      } else {
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'flight_cut'");
+      }
+    } catch {}
     if (deferredCoords.length > 0) {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
@@ -2119,6 +2217,48 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   const distanceResult = await bestTraceDistance(filteredCoords, gpsSumDistance);
   const totalDistance = distanceResult.distanceMiles;
+
+  // ── Over the server's 2,000-mile cap (12 Oct 2026 review). The server would
+  // answer 400 "Distance exceeds reasonable limit" every time, so do not ask:
+  // this is known garbage (a flight the flight rule missed), reported as lost
+  // and cleared. Worked out from the FULL set of fixes, before any thinning.
+  // Every other refusal keeps the drive (see the catch at the end).
+  if (exceedsServerDistance(totalDistance)) {
+    logDetectionEvent("finalize_implausible_distance", {
+      distance: totalDistance,
+      coordCount: filteredCoords.length,
+    }).catch(() => {});
+    await noteRecordingDropped({
+      reason: "implausible_distance",
+      detail: `${Math.round(totalDistance)}_miles_before_send`,
+      ...dropSpan(filteredCoords),
+      distanceMiles: totalDistance,
+    });
+    await consumeProcessedBuffer();
+    endLiveActivity().catch(() => {});
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor();
+    } catch {}
+    return;
+  }
+
+  // What goes to the server: timestamps that parse (an unparseable one drops
+  // that fix, not the drive), and at most 19,500 fixes (the cap is 20,000 and
+  // a long dense recording can exceed it). The distance above came from the
+  // full set; this only shapes the breadcrumb trail.
+  const wire = prepareCoordinatesForServer(filteredCoords);
+  const wireStartedAt = normaliseRecordedAt(first.recorded_at) ?? wire.coords[0]?.recorded_at ?? first.recorded_at;
+  const wireEndedAt =
+    normaliseRecordedAt(last.recorded_at) ?? wire.coords[wire.coords.length - 1]?.recorded_at ?? last.recorded_at;
+  if (wire.droppedBadTime > 0 || wire.coords.length < wire.beforeThinning) {
+    logDetectionEvent("finalize_coords_prepared", {
+      droppedBadTime: wire.droppedBadTime,
+      before: wire.beforeThinning,
+      sent: wire.coords.length,
+      cap: SERVER_MAX_COORDINATES,
+    }).catch(() => {});
+  }
   const tripQuality = computeTripQuality(allCoords, filteredCoords, {
     distanceSource: distanceResult.source,
     matchSucceeded: distanceResult.matchSucceeded,
@@ -2573,17 +2713,25 @@ async function _finalizeAutoTripInner(): Promise<void> {
         // Merge: extend the previous trip's end point, distance, and time
         const { syncUpdateTrip } = await import("../sync/actions");
         const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
+        // syncUpdateTrip writes the merge to SQLite and queues the update
+        // BEFORE it tries the server, and throws when the server answers with
+        // a 4xx. By then the trip on the phone is already extended, so the
+        // merge is done and the queue owns the PATCH: keeping the buffer would
+        // add this segment's miles again every minute. Say so accurately
+        // instead of calling it a rejected, lost recording (12 Oct 2026 review).
+        let mergeQueuedDetail: string | null = null;
+        try {
         await syncUpdateTrip(recentTrip.id, {
           endLat: last.lat,
           endLng: last.lng,
           endAddress: endAddress ?? null,
-          endedAt: last.recorded_at,
+          endedAt: wireEndedAt,
           distanceMiles: newDistance,
           // Carry this segment's breadcrumbs into the trip we are extending.
           // Without them the merge moved endedAt and distance over a stretch
           // with no path behind it: the Journey Map drew half the drive and
           // Split Trip could not find the stop (Dempsey Chimwara, 12 Aug 2026).
-          coordinates: filteredCoords.map((c) => ({
+          coordinates: wire.coords.map((c) => ({
             lat: c.lat,
             lng: c.lng,
             speed: c.speed,
@@ -2592,9 +2740,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
           })),
           ...(keepGoingApplies ? { gpsQuality: { driverKeptGoing: true } } : {}),
         });
+        } catch (mergeErr) {
+          const { ApiError } = await import("../api/apiError");
+          if (!(mergeErr instanceof ApiError)) throw mergeErr;
+          mergeQueuedDetail = `${mergeErr.statusCode}: ${mergeErr.message}`;
+        }
         merged = true;
-        logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance }).catch(() => {});
-        await noteRecordingDropped({ reason: "merged", ...dropSpan(filteredCoords), distanceMiles: totalDistance });
+        logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance, ...(mergeQueuedDetail ? { updateQueued: mergeQueuedDetail.slice(0, 120) } : {}) }).catch(() => {});
+        await noteRecordingDropped(
+          mergeQueuedDetail
+            ? { reason: "merge_queued", detail: mergeQueuedDetail, ...dropSpan(filteredCoords), distanceMiles: totalDistance }
+            : { reason: "merged", ...dropSpan(filteredCoords), distanceMiles: totalDistance }
+        );
 
         // Feed the dashboard status strip — the merged trip is the user's
         // "last saved trip" with its new combined total.
@@ -2718,12 +2875,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
       startAddress: startAddress ?? undefined,
       endAddress: endAddress ?? undefined,
       distanceMiles: roundedDistance,
-      startedAt: first.recorded_at,
-      endedAt: last.recorded_at,
+      startedAt: wireStartedAt,
+      endedAt: wireEndedAt,
       classification,
       platformTag: platformTag ?? undefined,
       vehicleId,
-      coordinates: filteredCoords.map((c) => ({
+      coordinates: wire.coords.map((c) => ({
         lat: c.lat,
         lng: c.lng,
         speed: c.speed,
@@ -2946,23 +3103,26 @@ async function _finalizeAutoTripInner(): Promise<void> {
     logDetectionEvent("finalize_save_failed", {
       error: errorMessage.slice(0, 500),
     }).catch(() => {});
-    // A definitive 4xx (a validation verdict such as "Distance exceeds
-    // reasonable limit") will get the same answer every time, so keeping the
-    // fixes only makes finalize run again about once a minute for ever (12 Oct
-    // 2026: ten attempts on a flight, each logged as an error). Say so once,
-    // clear the buffer and stop. syncCreateTrip has already removed the local
-    // row for this. Network failures, 5xx, auth, 404/408/409/429 and the "web
-    // page instead of MileClear" error all fall through to the keep-and-retry
-    // path below, exactly as before.
-    const { isDefinitiveSaveRejection } = await import("../sync/errors");
-    if (isDefinitiveSaveRejection(err)) {
+    // Two kinds of 4xx get special handling (12 Oct 2026, reviewed). The
+    // server's own "Distance exceeds reasonable limit" verdict is known
+    // garbage (a flight): it will say the same every time, so say so once,
+    // clear the buffer and stop. Our own check before the request normally
+    // catches it first. EVERY OTHER payload 4xx (more than 20,000 fixes, a
+    // phone clock a day ahead, a platform tag the server does not know yet)
+    // can be a real drive: keep the fixes and wait 15 min, 1 h, 6 h, then a
+    // day between tries, instead of deleting it or retrying every minute.
+    // Network failures, 5xx, auth, 404/408/409/429 and the "web page instead of
+    // MileClear" error fall through to the keep-and-retry path below, as before.
+    const { isKnownGarbageRejection, isKeepAndBackOffRejection } = await import("../sync/errors");
+    if (isKnownGarbageRejection(err)) {
       logDetectionEvent("finalize_save_rejected", {
         error: errorMessage.slice(0, 200),
         distance: totalDistance,
+        verdict: "garbage",
       }).catch(() => {});
       await noteRecordingDropped({
-        reason: "rejected",
-        detail: errorMessage,
+        reason: "implausible_distance",
+        detail: `server: ${errorMessage}`,
         ...dropSpan(allCoords),
         distanceMiles: totalDistance,
       });
@@ -2977,6 +3137,41 @@ async function _finalizeAutoTripInner(): Promise<void> {
           error: consumeErr instanceof Error ? consumeErr.message.slice(0, 120) : String(consumeErr),
         }).catch(() => {});
       }
+      endLiveActivity().catch(() => {});
+      return;
+    }
+    if (isKeepAndBackOffRejection(err)) {
+      let attempts = 1;
+      try {
+        const rows = await db.getAllAsync<{ key: string; value: string }>(
+          "SELECT key, value FROM tracking_state WHERE key IN ('finalize_reject_key', 'finalize_reject_attempts', 'finalize_reject_next_at')"
+        );
+        const v = (k: string) => rows.find((r) => r.key === k)?.value;
+        const next = nextRejectBackoff(
+          parseRejectBackoff(v("finalize_reject_key"), v("finalize_reject_attempts"), v("finalize_reject_next_at")),
+          recordingKey,
+          Date.now()
+        );
+        attempts = next.attempts;
+        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalize_reject_key', ?)", [next.key]);
+        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalize_reject_attempts', ?)", [String(next.attempts)]);
+        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalize_reject_next_at', ?)", [String(next.nextAt)]);
+      } catch {
+        // No state, no wait: it is simply tried again, as any error is.
+      }
+      logDetectionEvent("finalize_save_rejected", {
+        error: errorMessage.slice(0, 200),
+        distance: totalDistance,
+        verdict: "keep_and_back_off",
+        attempts,
+      }).catch(() => {});
+      // One report per step of the wait, not one a minute. Not lost: kept.
+      await noteRecordingDropped({
+        reason: "rejected",
+        detail: `try_${attempts}: ${errorMessage}`,
+        ...dropSpan(allCoords),
+        distanceMiles: totalDistance,
+      });
       endLiveActivity().catch(() => {});
       return;
     }

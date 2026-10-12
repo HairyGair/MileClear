@@ -148,20 +148,33 @@ export function isDefiniteClientRejection(err: unknown): boolean {
   return false;
 }
 
-/** The server refused a trip save for good, and sending the same fixes again
- *  can only get the same answer: a 4xx validation verdict, minus every 4xx
- *  that says "not now" or "not this way" rather than "not this payload".
+/** The server's one known-garbage verdict for a recording: HTTP 400 "Distance
+ *  exceeds reasonable limit" (a trip over 2,000 miles, in practice a flight).
+ *  Sending the same fixes again can only get the same answer, so finalize
+ *  clears the buffer on exactly this and nothing else.
  *
- *  Narrower than isDefiniteClientRejection on purpose. That one also covers
- *  404, 408 and 409, which syncCreateTrip treats as a rejection of the queued
- *  row; for a RECORDING that still sits in the buffer, those (and 401/403,
- *  429 and every network, 5xx and not-our-reply error) must keep the fixes
- *  and be retried. 12 Oct 2026: a 400 "Distance exceeds reasonable limit" for
- *  a 2,000-mile flight left the buffer armed and finalize ran again every
- *  minute, ten times, until the driver had landed. */
-export function isDefinitiveSaveRejection(err: unknown): boolean {
+ *  12 Oct 2026: a 400 for a 2,000-mile flight left the buffer armed and
+ *  finalize ran again every minute, ten times, until the driver had landed.
+ *  The first fix cleared the buffer on any 4xx; a reviewer showed real drives
+ *  get 400s too (more than 20,000 coordinates, a phone clock a day ahead, a
+ *  platform tag the server does not know yet), so it is now this verdict only. */
+export function isKnownGarbageRejection(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.statusCode === 400 &&
+    /Distance exceeds reasonable limit/i.test(err.message)
+  );
+}
+
+/** Any other 4xx that says "this payload", not "not now" or "not this way":
+ *  keep the fixes and back off (15 min, 1 h, 6 h, daily) instead of retrying
+ *  every minute. 401/403 (auth, plan), 404/409 (the row), 408 and 429 (not
+ *  now) are left to the existing keep-and-retry path, as are 5xx, network and
+ *  not-our-reply errors. Known garbage is handled separately, first. */
+export function isKeepAndBackOffRejection(err: unknown): boolean {
   if (!(err instanceof ApiError)) return false;
   const c = err.statusCode;
   if (c < 400 || c >= 500) return false;
+  if (isKnownGarbageRejection(err)) return false;
   return c !== 401 && c !== 403 && c !== 404 && c !== 408 && c !== 409 && c !== 429;
 }

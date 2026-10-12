@@ -38,6 +38,17 @@ function line(a: Pt, b: Pt, startMs: number, durationSec: number, everySec: numb
   return out;
 }
 
+/** Deterministic +-metres of jitter on every fix (a small LCG, so no flaky tests). */
+function jitter(fixes: FlightFix[], metres: number, seed: number): FlightFix[] {
+  let x = seed;
+  const rnd = () => {
+    x = (x * 1664525 + 1013904223) % 4294967296;
+    return x / 4294967296 * 2 - 1;
+  };
+  const deg = metres / 111_000;
+  return fixes.map((f) => ({ ...f, lat: f.lat + rnd() * deg, lng: f.lng + rnd() * deg }));
+}
+
 function stepSpeeds(fixes: FlightFix[]): number[] {
   const out: number[] = [];
   for (let i = 1; i < fixes.length; i++) {
@@ -200,6 +211,23 @@ describe("what is not a flight", () => {
     // Sparse, as in a tunnel: London to Paris, 306 miles in 2h16m (135 mph).
     const sparse = [fix({ lat: 51.5, lng: -0.1 }, T0), fix({ lat: 51.5 + 306 / MILES_PER_DEG_LAT, lng: -0.1 }, T0 + 136 * 60_000)];
     expect(findFlights(sparse)).toEqual([]);
+  });
+
+  it("a 186 mph train with +-15 m of GPS jitter at one fix a second (reviewer probe, 12 Oct 2026)", () => {
+    // Consecutive-fix speed swings between about 120 and 250 mph here; over a
+    // 30 s window it stays near 186. Must not be called a flight.
+    for (const everySec of [1, 2, 5]) {
+      const train = jitter(drive({ lat: 51, lng: -1 }, T0, 186, 120, everySec), 15, 7);
+      if (everySec <= 2) expect(Math.max(...stepSpeeds(train))).toBeGreaterThan(200); // the jitter really is that bad
+      expect(findFlights(train)).toEqual([]);
+    }
+  });
+
+  it("a real flight with the same jitter at one fix a second is still cut", () => {
+    const plane = jitter(drive({ lat: 51, lng: -1 }, T0, 450, 90, 1), 15, 11);
+    const spans = findFlights(plane);
+    expect(spans).toHaveLength(1);
+    expect(spans[0].miles).toBeGreaterThan(600);
   });
 
   it("a short 270 mph maglev run", () => {
