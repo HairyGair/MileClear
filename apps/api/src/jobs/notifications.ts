@@ -43,6 +43,7 @@ import { runWeeklyDigestJob } from "./weeklyDigest.js";
 import { runEveningDigestJob, localDayBounds } from "./eveningDigest.js";
 import { inStreakReminderWindow, isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { runClassifyNudgeJob } from "./classifyNudge.js";
+import { runLocationStarvationJob } from "./locationStarvation.js";
 import { runSaCountdownRemindersJob } from "./saCountdownReminders.js";
 import { runTaxPaymentRemindersJob } from "./taxPaymentReminders.js";
 import { runCazPayRemindersJob } from "./cazPayReminders.js";
@@ -1660,6 +1661,9 @@ export function startNotificationJobs(): void {
     // Practice accounts: keep-sharing prompts 30 and 7 days before a link
     // ends, requests that close themselves, 2-year access-log purge.
     void runJob("practice_links", () => runPracticeLinksJob());
+    // Android drivers whose phone starves MileClear of location (12 Oct 2026).
+    // Every 6h, never in quiet hours. Dry run unless LOCATION_STARVATION_PUSH=1.
+    void runJob("location_starvation", () => runLocationStarvationJob());
   };
 
   // Jobs gated to a NARROW time window must tick faster than the window is
