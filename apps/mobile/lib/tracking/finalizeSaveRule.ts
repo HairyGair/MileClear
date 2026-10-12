@@ -1,0 +1,276 @@
+// What finalize may send to the server, and what to do when the server says
+// no: the pure part. No React Native, no SQLite, so it runs under vitest.
+//
+// 12 Oct 2026 (Edinburgh to Toronto): a 2,000-mile flight was refused with
+// 400 "Distance exceeds reasonable limit" and retried every minute. The first
+// fix (517a7735) cleared the buffer on ANY 4xx. A reviewer pointed out that
+// real drives get 400s too, and clearing the buffer would delete them:
+//
+//   * more than 20,000 coordinates (a very long or very dense recording),
+//   * a timestamp more than 24 h in the future (the phone's clock is ahead),
+//   * a platform tag or classification the server does not know (app ahead of
+//     server),
+//   * one fix whose recorded_at cannot be parsed.
+//
+// So the rule is now: only the one verdict that is known garbage (a distance
+// over the server's cap) consumes the buffer, and it is checked BEFORE the
+// request as well. Every other refusal keeps the fixes and backs off, so the
+// drive is still there for the app update, the clock fix or the next attempt.
+
+/** The server's cap on one trip's distance (apps/api trips createTripSchema). */
+export const SERVER_MAX_DISTANCE_MILES = 2000;
+/** The server's cap on coordinates per create / merge request. */
+export const SERVER_MAX_COORDINATES = 20000;
+/** What we cut down to, comfortably under the cap. */
+export const COORDINATE_TARGET = 19500;
+
+/** Over the server's cap: known garbage (a flight the flight rule missed). */
+export function exceedsServerDistance(miles: number): boolean {
+  return Number.isFinite(miles) && miles > SERVER_MAX_DISTANCE_MILES;
+}
+
+// ── Backoff after a refusal that is not known garbage ─────────────────────
+
+const MIN = 60_000;
+/** 15 min, 1 h, 6 h, then every 24 h. */
+export const REJECT_BACKOFF_MS: readonly number[] = [15 * MIN, 60 * MIN, 6 * 60 * MIN, 24 * 60 * MIN];
+
+export interface RejectBackoff {
+  /** Which recording this belongs to (its first fix's recorded_at). */
+  key: string;
+  attempts: number;
+  /** Epoch ms before which finalize must not try again. */
+  nextAt: number;
+}
+
+/** Wait after the Nth refusal (1-based): 15 min, 1 h, 6 h, 24 h, 24 h, ... */
+export function rejectBackoffDelayMs(attempts: number): number {
+  const i = Math.max(1, Math.floor(attempts)) - 1;
+  return REJECT_BACKOFF_MS[Math.min(i, REJECT_BACKOFF_MS.length - 1)];
+}
+
+/** The state after one more refusal of the recording `key`. A different
+ *  recording starts again from the first step. */
+export function nextRejectBackoff(prev: RejectBackoff | null, key: string, now: number): RejectBackoff {
+  const attempts = prev && prev.key === key ? prev.attempts + 1 : 1;
+  return { key, attempts, nextAt: now + rejectBackoffDelayMs(attempts) };
+}
+
+/** Is this recording still inside its wait? Another recording never is. A
+ *  clock that moved backwards cannot hold a drive for longer than the longest
+ *  step. */
+export function rejectBackoffActive(state: RejectBackoff | null, key: string, now: number): boolean {
+  if (!state || state.key !== key) return false;
+  if (!Number.isFinite(state.nextAt)) return false;
+  if (state.nextAt - now > REJECT_BACKOFF_MS[REJECT_BACKOFF_MS.length - 1]) return false;
+  return now < state.nextAt;
+}
+
+export function parseRejectBackoff(
+  key: string | null | undefined,
+  attempts: string | null | undefined,
+  nextAt: string | null | undefined
+): RejectBackoff | null {
+  if (!key) return null;
+  const a = Number(attempts);
+  const n = Number(nextAt);
+  if (!Number.isFinite(a) || a < 1 || !Number.isFinite(n)) return null;
+  return { key, attempts: a, nextAt: n };
+}
+
+// ── Coordinates for the wire ──────────────────────────────────────────────
+
+export interface WireFix {
+  lat: number;
+  lng: number;
+  recorded_at: string;
+}
+
+const ISO_START = /^\d{4}-\d{2}-\d{2}T/;
+
+/** A recorded_at as an ISO string the server will parse, or null when it
+ *  cannot be. ISO strings pass through untouched (so the stored started_at
+ *  still matches what finalize dedups on); a raw native epoch (seconds or
+ *  milliseconds, see nativeLocation.ts recordedAtMs) is converted. */
+export function normaliseRecordedAt(v: unknown): string | null {
+  if (typeof v !== "string" && typeof v !== "number") return null;
+  const str = String(v).trim();
+  if (/^\d{9,13}(\.\d+)?$/.test(str)) {
+    const n = Number(str);
+    const d = new Date(n > 1e12 ? n : n * 1000);
+    return Number.isFinite(d.getTime()) ? d.toISOString() : null;
+  }
+  const ms = Date.parse(str);
+  if (!Number.isFinite(ms)) return null;
+  return ISO_START.test(str) ? str : new Date(ms).toISOString();
+}
+
+const R_METRES = 6371008.8;
+function metres(a: WireFix, b: WireFix): number {
+  const toRad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * toRad;
+  const dLng = (b.lng - a.lng) * toRad;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toRad) * Math.cos(b.lat * toRad) * Math.sin(dLng / 2) ** 2;
+  return 2 * R_METRES * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Keep the first and last fix, and any fix at least `minMetres` from the one
+ *  kept before it. Distance thinning keeps the shape and drops dwell clusters. */
+function thin<T extends WireFix>(fixes: ReadonlyArray<T>, minMetres: number): T[] {
+  const out: T[] = [fixes[0]];
+  const lastIdx = fixes.length - 1;
+  for (let i = 1; i < lastIdx; i++) {
+    if (metres(out[out.length - 1], fixes[i]) >= minMetres) out.push(fixes[i]);
+  }
+  out.push(fixes[lastIdx]);
+  return out;
+}
+
+/** At most `max` fixes, first and last always kept. Thins by distance first
+ *  (5 m, doubling) so the route keeps its turns; if that cannot get there
+ *  (fixes all far apart) it falls back to every Nth fix plus the endpoints.
+ *  A recording already under the cap comes back unchanged. */
+export function downsampleCoordinates<T extends WireFix>(
+  fixes: ReadonlyArray<T>,
+  max: number = COORDINATE_TARGET
+): T[] {
+  if (fixes.length <= max) return fixes.slice();
+  for (let m = 5; m <= 2560; m *= 2) {
+    const t = thin(fixes, m);
+    if (t.length <= max) return t;
+  }
+  const stride = Math.ceil((fixes.length - 1) / (max - 1));
+  const out: T[] = [];
+  for (let i = 0; i < fixes.length - 1; i += stride) out.push(fixes[i]);
+  out.push(fixes[fixes.length - 1]);
+  return out.length <= max ? out : out.slice(0, max - 1).concat(fixes[fixes.length - 1]);
+}
+
+export interface PreparedCoordinates<T> {
+  coords: T[];
+  /** Fixes dropped because their timestamp could not be parsed. */
+  droppedBadTime: number;
+  /** Fixes before thinning (after the bad-time drop). */
+  beforeThinning: number;
+}
+
+/** What goes on the wire: unparseable timestamps dropped (one bad fix must
+ *  not fail the whole drive), timestamps normalised to ISO, and the count
+ *  brought under the server's cap. Distance is NOT computed here: it is worked
+ *  out from the full set before this runs. */
+export function prepareCoordinatesForServer<T extends WireFix>(
+  fixes: ReadonlyArray<T>,
+  max: number = COORDINATE_TARGET
+): PreparedCoordinates<T> {
+  const good: T[] = [];
+  let droppedBadTime = 0;
+  for (const f of fixes) {
+    const iso = normaliseRecordedAt(f.recorded_at);
+    if (iso === null || !Number.isFinite(f.lat) || !Number.isFinite(f.lng)) {
+      droppedBadTime++;
+      continue;
+    }
+    good.push(iso === f.recorded_at ? f : { ...f, recorded_at: iso });
+  }
+  return { coords: downsampleCoordinates(good, max), droppedBadTime, beforeThinning: good.length };
+}
+
+// ── Flight cut that survives a kill mid-finalize ──────────────────────────
+
+/** tracking_state value for key `flight_cut`. */
+export interface FlightCutState {
+  /** recorded_at of the first fix after each cut flight: a leg starts there. */
+  after: string[];
+  /** `${before}|${after}` of each flight already reported. */
+  reported: string[];
+}
+
+export function parseFlightCutState(raw: string | null | undefined): FlightCutState {
+  const empty: FlightCutState = { after: [], reported: [] };
+  if (!raw) return empty;
+  try {
+    const v = JSON.parse(raw);
+    const strs = (x: unknown): string[] =>
+      Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : [];
+    return { after: strs(v?.after), reported: strs(v?.reported) };
+  } catch {
+    return empty;
+  }
+}
+
+export function flightReportKey(beforeAt: string, afterAt: string): string {
+  return `${beforeAt}|${afterAt}`;
+}
+
+export interface FlightCutPlan<T> {
+  /** The fixes left once every airborne stretch is out. */
+  kept: T[];
+  /** Indexes into `kept` where a new leg must start (this run's cuts and
+   *  earlier runs' markers whose fix is still in the buffer). */
+  legStartIdx: Set<number>;
+  /** The state to store. */
+  state: FlightCutState;
+  /** Ranges (exclusive both ends) of recorded_at to DELETE. */
+  deleteRanges: Array<{ afterExclusive: string; beforeExclusive: string }>;
+  /** Flights not yet reported (index into the spans passed in). */
+  toReport: number[];
+}
+
+export interface PlanSpan {
+  startIdx: number;
+  endIdx: number;
+}
+
+/** Pure: given the buffer, the spans the flight rule found and the stored
+ *  state, say what to keep, where legs start, what to delete and what to
+ *  report. In memory only; the caller does the writes. `cut` is cutFlights. */
+export function planFlightCut<T extends { recorded_at: string }>(
+  coords: ReadonlyArray<T>,
+  spans: ReadonlyArray<PlanSpan>,
+  stored: FlightCutState,
+  cut: (c: ReadonlyArray<T>, s: ReadonlyArray<PlanSpan>) => { kept: T[]; legStarts: number[] }
+): FlightCutPlan<T> {
+  const { kept, legStarts } = spans.length > 0 ? cut(coords, spans) : { kept: coords.slice(), legStarts: [] };
+  const after = new Set(stored.after);
+  for (const i of legStarts) if (kept[i]) after.add(kept[i].recorded_at);
+  const legStartIdx = new Set<number>();
+  for (let i = 1; i < kept.length; i++) if (after.has(kept[i].recorded_at)) legStartIdx.add(i);
+  const reported = new Set(stored.reported);
+  const toReport: number[] = [];
+  const deleteRanges: FlightCutPlan<T>["deleteRanges"] = [];
+  spans.forEach((s, idx) => {
+    const b = coords[s.startIdx].recorded_at;
+    const a = coords[s.endIdx].recorded_at;
+    deleteRanges.push({ afterExclusive: b, beforeExclusive: a });
+    const key = flightReportKey(b, a);
+    if (!reported.has(key)) {
+      toReport.push(idx);
+      reported.add(key);
+    }
+  });
+  return {
+    kept,
+    legStartIdx,
+    state: { after: [...after], reported: [...reported] },
+    deleteRanges,
+    toReport,
+  };
+}
+
+/** After a consume that removed everything up to `processedMax` (or
+ *  everything, when null): drop the markers and report keys that are behind
+ *  it, keep the ones the buffer still needs. */
+export function pruneFlightCutState(state: FlightCutState, processedMax: string | null): FlightCutState {
+  if (processedMax === null) return { after: [], reported: [] };
+  const max = Date.parse(processedMax);
+  if (!Number.isFinite(max)) return { after: [], reported: [] };
+  const later = (s: string) => {
+    const ms = Date.parse(s);
+    return Number.isFinite(ms) && ms > max;
+  };
+  return {
+    after: state.after.filter(later),
+    reported: state.reported.filter((k) => later(k.split("|")[1] ?? "")),
+  };
+}

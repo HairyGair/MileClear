@@ -5,8 +5,8 @@ const NOW = Date.parse("2026-10-10T09:00:00.000Z");
 
 describe("isLostReason", () => {
   it("counts a drive as lost only when its miles are not in the trip list", () => {
-    const lost: DropReason[] = ["no_coords", "phantom", "too_short", "walk", "crow_flies", "flight", "rejected", "tail_trim", "switched_off", "cancelled", "stale_buffer_cleared"];
-    const kept: DropReason[] = ["merged", "deduped", "error"];
+    const lost: DropReason[] = ["no_coords", "phantom", "too_short", "walk", "crow_flies", "flight", "implausible_distance", "tail_trim", "switched_off", "cancelled", "stale_buffer_cleared"];
+    const kept: DropReason[] = ["merged", "deduped", "error", "rejected", "merge_queued"];
     for (const r of lost) expect(isLostReason(r), r).toBe(true);
     for (const r of kept) expect(isLostReason(r), r).toBe(false);
   });

@@ -15,9 +15,15 @@
 //
 // What counts as airborne, and why it cannot be a drive:
 //
-//  * Speed between consecutive fixes (chord distance over elapsed time) of at
-//    least FLIGHT_STEP_MPH, 200 mph. No car goes there; the fastest UK and
+//  * Speed over a window of at least FLIGHT_SMOOTH_SEC (30 s) of at least
+//    FLIGHT_STEP_MPH, 200 mph: the chord from the latest fix that is at least
+//    30 s older, over the elapsed time (consecutive fixes, when they are
+//    already further apart than that). No car goes there; the fastest UK and
 //    Eurostar trains top out near 186 mph. Jets cruise at 450 mph and up.
+//    Why a window: consecutive fixes one second apart with +-15 m of jitter
+//    swing a steady 186 mph between roughly 120 and 250 mph, so a two-hour
+//    high-speed train run WAS cut as a flight in a reviewer's probe (12 Oct
+//    2026). Over 30 s the same jitter moves the figure by about 1%.
 //  * Sustained, not a blip: those fast steps add up to FLIGHT_MIN_FAST_SEC,
 //    ten minutes. A GPS glitch is a handful of seconds. A plane's sparse
 //    trace (a fix at the gate, then nothing until the other end, hours later)
@@ -49,6 +55,8 @@ export interface FlightFix {
 
 /** Faster than this between two fixes is not a car, or a UK/Eurostar train. */
 export const FLIGHT_STEP_MPH = 200;
+/** Speed is judged over at least this long, so GPS jitter cannot fake it. */
+export const FLIGHT_SMOOTH_SEC = 30;
 /** The fast steps must add up to this long: a glitch is seconds, not minutes. */
 export const FLIGHT_MIN_FAST_SEC = 10 * 60;
 /** The stretch must have gone at least this far, start to end. */
@@ -120,14 +128,27 @@ export function findFlights(fixes: ReadonlyArray<FlightFix>): FlightSpan[] {
 
   // Speed of the step arriving at each fix. -1 where it cannot be judged
   // (a bad fix, or no time passed between the two).
+  // Measured over the nearest earlier fix that is at least FLIGHT_SMOOTH_SEC
+  // older (see the header), so `from[i]` is where the window for fix i starts.
   const stepMph: number[] = new Array(n).fill(-1);
-  const stepMiles: number[] = new Array(n).fill(0);
+  const from: number[] = new Array(n).fill(0);
+  // Consecutive-fix speed, used ONLY to widen a confirmed flight over its
+  // take-off roll and approach (the window lags a fast-accelerating plane).
+  const rawMph: number[] = new Array(n).fill(-1);
   for (let i = 1; i < n; i++) {
-    if (!ok[i] || !ok[i - 1]) continue;
-    const dtSec = (t[i] - t[i - 1]) / 1000;
-    if (!(dtSec > 0)) continue;
-    stepMiles[i] = miles(fixes[i - 1], fixes[i]);
-    stepMph[i] = stepMiles[i] / (dtSec / 3600);
+    if (ok[i] && ok[i - 1] && t[i] > t[i - 1]) {
+      rawMph[i] = miles(fixes[i - 1], fixes[i]) / ((t[i] - t[i - 1]) / 3600000);
+    }
+  }
+  for (let i = 1; i < n; i++) {
+    if (!ok[i]) continue;
+    let j = i - 1;
+    // Step back over bad fixes and fixes too close in time to judge.
+    while (j >= 0 && (!ok[j] || (t[i] - t[j]) / 1000 < FLIGHT_SMOOTH_SEC)) j--;
+    if (j < 0) continue;
+    const dtSec = (t[i] - t[j]) / 1000;
+    from[i] = j;
+    stepMph[i] = miles(fixes[j], fixes[i]) / (dtSec / 3600);
   }
 
   // Group the fast steps. Two fast stretches within FLIGHT_MERGE_GAP_MS of
@@ -136,14 +157,16 @@ export function findFlights(fixes: ReadonlyArray<FlightFix>): FlightSpan[] {
   const groups: Group[] = [];
   for (let i = 1; i < n; i++) {
     if (stepMph[i] < FLIGHT_STEP_MPH) continue;
-    const dtSec = (t[i] - t[i - 1]) / 1000;
+    // Time newly covered by this fast reading: from the previous fix (the
+    // windows overlap, so counting the whole window would count it many times).
+    const dtSec = Math.max(0, (t[i] - t[i - 1]) / 1000);
     const last = groups[groups.length - 1];
-    if (last && t[i - 1] - t[last.e] <= FLIGHT_MERGE_GAP_MS) {
+    if (last && t[from[i]] - t[last.e] <= FLIGHT_MERGE_GAP_MS) {
       last.e = i;
       last.fastSec += dtSec;
       last.peakMph = Math.max(last.peakMph, stepMph[i]);
     } else {
-      groups.push({ s: i - 1, e: i, fastSec: dtSec, peakMph: stepMph[i] });
+      groups.push({ s: from[i], e: i, fastSec: dtSec, peakMph: stepMph[i] });
     }
   }
 
@@ -172,9 +195,9 @@ export function findFlights(fixes: ReadonlyArray<FlightFix>): FlightSpan[] {
     // Widen over the shoulders: take-off roll, climb, approach, roll-out.
     const floor = spans.length > 0 ? spans[spans.length - 1].endIdx : 0;
     let s = g.s;
-    while (s > floor && stepMph[s] >= FLIGHT_SHOULDER_MPH) s--;
+    while (s > floor && rawMph[s] >= FLIGHT_SHOULDER_MPH) s--;
     let e = g.e;
-    while (e < n - 1 && stepMph[e + 1] >= FLIGHT_SHOULDER_MPH) e++;
+    while (e < n - 1 && rawMph[e + 1] >= FLIGHT_SHOULDER_MPH) e++;
     // A second flight whose start fix is the last one's end is allowed: a
     // connection with no ground fixes between, still two flights.
     spans.push({

@@ -25,9 +25,17 @@ export type DropReason =
   | "crow_flies"
   /** An aeroplane, not a drive: the airborne fixes were cut out (flightRule.ts). */
   | "flight"
-  /** The server refused the trip for good (a 4xx that will never pass). The
-   *  fixes are cleared so the save is not retried every minute for ever. */
+  /** Over the server's 2,000-mile cap, by our own sum before sending or by the
+   *  server's "Distance exceeds reasonable limit" verdict: known garbage (a
+   *  flight the flight rule missed). The only refusal that clears the fixes. */
+  | "implausible_distance"
+  /** The server refused the trip with some other 4xx (a phone clock ahead, a
+   *  tag it does not know yet). NOT lost: the fixes are kept and the save is
+   *  tried again after a growing wait (15 min, 1 h, 6 h, daily). */
   | "rejected"
+  /** Merged onto the previous trip locally; the server refused the update, so
+   *  it sits in the sync queue. Not lost: the miles are on the trip. */
+  | "merge_queued"
   /** The tail trim left nothing (should never happen; logged so it shows). */
   | "tail_trim"
   /** Joined onto the previous trip (a fuel stop, a drop-off). Not lost. */
@@ -52,7 +60,7 @@ const LOST: ReadonlySet<DropReason> = new Set<DropReason>([
   "walk",
   "crow_flies",
   "flight",
-  "rejected",
+  "implausible_distance",
   "tail_trim",
   "switched_off",
   "cancelled",
