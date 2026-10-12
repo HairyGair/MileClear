@@ -21,6 +21,7 @@ import { Button } from "../../components/Button";
 import { DateTimePickerField } from "../../components/DateTimePickerField";
 import { TripThumb } from "../../components/trips/TripThumb";
 import { MissedDrivesStrip } from "../../components/trips/MissedDrivesStrip";
+import { PracticeSortLine } from "../../components/practice/PracticeSortLine";
 import { ClassifyControl } from "../../components/home/ClassifyControl";
 import { fetchOdometerDays, type OdometerDay } from "../../lib/api/odometer";
 import { dayLineA11y, dayLineText, loadedRange, selectDayLines } from "../../lib/odometer/logic";
@@ -1752,6 +1753,7 @@ export default function TripsScreen() {
             </View>
 
             {/* To sort: drives we may have missed first, then the trips to sort. */}
+            {inToSort && <PracticeSortLine />}
             {inToSort && <MissedJourneys startExpanded onCountChange={setMissedCount} />}
             {inToSort && routeGroups.length > 0 && (
               <Text style={styles.sectionTitle} accessibilityRole="header">Business or personal?</Text>

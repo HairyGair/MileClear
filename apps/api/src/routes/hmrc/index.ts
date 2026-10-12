@@ -605,6 +605,8 @@ export async function hmrcRoutes(app: FastifyInstance) {
           businessId,
           taxYear: parsed.data.taxYear,
           periodId: parsed.data.taxYear,
+          // Practice accounts read this to show "Sent 9 Oct" per quarter.
+          periodEndDate: parsed.data.periodEndDate,
           turnoverPence: submission.breakdown.income.turnoverPence,
           mileagePence: submission.breakdown.mileage.deductionPence,
         });

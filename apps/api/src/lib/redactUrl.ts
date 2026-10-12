@@ -13,7 +13,12 @@
  * already log on purpose, and each hyphen-separated group is under 32.
  */
 export function redactUrlSecrets(url: string): string {
-  return redactNinoInPath(url.replace(/\/[0-9a-f]{32,}/gi, "/<redacted>"));
+  return redactNinoInPath(
+    url
+      .replace(/\/[0-9a-f]{32,}/gi, "/<redacted>")
+      // And in a query value (practice invites: /practice-links/lookup?invite=...).
+      .replace(/=[0-9a-f]{32,}(?=&|$)/gi, "=<redacted>")
+  );
 }
 
 /**

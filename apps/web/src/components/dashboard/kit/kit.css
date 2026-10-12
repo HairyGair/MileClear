@@ -149,6 +149,13 @@ html.mc-scroll-lock--gutter { scrollbar-gutter: stable; }
 .mc-status--amber { background: var(--mc-amber-dim); color: var(--mc-amber); }
 .mc-status--green { background: var(--mc-green-dim); color: var(--mc-green); }
 .mc-status--red { background: var(--mc-red-dim); color: var(--mc-red-text); }
+.mc-status--outline { background: none; border: 1px dashed var(--mc-text-2); color: var(--mc-text-2); }
+.mc-chip { display: inline-flex; align-items: center; gap: 6px; }
+.mc-chip.is-on .mc-chip__count { background: rgba(3, 7, 18, 0.15); color: var(--mc-bg); }
+.mc-utabs { display: flex; gap: 32px; border-bottom: 1px solid var(--mc-hairline); overflow-x: auto; }
+.mc-utabs__item { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0; border: 0; background: none; color: var(--mc-text-2); font-size: 15px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.mc-utabs__item.is-selected { color: var(--mc-text-1); font-weight: 600; }
+.mc-utabs__item.is-selected::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 1.5px; background: var(--mc-amber); }
 
 /* Figure and stat tile */
 .mc-figure__label { font-size: var(--mc-fs-body); font-weight: 500; color: var(--mc-text-2); }

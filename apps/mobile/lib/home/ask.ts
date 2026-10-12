@@ -8,6 +8,7 @@
 // Pure and unit-tested.
 
 export type AskId =
+  | "practice" // An accountant's practice asked something (share, keep sharing, a request)
   | "acquisition" // Where did you hear about MileClear? (first 30 days)
   | "vehicle" // Add your vehicle
   | "odometer" // Odometer readings for work
@@ -19,6 +20,9 @@ export type AskId =
   | "android_beta"; // Retired 11 Oct 2026 (not in ASK_ORDER): Android is public
 
 export const ASK_ORDER: readonly AskId[] = [
+  // First: someone (the driver's accountant) is waiting on an answer, often
+  // with a deadline. Outranks every other ask, Pro included.
+  "practice",
   "acquisition",
   "vehicle",
   "odometer",

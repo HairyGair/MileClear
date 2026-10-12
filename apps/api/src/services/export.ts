@@ -842,9 +842,18 @@ export async function generateTripsPdf(
 
 export async function generateSelfAssessmentPdf(
   userId: string,
-  taxYear: string
+  taxYear: string,
+  opts: {
+    /** Practice accounts: leave out every total that counts personal
+     *  driving (total trips, total miles, personal miles), and earnings
+     *  unless the driver shares them. */
+    businessOnly?: boolean;
+    includeEarnings?: boolean;
+  } = {}
 ): Promise<Buffer> {
   const summary = await fetchExportSummary(userId, taxYear);
+  const businessOnly = opts.businessOnly === true;
+  const includeEarnings = opts.includeEarnings ?? true;
 
   const pageWidth = 595.28; // A4 portrait
   const pageHeight = 841.89;
@@ -903,7 +912,11 @@ export async function generateSelfAssessmentPdf(
   const boxGap = 10;
   const boxW = (contentWidth - boxGap * 2) / 3;
 
-  drawStatBox(doc, margin, boxY, boxW, "Total Trips", String(summary.totalTrips));
+  if (businessOnly) {
+    drawStatBox(doc, margin, boxY, boxW, "Tax Year", taxYear);
+  } else {
+    drawStatBox(doc, margin, boxY, boxW, "Total Trips", String(summary.totalTrips));
+  }
   drawStatBox(
     doc,
     margin + boxW + boxGap,
@@ -929,34 +942,41 @@ export async function generateSelfAssessmentPdf(
 
   // Second row of stat boxes
   const box2Y = doc.y;
-  drawStatBox(
-    doc,
-    margin,
-    box2Y,
-    boxW,
-    "Total Miles",
-    `${summary.totalMiles.toFixed(1)} mi`
-  );
-  drawStatBox(
-    doc,
-    margin + boxW + boxGap,
-    box2Y,
-    boxW,
-    "Personal Miles",
-    `${summary.personalMiles.toFixed(1)} mi`
-  );
-  if (summary.totalEarningsPence > 0) {
+  if (businessOnly) {
+    if (includeEarnings && summary.totalEarningsPence > 0) {
+      drawStatBox(doc, margin, box2Y, boxW, "Total Earnings", formatPence(summary.totalEarningsPence));
+      doc.y = box2Y + 68;
+    }
+  } else {
     drawStatBox(
       doc,
-      margin + (boxW + boxGap) * 2,
+      margin,
       box2Y,
       boxW,
-      "Total Earnings",
-      formatPence(summary.totalEarningsPence)
+      "Total Miles",
+      `${summary.totalMiles.toFixed(1)} mi`
     );
-  }
+    drawStatBox(
+      doc,
+      margin + boxW + boxGap,
+      box2Y,
+      boxW,
+      "Personal Miles",
+      `${summary.personalMiles.toFixed(1)} mi`
+    );
+    if (includeEarnings && summary.totalEarningsPence > 0) {
+      drawStatBox(
+        doc,
+        margin + (boxW + boxGap) * 2,
+        box2Y,
+        boxW,
+        "Total Earnings",
+        formatPence(summary.totalEarningsPence)
+      );
+    }
 
-  doc.y = box2Y + 68;
+    doc.y = box2Y + 68;
+  }
 
   // ── Vehicle Breakdown ──
   doc
@@ -968,13 +988,16 @@ export async function generateSelfAssessmentPdf(
 
   if (summary.vehicleBreakdown.length > 0) {
     // Table header
+    // Business-only drops the Total Miles column (it counts personal
+    // driving) and gives its width to Deduction.
     const vCols = [
       { header: "Vehicle", width: 140 },
       { header: "Type", width: 70 },
       { header: "Total Miles", width: 80 },
       { header: "Business Miles", width: 85 },
       { header: "Deduction", width: contentWidth - 375 },
-    ];
+    ].filter((_, idx) => !(businessOnly && idx === 2));
+    if (businessOnly) vCols[vCols.length - 1].width = contentWidth - 295;
     const vTableW = vCols.reduce((s, c) => s + c.width, 0);
     let vy = doc.y;
 
@@ -1004,7 +1027,7 @@ export async function generateSelfAssessmentPdf(
         `${v.totalMiles.toFixed(1)} mi`,
         `${v.businessMiles.toFixed(1)} mi`,
         formatPence(v.deductionPence),
-      ];
+      ].filter((_, idx) => !(businessOnly && idx === 2));
       for (let j = 0; j < vCols.length; j++) {
         doc.text(vals[j], vx + 4, vy + 4, {
           width: vCols[j].width - 8,
@@ -1027,13 +1050,16 @@ export async function generateSelfAssessmentPdf(
       .text("Monthly Breakdown", margin, doc.y);
     doc.moveDown(0.5);
 
+    // Business-only drops Trips and Total Miles (both count personal trips).
+    const monthKeep = (idx: number) => !(businessOnly && (idx === 1 || idx === 2));
     const mCols = [
       { header: "Month", width: 120 },
       { header: "Trips", width: 60 },
       { header: "Total Miles", width: 90 },
       { header: "Business Miles", width: 90 },
       { header: "Deduction", width: contentWidth - 360 },
-    ];
+    ].filter((_, idx) => monthKeep(idx));
+    if (businessOnly) mCols[mCols.length - 1].width = contentWidth - 210;
     const mTableW = mCols.reduce((s, c) => s + c.width, 0);
 
     // Check if we need a new page
@@ -1090,7 +1116,7 @@ export async function generateSelfAssessmentPdf(
         `${m.miles.toFixed(1)} mi`,
         `${m.businessMiles.toFixed(1)} mi`,
         formatPence(m.deductionPence),
-      ];
+      ].filter((_, idx) => monthKeep(idx));
       for (let j = 0; j < mCols.length; j++) {
         doc.text(vals[j], mx + 4, my + 4, {
           width: mCols[j].width - 8,
@@ -1111,7 +1137,7 @@ export async function generateSelfAssessmentPdf(
       `${totalMonthMiles.toFixed(1)} mi`,
       `${totalMonthBusiness.toFixed(1)} mi`,
       formatPence(totalMonthDeduction),
-    ];
+    ].filter((_, idx) => monthKeep(idx));
     for (let j = 0; j < mCols.length; j++) {
       doc.text(totals[j], mx + 4, my + 5, {
         width: mCols[j].width - 8,
@@ -1179,7 +1205,7 @@ export async function generateSelfAssessmentPdf(
   doc.y = infoBoxY + infoBoxH + 12;
 
   // ── Earnings Summary ──
-  if (summary.earningsByPlatform.length > 0) {
+  if (includeEarnings && summary.earningsByPlatform.length > 0) {
     if (doc.y + 80 > pageHeight - 60) {
       drawFooter(doc, 1, null, pageWidth, pageHeight, margin, reportRef);
       doc.addPage();

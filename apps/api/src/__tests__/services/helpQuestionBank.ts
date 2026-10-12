@@ -113,7 +113,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Does MileClear submit my tax return for me?", area: "tax_and_claims", id: "sa-wizard", expect: [/(doesn't|does not|can't|cannot|won't|never) (file|submit)|you or your accountant/i] },
   { q: "How do I send my mileage to my accountant?", area: "tax_and_claims", id: "exports", expect: [/downloads/i, PRO] },
   { q: "How do I export a CSV of my trips?", area: "tax_and_claims", id: "exports", expect: [/downloads/i, /csv/i] },
-  { q: "Can my accountant log in to see my figures?", area: "tax_and_claims", id: "accountant", expect: [/mileclear\.com/i, PRO] },
+  { q: "Can my accountant log in to see my figures?", area: "tax_and_claims", id: "accountant", expect: [/free for every driver/i, /business trips/i, /stop sharing/i], reject: [PRO] },
   { q: "How is my tax estimate worked out?", area: "tax_and_claims", id: "tax-estimate", expect: [/earnings/i, /expenses|mileage/i] },
   { q: "I live in Scotland, how do I get the Scottish tax rates?", area: "tax_and_claims", id: "scottish-income-tax", expect: [/tax details/i, /scottish/i] },
   { q: "How much should I put by each week for tax?", area: "tax_and_claims", id: "payment-plan", expect: [/payment plan/i] },

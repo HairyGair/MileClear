@@ -9,7 +9,7 @@ export { Card, SectionHeader, ActionLink, type CardAction } from "./Card";
 export { SettingsGroup, SettingsRow, ToggleRow, type SettingsRowProps } from "./Settings";
 export { EmptyState, ErrorState, CardError, Skeleton } from "./States";
 export { ProGate, ProChip } from "./Pro";
-export { Segmented, FilterChips, StatusChip, type SegmentOption } from "./Controls";
+export { Segmented, FilterChips, StatusChip, UnderlineTabs, type SegmentOption } from "./Controls";
 export { Figure, StatTile } from "./Figure";
 export { DataTable, Table, type Column } from "./DataTable";
 export { Dialog, ConfirmDialog } from "./Dialog";

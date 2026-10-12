@@ -83,7 +83,7 @@ export function FilterChips<T extends string>({
   single = false,
   ariaLabel,
 }: {
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; count?: number }[];
   value: T[];
   onChange: (v: T[]) => void;
   single?: boolean;
@@ -107,6 +107,63 @@ export function FilterChips<T extends string>({
             onClick={() => toggle(o.value)}
           >
             {o.label}
+            {o.count !== undefined && <span className="mc-seg__count mc-chip__count">{o.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Quiet tabs for a page that already has an amber button: underline on the
+ * selected one, arrow keys move between them.
+ *
+ *   <UnderlineTabs ariaLabel="Client" value={tab} onChange={setTab} options={[...]} />
+ */
+export function UnderlineTabs<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  options: { value: T; label: string; count?: number; icon?: IconName }[];
+  value: T;
+  onChange: (v: T) => void;
+  ariaLabel: string;
+}) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  function onKeyDown(e: KeyboardEvent<HTMLButtonElement>, index: number) {
+    let next = -1;
+    if (e.key === "ArrowRight") next = (index + 1) % options.length;
+    if (e.key === "ArrowLeft") next = (index - 1 + options.length) % options.length;
+    if (next >= 0) {
+      e.preventDefault();
+      onChange(options[next].value);
+      refs.current[next]?.focus();
+    }
+  }
+  return (
+    <div className="mc-utabs" role="tablist" aria-label={ariaLabel}>
+      {options.map((o, i) => {
+        const on = o.value === value;
+        return (
+          <button
+            key={o.value}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            tabIndex={on ? 0 : -1}
+            className={cx("mc-utabs__item", on && "is-selected")}
+            onClick={() => onChange(o.value)}
+            onKeyDown={(e) => onKeyDown(e, i)}
+          >
+            {o.icon && <Icon name={o.icon} size={18} />}
+            {o.label}
+            {o.count !== undefined && o.count > 0 && <span className="mc-count">{o.count}</span>}
           </button>
         );
       })}
@@ -120,7 +177,7 @@ export function StatusChip({
   label,
   icon,
 }: {
-  tone: "neutral" | "amber" | "green" | "red";
+  tone: "neutral" | "amber" | "green" | "red" | "outline";
   label: string;
   icon?: IconName;
 }) {
