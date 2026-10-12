@@ -1,4 +1,5 @@
-/* Sign-in, "Split" look (12 Oct 2026): a map with a recorded drive on the
+/* Account pages (sign in, create account, forgot password, verify),
+   "Split" look (12 Oct 2026): a map with a recorded drive on the
    left, the form on the right; they stack on a phone. Colours match the app
    (apps/mobile/lib/theme.ts). Scoped to .signin so nothing leaks. */
 
@@ -25,12 +26,13 @@
   color-scheme: dark;
 }
 
-.signin a {
+/* Text links only: the store buttons and brand keep their own colours. */
+.signin a:not(.store-btn) {
   color: var(--si-amber);
   text-decoration: none;
   font-weight: 700;
 }
-.signin a:hover {
+.signin a:not(.store-btn):hover {
   color: var(--si-amber-hover);
   text-decoration: underline;
 }
@@ -258,6 +260,58 @@
   font-weight: 600;
 }
 
+/* A button that reads as a link: "Got a referral code?", "send it again". */
+.signin__link-btn {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--si-amber);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.signin__link-btn:hover:not(:disabled) {
+  color: var(--si-amber-hover);
+  text-decoration: underline;
+}
+.signin__link-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.signin__link-btn--inline {
+  font-size: inherit;
+}
+
+.signin__fine {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--si-text-3);
+}
+.signin__fine a {
+  font-weight: 600;
+}
+
+/* Create account: the app does the recording, say so before they wait. */
+.signin__app {
+  margin-top: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--si-hairline);
+  background: var(--si-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.signin__app p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--si-text-2);
+}
+
 /* Apple, Google and the divider, restyled for this page. */
 .signin .oauth {
   margin: 0;
@@ -295,6 +349,10 @@
 
 /* ── Phone: the map becomes a short band above the form ─────────── */
 @media (max-width: 899px) {
+  /* Short pages (verify) must not stretch the strip to fill the screen. */
+  .signin {
+    align-content: flex-start;
+  }
   .signin__panel {
     flex-basis: 100%;
     min-height: 150px;

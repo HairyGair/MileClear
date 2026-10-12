@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
 import { safeRedirectPath } from "../../../lib/safeRedirect";
-import { Input } from "../../../components/ui/Input";
-import { Button } from "../../../components/ui/Button";
+import { AuthShell, AuthError } from "../../../components/auth/AuthShell";
+import { AuthField } from "../../../components/auth/AuthField";
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -77,71 +77,49 @@ export default function VerifyPage() {
   };
 
   return (
-    <div className="auth-layout">
-      <div className="auth-card">
-        <Link href="/" className="auth-card__logo">
-          <img
-            src="/branding/logo-120x120.png"
-            alt=""
-            className="auth-card__logo-icon"
-          />
-          <span className="auth-card__logo-text">
-            Mile<span>Clear</span>
-          </span>
-        </Link>
+    <AuthShell
+      title="Check your email"
+      lead={
+        sending
+          ? "Sending your code..."
+          : sent
+          ? "We've sent a 6-digit code to your email. Enter it to confirm your address."
+          : "Enter the 6-digit code from your email."
+      }
+    >
+      <AuthError message={error} />
 
-        <h1 className="auth-card__heading">Verify your email</h1>
-        <p className="auth-card__sub">
-          {sending
-            ? "Sending verification code..."
-            : sent
-            ? "We've sent a 6-digit code to your email"
-            : "Enter the code sent to your email"}
-        </p>
+      <form className="signin__form" onSubmit={handleSubmit}>
+        <AuthField
+          id="code"
+          label="Code"
+          placeholder="123456"
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          required
+          autoComplete="one-time-code"
+          inputMode="numeric"
+        />
+        <button type="submit" className="signin__submit" disabled={loading || sending}>
+          {loading ? "Checking..." : "Confirm email"}
+        </button>
+      </form>
 
-        {error && <div className="alert alert--error">{error}</div>}
-
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <Input
-            id="code"
-            type="text"
-            label="Verification code"
-            placeholder="123456"
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            required
-            autoComplete="one-time-code"
-            inputMode="numeric"
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            size="lg"
-            className="auth-form__submit"
-            disabled={loading || sending}
-            style={{ width: "100%" }}
-          >
-            {loading ? "Verifying..." : "Verify email"}
-          </Button>
-        </form>
-
-        <p className="auth-card__footer">
-          Didn&apos;t receive a code?{" "}
-          <button
-            type="button"
-            className="auth-card__inline-link"
-            onClick={handleResend}
-            disabled={sending}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
-          >
-            {sending ? "Sending..." : "Resend code"}
-          </button>
-        </p>
-
-        <p className="auth-card__footer">
-          <Link href={next}>Skip for now</Link>
-        </p>
-      </div>
-    </div>
+      <p className="signin__fine">
+        No code? Check your junk folder, or{" "}
+        <button
+          type="button"
+          className="signin__link-btn signin__link-btn--inline"
+          onClick={handleResend}
+          disabled={sending}
+        >
+          {sending ? "sending..." : "send it again"}
+        </button>
+        .
+      </p>
+      <p className="signin__fine">
+        <Link href={next}>Skip for now</Link>
+      </p>
+    </AuthShell>
   );
 }

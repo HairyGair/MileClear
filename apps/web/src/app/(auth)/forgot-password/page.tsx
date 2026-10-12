@@ -4,8 +4,8 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "../../../lib/api";
-import { Input } from "../../../components/ui/Input";
-import { Button } from "../../../components/ui/Button";
+import { AuthShell, AuthError } from "../../../components/auth/AuthShell";
+import { AuthField, AuthPasswordField } from "../../../components/auth/AuthField";
 
 type Step = "email" | "reset" | "done";
 
@@ -15,7 +15,6 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -42,10 +41,6 @@ export default function ForgotPasswordPage() {
       setError("Password must be at least 8 characters");
       return;
     }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
 
     setLoading(true);
     try {
@@ -62,153 +57,94 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  return (
-    <div className="auth-layout">
-      <div className="auth-card">
-        <Link href="/" className="auth-card__logo">
-          <img
-            src="/branding/logo-120x120.png"
-            alt=""
-            className="auth-card__logo-icon"
+  const startAgain = () => {
+    setStep("email");
+    setError("");
+    setCode("");
+    setNewPassword("");
+  };
+
+  if (step === "done") {
+    return (
+      <AuthShell title="Password changed" lead="You can sign in with your new password now.">
+        <button type="button" className="signin__submit" onClick={() => router.push("/login")}>
+          Sign in
+        </button>
+      </AuthShell>
+    );
+  }
+
+  if (step === "reset") {
+    return (
+      <AuthShell
+        title="Check your email"
+        lead={
+          <>
+            We sent a 6-digit code to <strong>{email}</strong>.
+          </>
+        }
+      >
+        <AuthError message={error} />
+        <form className="signin__form" onSubmit={handleReset}>
+          <AuthField
+            id="code"
+            label="Code"
+            placeholder="123456"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            required
+            autoComplete="one-time-code"
+            inputMode="numeric"
           />
-          <span className="auth-card__logo-text">
-            Mile<span>Clear</span>
-          </span>
-        </Link>
+          <AuthPasswordField
+            id="newPassword"
+            label="New password"
+            placeholder="At least 8 characters"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+          <button type="submit" className="signin__submit" disabled={loading}>
+            {loading ? "Changing..." : "Change password"}
+          </button>
+        </form>
+        <p className="signin__fine">
+          No code? Check your junk folder, or{" "}
+          <button type="button" className="signin__link-btn signin__link-btn--inline" onClick={startAgain}>
+            send it again
+          </button>
+          .
+        </p>
+      </AuthShell>
+    );
+  }
 
-        {step === "email" && (
-          <>
-            <h1 className="auth-card__heading">Reset your password</h1>
-            <p className="auth-card__sub">
-              Enter your email and we&apos;ll send you a 6-digit code
-            </p>
-
-            {error && <div className="alert alert--error">{error}</div>}
-
-            <form className="auth-form" onSubmit={handleSendCode}>
-              <Input
-                id="email"
-                type="email"
-                label="Email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                className="auth-form__submit"
-                disabled={loading}
-                style={{ width: "100%" }}
-              >
-                {loading ? "Sending..." : "Send reset code"}
-              </Button>
-            </form>
-          </>
-        )}
-
-        {step === "reset" && (
-          <>
-            <h1 className="auth-card__heading">Check your email</h1>
-            <p className="auth-card__sub">
-              We sent a 6-digit code to <strong>{email}</strong>
-            </p>
-
-            {error && <div className="alert alert--error">{error}</div>}
-
-            <form className="auth-form" onSubmit={handleReset}>
-              <Input
-                id="code"
-                type="text"
-                label="Verification code"
-                placeholder="123456"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                required
-                autoComplete="one-time-code"
-                inputMode="numeric"
-              />
-              <Input
-                id="newPassword"
-                type="password"
-                label="New password"
-                placeholder="At least 8 characters"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
-              <Input
-                id="confirmPassword"
-                type="password"
-                label="Confirm new password"
-                placeholder="Repeat your new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                size="lg"
-                className="auth-form__submit"
-                disabled={loading}
-                style={{ width: "100%" }}
-              >
-                {loading ? "Resetting..." : "Reset password"}
-              </Button>
-            </form>
-
-            <p className="auth-card__footer">
-              Didn&apos;t receive a code?{" "}
-              <button
-                type="button"
-                className="auth-card__inline-link"
-                onClick={() => {
-                  setStep("email");
-                  setError("");
-                  setCode("");
-                  setNewPassword("");
-                  setConfirmPassword("");
-                }}
-                style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
-              >
-                Try again
-              </button>
-            </p>
-          </>
-        )}
-
-        {step === "done" && (
-          <>
-            <h1 className="auth-card__heading">Password reset</h1>
-            <p className="auth-card__sub">
-              Your password has been updated. You can now sign in with your new
-              password.
-            </p>
-
-            <Button
-              variant="primary"
-              size="lg"
-              style={{ width: "100%", marginTop: "1rem" }}
-              onClick={() => router.push("/login")}
-            >
-              Sign in
-            </Button>
-          </>
-        )}
-
-        {step !== "done" && (
-          <p className="auth-card__footer">
-            Remember your password? <Link href="/login">Sign in</Link>
-          </p>
-        )}
-      </div>
-    </div>
+  return (
+    <AuthShell
+      title="Forgot your password?"
+      lead="Enter your email and we'll send you a 6-digit code to set a new one."
+    >
+      <AuthError message={error} />
+      <form className="signin__form" onSubmit={handleSendCode}>
+        <AuthField
+          id="email"
+          label="Email"
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+        />
+        <button type="submit" className="signin__submit" disabled={loading}>
+          {loading ? "Sending..." : "Send code"}
+        </button>
+      </form>
+      <p className="signin__fine">
+        Remembered it? <Link href="/login">Sign in</Link>
+      </p>
+    </AuthShell>
   );
 }
