@@ -5,7 +5,9 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  currentPhoneIsIos,
   decideLocationStarvation,
+  dropDriveTimeMs,
   dumpBatteryIgnoring,
   isStarvedDrop,
   locationStarvationEnabled,
@@ -30,39 +32,93 @@ function candidate(over: Partial<StarvationCandidate> = {}): StarvationCandidate
     lastSupportReplyAt: null,
     lastPushAt: null,
     lastDryRunAt: null,
+    currentlyIos: false,
     ...over,
   };
 }
 
-describe("isStarvedDrop", () => {
-  const base = { platform: "android", reason: "too_short", detail: "no_driving_speed", coords: 2, durationSec: 300 };
-  it("counts a short recording with almost no location points", () => {
-    expect(isStarvedDrop(base)).toBe(true);
-    expect(isStarvedDrop({ ...base, coords: 3 })).toBe(true);
+describe("isStarvedDrop (12 Oct 2026 review: false starts must not count)", () => {
+  const base = {
+    platform: "android",
+    reason: "too_short",
+    detail: "no_driving_speed",
+    lost: true,
+    coords: 2,
+    durationSec: 300,
+  };
+  it("does not count a drop with no location points at all", () => {
+    expect(isStarvedDrop({ ...base, reason: "no_coords", coords: 0, durationSec: 0 })).toBe(false);
+    expect(isStarvedDrop({ platform: "android", reason: "no_coords", lost: true })).toBe(false);
   });
-  it("counts no_coords, with or without a coords number", () => {
-    expect(isStarvedDrop({ ...base, reason: "no_coords", coords: 0 })).toBe(true);
-    expect(isStarvedDrop({ platform: "android", reason: "no_coords", durationSec: 120 })).toBe(true);
+  it("needs the phone's own lost verdict (an orphan sweep is lost:false)", () => {
+    expect(isStarvedDrop({ ...base, source: "orphan_sweep", lost: false })).toBe(false);
+    expect(isStarvedDrop({ ...base, lost: false })).toBe(false);
+    const { lost: _l, ...noLost } = base;
+    expect(isStarvedDrop(noLost)).toBe(false);
+  });
+  it("counts a single fix, whose duration is 0", () => {
+    expect(isStarvedDrop({ ...base, coords: 1, durationSec: 0 })).toBe(true);
+    expect(isStarvedDrop({ ...base, coords: 1, durationSec: undefined })).toBe(true);
+  });
+  it("does not count 2 fixes over 30 seconds", () => {
+    expect(isStarvedDrop({ ...base, coords: 2, durationSec: 30 })).toBe(false);
+  });
+  it("counts 2 fixes over 90 seconds, and 3 over exactly 60", () => {
+    expect(isStarvedDrop({ ...base, coords: 2, durationSec: 90 })).toBe(true);
+    expect(isStarvedDrop({ ...base, coords: 3, durationSec: 60 })).toBe(true);
+  });
+  it("does not count 2 fixes with no duration", () => {
+    const { durationSec: _d, ...noDuration } = base;
+    expect(isStarvedDrop(noDuration)).toBe(false);
   });
   it("ignores iOS, other reasons and healthy recordings", () => {
     expect(isStarvedDrop({ ...base, platform: "ios" })).toBe(false);
     expect(isStarvedDrop({ ...base, reason: "walk" })).toBe(false);
-    expect(isStarvedDrop({ ...base, reason: "phantom" })).toBe(false);
     expect(isStarvedDrop({ ...base, coords: 4 })).toBe(false);
   });
-  it("ignores blips under a minute but accepts a missing duration", () => {
-    expect(isStarvedDrop({ ...base, durationSec: 59 })).toBe(false);
-    expect(isStarvedDrop({ ...base, durationSec: 60 })).toBe(true);
-    const { durationSec: _d, ...noDuration } = base;
-    expect(isStarvedDrop(noDuration)).toBe(true);
-  });
   it("does not count too_short with no coords figure", () => {
-    expect(isStarvedDrop({ platform: "android", reason: "too_short", durationSec: 200 })).toBe(false);
+    expect(isStarvedDrop({ platform: "android", reason: "too_short", lost: true, durationSec: 200 })).toBe(false);
   });
   it("copes with junk", () => {
     expect(isStarvedDrop(null)).toBe(false);
     expect(isStarvedDrop("x")).toBe(false);
     expect(isStarvedDrop([])).toBe(false);
+  });
+});
+
+describe("dropDriveTimeMs (drive time, not upload time)", () => {
+  const upload = new Date("2026-10-12T12:00:00Z");
+  it("prefers endedAt, then droppedAt, then the upload time", () => {
+    expect(dropDriveTimeMs({ endedAt: "2026-10-05T08:00:00Z", droppedAt: "2026-10-05T08:05:00Z" }, upload)).toBe(
+      Date.parse("2026-10-05T08:00:00Z")
+    );
+    expect(dropDriveTimeMs({ droppedAt: "2026-10-05T08:05:00Z" }, upload)).toBe(Date.parse("2026-10-05T08:05:00Z"));
+    expect(dropDriveTimeMs({}, upload)).toBe(upload.getTime());
+    expect(dropDriveTimeMs({ endedAt: "nonsense" }, upload)).toBe(upload.getTime());
+    expect(dropDriveTimeMs(null, upload)).toBe(upload.getTime());
+  });
+  it("a batch of old drops uploaded together does not count as recent", () => {
+    const times = [3, 4, 5, 6].map((d) => dropDriveTimeMs({ endedAt: new Date(NOW - d * DAY).toISOString() }, new Date(NOW)));
+    expect(decideLocationStarvation(candidate({ starvedDropTimes: times }), NOW, true)).toEqual({
+      send: false,
+      reason: "too_few_drops",
+    });
+  });
+});
+
+describe("currentPhoneIsIos", () => {
+  it("skips only when clearly iOS now", () => {
+    expect(currentPhoneIsIos("ios", "android,ios")).toBe(true);
+    expect(currentPhoneIsIos(null, "ios")).toBe(true);
+    expect(currentPhoneIsIos("android", "ios")).toBe(false);
+    expect(currentPhoneIsIos(null, "android,ios")).toBe(false);
+    expect(currentPhoneIsIos(undefined, null)).toBe(false);
+  });
+  it("is skipped by the decision", () => {
+    expect(decideLocationStarvation(candidate({ currentlyIos: true }), NOW, true)).toEqual({
+      send: false,
+      reason: "ios_now",
+    });
   });
 });
 
@@ -96,6 +152,12 @@ describe("decideLocationStarvation", () => {
   });
   it("leaves a phone alone once an automatic trip saved after the last drop", () => {
     expect(decideLocationStarvation(candidate({ lastAutoTripAt: NOW - HOUR }), NOW, true)).toEqual({
+      send: false,
+      reason: "trip_saved_since",
+    });
+    // A good trip whose end is after the last drop clears it, even if it was
+    // uploaded (created) long afterwards: both sides are drive times.
+    expect(decideLocationStarvation(candidate({ lastAutoTripAt: NOW - 5 * HOUR + 1000 }), NOW, true)).toEqual({
       send: false,
       reason: "trip_saved_since",
     });

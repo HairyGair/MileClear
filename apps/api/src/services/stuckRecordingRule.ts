@@ -55,14 +55,16 @@ export function shouldSendStuckRecordingAlert(input: StuckRecordingInput): boole
 /**
  * How far either side of the last-driving moment a saved trip may sit and still
  * count as "that recording". The phone stops writing last_driving_speed_at when
- * the car stops, and the trip it saves ends at about that moment, so a trip
- * whose end is within 45 minutes of it is the same drive.
+ * the car stops, and the trip it saves ends at about that moment. The stamp
+ * and the saved trip can still disagree by a little (the last fix before the
+ * stop was stamped but not part of the trip), so a trip ending up to this long
+ * BEFORE the stamp still counts as that drive. Five minutes covers the
+ * disagreement without reaching back to an earlier drive.
  */
-export const RECORDING_SAVED_WINDOW_MS = 45 * 60 * 1000;
+export const RECORDING_SAVED_SLACK_MS = 5 * 60 * 1000;
 
 export interface SavedTripRow {
   endedAt: Date | null;
-  createdAt: Date;
 }
 
 /**
@@ -72,11 +74,19 @@ export interface SavedTripRow {
  * 12 Oct 2026, measured over 14 days: 1,213 scan alerts, 96% of them sent after
  * an automatic trip covering the recording had been created, because the dump
  * records autoRecordingActive at upload time and nothing checked whether the
- * app had finished the trip since. The upload path raced the app's own save
- * the same way. A trip counts when it ended within the window of the
- * last-driving moment AND was created after the window began (a trip that was
- * created long before is an earlier drive, not the saved recording). A real
- * stuck recording has no such trip, so it is still caught.
+ * app had finished the trip since.
+ *
+ * The trip that saves a recording ends at or after the last driving moment, so
+ * a trip counts only when endedAt >= lastDriving - slack. An earlier version
+ * accepted any trip that ended up to 45 minutes BEFORE the stamp, which hid a
+ * real stuck recording: trip A saves at T, trip B starts at T+5 and the app is
+ * suspended at T+20 (last driving = T+20), B never ends, and A "ended within
+ * 45 minutes" so B's alert was suppressed. A ended before B's last driving
+ * moment, so it can no longer pass as B's save.
+ *
+ * The dump's trackingState has no recording-start key (the phone writes only
+ * auto_recording_active = '1', never a start time), so the trip's startedAt
+ * cannot also be compared with the recording's start.
  *
  * Pass automatic (isManualEntry false) trips only; the caller does the query.
  */
@@ -85,8 +95,6 @@ export function recordingAlreadySaved(
   lastDrivingMs: number
 ): boolean {
   if (!Number.isFinite(lastDrivingMs)) return false;
-  const since = lastDrivingMs - RECORDING_SAVED_WINDOW_MS;
-  return trips.some(
-    (t) => t.endedAt != null && t.endedAt.getTime() >= since && t.createdAt.getTime() >= since
-  );
+  const since = lastDrivingMs - RECORDING_SAVED_SLACK_MS;
+  return trips.some((t) => t.endedAt != null && t.endedAt.getTime() >= since);
 }

@@ -7,8 +7,8 @@
 // compares, in the 7 days before and the 7 days after the push:
 //   - automatic trips saved (not manual, not phantom)
 //   - starved recordings dropped (trip.recording_dropped, reason too_short or
-//     no_coords, 3 location points or fewer, 60s+ where known; same rule as
-//     jobs/locationStarvation.ts)
+//     no_coords, lost by the phone's own verdict, 1 to 3 location points, 60s+
+//     for 2 or 3; same rule as jobs/locationStarvation.ts)
 // and counts who tapped the push (notification.location_starvation_opened) and
 // who flipped MileClear to Unrestricted afterwards (battery_opt_nudge.resolved).
 //
@@ -34,9 +34,12 @@ function isStarved(m) {
   if (!m || typeof m !== "object" || Array.isArray(m)) return false;
   if (m.platform !== "android") return false;
   if (m.reason !== "too_short" && m.reason !== "no_coords") return false;
-  const coords = typeof m.coords === "number" ? m.coords : m.reason === "no_coords" ? 0 : null;
-  if (coords === null || coords > 3) return false;
-  if (typeof m.durationSec === "number" && m.durationSec < 60) return false;
+  // 12 Oct 2026: the phone's own "lost" verdict, at least one fix, and for 2 or
+  // 3 fixes a known duration of 60s+ (duration is 0 for a single fix).
+  if (m.lost !== true) return false;
+  const coords = m.coords;
+  if (typeof coords !== "number" || coords < 1 || coords > 3) return false;
+  if (coords >= 2 && (typeof m.durationSec !== "number" || m.durationSec < 60)) return false;
   return true;
 }
 

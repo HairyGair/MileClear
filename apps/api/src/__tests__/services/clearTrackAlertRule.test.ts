@@ -26,25 +26,52 @@ describe("planClearTrackAlert (28 Sep 2026: stop the repeat Discord posts)", () 
 
 describe("planSilentNaming (12 Oct 2026: 80% of silent flags corrected themselves)", () => {
   const NOW = 1_800_000_000_000;
+  const DAY = 24 * 60 * 60 * 1000;
+  const noTrips = new Map<string, number>();
   it("logs a first sighting and does not name the driver", () => {
-    const p = planSilentNaming(["a"], new Map(), NOW);
+    const p = planSilentNaming(["a"], new Map(), noTrips, NOW);
     expect([...p.firstSeenIds]).toEqual(["a"]);
     expect(p.nameIds.size).toBe(0);
   });
   it("leaves out a driver first seen less than 24h ago, without logging again", () => {
-    const p = planSilentNaming(["a"], new Map([["a", NOW - SILENT_CONFIRM_MS + 60_000]]), NOW);
+    const p = planSilentNaming(["a"], new Map([["a", [NOW - SILENT_CONFIRM_MS + 60_000]]]), noTrips, NOW);
     expect(p.nameIds.size).toBe(0);
     expect(p.firstSeenIds.size).toBe(0);
     expect(p.waitingCount).toBe(1);
   });
   it("names a driver first seen 24h or more ago", () => {
-    const p = planSilentNaming(["a"], new Map([["a", NOW - SILENT_CONFIRM_MS]]), NOW);
+    const p = planSilentNaming(["a"], new Map([["a", [NOW - SILENT_CONFIRM_MS]]]), noTrips, NOW);
     expect([...p.nameIds]).toEqual(["a"]);
   });
   it("handles a mixed list and duplicate ids", () => {
-    const p = planSilentNaming(["a", "b", "c", "a"], new Map([["a", NOW - 2 * SILENT_CONFIRM_MS], ["b", NOW - 1000]]), NOW);
+    const p = planSilentNaming(
+      ["a", "b", "c", "a"],
+      new Map([["a", [NOW - 2 * SILENT_CONFIRM_MS]], ["b", [NOW - 1000]]]),
+      noTrips,
+      NOW
+    );
     expect([...p.nameIds]).toEqual(["a"]);
     expect([...p.firstSeenIds]).toEqual(["c"]);
     expect(p.waitingCount).toBe(1);
   });
+  it("ignores a first-seen event older than the driver's last automatic trip", () => {
+    // Seen 10 days ago, recorded again 8 days ago, silent again since: a new spell.
+    const p = planSilentNaming(["a"], new Map([["a", [NOW - 10 * DAY]]]), new Map([["a", NOW - 8 * DAY]]), NOW);
+    expect([...p.firstSeenIds]).toEqual(["a"]);
+    expect(p.nameIds.size).toBe(0);
+  });
+  it("counts an event newer than the last automatic trip, using the earliest of those", () => {
+    const p = planSilentNaming(
+      ["a"],
+      new Map([["a", [NOW - 12 * DAY, NOW - 6 * DAY, NOW - 2 * DAY]]]),
+      new Map([["a", NOW - 8 * DAY]]),
+      NOW
+    );
+    expect([...p.nameIds]).toEqual(["a"]);
+  });
+  it("keeps a driver silent for 6 days named (a 4-day lookback used to lose the event)", () => {
+    const p = planSilentNaming(["a"], new Map([["a", [NOW - 5.5 * DAY]]]), new Map([["a", NOW - 6 * DAY]]), NOW);
+    expect([...p.nameIds]).toEqual(["a"]);
+  });
 });
+
