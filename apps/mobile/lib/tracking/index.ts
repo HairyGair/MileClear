@@ -244,7 +244,7 @@ export async function stopShiftTracking(): Promise<void> {
   const db = await getDatabase();
   // When the shift began, read before its marker goes: only fixes from then on
   // are the engine's duplicate copy of the shift's own breadcrumbs.
-  const shiftWindowStartMs = await readLockWindowStartMs(db);
+  const shiftWindowStartMs = await readLockWindowStartMs(db, undefined, "shift");
   await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
   await applyNativeEnginePower("shift_ended");
 

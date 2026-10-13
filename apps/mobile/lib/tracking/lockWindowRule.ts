@@ -17,6 +17,8 @@
 //    several awaits, and a fix or motion callback landing in that window found
 //    no cooldown and opened a recording. Every opener now asks this one rule.
 
+import { normaliseRecordedAt } from "./finalizeSaveRule";
+
 /** A buffered fix, as far as these rules care. */
 export interface DatedFix {
   recorded_at: string;
@@ -49,11 +51,67 @@ export function partitionBufferByWindow<T extends DatedFix>(
       inWindow.push(r);
       continue;
     }
-    const t = Date.parse(r.recorded_at);
+    const t = fixTimeMs(r.recorded_at);
     if (!Number.isFinite(t) || t < windowStartMs) earlier.push(r);
     else inWindow.push(r);
   }
   return { earlier, inWindow };
+}
+
+/** A fix time in ms. The native engine stores its raw timestamp (an epoch
+ *  string) while the JS engine stores ISO, so both are read the same way the
+ *  save path reads them (normaliseRecordedAt). NaN when truly unreadable. */
+export function fixTimeMs(v: string | number): number {
+  const iso = normaliseRecordedAt(v);
+  return iso ? Date.parse(iso) : Number.NaN;
+}
+
+/**
+ * Native-store fixes from BEFORE the window that the buffer does not hold yet.
+ * The end-of-trip cleanup adds only these; it never replaces the buffer from
+ * the native store, because that store holds the whole Start Trip and a
+ * wholesale reconcile keeps only its newest 6,000 fixes and deletes the
+ * buffer's copy of the earlier drive (review of 12 Oct fix). Unreadable
+ * times are skipped (they cannot be placed before the window).
+ */
+export function nativeFixesBeforeWindow<T extends { timestamp: string | number }>(
+  native: readonly T[],
+  bufferTimes: readonly (string | number)[],
+  windowStartMs: number | null
+): T[] {
+  if (windowStartMs == null || !Number.isFinite(windowStartMs)) return [];
+  const have = new Set<number>();
+  for (const b of bufferTimes) {
+    const t = fixTimeMs(b);
+    if (Number.isFinite(t)) have.add(t);
+  }
+  const out: T[] = [];
+  for (const n of native) {
+    const t = fixTimeMs(n.timestamp);
+    if (Number.isFinite(t) && t < windowStartMs && !have.has(t)) {
+      have.add(t);
+      out.push(n);
+    }
+  }
+  return out;
+}
+
+/** An abandoned Start Trip's start row can be days old. A marker this much
+ *  older than the lock is ignored unless the first breadcrumb agrees. */
+export const STALE_START_ROW_MS = 3 * 60 * 60 * 1000;
+const AGREE_MS = 10 * 60 * 1000;
+
+/** Rows an open added itself: recorded within a minute before its seed fix
+ *  (covering the planted departure fix) or later. Everything older belongs
+ *  to something else (an in-flight finalize's buffer) and is left alone. */
+export function rowsAddedByOpen<T extends DatedFix & { id: number }>(rows: readonly T[], seedMs: number): number[] {
+  const floor = seedMs - 60 * 1000;
+  const ids: number[] = [];
+  for (const r of rows) {
+    const t = fixTimeMs(r.recorded_at);
+    if (Number.isFinite(t) && t >= floor) ids.push(r.id);
+  }
+  return ids;
 }
 
 /**
@@ -67,17 +125,26 @@ export function windowStartMs(markers: {
   quickTripStartIso?: string | null;
   lockTakenAtMs?: number | null;
   firstBreadcrumbIso?: string | null;
+  /** "shift" ignores quick_trip_start altogether (it belongs to a Start Trip,
+   *  and a stale one would make a shift's window days old). */
+  kind?: "shift" | "start_trip";
 }): number | null {
   const candidates: number[] = [];
-  const iso = (s: string | null | undefined) => {
-    if (!s) return;
-    const t = Date.parse(s);
-    if (Number.isFinite(t)) candidates.push(t);
+  const parse = (s: string | null | undefined) => {
+    if (!s) return Number.NaN;
+    return Date.parse(s);
   };
-  iso(markers.quickTripStartIso);
-  iso(markers.firstBreadcrumbIso);
+  const crumb = parse(markers.firstBreadcrumbIso);
+  if (Number.isFinite(crumb)) candidates.push(crumb);
   const lock = markers.lockTakenAtMs;
-  if (typeof lock === "number" && Number.isFinite(lock) && lock > 0) candidates.push(lock);
+  const lockOk = typeof lock === "number" && Number.isFinite(lock) && lock > 0;
+  if (lockOk) candidates.push(lock);
+  const qts = parse(markers.quickTripStartIso);
+  if (markers.kind !== "shift" && Number.isFinite(qts)) {
+    const stale = lockOk && lock - qts > STALE_START_ROW_MS;
+    const agrees = Number.isFinite(crumb) && Math.abs(crumb - qts) <= AGREE_MS;
+    if (!stale || agrees) candidates.push(qts);
+  }
   return candidates.length === 0 ? null : Math.min(...candidates);
 }
 

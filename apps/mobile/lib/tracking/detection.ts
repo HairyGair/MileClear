@@ -1566,7 +1566,12 @@ export async function finalizeAutoTrip(): Promise<void> {
     // previous trip's fixes into the next recording's reconcile.
     try {
       const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
-      if (isNativeEngineAvailable()) await destroyNativeLocations();
+      // Not under a Start Trip / shift lock: the store then holds that trip's
+      // own duplicate copy and the end-of-trip cleanup clears it (and needs it
+      // to find any pre-window fixes).
+      if (isNativeEngineAvailable() && !(await shiftSuppressesAutoDetection(await getDatabase()))) {
+        await destroyNativeLocations();
+      }
     } catch {}
     await releaseStrandedQuickTripLock();
   }
@@ -2003,7 +2008,14 @@ async function _finalizeAutoTripInner(): Promise<void> {
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'flight_cut'");
       }
     } catch {}
-    if (deferredCoords.length > 0) {
+    if (deferredCoords.length > 0 && (await shiftSuppressesAutoDetection(db))) {
+      // A pre-lock save that timed out is still running under a Start Trip /
+      // shift lock. Re-arming now would append the Start Trip's own native
+      // fixes to these legs and a later pass could glue its first minutes on.
+      // Leave the legs in the buffer; the end-of-trip cleanup partitions and
+      // saves them (review of the 12 Oct fix).
+      logDetectionEvent("finalize_multileg_left_under_lock", { coords: deferredCoords.length }).catch(() => {});
+    } else if (deferredCoords.length > 0) {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
       );
@@ -3444,7 +3456,9 @@ export interface WindowDuplicateCleanup {
 export async function readLockWindowStartMs(
   db?: Awaited<ReturnType<typeof getDatabase>>,
   /** The lock's id when its row has already been claimed (finishParkedQuickTrip). */
-  lockId?: string
+  lockId?: string,
+  /** A shift ignores quick_trip_start; a Start Trip distrusts a stale one. */
+  kind: "shift" | "start_trip" = "start_trip"
 ): Promise<number | null> {
   try {
     const d = db ?? (await getDatabase());
@@ -3480,7 +3494,7 @@ export async function readLockWindowStartMs(
         if (Number.isFinite(n)) lockTakenAtMs = n;
       }
     }
-    return lockWindowStartMs({ quickTripStartIso, lockTakenAtMs, firstBreadcrumbIso });
+    return lockWindowStartMs({ quickTripStartIso, lockTakenAtMs, firstBreadcrumbIso, kind });
   } catch {
     return null;
   }
@@ -3584,14 +3598,21 @@ async function clearWindowDuplicate(
   win: WindowDuplicateCleanup
 ): Promise<void> {
   try {
-    try {
-      const { reconcileNativeBufferBeforeFinalize } = await import("./nativeLocation");
-      await reconcileNativeBufferBeforeFinalize();
-    } catch {}
+    // Partition the BUFFER first and never delete-and-replace it from the
+    // native store: that store holds the whole Start Trip, and the wholesale
+    // reconcile keeps only its newest 6,000 fixes, which would cut (and then
+    // overwrite the buffer's copy of) the earlier drive. Native fixes from
+    // before the window are only ADDED, below.
     const rows = await db.getAllAsync<{ id: number; recorded_at: string }>(
       "SELECT id, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
     );
-    const { earlier, inWindow } = partitionBufferByWindow(rows, win.windowStartMs);
+    const { earlier: bufferEarlier, inWindow } = partitionBufferByWindow(rows, win.windowStartMs);
+    let addedFromNative = 0;
+    try {
+      const { addNativeFixesBeforeWindow } = await import("./nativeLocation");
+      addedFromNative = await addNativeFixesBeforeWindow(win.windowStartMs);
+    } catch {}
+    const earlier = { length: bufferEarlier.length + addedFromNative };
     for (let i = 0; i < inWindow.length; i += 400) {
       const chunk = inWindow.slice(i, i + 400).map((r) => r.id);
       await db.runAsync(
@@ -3613,8 +3634,9 @@ async function clearWindowDuplicate(
       windowKnown: win.windowStartMs != null,
       duplicate: inWindow.length,
       earlier: earlier.length,
+      addedFromNative,
     }).catch(() => {});
-    // Reconciled above, so the native store holds nothing the buffer lacks.
+    // Its pre-window fixes are in the buffer now; the rest is the duplicate copy.
     try {
       const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
       if (isNativeEngineAvailable()) await destroyNativeLocations();

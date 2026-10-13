@@ -58,6 +58,7 @@ import { orphanRouteDecision } from "./orphanRoute";
 import { noteRecordingDropped } from "./recordingDrops";
 import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
+import { nativeFixesBeforeWindow, rowsAddedByOpen } from "./lockWindowRule";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
 import { recordBatterySample } from "./batterySamples";
@@ -1323,8 +1324,21 @@ async function openNativeRecording(
       await db.runAsync(
         "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
       );
-      await db.runAsync("DELETE FROM detection_coordinates");
-      await BGGeo?.destroyLocations();
+      // Only what THIS open added. A finalize still in flight (a timed-out
+      // pre-lock save) owns the older rows and has not read them yet, and the
+      // native store is its source too (review of the 12 Oct fix).
+      const rows = await db.getAllAsync<{ id: number; recorded_at: string }>(
+        "SELECT id, recorded_at FROM detection_coordinates"
+      );
+      const mine = rowsAddedByOpen(rows, recordedAtMs(seed.timestamp) || Date.now());
+      for (let i = 0; i < mine.length; i += 400) {
+        const chunk = mine.slice(i, i + 400);
+        await db.runAsync(
+          `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
+          chunk
+        );
+      }
+      if (!isFinalizeInFlight()) await BGGeo?.destroyLocations();
       await setNativePreventSuspend(false);
     } catch {}
     return;
@@ -2000,6 +2014,52 @@ export async function destroyNativeLocations(): Promise<void> {
 // most RECENT fixes are the ones that belong to real recent driving. Keeping
 // the tail (not the head) matches how the multileg split consumes legs.
 const MAX_RECONCILE_COORDS = 6000;
+
+/**
+ * Add to the buffer the native-store fixes recorded BEFORE `windowStartMs`
+ * that it does not hold. For the end of a Start Trip / shift, whose native
+ * store holds the whole trip: the wholesale reconcile below would keep only
+ * the newest 6,000 and delete-and-replace the buffer, losing the earlier
+ * drive. This only ever inserts. Never throws; returns how many were added.
+ */
+export async function addNativeFixesBeforeWindow(windowStartMs: number | null): Promise<number> {
+  try {
+    if (windowStartMs == null) return 0;
+    const { isNativeLocationEngineEnabled } = await import("./nativeEngineFlag");
+    if (!(await isNativeLocationEngineEnabled())) return 0;
+    const BGGeo = loadNativeModule();
+    if (!BGGeo) return 0;
+    const native = await BGGeo.getLocations();
+    if (!Array.isArray(native) || native.length === 0) return 0;
+    const db = await getDatabase();
+    const have = await db.getAllAsync<{ recorded_at: string }>("SELECT recorded_at FROM detection_coordinates");
+    const add = nativeFixesBeforeWindow(
+      native.filter((l) => l.coords),
+      have.map((r) => r.recorded_at),
+      windowStartMs
+    );
+    for (const loc of add) {
+      const c = loc.coords!;
+      const act = (loc as { activity?: { type?: string | null; confidence?: number | null } | null }).activity;
+      await db.runAsync(
+        "INSERT INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          c.latitude,
+          c.longitude,
+          c.speed ?? null,
+          c.accuracy ?? null,
+          act?.type ?? null,
+          typeof act?.confidence === "number" ? act.confidence : null,
+          loc.timestamp,
+        ]
+      );
+    }
+    if (add.length > 0) logDetectionEvent("native_pre_window_fixes_added", { added: add.length }).catch(() => {});
+    return add.length;
+  } catch {
+    return 0;
+  }
+}
 
 async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
   try {
