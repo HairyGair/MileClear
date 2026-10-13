@@ -2012,9 +2012,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // A pre-lock save that timed out is still running under a Start Trip /
       // shift lock. Re-arming now would append the Start Trip's own native
       // fixes to these legs and a later pass could glue its first minutes on.
-      // Leave the legs in the buffer; the end-of-trip cleanup partitions and
-      // saves them (review of the 12 Oct fix).
-      logDetectionEvent("finalize_multileg_left_under_lock", { coords: deferredCoords.length }).catch(() => {});
+      // So keep recording OFF, but still drain: the passes only read the
+      // buffer, and with recording off nothing of the Start Trip can join it.
+      // Leaving the legs for later lost them: once the lock went, the next
+      // recording's open could judge a fresh leftover "still current" and
+      // clear it (second review of the 12 Oct fix).
+      logDetectionEvent("finalize_multileg_drained_under_lock", { coords: deferredCoords.length }).catch(() => {});
+      deferredFinalizePending = true;
     } else if (deferredCoords.length > 0) {
       await db.runAsync(
         "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
