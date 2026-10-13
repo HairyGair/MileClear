@@ -8,7 +8,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   StyleSheet,
-  LayoutAnimation,
   Platform,
   UIManager,
   Pressable,
@@ -36,6 +35,7 @@ import { dayLabel, groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder
 import { createdInBatchIds, dayMilesText, isRecentAutoSort, suggestionLine, tripTag } from "../../lib/trips/tripLabels";
 import { routeText } from "../../lib/home/lastTrip";
 import { mergeTripPage, uniqueById } from "../../lib/trips/pageMerge";
+import { animateListChange } from "../../lib/ui/listTransition";
 import { tripEndLabel, type SavedPlace } from "../../lib/trips/placeLabel";
 import { loadSavedPlaces } from "../../lib/trips/savedPlaces";
 import { getDatabase } from "../../lib/db";
@@ -515,7 +515,7 @@ export default function TripsScreen() {
           // Animate the data swap-in. Pairs with the configureNext call in
           // handleFilterChange / handlePlatformChange so the chip → list
           // transition flows as one motion instead of two snaps.
-          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          animateListChange();
           setTrips(allTrips);
 
           // Fetch smart suggestions for unclassified trips (non-blocking)
@@ -615,7 +615,7 @@ export default function TripsScreen() {
     (value: TripClassification | "all") => {
       // Animate the chip-row + list transition. easeInEaseOut over the
       // default 200ms feels like a real filter, not a snap-cut.
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateListChange();
       setFilter(value);
       filterRef.current = value; // Sync ref immediately so loadTrips reads the new value
       setTrips([]); // Clear stale data immediately
@@ -672,7 +672,7 @@ export default function TripsScreen() {
 
   const handlePlatformChange = useCallback(
     (value: PlatformTag | "all") => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateListChange();
       setPlatformFilter(value);
       platformFilterRef.current = value;
       setTrips([]);
@@ -687,7 +687,7 @@ export default function TripsScreen() {
   // unfiltered" tap from the Filters sheet. Kept separate from
   // handlePlatformChange so clearing doesn't fire two overlapping fetches.
   const clearFilters = useCallback(() => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    animateListChange();
     setPlatformFilter("all");
     platformFilterRef.current = "all";
     setDateRange("all");
@@ -715,7 +715,7 @@ export default function TripsScreen() {
     try {
       await undoClassification(tripId);
       haptic("selection");
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateListChange();
       setTrips((prev) =>
         prev.map((t) =>
           t.id === tripId
@@ -739,7 +739,7 @@ export default function TripsScreen() {
         haptic("selection");
         // Clear "Classify Trip" CTA from any running Live Activity
         markLiveActivityClassified().catch(() => {});
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        animateListChange();
         setTrips((prev) => prev.map((t) =>
           t.id === tripId ? { ...t, classification } : t
         ));
@@ -796,7 +796,7 @@ export default function TripsScreen() {
   const restoreRow = useCallback(
     (n: SwipeNotice) => {
       dropLeaving(n.item.id);
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateListChange();
       setTrips((prev) => {
         if (prev.some((t) => t.id === n.item.id)) {
           return prev.map((t) => (t.id === n.item.id ? { ...t, classification: n.from } : t));
@@ -829,7 +829,7 @@ export default function TripsScreen() {
       };
 
       haptic("light");
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateListChange();
       setTrips((prev) => prev.map((t) => (t.id === item.id ? { ...t, classification: to } : t)));
       if (from === "unclassified") setUnclassifiedCount((prev) => Math.max(0, prev - 1));
 
@@ -849,7 +849,7 @@ export default function TripsScreen() {
             });
             // The driver may have changed list since; then the reload owns it.
             if (filterRef.current !== notice.filter) return;
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            animateListChange();
             setTrips((prev) => prev.filter((t) => t.id !== item.id));
           }, SWIPE_LEAVE_MS)
         );
@@ -899,7 +899,7 @@ export default function TripsScreen() {
           onPress: async () => {
             try {
               await syncDeleteTrip(tripId);
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              animateListChange();
               setTrips((prev) => prev.filter((t) => t.id !== tripId));
               if (filter === "unclassified") {
                 setUnclassifiedCount((prev) => Math.max(0, prev - 1));
@@ -1033,7 +1033,7 @@ export default function TripsScreen() {
     try {
       await clearDuplicateFlag(tripId);
       haptic("selection");
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateListChange();
       setTrips((prev) => prev.map((t) => (t.id === tripId ? { ...t, possibleDuplicateOfId: null } : t)));
     } catch (err: unknown) {
       const { title, message } = describeError(err, "Couldn't save that", { savedLocally: false });
@@ -1078,7 +1078,7 @@ export default function TripsScreen() {
           });
         }
 
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        animateListChange();
         const classifiedIds = new Set(group.trips.map((t) => t.id));
         setTrips((prev) => prev.filter((t) => !classifiedIds.has(t.id)));
         setUnclassifiedCount((prev) => Math.max(0, prev - group.trips.length));
