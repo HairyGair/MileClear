@@ -85,11 +85,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // before: "Pending Review" now, "Latest" on approval in the same edit that
     // drops 1.3.12 to "App Store" (then restart the API before send-update).
     // 12 Oct: the sign-in screen and the stuck-uploads fix reached builds 94,
-    // 93, 90 and Android by OTA (not 95, in review: OTA it on approval), and
+    // 93, 90 and Android by OTA (95 got it the same night), and
     // the "Trip still recording" fix is server-side, so all three are listed.
     version: "1.3.13",
     date: "October 2026",
-    label: "Pending Review",
+    label: "Latest",
     items: [
       "Trips: \"To sort\" replaces Inbox. Each trip leads with its route, like \"Home to Work\", and each day shows its miles",
       "Swipe a trip right to mark it Business, with Undo",
@@ -137,7 +137,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // "Latest" on approval in the same edit that drops 1.3.11 to "App Store".
     version: "1.3.12",
     date: "October 2026",
-    label: "Latest",
+    label: "App Store",
     items: [
       "Start Trip finishes by itself once you've been parked for 15 minutes with the app closed",
       "Cheapest fuel near you: the Fuel tab shows today's cheapest petrol or diesel near where you usually set off, and an optional morning alert when a station is at least 3p a litre under the local average",
