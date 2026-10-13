@@ -3402,6 +3402,9 @@ export async function adminRoutes(app: FastifyInstance) {
                     d.reason !== "merged" &&
                     d.reason !== "deduped" &&
                     d.reason !== "stale_buffer_cleared" &&
+                    // The engine's duplicate copy of a Start Trip / shift,
+                    // cleared at its end: the drive is on that trip.
+                    d.reason !== "duplicate_cleared" &&
                     !isResidueDrop(d);
                   return explains && Number.isFinite(t) && t >= sig - 10 * 60000 && t <= sig + 12 * HOUR;
                 });

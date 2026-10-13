@@ -2254,7 +2254,7 @@ export default function TripFormScreen() {
       );
 
       // Start background location tracking so GPS continues when app is backgrounded
-      startQuickTripTracking().catch(() => {});
+      startQuickTripTracking({ fresh: true }).catch(() => {});
 
       // Start Dynamic Island live activity
       startLiveActivity({ activityType: "trip", isBusinessMode: isWork });

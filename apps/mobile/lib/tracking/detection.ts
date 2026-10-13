@@ -9,6 +9,15 @@ import { getDatabase } from "../db/index";
 import { isLifecycleEvent, LIFECYCLE_EVENT_CAP, LIFECYCLE_EVENT_WINDOW_MS } from "./lifecycleEvents";
 import { appendTrackingLog } from "./trackingLogStore";
 import { noteRecordingDropped } from "./recordingDrops";
+import {
+  earlierDriveToSave,
+  openRecordingGate,
+  partitionBufferByWindow,
+  POST_LOCK_FINALIZE_TIMEOUT_MS,
+  PRE_LOCK_FINALIZE_TIMEOUT_MS,
+  windowStartMs as lockWindowStartMs,
+  type OpenRefusal,
+} from "./lockWindowRule";
 import { getAppMode } from "../mode/index";
 import {
   sendDrivingDetectedNotification,
@@ -760,7 +769,12 @@ export async function finishParkedQuickTrip(
     //    (Kada, 29 Sep 2026). Clear it before anything can save it, and lift
     //    the "Not driving" cooldown that clearing arms: nobody said that here,
     //    and the next drive must record.
-    await cancelAutoRecording(true);
+    //    Only fixes from the Start Trip onward are that copy; an earlier drive
+    //    is saved as its own trip (12 Oct 2026).
+    await cancelAutoRecording(true, {
+      windowStartMs: await readLockWindowStartMs(db, QUICK_TRIP_SHIFT_ID),
+      detail: "start_trip_end",
+    });
     await clearNotDrivingCooldown();
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'quick_trip_start'");
     // Tells an open Start Trip screen, when it comes back to the foreground,
@@ -3408,21 +3422,274 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
 }
 
 /**
+ * When "Not driving" last ran in THIS process (epoch ms). Checked by every
+ * recording opener (mayOpenRecordingNow) alongside the SQLite cooldown, so a
+ * recording cannot open in the same second as a cancel even if the cooldown
+ * row never reached the database. Reset when the driver opts back in.
+ */
+let notDrivingCancelledAtMs: number | null = null;
+
+/** Why a cancel is a cleanup and not a "Not driving" (see cancelAutoRecording). */
+export interface WindowDuplicateCleanup {
+  /** When the Start Trip / shift began; null when unknown. Fixes before it are an earlier drive. */
+  windowStartMs: number | null;
+  detail: "start_trip_end" | "shift_end";
+}
+
+/**
+ * When did the current Start Trip / shift begin? The earliest of the start row
+ * the trip form wrote and the moment the lock was taken. Read BEFORE the
+ * lock's own rows are deleted. Null when nothing is known; never throws.
+ */
+export async function readLockWindowStartMs(
+  db?: Awaited<ReturnType<typeof getDatabase>>,
+  /** The lock's id when its row has already been claimed (finishParkedQuickTrip). */
+  lockId?: string
+): Promise<number | null> {
+  try {
+    const d = db ?? (await getDatabase());
+    const rows = await d.getAllAsync<{ key: string; value: string }>(
+      "SELECT key, value FROM tracking_state WHERE key IN ('quick_trip_start', 'active_shift_started_at')"
+    );
+    let quickTripStartIso: string | null = null;
+    let lockTakenAtMs: number | null = null;
+    // A resumed Start Trip / shift re-stamps the lock time (INSERT OR REPLACE
+    // of active_shift_started_at), so the first breadcrumb is the other
+    // witness to when it really began.
+    let firstBreadcrumbIso: string | null = null;
+    try {
+      const lock = lockId
+        ? { value: lockId }
+        : await d.getFirstAsync<{ value: string }>("SELECT value FROM tracking_state WHERE key = 'active_shift_id'");
+      if (lock?.value) {
+        const first = await d.getFirstAsync<{ first: string | null }>(
+          "SELECT MIN(recorded_at) AS first FROM shift_coordinates WHERE shift_id = ?",
+          [lock.value]
+        );
+        firstBreadcrumbIso = first?.first ?? null;
+      }
+    } catch {}
+    for (const r of rows) {
+      if (r.key === "quick_trip_start") {
+        try {
+          const parsed = JSON.parse(r.value);
+          if (typeof parsed?.startedAt === "string") quickTripStartIso = parsed.startedAt;
+        } catch {}
+      } else if (r.key === "active_shift_started_at") {
+        const n = Number(r.value);
+        if (Number.isFinite(n)) lockTakenAtMs = n;
+      }
+    }
+    return lockWindowStartMs({ quickTripStartIso, lockTakenAtMs, firstBreadcrumbIso });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * May an automatic recording open right now? The ONE rule every opener asks
+ * (the native speed and motion paths via openNativeRecording, the JS
+ * promotion, forceStartRecording): a shift / Start Trip lock, the "Not
+ * driving" cooldown, or a "Not driving" tapped moments ago in this process.
+ * 13 Oct 2026: a passenger's "Not driving" was undone within a second because
+ * each opener checked the cooldown for itself, before the cancel had finished
+ * writing it. Never throws: on a read error it allows (the old behaviour),
+ * because a failed read must not stop a real drive recording.
+ */
+export async function mayOpenRecordingNow(
+  db?: Awaited<ReturnType<typeof getDatabase>>
+): Promise<{ open: true } | { open: false; refusal: OpenRefusal }> {
+  try {
+    const d = db ?? (await getDatabase());
+    const nowMs = Date.now();
+    let notDrivingUntilMs: number | null = null;
+    try {
+      const row = await d.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'not_driving_until'"
+      );
+      if (row) {
+        const n = parseInt(row.value, 10);
+        notDrivingUntilMs = Number.isFinite(n) ? n : null;
+      }
+    } catch {}
+    return openRecordingGate({
+      nowMs,
+      notDrivingUntilMs,
+      shiftLocked: await shiftSuppressesAutoDetection(d),
+      cancelledAtMs: notDrivingCancelledAtMs,
+    });
+  } catch {
+    return { open: true };
+  }
+}
+
+/**
+ * Save the drive an automatic recording captured BEFORE a Start Trip / shift
+ * takes the lock. 12 Oct 2026: a driver parked and tapped Start Trip while
+ * their 20-minute automatic recording was still open; the lock then held
+ * detection off it for fifty minutes and the cleanup at Arrived deleted it
+ * unsaved. Finalising it first, through the normal pipeline, makes it its own
+ * trip before anything can touch it.
+ *
+ * Waits at most PRE_LOCK_FINALIZE_TIMEOUT_MS so Start Trip never feels slow;
+ * on a timeout the finalize carries on in the background and, failing that,
+ * the end-of-trip cleanup (cancelAutoRecording's window split) still saves
+ * what is older than the Start Trip instead of deleting it. Never throws.
+ */
+export async function finalizeEarlierDriveBeforeLock(
+  source: "start_trip" | "shift_start"
+): Promise<"none" | "saved" | "in_flight" | "timeout" | "error"> {
+  try {
+    const db = await getDatabase();
+    const jsCount =
+      (await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM detection_coordinates"))?.n ?? 0;
+    let nativeCount: number | null = null;
+    try {
+      const { getNativeStoreCountAndMotion } = await import("./nativeLocation");
+      nativeCount = (await getNativeStoreCountAndMotion()).count;
+    } catch {}
+    if (!earlierDriveToSave({ jsCount, nativeCount })) return "none";
+    if (finalizingTrip) {
+      logDetectionEvent("pre_lock_finalize_skipped", { source, cause: "in_flight" }).catch(() => {});
+      return "in_flight";
+    }
+    logDetectionEvent("pre_lock_finalize_start", { source, jsCount, nativeCount }).catch(() => {});
+    const run = finalizeAutoTrip().then(
+      () => "saved" as const,
+      () => "error" as const
+    );
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), PRE_LOCK_FINALIZE_TIMEOUT_MS);
+    });
+    const outcome = await Promise.race([run, timeout]);
+    if (timer) clearTimeout(timer);
+    logDetectionEvent("pre_lock_finalize_done", { source, outcome }).catch(() => {});
+    return outcome;
+  } catch {
+    return "error";
+  }
+}
+
+/**
+ * The cleanup half of ending a Start Trip / shift: the engine kept its own
+ * copy of the drive, which would now be saved a second time, so discard THAT
+ * copy, but only the part recorded at or after the window began. Anything
+ * older is an earlier drive and is saved through the normal pipeline instead
+ * (12 Oct 2026, see lockWindowRule.ts). Drains the native store into the
+ * buffer first so its older fixes are not lost with it. Never throws.
+ */
+async function clearWindowDuplicate(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  win: WindowDuplicateCleanup
+): Promise<void> {
+  try {
+    try {
+      const { reconcileNativeBufferBeforeFinalize } = await import("./nativeLocation");
+      await reconcileNativeBufferBeforeFinalize();
+    } catch {}
+    const rows = await db.getAllAsync<{ id: number; recorded_at: string }>(
+      "SELECT id, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+    );
+    const { earlier, inWindow } = partitionBufferByWindow(rows, win.windowStartMs);
+    for (let i = 0; i < inWindow.length; i += 400) {
+      const chunk = inWindow.slice(i, i + 400).map((r) => r.id);
+      await db.runAsync(
+        `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
+        chunk
+      );
+    }
+    if (inWindow.length >= 2) {
+      await noteRecordingDropped({
+        reason: "duplicate_cleared",
+        detail: win.detail,
+        startedAt: inWindow[0].recorded_at,
+        endedAt: inWindow[inWindow.length - 1].recorded_at,
+        coords: inWindow.length,
+      });
+    }
+    logDetectionEvent("window_duplicate_cleared", {
+      detail: win.detail,
+      windowKnown: win.windowStartMs != null,
+      duplicate: inWindow.length,
+      earlier: earlier.length,
+    }).catch(() => {});
+    // Reconciled above, so the native store holds nothing the buffer lacks.
+    try {
+      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+      if (isNativeEngineAvailable()) await destroyNativeLocations();
+    } catch {}
+    if (earlier.length >= 2) {
+      // An earlier drive: save it as its own trip. Bounded so ending the
+      // Start Trip never hangs on the network; if it times out the finalize
+      // carries on, and the fixes stay in the buffer for the normal paths.
+      logDetectionEvent("earlier_drive_saved_at_end", { detail: win.detail, coords: earlier.length }).catch(() => {});
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        finalizeAutoTrip().catch(() => {}),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, POST_LOCK_FINALIZE_TIMEOUT_MS);
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+    }
+  } catch (err) {
+    logDetectionEvent("window_duplicate_clear_error", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+  }
+}
+
+/**
  * Cancel any in-progress auto-recording.
  * @param clearCoords Whether to also delete buffered coordinates.
  *   - true: user tapped "Not Driving" / "I'm a passenger" (discard
  *     everything AND set a not-driving cooldown so the next location
  *     batch doesn't silently re-promote into a recording).
  *   - false: user started a shift (coords may be transferred).
+ * @param cleanup With clearCoords: this is NOT "Not driving" but the end of a
+ *   Start Trip / shift clearing the engine's duplicate copy. Only fixes from
+ *   the window onward are discarded; older ones are saved as their own trip.
+ *   No cooldown, and the drop is reported as "duplicate_cleared".
  */
-export async function cancelAutoRecording(clearCoords = false): Promise<void> {
+export async function cancelAutoRecording(
+  clearCoords = false,
+  cleanup?: WindowDuplicateCleanup
+): Promise<void> {
+  const isNotDriving = clearCoords && !cleanup;
+  // "Not driving" takes effect FIRST, before any other await below. 13 Oct
+  // 2026: the cooldown used to be written last, after the drop report, the
+  // deletes, the native store and the Live Activity, and a fix or motion
+  // callback landing in that window opened a brand new recording (the server
+  // saw trip.signal_start one second after the tap). The in-memory stamp is
+  // synchronous, so not even the first await can be raced; the row follows.
+  const notDrivingUntil = Date.now() + COOLDOWN_MS;
+  if (isNotDriving) notDrivingCancelledAtMs = Date.now();
+  const db = await getDatabase();
+  if (isNotDriving) {
+    // Anthony 10 May 2026: tapping "No, I'm a passenger" appeared to do nothing
+    // because the recording would silently re-promote on the next location
+    // batch (still in a moving car). The cooldown is checked by every opener
+    // (mayOpenRecordingNow) and the detection-task promotion.
+    try {
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('not_driving_until', ?)",
+        [String(notDrivingUntil)]
+      );
+    } catch {
+      // The in-memory stamp still holds the line for RECENT_CANCEL_MS.
+    }
+    logDetectionEvent("not_driving_cooldown_set", {
+      cooldownMs: COOLDOWN_MS,
+      until: notDrivingUntil,
+    }).catch(() => {});
+  }
   stopWatchdog();
   dismissRecordingActiveNotification().catch(() => {});
-  const db = await getDatabase();
   // What is being thrown away, for the drop event below (read before the
   // deletes). Best-effort: a failed read just sends a thinner event.
   let cancelled: { n: number; oldest: string | null; newest: string | null; armed: boolean } | null = null;
-  if (clearCoords) {
+  if (isNotDriving) {
     try {
       const span = await db.getFirstAsync<{ n: number; oldest: string | null; newest: string | null }>(
         "SELECT COUNT(*) AS n, MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
@@ -3437,45 +3704,34 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
   if (clearCoords) {
-    if (cancelled && (cancelled.armed || cancelled.n >= 2)) {
-      await noteRecordingDropped({
-        reason: "cancelled",
-        detail: "not_driving",
-        startedAt: cancelled.oldest,
-        endedAt: cancelled.newest,
-        coords: cancelled.n,
-      });
+    if (cleanup) {
+      await clearWindowDuplicate(db, cleanup);
+    } else {
+      if (cancelled && (cancelled.armed || cancelled.n >= 2)) {
+        await noteRecordingDropped({
+          reason: "cancelled",
+          detail: "not_driving",
+          startedAt: cancelled.oldest,
+          endedAt: cancelled.newest,
+          coords: cancelled.n,
+        });
+      }
+      await db.runAsync("DELETE FROM detection_coordinates");
+      // The native engine keeps its own copy of the fixes. Left in place, the
+      // orphan-route sweep at the next app open would turn the ride the driver
+      // just said was not theirs into a trip anyway (the Class 37 shape).
+      try {
+        const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+        if (isNativeEngineAvailable()) await destroyNativeLocations();
+      } catch {}
     }
-    await db.runAsync("DELETE FROM detection_coordinates");
-    // The native engine keeps its own copy of the fixes. Left in place, the
-    // orphan-route sweep at the next app open would turn the ride the driver
-    // just said was not theirs into a trip anyway (the Class 37 shape).
-    try {
-      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
-      if (isNativeEngineAvailable()) await destroyNativeLocations();
-    } catch {}
     // Also clear watch-mode flags so the detection task doesn't think
     // we're still in the watch-and-wait phase. clearWatchModeFlags is
     // idempotent — safe even if watch mode wasn't active.
     await clearWatchModeFlags();
-    // Dismiss Live Activity when user taps "Not Driving"
+    // Dismiss Live Activity when user taps "Not Driving" (or the Start Trip /
+    // shift that owned it ends).
     endLiveActivity().catch(() => {});
-    // Set a not-driving cooldown. Anthony 10 May 2026: tapping "No, I'm
-    // a passenger" appeared to do nothing because the recording would
-    // silently re-promote on the next location batch (still in a moving
-    // car). The 20-min notification cooldown blocked the prompt but
-    // didn't block the recording start. This cooldown is checked in
-    // the detection-task pre-promotion guard (see below) so the
-    // recording stays cancelled for the lifetime of the cooldown.
-    const notDrivingUntil = Date.now() + COOLDOWN_MS;
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('not_driving_until', ?)",
-      [String(notDrivingUntil)]
-    );
-    logDetectionEvent("not_driving_cooldown_set", {
-      cooldownMs: COOLDOWN_MS,
-      until: notDrivingUntil,
-    }).catch(() => {});
   }
 }
 
@@ -3487,6 +3743,7 @@ export async function cancelAutoRecording(clearCoords = false): Promise<void> {
  * recordings the user actually wants.
  */
 export async function clearNotDrivingCooldown(): Promise<void> {
+  notDrivingCancelledAtMs = null;
   const db = await getDatabase();
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key = 'not_driving_until'"
@@ -3508,6 +3765,7 @@ export async function clearNotDrivingCooldownIfHeld(): Promise<"cleared" | "held
   if (!Number.isFinite(until)) return "none";
   const setAt = until - COOLDOWN_MS;
   if (Date.now() - setAt < NOT_DRIVING_MIN_HOLD_MS) return "held";
+  notDrivingCancelledAtMs = null;
   await db.runAsync("DELETE FROM tracking_state WHERE key = 'not_driving_until'");
   return "cleared";
 }
@@ -4148,6 +4406,14 @@ try {
           }).catch(() => {});
         }
 
+        // The shared opener rule, asked again right before arming: a "Not
+        // driving" or a Start Trip that landed during the awaits above must
+        // win (13 Oct 2026, see mayOpenRecordingNow).
+        const openGate = await mayOpenRecordingNow(db);
+        if (!openGate.open) {
+          logDetectionEvent("detection_open_refused", { refusal: openGate.refusal }).catch(() => {});
+          return;
+        }
         // Mark auto-recording as active + update last driving timestamp
         await db.runAsync(
           "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
@@ -5221,6 +5487,13 @@ async function forceStartRecordingImpl(reason: string): Promise<void> {
     return;
   }
 
+  // Same opener rule as every other path (a "Not driving" cooldown was never
+  // checked here before; 13 Oct 2026).
+  const forceGate = await mayOpenRecordingNow(db);
+  if (!forceGate.open) {
+    logDetectionEvent("force_start_skipped", { reason, cause: forceGate.refusal }).catch(() => {});
+    return;
+  }
   await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')");
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",

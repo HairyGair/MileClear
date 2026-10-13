@@ -38,6 +38,7 @@ import {
   shiftSuppressesAutoDetection,
   clearNotDrivingCooldownIfHeld,
   isNotDrivingCooldownActive,
+  mayOpenRecordingNow,
   haversineMeters,
   recentBufferedFixes,
   resolvePauseOnWake,
@@ -1150,6 +1151,17 @@ async function openNativeRecording(
   reason: "motion" | "speed"
 ): Promise<void> {
   const db = await getDatabase();
+  // THE choke point: no caller can open a recording through a shift / Start
+  // Trip lock, a "Not driving" cooldown or a "Not driving" tapped a moment ago
+  // (13 Oct 2026: a passenger's tap was undone within a second because each
+  // caller checked the cooldown for itself, before the cancel had finished
+  // writing it). Checked again below, right before the recording is armed,
+  // because the awaits in between are where a cancel lands.
+  const gate = await mayOpenRecordingNow(db);
+  if (!gate.open) {
+    logDetectionEvent("native_open_refused", { reason, refusal: gate.refusal, stage: "entry" }).catch(() => {});
+    return;
+  }
   const BGGeo = loadNativeModule();
   // Measures the cost of the foot-stop: a drive that resumes within minutes
   // of a walk closing the recording was probably one stop (a delivery drop)
@@ -1271,6 +1283,11 @@ async function openNativeRecording(
   try {
     await BGGeo?.destroyLocations();
   } catch {}
+  const gateAgain = await mayOpenRecordingNow(db);
+  if (!gateAgain.open) {
+    logDetectionEvent("native_open_refused", { reason, refusal: gateAgain.refusal, stage: "arm" }).catch(() => {});
+    return;
+  }
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
   );
@@ -1296,6 +1313,22 @@ async function openNativeRecording(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('last_driving_speed_at', ?)",
     [Date.now().toString()]
   );
+  // Last chance before the server and the Lock Screen hear about it: a
+  // "Not driving" that landed during the awaits above has already deleted the
+  // keys it knew about, so undo what this open added (13 Oct 2026).
+  const gateLast = await mayOpenRecordingNow(db);
+  if (!gateLast.open) {
+    logDetectionEvent("native_open_refused", { reason, refusal: gateLast.refusal, stage: "announce" }).catch(() => {});
+    try {
+      await db.runAsync(
+        "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
+      );
+      await db.runAsync("DELETE FROM detection_coordinates");
+      await BGGeo?.destroyLocations();
+      await setNativePreventSuspend(false);
+    } catch {}
+    return;
+  }
   logDetectionEvent("native_recording_started", {
     accuracy: Math.round(seed.coords.accuracy ?? -1),
     reason,

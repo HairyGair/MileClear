@@ -1436,7 +1436,7 @@ export default function DashboardScreen() {
       // Start GPS tracking
       const hasPermission = await requestLocationPermissions();
       if (hasPermission) {
-        await startShiftTracking(res.data.id);
+        await startShiftTracking(res.data.id, { fresh: true });
       } else {
         Alert.alert(
           "Location Access",
