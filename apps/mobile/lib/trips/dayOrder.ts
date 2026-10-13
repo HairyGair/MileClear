@@ -7,6 +7,9 @@
  * them. So days stay newest first (today at the top) and inside each day
  * the trips run oldest first, with a header row before every day.
  *
+ * A driver can instead choose "Newest trip first" (Settings), which runs
+ * the trips inside each day newest first. Days and headers do not change.
+ *
  * Pure: no React, no Date.now() unless `now` is omitted.
  */
 
@@ -65,7 +68,16 @@ export function dayLabel(d: Date, now: Date = new Date()): string {
  * stale copies of the card mounted on every re-render: one drive showed 13
  * times for Chris Saunders on 24 Sep 2026. See pageMerge.ts.
  */
-export function groupTripsByDay<T extends DayOrderable>(trips: readonly T[], now: Date = new Date()): DayRow<T>[] {
+export interface DayOrderOptions {
+  /** Trips inside each day newest first. Default false (oldest first). */
+  newestFirstWithinDay?: boolean;
+}
+
+export function groupTripsByDay<T extends DayOrderable>(
+  trips: readonly T[],
+  now: Date = new Date(),
+  options: DayOrderOptions = {}
+): DayRow<T>[] {
   const byDay = new Map<string, { date: Date; trips: { trip: T; ms: number; idx: number }[] }>();
 
   const seenIds = new Set<string>();
@@ -93,8 +105,9 @@ export function groupTripsByDay<T extends DayOrderable>(trips: readonly T[], now
   for (const dayKey of dayKeys) {
     const bucket = byDay.get(dayKey)!;
     rows.push({ kind: "header", key: `day:${dayKey}`, label: dayLabel(bucket.date, now), dayKey });
-    // Stable ascending sort: equal timestamps fall back to incoming order.
-    const ordered = bucket.trips.sort((a, b) => a.ms - b.ms || a.idx - b.idx);
+    // Stable sort: equal timestamps fall back to incoming order either way.
+    const dir = options.newestFirstWithinDay ? -1 : 1;
+    const ordered = bucket.trips.sort((a, b) => dir * (a.ms - b.ms) || a.idx - b.idx);
     for (const { trip } of ordered) rows.push({ kind: "trip", trip });
   }
   return rows;

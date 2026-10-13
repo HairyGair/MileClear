@@ -92,3 +92,40 @@ describe("dayLabel", () => {
     expect(dayLabel(new Date(2026, 8, 30, 23, 59), firstOfMonth)).toBe("Yesterday");
   });
 });
+
+describe("groupTripsByDay newestFirstWithinDay", () => {
+  const input = [
+    trip("c", local(2026, 9, 14, 17, 30)),
+    trip("b", local(2026, 9, 14, 12, 0)),
+    trip("a", local(2026, 9, 14, 8, 0)),
+    trip("z", local(2026, 9, 15, 9, 0)),
+  ];
+
+  it("defaults to oldest first inside a day", () => {
+    expect(flatten(groupTripsByDay(input, NOW))).toEqual(flatten(groupTripsByDay(input, NOW, { newestFirstWithinDay: false })));
+    expect(flatten(groupTripsByDay(input, NOW))).toEqual(["# Yesterday", "z", "# Mon 14 Sep", "a", "b", "c"]);
+  });
+
+  it("runs trips newest first inside each day, days and headers unchanged", () => {
+    expect(flatten(groupTripsByDay(input, NOW, { newestFirstWithinDay: true }))).toEqual([
+      "# Yesterday",
+      "z",
+      "# Mon 14 Sep",
+      "c",
+      "b",
+      "a",
+    ]);
+  });
+
+  it("keeps incoming order for trips that start at the same time", () => {
+    const t = local(2026, 9, 14, 9, 0);
+    const tied = [trip("x", t), trip("y", t), trip("w", local(2026, 9, 14, 7, 0))];
+    expect(flatten(groupTripsByDay(tied, NOW, { newestFirstWithinDay: true }))).toEqual(["# Mon 14 Sep", "x", "y", "w"]);
+    expect(flatten(groupTripsByDay(tied, NOW))).toEqual(["# Mon 14 Sep", "w", "x", "y"]);
+  });
+
+  it("still shows a repeated id once", () => {
+    const dup = [trip("a", local(2026, 9, 14, 8, 0)), trip("a", local(2026, 9, 14, 8, 0)), trip("b", local(2026, 9, 14, 9, 0))];
+    expect(flatten(groupTripsByDay(dup, NOW, { newestFirstWithinDay: true }))).toEqual(["# Mon 14 Sep", "b", "a"]);
+  });
+});

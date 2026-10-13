@@ -32,6 +32,7 @@ import { isNetworkError } from "../../lib/sync/errors";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
 import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
 import { dayLabel, groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
+import { useNewestTripFirst } from "../../lib/trips/orderPref";
 import { createdInBatchIds, dayMilesText, isRecentAutoSort, suggestionLine, tripTag } from "../../lib/trips/tripLabels";
 import { routeText } from "../../lib/home/lastTrip";
 import { mergeTripPage, uniqueById } from "../../lib/trips/pageMerge";
@@ -1447,7 +1448,8 @@ export default function TripsScreen() {
   // forwards rather than backwards. Regrouped over the whole loaded array
   // every time a page arrives, so the oldest day on screen fills in as the
   // next page loads.
-  const dayRows = useMemo<DayRow<TripItem>[]>(() => groupTripsByDay(trips), [trips]);
+  const newestFirst = useNewestTripFirst();
+  const dayRows = useMemo<DayRow<TripItem>[]>(() => groupTripsByDay(trips, new Date(), { newestFirstWithinDay: newestFirst }), [trips, newestFirst]);
 
   // The day's miles beside each day header, from the trips loaded for it.
   const dayMiles = useMemo(() => {
