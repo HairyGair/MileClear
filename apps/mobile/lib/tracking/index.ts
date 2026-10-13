@@ -12,6 +12,8 @@ import {
   stopDriveDetection,
   cancelAutoRecording,
   clearNotDrivingCooldown,
+  finalizeEarlierDriveBeforeLock,
+  readLockWindowStartMs,
   shiftSuppressesAutoDetection,
   getJourneyEndMinutes,
   logDetectionEvent,
@@ -179,10 +181,17 @@ export async function stopQuickTripLocationTask(): Promise<void> {
   await applyNativeEnginePower("quick_trip_lock_released");
 }
 
-export async function startShiftTracking(shiftId: string): Promise<void> {
+export async function startShiftTracking(
+  shiftId: string,
+  options: { fresh?: boolean } = {}
+): Promise<void> {
   // Starting a shift is an explicit "I am driving" signal. Clear any
   // pending not-driving cooldown so the shift records normally.
   await clearNotDrivingCooldown();
+  // A NEW shift (not a resume after the app was killed): an automatic drive
+  // still open or buffered is an earlier drive. Save it as its own trip before
+  // the lock goes on, or the cleanup at shift end deletes it (12 Oct 2026).
+  if (options.fresh) await finalizeEarlierDriveBeforeLock("shift_start");
   await stopDriveDetection();
   await cancelAutoRecording();
 
@@ -233,12 +242,17 @@ export async function stopShiftTracking(): Promise<void> {
   }
 
   const db = await getDatabase();
+  // When the shift began, read before its marker goes: only fixes from then on
+  // are the engine's duplicate copy of the shift's own breadcrumbs.
+  const shiftWindowStartMs = await readLockWindowStartMs(db);
   await db.runAsync("DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')");
   await applyNativeEnginePower("shift_ended");
 
-  // Clear any leftover detection coordinates and auto-recording state so the
-  // detection system cannot finalize a duplicate trip for the same journey.
-  await cancelAutoRecording(true);
+  // Clear the engine's duplicate copy of the shift so the detection system
+  // cannot finalize a second trip for the same journey. Older fixes are an
+  // earlier drive: saved, not deleted (12 Oct 2026). Not a "Not driving", so
+  // no cooldown and a "duplicate_cleared" report.
+  await cancelAutoRecording(true, { windowStartMs: shiftWindowStartMs, detail: "shift_end" });
   // The native engine kept its own copy of every fix while the shift ran;
   // left in place, the next app open's orphan sweep saves the same journey
   // again (Lohitha, 5-8 Sep 2026: 85, 33 and 32 duplicate miles).
@@ -255,7 +269,12 @@ export async function stopShiftTracking(): Promise<void> {
 // Uses the same background location task as shift tracking, but with a
 // pseudo-shift ID. Ensures GPS breadcrumbs continue when the app is backgrounded.
 
-export async function startQuickTripTracking(): Promise<void> {
+export async function startQuickTripTracking(options: { fresh?: boolean } = {}): Promise<void> {
+  // A NEW Start Trip (not a resume, not a promoted detection): an automatic
+  // drive still open or buffered is an earlier drive. Save it as its own trip
+  // before the lock suppresses detection, or the cleanup at Arrived deletes it
+  // (12 Oct 2026: 168 fixes, 20 minutes, never a trip).
+  if (options.fresh) await finalizeEarlierDriveBeforeLock("start_trip");
   await stopDriveDetection();
   await cancelAutoRecording();
 
@@ -338,14 +357,18 @@ export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
   // (46996a27), 29 Sep 2026: lock released 10:52:27, rescue saved 1.2 + 16.2
   // mi from the buffer the same second, his 34.1 mi Start Trip landed 16 s
   // later, so the drive counted twice.
-  await cancelAutoRecording(true);
+  //
+  // Only the fixes from the Start Trip onward are that copy. An earlier drive
+  // in the buffer (the automatic recording that was open when Start Trip was
+  // tapped) is saved as its own trip, never deleted (12 Oct 2026).
+  const tripWindowStartMs = await readLockWindowStartMs(db);
+  await cancelAutoRecording(true, { windowStartMs: tripWindowStartMs, detail: "start_trip_end" });
   await discardNativeStore();
-  // cancelAutoRecording(true) arms the 20-minute "Not driving" cooldown, which
-  // is for "that drive wasn't mine". Nobody said that at Arrive, and it stopped
-  // the next drives recording: Samantha Birch tapped Arrive at 17:47 BST on
-  // 30 Sep and drove at 17:50, 17:56 and 18:04, none recorded, so she typed
-  // them in (Kada's log shows the cooldown set the same second his Start Trip
-  // ended). End Shift had the same bug, fixed 23 Sep (shiftEnd.finishShift).
+  // The cleanup above no longer arms the 20-minute "Not driving" cooldown (it
+  // used to, when it went through the "Not driving" path): that is for "that
+  // drive wasn't mine", and nobody said it at Arrive. Samantha Birch tapped
+  // Arrive at 17:47 BST on 30 Sep and drove at 17:50, 17:56 and 18:04, none
+  // recorded. Still cleared here in case a real one is pending from before.
   await clearNotDrivingCooldown().catch(() => {});
 
   // Clean up

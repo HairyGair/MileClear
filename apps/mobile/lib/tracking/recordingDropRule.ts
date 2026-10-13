@@ -48,6 +48,11 @@ export type DropReason =
   | "cancelled"
   /** Old fixes cleared when a new recording opened. */
   | "stale_buffer_cleared"
+  /** The engine's duplicate copy of a Start Trip / shift, cleared when it
+   *  ended (detail "start_trip_end" / "shift_end"). The drive is on the Start
+   *  Trip or shift; an earlier drive in the buffer is saved, not counted here.
+   *  Not lost, and never an explanation for a missing trip. */
+  | "duplicate_cleared"
   /** The save threw. The fixes are kept and retried at the next app open. */
   | "error";
 
