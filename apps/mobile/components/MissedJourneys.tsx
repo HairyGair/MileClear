@@ -45,6 +45,9 @@ import {
   type OfferWindow,
 } from "../lib/trips/missedJourneyWindow";
 import { MissedJourneyTimeSheet } from "./MissedJourneyTimeSheet";
+import { missedPlaceLabel, placeKey, UNNAMED_PLACE, type SavedPlace } from "../lib/trips/placeLabel";
+import { loadSavedPlaces } from "../lib/trips/savedPlaces";
+import { reverseGeocode } from "../lib/location/geocoding";
 
 // How many rows a driver sees before they have to ask for more. 87 drivers had
 // 10+ proposals waiting (one had 70) and a wall that long gets ignored wholesale.
@@ -93,11 +96,6 @@ function droppedNote(source: MissedJourneyProposal["source"]): string | null {
     default:
       return null;
   }
-}
-
-function shortPlace(addr: string | null, lat: number, lng: number): string {
-  if (addr && addr.trim()) return addr.split(",")[0].trim();
-  return `${lat.toFixed(3)}, ${lng.toFixed(3)}`;
 }
 
 // When the journey happened, in words. A gap row gives the start of its
@@ -207,6 +205,23 @@ export function MissedJourneys({
   const [opening, setOpening] = useState(false);
   // The offer whose Add is working out the route or checking for a clash.
   const [addingId, setAddingId] = useState<string | null>(null);
+
+  // Names for ends the server sent no address for. Looked up on this phone
+  // after the list is on screen; until then (or if it fails) the row says
+  // "Unnamed place", never coordinates.
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [looked, setLooked] = useState<Record<string, string>>({});
+  const shortPlace = useCallback(
+    (addr: string | null, lat: number, lng: number) =>
+      missedPlaceLabel(addr, lat, lng, savedPlaces, looked[placeKey(lat, lng)]),
+    [savedPlaces, looked]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    loadSavedPlaces().then((p) => { if (!cancelled) setSavedPlaces(p); });
+    return () => { cancelled = true; };
+  }, []);
 
   const load = useCallback(() => {
     fetchMissedJourneys()
@@ -377,6 +392,34 @@ export function MissedJourneys({
       setBusyId(null);
     }
   };
+
+  // Look up the visible ends that have no readable name, one at a time.
+  // Never awaited by the render: the list is already showing.
+  useEffect(() => {
+    let cancelled = false;
+    const wanted: { key: string; lat: number; lng: number }[] = [];
+    for (const p of items.slice(0, visibleCount)) {
+      for (const [addr, lat, lng] of [
+        [p.fromAddress, p.fromLat, p.fromLng],
+        [p.toAddress, p.toLat, p.toLng],
+      ] as const) {
+        const key = placeKey(lat, lng);
+        if (looked[key] !== undefined || wanted.some((w) => w.key === key)) continue;
+        if (missedPlaceLabel(addr, lat, lng, savedPlaces) !== UNNAMED_PLACE) continue;
+        wanted.push({ key, lat, lng });
+      }
+    }
+    if (wanted.length === 0) return;
+    (async () => {
+      for (const w of wanted) {
+        const name = await reverseGeocode(w.lat, w.lng).catch(() => null);
+        if (cancelled) return;
+        // "" marks a failed lookup so it is not retried on every render.
+        setLooked((prev) => (prev[w.key] !== undefined ? prev : { ...prev, [w.key]: name ?? "" }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [items, visibleCount, savedPlaces, looked]);
 
   if (items.length === 0) return null;
 

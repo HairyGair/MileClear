@@ -107,3 +107,30 @@ export function tripEndLabel(
   const name = savedPlaceAt(saved, lat, lng);
   return name ? truncate(name.trim(), maxLength) : shortPlaceLabel(address, maxLength);
 }
+
+/** What an end is called when nothing can name it. Never raw coordinates. */
+export const UNNAMED_PLACE = "Unnamed place";
+
+/** Rounded key for a coordinate pair, shared by callers that cache lookups. */
+export function placeKey(lat: number, lng: number): string {
+  return `${lat.toFixed(3)},${lng.toFixed(3)}`;
+}
+
+/**
+ * Label for one end of a missed-drive offer. Saved place first, then the
+ * address the server sent, then an address looked up on this phone, and
+ * finally "Unnamed place". Never "50.492, -4.086".
+ */
+export function missedPlaceLabel(
+  address: string | null | undefined,
+  lat: number,
+  lng: number,
+  saved: SavedPlace[] = [],
+  lookedUp: string | null | undefined = null,
+  maxLength = 28
+): string {
+  const named = tripEndLabel(address, lat, lng, saved, maxLength);
+  if (named) return named;
+  const found = shortPlaceLabel(lookedUp, maxLength);
+  return found || UNNAMED_PLACE;
+}
