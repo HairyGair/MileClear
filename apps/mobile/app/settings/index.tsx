@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Alert, Linking, Platform, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import Constants from "expo-constants";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, driveForOf, driveForSummary, type DriveFor } from "@mileclear/shared";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
@@ -22,6 +22,7 @@ import { getDatabase } from "../../lib/db";
 import { availableDoorRows } from "../../lib/home/doors";
 import { homePersona } from "../../lib/home/persona";
 import { DOOR_ROW_LABELS } from "../../lib/home/doorPrefs";
+import { getNewestTripFirst, setNewestTripFirst } from "../../lib/trips/orderPref";
 import { useMode } from "../../lib/mode/context";
 import type { CheckRow, CheckTap } from "../../lib/settings/checks";
 import {
@@ -72,6 +73,23 @@ export default function SettingsPage() {
   const homeSummary = homeScreenSummary(
     available.map((id) => ({ label: DOOR_ROW_LABELS[id], shown: !page.hiddenDoors.includes(id) }))
   );
+
+  const [newestFirst, setNewestFirst] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      getNewestTripFirst().then((v) => {
+        if (!cancelled) setNewestFirst(v);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+  const onNewestFirst = useCallback((next: boolean) => {
+    setNewestFirst(next);
+    void setNewestTripFirst(next);
+  }, []);
 
   const go = (path: string) => () => router.push(path as never);
 
@@ -256,6 +274,13 @@ export default function SettingsPage() {
           label="Home screen"
           hint={homeSummary}
           onPress={go("/settings/home")}
+        />
+        <ToggleRow
+          icon="swap-vertical-outline"
+          label="Newest trip first"
+          hint="Show each day's latest trip at the top of Trips."
+          value={newestFirst}
+          onToggle={onNewestFirst}
         />
         <ToggleRow
           icon="lock-closed-outline"
