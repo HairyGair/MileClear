@@ -15,7 +15,7 @@ import {
   buildInvoicePreDueEmail,
   filterTraceOutliers,
   dropPinnedFixes,
-  dropStaleEdgeFixes,
+  dropStaleTrailingFixes,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -759,9 +759,13 @@ describe("filterTraceOutliers: stale first and last fixes (Katy, 14 Oct 2026)", 
     expect(filterTraceOutliers(leftover)).toEqual(drive.slice(0, 4));
   });
 
-  it("and as the FIRST point, 5 s before the drive (not a planted anchor), it goes", () => {
+  it("as the FIRST point it stays: a stale first fix can be where the drive began", () => {
+    // Android Wi-Fi fix at home, 5 s before the first GPS fix 0.8 mi away:
+    // roughly where the drive started. Losing a real start is worse.
     const leftover = [stale(t0 - 5000), ...drive.slice(0, 4)];
-    expect(filterTraceOutliers(leftover)).toEqual(drive.slice(0, 4));
+    expect(filterTraceOutliers(leftover)[0]).toBe(leftover[0]);
+    const pair = [stale(t0 - 5000), drive[0]];
+    expect(filterTraceOutliers(pair)).toEqual(pair);
   });
 
   it("two points, real then stale: one fix is left, so the recording is too short", () => {
@@ -776,11 +780,11 @@ describe("filterTraceOutliers: stale first and last fixes (Katy, 14 Oct 2026)", 
     expect(pathMiles(kept)).toBe(0);
   });
 
-  it("bb4e6fa9 (3 points) is kept as recorded: its stale fix has the planted departure anchor's exact shape", () => {
+  it("bb4e6fa9 (3 points) is kept as recorded: a stale START is never dropped", () => {
     // Two home fixes at accuracy 50, speed 0, the second exactly 30 s before a
-    // real moving fix 1.25 mi away. A late wake plants precisely this so the
-    // drive reads from where it began; the trace alone cannot tell the two
-    // apart, and losing a real start is worse.
+    // real moving fix 1.25 mi away: the planted departure anchor's exact
+    // shape. The trace alone cannot tell it from a real late-wake start, and
+    // losing a real start is worse.
     const cs = [
       fix(HOME.lat, HOME.lng, 50, 0, "09:04:45"),
       fix(HOME.lat, HOME.lng, 50, 0, "09:05:45"),
@@ -789,7 +793,7 @@ describe("filterTraceOutliers: stale first and last fixes (Katy, 14 Oct 2026)", 
     expect(filterTraceOutliers(cs)).toEqual(cs);
   });
 
-  it("d5156c64 (2 points) is kept for the same reason: anchor-shaped, 30 s before the real fix", () => {
+  it("d5156c64 (2 points) is kept for the same reason", () => {
     const cs = [
       fix(51.41378, -0.28725, 50, 0, "16:46:03"),
       fix(51.42841, -0.31073, 4, 0.09, "16:46:33"),
@@ -797,12 +801,12 @@ describe("filterTraceOutliers: stale first and last fixes (Katy, 14 Oct 2026)", 
     expect(filterTraceOutliers(cs)).toEqual(cs);
   });
 
-  it("the same first fix with no speed (an OS fix, not a planted one) goes", () => {
+  it("the same first fix with no speed (an OS fix, not a planted one) stays too", () => {
     const cs = [
       fix(51.41378, -0.28725, 50, null, "16:46:03"),
       fix(51.42841, -0.31073, 4, 0.09, "16:46:33"),
     ];
-    expect(filterTraceOutliers(cs)).toEqual([cs[1]]);
+    expect(filterTraceOutliers(cs)).toEqual(cs);
   });
 
   it("keeps a late-wake departure anchor 2.7 to 5 km behind the first fix, 30 s earlier", () => {
@@ -839,23 +843,21 @@ describe("filterTraceOutliers: stale first and last fixes (Katy, 14 Oct 2026)", 
     expect(filterTraceOutliers(short.slice(0, 2))).toEqual(short.slice(0, 2));
   });
 
-  it("never condemns a stale fix on the word of a real fix that is itself a jump", () => {
-    // Stale start at the drive's start, then a real-looking fix 3 km off,
-    // then the trail: the middle fix is the bad one, so the start stays.
-    const cs = [
-      { ...stale(t0 - 5000), lat: drive[0].lat, lng: drive[0].lng },
-      { ...drive[0], lat: drive[0].lat + 0.03 },
-      ...drive.slice(1),
-    ];
-    expect(dropStaleEdgeFixes(cs)[0]).toBe(cs[0]);
+  it("never condemns a stale last fix on the word of a real fix that is itself a jump", () => {
+    // The trail, then a real-looking fix 3 km off, then a stale fix back on
+    // the trail: the real-looking fix is the bad one, so the stale end stays.
+    const end = { ...stale(t0 + 12 * 5000), lat: drive[10].lat, lng: drive[10].lng };
+    const cs = [...drive.slice(0, 11), { ...drive[11], lat: drive[11].lat + 0.03 }, end];
+    expect(dropStaleTrailingFixes(cs)).toEqual(cs);
   });
 
   it("leaves null-accuracy fixes alone (server-routed points, old clients)", () => {
     const routed = {
-      lat: drive[0].lat - 0.03, lng: drive[0].lng, accuracy: null, speed: null,
-      recorded_at: new Date(t0 - 5000).toISOString(),
+      lat: drive[11].lat + 0.03, lng: drive[11].lng, accuracy: null, speed: null,
+      recorded_at: new Date(t0 + 12 * 5000).toISOString(),
     };
-    expect(dropStaleEdgeFixes([routed, ...drive])[0]).toBe(routed);
+    const cs = [...drive, routed];
+    expect(dropStaleTrailingFixes(cs)).toEqual(cs);
   });
 
   it("Shoaib's pattern: a pinned home fix at the very end, same instant as the last real fix, now goes", () => {

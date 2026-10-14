@@ -261,8 +261,8 @@ export async function fetchRouteDistance(
  *
  * Preserves the first and last coords so trip start/end addresses stay
  * consistent with what the user actually saw on the map. The one exception is
- * a stale first or last fix that implies an impossible jump to the trail
- * beside it (see dropStaleEdgeFixes), which can leave fewer than two coords.
+ * a stale last fix that implies an impossible jump from the trail before it
+ * (see dropStaleTrailingFixes), which can leave fewer than two coords.
  */
 export function filterTraceOutliers<
   T extends {
@@ -292,10 +292,9 @@ export function filterTraceOutliers<
       accFiltered.push(pinnedOut[i]);
     }
   }
-  // Pass 1b - a stale first or last fix that cannot be reached from the
-  // trail next to it. Runs before the speed pass so that pass measures from a
-  // real fix, and works on two- and three-point traces too.
-  const edgeChecked = dropStaleEdgeFixes(accFiltered, maxSpeedMs);
+  // Pass 1b - a stale last fix that cannot be reached from the trail before
+  // it. Works on two- and three-point traces too, which the speed pass skips.
+  const edgeChecked = dropStaleTrailingFixes(accFiltered, maxSpeedMs);
   if (edgeChecked.length < 3) return edgeChecked;
 
   // Pass 2 - speed-jump filter against the previously-kept coord
@@ -327,15 +326,10 @@ export function filterTraceOutliers<
   return out;
 }
 
-/** Edge fixes further than this from the trail beside them can be dropped as
- *  stale. Matches dropPinnedFixes' contradiction distance: a 50 m Wi-Fi fix
- *  can sit 100 m off the truth, never 300. */
+/** A last fix closer than this to the trail can never be dropped as stale.
+ *  Matches dropPinnedFixes' contradiction distance: a 50 m Wi-Fi fix can sit
+ *  100 m off the truth, never 300. */
 export const STALE_EDGE_MIN_JUMP_METRES = 300;
-/** A planted departure anchor (apps/mobile geofencing + nativeLocation) sits
- *  at most this far from the first real fix... */
-export const DEPARTURE_ANCHOR_MAX_METRES = 5000;
-/** ...and is dated 30 s before it (this allows for clock rounding). */
-export const DEPARTURE_ANCHOR_MIN_GAP_MS = 29_000;
 
 type EdgeFix = {
   lat: number;
@@ -353,18 +347,6 @@ export function isStaleFix(c: EdgeFix): boolean {
   return c.accuracy != null && c.accuracy >= 50 && (c.speed == null || c.speed <= 0.5);
 }
 
-/** The shape the phone gives a planted departure anchor: accuracy exactly 50,
- *  speed exactly 0, dated 30 s before the first real fix and within 5 km of
- *  it. A late wake plants it so a short drive reads from where it began; it
- *  looks like a stale fix by design and must stay. */
-function looksLikeDepartureAnchor(anchor: EdgeFix, next: EdgeFix): boolean {
-  if (anchor.accuracy !== 50 || anchor.speed !== 0) return false;
-  const ta = anchor.recorded_at ? new Date(anchor.recorded_at).getTime() : NaN;
-  const tn = next.recorded_at ? new Date(next.recorded_at).getTime() : NaN;
-  if (!Number.isFinite(ta) || !Number.isFinite(tn) || tn - ta < DEPARTURE_ANCHOR_MIN_GAP_MS) return false;
-  return haversineDistance(anchor.lat, anchor.lng, next.lat, next.lng) * 1609.344 <= DEPARTURE_ANCHOR_MAX_METRES;
-}
-
 /** Faster than maxSpeedMs, or more than 100 m apart at the same instant, and
  *  at least STALE_EDGE_MIN_JUMP_METRES apart. False when either time is missing. */
 function impossibleStep(a: EdgeFix, b: EdgeFix, maxSpeedMs: number): boolean {
@@ -378,55 +360,37 @@ function impossibleStep(a: EdgeFix, b: EdgeFix, maxSpeedMs: number): boolean {
 }
 
 /**
- * Drop a stale first or last fix (isStaleFix) that implies an impossible jump
- * to the nearest real fix beside it, even in a two- or three-point trace.
+ * Drop stale fixes (isStaleFix) at the END of a trace that imply an impossible
+ * jump from the last real fix, even in a two- or three-point trace.
  *
  * Katy, Android, 14 Oct 2026: a fix 50 m accurate at speed 0 from somewhere
  * she had been earlier sat at the edge of a trace and was kept because edges
- * always were, turning a few seconds into a mile and a half. Only the stale
- * fix goes, and only when the real fix beside it agrees with the trail on its
- * other side (so a bad real fix cannot condemn a good stale one). A stale
- * edge fix that agrees with its neighbour stays (the real start or end of a
- * drive, reported by Wi-Fi), and so does anything shaped like a planted
- * departure anchor at the start. Can return fewer than two coords; callers
- * then treat the recording as too short.
+ * always were, turning a few seconds into a mile and a half. A cached fix with
+ * a fresh timestamp shows where the phone was BEFORE, so after the last real
+ * fix it is somewhere the drive has already left. Only goes when the last real
+ * fix agrees with the trail before it, so a bad real fix cannot condemn it.
+ *
+ * The START is never touched. There the same shape is often where the drive
+ * really began: a Wi-Fi fix at home seconds before the first GPS fix, or the
+ * departure anchor a late wake plants 30 s ahead of the first fix. Losing a
+ * real start is worse than keeping a stray first point, and the server takes
+ * an inflated append back down (apps/api services/appendDistance.ts).
+ *
+ * Can return a single coord; callers then treat the recording as too short.
  */
-export function dropStaleEdgeFixes<T extends EdgeFix>(coords: T[], maxSpeedMs = 53.6): T[] {
+export function dropStaleTrailingFixes<T extends EdgeFix>(coords: T[], maxSpeedMs = 53.6): T[] {
   if (coords.length < 2) return coords;
-  const drop = new Set<number>();
-
-  // Leading: stale fixes before the first real one.
-  let g = 0;
-  while (g < coords.length && isStaleFix(coords[g])) g++;
-  if (g > 0 && g < coords.length) {
-    const real = coords[g];
-    let after = g + 1;
-    while (after < coords.length && isStaleFix(coords[after])) after++;
-    const agrees = after >= coords.length || !impossibleStep(real, coords[after], maxSpeedMs);
-    if (agrees) {
-      for (let i = 0; i < g; i++) {
-        if (looksLikeDepartureAnchor(coords[i], coords[i + 1]) || looksLikeDepartureAnchor(coords[i], real)) continue;
-        if (impossibleStep(coords[i], real, maxSpeedMs)) drop.add(i);
-      }
-    }
-  }
-
-  // Trailing: stale fixes after the last real one. Never an anchor (an anchor
-  // is planted before the first fix of a recording).
   let h = coords.length - 1;
   while (h >= 0 && isStaleFix(coords[h])) h--;
-  if (h >= 0 && h < coords.length - 1) {
-    const real = coords[h];
-    let before = h - 1;
-    while (before >= 0 && isStaleFix(coords[before])) before--;
-    const agrees = before < 0 || !impossibleStep(coords[before], real, maxSpeedMs);
-    if (agrees) {
-      for (let i = h + 1; i < coords.length; i++) {
-        if (impossibleStep(real, coords[i], maxSpeedMs)) drop.add(i);
-      }
-    }
+  if (h < 0 || h === coords.length - 1) return coords;
+  const real = coords[h];
+  let before = h - 1;
+  while (before >= 0 && isStaleFix(coords[before])) before--;
+  if (before >= 0 && impossibleStep(coords[before], real, maxSpeedMs)) return coords;
+  const drop = new Set<number>();
+  for (let i = h + 1; i < coords.length; i++) {
+    if (impossibleStep(real, coords[i], maxSpeedMs)) drop.add(i);
   }
-
   return drop.size === 0 ? coords : coords.filter((_, i) => !drop.has(i));
 }
 

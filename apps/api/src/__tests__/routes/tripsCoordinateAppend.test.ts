@@ -71,6 +71,7 @@ import { tripRoutes } from "../../routes/trips/index.js";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
 import { findSplitFamily, appendToSplitTail } from "../../services/splitTailAppend.js";
+import { haversineDistance } from "@mileclear/shared";
 
 const USER_ID = "00000000-0000-0000-0000-000000000009";
 const TRIP_ID = "dddddddd-dddd-dddd-dddd-dddddddddddd";
@@ -305,12 +306,24 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       accuracy: 4 as number | null,
       recordedAt: new Date(t0 + i * 10_000),
     }));
-    // Her home fix, accuracy 50 and speed 0, 5 s after the first real fix.
-    const pinned = { lat: 51.42827, lng: -0.31077, speed: 0, accuracy: 50, recordedAt: new Date(t0 + 5000) };
+    // Her home fix, accuracy 50 and speed 0, 5 s after a real fix.
+    const pinnedAfter = (i: number) => ({
+      lat: 51.42827, lng: -0.31077, speed: 0 as number | null, accuracy: 50 as number | null,
+      recordedAt: new Date(t0 + i * 10_000 + 5000),
+    });
+    const pinned = pinnedAfter(0);
+    // The leftovers carried her home fix three times: each one a there-and-back
+    // jump the phone counted.
+    const katyTrail = [
+      drive[0], pinnedAfter(0), ...drive.slice(1, 10), pinnedAfter(9),
+      ...drive.slice(10, 20), pinnedAfter(19), ...drive.slice(20),
+    ];
+    const pathMiles = (cs: { lat: number; lng: number }[]) =>
+      cs.slice(1).reduce((s, c, k) => s + haversineDistance(cs[k].lat, cs[k].lng, c.lat, c.lng), 0);
 
-    function wireTrail(trail: typeof drive) {
+    function wireTrail(trail: typeof drive, base: Record<string, unknown> = EXISTING_TRIP) {
       const tx = {
-        trip: { update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...EXISTING_TRIP, ...data })) },
+        trip: { update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...base, ...data })) },
         tripCoordinate: {
           // First read: the dedupe timestamps. Second: the trail after the append.
           findMany: vi
@@ -324,13 +337,18 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       return tx;
     }
 
-    it("brings an inflated figure down to the filtered trail and says why", async () => {
+    beforeEach(() => {
       vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
-      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+    });
+
+    it("takes the jumps back out of an inflated figure and says why", async () => {
+      const client = Math.round(pathMiles(katyTrail) * 100) / 100;
+      expect(client).toBeGreaterThan(6);
+      const tx = wireTrail(katyTrail);
 
       const res = await app.inject({
         method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
-        payload: { ...MERGE_BODY, distanceMiles: 6.9 },
+        payload: { ...MERGE_BODY, distanceMiles: client },
       });
 
       expect(res.statusCode).toBe(200);
@@ -341,14 +359,25 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       expect(logEvent).toHaveBeenCalledWith(
         "trip.append_distance_recomputed",
         USER_ID,
-        expect.objectContaining({ tripId: TRIP_ID, reason: "outlier_inflated", clientMiles: 6.9, dropped: 1 })
+        expect.objectContaining({ tripId: TRIP_ID, reason: "outlier_inflated", clientMiles: client, dropped: 3 })
       );
       const { upsertMileageSummary } = await import("../../services/mileage.js");
       expect(upsertMileageSummary).toHaveBeenCalled();
     });
 
+    it("keeps the road miles on top: only what the filter removed comes off", async () => {
+      // A map-matched figure 0.3 mi over the trail, plus the counted jumps.
+      const client = Math.round((pathMiles(katyTrail) + 0.3) * 100) / 100;
+      const tx = wireTrail(katyTrail);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: client },
+      });
+      const stored = tx.trip.update.mock.calls[2][0].data.distanceMiles;
+      expect(stored).toBeCloseTo(pathMiles(drive) + 0.3, 1);
+    });
+
     it("leaves a road distance a little over the straight-line trail alone", async () => {
-      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
       // No bad fix at all: a map-matched 2.6 miles on a 2.25-mile trail.
       const clean = wireTrail(drive);
       await app.inject({
@@ -357,21 +386,20 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       });
       expect(clean.trip.update).toHaveBeenCalledTimes(2);
       expect(clean.trip.update.mock.calls[0][0].data.distanceMiles).toBe(2.6);
+    });
 
-      // A harmless dropped fix does not make a road distance suspect either.
-      vi.mocked(logEvent).mockClear();
-      const withPinned = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+    it("leaves a figure below the raw trail alone (the phone had already filtered the jump)", async () => {
+      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
       await app.inject({
         method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
         payload: { ...MERGE_BODY, distanceMiles: 3.2 },
       });
-      expect(withPinned.trip.update).toHaveBeenCalledTimes(2);
+      expect(tx.trip.update).toHaveBeenCalledTimes(2);
       expect(logEvent).not.toHaveBeenCalledWith("trip.append_distance_recomputed", expect.anything(), expect.anything());
     });
 
     it("never raises a figure below the trail", async () => {
-      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
-      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+      const tx = wireTrail(katyTrail);
       await app.inject({
         method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
         payload: { ...MERGE_BODY, distanceMiles: 1.1 },
@@ -381,14 +409,57 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
     });
 
     it("leaves a manual trip alone", async () => {
-      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
       vi.mocked(prisma.trip.findFirst).mockResolvedValue({ ...EXISTING_TRIP, isManualEntry: true } as any);
-      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+      const tx = wireTrail(katyTrail, { ...EXISTING_TRIP, isManualEntry: true });
       await app.inject({
         method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
         payload: { ...MERGE_BODY, distanceMiles: 6.9 },
       });
       expect(tx.trip.update).toHaveBeenCalledTimes(2);
+    });
+
+    // Review of 14 Oct 2026: three trips whose figure is legitimately well over
+    // their trail. The append must not touch any of them.
+    it("leaves a late-start backfill alone (3.90 on a 2.40 trail)", async () => {
+      const base = { ...EXISTING_TRIP, distanceMiles: 3.9, gpsQuality: { lateStartBackfill: { addedMiles: 1.5 } } };
+      vi.mocked(prisma.trip.findFirst).mockResolvedValue(base as any);
+      const tx = wireTrail(katyTrail, base);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 3.9 },
+      });
+      expect(tx.trip.update).toHaveBeenCalledTimes(2);
+      expect(tx.trip.update.mock.calls[0][0].data.distanceMiles).toBe(3.9);
+    });
+
+    it("leaves a driver-moved start alone (7.30 on a 3.30 trail)", async () => {
+      const base = { ...EXISTING_TRIP, distanceMiles: 7.3, originalStartLat: 51.4, originalStartLng: -0.3 };
+      vi.mocked(prisma.trip.findFirst).mockResolvedValue(base as any);
+      const tx = wireTrail(katyTrail, base);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 7.3 },
+      });
+      expect(tx.trip.update).toHaveBeenCalledTimes(2);
+    });
+
+    it("leaves a 30-mile map-matched drive plus merge alone (31.5 on a 20.68 trail)", async () => {
+      // 20.68 miles of straight-line trail, and one 80 m-accuracy fix that the
+      // merge put mid-trail, so the filter drops it but removes no distance.
+      const long = Array.from({ length: 120 }, (_, i) => ({
+        lat: 51.3 + (i * (20.68 / 69.09)) / 119,
+        lng: -0.2,
+        speed: 25 as number | null,
+        accuracy: (i === 60 ? 80 : 5) as number | null,
+        recordedAt: new Date(t0 + i * 30_000),
+      }));
+      const tx = wireTrail(long);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 31.5 },
+      });
+      expect(tx.trip.update).toHaveBeenCalledTimes(2);
+      expect(tx.trip.update.mock.calls[0][0].data.distanceMiles).toBe(31.5);
     });
   });
 });
