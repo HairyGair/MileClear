@@ -259,8 +259,10 @@ export async function fetchRouteDistance(
  *      maxSpeedMs (default ~120mph). These are GPS teleports - cellular tower
  *      handoffs, fix restoration after a tunnel, or stale cached fixes.
  *
- * Always preserves the first and last coords so trip start/end addresses stay
- * consistent with what the user actually saw on the map.
+ * Preserves the first and last coords so trip start/end addresses stay
+ * consistent with what the user actually saw on the map. The one exception is
+ * a stale last fix that implies an impossible jump from the trail before it
+ * (see dropStaleTrailingFixes), which can leave fewer than two coords.
  */
 export function filterTraceOutliers<
   T extends {
@@ -290,14 +292,17 @@ export function filterTraceOutliers<
       accFiltered.push(pinnedOut[i]);
     }
   }
-  if (accFiltered.length < 3) return accFiltered;
+  // Pass 1b - a stale last fix that cannot be reached from the trail before
+  // it. Works on two- and three-point traces too, which the speed pass skips.
+  const edgeChecked = dropStaleTrailingFixes(accFiltered, maxSpeedMs);
+  if (edgeChecked.length < 3) return edgeChecked;
 
   // Pass 2 - speed-jump filter against the previously-kept coord
-  const out: T[] = [accFiltered[0]];
-  for (let i = 1; i < accFiltered.length; i++) {
-    const curr = accFiltered[i];
+  const out: T[] = [edgeChecked[0]];
+  for (let i = 1; i < edgeChecked.length; i++) {
+    const curr = edgeChecked[i];
     const prev = out[out.length - 1];
-    const isLast = i === accFiltered.length - 1;
+    const isLast = i === edgeChecked.length - 1;
     if (curr.recorded_at && prev.recorded_at) {
       const dtSec =
         (new Date(curr.recorded_at).getTime() -
@@ -319,6 +324,74 @@ export function filterTraceOutliers<
     out.push(curr);
   }
   return out;
+}
+
+/** A last fix closer than this to the trail can never be dropped as stale.
+ *  Matches dropPinnedFixes' contradiction distance: a 50 m Wi-Fi fix can sit
+ *  100 m off the truth, never 300. */
+export const STALE_EDGE_MIN_JUMP_METRES = 300;
+
+type EdgeFix = {
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  recorded_at?: string;
+  speed?: number | null;
+};
+
+/** A fix the phone may have served from a cache: accuracy 50 m or worse and
+ *  not moving. Null accuracy is never stale: the server's own routed points
+ *  (start/end edits, late start) carry null, and so do old clients, so null
+ *  says nothing about the fix. */
+export function isStaleFix(c: EdgeFix): boolean {
+  return c.accuracy != null && c.accuracy >= 50 && (c.speed == null || c.speed <= 0.5);
+}
+
+/** Faster than maxSpeedMs, or more than 100 m apart at the same instant, and
+ *  at least STALE_EDGE_MIN_JUMP_METRES apart. False when either time is missing. */
+function impossibleStep(a: EdgeFix, b: EdgeFix, maxSpeedMs: number): boolean {
+  const ta = a.recorded_at ? new Date(a.recorded_at).getTime() : NaN;
+  const tb = b.recorded_at ? new Date(b.recorded_at).getTime() : NaN;
+  if (!Number.isFinite(ta) || !Number.isFinite(tb)) return false;
+  const distMeters = haversineDistance(a.lat, a.lng, b.lat, b.lng) * 1609.344;
+  if (distMeters < STALE_EDGE_MIN_JUMP_METRES) return false;
+  const dtSec = Math.abs(tb - ta) / 1000;
+  return dtSec > 0 ? distMeters / dtSec > maxSpeedMs : distMeters > 100;
+}
+
+/**
+ * Drop stale fixes (isStaleFix) at the END of a trace that imply an impossible
+ * jump from the last real fix, even in a two- or three-point trace.
+ *
+ * Katy, Android, 14 Oct 2026: a fix 50 m accurate at speed 0 from somewhere
+ * she had been earlier sat at the edge of a trace and was kept because edges
+ * always were, turning a few seconds into a mile and a half. A cached fix with
+ * a fresh timestamp shows where the phone was BEFORE, so after the last real
+ * fix it is somewhere the drive has already left. Only goes when the last real
+ * fix agrees with the trail before it, so a bad real fix cannot condemn it.
+ *
+ * The START is never touched. There the same shape is often where the drive
+ * really began: a Wi-Fi fix at home seconds before the first GPS fix, or the
+ * departure anchor a late wake plants 30 s ahead of the first fix. Losing a
+ * real start is worse than keeping a stray first point, and the server takes
+ * an inflated append back down (apps/api services/appendDistance.ts).
+ *
+ * Can return a single coord; callers then treat the recording as too short.
+ */
+export function dropStaleTrailingFixes<T extends EdgeFix>(coords: T[], maxSpeedMs = 53.6): T[] {
+  if (coords.length < 2) return coords;
+  let h = coords.length - 1;
+  while (h >= 0 && isStaleFix(coords[h])) h--;
+  if (h < 0 || h === coords.length - 1) return coords;
+  const real = coords[h];
+  let before = h - 1;
+  while (before >= 0 && isStaleFix(coords[before])) before--;
+  if (before >= 0 && impossibleStep(coords[before], real, maxSpeedMs)) return coords;
+  const drop = new Set<number>();
+  for (let i = h + 1; i < coords.length; i++) {
+    if (impossibleStep(real, coords[i], maxSpeedMs)) drop.add(i);
+  }
+  return drop.size === 0 ? coords : coords.filter((_, i) => !drop.has(i));
 }
 
 /**
