@@ -11,9 +11,13 @@
 //      from the same trips.
 //
 // Discrepancies log as `reconciliation.drift` app_events with a structured
-// payload so the admin can investigate. Cron does NOT fix drift on its own
-// — auto-correcting cached figures is risky if the upsert logic itself is
-// broken; we want a human to see WHY the drift exists first.
+// payload so the admin can investigate, then the job refreshes the summary
+// with upsertMileageSummary (14 Oct 2026). Drift was almost always a summary
+// lagging a trip edit or delete until the driver's next saved trip (82
+// user-years in 4 days, one 10 mi stale for 9 days). The refreshed summary
+// is re-read and compared to the trips again: if it still disagrees, the
+// upsert logic itself is wrong, and that logs `reconciliation.heal_mismatch`
+// for a human instead of being hidden.
 //
 // Audit item #6 (external_audit_may_2.md). Required for MTD ITSA — a wrong
 // quarterly figure submitted to HMRC carries fines. This is the safety net.
@@ -23,6 +27,7 @@ import { parseTaxYear } from "@mileclear/shared";
 import { claimValuePence, type RatedTrip } from "../lib/mileageRates.js";
 import { logEvent } from "../services/appEvents.js";
 import { fallbackVehicleTypeForUsers } from "../services/vehicleDefaults.js";
+import { upsertMileageSummary } from "../services/mileage.js";
 
 // Drift below this threshold is ignored. Below 5 pence and 0.05 mi we're
 // in floating-point-rounding territory, not real disagreement.
@@ -166,9 +171,44 @@ export async function runReconciliationJob(): Promise<void> {
     });
   }
 
+  // Refresh each drifted summary from its trips, one at a time so a large
+  // run never floods the connection pool, then check the refresh agrees.
+  let healed = 0;
+  let healMismatches = 0;
+  let healErrors = 0;
+  for (const drift of drifts) {
+    try {
+      await upsertMileageSummary(drift.userId, drift.taxYear);
+      const after = await prisma.mileageSummary.findUnique({
+        where: { userId_taxYear: { userId: drift.userId, taxYear: drift.taxYear } },
+        select: { businessMiles: true, deductionPence: true },
+      });
+      const milesOff = after ? Math.abs(drift.expectedMiles - after.businessMiles) : Infinity;
+      const penceOff = after ? Math.abs(drift.expectedPence - after.deductionPence) : Infinity;
+      if (milesOff > MILES_TOLERANCE || penceOff > PENCE_TOLERANCE) {
+        // Either the upsert computes differently from this job, or a trip
+        // changed between the check and the refresh. Both are worth a look.
+        healMismatches++;
+        logEvent("reconciliation.heal_mismatch", drift.userId, {
+          taxYear: drift.taxYear,
+          milesExpected: drift.expectedMiles,
+          milesAfter: after?.businessMiles ?? null,
+          pencesExpected: drift.expectedPence,
+          pencesAfter: after?.deductionPence ?? null,
+        });
+      } else {
+        healed++;
+      }
+    } catch (err) {
+      healErrors++;
+      console.error(`[reconciliation] refresh failed for ${drift.userId} ${drift.taxYear}`, err);
+    }
+  }
+
   const elapsedMs = Date.now() - startedAt;
   console.log(
-    `[reconciliation] Checked ${summaries.length} summaries, found ${drifts.length} drift(s) in ${elapsedMs}ms.`
+    `[reconciliation] Checked ${summaries.length} summaries, found ${drifts.length} drift(s), ` +
+      `refreshed ${healed}, ${healMismatches} still disagree, ${healErrors} failed, in ${elapsedMs}ms.`
   );
 
   // Single rollup event so admin can see "this run completed" alongside the
@@ -176,6 +216,9 @@ export async function runReconciliationJob(): Promise<void> {
   logEvent("reconciliation.run_completed", null, {
     summariesChecked: summaries.length,
     driftCount: drifts.length,
+    healed,
+    healMismatches,
+    healErrors,
     elapsedMs,
   });
 }
