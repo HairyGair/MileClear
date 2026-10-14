@@ -3472,7 +3472,17 @@ export async function tripRoutes(app: FastifyInstance) {
     const tripUpdateData = {
       ...restUpdates,
       ...(incomingGpsQuality
-        ? { gpsQuality: { ...existingGpsQuality, ...incomingGpsQuality } as Prisma.InputJsonValue }
+        ? {
+            gpsQuality: {
+              ...existingGpsQuality,
+              ...incomingGpsQuality,
+              // The server's record of miles it took off (services/appendDistance)
+              // is never the phone's to overwrite.
+              ...(existingGpsQuality.appendOutlierCut !== undefined
+                ? { appendOutlierCut: existingGpsQuality.appendOutlierCut }
+                : {}),
+            } as Prisma.InputJsonValue,
+          }
         : {}),
       ...(distanceMiles !== undefined && { distanceMiles }),
       ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
@@ -3566,7 +3576,9 @@ export async function tripRoutes(app: FastifyInstance) {
         } else if (hasSetDistanceMarker(updated) == null) {
           // Any other trip keeps the phone's figure unless stale fixes in the
           // trail inflated it (Katy, 14 Oct 2026): then only the miles the
-          // filter removes come off. Never raises it, and a distance the
+          // filter removes come off, once: the cut is recorded on the trip so
+          // the phone's next merge (carrying the lowered figure) does not
+          // lose the same miles again. Never raises it, and a distance the
           // server or the driver set on purpose is left alone.
           const trail = await tx.tripCoordinate.findMany({
             where: { tripId: id },
@@ -3583,12 +3595,20 @@ export async function tripRoutes(app: FastifyInstance) {
               trailMiles: decision.trailMiles,
               rawTrailMiles: decision.rawTrailMiles,
               removedMiles: decision.removedMiles,
+              newlyRemovedMiles: decision.newlyRemovedMiles,
               coords: decision.coords,
               dropped: decision.dropped,
             });
+            const currentGq =
+              updated.gpsQuality && typeof updated.gpsQuality === "object" && !Array.isArray(updated.gpsQuality)
+                ? (updated.gpsQuality as Prisma.JsonObject)
+                : {};
             return tx.trip.update({
               where: { id },
-              data: { distanceMiles: decision.newMiles },
+              data: {
+                distanceMiles: decision.newMiles,
+                gpsQuality: { ...currentGq, appendOutlierCut: { ...decision.cut } } as Prisma.InputJsonValue,
+              },
               include: { vehicle: true, shift: true },
             });
           }

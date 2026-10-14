@@ -365,6 +365,41 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       expect(upsertMileageSummary).toHaveBeenCalled();
     });
 
+    it("records the cut, and a replayed PATCH lands on the same figure without the phone wiping the record", async () => {
+      const client = Math.round(pathMiles(katyTrail) * 100) / 100;
+      const first = wireTrail(katyTrail);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: client },
+      });
+      const cutWrite = first.trip.update.mock.calls[2][0].data;
+      const stored = cutWrite.distanceMiles;
+      const cut = cutWrite.gpsQuality.appendOutlierCut;
+      expect(cut).toMatchObject({ fromMiles: client, toMiles: stored });
+      expect(cut.removedMiles).toBeGreaterThan(4);
+
+      // The sync queue replays the same PATCH, this time with a gpsQuality of
+      // its own that names the record.
+      const after = { ...EXISTING_TRIP, distanceMiles: stored, gpsQuality: { avgAccuracyM: 6, appendOutlierCut: cut } };
+      vi.mocked(prisma.trip.findFirst).mockResolvedValue(after as any);
+      vi.mocked(logEvent).mockClear();
+      const replay = wireTrail(katyTrail, after);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: client, gpsQuality: { appendOutlierCut: null, driverKeptGoing: true } },
+      });
+      const mainGq = replay.trip.update.mock.calls[0][0].data.gpsQuality;
+      expect(mainGq).toMatchObject({ avgAccuracyM: 6, driverKeptGoing: true, appendOutlierCut: cut });
+      const last = replay.trip.update.mock.calls[replay.trip.update.mock.calls.length - 1][0].data;
+      expect(last.distanceMiles).toBe(stored);
+      expect(last.gpsQuality.appendOutlierCut).toEqual(cut);
+      expect(logEvent).toHaveBeenCalledWith(
+        "trip.append_distance_recomputed",
+        USER_ID,
+        expect.objectContaining({ reason: "replayed_inflated", newlyRemovedMiles: 0 })
+      );
+    });
+
     it("keeps the road miles on top: only what the filter removed comes off", async () => {
       // A map-matched figure 0.3 mi over the trail, plus the counted jumps.
       const client = Math.round((pathMiles(katyTrail) + 0.3) * 100) / 100;

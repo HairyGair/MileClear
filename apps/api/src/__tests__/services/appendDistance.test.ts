@@ -70,3 +70,71 @@ describe("decideAppendDistance", () => {
     expect(hasSetDistanceMarker(plain)).toBeNull();
   });
 });
+
+describe("decideAppendDistance across repeated merges (review probe I, 14 Oct 2026)", () => {
+  // A sparse 10-mile drive the phone map-matched at 1.3x the straight line,
+  // with one stale fix in it that the phone counted, then "Still on a job"
+  // merges of 1-mile legs (1.3 on the phone). Between merges the phone copies
+  // the server's figure back (sync/hydrate) and adds the next leg to it.
+  const DEG_PER_MILE = 1 / 69.09;
+  const baseMiles = 10 / 1.3;
+  const n = 17;
+  const base: StoredFix[] = Array.from({ length: n }, (_, i) => ({
+    lat: 51.3 + (i * baseMiles * DEG_PER_MILE) / (n - 1),
+    lng: -0.2,
+    speed: 13,
+    accuracy: 5,
+    recordedAt: new Date(t0 + i * 30_000),
+  }));
+  // Half a mile east of the trail, 5 s after fix 8: 0.71 mi of jump.
+  const stale: StoredFix = {
+    lat: base[8].lat, lng: -0.2 + 0.5 / 43.2, speed: 0, accuracy: 50,
+    recordedAt: new Date(base[8].recordedAt.getTime() + 5000),
+  };
+  const leg = (k: number): StoredFix[] =>
+    Array.from({ length: 4 }, (_, i) => ({
+      lat: base[n - 1].lat + (k - 1 + (i + 1) / 4) * DEG_PER_MILE,
+      lng: -0.2,
+      speed: 13,
+      accuracy: 5,
+      recordedAt: new Date(t0 + n * 30_000 + (k - 1) * 600_000 + i * 30_000),
+    }));
+  const round2 = (x: number) => Math.round(x * 100) / 100;
+
+  it("takes the jump off once; later merges keep every leg's miles", () => {
+    const keptMiles = miles(base);
+    const jump = miles([...base.slice(0, 9), stale, ...base.slice(9)]) - keptMiles;
+    expect(jump).toBeGreaterThan(0.6);
+
+    let trail = [...base.slice(0, 9), stale, ...base.slice(9)];
+    let correct = round2(1.3 * keptMiles);
+    let phone = round2(correct + jump); // the phone counted the jump
+    let gpsQuality: Record<string, unknown> = {};
+
+    for (let pass = 1; pass <= 3; pass++) {
+      if (pass > 1) {
+        trail = [...trail, ...leg(pass - 1)];
+        correct = round2(correct + 1.3);
+        phone = round2(phone + 1.3);
+      }
+      const d = decideAppendDistance(phone, trail, { gpsQuality, originalStartLat: null, isManualEntry: false });
+      const stored = d.recompute ? d.newMiles : phone;
+      if (d.recompute) gpsQuality = { ...gpsQuality, appendOutlierCut: d.cut };
+      expect(Math.abs(stored - correct)).toBeLessThanOrEqual(0.05);
+      phone = stored; // hydration copies the server's figure back
+    }
+  });
+
+  it("a replayed PATCH gets the first cut's answer, and a second cut never stacks", () => {
+    const trail = [...base.slice(0, 9), stale, ...base.slice(9)];
+    const client = round2(1.3 * miles(base) + (miles(trail) - miles(base)));
+    const first = decideAppendDistance(client, trail, plain);
+    expect(first.recompute).toBe(true);
+    if (!first.recompute) return;
+    const gq = { appendOutlierCut: first.cut };
+    const again = decideAppendDistance(client, trail, { ...plain, gpsQuality: gq });
+    expect(again).toMatchObject({ recompute: true, reason: "replayed_inflated", newMiles: first.newMiles });
+    // The lowered figure sent back with no new jumps: left alone.
+    expect(decideAppendDistance(first.newMiles, trail, { ...plain, gpsQuality: gq }).recompute).toBe(false);
+  });
+});
