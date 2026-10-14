@@ -87,6 +87,7 @@ import { sendLiveActivityStartPush, isApnsConfigured } from "../../services/apns
 import { visitAutoSplitEnabled } from "../../jobs/visitSplit.js";
 import { parsePhoneLog, summarisePhoneLog } from "../../services/missingTripPhoneLog.js";
 import { findSplitFamily, appendToSplitTail } from "../../services/splitTailAppend.js";
+import { decideAppendDistance } from "../../services/appendDistance.js";
 import {
   suggestPlacePairClassification,
   PLACE_PAIR_SOURCE,
@@ -3551,6 +3552,7 @@ export async function tripRoutes(app: FastifyInstance) {
           if (trail.length >= 2 && trailMiles !== updated.distanceMiles) {
             logEvent("trip.append_distance_recomputed", userId, {
               tripId: id,
+              reason: "auto_split_parent",
               clientMiles: updated.distanceMiles,
               trailMiles,
               coords: trail.length,
@@ -3558,6 +3560,31 @@ export async function tripRoutes(app: FastifyInstance) {
             return tx.trip.update({
               where: { id },
               data: { distanceMiles: trailMiles },
+              include: { vehicle: true, shift: true },
+            });
+          }
+        } else if (!existing.isManualEntry) {
+          // Any other trip keeps the phone's figure unless a stale fix in the
+          // trail has inflated it (Katy, 14 Oct 2026). Only ever lowers it.
+          const trail = await tx.tripCoordinate.findMany({
+            where: { tripId: id },
+            orderBy: { recordedAt: "asc" },
+            select: { lat: true, lng: true, speed: true, accuracy: true, recordedAt: true },
+          });
+          const decision = decideAppendDistance(updated.distanceMiles, trail);
+          if (decision.recompute) {
+            logEvent("trip.append_distance_recomputed", userId, {
+              tripId: id,
+              reason: decision.reason,
+              clientMiles: decision.clientMiles,
+              trailMiles: decision.trailMiles,
+              rawTrailMiles: decision.rawTrailMiles,
+              coords: decision.coords,
+              dropped: decision.dropped,
+            });
+            return tx.trip.update({
+              where: { id },
+              data: { distanceMiles: decision.trailMiles },
               include: { vehicle: true, shift: true },
             });
           }

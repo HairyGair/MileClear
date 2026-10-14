@@ -294,4 +294,101 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
       expect.objectContaining({ tripId: TRIP_ID, tailId: TAIL_ID, appended: 3 })
     );
   });
+
+  describe("a stale fix in the trail (Katy, 14 Oct 2026, trip b7b5f5fe)", () => {
+    // A 2.25-mile drive north from 51.42110,-0.28962, one fix every 10 s.
+    const t0 = Date.parse("2026-10-14T09:07:17Z");
+    const drive = Array.from({ length: 30 }, (_, i) => ({
+      lat: 51.4211 + (i * 0.03257) / 29,
+      lng: -0.28962,
+      speed: 12 as number | null,
+      accuracy: 4 as number | null,
+      recordedAt: new Date(t0 + i * 10_000),
+    }));
+    // Her home fix, accuracy 50 and speed 0, 5 s after the first real fix.
+    const pinned = { lat: 51.42827, lng: -0.31077, speed: 0, accuracy: 50, recordedAt: new Date(t0 + 5000) };
+
+    function wireTrail(trail: typeof drive) {
+      const tx = {
+        trip: { update: vi.fn().mockImplementation(({ data }) => Promise.resolve({ ...EXISTING_TRIP, ...data })) },
+        tripCoordinate: {
+          // First read: the dedupe timestamps. Second: the trail after the append.
+          findMany: vi
+            .fn()
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce(trail),
+          createMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+      };
+      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => fn(tx));
+      return tx;
+    }
+
+    it("brings an inflated figure down to the filtered trail and says why", async () => {
+      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
+      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+
+      const res = await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 6.9 },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(tx.trip.update).toHaveBeenCalledTimes(3);
+      const stored = tx.trip.update.mock.calls[2][0].data.distanceMiles;
+      expect(stored).toBeGreaterThan(2.2);
+      expect(stored).toBeLessThan(2.3);
+      expect(logEvent).toHaveBeenCalledWith(
+        "trip.append_distance_recomputed",
+        USER_ID,
+        expect.objectContaining({ tripId: TRIP_ID, reason: "outlier_inflated", clientMiles: 6.9, dropped: 1 })
+      );
+      const { upsertMileageSummary } = await import("../../services/mileage.js");
+      expect(upsertMileageSummary).toHaveBeenCalled();
+    });
+
+    it("leaves a road distance a little over the straight-line trail alone", async () => {
+      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
+      // No bad fix at all: a map-matched 2.6 miles on a 2.25-mile trail.
+      const clean = wireTrail(drive);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 2.6 },
+      });
+      expect(clean.trip.update).toHaveBeenCalledTimes(2);
+      expect(clean.trip.update.mock.calls[0][0].data.distanceMiles).toBe(2.6);
+
+      // A harmless dropped fix does not make a road distance suspect either.
+      vi.mocked(logEvent).mockClear();
+      const withPinned = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 3.2 },
+      });
+      expect(withPinned.trip.update).toHaveBeenCalledTimes(2);
+      expect(logEvent).not.toHaveBeenCalledWith("trip.append_distance_recomputed", expect.anything(), expect.anything());
+    });
+
+    it("never raises a figure below the trail", async () => {
+      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
+      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 1.1 },
+      });
+      expect(tx.trip.update).toHaveBeenCalledTimes(2);
+      expect(tx.trip.update.mock.calls[0][0].data.distanceMiles).toBe(1.1);
+    });
+
+    it("leaves a manual trip alone", async () => {
+      vi.mocked(prisma.trip.count).mockResolvedValue(0 as any);
+      vi.mocked(prisma.trip.findFirst).mockResolvedValue({ ...EXISTING_TRIP, isManualEntry: true } as any);
+      const tx = wireTrail([drive[0], pinned, ...drive.slice(1)]);
+      await app.inject({
+        method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+        payload: { ...MERGE_BODY, distanceMiles: 6.9 },
+      });
+      expect(tx.trip.update).toHaveBeenCalledTimes(2);
+    });
+  });
 });

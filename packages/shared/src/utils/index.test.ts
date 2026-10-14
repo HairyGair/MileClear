@@ -15,6 +15,7 @@ import {
   buildInvoicePreDueEmail,
   filterTraceOutliers,
   dropPinnedFixes,
+  dropStaleEdgeFixes,
 } from "./index.js";
 
 // ---------------------------------------------------------------------------
@@ -719,5 +720,151 @@ describe("filterTraceOutliers: pinned fixes (Shoaib Khan, 1-2 Oct 2026)", () => 
       { lat: 53.7729, lng: -1.7192, accuracy: 4, speed: 10, recorded_at: iso(t0 + 14000) },
     ];
     expect(filterTraceOutliers(cs).map((c) => c.lat)).toEqual([53.7729, 53.7729, 53.7729]);
+  });
+});
+
+describe("filterTraceOutliers: stale first and last fixes (Katy, 14 Oct 2026)", () => {
+  // Her saved home and the trail of trip b7b5f5fe.
+  const HOME = { lat: 51.42842, lng: -0.31075 };
+  const fix = (lat: number, lng: number, accuracy: number | null, speed: number | null, at: string) => ({
+    lat, lng, accuracy, speed, recorded_at: `2026-10-14T${at}Z`,
+  });
+  const pathMiles = (cs: { lat: number; lng: number }[]) =>
+    cs.slice(1).reduce((s, c, k) => s + haversineDistance(cs[k].lat, cs[k].lng, c.lat, c.lng), 0);
+
+  // A real drive from 51.42110,-0.28962 towards 51.428,-0.302, one fix every 5 s.
+  const t0 = Date.parse("2026-10-14T09:07:17Z");
+  const drive = Array.from({ length: 12 }, (_, i) => ({
+    lat: 51.4211 + (i * (51.428 - 51.4211)) / 11,
+    lng: -0.28962 + (i * (-0.302 + 0.28962)) / 11,
+    accuracy: 4 as number | null,
+    speed: 9 as number | null,
+    recorded_at: new Date(t0 + i * 5000).toISOString(),
+  }));
+  const stale = (ms: number) => ({
+    lat: 51.42827, lng: -0.31077, accuracy: 50 as number | null, speed: 0 as number | null,
+    recorded_at: new Date(ms).toISOString(),
+  });
+
+  it("b7b5f5fe: the pinned home fix 5 s after a real one, mid-trail, goes", () => {
+    const trail = [drive[0], stale(t0 + 5000), ...drive.slice(1)];
+    const kept = filterTraceOutliers(trail);
+    expect(kept).toHaveLength(drive.length);
+    expect(pathMiles(kept)).toBeCloseTo(pathMiles(drive), 3);
+  });
+
+  it("the same fix as the LAST point of a leftover recording now goes too", () => {
+    const leftover = [...drive.slice(0, 4), stale(t0 + 3 * 5000 + 5000)];
+    expect(pathMiles(leftover)).toBeGreaterThan(1);
+    expect(filterTraceOutliers(leftover)).toEqual(drive.slice(0, 4));
+  });
+
+  it("and as the FIRST point, 5 s before the drive (not a planted anchor), it goes", () => {
+    const leftover = [stale(t0 - 5000), ...drive.slice(0, 4)];
+    expect(filterTraceOutliers(leftover)).toEqual(drive.slice(0, 4));
+  });
+
+  it("two points, real then stale: one fix is left, so the recording is too short", () => {
+    // d5156c64's two fixes in the opposite order: home, then 30 s later the
+    // stale fix from where she had been, 1.43 mi away.
+    const cs = [
+      fix(51.42841, -0.31073, 4, 0.09, "16:46:03"),
+      fix(51.41378, -0.28725, 50, 0, "16:46:33"),
+    ];
+    const kept = filterTraceOutliers(cs);
+    expect(kept).toEqual([cs[0]]);
+    expect(pathMiles(kept)).toBe(0);
+  });
+
+  it("bb4e6fa9 (3 points) is kept as recorded: its stale fix has the planted departure anchor's exact shape", () => {
+    // Two home fixes at accuracy 50, speed 0, the second exactly 30 s before a
+    // real moving fix 1.25 mi away. A late wake plants precisely this so the
+    // drive reads from where it began; the trace alone cannot tell the two
+    // apart, and losing a real start is worse.
+    const cs = [
+      fix(HOME.lat, HOME.lng, 50, 0, "09:04:45"),
+      fix(HOME.lat, HOME.lng, 50, 0, "09:05:45"),
+      fix(51.41679, -0.28857, 3.81, 8.65, "09:06:15"),
+    ];
+    expect(filterTraceOutliers(cs)).toEqual(cs);
+  });
+
+  it("d5156c64 (2 points) is kept for the same reason: anchor-shaped, 30 s before the real fix", () => {
+    const cs = [
+      fix(51.41378, -0.28725, 50, 0, "16:46:03"),
+      fix(51.42841, -0.31073, 4, 0.09, "16:46:33"),
+    ];
+    expect(filterTraceOutliers(cs)).toEqual(cs);
+  });
+
+  it("the same first fix with no speed (an OS fix, not a planted one) goes", () => {
+    const cs = [
+      fix(51.41378, -0.28725, 50, null, "16:46:03"),
+      fix(51.42841, -0.31073, 4, 0.09, "16:46:33"),
+    ];
+    expect(filterTraceOutliers(cs)).toEqual([cs[1]]);
+  });
+
+  it("keeps a late-wake departure anchor 2.7 to 5 km behind the first fix, 30 s earlier", () => {
+    for (const km of [2.7, 3, 5]) {
+      const anchor = {
+        lat: drive[0].lat - km / 111.2, lng: drive[0].lng, accuracy: 50, speed: 0,
+        recorded_at: new Date(t0 - 30_000).toISOString(),
+      };
+      expect(filterTraceOutliers([anchor, ...drive])[0]).toBe(anchor);
+    }
+  });
+
+  it("keeps a stationary 50 m first fix at the real start (no jump)", () => {
+    const start = {
+      lat: drive[0].lat, lng: drive[0].lng + 0.0003, accuracy: 50, speed: 0,
+      recorded_at: new Date(t0 - 20_000).toISOString(),
+    };
+    const cs = [start, ...drive];
+    expect(filterTraceOutliers(cs)).toEqual(cs);
+  });
+
+  it("keeps a stationary 50 m last fix at the real end (no jump)", () => {
+    const end = {
+      lat: 51.428, lng: -0.3021, accuracy: 50, speed: 0,
+      recorded_at: new Date(t0 + 12 * 5000 + 20_000).toISOString(),
+    };
+    const cs = [...drive, end];
+    expect(filterTraceOutliers(cs)).toEqual(cs);
+  });
+
+  it("leaves a good short trip untouched", () => {
+    const short = drive.slice(0, 3);
+    expect(filterTraceOutliers(short)).toEqual(short);
+    expect(filterTraceOutliers(short.slice(0, 2))).toEqual(short.slice(0, 2));
+  });
+
+  it("never condemns a stale fix on the word of a real fix that is itself a jump", () => {
+    // Stale start at the drive's start, then a real-looking fix 3 km off,
+    // then the trail: the middle fix is the bad one, so the start stays.
+    const cs = [
+      { ...stale(t0 - 5000), lat: drive[0].lat, lng: drive[0].lng },
+      { ...drive[0], lat: drive[0].lat + 0.03 },
+      ...drive.slice(1),
+    ];
+    expect(dropStaleEdgeFixes(cs)[0]).toBe(cs[0]);
+  });
+
+  it("leaves null-accuracy fixes alone (server-routed points, old clients)", () => {
+    const routed = {
+      lat: drive[0].lat - 0.03, lng: drive[0].lng, accuracy: null, speed: null,
+      recorded_at: new Date(t0 - 5000).toISOString(),
+    };
+    expect(dropStaleEdgeFixes([routed, ...drive])[0]).toBe(routed);
+  });
+
+  it("Shoaib's pattern: a pinned home fix at the very end, same instant as the last real fix, now goes", () => {
+    const ts = Date.parse("2026-10-01T11:21:00Z");
+    const real = Array.from({ length: 6 }, (_, i) => ({
+      lat: 53.7729, lng: -1.7212 + i * 0.001, accuracy: 4, speed: 10,
+      recorded_at: new Date(ts + i * 7000).toISOString(),
+    }));
+    const cs = [...real, { lat: 53.77332, lng: -1.74781, accuracy: 50, speed: 0, recorded_at: real[5].recorded_at }];
+    expect(filterTraceOutliers(cs)).toEqual(real);
   });
 });
