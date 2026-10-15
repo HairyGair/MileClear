@@ -88,7 +88,7 @@ describe("rescueBufferBeforeOpen", () => {
     const h = harness(buffer, { finalizeThrows: new Error("database is locked") });
     const outcome = await rescueBufferBeforeOpen(h.deps);
     expect(h.finalizedCount()).toBe(1);
-    expect(outcome).toEqual({ kind: "handed_off", queued: 1, cleared: 0 });
+    expect(outcome).toEqual({ kind: "handed_off", queued: 1, cleared: 0, readIds: [] });
     expect(h.queued).toHaveLength(1);
     const body = h.queued[0];
     expect(body.startedAt).toBe(buffer[0].recorded_at);
@@ -134,7 +134,7 @@ describe("rescueBufferBeforeOpen", () => {
 
   it("clears parked leftovers as before instead of queueing junk", async () => {
     const h = harness(parked(T0, 6), { finalizeThrows: new Error("boom") });
-    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "handed_off", queued: 0, cleared: 1 });
+    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "handed_off", queued: 0, cleared: 1, readIds: [] });
     expect(h.queued).toEqual([]);
     expect(h.drops.map((d) => d.reason)).toEqual(["stale_buffer_cleared"]);
   });
@@ -145,7 +145,7 @@ describe("rescueBufferBeforeOpen", () => {
       finalizeThrows: new Error("threw after the save"),
       saved: [{ id: "t1", startedMs: T0, endedMs: T0 + 20 * 60_000 }],
     });
-    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "handed_off", queued: 0, cleared: 1 });
+    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "handed_off", queued: 0, cleared: 1, readIds: [] });
     expect(h.queued).toEqual([]);
     expect(h.drops.map((d) => d.reason)).toEqual(["deduped"]);
   });
@@ -154,7 +154,7 @@ describe("rescueBufferBeforeOpen", () => {
     const morning = drive(T0, 15);
     const later = drive(T0 + 3 * 60 * 60_000, 10, 51.7);
     const h = harness([...morning, ...later], { finalizeThrows: new Error("boom") });
-    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "handed_off", queued: 2, cleared: 0 });
+    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "handed_off", queued: 2, cleared: 0, readIds: [] });
     expect(h.queued.map((b) => b.startedAt)).toEqual([morning[0].recorded_at, later[0].recorded_at]);
   });
 });
@@ -291,9 +291,19 @@ describe("rescueBufferBeforeOpen, racing another save", () => {
     };
     const outcome = await rescueBufferBeforeOpen(h.deps);
     expect(calls).toBe(1);
-    expect(outcome).toEqual({ kind: "handed_off", queued: 1, cleared: 0 });
+    expect(outcome).toEqual({ kind: "handed_off", queued: 1, cleared: 0, readIds: [] });
     expect(h.queued[0].startedAt).toBe(buffer[0].recorded_at);
     expect(h.drops.map((d) => d.reason)).toEqual(["rescued_to_queue"]);
+  });
+
+  it("returns exactly the row ids it read, so a fix added afterwards is not deleted", async () => {
+    const buffer = drive(T0, 10).map((f, i) => ({ ...f, id: 100 + i }));
+    const h = harness(buffer, { finalizeThrows: new Error("boom") });
+    const outcome = await rescueBufferBeforeOpen(h.deps);
+    expect(outcome.kind).toBe("handed_off");
+    if (outcome.kind === "handed_off") {
+      expect(outcome.readIds).toEqual(buffer.map((f) => f.id));
+    }
   });
 
   it("hands off without a save when End asks it to (finalize null)", async () => {

@@ -52,6 +52,9 @@ export interface BufferedFix {
   speed: number | null;
   accuracy: number | null;
   recorded_at: string;
+  /** detection_coordinates row id, where the reader has it: lets the caller
+   *  delete exactly the rows that were handed off. */
+  id?: number;
   /** The motion coprocessor's call, where the platform gives one. */
   activity?: string | null;
   activity_confidence?: number | null;
@@ -292,7 +295,7 @@ export type RescueOutcome =
   | { kind: "saved" }
   /** What was a drive is in the upload queue and every leg is reported: the
    *  caller clears the buffer without reporting it again. */
-  | { kind: "handed_off"; queued: number; cleared: number }
+  | { kind: "handed_off"; queued: number; cleared: number; readIds: number[] }
   /** Do NOT clear: the drive could not be queued (a local database error), or
    *  another save owns the buffer right now. The fixes stay and are saved by
    *  the next finalize; a leg already queued is caught there by the
@@ -414,5 +417,10 @@ export async function rescueBufferBeforeOpen(deps: RescueDeps): Promise<RescueOu
     queuedMiles: plan.legs.reduce((a, l) => a + l.distanceMiles, 0),
     ...(reason ? { error: reason.slice(0, 120) } : {}),
   });
-  return { kind: "handed_off", queued: plan.legs.length, cleared: plan.skipped.length };
+  return {
+    kind: "handed_off",
+    queued: plan.legs.length,
+    cleared: plan.skipped.length,
+    readIds: fixes.map((f) => f.id).filter((id): id is number => typeof id === "number"),
+  };
 }

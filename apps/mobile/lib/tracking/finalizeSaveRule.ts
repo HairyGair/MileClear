@@ -352,6 +352,50 @@ export function cleanTraceForSave<T extends CleanFix>(
   return { outlierFiltered, coords: trimmed.coords, endpointsDropped: trimmed.dropped };
 }
 
+/**
+ * After a failed save, is the open recording still live enough to put its
+ * "Trip in progress" notification and Live Activity back? Only when its newest
+ * fix is within the stop timeout. A recording parked for hours whose save
+ * keeps failing must not re-show "Trip in progress" on every retry (15 Oct
+ * 2026 review). An unreadable or missing time reads as not live.
+ */
+export function recordingLooksLive(
+  newestRecordedAt: string | null | undefined,
+  nowMs: number,
+  stopTimeoutMs: number = ARRIVAL_STOP_TIMEOUT_MS
+): boolean {
+  const iso = newestRecordedAt != null ? normaliseRecordedAt(newestRecordedAt) : null;
+  if (!iso) return false;
+  const age = nowMs - Date.parse(iso);
+  return Number.isFinite(age) && age <= stopTimeoutMs;
+}
+
+/**
+ * Which of the fixes older than `cutoffMs` the JS engine's stale clean-up may
+ * hand off and delete. A journey that runs on past the cutoff (its last old
+ * fix is within the journey boundary of the next, newer fix) is left whole
+ * for a later pass, so one drive is never split in two (15 Oct 2026 review).
+ * `fixes` oldest first; returns a prefix.
+ */
+export function purgeableBeforeCutoff<T extends WireFix>(
+  fixes: ReadonlyArray<T>,
+  cutoffMs: number,
+  splitMs: number
+): T[] {
+  const t = (f: T) => {
+    const iso = normaliseRecordedAt(f.recorded_at);
+    return iso ? Date.parse(iso) : Number.NaN;
+  };
+  let end = 0;
+  while (end < fixes.length && t(fixes[end]) < cutoffMs) end++;
+  if (end === 0 || end === fixes.length) return fixes.slice(0, end);
+  if (!(t(fixes[end]) - t(fixes[end - 1]) <= splitMs)) return fixes.slice(0, end);
+  // The journey straddles the cutoff: walk back to its first fix.
+  let start = end - 1;
+  while (start > 0 && t(fixes[start]) - t(fixes[start - 1]) <= splitMs) start--;
+  return fixes.slice(0, start);
+}
+
 /** The startedAt / endedAt a trip is stored and sent with: the first and last
  *  cleaned fix, a raw native epoch made ISO, an ISO string unchanged. */
 export function tripWireTimes(cleaned: ReadonlyArray<WireFix>): { startedAt: string; endedAt: string } | null {

@@ -227,6 +227,8 @@ import {
   arrivalEndIndex,
   cleanTraceForSave,
   tripWireTimes,
+  purgeableBeforeCutoff,
+  recordingLooksLive,
   exceedsServerDistance,
   parseFlightCutState,
   planFlightCut,
@@ -1632,15 +1634,32 @@ export async function finalizeAutoTrip(): Promise<void> {
  */
 async function readRescueBuffer(
   db: Awaited<ReturnType<typeof getDatabase>>,
-  olderThanIso?: string
+  olderThanIso: string | undefined,
+  splitMs: number
 ): Promise<RescueBufferedFix[]> {
-  const cols = "lat, lng, speed, accuracy, activity, activity_confidence, recorded_at";
-  return olderThanIso
-    ? db.getAllAsync<RescueBufferedFix>(
-        `SELECT ${cols} FROM detection_coordinates WHERE recorded_at < ? ORDER BY recorded_at ASC`,
-        [olderThanIso]
-      )
-    : db.getAllAsync<RescueBufferedFix>(`SELECT ${cols} FROM detection_coordinates ORDER BY recorded_at ASC`);
+  const all = await db.getAllAsync<RescueBufferedFix>(
+    "SELECT id, lat, lng, speed, accuracy, activity, activity_confidence, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+  );
+  if (!olderThanIso) return all;
+  // Only what is older than the cutoff, and never part of a journey that
+  // carries on past it (purgeableBeforeCutoff).
+  return purgeableBeforeCutoff(all, Date.parse(olderThanIso), splitMs);
+}
+
+/** Delete exactly these detection_coordinates rows: fixes added after a
+ *  hand-off read the buffer are not touched. */
+async function deleteBufferRows(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  ids: number[]
+): Promise<void> {
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    await db.runAsync(
+      `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
+      chunk
+    );
+  }
 }
 
 /**
@@ -1663,7 +1682,7 @@ export async function buildRescueDeps(opts: {
     finalize: opts.finalize ? finalizeAutoTrip : null,
     isFinalizeInFlight,
     waitForFinalize: waitForFinalizeInFlight,
-    readBuffer: () => readRescueBuffer(db, opts.olderThanIso),
+    readBuffer: () => readRescueBuffer(db, opts.olderThanIso, splitMs),
     readLegStarts: async () => {
       const row = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'flight_cut'"
@@ -1726,20 +1745,33 @@ export async function handOffOpenRecordingToQueue(): Promise<
     // Same-start guard: should the app die between the queue write above and
     // this clear, the next finalize finds the queued trip's local row (same
     // startedAt, tripWireTimes) and consumes the buffer instead of saving it
-    // again.
-    await db.runAsync("DELETE FROM detection_coordinates");
+    // again. Only the rows that were read go: a fix that arrived since then
+    // stays for the next recording or sweep.
+    if (outcome.kind === "handed_off") await deleteBufferRows(db, outcome.readIds);
     await db.runAsync(
       "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor', 'flight_cut')"
     );
     stopWatchdog();
     dismissRecordingActiveNotification().catch(() => {});
     endLiveActivity().catch(() => {});
+    // The rest of what a normal save does once a recording is closed: the
+    // native store's copy goes, the departure anchor is set where the phone
+    // is now, a stranded Start Trip lock is released, and the JS engine goes
+    // back to its low-power detection profile.
+    let nativeEngine = false;
     try {
       const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
-      if (isNativeEngineAvailable() && !(await shiftSuppressesAutoDetection(db))) {
+      nativeEngine = isNativeEngineAvailable();
+      if (nativeEngine && !(await shiftSuppressesAutoDetection(db))) {
         await destroyNativeLocations();
       }
     } catch {}
+    try {
+      const { setDepartureAnchor } = await import("../geofencing/index");
+      await setDepartureAnchor();
+    } catch {}
+    if (!nativeEngine) downgradeToDetectionMode().catch(() => {});
+    await releaseStrandedQuickTripLock();
     return { kind: "closed", queued: outcome.kind === "handed_off" ? outcome.queued : 0 };
   } catch (err) {
     logDetectionEvent("end_trip_handoff_failed", {
@@ -1756,7 +1788,8 @@ export async function handOffOpenRecordingToQueue(): Promise<
 /**
  * A save failed and the recording is still open: put its "Trip in progress"
  * notification and Live Activity back (finalize took both down before it
- * knew the outcome). Only while the recording is flagged open. Never throws.
+ * knew the outcome). Only while the recording is flagged open and its newest
+ * fix is within the stop timeout (recordingLooksLive). Never throws.
  */
 async function restoreOpenRecordingSurfaces(): Promise<void> {
   try {
@@ -1765,6 +1798,15 @@ async function restoreOpenRecordingSurfaces(): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (armed?.value !== "1") return;
+    // Live only: a recording parked for hours whose save keeps failing must
+    // not say "Trip in progress" again on every retry.
+    const newest = await db.getFirstAsync<{ newest: string | null }>(
+      "SELECT MAX(recorded_at) AS newest FROM detection_coordinates"
+    );
+    if (!recordingLooksLive(newest?.newest, Date.now(), STOP_TIMEOUT_MS)) {
+      logDetectionEvent("finalize_failed_surfaces_left_down", { newest: newest?.newest ?? null }).catch(() => {});
+      return;
+    }
     showRecordingActiveNotification().catch(() => {});
     let isBusinessMode = true;
     try {
@@ -4338,16 +4380,21 @@ try {
         // than the cutoff is still here after the save goes to the upload
         // queue first (rescueHandoff.ts), and nothing is purged if it cannot
         // be queued or another save owns the buffer.
+        // A journey that carries on past the cutoff is left whole for a later
+        // pass (purgeableBeforeCutoff), so it is never split in two.
         const rescue = await rescueBufferBeforeOpen(
           await buildRescueDeps({ source: "js_stale_purge", finalize: true, olderThanIso: cutoff })
         );
-        purgeOld = rescue.kind !== "keep";
+        purgeOld = false;
+        if (rescue.kind === "handed_off") {
+          // Same-start guard: should the app die between the hand-off's queue
+          // write and this delete, the next finalize finds the queued trip's
+          // local row (same startedAt) and consumes the fixes instead of
+          // saving them twice. Only the rows the hand-off read are deleted.
+          await deleteBufferRows(db, rescue.readIds);
+        }
       }
       if (purgeOld) {
-        // Same-start guard: should the app die between a hand-off's queue
-        // write and this delete, the next finalize finds the queued trip's
-        // local row (same startedAt) and consumes the fixes instead of
-        // saving them twice.
         await db.runAsync(
           "DELETE FROM detection_coordinates WHERE recorded_at < ?",
           [cutoff]
