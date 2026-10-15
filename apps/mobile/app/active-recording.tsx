@@ -368,6 +368,8 @@ export default function ActiveRecordingScreen() {
         <HoldToConfirm
           label="Hold to end trip"
           holdingLabel="Keep holding…"
+          hint="Press and hold to end the trip"
+          earlyReleaseHint="Keep holding until the bar fills to end the trip"
           icon="stop-circle"
           onConfirm={handleEndTripConfirmed}
           loading={endingTrip}
