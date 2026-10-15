@@ -281,7 +281,12 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
         if (vehicleId && vehicleId !== (trip.vehicleId ?? "")) patch.vehicleId = vehicleId;
         if (startedAt !== new Date(trip.startedAt).toISOString() && startTimeChanged(trip, date, startTime)) patch.startedAt = startedAt;
         if (!trip.endedAt || endTimeChanged(trip, date, endTime)) patch.endedAt = endedAt;
-        if (miles !== Math.round(trip.distanceMiles * 100) / 100 && distance !== init.distance) patch.distanceMiles = miles;
+        // A recorded trip's miles are its GPS trail. A road distance from start
+        // to end would throw that away, so a moved end is left to the server,
+        // which adds the stretch after the recording. Only miles the driver
+        // typed go up. A manual trip sends the road figure as before.
+        const routedOnRecorded = !trip.isManualEntry && !distanceManual;
+        if (!routedOnRecorded && miles !== Math.round(trip.distanceMiles * 100) / 100 && distance !== init.distance) patch.distanceMiles = miles;
         if (placesTouched.current) {
           if (from && from.label !== (trip.startAddress ?? "")) {
             patch.startAddress = from.label;
@@ -397,7 +402,7 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
                   Couldn&apos;t work out the road distance. Type it instead.
                 </p>
               )}
-              {bothPinned && (
+              {bothPinned && !recordedTrip && (
                 <button
                   type="button"
                   className="mc-textlink"
