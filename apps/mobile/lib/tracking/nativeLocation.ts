@@ -42,7 +42,11 @@ import {
   haversineMeters,
   recentBufferedFixes,
   resolvePauseOnWake,
+  getJourneyEndMinutes,
 } from "./detection";
+import { journeyBoundaryMs, JOURNEY_END_DEFAULT_MIN } from "./journeyBoundary";
+import { parseFlightCutState } from "./finalizeSaveRule";
+import { rescueBufferBeforeOpen, type BufferedFix, type RescueOutcome } from "./rescueHandoff";
 import { MOTION_MIN_CONFIDENCE } from "@mileclear/shared";
 import { decideProgressPush } from "../liveActivity/progressRule";
 
@@ -1142,6 +1146,50 @@ async function bufferCoord(db: DB, loc: NativeLocation, previous?: RecentFix): P
 }
 
 /**
+ * Save the previous recording before a new one opens, and hand anything the
+ * save left behind to the upload queue (rescueHandoff.ts). Never throws.
+ */
+async function rescueBeforeOpen(db: DB): Promise<RescueOutcome> {
+  let splitMs = journeyBoundaryMs(JOURNEY_END_DEFAULT_MIN).splitMs;
+  try {
+    splitMs = journeyBoundaryMs(await getJourneyEndMinutes()).splitMs;
+  } catch {}
+  return rescueBufferBeforeOpen({
+    finalize: finalizeAutoTrip,
+    readBuffer: () =>
+      db.getAllAsync<BufferedFix>(
+        "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+      ),
+    readLegStarts: async () => {
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'flight_cut'"
+      );
+      return parseFlightCutState(row?.value).after;
+    },
+    readSavedTrips: async (fromIso, toIso) => {
+      const rows = await db.getAllAsync<{ id: string; started_at: string; ended_at: string | null }>(
+        "SELECT id, started_at, ended_at FROM trips WHERE ended_at IS NOT NULL AND ended_at >= ? AND started_at <= ?",
+        [fromIso, toIso]
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        startedMs: Date.parse(r.started_at),
+        endedMs: Date.parse(r.ended_at ?? r.started_at),
+      }));
+    },
+    queueCreate: async (body) => {
+      const { syncCreateTrip } = await import("../sync/actions");
+      await syncCreateTrip(body, { queueOnly: true });
+    },
+    noteDrop: noteRecordingDropped,
+    log: (event, data) => {
+      logDetectionEvent(event, data ?? {}).catch(() => {});
+    },
+    splitMs,
+  });
+}
+
+/**
  * Open a recording: clean the native store, mark recording active, seed the
  * first coord, and fire the Live Activity. reason="speed" also forces RNBG into
  * continuous tracking via changePace (the backstop path), since CoreMotion
@@ -1205,16 +1253,16 @@ async function openNativeRecording(
       "SELECT COUNT(*) AS n, MAX(recorded_at) AS newest FROM detection_coordinates"
     );
     const pendingCount = pending?.n ?? 0;
+    // What the rescue below did. A rescue whose save failed used to fall
+    // through to the clear and lose the drive (15 Oct 2026): now whatever is
+    // still in the buffer after it is handed to the upload queue first
+    // (rescueHandoff.ts), or kept when even that fails.
+    let rescue: RescueOutcome | null = null;
     if (armed?.value === "1" && pendingCount > 0) {
       logDetectionEvent("deferred_buffer_rescued_on_open", {
         coords: pendingCount,
       }).catch(() => {});
-      try {
-        await finalizeAutoTrip();
-      } catch {
-        // Best-effort: even a failed rescue falls through to the clear,
-        // which is no worse than the old behaviour.
-      }
+      rescue = await rescueBeforeOpen(db);
     } else if (pendingCount > 0) {
       // NOT armed, but the buffer is not empty. The clear below (and the
       // destroyLocations() a few lines further down) is about to delete both
@@ -1239,40 +1287,47 @@ async function openNativeRecording(
           coords: pendingCount,
           ageMs: decision.ageMs,
         }).catch(() => {});
-        try {
-          await finalizeAutoTrip();
-        } catch {
-          // Best-effort, as above.
-        }
+        rescue = await rescueBeforeOpen(db);
       }
     }
-    // Start with a clean buffer. A native recording open is always a fresh
-    // start (the engine doesn't pre-buffer before recording), so any coords
-    // still in the table now ARE stale leftovers from a prior recording that
-    // never finalized (app killed mid-drive) - the armed/deferred case was
-    // rescued above. Clearing them stops stale coords mixing with this drive
-    // and being (mis)gap-trimmed — the buffer hygiene problem affecting
-    // ~1 in 5 users in the fleet diagnostics.
-    const leftover = await db
-      .getFirstAsync<{ oldest: string | null; newest: string | null }>(
-        "SELECT MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
-      )
-      .catch(() => null);
-    const cleared = await db.runAsync("DELETE FROM detection_coordinates");
-    if (cleared.changes > 0) {
-      logDetectionEvent("native_buffer_cleared_on_open", {
-        droppedCoords: cleared.changes,
-      }).catch(() => {});
-      // Fixes nothing turned into a trip. Usually a couple of stationary
-      // leftovers, but now countable (recordingDrops.ts, 10 Oct 2026).
-      if (cleared.changes >= 2) {
-        await noteRecordingDropped({
-          reason: "stale_buffer_cleared",
-          source: "recording_open",
-          startedAt: leftover?.oldest ?? null,
-          endedAt: leftover?.newest ?? null,
-          coords: cleared.changes,
-        });
+    if (rescue?.kind === "keep") {
+      // The drive could not be saved OR queued (a local database error). Do
+      // not clear it: the new recording's fixes join the buffer, the journey
+      // boundary splits them into their own leg at finalize, and the old
+      // drive is saved with it. A duplicated leg is better than a lost one,
+      // and the same-start guard in finalize stops even that.
+      logDetectionEvent("native_buffer_kept_on_open", { coords: pendingCount }).catch(() => {});
+    } else {
+      // Start with a clean buffer. A native recording open is always a fresh
+      // start (the engine doesn't pre-buffer before recording), so any coords
+      // still in the table now ARE stale leftovers from a prior recording that
+      // never finalized (app killed mid-drive) - the armed/deferred case was
+      // rescued above. Clearing them stops stale coords mixing with this drive
+      // and being (mis)gap-trimmed — the buffer hygiene problem affecting
+      // ~1 in 5 users in the fleet diagnostics.
+      const leftover = await db
+        .getFirstAsync<{ oldest: string | null; newest: string | null }>(
+          "SELECT MIN(recorded_at) AS oldest, MAX(recorded_at) AS newest FROM detection_coordinates"
+        )
+        .catch(() => null);
+      const cleared = await db.runAsync("DELETE FROM detection_coordinates");
+      if (cleared.changes > 0) {
+        logDetectionEvent("native_buffer_cleared_on_open", {
+          droppedCoords: cleared.changes,
+          ...(rescue?.kind === "handed_off" ? { handedOff: rescue.queued } : {}),
+        }).catch(() => {});
+        // Fixes nothing turned into a trip. Usually a couple of stationary
+        // leftovers, but now countable (recordingDrops.ts, 10 Oct 2026). A
+        // hand-off has already reported each leg (queued or cleared) itself.
+        if (cleared.changes >= 2 && rescue?.kind !== "handed_off") {
+          await noteRecordingDropped({
+            reason: "stale_buffer_cleared",
+            source: "recording_open",
+            startedAt: leftover?.oldest ?? null,
+            endedAt: leftover?.newest ?? null,
+            coords: cleared.changes,
+          });
+        }
       }
     }
   }

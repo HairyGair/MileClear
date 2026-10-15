@@ -48,6 +48,11 @@ export type DropReason =
   | "cancelled"
   /** Old fixes cleared when a new recording opened. */
   | "stale_buffer_cleared"
+  /** A previous recording the phone could not save, found as a new one
+   *  opened: handed to the upload queue (a trip row plus a queued create)
+   *  instead of being cleared (rescueHandoff.ts). Not lost: it is in the trip
+   *  list and the Uploads screen. */
+  | "rescued_to_queue"
   /** The engine's duplicate copy of a Start Trip / shift, cleared when it
    *  ended (detail "start_trip_end" / "shift_end"). The drive is on the Start
    *  Trip or shift; an earlier drive in the buffer is saved, not counted here.
