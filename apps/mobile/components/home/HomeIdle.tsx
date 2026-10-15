@@ -6,6 +6,7 @@
 //   hero figure      my number
 //   Start Trip (+ Start Shift for gig and Both drivers in Work mode)
 //   Last trip        with a one-tap Business / Personal
+//   Odometer         the running reading, once a vehicle has one (15 Oct 2026)
 //   up to three door rows into Tax, Insights, Earnings, Badges, Fuel
 //   one ask, slim, at the bottom
 //
@@ -36,8 +37,10 @@ import { HeroCard } from "./HeroCard";
 import { HomeSheet } from "./HomeSheet";
 import { LastTripCard } from "./LastTripCard";
 import { ModePill } from "./ModePill";
+import { OdometerCard } from "./OdometerCard";
 import { TripButtons } from "./TripButtons";
 import { useHomeData } from "./useHomeData";
+import { useHomeOdometer } from "./useHomeOdometer";
 import { useLastTrip } from "./useHomeSignals";
 import {
   useAcquisitionAsk,
@@ -187,6 +190,14 @@ export function HomeIdle(p: Props) {
   const hideDoor = useCallback(async (id: DoorRowId) => {
     setHidden(await setDoorRowHidden(id, true));
   }, []);
+
+  // ── Odometer card: both modes, only when a vehicle has a reading ──
+  // A new last trip, or the same trip once it uploads, changes the server's figure.
+  const odoTripKey = lastTrip.trip ? `${lastTrip.trip.id}|${lastTrip.trip.sync}|${lastTrip.trip.distanceMiles}` : "";
+  const odometerRows = useHomeOdometer(!hidden.includes("odometer"), refreshKey, odoTripKey);
+  const hideOdometer = useCallback(() => {
+    hideDoor("odometer");
+  }, [hideDoor]);
 
   // ── The ask ──
   const quiet = useAskQuietDay();
@@ -440,6 +451,14 @@ export function HomeIdle(p: Props) {
                 onChanged={onTripChanged}
                 firstSortHint={totalTrips <= 1 ? firstSortHint(persona) : null}
               />
+            </View>
+          </FadeInStagger>
+        ) : null}
+
+        {odometerRows.length > 0 ? (
+          <FadeInStagger index={stagger++} delayPer={40}>
+            <View style={s.group}>
+              <OdometerCard rows={odometerRows} mode={mode} state={p.status.kind} onHide={hideOdometer} />
             </View>
           </FadeInStagger>
         ) : null}

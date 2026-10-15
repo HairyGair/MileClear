@@ -41,4 +41,11 @@ describe("availableDoorRows", () => {
     expect(availableDoorRows({ mode: "work", persona: "company" })).not.toContain("tax");
     expect(doorSwitches([], ["insights"]).map((r) => r.id)).toEqual(["insights"]);
   });
+  it("lets every driver switch the Odometer card off, in both modes", () => {
+    expect(availableDoorRows({ mode: "personal", persona: "personal" })).toContain("odometer");
+    expect(availableDoorRows({ mode: "work", persona: "employee" })).toContain("odometer");
+    expect(availableDoorRows({ mode: "work", persona: "company" })).toContain("odometer");
+    const odo = doorSwitches(["odometer"]).find((r) => r.id === "odometer");
+    expect(odo).toMatchObject({ label: "Odometer", icon: "speedometer-outline", shown: false });
+  });
 });
