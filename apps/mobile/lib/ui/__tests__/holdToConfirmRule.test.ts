@@ -4,6 +4,7 @@ import {
   contrastRatio,
   DEFAULT_EARLY_RELEASE_HINT,
   DEFAULT_HOLD_HINT,
+  fillCopyFrame,
   holdHintText,
   isEarlyRelease,
 } from "../holdToConfirmRule";
@@ -47,6 +48,13 @@ describe("holdHintText", () => {
   it("stays quiet while holding or saving (the button's own label speaks then)", () => {
     expect(holdHintText({ ...base, holding: true, releasedEarly: true })).toBeNull();
     expect(holdHintText({ ...base, loading: true })).toBeNull();
+  });
+});
+
+describe("fillCopyFrame", () => {
+  it("moves the navy copy back by the border so it sits exactly on the amber label", () => {
+    // The resting row measured 1 px in from the button's outer edge (its border).
+    expect(fillCopyFrame({ x: 1, y: 9, width: 320, height: 38 }, 1)).toEqual({ left: 0, top: 8, width: 320, height: 38 });
   });
 });
 

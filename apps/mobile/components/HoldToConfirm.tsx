@@ -33,7 +33,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { useScreenReader } from "../lib/accessibility";
-import { EARLY_RELEASE_HINT_MS, holdHintText, isEarlyRelease } from "../lib/ui/holdToConfirmRule";
+import { EARLY_RELEASE_HINT_MS, fillCopyFrame, holdHintText, isEarlyRelease } from "../lib/ui/holdToConfirmRule";
 
 interface HoldToConfirmProps {
   /** Resting label, e.g. "End trip and save". */
@@ -154,7 +154,16 @@ export function HoldToConfirm({
       ) : (
         <Ionicons name={icon} size={20} color={colour} />
       )}
-      <Text style={[styles.label, { color: colour }]} numberOfLines={1}>
+      {/* Two lines at most, shrinking a little before it wraps, so a large
+          Dynamic Type size stays readable instead of cut off; the button
+          grows to fit (minHeight). Both copies lay out at the same width, so
+          they wrap and shrink identically. */}
+      <Text
+        style={[styles.label, { color: colour }]}
+        numberOfLines={2}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
         {text}
       </Text>
     </>
@@ -193,12 +202,9 @@ export function HoldToConfirm({
               style={[
                 styles.contentRow,
                 styles.fillContent,
-                {
-                  left: rowLayout.x,
-                  top: rowLayout.y,
-                  width: rowLayout.width,
-                  height: rowLayout.height,
-                },
+                // onLayout measures from the button's outer edge, but the
+                // fill (and so this copy) sits inside the border.
+                fillCopyFrame(rowLayout, BUTTON_BORDER),
               ]}
             >
               {renderContent(colors.bg)}
@@ -221,12 +227,15 @@ export function HoldToConfirm({
   );
 }
 
+const BUTTON_BORDER = 1;
+
 const styles = StyleSheet.create({
   button: {
-    height: 56,
+    minHeight: 56,
+    paddingVertical: spacing.sm,
     borderRadius: radii.md,
     backgroundColor: colors.amberDim,
-    borderWidth: 1,
+    borderWidth: BUTTON_BORDER,
     borderColor: colors.amberGlow,
     overflow: "hidden",
     justifyContent: "center",
@@ -250,8 +259,10 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   label: {
+    flexShrink: 1,
     fontSize: 16,
     fontFamily: fonts.bold,
+    textAlign: "center",
   },
   hint: {
     marginTop: spacing.xs,

@@ -39,6 +39,16 @@ export function isEarlyRelease(completed: boolean, loading: boolean): boolean {
   return !completed && !loading;
 }
 
+/** Where the navy copy of the label sits inside the fill. onLayout measures
+ *  the resting label from the button's outer edge; the fill starts inside the
+ *  border, so the copy moves back by the border width to sit exactly on top. */
+export function fillCopyFrame(
+  row: { x: number; y: number; width: number; height: number },
+  borderWidth: number
+): { left: number; top: number; width: number; height: number } {
+  return { left: row.x - borderWidth, top: row.y - borderWidth, width: row.width, height: row.height };
+}
+
 /** WCAG contrast ratio of two opaque #rrggbb colours. */
 export function contrastRatio(a: string, b: string): number {
   const lum = (hex: string): number => {
