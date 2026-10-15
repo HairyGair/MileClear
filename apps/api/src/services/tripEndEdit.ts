@@ -20,6 +20,7 @@
 // The pure decision lives here so it can be unit-tested without a database.
 
 import { haversineDistance } from "@mileclear/shared";
+import { prisma } from "../lib/prisma.js";
 import { resolveRouteDistance } from "./routing.js";
 import { START_EDIT_MAX_MILES, START_EDIT_MIN_MILES } from "./tripStartEdit.js";
 
@@ -169,6 +170,12 @@ export function resolveEndEdit(args: {
 // stretch off, and puts the new one on: recorded miles plus one stretch, never
 // two. Moving the end back to where the recording stopped gives the recorded
 // miles back.
+//
+// The note is only trusted while the trip still looks like the one it was
+// written for (see noteStillHolds). Trips whose end was edited before the
+// note existed are recognised from their stand-in points and the edit events
+// (see inferLegacyExtension). Whenever either is in doubt, the edit falls back
+// to pricing the stretch from the end as it stands.
 
 export interface EndExtension {
   /** Where the recording itself stopped, before any end edit. */
@@ -180,6 +187,17 @@ export interface EndExtension {
   addedMiles: number;
   /** When the stand-in breadcrumb for that stretch is dated (ISO), or null. */
   breadcrumbAt: string | null;
+}
+
+/** gpsQuality keys only the server writes. Stripped from anything a client sends. */
+export const SERVER_OWNED_GPS_QUALITY_KEYS = ["endExtension", "appendOutlierCut"] as const;
+
+/** A client's gpsQuality with the server-owned keys taken out. */
+export function stripServerOwnedGpsQuality<T extends Record<string, unknown> | undefined>(gq: T): T {
+  if (!gq) return gq;
+  const out: Record<string, unknown> = { ...gq };
+  for (const k of SERVER_OWNED_GPS_QUALITY_KEYS) delete out[k];
+  return out as T;
 }
 
 const asObject = (v: unknown): Record<string, unknown> =>
@@ -204,6 +222,187 @@ export function readEndExtension(gpsQuality: unknown): EndExtension | null {
   };
 }
 
+/**
+ * gpsQuality with the end-edit note retired, for anything that rewrites a
+ * trip's end or distance (a split, a recalc, a typed distance, a merge): the
+ * note describes a trip that no longer exists. A retired note is left as
+ * endExtension: null rather than deleted, so the next end edit knows the
+ * trip's distance has been set since and does not go looking for old edits
+ * to take off it either. Undefined when there is no live note, so the caller
+ * writes nothing.
+ */
+export function gpsQualityRetiringEndNote(gpsQuality: unknown): Record<string, unknown> | undefined {
+  const gq = asObject(gpsQuality);
+  if (gq.endExtension === undefined || gq.endExtension === null) return undefined;
+  return { ...gq, endExtension: null };
+}
+
+/**
+ * The same for a distance set outright on a recorded trip, which may also be
+ * a trip whose end was edited before the note existed: if its trail still
+ * ends on a stand-in point, the retired marker goes on too, so those old
+ * edits are not taken off the new figure later. Undefined: write nothing.
+ */
+export async function retireEndNoteForNewDistance(trip: {
+  id: string;
+  isManualEntry: boolean;
+  gpsQuality?: unknown;
+}): Promise<Record<string, unknown> | undefined> {
+  if (trip.isManualEntry) return undefined;
+  const retired = gpsQualityRetiringEndNote(trip.gpsQuality);
+  if (retired) return retired;
+  const gq = asObject(trip.gpsQuality);
+  if (gq.endExtension === null) return undefined;
+  const last = await prisma.tripCoordinate.findFirst({
+    where: { tripId: trip.id },
+    orderBy: { recordedAt: "desc" },
+    select: { speed: true, accuracy: true },
+  });
+  if (!last || last.speed != null || last.accuracy != null) return undefined;
+  return { ...gq, endExtension: null };
+}
+
+/** An earlier extension the next edit replaces, however we learned of it. */
+export interface PriorExtension {
+  recordedEndLat: number;
+  recordedEndLng: number;
+  recordedEndedAt: Date | null;
+  addedMiles: number;
+  /** The stand-in points for it, all to go when it is replaced. */
+  breadcrumbs: Date[];
+  source: "note" | "legacy";
+}
+
+/** Rounding slack when comparing stored miles. */
+const MILES_SLACK = 0.01;
+
+/**
+ * Is the note still about this trip? A split, a restore, a recalc or anything
+ * else that rewrote the trip without clearing it leaves a note whose miles are
+ * not in the distance (taking them off would sink the trip, possibly to 0), or
+ * whose recording ends after the trip now does, or whose stand-in point has
+ * gone elsewhere. Any of those and the note is ignored.
+ */
+export function noteStillHolds(
+  note: EndExtension,
+  trip: { distanceMiles: number; endedAt: Date | null },
+  breadcrumbPresent: boolean
+): boolean {
+  if (trip.distanceMiles + MILES_SLACK < note.addedMiles) return false;
+  if (note.recordedEndedAt && trip.endedAt && new Date(note.recordedEndedAt).getTime() > trip.endedAt.getTime()) {
+    return false;
+  }
+  if (note.breadcrumbAt && !breadcrumbPresent) return false;
+  return true;
+}
+
+export interface TrailFix {
+  lat: number;
+  lng: number;
+  speed: number | null;
+  accuracy: number | null;
+  recordedAt: Date;
+}
+
+/**
+ * A trip whose end was edited before the note existed. Each such edit left a
+ * stand-in point (no speed, no accuracy) after the trail and a trip.end_edited
+ * event with the miles it added. Only when the stand-ins at the end of the
+ * trail and the events that added miles agree one for one is it read as an
+ * earlier extension: recorded stop = the last real fix, earlier stretch = the
+ * miles all those edits added. Tom's two edits left two stand-ins and two
+ * events, and both stretches are in his distance, so both come off.
+ *
+ * lastFixesDesc is the end of the trail, newest first. Anything that does not
+ * fit (no stand-in, no real fix before them, counts that differ, miles the
+ * trip does not hold, a stop after the trip's end) gives null.
+ */
+export function inferLegacyExtension(args: {
+  lastFixesDesc: ReadonlyArray<TrailFix>;
+  eventAddedMiles: ReadonlyArray<number>;
+  trip: { distanceMiles: number; endedAt: Date | null };
+}): PriorExtension | null {
+  const { lastFixesDesc, eventAddedMiles, trip } = args;
+  const isStandIn = (f: TrailFix) => f.speed == null && f.accuracy == null;
+  let n = 0;
+  while (n < lastFixesDesc.length && isStandIn(lastFixesDesc[n])) n++;
+  if (n === 0 || n >= lastFixesDesc.length) return null;
+  const lastReal = lastFixesDesc[n];
+  const added = eventAddedMiles.filter((m) => Number.isFinite(m) && m > 0);
+  if (added.length !== n) return null;
+  const sum = round2(added.reduce((a, b) => a + b, 0));
+  if (trip.distanceMiles + MILES_SLACK < sum) return null;
+  if (trip.endedAt && lastReal.recordedAt.getTime() > trip.endedAt.getTime()) return null;
+  return {
+    recordedEndLat: lastReal.lat,
+    recordedEndLng: lastReal.lng,
+    recordedEndedAt: lastReal.recordedAt,
+    addedMiles: sum,
+    breadcrumbs: lastFixesDesc.slice(0, n).map((f) => f.recordedAt),
+    source: "legacy",
+  };
+}
+
+/** How many fixes from the end of the trail the legacy check reads. */
+const LEGACY_TAIL_FIXES = 8;
+
+/**
+ * The extension the next end edit replaces, or null to price from the end as
+ * it stands. Reads the note first, then falls back to recognising a pre-note
+ * edit. A note that no longer holds is not replaced by the legacy guess: the
+ * trip has been rewritten since, so neither can be trusted.
+ */
+export async function findPriorExtension(args: {
+  userId: string;
+  trip: { id: string; distanceMiles: number; endedAt: Date | null; gpsQuality?: unknown };
+}): Promise<{ prior: PriorExtension | null; noteIgnored: boolean }> {
+  const { userId, trip } = args;
+  const note = readEndExtension(trip.gpsQuality);
+  if (note) {
+    const breadcrumbPresent = note.breadcrumbAt
+      ? (await prisma.tripCoordinate.findFirst({
+          where: { tripId: trip.id, recordedAt: new Date(note.breadcrumbAt), speed: null, accuracy: null },
+          select: { id: true },
+        })) != null
+      : true;
+    if (!noteStillHolds(note, trip, breadcrumbPresent)) return { prior: null, noteIgnored: true };
+    return {
+      prior: {
+        recordedEndLat: note.recordedEndLat,
+        recordedEndLng: note.recordedEndLng,
+        recordedEndedAt: note.recordedEndedAt ? new Date(note.recordedEndedAt) : null,
+        addedMiles: note.addedMiles,
+        breadcrumbs: note.breadcrumbAt ? [new Date(note.breadcrumbAt)] : [],
+        source: "note",
+      },
+      noteIgnored: false,
+    };
+  }
+  const raw = asObject(trip.gpsQuality).endExtension;
+  // Retired: the distance has been set since, so old edits are not guessed at.
+  if (raw === null) return { prior: null, noteIgnored: false };
+  if (raw !== undefined) return { prior: null, noteIgnored: true };
+
+  const lastFixesDesc = await prisma.tripCoordinate.findMany({
+    where: { tripId: trip.id },
+    orderBy: { recordedAt: "desc" },
+    take: LEGACY_TAIL_FIXES,
+    select: { lat: true, lng: true, speed: true, accuracy: true, recordedAt: true },
+  });
+  const tail = lastFixesDesc[0];
+  if (!tail || tail.speed != null || tail.accuracy != null) return { prior: null, noteIgnored: false };
+
+  const events = await prisma.appEvent.findMany({
+    where: { type: "trip.end_edited", userId, metadata: { path: "$.tripId", equals: trip.id } },
+    select: { metadata: true },
+  });
+  const eventAddedMiles = events.map((e) => Number(asObject(e.metadata).addedMiles));
+  return {
+    prior: inferLegacyExtension({ lastFixesDesc, eventAddedMiles, trip }),
+    noteIgnored: false,
+  };
+}
+
 // ── Prisma/routing wrapper ────────────────────────────────────────────────
 
 export interface PlannedEndEdit {
@@ -212,17 +411,22 @@ export interface PlannedEndEdit {
   /** Routed miles to add after the recorded trail; 0 when the distance stays. */
   addedMiles: number;
   /**
-   * Miles an earlier end edit added that this one replaces, to take off the
+   * Miles earlier end edits added that this one replaces, to take off the
    * stored distance before addedMiles goes on. 0 when there is nothing to undo
    * or the distance is being left alone.
    */
   replacedMiles: number;
   crowMiles: number;
   appendCoordinate: { lat: number; lng: number; recordedAt: Date } | null;
-  /** The earlier edit's stand-in breadcrumb, to remove; null to keep it. */
-  removeBreadcrumbAt: Date | null;
-  /** The note to keep in gpsQuality.endExtension; null removes it. */
-  extension: EndExtension | null;
+  /** Earlier stand-in breadcrumbs to remove. */
+  removeBreadcrumbsAt: Date[];
+  /**
+   * The note to keep in gpsQuality.endExtension: an object writes it, null
+   * removes it, undefined leaves whatever is there.
+   */
+  extension: EndExtension | null | undefined;
+  /** Where the earlier stretch was learned from, for the event. */
+  priorSource: "note" | "legacy" | "note_ignored" | null;
   /** Set when the pin moved but the distance deliberately did not. */
   distanceUnchangedReason: EndEditSkipReason | null;
 }
@@ -238,9 +442,9 @@ export interface PlannedEndEdit {
  * missing stretch cannot be priced honestly the pin moves, the mileage is
  * left alone, and the reason is recorded on the event.
  *
- * The stretch is always priced from where the RECORDING stopped, which after
- * an earlier end edit is the note in gpsQuality.endExtension, not the current
- * end pin; the earlier stretch is handed back as replacedMiles.
+ * The stretch is priced from where the RECORDING stopped, which after an
+ * earlier end edit is not the current end pin; the earlier stretch is handed
+ * back as replacedMiles.
  */
 export async function planTripEndEdit(args: {
   userId: string;
@@ -251,6 +455,7 @@ export async function planTripEndEdit(args: {
     endedAt: Date | null;
     startedAt: Date;
     isManualEntry: boolean;
+    distanceMiles: number;
     gpsQuality?: unknown;
   };
   newLat: number;
@@ -262,17 +467,18 @@ export async function planTripEndEdit(args: {
   if (trip.endLat == null || trip.endLng == null) return null;
   if (!Number.isFinite(newLat) || !Number.isFinite(newLng)) return null;
 
-  const prior = readEndExtension(trip.gpsQuality);
-
   // A pin nudged a few metres from where it already sits is a label change,
   // whether or not the end has been edited before.
   if (haversineDistance(trip.endLat, trip.endLng, newLat, newLng) < END_EDIT_MIN_MILES) return null;
+
+  const { prior, noteIgnored } = await findPriorExtension({ userId, trip });
+  const priorSource: PlannedEndEdit["priorSource"] = prior ? prior.source : noteIgnored ? "note_ignored" : null;
 
   const recordedEnd = prior
     ? {
         endLat: prior.recordedEndLat,
         endLng: prior.recordedEndLng,
-        endedAt: prior.recordedEndedAt ? new Date(prior.recordedEndedAt) : trip.endedAt,
+        endedAt: prior.recordedEndedAt ?? trip.endedAt,
       }
     : { endLat: trip.endLat, endLng: trip.endLng, endedAt: trip.endedAt };
 
@@ -283,7 +489,13 @@ export async function planTripEndEdit(args: {
     newEndedAt,
   };
   const recordedEndedAtIso = recordedEnd.endedAt ? recordedEnd.endedAt.toISOString() : null;
-  const priorBreadcrumb = prior?.breadcrumbAt ? new Date(prior.breadcrumbAt) : null;
+  const freshNote = (addedMiles: number, breadcrumbAt: string | null): EndExtension => ({
+    recordedEndLat: recordedEnd.endLat,
+    recordedEndLng: recordedEnd.endLng,
+    recordedEndedAt: recordedEndedAtIso,
+    addedMiles,
+    breadcrumbAt,
+  });
 
   /** The pin moves, the miles stay: any earlier stretch is still in them. */
   const leaveDistance = (reason: EndEditSkipReason, crowMiles: number): PlannedEndEdit => ({
@@ -293,14 +505,12 @@ export async function planTripEndEdit(args: {
     replacedMiles: 0,
     crowMiles,
     appendCoordinate: null,
-    removeBreadcrumbAt: null,
-    extension: prior ?? {
-      recordedEndLat: recordedEnd.endLat,
-      recordedEndLng: recordedEnd.endLng,
-      recordedEndedAt: recordedEndedAtIso,
-      addedMiles: 0,
-      breadcrumbAt: null,
-    },
+    removeBreadcrumbsAt: [],
+    // A trusted note stays as it is, and a stretch inferred from old edits is
+    // left for the next edit to work out again. Otherwise note where the
+    // trip now ends, so the next edit prices from there.
+    extension: prior ? undefined : freshNote(0, null),
+    priorSource,
     distanceUnchangedReason: reason,
   });
 
@@ -317,8 +527,9 @@ export async function planTripEndEdit(args: {
       replacedMiles: prior.addedMiles,
       crowMiles: dry.crowMiles,
       appendCoordinate: null,
-      removeBreadcrumbAt: priorBreadcrumb,
+      removeBreadcrumbsAt: prior.breadcrumbs,
       extension: null,
+      priorSource,
       distanceUnchangedReason: null,
     };
   }
@@ -345,14 +556,9 @@ export async function planTripEndEdit(args: {
     replacedMiles: prior?.addedMiles ?? 0,
     crowMiles: decision.crowMiles,
     appendCoordinate: decision.appendCoordinate,
-    removeBreadcrumbAt: priorBreadcrumb,
-    extension: {
-      recordedEndLat: recordedEnd.endLat,
-      recordedEndLng: recordedEnd.endLng,
-      recordedEndedAt: recordedEndedAtIso,
-      addedMiles: decision.addedMiles,
-      breadcrumbAt: decision.appendCoordinate.recordedAt.toISOString(),
-    },
+    removeBreadcrumbsAt: prior?.breadcrumbs ?? [],
+    extension: freshNote(decision.addedMiles, decision.appendCoordinate.recordedAt.toISOString()),
+    priorSource,
     distanceUnchangedReason: null,
   };
 }

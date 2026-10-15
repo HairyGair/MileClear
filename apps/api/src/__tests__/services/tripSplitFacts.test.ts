@@ -205,3 +205,29 @@ describe("a split by hand records the parts", () => {
     expect(legs[1]).toMatchObject({ splitPart: 2, splitPartCount: 2 });
   });
 });
+
+describe("a visit split drops an end-edit note", () => {
+  it("leg one retires the note (its miles and stand-in point went with the far end) and keeps the rest", async () => {
+    vi.mocked(prisma.trip.findFirst).mockResolvedValue({
+      ...base,
+      gpsQuality: {
+        rawCoords: 140,
+        endExtension: {
+          recordedEndLat: 50.8, recordedEndLng: 0.27, recordedEndedAt: null, addedMiles: 2, breadcrumbAt: null,
+        },
+      },
+    } as never);
+    await autoSplitVisitWelds({ userId: "u1", tripId: "parent-1" });
+
+    const leg1 = tx.trip.update.mock.calls.find((c) => c[0].where.id === "parent-1")![0].data;
+    expect(leg1.gpsQuality).toEqual({ rawCoords: 140, endExtension: null });
+  });
+
+  it("writes no gpsQuality when there is no note", async () => {
+    vi.mocked(prisma.trip.findFirst).mockResolvedValue(base as never);
+    await autoSplitVisitWelds({ userId: "u1", tripId: "parent-1" });
+
+    const leg1 = tx.trip.update.mock.calls.find((c) => c[0].where.id === "parent-1")![0].data;
+    expect(leg1).not.toHaveProperty("gpsQuality");
+  });
+});

@@ -23,6 +23,7 @@ import { haversineDistance, getTaxYear } from "@mileclear/shared";
 import { upsertMileageSummary } from "./mileage.js";
 import { logEvent } from "./appEvents.js";
 import { nameInteriorBoundaries, logSplitAddressFill } from "./splitBoundaryNames.js";
+import { gpsQualityRetiringEndNote } from "./tripEndEdit.js";
 
 // ── Tunables ──────────────────────────────────────────────────────────────
 
@@ -916,9 +917,13 @@ export async function autoSplitVisitWelds(args: {
     // lookup could name it.
     const firstLeg = legs[0];
     const parentEnd = firstLeg[firstLeg.length - 1];
+    // An end-edit note describes the welded journey's end, which is now the
+    // last leg's, and its miles are no longer all in leg one: it goes.
+    const withoutEndNote = gpsQualityRetiringEndNote(parent.gpsQuality);
     await tx.trip.update({
       where: { id: parent.id },
       data: {
+        ...(withoutEndNote ? { gpsQuality: withoutEndNote as Prisma.InputJsonValue } : {}),
         endLat: parentEnd.lat,
         endLng: parentEnd.lng,
         endAddress: boundary.ends[0]?.address ?? null,
