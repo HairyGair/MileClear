@@ -11,7 +11,7 @@ import type { FuelType, VehicleLookupResult, CazVehicleClass } from "@mileclear/
 import { fetchMotHistory, DvsaMotError } from "../../services/dvsaMot.js";
 import { loadOdometerInputs, vehicleOdometerSummaries } from "../../services/odometer.js";
 import { buildOdometerTimeline, odometerStateAt, ODOMETER_MAX_MILES } from "@mileclear/shared";
-import type { OdometerReadingCreated, VehicleOdometerResponse } from "@mileclear/shared";
+import type { OdometerListSummary, OdometerReadingCreated, VehicleOdometerResponse } from "@mileclear/shared";
 
 function freeVehicleLimitMessage(providedByOthers: boolean): string {
   return providedByOthers
@@ -308,7 +308,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
     });
 
     // The running odometer for the list card. Never worth failing the list for.
-    let odometer = new Map<string, { miles: number; isEstimated: boolean } | null>();
+    let odometer = new Map<string, OdometerListSummary | null>();
     try {
       odometer = await vehicleOdometerSummaries(request.userId!, vehicles.map((v) => v.id));
     } catch (err) {

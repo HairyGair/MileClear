@@ -1,6 +1,6 @@
 import { prisma } from "../lib/prisma.js";
 import { defaultVehicleIdForUser } from "./vehicleDefaults.js";
-import { buildOdometerTimeline, odometerDays } from "@mileclear/shared";
+import { buildOdometerTimeline, odometerDays, odometerListSummary } from "@mileclear/shared";
 import type {
   OdometerAnchorInput,
   OdometerDay,
@@ -128,7 +128,10 @@ export async function loadOdometerTimelines(
   return out;
 }
 
-/** `{ miles, isEstimated }` per vehicle for the vehicle list; null when no real reading exists. */
+/**
+ * `{ miles, isEstimated, basis, tripMilesSince }` per vehicle for the vehicle
+ * list (and Home's odometer card); null when no real reading exists.
+ */
 export async function vehicleOdometerSummaries(
   userId: string,
   vehicleIds: string[]
@@ -136,7 +139,7 @@ export async function vehicleOdometerSummaries(
   const timelines = await loadOdometerTimelines(userId, vehicleIds, { tripsOnlyIfAnchors: true });
   const out = new Map<string, OdometerListSummary | null>();
   for (const [id, tl] of timelines) {
-    out.set(id, tl.current ? { miles: tl.current.miles, isEstimated: tl.current.isEstimated } : null);
+    out.set(id, odometerListSummary(tl.current));
   }
   return out;
 }

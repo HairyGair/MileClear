@@ -184,6 +184,28 @@ export interface OdometerLowerThanEarlier {
 export interface OdometerListSummary {
   miles: number;
   isEstimated: boolean;
+  /**
+   * The reading the figure is built on, for the Home card's line (15 Oct
+   * 2026). Optional: servers before then send only miles and isEstimated.
+   */
+  basis?: { readingMiles: number; readAt: string; source: OdometerAnchorSource };
+  /** Miles of trips added since that reading. Optional, as basis. */
+  tripMilesSince?: number;
+}
+
+/** The vehicle list's odometer field from a timeline's current figure; null with no reading. */
+export function odometerListSummary(current: OdometerCurrent | null | undefined): OdometerListSummary | null {
+  if (!current) return null;
+  return {
+    miles: current.miles,
+    isEstimated: current.isEstimated,
+    basis: {
+      readingMiles: current.basis.readingMiles,
+      readAt: current.basis.readAt,
+      source: current.basis.source,
+    },
+    tripMilesSince: current.tripMilesSince,
+  };
 }
 
 export const ODOMETER_MAX_MILES = 999999;
