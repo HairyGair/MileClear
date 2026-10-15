@@ -438,7 +438,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "odometer",
     area: "managing_trips",
     q: "Can MileClear keep an odometer reading?",
-    a: "Yes. In More > Odometer, tap Add reading and type what your dashboard shows; MileClear adds your recorded miles to it, giving a start and end reading for each day. You can also add readings to one trip (open it, then Odometer readings under Fix this trip). The Trips list shows each day's readings under the date, and Home (in the app and on the website) shows each vehicle's running reading, marked "est." until you add a new reading; tap it to open the log. The log is free; downloading it as a CSV for your employer is Pro.",
+    a: "Yes. In More > Odometer, tap Add reading and type what your dashboard shows; MileClear adds your recorded miles to it, giving a start and end reading for each day. You can also add readings to one trip (open it, then Odometer readings under Fix this trip). The Trips list shows each day's readings under the date, and Home (in the app and on the website) shows each vehicle's running reading, marked est. when it includes trips since your last reading; tap it to open the log. The log is free; downloading it as a CSV for your employer is Pro.",
     goTo: "/odometer-log",
     keywords: ["odometer", "mileometer", "reading", "clock", "dashboard reading"],
   },
