@@ -278,23 +278,46 @@ const MILES_SLACK = 0.01;
 
 /**
  * Is the note still about this trip? A split, a restore, a recalc or anything
- * else that rewrote the trip without clearing it leaves a note whose miles are
- * not in the distance (taking them off would sink the trip, possibly to 0), or
- * whose recording ends after the trip now does, or whose stand-in point has
- * gone elsewhere. Any of those and the note is ignored.
+ * else that rewrote the trip without retiring the note leaves one whose miles
+ * are not in the distance (taking them off would sink the trip, possibly to
+ * 0), or whose stand-in point has gone elsewhere. Either and the note is
+ * ignored.
+ *
+ * The trip's end TIME is deliberately not checked. A driver may set an end
+ * time earlier than the recording's last fix (odd, but allowed), and the note
+ * is still right about where the recording stopped and what was added after
+ * it; ignoring it then would stack the next stretch on the last one, the
+ * very bug the note exists to stop. A split, which does move the end time,
+ * retires the note and takes the stand-in point to another leg, so the two
+ * checks here catch it anyway.
  */
 export function noteStillHolds(
   note: EndExtension,
-  trip: { distanceMiles: number; endedAt: Date | null },
+  trip: { distanceMiles: number },
   breadcrumbPresent: boolean
 ): boolean {
   if (trip.distanceMiles + MILES_SLACK < note.addedMiles) return false;
-  if (note.recordedEndedAt && trip.endedAt && new Date(note.recordedEndedAt).getTime() > trip.endedAt.getTime()) {
-    return false;
-  }
   if (note.breadcrumbAt && !breadcrumbPresent) return false;
   return true;
 }
+
+/** Straight-line miles along a run of points. */
+export function straightLineMiles(points: ReadonlyArray<{ lat: number; lng: number }>): number {
+  let miles = 0;
+  for (let i = 1; i < points.length; i++) {
+    miles += haversineDistance(points[i - 1].lat, points[i - 1].lng, points[i].lat, points[i].lng);
+  }
+  return round2(miles);
+}
+
+/**
+ * How close the trip's distance, less the old stretches, must sit to its real
+ * trail before the old stretches are trusted. Before notes, a website save
+ * that moved the end AND sent its own miles left a stand-in point and an
+ * event with miles added, while the stored figure was the client's: there,
+ * taking the stretch off would cut the driver's own number.
+ */
+export const LEGACY_TRAIL_TOLERANCE = 0.1;
 
 export interface TrailFix {
   lat: number;
@@ -320,9 +343,11 @@ export interface TrailFix {
 export function inferLegacyExtension(args: {
   lastFixesDesc: ReadonlyArray<TrailFix>;
   eventAddedMiles: ReadonlyArray<number>;
-  trip: { distanceMiles: number; endedAt: Date | null };
+  trip: { distanceMiles: number; endedAt: Date | null; endLat: number | null; endLng: number | null };
+  /** Straight-line miles of the trail without the trailing stand-ins. */
+  realTrailMiles: number | null;
 }): PriorExtension | null {
-  const { lastFixesDesc, eventAddedMiles, trip } = args;
+  const { lastFixesDesc, eventAddedMiles, trip, realTrailMiles } = args;
   const isStandIn = (f: TrailFix) => f.speed == null && f.accuracy == null;
   let n = 0;
   while (n < lastFixesDesc.length && isStandIn(lastFixesDesc[n])) n++;
@@ -333,6 +358,16 @@ export function inferLegacyExtension(args: {
   const sum = round2(added.reduce((a, b) => a + b, 0));
   if (trip.distanceMiles + MILES_SLACK < sum) return null;
   if (trip.endedAt && lastReal.recordedAt.getTime() > trip.endedAt.getTime()) return null;
+  // The newest stand-in is where the trip ends now, exactly: the last edit
+  // left it there and nothing has moved the end since.
+  const newest = lastFixesDesc[0];
+  if (newest.lat !== trip.endLat || newest.lng !== trip.endLng) return null;
+  // What is left once the old stretches come off must look like the trail.
+  if (realTrailMiles == null || !(realTrailMiles > 0)) return null;
+  const left = trip.distanceMiles - sum;
+  if (left < realTrailMiles * (1 - LEGACY_TRAIL_TOLERANCE) || left > realTrailMiles * (1 + LEGACY_TRAIL_TOLERANCE)) {
+    return null;
+  }
   return {
     recordedEndLat: lastReal.lat,
     recordedEndLng: lastReal.lng,
@@ -354,7 +389,14 @@ const LEGACY_TAIL_FIXES = 8;
  */
 export async function findPriorExtension(args: {
   userId: string;
-  trip: { id: string; distanceMiles: number; endedAt: Date | null; gpsQuality?: unknown };
+  trip: {
+    id: string;
+    distanceMiles: number;
+    endedAt: Date | null;
+    endLat: number | null;
+    endLng: number | null;
+    gpsQuality?: unknown;
+  };
 }): Promise<{ prior: PriorExtension | null; noteIgnored: boolean }> {
   const { userId, trip } = args;
   const note = readEndExtension(trip.gpsQuality);
@@ -397,8 +439,23 @@ export async function findPriorExtension(args: {
     select: { metadata: true },
   });
   const eventAddedMiles = events.map((e) => Number(asObject(e.metadata).addedMiles));
+  if (!eventAddedMiles.some((m) => m > 0)) return { prior: null, noteIgnored: false };
+
+  // The whole trail, less the trailing stand-ins, for the distance check.
+  const trail = await prisma.tripCoordinate.findMany({
+    where: { tripId: trip.id },
+    orderBy: { recordedAt: "asc" },
+    select: { lat: true, lng: true, speed: true, accuracy: true, recordedAt: true },
+  });
+  let end = trail.length;
+  while (end > 0 && trail[end - 1].speed == null && trail[end - 1].accuracy == null) end--;
   return {
-    prior: inferLegacyExtension({ lastFixesDesc, eventAddedMiles, trip }),
+    prior: inferLegacyExtension({
+      lastFixesDesc,
+      eventAddedMiles,
+      trip,
+      realTrailMiles: straightLineMiles(trail.slice(0, end)),
+    }),
     noteIgnored: false,
   };
 }

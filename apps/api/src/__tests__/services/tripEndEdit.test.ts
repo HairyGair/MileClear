@@ -229,8 +229,8 @@ describe("the end-edit note's safety checks", () => {
     expect(noteStillHolds(note, { ...trip, distanceMiles: 0.5 }, true)).toBe(false);
   });
 
-  it("refuses a note whose recording ends after the trip now does", () => {
-    expect(noteStillHolds(note, { ...trip, endedAt: new Date("2026-09-17T14:30:00Z") }, true)).toBe(false);
+  it("still trusts a note when the driver set an end time before the recording's last fix", () => {
+    expect(noteStillHolds(note, { ...trip, endedAt: new Date("2026-09-17T14:30:00Z") }, true)).toBe(true);
   });
 
   it("refuses a note whose stand-in point has gone", () => {
@@ -252,20 +252,22 @@ describe("the end-edit note's safety checks", () => {
 describe("inferLegacyExtension - an end edited before the note existed", () => {
   const real = (t: string, lat = LIGHTS.lat) => ({ lat, lng: LIGHTS.lng, speed: 8, accuracy: 5, recordedAt: new Date(t) });
   const standIn = (t: string, lat = HOME.lat) => ({ lat, lng: HOME.lng, speed: null, accuracy: null, recordedAt: new Date(t) });
-  const trip = { distanceMiles: 5.52, endedAt: new Date("2026-09-17T14:50:00Z") };
+  const trip = { distanceMiles: 5.52, endedAt: new Date("2026-09-17T14:50:00Z"), endLat: HOME.lat, endLng: HOME.lng };
+  const realTrailMiles = 3.45;
 
   it("adds up every old stretch when stand-ins and events agree", () => {
     const p = inferLegacyExtension({
       lastFixesDesc: [standIn("2026-09-17T14:50:00Z"), standIn("2026-09-17T14:40:00Z"), real("2026-09-17T14:35:00Z")],
       eventAddedMiles: [0.82, 0, 1.3],
       trip,
+      realTrailMiles,
     });
     expect(p).toMatchObject({ recordedEndLat: LIGHTS.lat, addedMiles: 2.12, source: "legacy" });
     expect(p!.breadcrumbs).toHaveLength(2);
   });
 
   it("gives nothing for a trail that ends on a real fix", () => {
-    expect(inferLegacyExtension({ lastFixesDesc: [real("2026-09-17T14:35:00Z")], eventAddedMiles: [0.82], trip })).toBeNull();
+    expect(inferLegacyExtension({ lastFixesDesc: [real("2026-09-17T14:35:00Z")], eventAddedMiles: [0.82], trip, realTrailMiles })).toBeNull();
   });
 
   it("gives nothing when the counts differ, or no real fix is in view", () => {
@@ -273,8 +275,9 @@ describe("inferLegacyExtension - an end edited before the note existed", () => {
       lastFixesDesc: [standIn("2026-09-17T14:40:00Z"), real("2026-09-17T14:35:00Z")],
       eventAddedMiles: [0.82, 1.3],
       trip,
+      realTrailMiles,
     })).toBeNull();
-    expect(inferLegacyExtension({ lastFixesDesc: [standIn("2026-09-17T14:40:00Z")], eventAddedMiles: [0.82], trip })).toBeNull();
+    expect(inferLegacyExtension({ lastFixesDesc: [standIn("2026-09-17T14:40:00Z")], eventAddedMiles: [0.82], trip, realTrailMiles })).toBeNull();
   });
 
   it("gives nothing when the old miles are more than the trip holds", () => {
@@ -282,6 +285,30 @@ describe("inferLegacyExtension - an end edited before the note existed", () => {
       lastFixesDesc: [standIn("2026-09-17T14:40:00Z"), real("2026-09-17T14:35:00Z")],
       eventAddedMiles: [9],
       trip,
+      realTrailMiles,
+    })).toBeNull();
+  });
+
+  const oneEdit = {
+    lastFixesDesc: [standIn("2026-09-17T14:40:00Z"), real("2026-09-17T14:35:00Z")],
+    eventAddedMiles: [0.82],
+  };
+
+  it("trusts one old stretch when what is left matches the trail", () => {
+    expect(inferLegacyExtension({ ...oneEdit, trip: { ...trip, distanceMiles: 4.22 }, realTrailMiles })).toMatchObject({ addedMiles: 0.82 });
+  });
+
+  it("gives nothing when the stored miles were the client's own (a website save that also typed miles)", () => {
+    expect(inferLegacyExtension({ ...oneEdit, trip: { ...trip, distanceMiles: 9 }, realTrailMiles })).toBeNull();
+    expect(inferLegacyExtension({ ...oneEdit, trip: { ...trip, distanceMiles: 3.6 }, realTrailMiles })).toBeNull();
+    expect(inferLegacyExtension({ ...oneEdit, trip: { ...trip, distanceMiles: 4.22 }, realTrailMiles: null })).toBeNull();
+  });
+
+  it("gives nothing when the newest stand-in is not exactly where the trip ends", () => {
+    expect(inferLegacyExtension({
+      ...oneEdit,
+      trip: { ...trip, distanceMiles: 4.22, endLat: HOME.lat + 0.0001 },
+      realTrailMiles,
     })).toBeNull();
   });
 });

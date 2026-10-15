@@ -3501,7 +3501,10 @@ export async function tripRoutes(app: FastifyInstance) {
     // for one edited before notes existed.
     let endExtensionChange: { set: unknown } | null = null;
     if (updates.distanceMiles !== undefined) {
-      const retired = await retireEndNoteForNewDistance(existing);
+      // The client's figure wins. With an end move in the same save, the
+      // stretch it brings is part of that figure, so it is never one to take
+      // off later: retired, even on a trip that had no note before.
+      const retired = endEdit ? true : (await retireEndNoteForNewDistance(existing)) != null;
       if (retired) endExtensionChange = { set: null };
     } else if (endEdit) {
       if (endEdit.extension) endExtensionChange = { set: { ...endEdit.extension } };
@@ -3762,10 +3765,15 @@ export async function tripRoutes(app: FastifyInstance) {
           });
         }
       }
+      // When the client sent the distance, it won: nothing was added, and the
+      // event must say so (a later edit reads addedMiles off these events
+      // for trips edited before notes existed).
+      const clientDistance = updates.distanceMiles !== undefined;
       logEvent("trip.end_edited", userId, {
         tripId: id,
-        addedMiles: endEdit.addedMiles,
-        replacedMiles: endEdit.replacedMiles,
+        addedMiles: clientDistance ? 0 : endEdit.addedMiles,
+        replacedMiles: clientDistance ? 0 : endEdit.replacedMiles,
+        ...(clientDistance ? { clientDistance: true, routedMiles: endEdit.addedMiles } : {}),
         priorSource: endEdit.priorSource,
         crowMiles: endEdit.crowMiles,
         distanceUnchanged: endEdit.distanceUnchangedReason,

@@ -158,12 +158,12 @@ const db: { trip: TripRow; coords: Fix[]; events: { type: string; userId: string
   events: [],
 };
 
-/** The phone's four real fixes, ending at the lights at 14:35. */
+/** The phone's four real fixes, ending at the lights at 14:35: 3.45 mi in straight lines. */
 function recordedTrail(): Fix[] {
   const pts = [
     { lat: 51.6102, lng: -0.7601, t: "2026-09-17T14:20:00.000Z" },
-    { lat: 51.62, lng: -0.77, t: "2026-09-17T14:25:00.000Z" },
-    { lat: 51.63, lng: -0.776, t: "2026-09-17T14:30:00.000Z" },
+    { lat: 51.62, lng: -0.74, t: "2026-09-17T14:25:00.000Z" },
+    { lat: 51.634, lng: -0.755, t: "2026-09-17T14:30:00.000Z" },
     { lat: LIGHTS.lat, lng: LIGHTS.lng, t: RECORDED_END_AT },
   ];
   return pts.map((p) => ({ tripId: TRIP_ID, lat: p.lat, lng: p.lng, speed: 8, accuracy: 5, recordedAt: new Date(p.t) }));
@@ -530,6 +530,19 @@ describe("PATCH /trips/:id editing a recorded trip's end more than once", () => 
     expect(db.trip.distanceMiles).toBe(7.3);
   });
 
+  it("never takes a stretch off later when the same save typed the miles", async () => {
+    await moveEnd(HOME, { distanceMiles: 9 });
+    expect(db.trip.distanceMiles).toBe(9);
+    expect(endNote()).toBeNull();
+    expect(logEvent).toHaveBeenCalledWith("trip.end_edited", USER_ID, expect.objectContaining({
+      addedMiles: 0, clientDistance: true, routedMiles: 0.82,
+    }));
+
+    await moveEnd(FURTHER);
+    // From Home, where the trip now ends, on top of the driver's 9.
+    expect(db.trip.distanceMiles).toBe(10.3);
+  });
+
   it("keeps a start extension and an end edit in the same save apart", async () => {
     await moveEnd(HOME);
     await patch({
@@ -690,6 +703,34 @@ describe("PATCH /trips/:id on a trip edited before notes existed", () => {
 
     expect(vi.mocked(resolveRouteDistance).mock.calls[0][0]).toMatchObject({ startLat: HOME.lat });
     expect(db.trip.distanceMiles).toBe(5.52);
+  });
+
+  it("falls back when the stored miles were the website's own figure, not trail plus stretch", async () => {
+    // Before notes: the website moved the end AND sent 9 miles. The stand-in
+    // and an event with 0.82 added were left, but 9 is the driver's figure.
+    seed(
+      { endLat: HOME.lat, endLng: HOME.lng, distanceMiles: 9, endedAt: new Date(FIRST_BREADCRUMB) },
+      [...recordedTrail(), standIn(HOME, FIRST_BREADCRUMB)],
+      [edited(0.82)]
+    );
+    wireStore();
+
+    await moveEnd(FURTHER);
+
+    expect(db.trip.distanceMiles).toBe(10.3);
+  });
+
+  it("falls back when the trip no longer ends on the newest stand-in", async () => {
+    seed(
+      { endLat: NEAR_HOME.lat, endLng: NEAR_HOME.lng, distanceMiles: 4.22, endedAt: new Date(FIRST_BREADCRUMB) },
+      [...recordedTrail(), standIn(HOME, FIRST_BREADCRUMB)],
+      [edited(0.82)]
+    );
+    wireStore();
+
+    await moveEnd(FURTHER);
+
+    expect(vi.mocked(resolveRouteDistance).mock.calls[0][0]).toMatchObject({ startLat: NEAR_HOME.lat });
   });
 
   it("falls back when the old stretch is more than the trip now holds", async () => {
