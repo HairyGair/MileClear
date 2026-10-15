@@ -375,12 +375,16 @@ export function recordingLooksLive(
  * hand off and delete. A journey that runs on past the cutoff (its last old
  * fix is within the journey boundary of the next, newer fix) is left whole
  * for a later pass, so one drive is never split in two (15 Oct 2026 review).
- * `fixes` oldest first; returns a prefix.
+ * The wait is capped: once that journey's first fix is more than
+ * `maxDeferMs` older than the cutoff, the old part goes anyway, so a buffer
+ * whose save keeps failing cannot grow without end. `fixes` oldest first;
+ * returns a prefix.
  */
 export function purgeableBeforeCutoff<T extends WireFix>(
   fixes: ReadonlyArray<T>,
   cutoffMs: number,
-  splitMs: number
+  splitMs: number,
+  maxDeferMs: number = 3 * 60 * 60_000
 ): T[] {
   const t = (f: T) => {
     const iso = normaliseRecordedAt(f.recorded_at);
@@ -393,6 +397,7 @@ export function purgeableBeforeCutoff<T extends WireFix>(
   // The journey straddles the cutoff: walk back to its first fix.
   let start = end - 1;
   while (start > 0 && t(fixes[start]) - t(fixes[start - 1]) <= splitMs) start--;
+  if (cutoffMs - t(fixes[start]) > maxDeferMs) return fixes.slice(0, end);
   return fixes.slice(0, start);
 }
 

@@ -38,6 +38,14 @@ describe("purgeableBeforeCutoff (JS engine stale clean-up)", () => {
     expect(purgeableBeforeCutoff(fixes, CUTOFF, SPLIT).map((f) => f.recorded_at)).toEqual([iso(180), iso(179)]);
   });
 
+  it("stops waiting once a journey running past the cutoff began over 3 hours before it", () => {
+    // Fixes every 20 min for 5 hours: a save that keeps failing must not let this grow for ever.
+    const fixes = [300, 280, 260, 240, 220, 200, 180, 160, 140, 120, 100, 80, 60, 40, 20].map(fix);
+    expect(purgeableBeforeCutoff(fixes, CUTOFF, SPLIT).map((f) => f.recorded_at)).toEqual(
+      [300, 280, 260, 240, 220, 200, 180, 160, 140, 120, 100, 80, 60, 40].map(iso)
+    );
+  });
+
   it("takes nothing when the whole buffer is one journey running past the cutoff", () => {
     const fixes = [fix(50), fix(45), fix(40), fix(29)];
     expect(purgeableBeforeCutoff(fixes, CUTOFF, SPLIT)).toEqual([]);
