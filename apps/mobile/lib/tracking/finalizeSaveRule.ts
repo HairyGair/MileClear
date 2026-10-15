@@ -21,6 +21,8 @@
 // buffer with a wait; the next recording-open wiped it (nativeLocation clears
 // the buffer when a new recording opens), so it lives in the queue instead.
 
+import { filterTraceOutliers } from "@mileclear/shared";
+
 /** The server's cap on one trip's distance (apps/api trips createTripSchema). */
 export const SERVER_MAX_DISTANCE_MILES = 2000;
 /** The server's cap on coordinates per create / merge request. */
@@ -282,4 +284,131 @@ export function trimBadEndpoints<T extends WireFix>(fixes: ReadonlyArray<T>): { 
   }
   if (out.length < 2 || out.length === fixes.length) return { coords: fixes.slice(), dropped: 0 };
   return { coords: out, dropped: fixes.length - out.length };
+}
+
+// ── The trip's ends, shared with the rescue hand-off ──────────────────────
+// finalize (detection.ts) and the hand-off of a drive finalize could not save
+// (rescueHandoff.ts) both work out a trip's start and end here, so a drive
+// queued by one and later reached by the other gets the SAME startedAt. That
+// is what the same-start guard in finalize and the server's userId+startedAt
+// dedup key on (15 Oct 2026 review).
+
+/** finalize's stop timeout: a fix across a longer gap is after the arrival. */
+export const ARRIVAL_STOP_TIMEOUT_MS = 10 * 60 * 1000;
+/** Any speed above this (m/s, ~2.2 mph) is still moving. */
+export const ARRIVAL_CONTINUE_SPEED_MS = 1.0;
+
+function metresR6371(a: WireFix, b: WireFix): number {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+/**
+ * Index of the trip's last fix. Two ways a recording over-runs the arrival:
+ * stationary drift after parking, and a late ping glued on across a parked
+ * gap. A fix more than the stop timeout after the one before it is after the
+ * arrival; otherwise the last fix with real movement is the end. At least 1
+ * for two or more fixes.
+ */
+export function arrivalEndIndex<T extends WireFix & { speed?: number | null }>(
+  fixes: ReadonlyArray<T>,
+  stopTimeoutMs: number = ARRIVAL_STOP_TIMEOUT_MS,
+  continueSpeedMs: number = ARRIVAL_CONTINUE_SPEED_MS
+): number {
+  let endIdx = fixes.length - 1;
+  for (let i = fixes.length - 1; i > 0; i--) {
+    const curr = fixes[i];
+    const prev = fixes[i - 1];
+    const gapMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime();
+    if (Number.isFinite(gapMs) && gapMs > stopTimeoutMs) {
+      // Parked gap before this coord: the journey ended at prev.
+      endIdx = i - 1;
+      continue;
+    }
+    const speed = curr.speed != null && curr.speed > 0 ? curr.speed : 0;
+    if (speed >= continueSpeedMs || metresR6371(prev, curr) > 30) {
+      endIdx = i;
+      break;
+    }
+    if (i === 1) endIdx = 1;
+  }
+  return endIdx;
+}
+
+type CleanFix = WireFix & { accuracy: number | null; speed?: number | null };
+
+/** GPS outliers out (filterTraceOutliers), then a bad first or last fix
+ *  (trimBadEndpoints). What finalize measures and saves. */
+export function cleanTraceForSave<T extends CleanFix>(
+  coords: T[]
+): { outlierFiltered: T[]; coords: T[]; endpointsDropped: number } {
+  const outlierFiltered = filterTraceOutliers(coords);
+  const trimmed = trimBadEndpoints(outlierFiltered);
+  return { outlierFiltered, coords: trimmed.coords, endpointsDropped: trimmed.dropped };
+}
+
+/**
+ * After a failed save, is the open recording still live enough to put its
+ * "Trip in progress" notification and Live Activity back? Only when its newest
+ * fix is within the stop timeout. A recording parked for hours whose save
+ * keeps failing must not re-show "Trip in progress" on every retry (15 Oct
+ * 2026 review). An unreadable or missing time reads as not live.
+ */
+export function recordingLooksLive(
+  newestRecordedAt: string | null | undefined,
+  nowMs: number,
+  stopTimeoutMs: number = ARRIVAL_STOP_TIMEOUT_MS
+): boolean {
+  const iso = newestRecordedAt != null ? normaliseRecordedAt(newestRecordedAt) : null;
+  if (!iso) return false;
+  const age = nowMs - Date.parse(iso);
+  return Number.isFinite(age) && age <= stopTimeoutMs;
+}
+
+/**
+ * Which of the fixes older than `cutoffMs` the JS engine's stale clean-up may
+ * hand off and delete. A journey that runs on past the cutoff (its last old
+ * fix is within the journey boundary of the next, newer fix) is left whole
+ * for a later pass, so one drive is never split in two (15 Oct 2026 review).
+ * The wait is capped: once that journey's first fix is more than
+ * `maxDeferMs` older than the cutoff, the old part goes anyway, so a buffer
+ * whose save keeps failing cannot grow without end. `fixes` oldest first;
+ * returns a prefix.
+ */
+export function purgeableBeforeCutoff<T extends WireFix>(
+  fixes: ReadonlyArray<T>,
+  cutoffMs: number,
+  splitMs: number,
+  maxDeferMs: number = 3 * 60 * 60_000
+): T[] {
+  const t = (f: T) => {
+    const iso = normaliseRecordedAt(f.recorded_at);
+    return iso ? Date.parse(iso) : Number.NaN;
+  };
+  let end = 0;
+  while (end < fixes.length && t(fixes[end]) < cutoffMs) end++;
+  if (end === 0 || end === fixes.length) return fixes.slice(0, end);
+  if (!(t(fixes[end]) - t(fixes[end - 1]) <= splitMs)) return fixes.slice(0, end);
+  // The journey straddles the cutoff: walk back to its first fix.
+  let start = end - 1;
+  while (start > 0 && t(fixes[start]) - t(fixes[start - 1]) <= splitMs) start--;
+  if (cutoffMs - t(fixes[start]) > maxDeferMs) return fixes.slice(0, end);
+  return fixes.slice(0, start);
+}
+
+/** The startedAt / endedAt a trip is stored and sent with: the first and last
+ *  cleaned fix, a raw native epoch made ISO, an ISO string unchanged. */
+export function tripWireTimes(cleaned: ReadonlyArray<WireFix>): { startedAt: string; endedAt: string } | null {
+  if (cleaned.length === 0) return null;
+  const first = cleaned[0];
+  const last = cleaned[cleaned.length - 1];
+  return {
+    startedAt: normaliseRecordedAt(first.recorded_at) ?? first.recorded_at,
+    endedAt: normaliseRecordedAt(last.recorded_at) ?? last.recorded_at,
+  };
 }

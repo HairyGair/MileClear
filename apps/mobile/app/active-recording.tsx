@@ -9,7 +9,8 @@
 // coordinates, a route polyline on the map (when react-native-maps is
 // available - falls back to a simple status card in Expo Go / no-map
 // builds), and a single primary "End trip" button that calls
-// finalizeAutoTrip() and navigates to the trips list.
+// finalizeAutoTrip() and navigates to the trips list once the recording has
+// actually closed (lib/tracking/endTrip.ts).
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
@@ -25,7 +26,14 @@ import {
 import { Stack, useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getDatabase } from "../lib/db/index";
-import { finalizeAutoTrip } from "../lib/tracking/detection";
+import {
+  finalizeAutoTrip,
+  getLastFinalizeFailure,
+  handOffOpenRecordingToQueue,
+  isFinalizeInFlight,
+  waitForFinalizeInFlight,
+} from "../lib/tracking/detection";
+import { endRecordingNow, endTripFailureCopy, endTripQueuedCopy } from "../lib/tracking/endTrip";
 import { Button } from "../components/Button";
 import { Skeleton } from "../components/Skeleton";
 import { Card } from "../components/Card";
@@ -33,7 +41,6 @@ import { HoldToConfirm } from "../components/HoldToConfirm";
 import { WaitTimer } from "../components/business/WaitTimer";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
 import { haptic } from "../lib/haptics";
-import { describeError } from "../lib/api/apiError";
 import { haversineDistance, formatMiles } from "@mileclear/shared";
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
@@ -94,6 +101,7 @@ export default function ActiveRecordingScreen() {
   const [endingTrip, setEndingTrip] = useState(false);
   const [now, setNow] = useState(Date.now());
   const navigatedAwayRef = useRef(false);
+  const endFailuresRef = useRef<{ key: number | null; count: number }>({ key: null, count: 0 });
   // Track the last whole-mile boundary we've haptic'd for. Fires a light
   // tick every time the live distance crosses an integer mile — gives the
   // driver a sense of progress without needing to look at the screen.
@@ -198,21 +206,51 @@ export default function ActiveRecordingScreen() {
   // its own warning/success haptics. This callback runs ONLY when the
   // user has held long enough to commit, so we go straight into
   // finalize without an Alert.alert confirmation gate.
+  //
+  // Only a recording that is actually closed goes to Trips. End waits for a
+  // finalize already running, and if the save fails the recording stays open
+  // on this screen with the reason (Tom, 14 Oct 2026: End went to Trips while
+  // nothing had been saved). See lib/tracking/endTrip.ts.
   const handleEndTripConfirmed = useCallback(async () => {
     setEndingTrip(true);
-    try {
-      await finalizeAutoTrip();
+    // Failed presses are counted per recording (keyed by its first fix), so a
+    // new recording never inherits an old one's count.
+    const recordingKey = snapshot.startedAt;
+    if (endFailuresRef.current.key !== recordingKey) {
+      endFailuresRef.current = { key: recordingKey, count: 0 };
+    }
+    const outcome = await endRecordingNow({
+      handOff: handOffOpenRecordingToQueue,
+      previousFailures: endFailuresRef.current.count,
+      isFinalizeInFlight,
+      waitForFinalize: waitForFinalizeInFlight,
+      finalize: finalizeAutoTrip,
+      isRecordingOpen: async () => {
+        const db = await getDatabase();
+        const row = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+        );
+        return row?.value === "1";
+      },
+      lastFinalizeFailure: getLastFinalizeFailure,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
+    if (outcome.kind === "closed" || outcome.kind === "queued") {
       navigatedAwayRef.current = true;
       router.replace("/(tabs)/trips");
-    } catch (err) {
-      setEndingTrip(false);
-      haptic("error");
-      // Name the real reason (offline-saved vs server vs session) instead of
-      // a raw error message — reliability Phase 1.
-      const { title, message } = describeError(err, "Couldn't end trip");
-      Alert.alert(title, message);
+      if (outcome.kind === "queued") {
+        const { title, message } = endTripQueuedCopy(outcome.queued);
+        Alert.alert(title, message);
+      }
+      return;
     }
-  }, [router]);
+    if (outcome.kind === "still_open") endFailuresRef.current.count += 1;
+    setEndingTrip(false);
+    refresh();
+    haptic("error");
+    const { title, message } = endTripFailureCopy(outcome);
+    Alert.alert(title, message);
+  }, [router, refresh, snapshot.startedAt]);
 
   if (loading) {
     // Skeleton-first loading: show the approximate shape of the hero card +
@@ -368,6 +406,8 @@ export default function ActiveRecordingScreen() {
         <HoldToConfirm
           label="Hold to end trip"
           holdingLabel="Keep holding…"
+          hint="Press and hold to end the trip"
+          earlyReleaseHint="Keep holding until the bar fills to end the trip"
           icon="stop-circle"
           onConfirm={handleEndTripConfirmed}
           loading={endingTrip}
