@@ -14,8 +14,16 @@
 // So End now waits for a finalize already running, runs its own if the
 // recording is still open, and then reads the recording flag. Only a closed
 // recording goes to Trips; an open one stays on screen with the reason.
+//
+// A save that fails every time must not leave the driver stuck on that
+// message (15 Oct 2026 review). On the second failed End for the same
+// recording, the recording is handed to the upload queue by the same rules as
+// the rescue on open (rescueHandoff.ts) and closed: the trip is in Trips,
+// waiting to upload.
 
 import { describeError } from "../api/apiError";
+
+export type HandOffResult = { kind: "busy" } | { kind: "keep" } | { kind: "closed"; queued: number };
 
 export interface EndTripDeps {
   /** A finalize pass is running right now. */
@@ -30,6 +38,10 @@ export interface EndTripDeps {
   lastFinalizeFailure: () => unknown;
   /** Resolves after `ms`: the longest End waits before handing back. */
   sleep: (ms: number) => Promise<void>;
+  /** detection.ts handOffOpenRecordingToQueue(). */
+  handOff: () => Promise<HandOffResult>;
+  /** Earlier End presses on THIS recording that left it open. */
+  previousFailures: number;
 }
 
 /** How long End keeps its spinner before saying "still saving". Finalize is
@@ -37,11 +49,17 @@ export interface EndTripDeps {
  *  background after this; the screen goes to Trips by itself when it closes. */
 export const END_TRIP_WAIT_MS = 45_000;
 
+/** Failed End presses on one recording before it is handed to the queue. */
+export const HAND_OFF_AFTER_FAILURES = 1;
+
 export type EndTripOutcome =
   /** The recording is closed: go to Trips. */
   | { kind: "closed" }
+  /** The save kept failing, so the recording went to the upload queue and
+   *  is closed: go to Trips, say it is waiting to upload. */
+  | { kind: "queued"; queued: number }
   /** Still open after the save: stay, say why. */
-  | { kind: "still_open"; error: unknown }
+  | { kind: "still_open"; error: unknown; willHandOffNext: boolean }
   /** The save is still running after END_TRIP_WAIT_MS: stay, say so. */
   | { kind: "still_saving" };
 
@@ -63,6 +81,15 @@ async function runEnd(deps: EndTripDeps): Promise<unknown> {
   return thrown;
 }
 
+async function readOpen(deps: EndTripDeps): Promise<boolean> {
+  try {
+    return await deps.isRecordingOpen();
+  } catch {
+    // Cannot tell: staying on the recording screen is the safe side.
+    return true;
+  }
+}
+
 export async function endRecordingNow(deps: EndTripDeps): Promise<EndTripOutcome> {
   const TIMED_OUT = Symbol("timed_out");
   const result = await Promise.race([
@@ -70,21 +97,27 @@ export async function endRecordingNow(deps: EndTripDeps): Promise<EndTripOutcome
     deps.sleep(END_TRIP_WAIT_MS).then(() => TIMED_OUT),
   ]);
   if (result === TIMED_OUT) return { kind: "still_saving" };
-  let open: boolean;
-  try {
-    open = await deps.isRecordingOpen();
-  } catch {
-    // Cannot tell: staying on the recording screen is the safe side.
-    open = true;
+  if (!(await readOpen(deps))) return { kind: "closed" };
+  const error = result ?? deps.lastFinalizeFailure() ?? null;
+  if (deps.previousFailures >= HAND_OFF_AFTER_FAILURES) {
+    let handed: HandOffResult = { kind: "keep" };
+    try {
+      handed = await deps.handOff();
+    } catch {}
+    if (handed.kind === "closed" && !(await readOpen(deps))) {
+      return { kind: "queued", queued: handed.queued };
+    }
+    if (handed.kind === "busy") return { kind: "still_saving" };
   }
-  if (!open) return { kind: "closed" };
-  return { kind: "still_open", error: result ?? deps.lastFinalizeFailure() ?? null };
+  return {
+    kind: "still_open",
+    error,
+    willHandOffNext: deps.previousFailures + 1 >= HAND_OFF_AFTER_FAILURES,
+  };
 }
 
-const KEPT_SAFE = "It's kept safe on your phone. Try again in a minute.";
-
 /** What the driver is told when End could not close the recording. */
-export function endTripFailureCopy(outcome: Exclude<EndTripOutcome, { kind: "closed" }>): {
+export function endTripFailureCopy(outcome: Extract<EndTripOutcome, { kind: "still_open" | "still_saving" }>): {
   title: string;
   message: string;
 } {
@@ -95,9 +128,29 @@ export function endTripFailureCopy(outcome: Exclude<EndTripOutcome, { kind: "clo
     };
   }
   const title = "Couldn't save this trip yet";
-  if (outcome.error == null) return { title, message: KEPT_SAFE };
+  const next = outcome.willHandOffNext
+    ? "It's kept safe on your phone. Hold End trip again and it will go into Trips to upload on its own."
+    : "It's kept safe on your phone. Try again in a minute.";
+  if (outcome.error == null) return { title, message: next };
   // savedLocally false: the offline wording must not promise an upload that
   // has not been queued. The reason comes first, then what happens next.
   const { message } = describeError(outcome.error, title, { savedLocally: false });
-  return { title, message: `${message}\n\n${KEPT_SAFE}` };
+  return { title, message: `${message}\n\n${next}` };
+}
+
+/** What the driver is told when the recording went to the upload queue. */
+export function endTripQueuedCopy(queued: number): { title: string; message: string } {
+  if (queued === 0) {
+    return {
+      title: "Recording ended",
+      message: "This recording didn't look like a drive (too short, a walk, or GPS drift), so no trip was added.",
+    };
+  }
+  return {
+    title: "Trip waiting to upload",
+    message:
+      queued === 1
+        ? "It's in Trips now and will finish uploading on its own. You don't need to do anything."
+        : `${queued} trips are in Trips now and will finish uploading on their own. You don't need to do anything.`,
+  };
 }

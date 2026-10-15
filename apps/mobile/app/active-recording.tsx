@@ -29,10 +29,11 @@ import { getDatabase } from "../lib/db/index";
 import {
   finalizeAutoTrip,
   getLastFinalizeFailure,
+  handOffOpenRecordingToQueue,
   isFinalizeInFlight,
   waitForFinalizeInFlight,
 } from "../lib/tracking/detection";
-import { endRecordingNow, endTripFailureCopy } from "../lib/tracking/endTrip";
+import { endRecordingNow, endTripFailureCopy, endTripQueuedCopy } from "../lib/tracking/endTrip";
 import { Button } from "../components/Button";
 import { Skeleton } from "../components/Skeleton";
 import { Card } from "../components/Card";
@@ -100,6 +101,7 @@ export default function ActiveRecordingScreen() {
   const [endingTrip, setEndingTrip] = useState(false);
   const [now, setNow] = useState(Date.now());
   const navigatedAwayRef = useRef(false);
+  const endFailuresRef = useRef<{ key: number | null; count: number }>({ key: null, count: 0 });
   // Track the last whole-mile boundary we've haptic'd for. Fires a light
   // tick every time the live distance crosses an integer mile — gives the
   // driver a sense of progress without needing to look at the screen.
@@ -211,7 +213,15 @@ export default function ActiveRecordingScreen() {
   // nothing had been saved). See lib/tracking/endTrip.ts.
   const handleEndTripConfirmed = useCallback(async () => {
     setEndingTrip(true);
+    // Failed presses are counted per recording (keyed by its first fix), so a
+    // new recording never inherits an old one's count.
+    const recordingKey = snapshot.startedAt;
+    if (endFailuresRef.current.key !== recordingKey) {
+      endFailuresRef.current = { key: recordingKey, count: 0 };
+    }
     const outcome = await endRecordingNow({
+      handOff: handOffOpenRecordingToQueue,
+      previousFailures: endFailuresRef.current.count,
       isFinalizeInFlight,
       waitForFinalize: waitForFinalizeInFlight,
       finalize: finalizeAutoTrip,
@@ -225,17 +235,22 @@ export default function ActiveRecordingScreen() {
       lastFinalizeFailure: getLastFinalizeFailure,
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     });
-    if (outcome.kind === "closed") {
+    if (outcome.kind === "closed" || outcome.kind === "queued") {
       navigatedAwayRef.current = true;
       router.replace("/(tabs)/trips");
+      if (outcome.kind === "queued") {
+        const { title, message } = endTripQueuedCopy(outcome.queued);
+        Alert.alert(title, message);
+      }
       return;
     }
+    if (outcome.kind === "still_open") endFailuresRef.current.count += 1;
     setEndingTrip(false);
     refresh();
     haptic("error");
     const { title, message } = endTripFailureCopy(outcome);
     Alert.alert(title, message);
-  }, [router, refresh]);
+  }, [router, refresh, snapshot.startedAt]);
 
   if (loading) {
     // Skeleton-first loading: show the approximate shape of the hero card +
