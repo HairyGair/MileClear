@@ -1379,6 +1379,27 @@ export function isFinalizeInFlight(): boolean {
   return finalizingTrip;
 }
 
+// Settles when the finalize pass now running has finished (cleanup included).
+// Never rejects. For the End trip button (endTrip.ts): a press while a
+// finalize is already running used to return at once, and the screen went to
+// Trips while the recording was still open (Tom, 14 Oct 2026).
+let finalizingPromise: Promise<void> | null = null;
+
+/** Wait for the finalize pass in flight, if any. Never rejects. */
+export function waitForFinalizeInFlight(): Promise<void> {
+  return finalizingPromise ?? Promise.resolve();
+}
+
+// Why the last finalize pass left the recording open (the save threw and the
+// fixes were kept for a retry). Cleared when a pass starts. Read by End trip
+// to tell the driver the real reason instead of moving on as if it saved.
+let lastFinalizeFailure: unknown = null;
+
+/** The error the last finalize pass kept the recording open for, or null. */
+export function getLastFinalizeFailure(): unknown {
+  return lastFinalizeFailure;
+}
+
 // Set by the multileg-deferral block in _finalizeAutoTripInner when real legs
 // remain in the buffer after a pass. Read by finalizeAutoTrip's drain loop.
 // This REPLACED a fire-and-forget setTimeout(finalizeAutoTrip, 600): the first
@@ -1517,63 +1538,76 @@ export async function finalizeAutoTrip(): Promise<void> {
     return;
   }
   finalizingTrip = true;
-  // Surface "Saving trip…" on the dashboard status strip while finalize runs.
-  // Best-effort both ways; the strip ignores a stale flag after 2 minutes.
+  let settleInFlight: () => void = () => {};
+  const inFlight = new Promise<void>((resolve) => {
+    settleInFlight = resolve;
+  });
+  finalizingPromise = inFlight;
+  lastFinalizeFailure = null;
   try {
-    const db = await getDatabase();
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalizing_trip_at', ?)",
-      [String(Date.now())]
-    );
-  } catch {}
-  // Drain RNBG's native location store into the JS buffer FIRST, so every
-  // finalize entry path — stationary, heartbeat, stale sweeper, lock-screen
-  // intent, watchdog silent push, app open — judges the FULL route. Only the
-  // stationary/heartbeat paths used to reconcile; the stale sweeper didn't,
-  // and it discarded Sharon Mallinson's real 11 Jun drive as a 5-coord
-  // walking-shape phantom while the native store held the whole journey.
-  try {
-    const { reconcileNativeBufferBeforeFinalize } = await import("./nativeLocation");
-    await reconcileNativeBufferBeforeFinalize();
-  } catch {}
-  // With the native store drained in, drop the fixes a shift's breadcrumbs
-  // or a trip already saved from them cover, so the same drive is never saved
-  // twice. See ownedFixes.ts.
-  await dropFixesAlreadyRecorded();
-  try {
-    // Drain loop: a multileg buffer defers its remaining real legs and sets
-    // deferredFinalizePending; each pass consumes the oldest leg, so the loop
-    // shrinks the buffer monotonically. Run the passes HERE, inside the
-    // re-entrancy guard we already hold - the old setTimeout(600) follow-up
-    // raced this very guard and lost whenever the first pass's save took
-    // longer than 600ms (it usually does; it's network-bound). The cap is a
-    // backstop only: a real journey has single-digit legs.
-    const MAX_FINALIZE_PASSES = 8;
-    let passes = 0;
-    do {
-      deferredFinalizePending = false;
-      await _finalizeAutoTripInner();
-      passes++;
-    } while (deferredFinalizePending && passes < MAX_FINALIZE_PASSES);
-  } finally {
-    finalizingTrip = false;
+    // Surface "Saving trip…" on the dashboard status strip while finalize runs.
+    // Best-effort both ways; the strip ignores a stale flag after 2 minutes.
     try {
       const db = await getDatabase();
-      await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'");
+      await db.runAsync(
+        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('finalizing_trip_at', ?)",
+        [String(Date.now())]
+      );
     } catch {}
-    // Clear the native store after EVERY finalize (not just the stationary /
-    // heartbeat paths) so a stale-sweeper or app-open finalize can't leak a
-    // previous trip's fixes into the next recording's reconcile.
+    // Drain RNBG's native location store into the JS buffer FIRST, so every
+    // finalize entry path — stationary, heartbeat, stale sweeper, lock-screen
+    // intent, watchdog silent push, app open — judges the FULL route. Only the
+    // stationary/heartbeat paths used to reconcile; the stale sweeper didn't,
+    // and it discarded Sharon Mallinson's real 11 Jun drive as a 5-coord
+    // walking-shape phantom while the native store held the whole journey.
     try {
-      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
-      // Not under a Start Trip / shift lock: the store then holds that trip's
-      // own duplicate copy and the end-of-trip cleanup clears it (and needs it
-      // to find any pre-window fixes).
-      if (isNativeEngineAvailable() && !(await shiftSuppressesAutoDetection(await getDatabase()))) {
-        await destroyNativeLocations();
-      }
+      const { reconcileNativeBufferBeforeFinalize } = await import("./nativeLocation");
+      await reconcileNativeBufferBeforeFinalize();
     } catch {}
-    await releaseStrandedQuickTripLock();
+    // With the native store drained in, drop the fixes a shift's breadcrumbs
+    // or a trip already saved from them cover, so the same drive is never saved
+    // twice. See ownedFixes.ts.
+    await dropFixesAlreadyRecorded();
+    try {
+      // Drain loop: a multileg buffer defers its remaining real legs and sets
+      // deferredFinalizePending; each pass consumes the oldest leg, so the loop
+      // shrinks the buffer monotonically. Run the passes HERE, inside the
+      // re-entrancy guard we already hold - the old setTimeout(600) follow-up
+      // raced this very guard and lost whenever the first pass's save took
+      // longer than 600ms (it usually does; it's network-bound). The cap is a
+      // backstop only: a real journey has single-digit legs.
+      const MAX_FINALIZE_PASSES = 8;
+      let passes = 0;
+      do {
+        deferredFinalizePending = false;
+        await _finalizeAutoTripInner();
+        passes++;
+      } while (deferredFinalizePending && passes < MAX_FINALIZE_PASSES);
+    } finally {
+      finalizingTrip = false;
+      try {
+        const db = await getDatabase();
+        await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'");
+      } catch {}
+      // Clear the native store after EVERY finalize (not just the stationary /
+      // heartbeat paths) so a stale-sweeper or app-open finalize can't leak a
+      // previous trip's fixes into the next recording's reconcile.
+      try {
+        const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+        // Not under a Start Trip / shift lock: the store then holds that trip's
+        // own duplicate copy and the end-of-trip cleanup clears it (and needs it
+        // to find any pre-window fixes).
+        if (isNativeEngineAvailable() && !(await shiftSuppressesAutoDetection(await getDatabase()))) {
+          await destroyNativeLocations();
+        }
+      } catch {}
+      await releaseStrandedQuickTripLock();
+    }
+  } finally {
+    // The guard drops before the cleanup above ends, so a new pass may have
+    // started and set its own promise: leave that one in place.
+    if (finalizingPromise === inFlight) finalizingPromise = null;
+    settleInFlight();
   }
 }
 
@@ -3218,6 +3252,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
     // The fixes stay on the phone and the next app open finalises again, so
     // this is not a loss yet, but it is a drive with no trip for now.
+    lastFinalizeFailure = err;
     await noteRecordingDropped({ reason: "error", detail: errorMessage, ...dropSpan(allCoords) });
     // Dismiss Live Activity on failure
     endLiveActivity().catch(() => {});
