@@ -647,21 +647,25 @@ export function homeVehicleName(v: Pick<HomeOdometerVehicle, "make" | "model" | 
   return plate || "Your vehicle";
 }
 
-/** "Your reading on Wed 8 Oct, plus 72 mi of trips", "Your reading today", or null. */
-export function homeOdometerLine(current: OdometerCurrent | null | undefined, now: Date = new Date()): string | null {
-  if (!current || !current.basis) return null;
-  const at = new Date(current.basis.readAt);
+/**
+ * "Your reading on Wed 8 Oct, plus 72 mi of trips", "Your reading today", or
+ * null. Reads the /vehicles odometer field; an older server sends no basis.
+ */
+export function homeOdometerLine(odo: VehicleListOdometer | null | undefined, now: Date = new Date()): string | null {
+  if (!odo || !odo.basis) return null;
+  const at = new Date(odo.basis.readAt);
   if (Number.isNaN(at.getTime())) return null;
   const today =
     at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth() && at.getDate() === now.getDate();
   const when = today ? "today" : `on ${shortDate(at)}`;
   const start =
-    current.basis.source === "fuel"
+    odo.basis.source === "fuel"
       ? `From your fuel log ${when}`
-      : current.basis.source === "trip"
+      : odo.basis.source === "trip"
         ? `From a trip ${when}`
         : `Your reading ${when}`;
-  const trips = Math.round(Number.isFinite(current.tripMilesSince) ? current.tripMilesSince : 0);
-  if (!current.isEstimated || trips < 1) return start;
+  const since = odo.tripMilesSince;
+  const trips = Math.round(typeof since === "number" && Number.isFinite(since) ? since : 0);
+  if (!odo.isEstimated || trips < 1) return start;
   return `${start}, plus ${formatOdo(trips)} mi of trips`;
 }
