@@ -122,6 +122,21 @@ describe("POST /trips records how the trip was recorded", () => {
     expect(res.statusCode).toBe(201);
     expect(createdData().recordedBy).toBe("added_by_hand");
   });
+
+  it("keeps the app's gpsQuality but never a key only the server writes", async () => {
+    const res = await app.inject({
+      method: "POST", url: "/trips", headers: auth,
+      payload: manualPayload({
+        gpsQuality: {
+          driverKeptGoing: true,
+          endExtension: { recordedEndLat: 53.4, recordedEndLng: -2.9, addedMiles: 20, recordedEndedAt: null, breadcrumbAt: null },
+          appendOutlierCut: { removedMiles: 5, fromMiles: 10, toMiles: 5 },
+        },
+      }),
+    });
+    expect(res.statusCode).toBe(201);
+    expect(createdData().gpsQuality).toEqual({ driverKeptGoing: true });
+  });
 });
 
 describe("POST /trips/merge records how many trips were joined", () => {

@@ -18,7 +18,8 @@
 // reduces a stored distance.
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { gpsQualityRetiringEndNote } from "../src/services/tripEndEdit.js";
 import { matchTripRoute, isMatchPlausible } from "../src/services/mapMatching.js";
 import { upsertMileageSummary } from "../src/services/mileage.js";
 import { logEvent } from "../src/services/appEvents.js";
@@ -79,6 +80,7 @@ async function main() {
       id: true,
       userId: true,
       distanceMiles: true,
+      gpsQuality: true,
       startedAt: true,
       coordinates: {
         orderBy: { recordedAt: "asc" },
@@ -146,11 +148,15 @@ async function main() {
     );
 
     if (!dryRun) {
+      const retired = updateDistance ? gpsQualityRetiringEndNote(t.gpsQuality) : undefined;
       await prisma.trip.update({
         where: { id: t.id },
         data: {
           routePolyline: result.encodedPolyline,
           ...(updateDistance ? { distanceMiles: result.distanceMiles } : {}),
+          // A new distance retires any end-edit note (src/services/tripEndEdit.ts),
+          // or the driver's next end edit would take the old stretch off it.
+          ...(retired ? { gpsQuality: retired as Prisma.InputJsonValue } : {}),
         },
       });
 

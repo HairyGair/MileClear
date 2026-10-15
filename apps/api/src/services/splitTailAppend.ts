@@ -19,8 +19,10 @@
 //
 // The pure plan lives here so it can be tested without a database.
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { trailDistanceMiles } from "./tripSplit.js";
+import { gpsQualityRetiringEndNote } from "./tripEndEdit.js";
 
 export interface IncomingCoordinate {
   lat: number;
@@ -135,7 +137,7 @@ export async function appendToSplitTail(args: {
   return prisma.$transaction(async (tx) => {
     const tail = await tx.trip.findUniqueOrThrow({
       where: { id: family.tailId },
-      select: { id: true, startedAt: true, endedAt: true, distanceMiles: true },
+      select: { id: true, startedAt: true, endedAt: true, distanceMiles: true, gpsQuality: true },
     });
     const held = await tx.tripCoordinate.findMany({
       where: { tripId: { in: family.familyIds } },
@@ -166,6 +168,7 @@ export async function appendToSplitTail(args: {
         })),
       });
       const last = plan.fresh[plan.fresh.length - 1];
+      const withoutEndNote = gpsQualityRetiringEndNote(tail.gpsQuality);
       const endedAt =
         tail.endedAt && tail.endedAt.getTime() > last.recordedAt.getTime() ? tail.endedAt : last.recordedAt;
       await tx.trip.update({
@@ -180,6 +183,9 @@ export async function appendToSplitTail(args: {
           // name for the new end wins; otherwise the geocode job fills it.
           endAddress: endAddress ?? null,
           routePolyline: null,
+          // The tail now ends where the phone says, not where an earlier end
+          // edit put it, so that edit's note no longer applies.
+          ...(withoutEndNote ? { gpsQuality: withoutEndNote as Prisma.InputJsonValue } : {}),
         },
       });
     }

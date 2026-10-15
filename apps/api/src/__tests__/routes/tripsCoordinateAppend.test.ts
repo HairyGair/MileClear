@@ -24,6 +24,8 @@ vi.mock("../../lib/prisma.js", () => ({
     },
     tripCoordinate: {
       findMany: vi.fn(),
+      // The end-edit note check reads the trail's last point.
+      findFirst: vi.fn().mockResolvedValue(null),
       createMany: vi.fn(),
       deleteMany: vi.fn(),
     },

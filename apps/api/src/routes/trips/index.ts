@@ -75,7 +75,12 @@ import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import { runLateStartAroundNewTrip } from "../../services/lateStart.js";
 import { runDiversionHook, loadDiversionsForTrips } from "../../services/diversions.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
-import { planTripEndEdit } from "../../services/tripEndEdit.js";
+import {
+  planTripEndEdit,
+  readEndExtension,
+  stripServerOwnedGpsQuality,
+  retireEndNoteForNewDistance,
+} from "../../services/tripEndEdit.js";
 import {
   getSplitSuggestions,
   executeTripSplit,
@@ -179,7 +184,9 @@ const createTripSchema = z.object({
   coordinates: z.array(coordinateInputSchema).max(20000).optional(),
   // Client-computed GPS quality summary. Free-form so we can iterate the
   // shape without a schema migration; admin queries look for known keys.
-  gpsQuality: z.record(z.unknown()).optional(),
+  // Keys only the server writes (the end-edit note, stale-fix cuts) are
+  // dropped: a client must never be able to plant them.
+  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality),
   // Optional odometer readings (miles) corroborating the distance.
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
@@ -260,9 +267,15 @@ const updateTripSchema = z.object({
   // extended the trip over a stretch with no path behind it.
   coordinates: z.array(coordinateInputSchema).max(20000).optional(),
   // Merge-patched into the stored blob, never replacing it: the device only
-  // ever knows the keys it is setting (driverKeptGoing, today).
-  gpsQuality: z.record(z.unknown()).optional(),
+  // ever knows the keys it is setting (driverKeptGoing, today). Server-owned
+  // keys are dropped, as on create.
+  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality),
 });
+
+/** The PATCH brings breadcrumbs to append (a phone merge). */
+function hasAppendCoordinatesEarly(updates: { coordinates?: unknown[] }): boolean {
+  return (updates.coordinates?.length ?? 0) > 0;
+}
 
 const listTripsQuery = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
@@ -3171,11 +3184,15 @@ export async function tripRoutes(app: FastifyInstance) {
       });
     }
 
+    // A new distance replaces the one an end-edit note was written against,
+    // so the note is retired (services/tripEndEdit.ts).
+    const retiredEndNote = newMiles !== null ? await retireEndNoteForNewDistance(trip) : undefined;
     const updated = await prisma.trip.update({
       where: { id },
       data: {
         ...(newMiles !== null ? { distanceMiles: newMiles } : {}),
         ...(newPolyline !== null ? { routePolyline: newPolyline } : {}),
+        ...(retiredEndNote ? { gpsQuality: retiredEndNote as Prisma.InputJsonValue } : {}),
       },
       include: { vehicle: true, shift: true, coordinates: { orderBy: { recordedAt: "asc" } } },
     });
@@ -3383,9 +3400,14 @@ export async function tripRoutes(app: FastifyInstance) {
     // A tracked trip whose start or end moved keeps every recorded mile and
     // gains the routed stretch outside it. Never a re-route between two
     // points: that would discard the trail they actually drove.
-    const extensionMiles = (startEdit?.addedMiles ?? 0) + (endEdit?.addedMiles ?? 0);
-    if (distanceMiles === undefined && extensionMiles > 0) {
-      distanceMiles = Math.round((existing.distanceMiles + extensionMiles) * 100) / 100;
+    // A second end edit REPLACES the stretch the first one added (Tom, 15 Oct
+    // 2026: two edits stacked 20.82 + 20.85 miles onto a 1.17 mile drive), so
+    // the earlier stretch comes off before the new one goes on. A start
+    // extension in the same PATCH is its own stretch and is simply added.
+    const extensionMiles =
+      (startEdit?.addedMiles ?? 0) + (endEdit ? endEdit.addedMiles - endEdit.replacedMiles : 0);
+    if (distanceMiles === undefined && extensionMiles !== 0) {
+      distanceMiles = Math.max(0, Math.round((existing.distanceMiles + extensionMiles) * 100) / 100);
     }
     // A recorded trip whose end moved never takes the end-to-end route below,
     // whether the stretch could not be priced or the pin only shifted a few
@@ -3469,21 +3491,44 @@ export async function tripRoutes(app: FastifyInstance) {
     const rememberDeviceStart =
       startEdit != null && existing.originalStartLat == null && existing.originalStartLng == null;
 
+    // The note of how far an end edit extended the recording
+    // (services/tripEndEdit.ts). An end edit writes or removes it. A distance
+    // the client sends outright (a driver typing the miles, the phone's merge
+    // figure) replaces whatever the note describes, so the note goes: the
+    // next end edit then starts from the trip as it stands.
+    // A note is never deleted, only retired to null (see
+    // gpsQualityRetiringEndNote), so a later edit does not mistake the trip
+    // for one edited before notes existed.
+    let endExtensionChange: { set: unknown } | null = null;
+    if (updates.distanceMiles !== undefined) {
+      // The client's figure wins. With an end move in the same save, the
+      // stretch it brings is part of that figure, so it is never one to take
+      // off later: retired, even on a trip that had no note before.
+      const retired = endEdit ? true : (await retireEndNoteForNewDistance(existing)) != null;
+      if (retired) endExtensionChange = { set: null };
+    } else if (endEdit) {
+      if (endEdit.extension) endExtensionChange = { set: { ...endEdit.extension } };
+      else if (endEdit.extension === null) endExtensionChange = { set: null };
+    }
+    // A phone merge that clears the note also takes away the note's stand-in
+    // point: left in the trail, its out-and-back jump to the edited end would
+    // be counted by every later recompute of the trail.
+    const mergeStandInAt =
+      hasAppendCoordinatesEarly(updates) && updates.distanceMiles !== undefined
+        ? readEndExtension(existing.gpsQuality)?.breadcrumbAt ?? null
+        : null;
+    let nextGpsQuality: Record<string, unknown> | null = null;
+    if (incomingGpsQuality || endExtensionChange) {
+      nextGpsQuality = {
+        ...existingGpsQuality,
+        ...(incomingGpsQuality ?? {}),
+      };
+      if (endExtensionChange) nextGpsQuality.endExtension = endExtensionChange.set;
+    }
+
     const tripUpdateData = {
       ...restUpdates,
-      ...(incomingGpsQuality
-        ? {
-            gpsQuality: {
-              ...existingGpsQuality,
-              ...incomingGpsQuality,
-              // The server's record of miles it took off (services/appendDistance)
-              // is never the phone's to overwrite.
-              ...(existingGpsQuality.appendOutlierCut !== undefined
-                ? { appendOutlierCut: existingGpsQuality.appendOutlierCut }
-                : {}),
-            } as Prisma.InputJsonValue,
-          }
-        : {}),
+      ...(nextGpsQuality ? { gpsQuality: nextGpsQuality as Prisma.InputJsonValue } : {}),
       ...(distanceMiles !== undefined && { distanceMiles }),
       ...(shouldWriteAutoAccepted && { classificationAutoAccepted: incomingAutoAccepted }),
       // The driver has set the classification themselves: it is theirs now,
@@ -3517,6 +3562,18 @@ export async function tripRoutes(app: FastifyInstance) {
           data: tripUpdateData,
           include: { vehicle: true, shift: true },
         });
+
+        if (mergeStandInAt) {
+          const gone = await tx.tripCoordinate.deleteMany({
+            where: { tripId: id, recordedAt: new Date(mergeStandInAt), speed: null, accuracy: null },
+          });
+          if (gone.count > 0) {
+            await tx.trip.update({
+              where: { id },
+              data: { coordinateCount: { decrement: gone.count } },
+            });
+          }
+        }
 
         const stored = await tx.tripCoordinate.findMany({
           where: { tripId: id },
@@ -3669,6 +3726,22 @@ export async function tripRoutes(app: FastifyInstance) {
     }
 
     if (endEdit) {
+      if (endEdit.removeBreadcrumbsAt.length > 0) {
+        // The earlier edits' stand-in points mark ends the trip no longer
+        // has. Only the server-made points go: no speed or accuracy, at
+        // exactly those times.
+        const removed = await prisma.tripCoordinate
+          .deleteMany({
+            where: { tripId: id, recordedAt: { in: endEdit.removeBreadcrumbsAt }, speed: null, accuracy: null },
+          })
+          .then((r) => r.count, () => 0);
+        if (removed > 0) {
+          await prisma.trip.update({
+            where: { id },
+            data: { coordinateCount: { decrement: removed } },
+          });
+        }
+      }
       if (endEdit.appendCoordinate) {
         // The breadcrumb is dated after the recording's last point, so the
         // trail reads in order and the map draws the extra stretch. The count
@@ -3692,9 +3765,16 @@ export async function tripRoutes(app: FastifyInstance) {
           });
         }
       }
+      // When the client sent the distance, it won: nothing was added, and the
+      // event must say so (a later edit reads addedMiles off these events
+      // for trips edited before notes existed).
+      const clientDistance = updates.distanceMiles !== undefined;
       logEvent("trip.end_edited", userId, {
         tripId: id,
-        addedMiles: endEdit.addedMiles,
+        addedMiles: clientDistance ? 0 : endEdit.addedMiles,
+        replacedMiles: clientDistance ? 0 : endEdit.replacedMiles,
+        ...(clientDistance ? { clientDistance: true, routedMiles: endEdit.addedMiles } : {}),
+        priorSource: endEdit.priorSource,
         crowMiles: endEdit.crowMiles,
         distanceUnchanged: endEdit.distanceUnchangedReason,
         wasManual: existing.isManualEntry,
