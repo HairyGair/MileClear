@@ -75,6 +75,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => onSessionExpired(null);
   }, []);
 
+  // Signed out (by hand or an expired session): forget the Home odometer
+  // card's saved figure so the next driver on this phone never sees it.
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return;
+    import("../home/odometerCache")
+      .then((m) => m.clearHomeOdometerCache())
+      .catch(() => {});
+  }, [isLoading, isAuthenticated]);
+
   const login = useCallback(async (email: string, password: string) => {
     await authLogin(email, password);
     setIsAuthenticated(true);

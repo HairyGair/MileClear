@@ -18,6 +18,7 @@ import { SaCountdownCard } from "../../components/dashboard/tax/SaCountdownCard"
 import { JourneyMapCard } from "../../components/dashboard/trips/JourneyMapCard";
 import { BusinessMileageCard } from "../../components/dashboard/trips/BusinessMileageCard";
 import { OdometerPromptCard } from "../../components/dashboard/driving/OdometerPromptCard";
+import { HomeOdometerCard } from "../../components/dashboard/driving/HomeOdometerCard";
 import { RoadAlertsCard } from "../../components/dashboard/driving/RoadAlertsCard";
 import { ShiftSuggestionCard } from "../../components/dashboard/driving/ShiftSuggestionCard";
 import { CommunityMonthCard } from "../../components/dashboard/insights/CommunityMonthCard";
@@ -52,6 +53,7 @@ export default function HomePage() {
         <>
           <HomeGrid hero={<WorkHeroCard mode="work" />}>
             <OdometerPromptCard mode="work" />
+            <HomeOdometerCard mode="work" />
             <RoadAlertsCard mode="work" />
             <TaxReadinessCard mode="work" />
             <SaCountdownCard mode="work" />
@@ -73,6 +75,7 @@ export default function HomePage() {
       ) : (
         <>
           <HomeGrid hero={<PersonalSummaryCard mode="personal" />}>
+            <HomeOdometerCard mode="personal" />
             <RoadAlertsCard mode="personal" />
             <MilestoneCard mode="personal" />
             <MonthlyHistoryCard mode="personal" />

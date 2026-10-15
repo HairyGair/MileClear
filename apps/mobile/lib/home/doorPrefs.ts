@@ -12,8 +12,12 @@
 //   setDoorRowHidden(id, hidden): Promise<DoorRowId[]>   (returns the new list)
 //   showAllDoorRows(): Promise<void>
 
-/** The rows a driver may hide. The road alert row is never hideable. */
-export const DOOR_ROW_IDS = ["tax", "insights", "earnings", "badges", "fuel"] as const;
+/**
+ * The rows a driver may hide. The road alert row is never hideable.
+ * "odometer" is the Odometer card (15 Oct 2026): it sits above the shortcuts
+ * rather than among them, but hides and comes back the same way.
+ */
+export const DOOR_ROW_IDS = ["tax", "insights", "earnings", "badges", "fuel", "odometer"] as const;
 export type DoorRowId = (typeof DOOR_ROW_IDS)[number];
 
 /** Plain names for the Settings page. */
@@ -23,6 +27,7 @@ export const DOOR_ROW_LABELS: Record<DoorRowId, string> = {
   earnings: "Earnings",
   badges: "Badges",
   fuel: "Fuel",
+  odometer: "Odometer",
 };
 
 export const DOOR_PREFS_KEY = "home_hidden_door_rows";

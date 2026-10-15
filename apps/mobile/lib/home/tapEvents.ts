@@ -25,6 +25,7 @@ export type HomeTapTarget =
   | "door_badges"
   | "door_fuel"
   | "door_help"
+  | "door_odometer"
   | "door_hide"
   | "first_trip_add_past"
   // ask_<id> and ask_dismiss_<id>, e.g. ask_pro, ask_dismiss_vehicle

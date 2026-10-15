@@ -105,6 +105,9 @@
 .listTitle { font-size: var(--mc-fs-row); font-weight: 600; color: var(--mc-text-1); margin: 0; }
 .listSub { font-size: var(--mc-fs-hint); color: var(--mc-text-2); margin: 0; }
 .listFig { font-weight: 600; color: var(--mc-text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Home odometer card: the running figure, with "est." in quieter text (never colour). */
+.homeOdoFigure { font-size: var(--mc-fs-title); font-weight: 600; color: var(--mc-text-1); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.homeOdoEst { font-size: var(--mc-fs-hint); font-weight: 500; color: var(--mc-text-2); }
 .statGrid { display: grid; gap: var(--mc-s-md); grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 768px) { .statGrid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .statGrid4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .slider { width: 100%; accent-color: var(--mc-amber); min-height: var(--mc-tap); }

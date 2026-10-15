@@ -53,6 +53,7 @@ const ICONS: Record<DoorId, string> = {
   earnings: "cash-outline",
   badges: "ribbon-outline",
   fuel: "water-outline",
+  odometer: "speedometer-outline",
   help: "help-circle-outline",
 };
 
@@ -63,6 +64,7 @@ const ROUTES: Record<DoorId, string> = {
   earnings: "/(tabs)/earnings",
   badges: "/achievements",
   fuel: "/(tabs)/fuel",
+  odometer: "/odometer-log",
   help: "/help",
 };
 
@@ -140,7 +142,10 @@ export function isEndOfWeek(now: Date): boolean {
   return (d === 0 && h >= 18) || (d === 1 && h < 12);
 }
 
-/** The shortcuts that can ever show for this driver (Settings > Home screen lists these). */
+/**
+ * The shortcuts that can ever show for this driver (Settings > Home screen
+ * lists these). The Odometer card can show for everyone, in both modes.
+ */
 export function availableDoorRows(args: { mode: "work" | "personal"; persona: HomePersona }): DoorRowId[] {
-  return doorOrder({ ...args, totalTrips: 1, endOfWeek: false });
+  return [...doorOrder({ ...args, totalTrips: 1, endOfWeek: false }), "odometer"];
 }

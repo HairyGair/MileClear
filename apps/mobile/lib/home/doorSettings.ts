@@ -8,7 +8,7 @@ export interface DoorSwitch {
   label: string;
   hint: string;
   /** The same icon the row shows on Home, so the two are easy to match up. */
-  icon: "document-text-outline" | "stats-chart-outline" | "cash-outline" | "ribbon-outline" | "water-outline";
+  icon: "document-text-outline" | "stats-chart-outline" | "cash-outline" | "ribbon-outline" | "water-outline" | "speedometer-outline";
   /** True when the row is allowed to show on Home. */
   shown: boolean;
 }
@@ -19,6 +19,7 @@ const DETAILS: Record<DoorRowId, { hint: string; icon: DoorSwitch["icon"] }> = {
   earnings: { hint: "What you were paid this week", icon: "cash-outline" },
   badges: { hint: "The next badge you can earn", icon: "ribbon-outline" },
   fuel: { hint: "Cheap fuel near you", icon: "water-outline" },
+  odometer: { hint: "Your running odometer, once you have added a reading", icon: "speedometer-outline" },
 };
 
 /** `available` limits the list to rows this driver can see (see availableDoorRows). */

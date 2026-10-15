@@ -608,3 +608,64 @@ export function higherThanLaterAlert(laterMiles: number, laterAt: Date) {
     body: `That's higher than your reading of ${formatOdo(laterMiles)} on ${shortDate(laterAt)}, which was taken later. Check the reading or the time.`,
   };
 }
+
+// ── Home card (15 Oct 2026) ──────────────────────────────────────────
+// Same rules as apps/mobile/lib/home/odometerCard.ts (unit tested there).
+
+export const MAX_HOME_ODOMETER_ROWS = 3;
+
+export interface HomeOdometerVehicle {
+  id: string;
+  make?: string | null;
+  model?: string | null;
+  registrationPlate?: string | null;
+  isPrimary?: boolean | null;
+  odometer?: VehicleListOdometer | null;
+}
+
+function hasHomeFigure<T extends HomeOdometerVehicle>(v: T): v is T & { odometer: VehicleListOdometer } {
+  const o = v.odometer;
+  return !!o && typeof o.miles === "number" && Number.isFinite(o.miles) && o.miles >= 0;
+}
+
+/** Vehicles with a reading, primary first, then list order, at most three. Empty hides the card. */
+export function selectHomeOdometerVehicles<T extends HomeOdometerVehicle>(
+  vehicles: readonly T[] | null | undefined
+): Array<T & { odometer: VehicleListOdometer }> {
+  if (!vehicles) return [];
+  const withFigure = vehicles.filter(hasHomeFigure);
+  return [...withFigure.filter((v) => v.isPrimary), ...withFigure.filter((v) => !v.isPrimary)].slice(
+    0,
+    MAX_HOME_ODOMETER_ROWS
+  );
+}
+
+export function homeVehicleName(v: Pick<HomeOdometerVehicle, "make" | "model" | "registrationPlate">): string {
+  const name = [v.make, v.model].map((s) => (s ?? "").trim()).filter(Boolean).join(" ");
+  if (name) return name;
+  const plate = (v.registrationPlate ?? "").trim();
+  return plate || "Your vehicle";
+}
+
+/**
+ * "Your reading on Wed 8 Oct, plus 72 mi of trips", "Your reading today", or
+ * null. Reads the /vehicles odometer field; an older server sends no basis.
+ */
+export function homeOdometerLine(odo: VehicleListOdometer | null | undefined, now: Date = new Date()): string | null {
+  if (!odo || !odo.basis) return null;
+  const at = new Date(odo.basis.readAt);
+  if (Number.isNaN(at.getTime())) return null;
+  const today =
+    at.getFullYear() === now.getFullYear() && at.getMonth() === now.getMonth() && at.getDate() === now.getDate();
+  const when = today ? "today" : `on ${shortDate(at)}`;
+  const start =
+    odo.basis.source === "fuel"
+      ? `From your fuel log ${when}`
+      : odo.basis.source === "trip"
+        ? `From a trip ${when}`
+        : `Your reading ${when}`;
+  const since = odo.tripMilesSince;
+  const trips = Math.round(typeof since === "number" && Number.isFinite(since) ? since : 0);
+  if (!odo.isEstimated || trips < 1) return start;
+  return `${start}, plus ${formatOdo(trips)} mi of trips`;
+}

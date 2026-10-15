@@ -4,6 +4,7 @@ import {
   odometerDays,
   odometerStateAt,
   odometerDateKey,
+  odometerListSummary,
 } from "./odometer.js";
 import type { OdometerDay, OdometerTripInput, OdometerAnchorInput } from "./odometer.js";
 
@@ -482,5 +483,28 @@ describe("invariant over a busy mixed history", () => {
     }
     const tl = buildOdometerTimeline({ trips, anchors });
     expectInvariant(odometerDays(tl, "2026-09-01", "2026-09-30"));
+  });
+});
+
+describe("odometerListSummary", () => {
+  it("is null with no reading", () => {
+    expect(odometerListSummary(null)).toBeNull();
+    expect(odometerListSummary(undefined)).toBeNull();
+  });
+
+  it("carries the figure, the reading it is built on and the trip miles since", () => {
+    expect(
+      odometerListSummary({
+        miles: 45135.2,
+        isEstimated: true,
+        basis: { readingMiles: 45100, readAt: "2026-10-09T06:30:00.000Z", source: "fuel", sourceId: "f1" },
+        tripMilesSince: 35.2,
+      })
+    ).toEqual({
+      miles: 45135.2,
+      isEstimated: true,
+      basis: { readingMiles: 45100, readAt: "2026-10-09T06:30:00.000Z", source: "fuel" },
+      tripMilesSince: 35.2,
+    });
   });
 });

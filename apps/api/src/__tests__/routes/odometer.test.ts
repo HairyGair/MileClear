@@ -503,7 +503,12 @@ describe("odometer routes", () => {
       const res = await app.inject({ method: "GET", url: "/vehicles", headers: auth });
       expect(res.statusCode).toBe(200);
       const [a, b] = res.json().data;
-      expect(a.odometer).toEqual({ miles: 45112, isEstimated: true });
+      expect(a.odometer).toEqual({
+        miles: 45112,
+        isEstimated: true,
+        basis: { readingMiles: 45100, readAt: "2026-10-09T06:30:00.000Z", source: "user" },
+        tripMilesSince: 12,
+      });
       expect(b.odometer).toBeNull();
     });
 
