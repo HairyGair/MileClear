@@ -52,7 +52,7 @@ export default function HomeScreenSettings() {
   return (
     <SettingsScreen>
       <Text style={styles.intro}>
-        Home shows up to three shortcuts under your last trip. Switch off the ones you don&apos;t want. A shortcut only appears
+        Home shows your odometer and up to three shortcuts. Switch off the ones you don&apos;t want. Each one only appears
         when it has something to tell you.
       </Text>
       <SettingsGroup title="Shortcuts on Home">

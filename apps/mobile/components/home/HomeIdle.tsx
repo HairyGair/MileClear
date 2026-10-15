@@ -194,7 +194,7 @@ export function HomeIdle(p: Props) {
   // ── Odometer card: both modes, only when a vehicle has a reading ──
   // A new last trip, or the same trip once it uploads, changes the server's figure.
   const odoTripKey = lastTrip.trip ? `${lastTrip.trip.id}|${lastTrip.trip.sync}|${lastTrip.trip.distanceMiles}` : "";
-  const odometerRows = useHomeOdometer(!hidden.includes("odometer"), refreshKey, odoTripKey);
+  const odometerRows = useHomeOdometer(!hidden.includes("odometer"), user?.id, refreshKey, odoTripKey);
   const hideOdometer = useCallback(() => {
     hideDoor("odometer");
   }, [hideDoor]);

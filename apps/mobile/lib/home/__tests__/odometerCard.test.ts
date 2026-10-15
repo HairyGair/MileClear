@@ -6,9 +6,10 @@ import {
   homeOdometerFigure,
   homeOdometerLine,
   homeVehicleName,
+  homeOdometerRows,
   parseHomeOdometerCache,
   selectHomeOdometerVehicles,
-  toHomeOdometerRows,
+  serialiseHomeOdometerCache,
   type HomeOdometerRow,
   type HomeOdometerVehicle,
 } from "../odometerCard";
@@ -74,10 +75,7 @@ describe("figure and est. mark", () => {
   });
 
   it("carries the estimated flag from the list figure, same rule as the vehicle screen", () => {
-    const rows = toHomeOdometerRows(
-      selectHomeOdometerVehicles([van(), van({ id: "v2", odometer: { miles: 1000, isEstimated: false } })]),
-      new Map()
-    );
+    const rows = homeOdometerRows([van(), van({ id: "v2", odometer: { miles: 1000, isEstimated: false } })]);
     expect(rows.map((r) => r.isEstimated)).toEqual([true, false]);
     expect(rows[0]).toMatchObject({ vehicleId: "v1", name: "Ford Transit", miles: 41872, basis: null });
   });
@@ -137,42 +135,75 @@ describe("homeOdometerLine", () => {
   });
 });
 
-describe("basisOf", () => {
-  it("keeps what the line needs from the server's current figure", () => {
+describe("basisOf and homeOdometerRows", () => {
+  it("takes the line's inputs from the /vehicles odometer field", () => {
     expect(basisOf(null)).toBeNull();
     expect(
       basisOf({
         miles: 41872,
         isEstimated: true,
-        basis: { readingMiles: 41800, readAt: "2026-10-09T17:40:00.000Z", source: "user", sourceId: "r1" },
+        basis: { readingMiles: 41800, readAt: "2026-10-09T17:40:00.000Z", source: "user" },
         tripMilesSince: 72,
       })
     ).toEqual({ readAt: "2026-10-09T17:40:00.000Z", source: "user", tripMilesSince: 72 });
   });
+
+  it("works against an older server that sends only the figure: no line, no crash", () => {
+    expect(basisOf({ miles: 41872, isEstimated: true })).toBeNull();
+    const [row] = homeOdometerRows([van()]);
+    expect(row.basis).toBeNull();
+    expect(homeOdometerLine(row, NOW)).toBeNull();
+  });
+
+  it("builds the figure and the line from the same answer, so they always agree", () => {
+    const [row] = homeOdometerRows([
+      van({
+        odometer: {
+          miles: 41872,
+          isEstimated: true,
+          basis: { readingMiles: 41800, readAt: new Date(2026, 9, 9, 18, 40).toISOString(), source: "user" },
+          tripMilesSince: 72,
+        },
+      }),
+    ]);
+    expect(homeOdometerFigure(row.miles)).toBe("41,872 mi");
+    expect(homeOdometerLine(row, NOW)).toBe("Your reading on Fri 9 Oct, plus 72 mi of trips");
+  });
 });
 
 describe("parseHomeOdometerCache", () => {
-  it("round-trips rows", () => {
-    const rows: HomeOdometerRow[] = [
-      { vehicleId: "v1", name: "Ford Transit", miles: 41872, isEstimated: true, basis: { readAt: "2026-10-09T17:40:00.000Z", source: "fuel", tripMilesSince: 72 } },
-      { vehicleId: "v2", name: "Vauxhall Vivaro", miles: 1000, isEstimated: false, basis: null },
-    ];
-    expect(parseHomeOdometerCache(JSON.stringify(rows))).toEqual(rows);
+  const rows: HomeOdometerRow[] = [
+    { vehicleId: "v1", name: "Ford Transit", miles: 41872, isEstimated: true, basis: { readAt: "2026-10-09T17:40:00.000Z", source: "fuel", tripMilesSince: 72 } },
+    { vehicleId: "v2", name: "Vauxhall Vivaro", miles: 1000, isEstimated: false, basis: null },
+  ];
+
+  it("round-trips rows for the same account", () => {
+    expect(parseHomeOdometerCache(serialiseHomeOdometerCache("u1", rows), "u1")).toEqual(rows);
+  });
+
+  it("never shows another account's saved figure", () => {
+    expect(parseHomeOdometerCache(serialiseHomeOdometerCache("u1", rows), "u2")).toBeNull();
+    expect(parseHomeOdometerCache(serialiseHomeOdometerCache("u1", rows), "")).toBeNull();
+    // The shape saved before this fix (a bare list) has no owner: ignored.
+    expect(parseHomeOdometerCache(JSON.stringify(rows), "u1")).toBeNull();
   });
 
   it("keeps an empty list (no readings any more) as empty, not unknown", () => {
-    expect(parseHomeOdometerCache("[]")).toEqual([]);
+    expect(parseHomeOdometerCache(serialiseHomeOdometerCache("u1", []), "u1")).toEqual([]);
   });
 
   it("treats anything unreadable as nothing saved and drops bad rows", () => {
-    expect(parseHomeOdometerCache(null)).toBeNull();
-    expect(parseHomeOdometerCache("not json")).toBeNull();
-    expect(parseHomeOdometerCache('{"a":1}')).toBeNull();
-    const mixed = JSON.stringify([
-      { vehicleId: "v1", name: "A", miles: "12" },
-      { vehicleId: "v2", name: "B", miles: null },
-      { vehicleId: "v3", name: "C", miles: 12, isEstimated: "yes", basis: { readAt: "bad" } },
-    ]);
-    expect(parseHomeOdometerCache(mixed)).toEqual([{ vehicleId: "v3", name: "C", miles: 12, isEstimated: false, basis: null }]);
+    expect(parseHomeOdometerCache(null, "u1")).toBeNull();
+    expect(parseHomeOdometerCache("not json", "u1")).toBeNull();
+    expect(parseHomeOdometerCache('{"userId":"u1","rows":{}}', "u1")).toBeNull();
+    const mixed = JSON.stringify({
+      userId: "u1",
+      rows: [
+        { vehicleId: "v1", name: "A", miles: "12" },
+        { vehicleId: "v2", name: "B", miles: null },
+        { vehicleId: "v3", name: "C", miles: 12, isEstimated: "yes", basis: { readAt: "bad" } },
+      ],
+    });
+    expect(parseHomeOdometerCache(mixed, "u1")).toEqual([{ vehicleId: "v3", name: "C", miles: 12, isEstimated: false, basis: null }]);
   });
 });

@@ -4,8 +4,12 @@
 // Pure and unit-tested: which vehicles show, the figure, the "est." mark and
 // the small line under it. The card is hidden when no vehicle has a reading.
 // The same rules are ported to apps/web odometerLogic.ts (homeOdometer*).
+//
+// Everything comes from GET /vehicles, whose odometer field carries the figure
+// and (since 15 Oct 2026) the reading it is built on. An older server sends no
+// basis: the card then shows the figure with no line under it.
 
-import type { OdometerCurrent, OdometerReadingSource, VehicleListOdometer } from "../api/odometer";
+import type { OdometerReadingSource, VehicleListOdometer } from "../api/odometer";
 import { formatOdo, shortDate } from "../odometer/logic";
 
 export const MAX_HOME_ODOMETER_ROWS = 3;
@@ -36,13 +40,10 @@ export interface HomeOdometerBasis {
   tripMilesSince: number;
 }
 
-export function basisOf(current: OdometerCurrent | null | undefined): HomeOdometerBasis | null {
-  if (!current || !current.basis) return null;
-  return {
-    readAt: current.basis.readAt,
-    source: current.basis.source,
-    tripMilesSince: current.tripMilesSince,
-  };
+/** The line's inputs from the vehicle list's odometer field; null when the server did not send them. */
+export function basisOf(odo: VehicleListOdometer | null | undefined): HomeOdometerBasis | null {
+  if (!odo || !odo.basis) return null;
+  return parseBasis({ ...odo.basis, tripMilesSince: odo.tripMilesSince });
 }
 
 function hasFigure(v: HomeOdometerVehicle): v is HomeOdometerVehicle & { odometer: VehicleListOdometer } {
@@ -114,16 +115,14 @@ export function homeOdometerA11y(row: HomeOdometerRow, now: Date = new Date()): 
   return `${row.name} odometer, ${state}, ${formatOdo(row.miles)} miles.${line}`;
 }
 
-export function toHomeOdometerRows(
-  vehicles: ReadonlyArray<HomeOdometerVehicle & { odometer: VehicleListOdometer }>,
-  bases: ReadonlyMap<string, HomeOdometerBasis | null>
-): HomeOdometerRow[] {
-  return vehicles.map((v) => ({
+/** The card's rows from the /vehicles list. Empty hides the card. */
+export function homeOdometerRows(vehicles: readonly HomeOdometerVehicle[] | null | undefined): HomeOdometerRow[] {
+  return selectHomeOdometerVehicles(vehicles).map((v) => ({
     vehicleId: v.id,
     name: homeVehicleName(v),
     miles: v.odometer.miles,
     isEstimated: !!v.odometer.isEstimated,
-    basis: bases.get(v.id) ?? null,
+    basis: basisOf(v.odometer),
   }));
 }
 
@@ -138,14 +137,25 @@ function parseBasis(raw: unknown): HomeOdometerBasis | null {
   return { readAt: b.readAt, source, tripMilesSince: trips };
 }
 
-/** Parse what was saved; anything unreadable is "nothing saved" (never NaN). */
-export function parseHomeOdometerCache(raw: string | null | undefined): HomeOdometerRow[] | null {
-  if (!raw) return null;
+/** What is saved: the rows and whose they are. */
+export function serialiseHomeOdometerCache(userId: string, rows: readonly HomeOdometerRow[]): string {
+  return JSON.stringify({ userId, rows });
+}
+
+/**
+ * Parse what was saved. Rows saved for a different account (someone else
+ * signed in on this phone before) are never shown. Anything unreadable is
+ * "nothing saved", and a bad row is dropped, so the card never shows NaN.
+ */
+export function parseHomeOdometerCache(raw: string | null | undefined, userId: string): HomeOdometerRow[] | null {
+  if (!raw || !userId) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const saved = parsed as { userId?: unknown; rows?: unknown };
+    if (saved.userId !== userId || !Array.isArray(saved.rows)) return null;
     const rows: HomeOdometerRow[] = [];
-    for (const r of parsed) {
+    for (const r of saved.rows) {
       if (!r || typeof r !== "object") continue;
       const o = r as Record<string, unknown>;
       if (typeof o.vehicleId !== "string" || typeof o.name !== "string") continue;
