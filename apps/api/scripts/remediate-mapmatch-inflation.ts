@@ -18,7 +18,8 @@
 // re-run (or a trip edited since) is left untouched.
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { gpsQualityRetiringEndNote } from "../src/services/tripEndEdit.js";
 import { upsertMileageSummary } from "../src/services/mileage.js";
 import { logEvent } from "../src/services/appEvents.js";
 import { getTaxYear } from "@mileclear/shared";
@@ -71,7 +72,7 @@ async function main() {
   for (const [tripId, inf] of latestByTrip) {
     const trip = await prisma.trip.findUnique({
       where: { id: tripId },
-      select: { id: true, userId: true, distanceMiles: true, startedAt: true },
+      select: { id: true, userId: true, distanceMiles: true, startedAt: true, gpsQuality: true },
     });
     if (!trip) { skipped++; continue; }
     if (userFilter && trip.userId !== userFilter) continue;
@@ -92,7 +93,16 @@ async function main() {
     );
 
     if (apply) {
-      await prisma.trip.update({ where: { id: trip.id }, data: { distanceMiles: inf.oldMiles } });
+      const retired = gpsQualityRetiringEndNote(trip.gpsQuality);
+      await prisma.trip.update({
+        where: { id: trip.id },
+        data: {
+          distanceMiles: inf.oldMiles,
+          // A new distance retires any end-edit note (src/services/tripEndEdit.ts),
+          // or the driver's next end edit would take the old stretch off it.
+          ...(retired ? { gpsQuality: retired as Prisma.InputJsonValue } : {}),
+        },
+      });
       logEvent("trip.distance_remediated", trip.userId, {
         tripId: trip.id,
         fromMiles: trip.distanceMiles,

@@ -41,6 +41,10 @@
 // Env: DAYS (default 60, the archive's retention window), ONLY_USER (id prefix, to
 // run for one driver), RULE_PATH (load the rule from elsewhere, for a dry run
 // before the build is deployed).
+// End-edit notes (gpsQuality.endExtension, src/services/tripEndEdit.ts): this
+// script only deletes copies and moves a shiftId onto the keeper. It never
+// rewrites a kept trip's distance or end, so no note needs retiring. If it
+// ever does, retire the note with gpsQualityRetiringEndNote in the same write.
 import { PrismaClient } from "@prisma/client";
 
 const APPLY = process.env.APPLY === "1";

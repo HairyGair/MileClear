@@ -19,7 +19,8 @@
 // The script logs every change to app_events as trip.distance_recalculated.
 
 import "dotenv/config";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
+import { gpsQualityRetiringEndNote } from "../src/services/tripEndEdit.js";
 import { resolveRouteDistance } from "../src/services/routing.js";
 import { upsertMileageSummary } from "../src/services/mileage.js";
 import { logEvent } from "../src/services/appEvents.js";
@@ -83,6 +84,7 @@ async function main() {
       endLat: true,
       endLng: true,
       distanceMiles: true,
+      gpsQuality: true,
       startedAt: true,
       startAddress: true,
       endAddress: true,
@@ -132,9 +134,15 @@ async function main() {
     );
 
     if (!dryRun) {
+      const retired = gpsQualityRetiringEndNote(t.gpsQuality);
       await prisma.trip.update({
         where: { id: t.id },
-        data: { distanceMiles: newMiles },
+        data: {
+          distanceMiles: newMiles,
+          // A new distance retires any end-edit note (src/services/tripEndEdit.ts),
+          // or the driver's next end edit would take the old stretch off it.
+          ...(retired ? { gpsQuality: retired as Prisma.InputJsonValue } : {}),
+        },
       });
       await logEvent("trip.distance_recalculated", t.userId, {
         tripId: t.id,
