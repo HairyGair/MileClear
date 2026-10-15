@@ -5484,7 +5484,24 @@ async function enterWatchModeImpl(reason: string): Promise<void> {
 async function exitWatchModeSilently(reason: string): Promise<void> {
   const db = await getDatabase();
 
-  await db.runAsync("DELETE FROM detection_coordinates");
+  // The buffer is watch mode's only while no recording is open. A recording
+  // opened by a path that does not clear the watch flags (the native engine's
+  // open) owns it, and the app-open watch timeout used to delete that
+  // recording's fixes (15 Oct 2026 review). The recording's own finalize
+  // deals with them; only the watch flags go.
+  // Cannot tell: keep the fixes.
+  let recordingOpen = true;
+  try {
+    const armed = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    recordingOpen = armed?.value === "1";
+  } catch {}
+  if (recordingOpen) {
+    logDetectionEvent("watch_mode_exit_kept_recording", { reason }).catch(() => {});
+  } else {
+    await db.runAsync("DELETE FROM detection_coordinates");
+  }
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('watch_mode_active', 'watch_mode_started_at', 'watch_mode_reason', 'driving_detection_count')"
   );
