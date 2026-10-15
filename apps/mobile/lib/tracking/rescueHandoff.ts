@@ -12,33 +12,38 @@
 // (56c2963d / bb0b59bd): a local trip row plus a queued create, through
 // syncCreateTrip(body, { queueOnly: true }). The driver sees the trip in their
 // list, the Uploads screen offers Try again, and the new recording starts on a
-// clean buffer. Leftovers that are not a drive (fewer than two fixes, a
-// momentary or slow phantom, under the shortest trip we save, over the
-// server's cap) are cleared as before, and a span a saved trip already covers
-// is not queued twice.
+// clean buffer. Leftovers that are not a drive are judged by finalize's own
+// rules and cleared as before: fewer than two fixes, a momentary or slow
+// phantom, under the shortest trip we save, a walk, a flight, over the
+// server's cap. A span a saved trip already covers is not queued twice.
+//
+// Also used by End trip (a recording whose save keeps failing is handed off on
+// the second press, endTrip.ts) and by the JS engine's stale-buffer purge.
 
 import {
   DRIVING_EVIDENCE_SPEED_MPH,
   DRIVING_SPEED_THRESHOLD_MPH,
   computeSustainedSpeedMph,
-  filterTraceOutliers,
+  decideWalk,
+  summariseMotion,
 } from "@mileclear/shared";
 import type { CreateTripData } from "../api/trips";
 import {
+  arrivalEndIndex,
+  cleanTraceForSave,
   exceedsServerDistance,
   normaliseRecordedAt,
   prepareCoordinatesForServer,
-  trimBadEndpoints,
+  tripWireTimes,
 } from "./finalizeSaveRule";
+import { cutFlights, findFlights, type FlightSpan } from "./flightRule";
 import { ALREADY_SAVED_MIN_OVERLAP, savedTripOverlap, type SavedTripSpan } from "./orphanRoute";
-import type { DropInput } from "./recordingDropRule";
+import type { DropInput, DropReason } from "./recordingDropRule";
 
 /** finalize's thresholds (detection.ts), so a hand-off judges a leftover the
  *  way finalize would have. */
 export const MIN_HANDOFF_MILES = 0.3; // MIN_AUTO_TRIP_DISTANCE_MILES
 const MOMENTARY_SPAN_MS = 30_000;
-const STOP_TIMEOUT_MS = 10 * 60 * 1000;
-const CONTINUE_SPEED_MS = 1.0;
 const SPEED_THRESHOLD_MS = DRIVING_SPEED_THRESHOLD_MPH * 0.44704;
 
 export interface BufferedFix {
@@ -47,9 +52,19 @@ export interface BufferedFix {
   speed: number | null;
   accuracy: number | null;
   recorded_at: string;
+  /** The motion coprocessor's call, where the platform gives one. */
+  activity?: string | null;
+  activity_confidence?: number | null;
 }
 
-export type SkipWhy = "no_coords" | "phantom" | "too_short" | "implausible_distance" | "already_saved";
+export type SkipWhy =
+  | "no_coords"
+  | "phantom"
+  | "too_short"
+  | "walk"
+  | "flight"
+  | "implausible_distance"
+  | "already_saved";
 
 export interface HandoffLeg {
   body: CreateTripData;
@@ -61,6 +76,8 @@ export interface HandoffLeg {
 
 export interface SkippedLeg {
   why: SkipWhy;
+  /** The finer verdict (the walk rule's reason, a flight's kind and speed). */
+  detail?: string;
   startedAt: string | null;
   endedAt: string | null;
   coords: number;
@@ -110,24 +127,93 @@ export function splitLegs<T extends { recorded_at: string }>(
   return legs;
 }
 
-/** finalize's tail trim: a fix across a parked gap, or trailing fixes with no
- *  movement, are after the arrival. Keeps at least two fixes. */
-function trimTail<T extends BufferedFix>(fixes: T[]): T[] {
-  let endIdx = fixes.length - 1;
-  for (let i = fixes.length - 1; i > 0; i--) {
-    const gapMs = fixMs(fixes[i]) - fixMs(fixes[i - 1]);
-    if (Number.isFinite(gapMs) && gapMs > STOP_TIMEOUT_MS) {
-      endIdx = i - 1;
-      continue;
-    }
-    const speed = fixes[i].speed != null && fixes[i].speed! > 0 ? fixes[i].speed! : 0;
-    if (speed >= CONTINUE_SPEED_MS || metres(fixes[i - 1], fixes[i]) > 30) {
-      endIdx = i;
-      break;
-    }
-    if (i === 1) endIdx = 1;
+/**
+ * The trip finalize would save from one leg, or why it would not. Same steps
+ * in the same order as _finalizeAutoTripInner: tail trim, outlier and endpoint
+ * clean (shared helpers in finalizeSaveRule.ts), then the phantom, too-short,
+ * walk and slow-phantom guards and the server's distance cap.
+ */
+function judgeLeg(
+  raw: BufferedFix[],
+  saved: SavedTripSpan[] | undefined
+): { leg: HandoffLeg } | { skip: Omit<SkippedLeg, "startedAt" | "endedAt" | "coords"> } {
+  if (raw.length < 2) return { skip: { why: "no_coords", distanceMiles: 0 } };
+  const trimmed = raw.slice(0, arrivalEndIndex(raw) + 1);
+  const filtered = cleanTraceForSave(trimmed).coords;
+  const times = tripWireTimes(filtered);
+  if (filtered.length < 2 || !times) return { skip: { why: "no_coords", distanceMiles: 0 } };
+  const first = filtered[0];
+  const last = filtered[filtered.length - 1];
+  const startMs = fixMs(first);
+  const endMs = fixMs(last);
+  const spanMs = endMs - startMs;
+  const miles = pathMiles(filtered);
+  if (!Number.isFinite(spanMs) || (spanMs < MOMENTARY_SPAN_MS && miles < MIN_HANDOFF_MILES)) {
+    return { skip: { why: "phantom", detail: "momentary", distanceMiles: miles } };
   }
-  return fixes.slice(0, Math.max(endIdx, 1) + 1);
+  if (miles < MIN_HANDOFF_MILES) return { skip: { why: "too_short", distanceMiles: miles } };
+  const durationSec = spanMs / 1000;
+  const sustained = computeSustainedSpeedMph(filtered);
+  const sustainedP95 = computeSustainedSpeedMph(filtered, { percentile: 0.95 });
+  let deviceMaxMph: number | null = null;
+  for (const f of raw) {
+    if (typeof f.speed === "number" && f.speed >= 0) deviceMaxMph = Math.max(deviceMaxMph ?? 0, f.speed * 2.23694);
+  }
+  // finalize's walk guard. Steps are not read here (no platform call in a pure
+  // rule); a missing input only ever refuses the walk verdict, never forces it.
+  const walk = decideWalk({
+    distanceMiles: miles,
+    durationSec,
+    sustainedSpeedMph: sustained,
+    sustainedSpeedP95Mph: sustainedP95,
+    deviceMaxSpeedMph: deviceMaxMph !== null ? Math.round(deviceMaxMph) : null,
+    fixes: filtered.length,
+    motion: summariseMotion(raw),
+    steps: null,
+  });
+  if (walk.verdict === "walk") return { skip: { why: "walk", detail: walk.reason, distanceMiles: miles } };
+  // finalize's slow phantom: under a mile, over five minutes, under 5 mph on
+  // average, and never at driving speed.
+  const provedDriving =
+    (sustained !== null && sustained >= DRIVING_EVIDENCE_SPEED_MPH) ||
+    (deviceMaxMph ?? 0) >= DRIVING_EVIDENCE_SPEED_MPH ||
+    filtered.some((f) => (f.speed ?? 0) >= SPEED_THRESHOLD_MS);
+  const avgMph = durationSec > 0 ? miles / (durationSec / 3600) : 0;
+  if (miles < 1.0 && durationSec > 5 * 60 && avgMph < 5 && !provedDriving) {
+    return { skip: { why: "phantom", detail: "slow", distanceMiles: miles } };
+  }
+  const roundedMiles = Math.round(miles * 100) / 100;
+  if (exceedsServerDistance(roundedMiles)) return { skip: { why: "implausible_distance", distanceMiles: miles } };
+  if (saved && saved.length > 0 && savedTripOverlap(startMs, endMs, saved) >= ALREADY_SAVED_MIN_OVERLAP) {
+    return { skip: { why: "already_saved", distanceMiles: miles } };
+  }
+  const wire = prepareCoordinatesForServer(filtered);
+  return {
+    leg: {
+      startedAt: times.startedAt,
+      endedAt: times.endedAt,
+      coords: raw.length,
+      distanceMiles: roundedMiles,
+      body: {
+        startLat: first.lat,
+        startLng: first.lng,
+        endLat: last.lat,
+        endLng: last.lng,
+        distanceMiles: roundedMiles,
+        startedAt: times.startedAt,
+        endedAt: times.endedAt,
+        classification: "unclassified",
+        coordinates: wire.coords.map((c) => ({
+          lat: c.lat,
+          lng: c.lng,
+          speed: c.speed,
+          accuracy: c.accuracy,
+          recordedAt: c.recorded_at,
+        })),
+        recordedBy: "automatic",
+      },
+    },
+  };
 }
 
 /**
@@ -139,94 +225,52 @@ export function planRescueHandoff(
   opts: { splitMs: number; legStarts?: ReadonlySet<string>; saved?: SavedTripSpan[] }
 ): HandoffPlan {
   const plan: HandoffPlan = { legs: [], skipped: [] };
-  for (const raw of splitLegs(fixes, opts.splitMs, opts.legStarts)) {
-    const skip = (why: SkipWhy, miles: number) =>
+
+  // Flights first, as in finalize: the airborne stretch is cut out and
+  // reported, and the car legs either side become their own legs.
+  let flights: FlightSpan[] = [];
+  try {
+    flights = fixes.length >= 2 ? findFlights(fixes) : [];
+  } catch {
+    flights = [];
+  }
+  const { kept, legStarts: cutAt } = cutFlights(fixes, flights);
+  for (const f of flights) {
+    plan.skipped.push({
+      why: "flight",
+      detail: `${f.kind}_peak_${f.peakMph}mph`,
+      startedAt: fixes[f.startIdx].recorded_at,
+      endedAt: fixes[f.endIdx].recorded_at,
+      coords: f.removedCount,
+      distanceMiles: f.miles,
+    });
+  }
+  const starts = new Set(opts.legStarts ?? []);
+  for (const idx of cutAt) if (kept[idx]) starts.add(kept[idx].recorded_at);
+
+  for (const raw of splitLegs(kept, opts.splitMs, starts)) {
+    const verdict = judgeLeg(raw, opts.saved);
+    if ("leg" in verdict) {
+      plan.legs.push(verdict.leg);
+    } else {
       plan.skipped.push({
-        why,
+        ...verdict.skip,
         startedAt: raw[0]?.recorded_at ?? null,
         endedAt: raw[raw.length - 1]?.recorded_at ?? null,
         coords: raw.length,
-        distanceMiles: miles,
       });
-    if (raw.length < 2) {
-      skip("no_coords", 0);
-      continue;
     }
-    const trimmed = trimTail(raw);
-    const filtered = trimBadEndpoints(filterTraceOutliers(trimmed)).coords;
-    if (filtered.length < 2) {
-      skip("no_coords", 0);
-      continue;
-    }
-    const first = filtered[0];
-    const last = filtered[filtered.length - 1];
-    const startMs = fixMs(first);
-    const endMs = fixMs(last);
-    const spanMs = endMs - startMs;
-    const miles = pathMiles(filtered);
-    if (!Number.isFinite(spanMs) || (spanMs < MOMENTARY_SPAN_MS && miles < MIN_HANDOFF_MILES)) {
-      skip("phantom", miles);
-      continue;
-    }
-    if (miles < MIN_HANDOFF_MILES) {
-      skip("too_short", miles);
-      continue;
-    }
-    // finalize's slow phantom: under a mile, over five minutes, under 5 mph
-    // on average, and never at driving speed.
-    const sustained = computeSustainedSpeedMph(filtered);
-    const provedDriving =
-      (sustained !== null && sustained >= DRIVING_EVIDENCE_SPEED_MPH) ||
-      filtered.some((f) => (f.speed ?? 0) >= SPEED_THRESHOLD_MS);
-    const durationSec = spanMs / 1000;
-    const avgMph = durationSec > 0 ? miles / (durationSec / 3600) : 0;
-    if (miles < 1.0 && durationSec > 5 * 60 && avgMph < 5 && !provedDriving) {
-      skip("phantom", miles);
-      continue;
-    }
-    const roundedMiles = Math.round(miles * 100) / 100;
-    if (exceedsServerDistance(roundedMiles)) {
-      skip("implausible_distance", miles);
-      continue;
-    }
-    if (opts.saved && opts.saved.length > 0 && savedTripOverlap(startMs, endMs, opts.saved) >= ALREADY_SAVED_MIN_OVERLAP) {
-      skip("already_saved", miles);
-      continue;
-    }
-    const startedAt = normaliseRecordedAt(first.recorded_at) ?? first.recorded_at;
-    const endedAt = normaliseRecordedAt(last.recorded_at) ?? last.recorded_at;
-    const wire = prepareCoordinatesForServer(filtered);
-    plan.legs.push({
-      startedAt,
-      endedAt,
-      coords: raw.length,
-      distanceMiles: roundedMiles,
-      body: {
-        startLat: first.lat,
-        startLng: first.lng,
-        endLat: last.lat,
-        endLng: last.lng,
-        distanceMiles: roundedMiles,
-        startedAt,
-        endedAt,
-        classification: "unclassified",
-        coordinates: wire.coords.map((c) => ({
-          lat: c.lat,
-          lng: c.lng,
-          speed: c.speed,
-          accuracy: c.accuracy,
-          recordedAt: c.recorded_at,
-        })),
-        recordedBy: "automatic",
-      },
-    });
   }
   return plan;
 }
 
 export interface RescueDeps {
-  /** finalizeAutoTrip(). */
-  finalize: () => Promise<void>;
+  /** finalizeAutoTrip(), or null to hand off without trying a save first. */
+  finalize: (() => Promise<void>) | null;
+  /** A finalize pass is running right now (detection.ts isFinalizeInFlight). */
+  isFinalizeInFlight: () => boolean;
+  /** Settles when that pass is done. Never rejects. */
+  waitForFinalize: () => Promise<void>;
   /** The buffer as it is now (detection_coordinates, oldest first). */
   readBuffer: () => Promise<BufferedFix[]>;
   /** recorded_at of each first fix after a cut flight (tracking_state flight_cut). */
@@ -239,6 +283,8 @@ export interface RescueDeps {
   log: (event: string, data?: Record<string, unknown>) => void;
   /** The driver's journey boundary (journeyBoundaryMs(...).splitMs). */
   splitMs: number;
+  /** Who is handing off, for the drop reports. Default "recording_open". */
+  source?: string;
 }
 
 export type RescueOutcome =
@@ -247,29 +293,52 @@ export type RescueOutcome =
   /** What was a drive is in the upload queue and every leg is reported: the
    *  caller clears the buffer without reporting it again. */
   | { kind: "handed_off"; queued: number; cleared: number }
-  /** Could not queue (a local database error): the caller must NOT clear.
-   *  The fixes stay in the buffer and are saved with the next finalize; a
-   *  leg already queued is caught there by the same-start guard. */
+  /** Do NOT clear: the drive could not be queued (a local database error), or
+   *  another save owns the buffer right now. The fixes stay and are saved by
+   *  the next finalize; a leg already queued is caught there by the
+   *  same-start guard. */
   | { kind: "keep" };
 
-const SOURCE = "recording_open";
+/** Drop reason for a leg that is not queued: finalize's own reason where it
+ *  has one (walk, flight), otherwise as before. */
+function skipReason(why: SkipWhy): DropReason {
+  if (why === "already_saved") return "deduped";
+  if (why === "walk") return "walk";
+  if (why === "flight") return "flight";
+  return "stale_buffer_cleared";
+}
 
 /**
  * Finalize the previous recording; if fixes are still in the buffer after it,
  * hand the real drives among them to the upload queue. Never throws.
  */
 export async function rescueBufferBeforeOpen(deps: RescueDeps): Promise<RescueOutcome> {
+  const source = deps.source ?? "recording_open";
   let failure: unknown = null;
-  try {
-    await deps.finalize();
-  } catch (err) {
-    failure = err;
+  if (deps.finalize) {
+    try {
+      await deps.finalize();
+    } catch (err) {
+      failure = err;
+    }
+  }
+  // A pass that started before (or alongside) ours makes finalize() return at
+  // once while that pass still owns the buffer. Reading and queueing the
+  // buffer now would queue the very fixes it is saving, and the caller's clear
+  // would delete them under it: two trips, or none. Wait for it; if another
+  // pass is running even then, leave the buffer to it.
+  if (deps.isFinalizeInFlight()) {
+    await deps.waitForFinalize();
+    if (deps.isFinalizeInFlight()) {
+      deps.log("rescue_handoff_finalize_busy");
+      return { kind: "keep" };
+    }
   }
   let fixes: BufferedFix[];
   try {
     fixes = await deps.readBuffer();
   } catch {
-    // Cannot see the buffer: do not let the open clear what it cannot see.
+    // Cannot see the buffer: do not let the caller clear what it cannot see.
     deps.log("rescue_handoff_read_failed");
     return { kind: "keep" };
   }
@@ -311,27 +380,34 @@ export async function rescueBufferBeforeOpen(deps: RescueDeps): Promise<RescueOu
         endedAt: leg.endedAt,
         coords: leg.coords,
         distanceMiles: leg.distanceMiles,
-        source: SOURCE,
+        source,
       })
       .catch(() => {});
   }
   for (const s of plan.skipped) {
     // Not a drive (or already a trip): cleared as before, reported as before
     // (a lone fix never was), with the finer reason in the detail.
-    if (s.coords < 2) continue;
+    if (s.coords < 2 && s.why !== "flight") continue;
+    const dropReason = skipReason(s.why);
     await deps
       .noteDrop({
-        reason: s.why === "already_saved" ? "deduped" : "stale_buffer_cleared",
-        detail: s.why === "already_saved" ? "saved_trip_covers_span" : s.why,
+        reason: dropReason,
+        detail:
+          s.why === "already_saved"
+            ? "saved_trip_covers_span"
+            : dropReason === "stale_buffer_cleared"
+            ? [s.why, s.detail].filter(Boolean).join(":")
+            : s.detail ?? null,
         startedAt: s.startedAt,
         endedAt: s.endedAt,
         coords: s.coords,
         distanceMiles: s.distanceMiles,
-        source: SOURCE,
+        source,
       })
       .catch(() => {});
   }
   deps.log("rescue_handoff", {
+    source,
     coords: fixes.length,
     queued: plan.legs.length,
     cleared: plan.skipped.length,

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { CreateTripData } from "../../api/trips";
 import type { DropInput } from "../recordingDropRule";
 import { isLostReason } from "../recordingDropRule";
+import { arrivalEndIndex, cleanTraceForSave, tripWireTimes } from "../finalizeSaveRule";
 import {
   planRescueHandoff,
   rescueBufferBeforeOpen,
@@ -60,10 +61,25 @@ function harness(buffer: BufferedFix[], opts: { finalizeThrows?: Error; queueThr
     noteDrop: async (d) => {
       drops.push(d);
     },
+    isFinalizeInFlight: () => false,
+    waitForFinalize: () => Promise.resolve(),
     log: (e) => events.push(e),
     splitMs: SPLIT_MS,
   };
   return { deps, queued, drops, events, finalizedCount: () => finalized };
+}
+
+/** A walk at 3 mph with the coprocessor saying "walking": 30 minutes, 1.5 mi. */
+function walk(startMs: number): BufferedFix[] {
+  return Array.from({ length: 121 }, (_, i) => ({
+    lat: 51.5 + i * 0.00018, // ~20 m per 15 s
+    lng: -0.12,
+    speed: 1.34,
+    accuracy: 8,
+    activity: "walking",
+    activity_confidence: 100,
+    recorded_at: new Date(startMs + i * 15_000).toISOString(),
+  }));
 }
 
 describe("rescueBufferBeforeOpen", () => {
@@ -152,9 +168,16 @@ describe("planRescueHandoff", () => {
   });
 
   it("clears a leftover over the server's distance cap, as finalize does", () => {
-    const a: BufferedFix = { lat: 51.5, lng: -0.12, speed: 20, accuracy: 8, recorded_at: new Date(T0).toISOString() };
-    const b: BufferedFix = { lat: 10, lng: 60, speed: 20, accuracy: 8, recorded_at: new Date(T0 + 20 * 60_000).toISOString() };
-    const plan = planRescueHandoff([a, b], { splitMs: SPLIT_MS });
+    // 2,500 miles at a steady 100 mph: not a flight (too slow), not a drive
+    // the server will take.
+    const long: BufferedFix[] = Array.from({ length: 301 }, (_, i) => ({
+      lat: 10 + i * 0.12,
+      lng: 20,
+      speed: 44,
+      accuracy: 8,
+      recorded_at: new Date(T0 + i * 5 * 60_000).toISOString(),
+    }));
+    const plan = planRescueHandoff(long, { splitMs: SPLIT_MS });
     expect(plan.legs).toEqual([]);
     expect(plan.skipped[0].why).toBe("implausible_distance");
   });
@@ -181,5 +204,109 @@ describe("planRescueHandoff", () => {
     const b = drive(T0 + 6 * 60_000, 5, 52.5);
     const legs = splitLegs([...a, ...b], SPLIT_MS, new Set([b[0].recorded_at]));
     expect(legs).toHaveLength(2);
+  });
+
+  it("cuts a flight out: never queued as a car trip, and the car legs either side are kept", () => {
+    // Drive to the airport, a 450-mile hop, drive away. The journey boundary
+    // is long enough here that only the flight cut can split them.
+    const toAirport = drive(T0, 10);
+    const lastGround = Date.parse(toAirport[toAirport.length - 1].recorded_at);
+    const fromAirport = drive(lastGround + 90 * 60_000, 10, 58.0);
+    const plan = planRescueHandoff([...toAirport, ...fromAirport], { splitMs: 3 * 60 * 60_000 });
+    expect(plan.skipped.map((s) => s.why)).toContain("flight");
+    expect(plan.legs).toHaveLength(2);
+    expect(plan.legs[0].startedAt).toBe(toAirport[0].recorded_at);
+    // The flight rule's landing shoulder may take the first fix or two.
+    const secondStart = Date.parse(plan.legs[1].startedAt);
+    expect(secondStart).toBeGreaterThanOrEqual(Date.parse(fromAirport[0].recorded_at));
+    expect(secondStart).toBeLessThan(Date.parse(fromAirport[0].recorded_at) + 60_000);
+    expect(plan.legs.every((l) => l.distanceMiles < 20)).toBe(true);
+  });
+
+  it("does not queue a walk over a mile as a trip", () => {
+    const plan = planRescueHandoff(walk(T0), { splitMs: SPLIT_MS });
+    expect(plan.legs).toEqual([]);
+    expect(plan.skipped[0].why).toBe("walk");
+    expect(plan.skipped[0].distanceMiles).toBeGreaterThan(1);
+  });
+
+  it("gives the queued trip the startedAt finalize computes for the same buffer (shared helpers)", () => {
+    // Raw native epoch-ms timestamps and a parked tail: both shape the ends.
+    const d = drive(T0, 12).map((f) => ({ ...f, recorded_at: String(Date.parse(f.recorded_at)) }));
+    const tail = { ...d[d.length - 1], speed: 0, recorded_at: String(T0 + 40 * 60_000) };
+    const raw = [...d, tail];
+    const plan = planRescueHandoff(raw, { splitMs: 60 * 60_000 });
+    // What _finalizeAutoTripInner does with the same leg.
+    const trimmed = raw.slice(0, arrivalEndIndex(raw) + 1);
+    const expected = tripWireTimes(cleanTraceForSave(trimmed).coords);
+    expect(plan.legs).toHaveLength(1);
+    expect(plan.legs[0].startedAt).toBe(expected?.startedAt);
+    expect(plan.legs[0].endedAt).toBe(expected?.endedAt);
+    expect(plan.legs[0].startedAt).toBe(new Date(T0).toISOString());
+    expect(plan.legs[0].endedAt).toBe(new Date(Date.parse(drive(T0, 12).slice(-1)[0].recorded_at)).toISOString());
+  });
+});
+
+describe("rescueBufferBeforeOpen, racing another save", () => {
+  it("waits for a save already running when finalize returns as a no-op, then hands off only what is left", async () => {
+    const buffer = drive(T0, 20);
+    const h = harness(buffer);
+    let running = true;
+    let finish: () => void = () => {};
+    const done = new Promise<void>((res) => {
+      finish = () => {
+        running = false;
+        // The running pass saved the drive and emptied the buffer.
+        buffer.length = 0;
+        res();
+      };
+    });
+    h.deps.isFinalizeInFlight = () => running;
+    h.deps.waitForFinalize = () => (running ? done : Promise.resolve());
+    // finalize() returns at once: the guard is held by the other pass.
+    const pending = rescueBufferBeforeOpen(h.deps);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(h.queued).toEqual([]);
+    finish();
+    expect(await pending).toEqual({ kind: "saved" });
+    expect(h.queued).toEqual([]);
+  });
+
+  it("keeps the buffer (no clear) when a save is still running after the wait", async () => {
+    const h = harness(drive(T0, 20));
+    h.deps.isFinalizeInFlight = () => true;
+    expect(await rescueBufferBeforeOpen(h.deps)).toEqual({ kind: "keep" });
+    expect(h.queued).toEqual([]);
+    expect(h.events).toContain("rescue_handoff_finalize_busy");
+  });
+
+  it("finalize catching the error itself and returning with the fixes still buffered: the drive is queued", async () => {
+    // The real finalize logs finalize_save_failed, keeps the fixes and
+    // returns normally; it does not throw.
+    const buffer = drive(T0, 25);
+    const h = harness(buffer);
+    let calls = 0;
+    h.deps.finalize = async () => {
+      calls++;
+    };
+    const outcome = await rescueBufferBeforeOpen(h.deps);
+    expect(calls).toBe(1);
+    expect(outcome).toEqual({ kind: "handed_off", queued: 1, cleared: 0 });
+    expect(h.queued[0].startedAt).toBe(buffer[0].recorded_at);
+    expect(h.drops.map((d) => d.reason)).toEqual(["rescued_to_queue"]);
+  });
+
+  it("hands off without a save when End asks it to (finalize null)", async () => {
+    const h = harness(drive(T0, 10));
+    h.deps.finalize = null;
+    expect((await rescueBufferBeforeOpen(h.deps)).kind).toBe("handed_off");
+    expect(h.finalizedCount()).toBe(0);
+    expect(h.queued).toHaveLength(1);
+  });
+
+  it("reports a walk with finalize's own drop reason", async () => {
+    const h = harness(walk(T0), { finalizeThrows: new Error("boom") });
+    await rescueBufferBeforeOpen(h.deps);
+    expect(h.drops.map((d) => d.reason)).toEqual(["walk"]);
   });
 });

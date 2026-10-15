@@ -42,11 +42,9 @@ import {
   haversineMeters,
   recentBufferedFixes,
   resolvePauseOnWake,
-  getJourneyEndMinutes,
+  buildRescueDeps,
 } from "./detection";
-import { journeyBoundaryMs, JOURNEY_END_DEFAULT_MIN } from "./journeyBoundary";
-import { parseFlightCutState } from "./finalizeSaveRule";
-import { rescueBufferBeforeOpen, type BufferedFix, type RescueOutcome } from "./rescueHandoff";
+import { rescueBufferBeforeOpen, type RescueOutcome } from "./rescueHandoff";
 import { MOTION_MIN_CONFIDENCE } from "@mileclear/shared";
 import { decideProgressPush } from "../liveActivity/progressRule";
 
@@ -1149,44 +1147,13 @@ async function bufferCoord(db: DB, loc: NativeLocation, previous?: RecentFix): P
  * Save the previous recording before a new one opens, and hand anything the
  * save left behind to the upload queue (rescueHandoff.ts). Never throws.
  */
-async function rescueBeforeOpen(db: DB): Promise<RescueOutcome> {
-  let splitMs = journeyBoundaryMs(JOURNEY_END_DEFAULT_MIN).splitMs;
+async function rescueBeforeOpen(): Promise<RescueOutcome> {
   try {
-    splitMs = journeyBoundaryMs(await getJourneyEndMinutes()).splitMs;
-  } catch {}
-  return rescueBufferBeforeOpen({
-    finalize: finalizeAutoTrip,
-    readBuffer: () =>
-      db.getAllAsync<BufferedFix>(
-        "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
-      ),
-    readLegStarts: async () => {
-      const row = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'flight_cut'"
-      );
-      return parseFlightCutState(row?.value).after;
-    },
-    readSavedTrips: async (fromIso, toIso) => {
-      const rows = await db.getAllAsync<{ id: string; started_at: string; ended_at: string | null }>(
-        "SELECT id, started_at, ended_at FROM trips WHERE ended_at IS NOT NULL AND ended_at >= ? AND started_at <= ?",
-        [fromIso, toIso]
-      );
-      return rows.map((r) => ({
-        id: r.id,
-        startedMs: Date.parse(r.started_at),
-        endedMs: Date.parse(r.ended_at ?? r.started_at),
-      }));
-    },
-    queueCreate: async (body) => {
-      const { syncCreateTrip } = await import("../sync/actions");
-      await syncCreateTrip(body, { queueOnly: true });
-    },
-    noteDrop: noteRecordingDropped,
-    log: (event, data) => {
-      logDetectionEvent(event, data ?? {}).catch(() => {});
-    },
-    splitMs,
-  });
+    return await rescueBufferBeforeOpen(await buildRescueDeps({ source: "recording_open", finalize: true }));
+  } catch {
+    // Could not even build the reads: keep the fixes rather than clear blind.
+    return { kind: "keep" };
+  }
 }
 
 /**
@@ -1262,7 +1229,7 @@ async function openNativeRecording(
       logDetectionEvent("deferred_buffer_rescued_on_open", {
         coords: pendingCount,
       }).catch(() => {});
-      rescue = await rescueBeforeOpen(db);
+      rescue = await rescueBeforeOpen();
     } else if (pendingCount > 0) {
       // NOT armed, but the buffer is not empty. The clear below (and the
       // destroyLocations() a few lines further down) is about to delete both
@@ -1287,17 +1254,25 @@ async function openNativeRecording(
           coords: pendingCount,
           ageMs: decision.ageMs,
         }).catch(() => {});
-        rescue = await rescueBeforeOpen(db);
+        rescue = await rescueBeforeOpen();
       }
     }
-    if (rescue?.kind === "keep") {
-      // The drive could not be saved OR queued (a local database error). Do
-      // not clear it: the new recording's fixes join the buffer, the journey
-      // boundary splits them into their own leg at finalize, and the old
-      // drive is saved with it. A duplicated leg is better than a lost one,
-      // and the same-start guard in finalize stops even that.
-      logDetectionEvent("native_buffer_kept_on_open", { coords: pendingCount }).catch(() => {});
+    if (rescue?.kind === "keep" || isFinalizeInFlight()) {
+      // The drive could not be saved OR queued (a local database error), or a
+      // save started in the meantime and owns the buffer (15 Oct 2026 review:
+      // clearing under it lost or doubled the drive). Do not clear: the new
+      // recording's fixes join the buffer, the journey boundary splits them
+      // into their own leg at finalize, and the old drive is saved with it.
+      logDetectionEvent("native_buffer_kept_on_open", {
+        coords: pendingCount,
+        cause: rescue?.kind === "keep" ? "rescue_kept" : "finalize_in_flight",
+      }).catch(() => {});
     } else {
+      // Duplicates: a hand-off above may have queued these fixes as a trip.
+      // Should the app die between that queue write and this clear, the next
+      // finalize finds the queued trip's local row by the same startedAt
+      // (tripWireTimes, shared by both) and consumes the fixes instead of
+      // saving them again; the server dedups on userId+startedAt too.
       // Start with a clean buffer. A native recording open is always a fresh
       // start (the engine doesn't pre-buffer before recording), so any coords
       // still in the table now ARE stale leftovers from a prior recording that

@@ -31,7 +31,6 @@ import {
   computeTripQuality,
   computeSustainedSpeedMph,
   decideWalk,
-  filterTraceOutliers,
   hasRealMovementEvidence,
   summariseMotion,
 } from "@mileclear/shared";
@@ -218,15 +217,21 @@ import {
   QUICK_TRIP_LIVE_COORD_MS as QUICK_TRIP_LIVE_COORD_MS_RULE,
 } from "./quickTripLock";
 import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
+import {
+  rescueBufferBeforeOpen,
+  type BufferedFix as RescueBufferedFix,
+  type RescueDeps,
+} from "./rescueHandoff";
 import { findFlights, cutFlights, type FlightSpan } from "./flightRule";
 import {
+  arrivalEndIndex,
+  cleanTraceForSave,
+  tripWireTimes,
   exceedsServerDistance,
-  normaliseRecordedAt,
   parseFlightCutState,
   planFlightCut,
   prepareCoordinatesForServer,
   pruneFlightCutState,
-  trimBadEndpoints,
   SERVER_MAX_COORDINATES,
   type FlightCutState,
 } from "./finalizeSaveRule";
@@ -1583,6 +1588,14 @@ export async function finalizeAutoTrip(): Promise<void> {
         await _finalizeAutoTripInner();
         passes++;
       } while (deferredFinalizePending && passes < MAX_FINALIZE_PASSES);
+      if (deferredFinalizePending && !lastFinalizeFailure) {
+        // Out of passes with journeys still waiting: the recording stays
+        // open, so End trip says why instead of "try again" with no reason.
+        logDetectionEvent("finalize_pass_cap_reached", { passes }).catch(() => {});
+        lastFinalizeFailure = new Error(
+          "This recording holds more separate journeys than one save can take, so some are still waiting."
+        );
+      }
     } finally {
       finalizingTrip = false;
       try {
@@ -1617,6 +1630,156 @@ export async function finalizeAutoTrip(): Promise<void> {
  * Everything else stays for finalize to judge. Never throws: a
  * failure here leaves the buffer as it was, which is the old behaviour.
  */
+async function readRescueBuffer(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  olderThanIso?: string
+): Promise<RescueBufferedFix[]> {
+  const cols = "lat, lng, speed, accuracy, activity, activity_confidence, recorded_at";
+  return olderThanIso
+    ? db.getAllAsync<RescueBufferedFix>(
+        `SELECT ${cols} FROM detection_coordinates WHERE recorded_at < ? ORDER BY recorded_at ASC`,
+        [olderThanIso]
+      )
+    : db.getAllAsync<RescueBufferedFix>(`SELECT ${cols} FROM detection_coordinates ORDER BY recorded_at ASC`);
+}
+
+/**
+ * The database side of a rescue hand-off (rescueHandoff.ts): finalize, the
+ * buffer, flight-cut markers, saved trips, the upload queue, drop reports.
+ * `olderThanIso` limits the hand-off to fixes older than that (the JS
+ * engine's stale purge, which keeps the fresh pre-detection fixes).
+ */
+export async function buildRescueDeps(opts: {
+  source: string;
+  finalize: boolean;
+  olderThanIso?: string;
+}): Promise<RescueDeps> {
+  const db = await getDatabase();
+  let splitMs = journeyBoundaryMs(resolveJourneyEndMinutes(null)).splitMs;
+  try {
+    splitMs = journeyBoundaryMs(await getJourneyEndMinutes()).splitMs;
+  } catch {}
+  return {
+    finalize: opts.finalize ? finalizeAutoTrip : null,
+    isFinalizeInFlight,
+    waitForFinalize: waitForFinalizeInFlight,
+    readBuffer: () => readRescueBuffer(db, opts.olderThanIso),
+    readLegStarts: async () => {
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'flight_cut'"
+      );
+      return parseFlightCutState(row?.value).after;
+    },
+    readSavedTrips: async (fromIso, toIso) => {
+      const rows = await db.getAllAsync<{ id: string; started_at: string; ended_at: string | null }>(
+        "SELECT id, started_at, ended_at FROM trips WHERE ended_at IS NOT NULL AND ended_at >= ? AND started_at <= ?",
+        [fromIso, toIso]
+      );
+      return rows.map((r) => ({
+        id: r.id,
+        startedMs: Date.parse(r.started_at),
+        endedMs: Date.parse(r.ended_at ?? r.started_at),
+      }));
+    },
+    queueCreate: async (body) => {
+      const { syncCreateTrip } = await import("../sync/actions");
+      await syncCreateTrip(body, { queueOnly: true });
+    },
+    noteDrop: noteRecordingDropped,
+    log: (event, data) => {
+      logDetectionEvent(event, data ?? {}).catch(() => {});
+    },
+    splitMs,
+    source: opts.source,
+  };
+}
+
+/**
+ * End trip's last resort (endTrip.ts): the driver pressed End twice and the
+ * save kept failing, so hand the open recording to the upload queue (same
+ * rules as the rescue on open) and close it. Holds the finalize guard so no
+ * other pass can save the same fixes meanwhile. Never throws.
+ *
+ * "busy": another save is running. "keep": nothing could be queued, the
+ * recording stays open. Otherwise the recording is closed.
+ */
+export async function handOffOpenRecordingToQueue(): Promise<
+  { kind: "busy" } | { kind: "keep" } | { kind: "closed"; queued: number }
+> {
+  if (finalizingTrip) return { kind: "busy" };
+  finalizingTrip = true;
+  let settleInFlight: () => void = () => {};
+  const inFlight = new Promise<void>((resolve) => {
+    settleInFlight = resolve;
+  });
+  finalizingPromise = inFlight;
+  try {
+    const deps = await buildRescueDeps({ source: "end_trip", finalize: false });
+    // We hold the guard ourselves: nothing else is in flight.
+    const outcome = await rescueBufferBeforeOpen({
+      ...deps,
+      isFinalizeInFlight: () => false,
+      waitForFinalize: () => Promise.resolve(),
+    });
+    if (outcome.kind === "keep") return { kind: "keep" };
+    const db = await getDatabase();
+    // Same-start guard: should the app die between the queue write above and
+    // this clear, the next finalize finds the queued trip's local row (same
+    // startedAt, tripWireTimes) and consumes the buffer instead of saving it
+    // again.
+    await db.runAsync("DELETE FROM detection_coordinates");
+    await db.runAsync(
+      "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor', 'flight_cut')"
+    );
+    stopWatchdog();
+    dismissRecordingActiveNotification().catch(() => {});
+    endLiveActivity().catch(() => {});
+    try {
+      const { isNativeEngineAvailable, destroyNativeLocations } = await import("./nativeLocation");
+      if (isNativeEngineAvailable() && !(await shiftSuppressesAutoDetection(db))) {
+        await destroyNativeLocations();
+      }
+    } catch {}
+    return { kind: "closed", queued: outcome.kind === "handed_off" ? outcome.queued : 0 };
+  } catch (err) {
+    logDetectionEvent("end_trip_handoff_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    }).catch(() => {});
+    return { kind: "keep" };
+  } finally {
+    finalizingTrip = false;
+    if (finalizingPromise === inFlight) finalizingPromise = null;
+    settleInFlight();
+  }
+}
+
+/**
+ * A save failed and the recording is still open: put its "Trip in progress"
+ * notification and Live Activity back (finalize took both down before it
+ * knew the outcome). Only while the recording is flagged open. Never throws.
+ */
+async function restoreOpenRecordingSurfaces(): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const armed = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (armed?.value !== "1") return;
+    showRecordingActiveNotification().catch(() => {});
+    let isBusinessMode = true;
+    try {
+      const m = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'app_mode'"
+      );
+      isBusinessMode = m?.value !== "personal";
+    } catch {}
+    if (Platform.OS === "ios") {
+      await startAutoTripLiveActivityFromBufferedState({ activityType: "trip", isBusinessMode });
+    }
+    logDetectionEvent("finalize_failed_surfaces_restored").catch(() => {});
+  } catch {}
+}
+
 async function dropFixesAlreadyRecorded(): Promise<void> {
   try {
     const db = await getDatabase();
@@ -2162,27 +2325,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Fix: a coord separated from the previous one by more than the stop timeout
   // sits across a parked gap — the trip ended at the PREVIOUS coord; trim it
   // and keep looking. Otherwise, the last coord with real movement is the end.
-  let endIdx = allCoords.length - 1;
-  for (let i = allCoords.length - 1; i > 0; i--) {
-    const curr = allCoords[i];
-    const prev = allCoords[i - 1];
-    const gapMs = new Date(curr.recorded_at).getTime() - new Date(prev.recorded_at).getTime();
-    if (Number.isFinite(gapMs) && gapMs > STOP_TIMEOUT_MS) {
-      // Parked gap before this coord — the journey ended at prev. Drop this
-      // coord (and any later ones already dropped) and continue walking back.
-      endIdx = i - 1;
-      continue;
-    }
-    const distM = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
-    const speed = curr.speed != null && curr.speed > 0 ? curr.speed : 0;
-    // This coordinate represents real movement - use it as the trip endpoint
-    if (speed >= CONTINUE_SPEED_MS || distM > 30) {
-      endIdx = i;
-      break;
-    }
-    // If we've walked all the way back, keep at least the second coordinate
-    if (i === 1) endIdx = 1;
-  }
+  // The rule lives in finalizeSaveRule.ts so the rescue hand-off
+  // (rescueHandoff.ts) ends a trip at exactly the same fix.
+  const endIdx = arrivalEndIndex(allCoords, STOP_TIMEOUT_MS, CONTINUE_SPEED_MS);
 
   const coords = allCoords.slice(0, endIdx + 1);
   if (coords.length < 2) {
@@ -2208,12 +2353,12 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // one such fix could turn a real short drive into thousands of miles and
   // have it cleared as implausible (12 Oct 2026 review). The drive is saved
   // WITHOUT those fixes.
-  const outlierFiltered = filterTraceOutliers(coords);
-  const endpointTrim = trimBadEndpoints(outlierFiltered);
-  const filteredCoords = endpointTrim.coords;
-  if (endpointTrim.dropped > 0) {
+  const cleaned = cleanTraceForSave(coords);
+  const outlierFiltered = cleaned.outlierFiltered;
+  const filteredCoords = cleaned.coords;
+  if (cleaned.endpointsDropped > 0) {
     logDetectionEvent("finalize_bad_endpoints_dropped", {
-      dropped: endpointTrim.dropped,
+      dropped: cleaned.endpointsDropped,
       kept: filteredCoords.length,
     }).catch(() => {});
   }
@@ -2243,8 +2388,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
   const last = filteredCoords[filteredCoords.length - 1];
   // What is actually stored and sent (a raw native epoch becomes ISO; an ISO
   // string is unchanged). The repeat-run guards below look for either form.
-  const wireStartedAt = normaliseRecordedAt(first.recorded_at) ?? first.recorded_at;
-  const wireEndedAt = normaliseRecordedAt(last.recorded_at) ?? last.recorded_at;
+  // Shared with the rescue hand-off so a queued copy carries the same start.
+  const { startedAt: wireStartedAt, endedAt: wireEndedAt } = tripWireTimes(filteredCoords) ?? {
+    startedAt: first.recorded_at,
+    endedAt: last.recorded_at,
+  };
 
   // Idempotency guard for the delete-after-save ordering: a process death
   // between a successful save and consumeProcessedBuffer() re-runs this
@@ -3254,8 +3402,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // this is not a loss yet, but it is a drive with no trip for now.
     lastFinalizeFailure = err;
     await noteRecordingDropped({ reason: "error", detail: errorMessage, ...dropSpan(allCoords) });
-    // Dismiss Live Activity on failure
-    endLiveActivity().catch(() => {});
+    // The recording is still open (its fixes are kept for the retry), so its
+    // notification and Live Activity stay up instead of saying it has ended
+    // (15 Oct 2026 review). Only when it is flagged open: an orphan sweep's
+    // failed save never had them.
+    await restoreOpenRecordingSurfaces();
   }
 }
 
@@ -4178,15 +4329,30 @@ try {
       const coordCount = await db.getFirstAsync<{ cnt: number }>(
         "SELECT COUNT(*) as cnt FROM detection_coordinates"
       );
-      if (coordCount && coordCount.cnt > 5) {
-        // Looks like an un-finalized trip - try to finalize before purging
-        await finalizeAutoTrip();
-      }
       const cutoff = new Date(Date.now() - BUFFER_MAX_AGE_MS).toISOString();
-      await db.runAsync(
-        "DELETE FROM detection_coordinates WHERE recorded_at < ?",
-        [cutoff]
-      );
+      let purgeOld = true;
+      if (coordCount && coordCount.cnt > 5) {
+        // Looks like an un-finalized trip - try to finalize before purging.
+        // Until 15 Oct 2026 the purge below then ran whether or not that save
+        // worked, deleting a failed save's older fixes. Now whatever older
+        // than the cutoff is still here after the save goes to the upload
+        // queue first (rescueHandoff.ts), and nothing is purged if it cannot
+        // be queued or another save owns the buffer.
+        const rescue = await rescueBufferBeforeOpen(
+          await buildRescueDeps({ source: "js_stale_purge", finalize: true, olderThanIso: cutoff })
+        );
+        purgeOld = rescue.kind !== "keep";
+      }
+      if (purgeOld) {
+        // Same-start guard: should the app die between a hand-off's queue
+        // write and this delete, the next finalize finds the queued trip's
+        // local row (same startedAt) and consumes the fixes instead of
+        // saving them twice.
+        await db.runAsync(
+          "DELETE FROM detection_coordinates WHERE recorded_at < ?",
+          [cutoff]
+        );
+      }
 
       // Buffer ALL incoming coords - even before driving speed is confirmed.
       // This captures the departure point and early route through residential
