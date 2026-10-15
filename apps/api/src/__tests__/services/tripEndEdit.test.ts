@@ -12,6 +12,7 @@ import {
   resolveEndEdit,
   appendedBreadcrumbTime,
   END_EDIT_MAX_MILES,
+  readEndExtension,
   type EndEditTrip,
 } from "../../services/tripEndEdit.js";
 
@@ -175,5 +176,33 @@ describe("resolveEndEdit - when the distance stays put", () => {
     });
     expect(d).toMatchObject({ ok: false, reason: "too_far" });
     expect(d.crowMiles).toBeGreaterThan(END_EDIT_MAX_MILES);
+  });
+});
+
+describe("readEndExtension - the note an earlier end edit leaves", () => {
+  it("reads a well-formed note", () => {
+    const note = {
+      recordedEndLat: LIGHTS.lat,
+      recordedEndLng: LIGHTS.lng,
+      recordedEndedAt: "2026-09-17T14:35:00.000Z",
+      addedMiles: 0.82,
+      breadcrumbAt: "2026-09-17T14:40:00.000Z",
+    };
+    expect(readEndExtension({ endExtension: note, other: 1 })).toEqual(note);
+  });
+
+  it("ignores a missing, partial or nonsense note", () => {
+    expect(readEndExtension(null)).toBeNull();
+    expect(readEndExtension({})).toBeNull();
+    expect(readEndExtension({ endExtension: { recordedEndLat: 51.6, addedMiles: 1 } })).toBeNull();
+    expect(readEndExtension({ endExtension: { recordedEndLat: 51.6, recordedEndLng: -0.7, addedMiles: -1 } })).toBeNull();
+    expect(readEndExtension({ endExtension: "nope" })).toBeNull();
+  });
+
+  it("drops unreadable times rather than the note", () => {
+    const n = readEndExtension({
+      endExtension: { recordedEndLat: 51.6, recordedEndLng: -0.7, addedMiles: 1, recordedEndedAt: "x", breadcrumbAt: 5 },
+    });
+    expect(n).toMatchObject({ addedMiles: 1, recordedEndedAt: null, breadcrumbAt: null });
   });
 });

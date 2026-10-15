@@ -154,6 +154,56 @@ export function resolveEndEdit(args: {
 }
 
 
+// ── What an earlier end edit left behind ─────────────────────────────────
+//
+// Tom (14-15 Oct 2026) moved the end of a 1.17 mile recording about 15 miles
+// away, then moved it again the next morning. Each edit routed from wherever
+// the end pin sat at that moment and ADDED the result to the stored distance,
+// which already held the first edit's stretch, so the trip came to 42.84
+// miles: 1.17 + 20.82 + 20.85. An edit can also only ever add: moving the end
+// back towards where the recording stopped routed that way and added it too.
+//
+// So the first end edit now keeps a note in gpsQuality.endExtension of where
+// the RECORDING stopped and how many routed miles the edited end adds after
+// it. Every later edit routes from the recording's own end, takes the earlier
+// stretch off, and puts the new one on: recorded miles plus one stretch, never
+// two. Moving the end back to where the recording stopped gives the recorded
+// miles back.
+
+export interface EndExtension {
+  /** Where the recording itself stopped, before any end edit. */
+  recordedEndLat: number;
+  recordedEndLng: number;
+  /** When it stopped (ISO), so a stand-in breadcrumb sits after the trail. */
+  recordedEndedAt: string | null;
+  /** Routed miles after the recording that the trip's distance now includes. */
+  addedMiles: number;
+  /** When the stand-in breadcrumb for that stretch is dated (ISO), or null. */
+  breadcrumbAt: string | null;
+}
+
+const asObject = (v: unknown): Record<string, unknown> =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/** The trip's note of an earlier end edit, or null when there is none. */
+export function readEndExtension(gpsQuality: unknown): EndExtension | null {
+  const e = asObject(asObject(gpsQuality).endExtension);
+  const lat = Number(e.recordedEndLat);
+  const lng = Number(e.recordedEndLng);
+  const added = Number(e.addedMiles);
+  if (e.recordedEndLat == null || e.recordedEndLng == null || e.addedMiles == null) return null;
+  if (![lat, lng, added].every(Number.isFinite) || added < 0) return null;
+  const iso = (v: unknown): string | null =>
+    typeof v === "string" && Number.isFinite(new Date(v).getTime()) ? v : null;
+  return {
+    recordedEndLat: lat,
+    recordedEndLng: lng,
+    recordedEndedAt: iso(e.recordedEndedAt),
+    addedMiles: added,
+    breadcrumbAt: iso(e.breadcrumbAt),
+  };
+}
+
 // ── Prisma/routing wrapper ────────────────────────────────────────────────
 
 export interface PlannedEndEdit {
@@ -161,8 +211,18 @@ export interface PlannedEndEdit {
   endLng: number;
   /** Routed miles to add after the recorded trail; 0 when the distance stays. */
   addedMiles: number;
+  /**
+   * Miles an earlier end edit added that this one replaces, to take off the
+   * stored distance before addedMiles goes on. 0 when there is nothing to undo
+   * or the distance is being left alone.
+   */
+  replacedMiles: number;
   crowMiles: number;
   appendCoordinate: { lat: number; lng: number; recordedAt: Date } | null;
+  /** The earlier edit's stand-in breadcrumb, to remove; null to keep it. */
+  removeBreadcrumbAt: Date | null;
+  /** The note to keep in gpsQuality.endExtension; null removes it. */
+  extension: EndExtension | null;
   /** Set when the pin moved but the distance deliberately did not. */
   distanceUnchangedReason: EndEditSkipReason | null;
 }
@@ -177,6 +237,10 @@ export interface PlannedEndEdit {
  * the end and differs only in whether the DISTANCE changes with it. Where the
  * missing stretch cannot be priced honestly the pin moves, the mileage is
  * left alone, and the reason is recorded on the event.
+ *
+ * The stretch is always priced from where the RECORDING stopped, which after
+ * an earlier end edit is the note in gpsQuality.endExtension, not the current
+ * end pin; the earlier stretch is handed back as replacedMiles.
  */
 export async function planTripEndEdit(args: {
   userId: string;
@@ -187,6 +251,7 @@ export async function planTripEndEdit(args: {
     endedAt: Date | null;
     startedAt: Date;
     isManualEntry: boolean;
+    gpsQuality?: unknown;
   };
   newLat: number;
   newLng: number;
@@ -197,36 +262,71 @@ export async function planTripEndEdit(args: {
   if (trip.endLat == null || trip.endLng == null) return null;
   if (!Number.isFinite(newLat) || !Number.isFinite(newLng)) return null;
 
+  const prior = readEndExtension(trip.gpsQuality);
+
+  // A pin nudged a few metres from where it already sits is a label change,
+  // whether or not the end has been edited before.
+  if (haversineDistance(trip.endLat, trip.endLng, newLat, newLng) < END_EDIT_MIN_MILES) return null;
+
+  const recordedEnd = prior
+    ? {
+        endLat: prior.recordedEndLat,
+        endLng: prior.recordedEndLng,
+        endedAt: prior.recordedEndedAt ? new Date(prior.recordedEndedAt) : trip.endedAt,
+      }
+    : { endLat: trip.endLat, endLng: trip.endLng, endedAt: trip.endedAt };
+
   const base = {
-    trip: {
-      endLat: trip.endLat,
-      endLng: trip.endLng,
-      endedAt: trip.endedAt,
-      startedAt: trip.startedAt,
-    },
+    trip: { ...recordedEnd, startedAt: trip.startedAt },
     newLat,
     newLng,
     newEndedAt,
   };
+  const recordedEndedAtIso = recordedEnd.endedAt ? recordedEnd.endedAt.toISOString() : null;
+  const priorBreadcrumb = prior?.breadcrumbAt ? new Date(prior.breadcrumbAt) : null;
+
+  /** The pin moves, the miles stay: any earlier stretch is still in them. */
+  const leaveDistance = (reason: EndEditSkipReason, crowMiles: number): PlannedEndEdit => ({
+    endLat: newLat,
+    endLng: newLng,
+    addedMiles: 0,
+    replacedMiles: 0,
+    crowMiles,
+    appendCoordinate: null,
+    removeBreadcrumbAt: null,
+    extension: prior ?? {
+      recordedEndLat: recordedEnd.endLat,
+      recordedEndLng: recordedEnd.endLng,
+      recordedEndedAt: recordedEndedAtIso,
+      addedMiles: 0,
+      breadcrumbAt: null,
+    },
+    distanceUnchangedReason: reason,
+  });
 
   // Cheap pass first: no routing call for a pin that has not moved or is
   // wildly far.
   const dry = resolveEndEdit({ ...base, routeMiles: null });
-  if (!dry.ok && dry.reason === "same_place") return null;
-  if (!dry.ok && dry.reason === "too_far") {
+  if (!dry.ok && dry.reason === "same_place") {
+    if (!prior) return null;
+    // Back where the recording stopped: the recorded miles, and nothing else.
     return {
       endLat: newLat,
       endLng: newLng,
       addedMiles: 0,
+      replacedMiles: prior.addedMiles,
       crowMiles: dry.crowMiles,
       appendCoordinate: null,
-      distanceUnchangedReason: "too_far",
+      removeBreadcrumbAt: priorBreadcrumb,
+      extension: null,
+      distanceUnchangedReason: null,
     };
   }
+  if (!dry.ok && dry.reason === "too_far") return leaveDistance("too_far", dry.crowMiles);
 
   const route = await resolveRouteDistance({
-    startLat: trip.endLat,
-    startLng: trip.endLng,
+    startLat: recordedEnd.endLat,
+    startLng: recordedEnd.endLng,
     endLat: newLat,
     endLng: newLng,
     userId,
@@ -237,22 +337,22 @@ export async function planTripEndEdit(args: {
     routeSecs: route?.durationSecs ?? null,
   });
 
-  if (!decision.ok) {
-    return {
-      endLat: newLat,
-      endLng: newLng,
-      addedMiles: 0,
-      crowMiles: decision.crowMiles,
-      appendCoordinate: null,
-      distanceUnchangedReason: decision.reason,
-    };
-  }
+  if (!decision.ok) return leaveDistance(decision.reason, decision.crowMiles);
   return {
     endLat: newLat,
     endLng: newLng,
     addedMiles: decision.addedMiles,
+    replacedMiles: prior?.addedMiles ?? 0,
     crowMiles: decision.crowMiles,
     appendCoordinate: decision.appendCoordinate,
+    removeBreadcrumbAt: priorBreadcrumb,
+    extension: {
+      recordedEndLat: recordedEnd.endLat,
+      recordedEndLng: recordedEnd.endLng,
+      recordedEndedAt: recordedEndedAtIso,
+      addedMiles: decision.addedMiles,
+      breadcrumbAt: decision.appendCoordinate.recordedAt.toISOString(),
+    },
     distanceUnchangedReason: null,
   };
 }
