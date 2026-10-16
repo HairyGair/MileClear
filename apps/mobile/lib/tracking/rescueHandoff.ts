@@ -37,6 +37,7 @@ import {
   tripWireTimes,
 } from "./finalizeSaveRule";
 import { cutFlights, findFlights, type FlightSpan } from "./flightRule";
+import { fixesWithin, fixTimeMs } from "./savedFixes";
 import { ALREADY_SAVED_MIN_OVERLAP, savedTripOverlap, type SavedTripSpan } from "./orphanRoute";
 import type { DropInput, DropReason } from "./recordingDropRule";
 
@@ -282,6 +283,10 @@ export interface RescueDeps {
   readSavedTrips: (fromIso: string, toIso: string) => Promise<SavedTripSpan[]>;
   /** syncCreateTrip(body, { queueOnly: true }). */
   queueCreate: (body: CreateTripData) => Promise<void>;
+  /** Remember the fixes of a leg that is now safely queued (savedFixes.ts), so
+   *  a later refill of the buffer cannot save them a second time. Called only
+   *  after queueCreate succeeded. Optional, never throws into the hand-off. */
+  recordSaved?: (fixes: ReadonlyArray<{ recorded_at: string }>, tripKey: string) => Promise<void>;
   noteDrop: (input: DropInput) => Promise<void>;
   log: (event: string, data?: Record<string, unknown>) => void;
   /** The driver's journey boundary (journeyBoundaryMs(...).splitMs). */
@@ -373,6 +378,14 @@ export async function rescueBufferBeforeOpen(deps: RescueDeps): Promise<RescueOu
       });
       return { kind: "keep" };
     }
+    // Queued and durable: remember its fixes. Outside the try above so a
+    // failure here is never taken for a failed queue write.
+    try {
+      await deps.recordSaved?.(
+        fixesWithin(fixes, fixTimeMs(leg.startedAt), fixTimeMs(leg.endedAt)),
+        `start:${leg.startedAt}`
+      );
+    } catch {}
   }
   for (const leg of plan.legs) {
     await deps

@@ -1,8 +1,9 @@
 // Local SQLite database operations using expo-sqlite
 
 import * as SQLite from "expo-sqlite";
+import { ensureRecordedMs } from "./recordedMs";
 
-const CURRENT_SCHEMA_VERSION = 11;
+const CURRENT_SCHEMA_VERSION = 12;
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
 
@@ -131,6 +132,15 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     -- that a stuck recording can grow into the thousands (30 Jul 2026).
     CREATE INDEX IF NOT EXISTS idx_detection_coords_recorded_at
       ON detection_coordinates (recorded_at);
+
+    -- The exact fixes already saved into a trip (savedFixes.ts), so a refill of
+    -- the buffer from the native store cannot save the same driving twice.
+    -- recorded_ms is the fix time in epoch milliseconds.
+    CREATE TABLE IF NOT EXISTS saved_fix_times (
+      recorded_ms INTEGER PRIMARY KEY,
+      trip_key TEXT,
+      saved_at INTEGER NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS detection_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -370,6 +380,12 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
     }
   }
 
+
+  // Schema v12 (16 Oct 2026): one row per fix in detection_coordinates. Run on
+  // every boot, not only at the version bump, so a failed index build is
+  // retried (recordedMs.ts).
+  await ensureRecordedMs(database);
+
   // Always update schema version to current
   await database.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('schema_version', ?)",
@@ -406,6 +422,7 @@ const USER_DATA_TABLES = [
   "coordinates",
   "shift_coordinates",
   "detection_coordinates",
+  "saved_fix_times",
   "detection_events",
   "detection_lifecycle_events",
   "tracking_log",

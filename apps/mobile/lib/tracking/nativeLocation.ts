@@ -61,6 +61,8 @@ import { noteRecordingDropped } from "./recordingDrops";
 import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
 import { nativeFixesBeforeWindow, rowsAddedByOpen } from "./lockWindowRule";
+import { createSerialOpener, insertMissingNativeFixes } from "./nativeBufferRules";
+import { fixTimeMs } from "./savedFixes";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
 import { recordBatterySample } from "./batterySamples";
@@ -1080,9 +1082,13 @@ async function plantNativeAnchorBackfill(db: DB, seed: NativeLocation): Promise<
     const seedMs = new Date(seed.timestamp).getTime();
     const base = Number.isFinite(seedMs) ? seedMs : Date.now();
     const backfillTs = new Date(base - 30_000).toISOString();
+    // recorded_ms stays NULL on purpose: the anchor sits exactly 30 s before
+    // the seed, which a real 1 Hz Android fix can share, and the unique index
+    // must never ignore either one. The serial opener keeps two opens from
+    // planting twice.
     await db.runAsync(
-      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at, recorded_ms)
+       VALUES (?, ?, ?, ?, ?, NULL)`,
       [aLat, aLng, 0, 50, backfillTs]
     );
     logDetectionEvent("native_anchor_backfill_planted", {
@@ -1113,9 +1119,13 @@ async function plantNativeAnchorBackfill(db: DB, seed: NativeLocation): Promise<
  * in line rather than inventing a new rule.
  */
 async function bufferCoord(db: DB, loc: NativeLocation, previous?: RecentFix): Promise<void> {
+  // One row per fix: the unique index on recorded_ms (schema v12) plus OR
+  // IGNORE means a fix delivered twice, or by two overlapping callbacks, is
+  // stored once. A fix with an unreadable time has no recorded_ms and is
+  // always stored.
   await db.runAsync(
-    `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at, recorded_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       loc.coords.latitude,
       loc.coords.longitude,
@@ -1124,6 +1134,7 @@ async function bufferCoord(db: DB, loc: NativeLocation, previous?: RecentFix): P
       loc.activity?.type ?? null,
       typeof loc.activity?.confidence === "number" ? loc.activity.confidence : null,
       loc.timestamp,
+      fixTimeMs(loc.timestamp) || null,
     ]
   );
   const moving = isJourneyStillMoving(
@@ -1162,7 +1173,7 @@ async function rescueBeforeOpen(): Promise<RescueOutcome> {
  * continuous tracking via changePace (the backstop path), since CoreMotion
  * hasn't classified "moving" yet.
  */
-async function openNativeRecording(
+async function openNativeRecordingNow(
   seed: NativeLocation,
   reason: "motion" | "speed"
 ): Promise<void> {
@@ -1378,6 +1389,40 @@ async function openNativeRecording(
     reason,
   }).catch(() => {});
   startNativeAutoTripLiveActivity().catch(() => {});
+}
+
+/**
+ * One open at a time (nativeBufferRules.ts createSerialOpener). handleNativeLocation
+ * is not awaited by the native engine, so fixes that arrive together each saw
+ * "no recording" and each ran a rescue, a clear and an anchor plant. A late
+ * arrival now waits its turn and, finding the recording open, only buffers its
+ * fix. `reason` is remembered per call.
+ */
+const serialOpenNative = createSerialOpener<{ seed: NativeLocation; reason: "motion" | "speed" }>({
+  isOpen: async () => {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    return row?.value === "1";
+  },
+  open: ({ seed, reason }) => openNativeRecordingNow(seed, reason),
+  bufferOnly: async ({ seed }) => {
+    const db = await getDatabase();
+    // Re-check: a "Not driving" that landed while this waited has cleared the
+    // recording, and a fix buffered now would be a stray one with no recording.
+    const stillOpen = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (stillOpen?.value !== "1") return;
+    const recent = await recentBufferedFixes(db);
+    await bufferCoord(db, seed, recent[0]);
+    logDetectionEvent("native_open_joined_inflight", {}).catch(() => {});
+  },
+});
+
+function openNativeRecording(seed: NativeLocation, reason: "motion" | "speed"): Promise<void> {
+  return serialOpenNative({ seed, reason });
 }
 
 /**
@@ -2072,7 +2117,7 @@ export async function addNativeFixesBeforeWindow(windowStartMs: number | null): 
       const c = loc.coords!;
       const act = (loc as { activity?: { type?: string | null; confidence?: number | null } | null }).activity;
       await db.runAsync(
-        "INSERT INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR IGNORE INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at, recorded_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
           c.latitude,
           c.longitude,
@@ -2081,6 +2126,7 @@ export async function addNativeFixesBeforeWindow(windowStartMs: number | null): 
           act?.type ?? null,
           typeof act?.confidence === "number" ? act.confidence : null,
           loc.timestamp,
+          fixTimeMs(loc.timestamp) || null,
         ]
       );
     }
@@ -2107,59 +2153,28 @@ async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
       (await db.getFirstAsync<{ c: number }>(
         "SELECT COUNT(*) AS c FROM detection_coordinates"
       ))?.c ?? 0;
-    if (native.length <= jsCount) {
-      // JS buffer already has at least as many rows. A row count is not a
-      // coverage check, so say so in the log rather than staying silent.
+    // Insert only the native fixes the buffer does not hold, however many rows
+    // it has: a count says nothing about coverage (a buffer with more rows can
+    // still lack some native fixes). Insert-only, so nothing a finalize trimmed
+    // or saved is brought back by deleting and refilling (16 Oct 2026); the
+    // saved-fix memory strips the ones already saved. Time is a fix's
+    // identity, and the unique index on recorded_ms (schema v12) is the
+    // backstop. The flight cut does not rely on the old count check: a re-run
+    // re-detects the same flight and cuts it again (planFlightCut).
+    const { added, leftOut } = await insertMissingNativeFixes(db, native, MAX_RECONCILE_COORDS);
+    if (added === 0) {
       logDetectionEvent("native_reconcile_skipped", {
-        reason: "js_has_more",
+        reason: "nothing_missing",
         nativeCount: native.length,
         jsCount,
       }).catch(() => {});
       return;
     }
-    const kept = native.length > MAX_RECONCILE_COORDS ? native.slice(-MAX_RECONCILE_COORDS) : native;
-    // One transaction + multi-row inserts. The old shape — one awaited
-    // runAsync per fix, no transaction — meant a big store produced thousands
-    // of serialized writes (each its own journal commit) on the app's single
-    // shared SQLite connection, starving every boot-path query behind it:
-    // the launch never finished, destroyLocations() never ran, and the store
-    // was even bigger next launch. ~40 statements now instead of ~6,000.
-    await db.execAsync("BEGIN IMMEDIATE");
-    try {
-      await db.runAsync("DELETE FROM detection_coordinates");
-      const CHUNK = 120; // 7 params/row, safely under SQLite's 999-variable cap
-      for (let i = 0; i < kept.length; i += CHUNK) {
-        const rows = kept.slice(i, i + CHUNK).filter((l) => l.coords);
-        if (rows.length === 0) continue;
-        const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?, ?)").join(", ");
-        const params: (number | string | null)[] = [];
-        for (const loc of rows) {
-          const c = loc.coords!;
-          const act = (loc as { activity?: { type?: string | null; confidence?: number | null } | null }).activity;
-          params.push(
-            c.latitude,
-            c.longitude,
-            c.speed ?? null,
-            c.accuracy ?? null,
-            act?.type ?? null,
-            typeof act?.confidence === "number" ? act.confidence : null,
-            loc.timestamp
-          );
-        }
-        await db.runAsync(
-          `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at) VALUES ${placeholders}`,
-          params
-        );
-      }
-      await db.execAsync("COMMIT");
-    } catch (txErr) {
-      await db.execAsync("ROLLBACK").catch(() => {});
-      throw txErr;
-    }
     logDetectionEvent("native_buffer_reconciled", {
       jsCount,
       nativeCount: native.length,
-      dropped: native.length - kept.length,
+      added,
+      dropped: leftOut,
     }).catch(() => {});
   } catch (err) {
     logDetectionEvent("native_reconcile_error", {
