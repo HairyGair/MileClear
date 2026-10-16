@@ -26,7 +26,24 @@ import { upsertMileageSummary } from "./mileage.js";
 export const ARCHIVE_COORDINATE_CAP = 6000;
 export const DELETED_TRIP_RETENTION_DAYS = 60;
 
-export type DeletedBy = "user" | "admin";
+export type DeletedBy = "user" | "admin" | "overlap_refused" | "overlap_trimmed";
+
+/** What a deleted_trips row means, in words support can read. The two overlap
+ *  kinds are uploads the SERVER dropped, never something the driver deleted. */
+export function deletedByLabel(deletedBy: string): string {
+  switch (deletedBy) {
+    case "user":
+      return "Deleted by the driver";
+    case "admin":
+      return "Deleted by an admin";
+    case "overlap_refused":
+      return "Upload refused by the server (fixes already on a saved trip). Not a driver deletion";
+    case "overlap_trimmed":
+      return "Upload trimmed by the server (kept as it was sent). Not a driver deletion";
+    default:
+      return deletedBy;
+  }
+}
 
 export interface ArchivedCoordinate {
   lat: number;
@@ -169,6 +186,51 @@ export async function archiveTripBeforeDelete(
   });
 
   return archived.id;
+}
+
+/**
+ * Keep an upload that POST /trips is about to refuse or trim against trips the
+ * driver already has (RECORDED_OVERLAP_TRIM=on, services/recordedOverlap.ts).
+ * The phone deletes its own copy once the server answers, so this is the only
+ * place the dropped fixes survive; an admin restores it from the same list as
+ * a deleted trip. `trip` is the upload as the phone sent it. Returns the
+ * archive id, or null when the write failed, in which case the caller must
+ * save the trip whole rather than drop anything.
+ */
+export async function archiveDroppedUpload(args: {
+  userId: string;
+  reason: "overlap_refused" | "overlap_trimmed";
+  keeperTripId: string | null;
+  trip: Record<string, unknown>;
+  coordinates: Array<{ lat: number; lng: number; speed?: number | null; accuracy?: number | null; recordedAt: Date | string }>;
+}): Promise<string | null> {
+  try {
+    const coordinates = capArchivedCoordinates(
+      args.coordinates.map((c) => ({
+        lat: c.lat,
+        lng: c.lng,
+        speed: c.speed ?? null,
+        accuracy: c.accuracy ?? null,
+        recordedAt: c.recordedAt,
+      }))
+    ).map(toArchivedCoordinate);
+    const archived = await prisma.deletedTrip.create({
+      data: {
+        userId: args.userId,
+        originalTripId: args.keeperTripId ?? "none",
+        // deleted_trips.deletedBy is VarChar(16): the reason is the label.
+        deletedBy: args.reason,
+        tripJson: JSON.parse(
+          JSON.stringify({ ...args.trip, isManualEntry: false, archivedReason: args.reason })
+        ) as Prisma.InputJsonValue,
+        coordinatesJson: coordinates as unknown as Prisma.InputJsonValue,
+      },
+      select: { id: true },
+    });
+    return archived.id;
+  } catch {
+    return null;
+  }
 }
 
 export class DeletedTripNotFoundError extends Error {

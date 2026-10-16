@@ -29,6 +29,7 @@ import {
   DeletedTripNotFoundError,
   DeletedTripAlreadyRestoredError,
   DELETED_TRIP_RETENTION_DAYS,
+  deletedByLabel,
 } from "../../services/tripArchive.js";
 import { getAppleClient, getSignedDataVerifier, fetchTransactionWithEnvFallback, type AppleIapEnvironment } from "../../services/appleIap.js";
 import { calculateUserHealthScore } from "../../services/userHealthScore.js";
@@ -1715,6 +1716,7 @@ export async function adminRoutes(app: FastifyInstance) {
         originalTripId: r.originalTripId,
         deletedAt: r.deletedAt,
         deletedBy: r.deletedBy,
+        deletedByLabel: deletedByLabel(r.deletedBy),
         restoredTripId: r.restoredTripId,
         restoredAt: r.restoredAt,
         startedAt: str(t.startedAt),
@@ -3508,6 +3510,7 @@ export async function adminRoutes(app: FastifyInstance) {
               originalTripId: d.originalTripId,
               deletedAt: d.deletedAt.toISOString(),
               deletedBy: d.deletedBy,
+              deletedByLabel: deletedByLabel(d.deletedBy),
               restored: d.restoredTripId !== null,
               distanceMiles: typeof tj.distanceMiles === "number" ? tj.distanceMiles : null,
               startedAt: tj.startedAt ?? null,

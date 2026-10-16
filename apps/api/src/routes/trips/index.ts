@@ -43,6 +43,8 @@ import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications
 import { logEvent } from "../../services/appEvents.js";
 import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
 import { findRecordedCopy } from "../../services/recordedDuplicateGuard.js";
+import { planOverlapTrim, type OverlapFix } from "../../services/recordedOverlap.js";
+import { loadOverlapCandidates, findTrimmedUpload, overlapTrimMode } from "../../services/recordedOverlapGuard.js";
 import {
   selectMissedJourneyCandidates,
   isMovingAtFirstFix,
@@ -61,7 +63,7 @@ import {
   SOURCES_KEPT_WHEN_AUTO_TRIPS_OFF,
 } from "../../services/autoTripsOffRule.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
-import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
+import { archiveTripBeforeDelete, archiveDroppedUpload } from "../../services/tripArchive.js";
 import { latestEndingIndex, mergedDistanceMiles } from "../../services/tripMergeRule.js";
 import { SPARSE_MAX_POINTS, isSparseCandidate, judgeSparseRoute, routeThroughPoints, usablePoints, type SparseVerdict } from "../../services/sparseRoute.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
@@ -345,6 +347,20 @@ async function backfillTripAddresses(args: {
     filledStart: Boolean(start),
     filledEnd: Boolean(end),
   });
+}
+
+// Overlap archive rows written for a request (services/tripArchive.ts), so a
+// failure further on can remove the row instead of leaving strays behind.
+const overlapArchives = new WeakMap<FastifyRequest, string>();
+async function dropOverlapArchive(request: FastifyRequest): Promise<void> {
+  const id = overlapArchives.get(request);
+  if (!id) return;
+  overlapArchives.delete(request);
+  try {
+    await prisma.deletedTrip.deleteMany({ where: { id } });
+  } catch {
+    // best effort
+  }
 }
 
 export async function tripRoutes(app: FastifyInstance) {
@@ -731,6 +747,20 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
+    // A retry of an upload that was trimmed (RECORDED_OVERLAP_TRIM=on). The
+    // trimmed trip starts later than the upload says, so the key above misses
+    // it; it remembers the upload's own start in gpsQuality.overlapTrimmed.
+    // Answer with it, exactly like a retry of any saved trip.
+    const overlapMode = overlapTrimMode();
+    if (overlapMode !== "off" && data.coordinates && data.coordinates.length >= 2 && data.endedAt) {
+      try {
+        const earlier = await findTrimmedUpload({ userId, startedAt: data.startedAt, endedAt: data.endedAt });
+        if (earlier) return reply.send({ data: earlier });
+      } catch (err) {
+        request.log.warn({ err, userId }, "trimmed-upload lookup failed");
+      }
+    }
+
     // Second recording of a drive already saved (28 Sep 2026). The key above
     // only catches a retry of the SAME upload. A shift recording and the
     // automatic engine's copy of the same fixes, or one drive finalized by two
@@ -787,6 +817,164 @@ export async function tripRoutes(app: FastifyInstance) {
       } catch (err) {
         // The check must never cost a drive: on any failure, save as before.
         request.log.warn({ err, userId }, "recorded-duplicate check failed");
+      }
+    }
+
+    // Fixes already saved on another trip (16 Oct 2026). The refusal above
+    // needs nine in ten fixes matched, so a re-sent stretch PLUS a real
+    // continuation is stored whole and the shared stretch is counted twice
+    // (services/recordedOverlap.ts). Here a fix is "already saved" only at the
+    // same millisecond and within 50 m, which is proof, not a guess. Modes
+    // (RECORDED_OVERLAP_TRIM): off; log (default: work it out and log
+    // trip.recorded_overlap_would_trim, save as before); on (trim). Inside the
+    // per-driver lock like everything else here, so two uploads cannot both pass.
+    let overlapTrim: { originalStart: { lat: number; lng: number; at: Date } } | null = null;
+    if (overlapMode !== "off" && data.coordinates && data.coordinates.length >= 2 && data.endedAt) {
+      try {
+        const incoming: OverlapFix[] = data.coordinates.map((c) => ({
+          t: c.recordedAt.getTime(),
+          lat: c.lat,
+          lng: c.lng,
+          accuracy: c.accuracy ?? null,
+          speed: c.speed ?? null,
+        }));
+        const times = incoming.map((f) => f.t).filter(Number.isFinite);
+        const others = times.length
+          ? await loadOverlapCandidates({
+              userId,
+              fromMs: Math.min(...times),
+              toMs: Math.max(...times),
+            })
+          : [];
+        const plan = planOverlapTrim({ incoming, others, incomingHasShift: Boolean(data.shiftId) });
+        // No phantom pre-check on the remainder: the normal check further down
+        // judges what is saved, and a phantom-flagged trip can be recovered
+        // where a refusal cannot.
+        let archiveId: string | null = null;
+        const verdict = plan.verdict;
+        const reason = plan.reason;
+        const uncovered = plan.stretchList.slice(0, 12).map((s) => ({
+          from: new Date(s.fromT).toISOString(),
+          to: new Date(s.toT).toISOString(),
+          fixes: s.fixes,
+          miles: s.miles,
+          real: s.real,
+        }));
+        const common = {
+          removedFixes: plan.sharedFixes,
+          duplicateTimestamps: plan.duplicateTimestamps,
+          fromMiles: plan.fromMiles,
+          toMiles: verdict === "multi" ? plan.fromMiles : plan.remainderMiles,
+          keptTripIds: plan.keptTripIds,
+          uncovered,
+        };
+        // On mode only, before anything is dropped: keep the whole upload.
+        // If that write fails nothing is dropped and the trip saves as before.
+        const archiveFirst = async (why: "overlap_refused" | "overlap_trimmed") => {
+          const id = await archiveDroppedUpload({
+            userId,
+            reason: why,
+            keeperTripId: plan.bestTripId,
+            trip: { ...data, coordinates: undefined },
+            coordinates: data.coordinates ?? [],
+          });
+          if (id) overlapArchives.set(request, id);
+          else logEvent("trip.recorded_overlap_archive_failed", userId, { verdict, keptTripIds: plan.keptTripIds });
+          return id;
+        };
+
+        if (verdict === "multi") {
+          logEvent("trip.recorded_overlap_multi", userId, {
+            ...common,
+            stretches: plan.realStretches,
+            smallStretches: plan.stretches - plan.realStretches,
+            incomingFixes: plan.fixes.length,
+            mode: overlapMode,
+          });
+        } else if (verdict === "keeper_sparse") {
+          // The saved trip is too thin to vouch for this stretch: save whole.
+          logEvent("trip.recorded_overlap_would_trim", userId, {
+            ...common,
+            verdict,
+            reason,
+            mode: overlapMode,
+            incomingFixes: plan.fixes.length,
+          });
+        } else if ((verdict === "trim" || verdict === "refuse") && overlapMode === "log") {
+          logEvent("trip.recorded_overlap_would_trim", userId, {
+            ...common,
+            verdict,
+            reason,
+            incomingFixes: plan.fixes.length,
+          });
+        } else if (verdict === "refuse" && plan.bestTripId && (await archiveFirst("overlap_refused").then((id) => { archiveId = id; return id !== null; }))) {
+          // Answered like the refusal above: the saved trip holding most of the fixes.
+          let keeper = await prisma.trip.findUniqueOrThrow({
+            where: { id: plan.bestTripId },
+            include: { vehicle: true, shift: true },
+          });
+          if (data.shiftId && !keeper.shiftId) {
+            keeper = await prisma.trip.update({
+              where: { id: keeper.id },
+              data: { shiftId: data.shiftId },
+              include: { vehicle: true, shift: true },
+            });
+          }
+          logEvent("trip.recorded_overlap_refused", userId, {
+            ...common,
+            reason,
+            archiveId,
+            keptTripId: keeper.id,
+            incomingHadShift: Boolean(data.shiftId),
+          });
+          return reply.send({ data: keeper, duplicateOf: keeper.id });
+        } else if (verdict === "trim" && (await archiveFirst("overlap_trimmed").then((id) => { archiveId = id; return id !== null; }))) {
+          const first = plan.remainder[0];
+          const last = plan.remainder[plan.remainder.length - 1];
+          // First of each repeated millisecond, matching the planner's dedupe.
+          const byTime = new Map<number, (typeof data.coordinates)[number]>();
+          for (const c of data.coordinates) if (!byTime.has(c.recordedAt.getTime())) byTime.set(c.recordedAt.getTime(), c);
+          const kept = plan.remainder.map((f) => byTime.get(f.t)!);
+          overlapTrim = { originalStart: { lat: data.startLat, lng: data.startLng, at: data.startedAt } };
+          data.coordinates = kept;
+          data.startedAt = new Date(first.t);
+          data.startLat = first.lat;
+          data.startLng = first.lng;
+          data.startAddress = undefined; // named from the real start below
+          if (last.t < plan.fixes[plan.fixes.length - 1].t) {
+            // The saved stretch comes after the remainder: it ends at the join.
+            data.endedAt = new Date(last.t);
+            data.endLat = last.lat;
+            data.endLng = last.lng;
+            data.endAddress = undefined;
+          }
+          // The phone's figure is for the whole upload; never trust it here.
+          data.distanceMiles = plan.remainderMiles;
+          data.gpsQuality = {
+            ...(data.gpsQuality ?? {}),
+            overlapTrimmed: {
+              removedFixes: plan.sharedFixes,
+              duplicateTimestamps: plan.duplicateTimestamps,
+              keptTripIds: plan.keptTripIds,
+              fromMiles: plan.fromMiles,
+              toMiles: plan.remainderMiles,
+              droppedSmallStretches: plan.droppedSmallStretches,
+              droppedSmallMiles: plan.droppedSmallMiles,
+              originalStartedAt: overlapTrim.originalStart.at.toISOString(),
+            },
+          };
+          logEvent("trip.recorded_overlap_trimmed", userId, {
+            ...common,
+            archiveId,
+            incomingFixes: plan.fixes.length,
+            keptFixes: kept.length,
+          });
+        }
+      } catch (err) {
+        // The check must never cost a drive: on any failure, save as before.
+        request.log.warn({ err, userId }, "recorded-overlap check failed");
+        // Saving as before, so the archive row would be a stray copy.
+        await dropOverlapArchive(request);
       }
     }
 
@@ -909,8 +1097,8 @@ export async function tripRoutes(app: FastifyInstance) {
 
     // Whatever moves the start below, the device's own figure is what a retried
     // create will carry, so remember it for the dedup above.
-    const deviceStartLat = data.startLat;
-    const deviceStartLng = data.startLng;
+    const deviceStartLat = overlapTrim ? overlapTrim.originalStart.lat : data.startLat;
+    const deviceStartLng = overlapTrim ? overlapTrim.originalStart.lng : data.startLng;
 
     // Wake-lag start reconciliation: the auto-detect engine arms ~0.3 mi
     // into a drive, so the start lands down the road from the real origin.
@@ -919,7 +1107,10 @@ export async function tripRoutes(app: FastifyInstance) {
     // routed miles for the missing stretch. Runs after the dedup check
     // (which keys on the CLIENT's start) and after the edge trim (so it
     // sees the real first fix). See services/wakeLagStart.ts.
-    const wakeLag = await reconcileWakeLagStart({
+    // A trimmed upload starts mid-drive by design: its start is the saved
+    // trip's last shared fix, so it is never extended back over the removed
+    // fixes (the late-start hook skips it too, through originalStartLat).
+    const wakeLag = overlapTrim ? null : await reconcileWakeLagStart({
       userId,
       newTrip: {
         startedAt: tripData.startedAt,
@@ -1378,7 +1569,16 @@ export async function tripRoutes(app: FastifyInstance) {
   // (lib/keyedLock.ts).
   app.post("/", async (request, reply) =>
     request.userId
-      ? withKeyLock(`trip-create:${request.userId}`, () => createTrip(request, reply))
+      ? withKeyLock(`trip-create:${request.userId}`, async () => {
+          try {
+            return await createTrip(request, reply);
+          } catch (err) {
+            // The create failed after an overlap archive was written: the phone
+            // will retry, so don't leave a second archive row behind.
+            await dropOverlapArchive(request);
+            throw err;
+          }
+        })
       : createTrip(request, reply)
   );
 
