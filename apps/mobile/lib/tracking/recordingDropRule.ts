@@ -108,6 +108,10 @@ export interface DropInput {
   nativeCoords?: number | null;
   /** Which code path dropped it, for the paths outside finalize. */
   source?: string | null;
+  /** Buffered fixes removed because an earlier save already holds them
+   *  (savedFixes.ts), so the server can see how often a refill brought back
+   *  driving that was already saved. */
+  savedFixesSkipped?: number | null;
 }
 
 export interface DropEvent {
@@ -122,6 +126,7 @@ export interface DropEvent {
   nativeCoords?: number;
   durationSec?: number;
   source?: string;
+  savedFixesSkipped?: number;
   platform: string;
 }
 
@@ -155,6 +160,8 @@ export function buildDropEvent(input: DropInput, now: number, platform: string):
   const nativeCoords = finiteOrUndefined(input.nativeCoords);
   if (nativeCoords !== undefined) ev.nativeCoords = nativeCoords;
   if (input.source) ev.source = String(input.source).slice(0, 60);
+  const skipped = finiteOrUndefined(input.savedFixesSkipped);
+  if (skipped !== undefined && skipped > 0) ev.savedFixesSkipped = skipped;
   return ev;
 }
 
