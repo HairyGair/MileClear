@@ -1499,7 +1499,7 @@ export async function userRoutes(app: FastifyInstance) {
     // one, so the device and server disagree forever and the user silently
     // loses their Dynamic Island. 17 users were in that state on 24 Aug 2026,
     // Anthony among them (cleared some time after 26 Jul, never recovered).
-    liveActivityPushToStartToken: z.string().min(32).max(256).optional(),
+    liveActivityPushToStartToken: z.string().min(32).max(512).optional(),
     // Watchdog state - lets the server-side recording-watchdog cron spot
     // stuck recordings even when the device's own setInterval watchdog is
     // suspended by iOS. ISO timestamps from the mobile.

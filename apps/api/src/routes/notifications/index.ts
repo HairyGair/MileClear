@@ -20,7 +20,7 @@ const laTokenSchema = z.object({
   token: z
     .string()
     .min(8)
-    .max(255)
+    .max(512)
     .regex(/^[0-9a-fA-F]+$/, { message: "Invalid push-to-start token format" }),
 });
 

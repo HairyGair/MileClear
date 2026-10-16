@@ -53,7 +53,7 @@ model User {
   // Per-device push-to-start token for Live Activities (iOS 17.2+). Lets the
   // server start the Dynamic Island / Live Activity on a background-detected
   // drive via an APNs `liveactivity` push. Separate from pushToken (Expo).
-  liveActivityPushToStartToken String? @db.VarChar(255)
+  liveActivityPushToStartToken String? @db.VarChar(512)
   laTokenUpdatedAt     DateTime?
   avatarId             String?   @db.VarChar(50)
   userIntent           String?   @db.VarChar(20)
