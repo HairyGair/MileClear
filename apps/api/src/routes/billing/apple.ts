@@ -501,6 +501,9 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           app.log.info(
             `Apple ${notificationType}: user ${user.id} premium renewed until ${premiumExpiresAt?.toISOString()}`
           );
+          // A renewal or new subscription supersedes any earlier "renewal off"
+          // (services/subscriptionRenewal.ts reads the later of the two).
+          logEvent("billing.apple_renewed", user.id, { notificationType });
           // Notify on BOTH new subs and renewals — Anthony wants every
           // revenue event visible (6 Jun: a real annual sub whose first
           // charge arrived as DID_RENEW went completely silent, and routine
@@ -655,10 +658,12 @@ export async function appleBillingRoutes(app: FastifyInstance) {
         }
 
         case "DID_CHANGE_RENEWAL_STATUS": {
-          // auto_renew_disabled — log only, keep access until expiry
+          // Keep access until expiry. The event tells the "Pro ends soon"
+          // push whether this subscription will renew (services/subscriptionRenewal.ts).
           app.log.info(
             `Apple DID_CHANGE_RENEWAL_STATUS (subtype: ${subtype}): user ${user.id}`
           );
+          logEvent("billing.apple_auto_renew_changed", user.id, { subtype: subtype ?? null });
           break;
         }
 

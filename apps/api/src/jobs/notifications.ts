@@ -20,6 +20,8 @@ import {
 } from "@mileclear/shared";
 import { sendCheckinEmail } from "../services/email.js";
 import { logEvent } from "../services/appEvents.js";
+import { decideRenewal, expiringMessage, type RenewalFacts } from "../services/subscriptionRenewal.js";
+import { stripe } from "../lib/stripe.js";
 import { runJob } from "../services/jobRun.js";
 import { prewarmStationCache } from "../services/fuel.js";
 import { runCheapestFuelAlertJob, runEvWeeklySummaryJob } from "./fuelAlerts.js";
@@ -179,6 +181,54 @@ async function runStreakAtRiskJob(): Promise<void> {
  * Find premium users whose subscription expires within the next 3 days
  * and send a payment reminder if they haven't been notified today.
  */
+/** What each store last told us about this driver's renewal. */
+async function loadRenewalFacts(user: {
+  id: string;
+  appleOriginalTransactionId: string | null;
+  googlePlayPurchaseToken: string | null;
+  stripeSubscriptionId: string | null;
+}): Promise<RenewalFacts> {
+  const facts: RenewalFacts = {
+    hasApple: !!user.appleOriginalTransactionId,
+    hasGoogle: !!user.googlePlayPurchaseToken,
+    hasStripe: !!user.stripeSubscriptionId,
+  };
+  if (facts.hasApple) {
+    const ev = await prisma.appEvent.findFirst({
+      where: { type: "billing.apple_auto_renew_changed", userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { metadata: true, createdAt: true },
+    });
+    // A purchase or renewal after "renewal off" means they subscribed again.
+    const renewedSince = ev
+      ? await prisma.appEvent.findFirst({
+          where: {
+            type: { in: ["billing.apple_renewed", "billing.apple_iap_validated"] },
+            userId: user.id,
+            createdAt: { gt: ev.createdAt },
+          },
+          select: { id: true },
+        })
+      : null;
+    facts.appleLatestSubtype = renewedSince ? null : (((ev?.metadata ?? {}) as { subtype?: string }).subtype ?? null);
+  } else if (facts.hasGoogle) {
+    const ev = await prisma.appEvent.findFirst({
+      where: { type: "billing.google_play_rtdn", userId: user.id },
+      orderBy: { createdAt: "desc" },
+      select: { metadata: true },
+    });
+    facts.googleLatestState = ((ev?.metadata ?? {}) as { state?: string }).state ?? null;
+  } else if (facts.hasStripe && stripe) {
+    try {
+      const sub = await stripe.subscriptions.retrieve(user.stripeSubscriptionId!);
+      facts.stripeCancelAtPeriodEnd = sub.cancel_at_period_end;
+    } catch {
+      facts.stripeCancelAtPeriodEnd = null;
+    }
+  }
+  return facts;
+}
+
 async function runSubExpiringJob(): Promise<void> {
   try {
     const now = new Date();
@@ -196,26 +246,39 @@ async function runSubExpiringJob(): Promise<void> {
         },
         pushToken: { not: null },
       },
-      select: { id: true, pushToken: true, premiumExpiresAt: true },
+      select: {
+        id: true,
+        pushToken: true,
+        premiumExpiresAt: true,
+        appleOriginalTransactionId: true,
+        googlePlayPurchaseToken: true,
+        stripeSubscriptionId: true,
+      },
     });
 
     const messages: ExpoPushMessage[] = [];
     for (const user of expiring) {
-      if (await wasNotifiedToday(user.id, "notification.sub_expiring")) continue;
-      logEvent("notification.sub_expiring", user.id);
+      const expiresAt = user.premiumExpiresAt!.toISOString();
+      // Once per period, not once a day for three days (services/subscriptionRenewal.ts).
+      const told = await prisma.appEvent.findFirst({
+        where: { type: "notification.sub_expiring", userId: user.id, metadata: { path: "$.expiresAt", equals: expiresAt } },
+        select: { id: true },
+      });
+      if (told) continue;
+
+      const verdict = decideRenewal(await loadRenewalFacts(user));
+      if (verdict.willRenew) continue;
+      logEvent("notification.sub_expiring", user.id, { expiresAt, source: verdict.source });
 
       const daysLeft = Math.ceil(
         (user.premiumExpiresAt!.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)
       );
-      const dayWord = daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`;
-
+      const { title, body } = expiringMessage(daysLeft, verdict.source);
+      // The Self Assessment wizard is free; its PDF is Pro.
       messages.push({
         to: user.pushToken!,
-        // Sent to every Pro user whose paid period ends soon, including
-        // subscriptions that renew by themselves, so it must not claim Pro
-        // is ending. The Self Assessment wizard is free; its PDF is Pro.
-        title: `Your Pro period ends ${dayWord}`,
-        body: "If your subscription renews automatically, there's nothing to do. If you've cancelled, renew to keep your Self Assessment PDF, exports and unlimited saved places.",
+        title,
+        body,
         sound: "default",
         data: { type: "subscription_expiring", action: "billing", daysLeft },
       });
