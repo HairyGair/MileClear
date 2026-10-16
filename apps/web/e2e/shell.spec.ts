@@ -57,7 +57,7 @@ test.describe("desktop 1440", () => {
     await rail.getByRole("link", { name: /^More/ }).click();
     await expect(page).toHaveURL(/\/dashboard\/more$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("More");
-    await page.getByRole("link", { name: /Vehicles/ }).click();
+    await page.getByRole("link", { name: /Your cars/ }).click();
     await expect(page).toHaveURL(/\/dashboard\/vehicles/);
     await expect(rail.getByRole("link", { name: /^More/ })).toHaveAttribute("aria-current", "page");
   });

@@ -305,6 +305,8 @@ export async function mockTax(page: Page, opts: TaxMockOptions = {}): Promise<Re
   const calls: Recorded[] = [];
   const certs: CertSummary[] = (opts.certs ?? []).map((c) => ({ ...c }));
   const access: unknown[] = [...(opts.access ?? [])];
+  // Practice links (accountant sharing, Oct 2026): empty until the driver invites someone.
+  const practiceLinks: unknown[] = [];
 
   await page.route(`${API}/**`, async (route: Route) => {
     const req = route.request();
@@ -407,6 +409,39 @@ export async function mockTax(page: Page, opts: TaxMockOptions = {}): Promise<Re
         const made: CertSummary = { ...CERT_ONE, id: `c${certs.length + 2}`, periodStart: b.periodStart, periodEnd: b.periodEnd };
         certs.unshift(made);
         return json({ data: made }, 201);
+      }
+      case "GET /practice-links":
+        record();
+        return json({
+          data: {
+            isEmployee: false,
+            links: practiceLinks,
+            requests: [],
+            log: [],
+            fee: { accountantName: null, accountantContact: null, accountantAnnualFeePence: null },
+          },
+        });
+      case "POST /practice-links/invite": {
+        record();
+        practiceLinks.push({
+          id: "l1",
+          state: "waiting_for_practice",
+          startedBy: "driver",
+          practice: { id: null, name: (body as { value: string }).value, initials: "PS", logoPath: null, contactName: null, professionalBody: null, checked: false, paused: false },
+          awaitingSignup: true,
+          shareEarnings: false,
+          shareExpenses: false,
+          sharePersonalTrips: false,
+          invitedAt: "2026-10-09T09:00:00.000Z",
+          consentedAt: null,
+          startedAt: null,
+          endsAt: null,
+          endedAt: null,
+          endedBy: null,
+          renewalAskedAt: null,
+          renewalDue: false,
+        });
+        return json({ data: { outcome: "emailed_accountant" } }, 201);
       }
       case "GET /accountant/access":
         record();
