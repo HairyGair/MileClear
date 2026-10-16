@@ -36,8 +36,17 @@
 //  - A shift suggestion naming an archived trip is cleared (proposed) or
 //    repointed to the keeper (accepted / dismissed); possibleDuplicateOfId
 //    pointers are cleared.
+//  - A real stretch needs 5+ fixes over 60+ s, else REVIEW. Anchor-shaped fixes
+//    are dropped from the kept route (except one directly before the stretch,
+//    within 60 s), so the new distance is the kept path.
+//  - Timing is not trusted alone: REVIEW when the copy's path over its covered
+//    fixes exceeds the keepers' own path over the same time by 0.5 mi or 10%,
+//    or when timing-only covered fixes outnumber exact-shared ones 2:1.
+//  - Any business / non-business disagreement between copy and keeper, whatever
+//    the source (mileage counts classification === "business"): REVIEW.
 //  - REVIEW, never changed: a shift, odometer readings, a note / purpose /
-//    project / category, a start or end edit (trip.start_edited / end_edited /
+//    project / category, more than 6000 coordinate rows (an archive holds 6000),
+//    a month a team manager approved (TeamApproval, driver + "YYYY-MM"), a start or end edit (trip.start_edited / end_edited /
 //    start_time_edited events, gpsQuality.endExtension), a split or join the
 //    driver made, a QuickBooks sync, a diversion label, an anomaly, or a
 //    stored distance more than 0.5 mi above what its fixes explain.
@@ -53,10 +62,12 @@
 //   node --env-file=/home/mileclear/mileclear-app/.env scripts/dedupe-shared-fixes.mjs [days] [userPrefix] [--out=plan.json]
 //   node --env-file=... scripts/dedupe-shared-fixes.mjs [days] [userPrefix] apply --ids=plan.json
 //
-// Undo: each change logs one app event in the same transaction holding the old
-// values and every removed coordinate (lat, lng, accuracy, speed, recordedAt):
-// admin.trip_shared_fixes_trimmed or admin.trip_shared_fixes_archived. An
-// archived trip can also be restored from the user detail page.
+// Undo: each change logs one app event in the same transaction:
+// admin.trip_shared_fixes_trimmed (the complete old trip row, every removed
+// coordinate with its id) or admin.trip_shared_fixes_archived (the complete old
+// row, the archive id, shift suggestions as they were). Both hold the keeper's
+// old classification fields. Reverse them with scripts/undo-dedupe-shared-fixes.mjs
+// <event ids> [apply]. Apply order matters: do not re-sort the plan file.
 import { readFileSync, writeFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
 import {
@@ -87,47 +98,75 @@ const iso = (d) => (d ? new Date(d).toISOString() : null);
 const fmt = (d) => iso(d).slice(0, 16).replace("T", " ") + "Z";
 
 // ---------------------------------------------------------------- APPLY ----
+// ORDER MATTERS: items are applied in the order they sit in the plan file. The
+// planner compared each copy with what its keepers would look like after their
+// own changes, so a keeper's trim comes before the copies that rest on it. Do
+// not re-sort the file; delete items, never move them. A driver's items sit
+// together, and that driver's mileage summaries are recalculated as soon as
+// their items are done.
 if (APPLY) {
   const { getTaxYear } = await import("@mileclear/shared");
   const { archiveTripBeforeDelete } = await import("../dist/services/tripArchive.js");
   const { upsertMileageSummary } = await import("../dist/services/mileage.js");
 
+  const J = (o) => JSON.parse(JSON.stringify(o)); // dates to ISO strings, for the undo events
   const file = JSON.parse(readFileSync(IDS_FILE, "utf8"));
   const items = (Array.isArray(file) ? file : file.items ?? []).filter((i) => i.action === "TRIM" || i.action === "ARCHIVE");
   console.log(`APPLY: ${items.length} approved TRIM / ARCHIVE items from ${IDS_FILE}`);
-  const summaries = new Set();
+  const touched = new Set(); // trips this run already trimmed, or put a classification on
+  let summaries = new Set();
+  let curUser = null;
   let done = 0;
+  let summariesDone = 0;
+  const flush = async () => {
+    for (const key of summaries) {
+      const [userId, taxYear] = key.split("|");
+      await upsertMileageSummary(userId, taxYear).catch((err) =>
+        console.log(`  mileage summary failed for ${userId.slice(0, 8)} ${taxYear}: ${err?.message ?? err}`));
+      summariesDone++;
+    }
+    summaries = new Set();
+  };
+
   for (const it of items) {
+    if (curUser && it.userId !== curUser) await flush();
+    curUser = it.userId;
     const tag = `${it.tripId.slice(0, 8)} (${it.action})`;
     const trip = await p.trip.findFirst({ where: { id: it.tripId, userId: it.userId } });
     if (!trip) { console.log(`  skip ${tag}: trip gone`); continue; }
     if (trip.updatedAt.toISOString() !== it.guard.updatedAt) { console.log(`  skip ${tag}: trip changed since the plan`); continue; }
     const rowCount = await p.tripCoordinate.count({ where: { tripId: trip.id } });
     if (rowCount !== it.guard.coordinateRows) { console.log(`  skip ${tag}: coordinate count ${rowCount}, plan saw ${it.guard.coordinateRows}`); continue; }
-    const keepers = await p.trip.count({ where: { id: { in: it.keeperIds }, userId: it.userId } });
-    if (keepers === 0) { console.log(`  skip ${tag}: none of the keeper trips exist any more`); continue; }
+    if (rowCount > 6000) { console.log(`  skip ${tag}: ${rowCount} coordinate rows is more than an archive holds`); continue; }
 
-    // The coordinates to remove, read back with their values so they are in the undo event.
-    const removeIds = it.action === "ARCHIVE" ? null : it.removeFixIds;
+    // EVERY keeper must still exist and be as planned (keepers this run already changed excepted).
+    if (!Array.isArray(it.keeperGuards) || it.keeperGuards.length !== it.keeperIds.length) { console.log(`  skip ${tag}: plan has no keeper guards`); continue; }
+    let keepersOk = true;
+    for (const g of it.keeperGuards) {
+      const k = await p.trip.findFirst({ where: { id: g.id, userId: it.userId }, select: { id: true, updatedAt: true } });
+      if (!k) { console.log(`  skip ${tag}: keeper ${g.id.slice(0, 8)} is gone`); keepersOk = false; break; }
+      if (touched.has(g.id)) continue;
+      if (k.updatedAt.toISOString() !== g.updatedAt) { console.log(`  skip ${tag}: keeper ${g.id.slice(0, 8)} changed since the plan`); keepersOk = false; break; }
+      const kRows = await p.tripCoordinate.count({ where: { tripId: g.id } });
+      if (kRows !== g.coordinateRows) { console.log(`  skip ${tag}: keeper ${g.id.slice(0, 8)} has ${kRows} coordinates, plan saw ${g.coordinateRows}`); keepersOk = false; break; }
+    }
+    if (!keepersOk) continue;
+
+    // The coordinates to remove, read back with their values for the undo event.
     const removed = [];
-    if (removeIds) {
-      for (const c of chunks(removeIds, 500)) {
+    if (it.action === "TRIM") {
+      for (const c of chunks(it.removeFixIds, 500)) {
         removed.push(...(await p.tripCoordinate.findMany({
           where: { id: { in: c }, tripId: trip.id },
           select: { id: true, lat: true, lng: true, accuracy: true, speed: true, recordedAt: true },
         })));
       }
-      if (removed.length !== removeIds.length) { console.log(`  skip ${tag}: ${removeIds.length - removed.length} planned coordinates are not on this trip`); continue; }
+      if (removed.length !== it.removeFixIds.length) { console.log(`  skip ${tag}: ${it.removeFixIds.length - removed.length} planned coordinates are not on this trip`); continue; }
     }
-    const oldValues = {
-      distanceMiles: trip.distanceMiles, startedAt: iso(trip.startedAt), endedAt: iso(trip.endedAt),
-      startLat: trip.startLat, startLng: trip.startLng, endLat: trip.endLat, endLng: trip.endLng,
-      startAddress: trip.startAddress, endAddress: trip.endAddress, coordinateCount: trip.coordinateCount,
-      routePolyline: trip.routePolyline, originalStartLat: trip.originalStartLat, originalStartLng: trip.originalStartLng,
-    };
+    const oldRow = J(trip); // every column, so a hand restore is exact
 
     // The driver's classification travels to the keeper; the keeper must still be as planned.
-    const keeperSelect = { id: true, classification: true, classificationSource: true, platformTag: true };
+    const keeperSelect = { id: true, classification: true, classificationSource: true, classificationAutoAccepted: true, platformTag: true, autoClassifiedAt: true, preAutoClassification: true };
     const keeperStillAsPlanned = async (db) => {
       if (!it.keeperUpdate) return { ok: true, old: null };
       const k = await db.trip.findFirst({ where: { id: it.keeperUpdate.keeperId, userId: trip.userId }, select: keeperSelect });
@@ -140,45 +179,55 @@ if (APPLY) {
       const { ok, old } = await keeperStillAsPlanned(tx);
       if (!ok) throw new Error("keeper changed since the plan");
       await tx.trip.update({ where: { id: old.id }, data: { ...it.keeperUpdate.set, autoClassifiedAt: null } });
-      return { keeperId: old.id, old, set: it.keeperUpdate.set };
+      return J({ keeperId: old.id, old, set: it.keeperUpdate.set });
     };
     // Shift suggestions are system-made: a proposed one naming an archived trip is
-    // cleared (the scan proposes it again), any other has the id swapped for the keeper's.
+    // cleared (the scan proposes it again), any other has the id swapped for the main keeper's.
+    const mainKeeper = it.mainKeeperId ?? it.keeperIds[0];
     const fixShiftSuggestions = async (tx) => {
       const out = [];
-      const all = await tx.shiftSuggestion.findMany({ where: { userId: trip.userId }, select: { id: true, key: true, status: true, tripIdsJson: true } });
+      const all = await tx.shiftSuggestion.findMany({ where: { userId: trip.userId } });
       for (const s of all) {
         const list = Array.isArray(s.tripIdsJson) ? s.tripIdsJson : [];
         if (!list.includes(trip.id) && !s.key.split(":").includes(trip.id)) continue;
         if (s.status === "proposed") {
           await tx.shiftSuggestion.delete({ where: { id: s.id } });
-          out.push({ id: s.id, key: s.key, status: s.status, tripIdsJson: list, change: "cleared" });
+          out.push({ change: "cleared", row: J(s) });
         } else {
-          const keeper = it.keeperIds[0];
-          const next = [...new Set(list.map((x) => (x === trip.id ? keeper : x)))];
+          const next = [...new Set(list.map((x) => (x === trip.id ? mainKeeper : x)))];
           await tx.shiftSuggestion.update({ where: { id: s.id }, data: { tripIdsJson: next } });
-          out.push({ id: s.id, key: s.key, status: s.status, tripIdsJson: list, change: "repointed" });
+          out.push({ change: "repointed", row: J(s) });
         }
       }
       return out;
     };
 
+    let archivedId = null;
+    let committed = false;
     try {
       if (!(await keeperStillAsPlanned(p)).ok) { console.log(`  skip ${tag}: keeper ${it.keeperUpdate.keeperId.slice(0, 8)} changed since the plan`); continue; }
       if (it.action === "ARCHIVE") {
-        const archivedId = await archiveTripBeforeDelete(trip.id, trip.userId, "admin"); // must succeed
+        archivedId = await archiveTripBeforeDelete(trip.id, trip.userId, "admin"); // must succeed
         if (!archivedId) { console.log(`  skip ${tag}: gone before archive`); continue; }
         await p.$transaction(async (tx) => {
           const keeperOld = await carryToKeeper(tx);
           const suggestions = await fixShiftSuggestions(tx);
+          const pointing = await tx.trip.findMany({ where: { userId: trip.userId, possibleDuplicateOfId: trip.id }, select: { id: true } });
           await tx.trip.updateMany({ where: { userId: trip.userId, possibleDuplicateOfId: trip.id }, data: { possibleDuplicateOfId: null } });
           await tx.tripCoordinate.deleteMany({ where: { tripId: trip.id } });
           await tx.trip.delete({ where: { id: trip.id } });
           await tx.appEvent.create({ data: {
             type: "admin.trip_shared_fixes_archived", userId: trip.userId,
-            metadata: { tripId: trip.id, deletedTripId: archivedId, keeperIds: it.keeperIds, sharedFixes: it.sharedFixes, old: oldValues, droppedStretches: it.droppedStretches ?? [], keeperClassification: keeperOld, shiftSuggestions: suggestions, source: "dedupe-shared-fixes" },
+            metadata: {
+              tripId: trip.id, deletedTripId: archivedId, keeperIds: it.keeperIds, mainKeeperId: mainKeeper, sharedFixes: it.sharedFixes,
+              oldRow, coordinateRows: rowCount, droppedStretches: it.droppedStretches ?? [],
+              keeperClassification: keeperOld, shiftSuggestions: suggestions, clearedPointerTripIds: pointing.map((x) => x.id),
+              source: "dedupe-shared-fixes",
+            },
           } });
         }, { timeout: 60000 });
+        committed = true;
+        if (it.keeperUpdate) touched.add(it.keeperUpdate.keeperId);
         summaries.add(`${trip.userId}|${getTaxYear(trip.startedAt)}`);
       } else {
         const keepFixes = it.keepFixes.map((f) => ({ ...f }));
@@ -200,15 +249,18 @@ if (APPLY) {
           await tx.trip.update({ where: { id: trip.id }, data });
           await tx.appEvent.create({ data: {
             type: "admin.trip_shared_fixes_trimmed", userId: trip.userId,
-            metadata: {
-              tripId: trip.id, keeperIds: it.keeperIds, sharedFixes: it.sharedFixes, old: oldValues,
+            metadata: J({
+              tripId: trip.id, keeperIds: it.keeperIds, mainKeeperId: mainKeeper, sharedFixes: it.sharedFixes, oldRow,
               droppedStretches: it.droppedStretches ?? [], keeperClassification: keeperOld,
-              new: { distanceMiles: it.newMiles, startedAt: iso(fields.startedAt), endedAt: iso(fields.endedAt), coordinateCount: fields.coordinateCount },
-              removedCoordinates: removed.map((r) => ({ lat: r.lat, lng: r.lng, accuracy: r.accuracy, speed: r.speed, recordedAt: iso(r.recordedAt) })),
+              new: { distanceMiles: it.newMiles, startedAt: fields.startedAt, endedAt: fields.endedAt, coordinateCount: fields.coordinateCount },
+              removedCoordinates: removed.map((r) => ({ id: r.id, lat: r.lat, lng: r.lng, accuracy: r.accuracy, speed: r.speed, recordedAt: r.recordedAt })),
               source: "dedupe-shared-fixes",
-            },
+            }),
           } });
         }, { timeout: 60000 });
+        committed = true;
+        touched.add(trip.id);
+        if (it.keeperUpdate) touched.add(it.keeperUpdate.keeperId);
         summaries.add(`${trip.userId}|${getTaxYear(trip.startedAt)}`);
         summaries.add(`${trip.userId}|${getTaxYear(fields.startedAt)}`);
       }
@@ -216,14 +268,21 @@ if (APPLY) {
       console.log(`  done ${tag} ${trip.distanceMiles.toFixed(2)} -> ${it.action === "ARCHIVE" ? "deleted" : it.newMiles.toFixed(2)} mi`);
     } catch (err) {
       console.log(`  FAILED ${tag}: ${err?.message ?? err}`);
+      if (archivedId && !committed) {
+        // The change rolled back but the archive copy was already written: take the stray copy out.
+        try {
+          await p.deletedTrip.delete({ where: { id: archivedId } });
+          await new Promise((r) => setTimeout(r, 1000)); // trip.archived_on_delete is fire-and-forget
+          const ev = await p.appEvent.deleteMany({ where: { type: "trip.archived_on_delete", userId: trip.userId, metadata: { path: "$.deletedTripId", equals: archivedId } } });
+          console.log(`  removed the stray archive row ${archivedId.slice(0, 8)} and ${ev.count} archived_on_delete event(s); the trip is untouched`);
+        } catch (e2) {
+          console.log(`  COULD NOT remove the stray archive row ${archivedId} (trip ${trip.id}): ${e2?.message ?? e2}. Delete it by hand.`);
+        }
+      }
     }
   }
-  for (const key of summaries) {
-    const [userId, taxYear] = key.split("|");
-    await upsertMileageSummary(userId, taxYear).catch((err) =>
-      console.log(`  mileage summary failed for ${userId.slice(0, 8)} ${taxYear}: ${err?.message ?? err}`));
-  }
-  console.log(`Applied ${done} of ${items.length}; recalculated ${summaries.size} tax-year summaries.`);
+  await flush();
+  console.log(`Applied ${done} of ${items.length}; recalculated ${summariesDone} tax-year summaries.`);
   await p.$disconnect();
   process.exit(0);
 }
@@ -281,6 +340,18 @@ for (const c of chunks(ids, 150)) {
   }
 }
 
+// A month a team manager approved for the driver is not touched (TeamApproval:
+// one row per org / driver / "YYYY-MM" in UK local time, status "approved").
+const approvedMonths = new Set();
+for (const c of chunks(driverIds, 500)) {
+  for (const a of await p.teamApproval.findMany({ where: { userId: { in: c }, status: "approved" }, select: { userId: true, month: true } })) approvedMonths.add(`${a.userId}|${a.month}`);
+}
+const ukMonth = (d) => {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", year: "numeric", month: "2-digit" }).formatToParts(d);
+  return `${parts.find((x) => x.type === "year").value}-${parts.find((x) => x.type === "month").value}`;
+};
+const monthLocked = (t) => approvedMonths.has(`${t.userId}|${ukMonth(t.startedAt)}`) || (t.endedAt && approvedMonths.has(`${t.userId}|${ukMonth(t.endedAt)}`));
+
 const users = new Map();
 for (const c of chunks(driverIds, 500)) {
   for (const u of await p.user.findMany({ where: { id: { in: c } }, select: { id: true, platformsSeen: true } })) users.set(u.id, u.platformsSeen || "unknown");
@@ -299,7 +370,8 @@ for (const [userId, list] of byDriver) {
     distanceMiles: t.distanceMiles, family: familyRoot(t.gpsQuality, t.id),
     classification: t.classification, classificationSource: t.classificationSource,
     classificationAutoAccepted: t.classificationAutoAccepted, platformTag: t.platformTag,
-    reviewReasons: [...rowReviewReasons(t), ...(linked.get(t.id) ?? [])],
+    monthLocked: monthLocked(t),
+    reviewReasons: [...rowReviewReasons(t), ...(linked.get(t.id) ?? []), ...(monthLocked(t) ? ["month approved by a team manager"] : [])],
     fixes: fixesByTrip.get(t.id) ?? [],
   }));
   for (const it of planDriver(input)) {
@@ -308,6 +380,8 @@ for (const [userId, list] of byDriver) {
       ...it, userId,
       startedAt: iso(t.startedAt), endedAt: iso(t.endedAt),
       guard: { updatedAt: iso(t.updatedAt), coordinateRows: (fixesByTrip.get(t.id) ?? []).length },
+      // Every keeper, as it was when planned; apply refuses the item if any has moved.
+      keeperGuards: it.keeperIds.map((id) => ({ id, updatedAt: iso(tripById.get(id).updatedAt), coordinateRows: (fixesByTrip.get(id) ?? []).length })),
       keepFixes: it.keepFixes?.map((f) => ({ id: f.id, t: f.t, lat: f.lat, lng: f.lng, speed: f.speed, accuracy: f.accuracy })),
     });
   }

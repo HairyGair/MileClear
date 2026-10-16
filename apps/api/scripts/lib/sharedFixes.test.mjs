@@ -226,10 +226,11 @@ test("driver's classification is carried to an unclassified keeper", () => {
   const a = run(0, 40);
   const items = planDriver([
     trip("K", 1, a, { distanceMiles: miles(40), ...cls("unclassified", null) }),
-    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), platformTag: "uber", ...cls("business", "user") }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), platformTag: "uber", ...cls("personal", "user") }),
   ]);
   assert.equal(items[0].action, "ARCHIVE");
-  assert.deepEqual(items[0].keeperUpdate.set, { classification: "business", classificationSource: "user", platformTag: "uber" });
+  assert.equal(items[0].mainKeeperId, "K");
+  assert.deepEqual(items[0].keeperUpdate.set, { classification: "personal", classificationSource: "user", platformTag: "uber" });
   assert.equal(items[0].keeperUpdate.old.classification, "unclassified");
 });
 
@@ -253,15 +254,94 @@ test("keeper and copy both classified differently by the driver is held for revi
   assert.equal(items[0].wouldBe, "ARCHIVE");
 });
 
-test("keeper auto-classified differently: the driver's choice wins", () => {
+test("keeper auto-classified differently (both non-business): the driver's choice wins", () => {
   const a = run(0, 40);
   const items = planDriver([
-    trip("K", 1, a, { distanceMiles: miles(40), ...cls("personal", "pattern_learning") }),
-    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls("business", "user") }),
+    trip("K", 1, a, { distanceMiles: miles(40), ...cls("commute", "pattern_learning") }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls("personal", "user") }),
   ]);
   assert.equal(items[0].action, "ARCHIVE");
-  assert.equal(items[0].keeperUpdate.set.classification, "business");
-  assert.equal(items[0].keeperUpdate.old.classification, "personal");
+  assert.equal(items[0].keeperUpdate.set.classification, "personal");
+  assert.equal(items[0].keeperUpdate.old.classification, "commute");
+});
+
+test("business vs non-business disagreement is held for review whatever the source", () => {
+  const a = run(0, 40);
+  for (const [kc, ks, xc, xs] of [["unclassified", null, "business", "user"], ["personal", "pattern_learning", "business", "pattern_learning"], ["business", "user", "unclassified", null]]) {
+    const items = planDriver([
+      trip("K", 1, a, { distanceMiles: miles(40), ...cls(kc, ks) }),
+      trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls(xc, xs) }),
+    ]);
+    assert.equal(items[0].action, "REVIEW", `${kc} vs ${xc}`);
+    assert.match(items[0].reason, /business/);
+  }
+});
+
+test("a keeper in a month a manager approved is not changed to carry a classification", () => {
+  const a = run(0, 40);
+  const items = planDriver([
+    trip("K", 1, a, { distanceMiles: miles(40), monthLocked: true, ...cls("unclassified", null) }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls("personal", "user") }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.match(items[0].reason, /approved/);
+});
+
+test("a sparse keeper does not stand in for dense driving (path comparison)", () => {
+  const keeperFixes = run(0, 120).filter((f) => (f.t - T0) % 20000 === 0);
+  // every other fix wanders 200 m sideways: more miles than the keeper's straight line
+  const copy = copyOf(run(0, 120), "x").map((f, i) => (i % 2 ? { ...f, lng: f.lng + 0.003 } : f));
+  const items = planDriver([
+    trip("K", 1, keeperFixes, { distanceMiles: miles(120) }),
+    trip("X", 2, copy, { distanceMiles: miles(240) }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.match(items[0].reason, /record/);
+});
+
+test("timing-only coverage outnumbering exact-shared fixes 2:1 is held for review", () => {
+  const keeperFixes = run(0, 120).filter((f) => ((f.t - T0) / 10000) % 12 === 0); // 11 fixes
+  const items = planDriver([
+    trip("K", 1, keeperFixes, { distanceMiles: miles(120) }),
+    trip("X", 2, copyOf(run(0, 120), "x"), { distanceMiles: miles(120) }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.match(items[0].reason, /timing/);
+});
+
+test("a stretch under 5 fixes is held for review even when it is long", () => {
+  const core = run(0, 30);
+  const far = [1, 2, 3].map((k) => ({ ...fix(30 + k), lat: fix(30).lat + k * 0.004 })); // ~0.28 mi apart
+  const items = planDriver([
+    trip("K", 1, core, { distanceMiles: miles(30) }),
+    trip("X", 2, copyOf([...core, ...far], "x"), { distanceMiles: miles(30) + 0.9 }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.match(items[0].reason, /only 3 fixes/);
+});
+
+test("anchor-shaped fixes are dropped from the kept route unless they lead the stretch; distance equals the kept path", () => {
+  const core = run(0, 30);
+  const anchorMid = { id: "anMid", t: T0 + 36 * 10000 + 500, lat: fix(36).lat, lng: -1, speed: 0, accuracy: 50 };
+  const lead = { id: "anLead", t: T0 + 30 * 10000 + 5000, lat: fix(30).lat + 0.0001, lng: -1, speed: 0, accuracy: 50 };
+  const stretch = run(31, 70);
+  const X = copyOf([...core, lead, ...stretch.slice(0, 6), anchorMid, ...stretch.slice(6)], "x");
+  const items = planDriver([trip("K", 1, core, { distanceMiles: miles(30) }), trip("X", 2, X, { distanceMiles: miles(70) })]);
+  const it = items[0];
+  assert.equal(it.action, "TRIM");
+  assert.ok(!it.keepFixes.some((f) => f.t === anchorMid.t), "interior anchor-shaped fix dropped");
+  assert.ok(it.keepFixes.some((f) => f.t === lead.t), "leading anchor within 60 s kept");
+  const sorted = [...it.keepFixes].sort((a, b) => a.t - b.t);
+  let path = 0;
+  for (let i = 1; i < sorted.length; i++) path += Math.hypot(sorted[i].lat - sorted[i - 1].lat, sorted[i].lng - sorted[i - 1].lng) * 69;
+  assert.ok(Math.abs(it.newMiles - path) < 0.1, `${it.newMiles} vs ${path}`);
+});
+
+test("a trip with more than 6000 coordinate rows is held back", () => {
+  const a = run(0, 6000);
+  const items = planDriver([trip("K", 1, a, { distanceMiles: miles(6000) }), trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(6000) })]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.match(items[0].reason, /6001 coordinate rows/);
 });
 
 test("candidate pairs need more than 60 s of overlap", () => {

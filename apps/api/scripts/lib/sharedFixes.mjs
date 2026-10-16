@@ -122,6 +122,10 @@ export function rowReviewReasons(t) {
 }
 
 export const SPAN_GAP_MS = 5 * 60 * 1000;
+export const MIN_REAL_FIXES = 5;
+export const MIN_REAL_SECONDS = 60;
+export const ARCHIVE_COORDINATE_CAP = 6000; // tripArchive.ts: more rows than this are not fully archived
+export const TIMING_ONLY_RATIO = 2;
 
 /**
  * Time-span coverage comes from the keeper's OWN fixes, never its saved
@@ -199,8 +203,9 @@ export function planDriver(trips) {
       for (let i = 0; i < n; i++) if (!covered[i] && insideOwnFixes(k.times, sorted[i].t)) covered[i] = true;
     }
     const entry = (fixes) => {
-      const byMs = indexByMs(fixes);
-      return { id: t.id, byMs, times: [...byMs.keys()].sort((a, b) => a - b), ...classOf(t) };
+      const fx = sortFixes(fixes);
+      const byMs = indexByMs(fx);
+      return { id: t.id, byMs, fixes: fx, times: [...byMs.keys()].sort((a, b) => a - b), locked: Boolean(t.monthLocked), ...classOf(t) };
     };
     if (keeperIds.length === 0) {
       kept.push(entry(sorted));
@@ -222,6 +227,8 @@ export function planDriver(trips) {
       const fx = [];
       for (let s = st.firstPos; s <= st.lastPos; s++) fx.push(sorted[seq[s]]);
       st.fixes = fx.length;
+      st.fx = fx;
+      st.seconds = (fx.at(-1).t - fx[0].t) / 1000;
       st.firstIdx = seq[st.firstPos];
       st.lastIdx = seq[st.lastPos];
       st.joinBefore = st.firstPos > 0 ? sorted[seq[st.firstPos - 1]] : null; // covered by construction
@@ -248,13 +255,15 @@ export function planDriver(trips) {
         removeFixIds: sorted.map((f) => f.id),
         droppedStretches: stretches.map((s) => ({ fixes: s.fixes, miles: round(s.miles) })),
       };
+    } else if (real[0].fixes < MIN_REAL_FIXES || real[0].seconds < MIN_REAL_SECONDS) {
+      plan = { action: "REVIEW", reason: `the one stretch outside the keepers is ${real[0].miles.toFixed(2)} mi but only ${real[0].fixes} fixes over ${Math.round(real[0].seconds)} s`, newMiles: t.distanceMiles };
     } else {
       const st = real[0];
-      let a = st.firstIdx;
-      let b = st.lastIdx;
-      while (a > 0 && isAnchorShaped(sorted[a - 1]) && !covered[a - 1]) a--;
-      while (b < n - 1 && isAnchorShaped(sorted[b + 1]) && !covered[b + 1]) b++;
-      const keepFixes = [...(st.joinBefore ? [st.joinBefore] : []), ...sorted.slice(a, b + 1), ...(st.joinAfter ? [st.joinAfter] : [])];
+      // Anchor-shaped fixes are dropped, except the stretch's own first fix
+      // when it sits directly before it, within 60 s.
+      const prev = st.firstIdx > 0 ? sorted[st.firstIdx - 1] : null;
+      const lead = prev && isAnchorShaped(prev) && !covered[st.firstIdx - 1] && st.fx[0].t - prev.t <= 60000 ? prev : null;
+      const keepFixes = [...(st.joinBefore ? [st.joinBefore] : []), ...(lead ? [lead] : []), ...st.fx, ...(st.joinAfter ? [st.joinAfter] : [])];
       const keepIds = new Set(keepFixes.map((f) => f.id));
       plan = {
         action: "TRIM",
@@ -271,14 +280,57 @@ export function planDriver(trips) {
       reviewReasons.push(`stored distance is ${(t.distanceMiles - fullPath).toFixed(1)} mi more than its fixes explain`);
     }
 
-    // The driver's classification must not be lost with the copy.
-    let keeperUpdate;
     const topId = [...sharedBy].sort((x, y) => y[1] - x[1])[0][0];
     const primary = kept.find((k) => k.id === topId);
-    if (plan.action !== "REVIEW" && driverSetClassification(t)) {
+    const keeperEntries = keeperIds.map((id) => kept.find((k) => k.id === id));
+
+    if (plan.action !== "REVIEW") {
+      if (n > ARCHIVE_COORDINATE_CAP) reviewReasons.push(`${n} coordinate rows (more than the ${ARCHIVE_COORDINATE_CAP} an archive holds)`);
+
+      // Timing-only coverage must not let a sparse keeper stand in for dense driving.
+      const timingOnly = [...covered.keys()].filter((i) => covered[i] && !exact.has(i)).length;
+      if (timingOnly > TIMING_ONLY_RATIO * exact.size) {
+        reviewReasons.push(`${timingOnly} fixes covered only by timing against ${exact.size} exact-shared`);
+      }
+      let copyMiles = 0;
+      let keeperMiles = 0;
+      let run = [];
+      const flush = () => {
+        if (run.length) {
+          const a = run[0].t;
+          const b = run.at(-1).t;
+          copyMiles += pathMiles(run);
+          // The keepers' own fixes in the same window, together (one per timestamp).
+          const byT = new Map();
+          for (const k of keeperEntries) for (const f of k.fixes) if (f.t >= a && f.t <= b && !byT.has(f.t)) byT.set(f.t, f);
+          keeperMiles += pathMiles([...byT.values()].sort((x, y) => x.t - y.t));
+        }
+        run = [];
+      };
+      for (const i of seq) {
+        if (covered[i]) run.push(sorted[i]);
+        else flush();
+      }
+      flush();
+      if (copyMiles - keeperMiles > 0.5 || copyMiles > keeperMiles * 1.1 + 0.01) {
+        reviewReasons.push(`copy covers ${copyMiles.toFixed(2)} mi where the keeper(s) record ${keeperMiles.toFixed(2)} mi over the same time`);
+      }
+
+      // mileage.ts counts classification === "business" only.
+      const copyBiz = t.classification === "business";
+      if (keeperEntries.some((k) => (k.classification === "business") !== copyBiz)) {
+        reviewReasons.push("business / non-business disagreement with a keeper");
+      }
+    }
+
+    // The driver's classification must not be lost with the copy.
+    let keeperUpdate;
+    if (plan.action !== "REVIEW" && reviewReasons.length === 0 && driverSetClassification(t)) {
       const same = (primary.classification ?? "unclassified") === (t.classification ?? "unclassified");
       if (!same && !isUnclassified(primary.classification) && driverSetClassification(primary)) {
         reviewReasons.push("keeper and copy were classified differently by the driver");
+      } else if (primary.locked) {
+        reviewReasons.push("the keeper's month was approved by a team manager");
       } else {
         const set = {};
         if (!same || !driverSetClassification(primary)) {
@@ -299,7 +351,7 @@ export function planDriver(trips) {
       plan = { ...plan, wouldBe: plan.action, action: "REVIEW", reason: `${plan.reason}; held back: ${reviewReasons.join(", ")}`, newMiles: t.distanceMiles };
       keeperUpdate = undefined;
     }
-    items.push({ ...base, ...plan, ...(keeperUpdate ? { keeperUpdate } : {}), reviewReasons });
+    items.push({ ...base, mainKeeperId: topId, ...plan, ...(keeperUpdate ? { keeperUpdate } : {}), reviewReasons });
 
     if (keeperUpdate) Object.assign(primary, keeperUpdate.set);
     // Later trips are compared against what this one will look like.
@@ -310,6 +362,13 @@ export function planDriver(trips) {
     } // ARCHIVE: gone, not kept
   }
   return items;
+}
+
+/** A copy of `row` with the named ISO-string keys turned back into Dates (null stays null). */
+export function reviveDates(row, keys) {
+  const out = { ...row };
+  for (const k of keys) if (typeof out[k] === "string") out[k] = new Date(out[k]);
+  return out;
 }
 
 /** The trip's new row values after a TRIM. `old` holds the current row. */
