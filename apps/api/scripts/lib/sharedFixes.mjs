@@ -316,10 +316,19 @@ export function planDriver(trips) {
       // Balance: miles taken off must be explained by covered driving, the small
       // bits dropped, and a little slack. Miles that travelled through anchor-shaped
       // fixes (neither stretch nor covered) would otherwise vanish unnoticed.
-      const removedMiles = plan.action === "ARCHIVE" ? t.distanceMiles : t.distanceMiles - plan.newMiles;
-      const droppedMiles = (plan.droppedStretches ?? []).reduce((a, s) => a + s.miles, 0);
-      if (removedMiles > copyMiles + droppedMiles + BALANCE_SLACK_MILES) {
-        reviewReasons.push(`removes ${removedMiles.toFixed(2)} mi but only ${copyMiles.toFixed(2)} mi are covered (+${droppedMiles.toFixed(2)} mi of small bits)`);
+      // Measured directly: path segments touching an anchor-shaped fix that is
+      // neither covered nor kept. (Stored vs fix distance is guarded elsewhere,
+      // path against path.)
+      const removedSet = new Set(plan.removeFixIds ?? []);
+      const skipped = (i) => isAnchorShaped(sorted[i]) && !covered[i] && removedSet.has(sorted[i].id);
+      let anchorSkippedMiles = 0;
+      for (let i = 1; i < n; i++) {
+        if (skipped(i) || skipped(i - 1)) {
+          anchorSkippedMiles += haversineMiles(sorted[i - 1].lat, sorted[i - 1].lng, sorted[i].lat, sorted[i].lng);
+        }
+      }
+      if (anchorSkippedMiles > BALANCE_SLACK_MILES) {
+        reviewReasons.push(`${anchorSkippedMiles.toFixed(2)} mi travelled through anchor-shaped fixes that would be skipped`);
       }
       if (copyMiles - keeperMiles > 0.5 || copyMiles > keeperMiles * 1.1 + 0.01) {
         reviewReasons.push(`copy covers ${copyMiles.toFixed(2)} mi where the keeper(s) record ${keeperMiles.toFixed(2)} mi over the same time`);

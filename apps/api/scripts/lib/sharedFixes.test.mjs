@@ -163,7 +163,7 @@ test("anchor-shaped fixes never make a real stretch alone and do not break one",
   // uncovered tail of 1 slow fix plus anchor-shaped fixes far apart: still small
   const items = planDriver([
     trip("K", 1, copyOf(core, "k"), { distanceMiles: miles(30) }),
-    trip("X", 2, copyOf([...core, anchorLike(40), anchorLike(50)], "x"), { distanceMiles: miles(30) }),
+    trip("X", 2, copyOf([...core, { ...anchorLike(40), lat: fix(30).lat + 0.00005 }, { ...anchorLike(50), lat: fix(30).lat + 0.0001 }], "x"), { distanceMiles: miles(30) }),
   ]);
   assert.equal(items[0].action, "ARCHIVE");
   // inside a real stretch an anchor-shaped fix does not split it
@@ -346,7 +346,16 @@ test("miles that travelled through anchor-shaped fixes are not silently removed 
     trip("X", 2, copyOf([...core, ...through], "x"), { distanceMiles: miles(5) + 4.8 }),
   ]);
   assert.equal(items[0].action, "REVIEW");
-  assert.match(items[0].reason, /removes/);
+  assert.match(items[0].reason, /anchor-shaped fixes that would be skipped/);
+});
+
+test("stored distance a few percent above the straight-line path does not trip anything for a pure copy", () => {
+  const a = run(0, 100);
+  const items = planDriver([
+    trip("K", 1, a, { distanceMiles: miles(100) * 1.05 }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(100) * 1.05 }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
 });
 
 test("a held-back trip stays a full keeper for the copies that depend on it", () => {
