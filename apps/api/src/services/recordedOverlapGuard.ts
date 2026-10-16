@@ -33,7 +33,7 @@ export async function loadOverlapCandidates(args: {
       startedAt: { lte: to },
       endedAt: { gte: from },
     },
-    select: { id: true, shiftId: true },
+    select: { id: true, shiftId: true, startedAt: true, endedAt: true },
     take: 50,
   });
   if (trips.length === 0) return [];
@@ -47,7 +47,13 @@ export async function loadOverlapCandidates(args: {
     list.push({ t: c.recordedAt.getTime(), lat: c.lat, lng: c.lng, accuracy: c.accuracy ?? null, speed: c.speed ?? null });
     byTrip.set(c.tripId, list);
   }
-  return trips.map((t) => ({ id: t.id, shiftId: t.shiftId ?? null, fixes: byTrip.get(t.id) ?? [] }));
+  return trips.map((t) => ({
+    id: t.id,
+    shiftId: t.shiftId ?? null,
+    fixes: byTrip.get(t.id) ?? [],
+    spanFrom: t.startedAt.getTime(),
+    spanTo: t.endedAt ? t.endedAt.getTime() : null,
+  }));
 }
 
 /** A trip this same upload was trimmed into on an earlier attempt, or null.

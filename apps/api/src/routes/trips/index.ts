@@ -866,7 +866,8 @@ export async function tripRoutes(app: FastifyInstance) {
         if (verdict === "multi") {
           logEvent("trip.recorded_overlap_multi", userId, {
             ...common,
-            stretches: plan.stretches,
+            stretches: plan.realStretches,
+            smallStretches: plan.stretches - plan.realStretches,
             incomingFixes: plan.fixes.length,
             mode: overlapMode,
           });
@@ -900,7 +901,9 @@ export async function tripRoutes(app: FastifyInstance) {
         } else if (verdict === "trim") {
           const first = plan.remainder[0];
           const last = plan.remainder[plan.remainder.length - 1];
-          const byTime = new Map(data.coordinates.map((c) => [c.recordedAt.getTime(), c]));
+          // First of each repeated millisecond, matching the planner's dedupe.
+          const byTime = new Map<number, (typeof data.coordinates)[number]>();
+          for (const c of data.coordinates) if (!byTime.has(c.recordedAt.getTime())) byTime.set(c.recordedAt.getTime(), c);
           const kept = plan.remainder.map((f) => byTime.get(f.t)!);
           overlapTrim = { originalStart: { lat: data.startLat, lng: data.startLng, at: data.startedAt } };
           data.coordinates = kept;
@@ -925,6 +928,8 @@ export async function tripRoutes(app: FastifyInstance) {
               keptTripIds: plan.keptTripIds,
               fromMiles: plan.fromMiles,
               toMiles: plan.remainderMiles,
+              droppedSmallStretches: plan.droppedSmallStretches,
+              droppedSmallMiles: plan.droppedSmallMiles,
               originalStartedAt: overlapTrim.originalStart.at.toISOString(),
             },
           };

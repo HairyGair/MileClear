@@ -107,15 +107,17 @@ async function createTestApp() {
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 const events = (name: string) => fn(logEvent).mock.calls.filter((c) => c[0] === name);
 let savedPayload: Record<string, unknown> | null = null;
+let savedSpan: [Date, Date] = [new Date(T0), new Date(T0 + 600_000)];
 
 beforeEach(() => {
   vi.clearAllMocks();
   savedPayload = null;
+  savedSpan = [new Date(T0), new Date(T0 + 600_000)];
   fn(prisma.trip.findFirst).mockResolvedValue(null);
   fn(prisma.shift.findFirst).mockResolvedValue({ id: SHIFT_ID });
   // Overlap candidates query first; later neighbour queries get nothing.
   fn(prisma.trip.findMany).mockImplementation(async (args: { select?: Record<string, boolean> }) =>
-    args?.select?.shiftId ? [{ id: SAVED_ID, shiftId: null }] : args?.select?.id && !args.select.startedAt ? [{ id: SAVED_ID }] : []
+    args?.select?.shiftId ? [{ id: SAVED_ID, shiftId: null, startedAt: savedSpan[0], endedAt: savedSpan[1] }] : args?.select?.id && !args.select.startedAt ? [{ id: SAVED_ID }] : []
   );
   fn(prisma.tripCoordinate.findMany).mockResolvedValue(savedCoords);
   fn(prisma.trip.findUniqueOrThrow).mockResolvedValue(SAVED_TRIP);
@@ -211,6 +213,7 @@ describe("POST /trips: fixes already saved on another trip", () => {
 
   it("on mode: a remainder too short to be a trip is answered like the duplicate refusal", async () => {
     process.env.RECORDED_OVERLAP_TRIM = "on";
+    savedSpan = [new Date(T0), new Date(T0 + 60_000)];
     fn(prisma.tripCoordinate.findMany).mockResolvedValue(
       savedCoords.filter((c) => c.recordedAt.getTime() <= T0 + 60_000)
     );
@@ -226,6 +229,7 @@ describe("POST /trips: fixes already saved on another trip", () => {
 
   it("on mode: a continuation both before and after saves the trip whole and logs multi", async () => {
     process.env.RECORDED_OVERLAP_TRIM = "on";
+    savedSpan = [new Date(T0 + 300_000), new Date(T0 + 500_000)];
     fn(prisma.tripCoordinate.findMany).mockResolvedValue(
       savedCoords.filter((c) => c.recordedAt.getTime() >= T0 + 300_000 && c.recordedAt.getTime() <= T0 + 500_000)
     );
