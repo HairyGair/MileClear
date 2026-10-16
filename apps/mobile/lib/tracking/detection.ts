@@ -224,12 +224,10 @@ import {
 } from "./rescueHandoff";
 import { findFlights, cutFlights, type FlightSpan } from "./flightRule";
 import {
-  fixesWithin,
-  fixTimeMs,
-  loadSavedFixTimes,
-  planSavedFixRemoval,
+  applySameStartTrim,
+  decideSameStart,
+  dropSavedFixesFromBuffer,
   recordSavedFixes,
-  splitLegAtSavedEnd,
 } from "./savedFixes";
 import {
   arrivalEndIndex,
@@ -334,6 +332,8 @@ function isQuietHours(): boolean {
 }
 
 export interface BufferedCoordinate {
+  /** detection_coordinates row id, where the read has it. */
+  id?: number;
   lat: number;
   lng: number;
   speed: number | null;
@@ -1856,34 +1856,8 @@ async function dropFixesAlreadyRecorded(): Promise<void> {
 async function dropSavedFixes(): Promise<void> {
   try {
     const db = await getDatabase();
-    const rows = await db.getAllAsync<{
-      id: number;
-      recorded_at: string;
-      speed: number | null;
-      accuracy: number | null;
-      activity: string | null;
-    }>("SELECT id, recorded_at, speed, accuracy, activity FROM detection_coordinates");
-    if (rows.length === 0) return;
-    let minMs = Number.POSITIVE_INFINITY;
-    let maxMs = 0;
-    for (const r of rows) {
-      const ms = fixTimeMs(r.recorded_at);
-      if (ms <= 0) continue;
-      if (ms < minMs) minMs = ms;
-      if (ms > maxMs) maxMs = ms;
-    }
-    if (!Number.isFinite(minMs) || maxMs === 0) return;
-    const saved = await loadSavedFixTimes(db, minMs, maxMs);
-    if (saved.size === 0) return;
-    const plan = planSavedFixRemoval(rows, saved);
-    if (plan.removed === 0) return;
-    for (let i = 0; i < plan.removeIds.length; i += 400) {
-      const chunk = plan.removeIds.slice(i, i + 400);
-      await db.runAsync(
-        `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
-        chunk
-      );
-    }
+    const plan = await dropSavedFixesFromBuffer(db);
+    if (!plan) return;
     savedFixesSkippedThisRun += plan.removed;
     logDetectionEvent("saved_fixes_skipped", {
       removed: plan.removed,
@@ -2041,7 +2015,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
 
   // Read all buffered coordinates
   let rawCoords = await db.getAllAsync<BufferedCoordinate>(
-    "SELECT lat, lng, speed, accuracy, activity, activity_confidence, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
+    "SELECT id, lat, lng, speed, accuracy, activity, activity_confidence, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
   );
 
   // ── Flights (12 Oct 2026, Edinburgh to Toronto). An aeroplane is not a
@@ -2531,8 +2505,15 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // save is durable on the phone, so a crash in between leaves them unrecorded
   // and the worst case is a duplicate the server trims, never a lost drive.
   // Never throws.
-  const rememberSaved = (key: string): Promise<number> =>
-    recordSavedFixes(db, fixesWithin(allCoords, fixTimeMs(wireStartedAt), fixTimeMs(wireEndedAt)), key);
+  //
+  // It remembers EVERY fix of the processed leg (allCoords, edges included),
+  // not just the saved trip's start-to-end span: finalize also consumes the
+  // fixes it trimmed off the start (outliers, bad endpoints) and the
+  // arrival-trimmed tail, and a refill that brought those back next to new
+  // driving once drew a seven-mile straight line across a saved drive
+  // (0929a432 vs 3f652a2b, 15 Oct 2026). Fixes of a LATER leg (deferredCoords)
+  // are not in allCoords, so they are never remembered here.
+  const rememberSaved = (key: string): Promise<number> => recordSavedFixes(db, allCoords, key);
 
   // Idempotency guard for the delete-after-save ordering: a process death
   // between a successful save and consumeProcessedBuffer() re-runs this
@@ -2553,27 +2534,16 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // driving. Now only the covered fixes are skipped and the rest goes
       // through the normal save / merge flow.
       const savedEndMs = already.ended_at ? Date.parse(already.ended_at) : Number.NaN;
-      const split = splitLegAtSavedEnd(
-        filteredCoords.map((c) => fixTimeMs(c.recorded_at)),
-        savedEndMs
-      );
-      if (split.newCount > 0 && split.removableLeading > 0) {
-        // Keep the last covered fix as the joining point, remove the rest,
-        // remember them as saved, and run another pass over what is left.
-        const joiningMs = fixTimeMs(filteredCoords[split.savedCount - 1].recorded_at);
-        const firstMs = fixTimeMs(first.recorded_at);
-        const covered = fixesWithin(allCoords, firstMs, joiningMs);
-        const removable = covered.filter((c) => fixTimeMs(c.recorded_at) < joiningMs);
-        let removed = 0;
-        for (let i = 0; i < removable.length; i += 400) {
-          const chunk = removable.slice(i, i + 400).map((c) => c.recorded_at);
-          const res = await db.runAsync(
-            `DELETE FROM detection_coordinates WHERE recorded_at IN (${chunk.map(() => "?").join(",")})`,
-            chunk
-          );
-          removed += res.changes;
-        }
-        await recordSavedFixes(db, covered, `trip:${already.id}`);
+      const decision = decideSameStart(allCoords, filteredCoords, savedEndMs);
+      const split =
+        decision.kind === "duplicate"
+          ? { savedCount: filteredCoords.length, newCount: 0 }
+          : { savedCount: decision.savedCount, newCount: decision.newCount };
+      if (decision.kind === "trim") {
+        // Keep the last covered fix as the joining point, remove the rest
+        // (by row id), remember them as saved, and run another pass over
+        // what is left.
+        const removed = await applySameStartTrim(db, decision, `trip:${already.id}`);
         savedFixesSkippedThisRun += removed;
         logDetectionEvent("saved_fixes_skipped", {
           removed,
@@ -2585,9 +2555,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
           deferredFinalizePending = true;
           return;
         }
-      } else if (split.newCount === 0) {
+      } else if (decision.kind === "duplicate") {
         logDetectionEvent("finalize_dedup_local_skip", { tripId: already.id }).catch(() => {});
-        await recordSavedFixes(db, fixesWithin(allCoords, fixTimeMs(first.recorded_at), fixTimeMs(last.recorded_at)), `trip:${already.id}`);
+        await rememberSaved(`trip:${already.id}`);
         await noteRecordingDropped({ reason: "deduped", detail: "same_start_saved", ...dropSpan(filteredCoords) });
         await consumeProcessedBuffer();
         endLiveActivity().catch(() => {});

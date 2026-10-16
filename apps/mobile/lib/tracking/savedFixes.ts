@@ -207,6 +207,109 @@ export async function pruneSavedFixTimes(db: SavedFixDb, now: number = Date.now(
   } catch {}
 }
 
+/**
+ * Remove from the buffer the fixes a saved trip already holds (see
+ * planSavedFixRemoval). Returns the plan that was applied, or null when
+ * nothing was removed or anything failed (the buffer is then as it was).
+ */
+export async function dropSavedFixesFromBuffer(db: SavedFixDb): Promise<SavedFixPlan | null> {
+  try {
+    const rows = await db.getAllAsync<BufferRow>(
+      "SELECT id, recorded_at, speed, accuracy, activity FROM detection_coordinates",
+      []
+    );
+    if (rows.length === 0) return null;
+    let minMs = Number.POSITIVE_INFINITY;
+    let maxMs = 0;
+    for (const r of rows) {
+      const ms = fixTimeMs(r.recorded_at);
+      if (ms <= 0) continue;
+      if (ms < minMs) minMs = ms;
+      if (ms > maxMs) maxMs = ms;
+    }
+    if (!Number.isFinite(minMs) || maxMs === 0) return null;
+    const saved = await loadSavedFixTimes(db, minMs, maxMs);
+    if (saved.size === 0) return null;
+    const plan = planSavedFixRemoval(rows, saved);
+    if (plan.removed === 0) return null;
+    for (let i = 0; i < plan.removeIds.length; i += 400) {
+      const chunk = plan.removeIds.slice(i, i + 400);
+      await db.runAsync(
+        `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
+        chunk
+      );
+    }
+    return plan;
+  } catch {
+    return null;
+  }
+}
+
+export type SameStartDecision =
+  /** Every fix is covered by the saved trip: a copy, drop it. */
+  | { kind: "duplicate" }
+  /** New driving follows: remove these rows (by id), remember `covered`. */
+  | {
+      kind: "trim";
+      removeIds: number[];
+      covered: Array<{ recorded_at: string }>;
+      savedCount: number;
+      newCount: number;
+    }
+  /** New driving, but nothing can be trimmed safely: save it as it is. */
+  | { kind: "continue"; savedCount: number; newCount: number };
+
+/**
+ * A leg starts at the exact time of a saved trip. `leg` is the processed leg
+ * as read from the buffer (rows with ids), `filtered` the cleaned trace that
+ * would be saved. Rows are removed by id, and only when every one has an id.
+ */
+export function decideSameStart(
+  leg: ReadonlyArray<{ id?: number; recorded_at: string }>,
+  filtered: ReadonlyArray<{ recorded_at: string }>,
+  savedEndMs: number
+): SameStartDecision {
+  const split = splitLegAtSavedEnd(
+    filtered.map((c) => fixTimeMs(c.recorded_at)),
+    savedEndMs
+  );
+  if (split.newCount === 0) return { kind: "duplicate" };
+  if (split.removableLeading > 0 && filtered.length > 0 && leg.length > 0) {
+    const joiningMs = fixTimeMs(filtered[split.savedCount - 1].recorded_at);
+    const firstMs = Math.min(fixTimeMs(filtered[0].recorded_at), fixTimeMs(leg[0].recorded_at));
+    const covered = fixesWithin(leg, firstMs, joiningMs);
+    const removable = covered.filter((c) => fixTimeMs(c.recorded_at) < joiningMs);
+    const ids = removable.map((c) => c.id);
+    if (removable.length > 0 && ids.every((id): id is number => typeof id === "number")) {
+      return { kind: "trim", removeIds: ids, covered, savedCount: split.savedCount, newCount: split.newCount };
+    }
+  }
+  return { kind: "continue", savedCount: split.savedCount, newCount: split.newCount };
+}
+
+/**
+ * Apply a "trim" decision: remember the covered fixes FIRST (they are in a
+ * saved trip, so remembering them can only be right), then delete the rows by
+ * id. Returns how many rows went.
+ */
+export async function applySameStartTrim(
+  db: SavedFixDb,
+  decision: Extract<SameStartDecision, { kind: "trim" }>,
+  tripKey: string
+): Promise<number> {
+  await recordSavedFixes(db, decision.covered, tripKey);
+  let removed = 0;
+  for (let i = 0; i < decision.removeIds.length; i += 400) {
+    const chunk = decision.removeIds.slice(i, i + 400);
+    await db.runAsync(
+      `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
+      chunk
+    );
+    removed += chunk.length;
+  }
+  return removed;
+}
+
 /** The saved fix times between two instants, as a set. Empty on any error
  *  (nothing is dropped when the memory cannot be read). */
 export async function loadSavedFixTimes(db: SavedFixDb, fromMs: number, toMs: number): Promise<Set<number>> {

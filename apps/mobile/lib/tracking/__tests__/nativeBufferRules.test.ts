@@ -59,6 +59,53 @@ describe("createSerialOpener (single-flight open)", () => {
     expect(calls).toBe(2);
   });
 
+  it("does not wait for ever on a first open that never finishes", async () => {
+    let armed = false;
+    const log: string[] = [];
+    const open = createSerialOpener<string>(
+      {
+        isOpen: async () => armed,
+        open: async (s) => {
+          log.push(`open:${s}`);
+          if (s === "hung") return new Promise<void>(() => {}); // never settles
+          armed = true;
+        },
+        bufferOnly: async (s) => {
+          log.push(`buffer:${s}`);
+        },
+      },
+      30
+    );
+    void open("hung");
+    // Not armed after the wait limit: the second fix does the full open itself.
+    await open("second");
+    expect(log).toEqual(["open:hung", "open:second"]);
+    // Armed now: a third fix is only buffered, and still not dropped.
+    await open("third");
+    expect(log[2]).toBe("buffer:third");
+  });
+
+  it("buffers a late fix after the wait limit when the stuck open did arm the recording", async () => {
+    let armed = false;
+    const log: string[] = [];
+    const open = createSerialOpener<string>(
+      {
+        isOpen: async () => armed,
+        open: async () => {
+          armed = true; // armed, but the open never returns (a hung native call after arming)
+          return new Promise<void>(() => {});
+        },
+        bufferOnly: async (s) => {
+          log.push(`buffer:${s}`);
+        },
+      },
+      30
+    );
+    void open("a");
+    await open("b");
+    expect(log).toEqual(["buffer:b"]);
+  });
+
   it("falls back to a full open when it cannot tell whether a recording is open", async () => {
     let opened = 0;
     const open = createSerialOpener<number>({

@@ -25,8 +25,29 @@ export interface SerialOpenerDeps<S> {
   bufferOnly: (seed: S) => Promise<void>;
 }
 
-export function createSerialOpener<S>(deps: SerialOpenerDeps<S>): (seed: S) => Promise<void> {
+/** How long a queued open waits for the one ahead before acting anyway. An
+ *  open that never finishes (a hung native call) must not freeze recording. */
+export const OPEN_WAIT_LIMIT_MS = 15_000;
+
+export function createSerialOpener<S>(
+  deps: SerialOpenerDeps<S>,
+  waitLimitMs: number = OPEN_WAIT_LIMIT_MS
+): (seed: S) => Promise<void> {
   let tail: Promise<void> = Promise.resolve();
+  const waitForPrevious = (prev: Promise<void>): Promise<void> =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, waitLimitMs);
+      prev.then(
+        () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        () => {
+          clearTimeout(timer);
+          resolve();
+        }
+      );
+    });
   return (seed: S) => {
     const run = async (): Promise<void> => {
       let open = false;
@@ -41,8 +62,10 @@ export function createSerialOpener<S>(deps: SerialOpenerDeps<S>): (seed: S) => P
       }
       await deps.open(seed);
     };
-    // Run after the previous one whether it succeeded or not.
-    const mine = tail.then(run, run);
+    // Run after the previous one, whether it succeeded or not, or after the
+    // wait limit if it is stuck: then the fix is buffered when a recording is
+    // open and otherwise a full open is done, as before this queue existed.
+    const mine = waitForPrevious(tail).then(run);
     tail = mine.then(
       () => undefined,
       () => undefined
@@ -79,6 +102,73 @@ export function missingNativeFixes<T extends { timestamp: string | number }>(
     }
   }
   return out;
+}
+
+export interface ReconcileDb {
+  runAsync(sql: string, params: Array<string | number | null>): Promise<unknown>;
+  getAllAsync<T>(sql: string, params: Array<string | number | null>): Promise<T[]>;
+  execAsync(sql: string): Promise<unknown>;
+}
+
+export interface NativeFixLike {
+  timestamp: string | number;
+  coords?: { latitude: number; longitude: number; speed?: number | null; accuracy?: number | null } | null;
+  activity?: { type?: string | null; confidence?: number | null } | null;
+}
+
+/**
+ * Insert into the buffer only the native-store fixes it is missing (insert
+ * only: nothing already there is deleted, so a refill cannot bring back fixes
+ * a finalize trimmed, and the saved-fix memory strips the ones already
+ * saved). No count check: a buffer with MORE rows than the native store can
+ * still lack some of its fixes. The flight cut is not harmed: a re-run
+ * re-detects the same flight from the fixes and cuts it again
+ * (planFlightCut is deterministic and keeps its markers). The newest `max`
+ * missing fixes are added. Returns what was added and left out.
+ */
+export async function insertMissingNativeFixes(
+  db: ReconcileDb,
+  native: ReadonlyArray<NativeFixLike>,
+  max: number
+): Promise<{ added: number; leftOut: number }> {
+  const haveRows = await db.getAllAsync<{ recorded_at: string }>("SELECT recorded_at FROM detection_coordinates", []);
+  const missing = missingNativeFixes(
+    native.filter((l) => l.coords),
+    haveRows.map((r) => r.recorded_at)
+  );
+  const kept = newestOnly(missing, max);
+  if (kept.length === 0) return { added: 0, leftOut: 0 };
+  await db.execAsync("BEGIN IMMEDIATE");
+  try {
+    const CHUNK = 100; // 8 params/row, safely under SQLite's 999-variable cap
+    for (let i = 0; i < kept.length; i += CHUNK) {
+      const rows = kept.slice(i, i + CHUNK);
+      const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+      const params: (number | string | null)[] = [];
+      for (const loc of rows) {
+        const c = loc.coords!;
+        params.push(
+          c.latitude,
+          c.longitude,
+          c.speed ?? null,
+          c.accuracy ?? null,
+          loc.activity?.type ?? null,
+          typeof loc.activity?.confidence === "number" ? loc.activity.confidence : null,
+          typeof loc.timestamp === "number" ? String(loc.timestamp) : loc.timestamp,
+          fixTimeMs(loc.timestamp) || null
+        );
+      }
+      await db.runAsync(
+        `INSERT OR IGNORE INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at, recorded_ms) VALUES ${placeholders}`,
+        params
+      );
+    }
+    await db.execAsync("COMMIT");
+  } catch (err) {
+    await db.execAsync("ROLLBACK").catch(() => {});
+    throw err;
+  }
+  return { added: kept.length, leftOut: missing.length - kept.length };
 }
 
 /** Newest `max` of a list that is already in time order (native stores are). */

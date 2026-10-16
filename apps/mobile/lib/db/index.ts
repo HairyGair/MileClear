@@ -1,8 +1,7 @@
 // Local SQLite database operations using expo-sqlite
 
 import * as SQLite from "expo-sqlite";
-import { duplicateRowIds } from "../tracking/nativeBufferRules";
-import { fixTimeMs } from "../tracking/savedFixes";
+import { ensureRecordedMs } from "./recordedMs";
 
 const CURRENT_SCHEMA_VERSION = 12;
 
@@ -382,51 +381,10 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
   }
 
 
-  if (currentVersion < 12) {
-    // One row per fix (16 Oct 2026). bufferCoord had no uniqueness on the fix
-    // time, and concurrent callbacks stored the same fix several times (the
-    // server saw more points than distinct times). recorded_ms is the fix time
-    // in epoch milliseconds, normalised the way the save path reads it; a
-    // unique index on it plus INSERT OR IGNORE keeps one copy.
-    const detInfo12 = await database.getAllAsync<{ name: string }>(
-      "PRAGMA table_info(detection_coordinates)"
-    );
-    if (!detInfo12.some((c) => c.name === "recorded_ms")) {
-      await database.execAsync(
-        "ALTER TABLE detection_coordinates ADD COLUMN recorded_ms INTEGER;"
-      );
-    }
-    // Best effort from here: a failure must never wedge the database open.
-    // Without the index the buffer behaves as it did before (duplicates are
-    // possible, nothing is lost).
-    try {
-      const rows = await database.getAllAsync<{ id: number; recorded_at: string; recorded_ms: number | null }>(
-        "SELECT id, recorded_at, recorded_ms FROM detection_coordinates ORDER BY id ASC"
-      );
-      const extra = duplicateRowIds(rows);
-      const extraSet = new Set(extra);
-      const fill: Array<[number, number]> = [];
-      for (const r of rows) {
-        if (extraSet.has(r.id)) continue;
-        const ms = fixTimeMs(r.recorded_at);
-        if (ms > 0 && r.recorded_ms !== ms) fill.push([r.id, ms]);
-      }
-      // Only extra copies of the SAME time go; one of each stays.
-      for (let i = 0; i < extra.length; i += 400) {
-        const chunk = extra.slice(i, i + 400);
-        await database.runAsync(
-          `DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`,
-          chunk
-        );
-      }
-      for (const [id, ms] of fill) {
-        await database.runAsync("UPDATE detection_coordinates SET recorded_ms = ? WHERE id = ?", [ms, id]);
-      }
-      await database.execAsync(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_detection_coords_recorded_ms ON detection_coordinates (recorded_ms);"
-      );
-    } catch {}
-  }
+  // Schema v12 (16 Oct 2026): one row per fix in detection_coordinates. Run on
+  // every boot, not only at the version bump, so a failed index build is
+  // retried (recordedMs.ts).
+  await ensureRecordedMs(database);
 
   // Always update schema version to current
   await database.runAsync(

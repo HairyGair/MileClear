@@ -61,7 +61,7 @@ import { noteRecordingDropped } from "./recordingDrops";
 import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
 import { nativeFixesBeforeWindow, rowsAddedByOpen } from "./lockWindowRule";
-import { createSerialOpener, missingNativeFixes, newestOnly } from "./nativeBufferRules";
+import { createSerialOpener, insertMissingNativeFixes } from "./nativeBufferRules";
 import { fixTimeMs } from "./savedFixes";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
@@ -1082,11 +1082,14 @@ async function plantNativeAnchorBackfill(db: DB, seed: NativeLocation): Promise<
     const seedMs = new Date(seed.timestamp).getTime();
     const base = Number.isFinite(seedMs) ? seedMs : Date.now();
     const backfillTs = new Date(base - 30_000).toISOString();
-    // OR IGNORE: two opens planting for the same seed write one anchor.
+    // recorded_ms stays NULL on purpose: the anchor sits exactly 30 s before
+    // the seed, which a real 1 Hz Android fix can share, and the unique index
+    // must never ignore either one. The serial opener keeps two opens from
+    // planting twice.
     await db.runAsync(
-      `INSERT OR IGNORE INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at, recorded_ms)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [aLat, aLng, 0, 50, backfillTs, fixTimeMs(backfillTs) || null]
+      `INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at, recorded_ms)
+       VALUES (?, ?, ?, ?, ?, NULL)`,
+      [aLat, aLng, 0, 50, backfillTs]
     );
     logDetectionEvent("native_anchor_backfill_planted", {
       distMeters: Math.round(distM),
@@ -1406,6 +1409,12 @@ const serialOpenNative = createSerialOpener<{ seed: NativeLocation; reason: "mot
   open: ({ seed, reason }) => openNativeRecordingNow(seed, reason),
   bufferOnly: async ({ seed }) => {
     const db = await getDatabase();
+    // Re-check: a "Not driving" that landed while this waited has cleared the
+    // recording, and a fix buffered now would be a stray one with no recording.
+    const stillOpen = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+    );
+    if (stillOpen?.value !== "1") return;
     const recent = await recentBufferedFixes(db);
     await bufferCoord(db, seed, recent[0]);
     logDetectionEvent("native_open_joined_inflight", {}).catch(() => {});
@@ -2144,30 +2153,16 @@ async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
       (await db.getFirstAsync<{ c: number }>(
         "SELECT COUNT(*) AS c FROM detection_coordinates"
       ))?.c ?? 0;
-    if (native.length <= jsCount) {
-      // JS buffer already has at least as many rows. A row count is not a
-      // coverage check, so say so in the log rather than staying silent.
-      logDetectionEvent("native_reconcile_skipped", {
-        reason: "js_has_more",
-        nativeCount: native.length,
-        jsCount,
-      }).catch(() => {});
-      return;
-    }
-    // Insert only the native fixes the buffer does not hold. The old shape
-    // deleted the whole buffer and refilled it from the native store, which
-    // brought back fixes a finalize had already trimmed or saved and let the
-    // same driving be saved twice (16 Oct 2026). Time is a fix's identity; the
-    // unique index on recorded_ms (schema v12) is the backstop.
-    const haveRows = await db.getAllAsync<{ recorded_at: string }>(
-      "SELECT recorded_at FROM detection_coordinates"
-    );
-    const missing = missingNativeFixes(
-      native.filter((l) => l.coords),
-      haveRows.map((r) => r.recorded_at)
-    );
-    const kept = newestOnly(missing, MAX_RECONCILE_COORDS);
-    if (kept.length === 0) {
+    // Insert only the native fixes the buffer does not hold, however many rows
+    // it has: a count says nothing about coverage (a buffer with more rows can
+    // still lack some native fixes). Insert-only, so nothing a finalize trimmed
+    // or saved is brought back by deleting and refilling (16 Oct 2026); the
+    // saved-fix memory strips the ones already saved. Time is a fix's
+    // identity, and the unique index on recorded_ms (schema v12) is the
+    // backstop. The flight cut does not rely on the old count check: a re-run
+    // re-detects the same flight and cuts it again (planFlightCut).
+    const { added, leftOut } = await insertMissingNativeFixes(db, native, MAX_RECONCILE_COORDS);
+    if (added === 0) {
       logDetectionEvent("native_reconcile_skipped", {
         reason: "nothing_missing",
         nativeCount: native.length,
@@ -2175,48 +2170,11 @@ async function reconcileNativeBuffer(BGGeo: BgGeo): Promise<void> {
       }).catch(() => {});
       return;
     }
-    // One transaction + multi-row inserts. The old shape - one awaited
-    // runAsync per fix, no transaction - meant a big store produced thousands
-    // of serialized writes (each its own journal commit) on the app's single
-    // shared SQLite connection, starving every boot-path query behind it:
-    // the launch never finished, destroyLocations() never ran, and the store
-    // was even bigger next launch. ~40 statements now instead of ~6,000.
-    await db.execAsync("BEGIN IMMEDIATE");
-    try {
-      const CHUNK = 100; // 8 params/row, safely under SQLite's 999-variable cap
-      for (let i = 0; i < kept.length; i += CHUNK) {
-        const rows = kept.slice(i, i + CHUNK);
-        const placeholders = rows.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
-        const params: (number | string | null)[] = [];
-        for (const loc of rows) {
-          const c = loc.coords!;
-          const act = (loc as { activity?: { type?: string | null; confidence?: number | null } | null }).activity;
-          params.push(
-            c.latitude,
-            c.longitude,
-            c.speed ?? null,
-            c.accuracy ?? null,
-            act?.type ?? null,
-            typeof act?.confidence === "number" ? act.confidence : null,
-            loc.timestamp,
-            fixTimeMs(loc.timestamp) || null
-          );
-        }
-        await db.runAsync(
-          `INSERT OR IGNORE INTO detection_coordinates (lat, lng, speed, accuracy, activity, activity_confidence, recorded_at, recorded_ms) VALUES ${placeholders}`,
-          params
-        );
-      }
-      await db.execAsync("COMMIT");
-    } catch (txErr) {
-      await db.execAsync("ROLLBACK").catch(() => {});
-      throw txErr;
-    }
     logDetectionEvent("native_buffer_reconciled", {
       jsCount,
       nativeCount: native.length,
-      added: kept.length,
-      dropped: missing.length - kept.length,
+      added,
+      dropped: leftOut,
     }).catch(() => {});
   } catch (err) {
     logDetectionEvent("native_reconcile_error", {
