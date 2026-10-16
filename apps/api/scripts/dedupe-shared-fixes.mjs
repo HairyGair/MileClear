@@ -196,7 +196,7 @@ if (APPLY) {
         } else {
           const next = [...new Set(list.map((x) => (x === trip.id ? mainKeeper : x)))];
           await tx.shiftSuggestion.update({ where: { id: s.id }, data: { tripIdsJson: next } });
-          out.push({ change: "repointed", row: J(s) });
+          out.push({ change: "repointed", row: J(s), after: next });
         }
       }
       return out;
@@ -246,10 +246,12 @@ if (APPLY) {
         await p.$transaction(async (tx) => {
           const keeperOld = await carryToKeeper(tx);
           for (const c of chunks(removed.map((r) => r.id), 500)) await tx.tripCoordinate.deleteMany({ where: { id: { in: c }, tripId: trip.id } });
-          await tx.trip.update({ where: { id: trip.id }, data });
+          const after = await tx.trip.update({ where: { id: trip.id }, data, select: { updatedAt: true } });
           await tx.appEvent.create({ data: {
             type: "admin.trip_shared_fixes_trimmed", userId: trip.userId,
             metadata: J({
+              // the undo refuses to overwrite the row if it has changed since this
+              postTrimUpdatedAt: after.updatedAt,
               tripId: trip.id, keeperIds: it.keeperIds, mainKeeperId: mainKeeper, sharedFixes: it.sharedFixes, oldRow,
               droppedStretches: it.droppedStretches ?? [], keeperClassification: keeperOld,
               new: { distanceMiles: it.newMiles, startedAt: fields.startedAt, endedAt: fields.endedAt, coordinateCount: fields.coordinateCount },
@@ -271,6 +273,13 @@ if (APPLY) {
       if (archivedId && !committed) {
         // The change rolled back but the archive copy was already written: take the stray copy out.
         try {
+          // A commit that went through but errored on the way back must keep its archive.
+          const stillThere = await p.trip.findFirst({ where: { id: trip.id }, select: { id: true } });
+          if (!stillThere) {
+            console.log(`  the trip ${trip.id.slice(0, 8)} is gone, so the change DID commit: archive row ${archivedId.slice(0, 8)} kept`);
+            summaries.add(`${trip.userId}|${getTaxYear(trip.startedAt)}`);
+            continue;
+          }
           await p.deletedTrip.delete({ where: { id: archivedId } });
           await new Promise((r) => setTimeout(r, 1000)); // trip.archived_on_delete is fire-and-forget
           const ev = await p.appEvent.deleteMany({ where: { type: "trip.archived_on_delete", userId: trip.userId, metadata: { path: "$.deletedTripId", equals: archivedId } } });

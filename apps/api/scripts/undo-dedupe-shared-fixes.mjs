@@ -81,13 +81,34 @@ for (const id of eventIds) {
   const keeper = await planKeeper(m);
 
   if (ev.type === "admin.trip_shared_fixes_trimmed") {
-    const trip = await p.trip.findFirst({ where: { id: m.tripId, userId }, select: { id: true } });
+    const trip = await p.trip.findFirst({ where: { id: m.tripId, userId } });
     if (!trip) { console.log(`${head}: TRIM of ${m.tripId.slice(0, 8)}: trip is gone, cannot undo`); continue; }
     const back = m.removedCoordinates ?? [];
     let existing = 0;
     for (const c of chunks(back.map((r) => r.id), 500)) existing += await p.tripCoordinate.count({ where: { id: { in: c } } });
     if (existing > 0) { console.log(`${head}: ${existing} of the removed coordinates already exist again, cannot undo safely`); continue; }
-    console.log(`${head}: TRIM of ${m.tripId.slice(0, 8)}: put back ${back.length} coordinates and the old row (${m.oldRow.distanceMiles} mi, ${m.oldRow.startedAt} to ${m.oldRow.endedAt}); ${keeper.note}`);
+
+    // Has the trip changed since the trim? Then do not overwrite the row.
+    const unchanged = m.postTrimUpdatedAt && trip.updatedAt.toISOString() === m.postTrimUpdatedAt;
+    let data;
+    let mode;
+    if (unchanged) {
+      data = { ...tripData(m.oldRow) };
+      delete data.updatedAt; // let it be stamped now
+      // vehicle / shift may have been removed since
+      if (data.vehicleId && !(await p.vehicle.findFirst({ where: { id: data.vehicleId, userId }, select: { id: true } }))) { data.vehicleId = null; console.log(`  note: vehicle no longer exists, left empty`); }
+      if (data.shiftId && !(await p.shift.findFirst({ where: { id: data.shiftId }, select: { id: true } }))) { data.shiftId = null; console.log(`  note: shift no longer exists, left empty`); }
+      mode = "whole row";
+    } else {
+      // Only restore the figures the trim itself wrote, and only if they are still what it wrote.
+      const n = m.new ?? {};
+      const stillTrimmed = trip.distanceMiles === n.distanceMiles && trip.startedAt.toISOString() === n.startedAt && trip.endedAt?.toISOString() === n.endedAt;
+      if (!stillTrimmed) { console.log(`${head}: TRIM of ${m.tripId.slice(0, 8)}: the trip has been edited since and its distance or times differ from the trim, so nothing was restored. Restore by hand from the event.`); continue; }
+      const keys = ["distanceMiles", "startedAt", "endedAt", "startLat", "startLng", "endLat", "endLng", "startAddress", "endAddress", "coordinateCount", "routePolyline", "originalStartLat", "originalStartLng"];
+      data = reviveDates(Object.fromEntries(keys.map((k) => [k, m.oldRow[k]])), TRIP_DATES);
+      mode = "coordinates and the trimmed figures only (the trip was touched since: notes, classification etc. left alone)";
+    }
+    console.log(`${head}: TRIM of ${m.tripId.slice(0, 8)}: put back ${back.length} coordinates and ${mode} (${m.oldRow.distanceMiles} mi, ${m.oldRow.startedAt} to ${m.oldRow.endedAt}); ${keeper.note}`);
     if (!APPLY) continue;
     await p.$transaction(async (tx) => {
       for (const c of chunks(back, 500)) {
@@ -95,7 +116,7 @@ for (const id of eventIds) {
           data: c.map((r) => ({ id: r.id, tripId: m.tripId, lat: r.lat, lng: r.lng, accuracy: r.accuracy, speed: r.speed, recordedAt: new Date(r.recordedAt) })),
         });
       }
-      await tx.trip.update({ where: { id: m.tripId }, data: tripData(m.oldRow) });
+      await tx.trip.update({ where: { id: m.tripId }, data });
       if (keeper.todo) await tx.trip.update({ where: { id: keeper.todo.id }, data: keeper.todo.data });
       await tx.appEvent.create({ data: { type: "admin.trip_shared_fixes_undone", userId, metadata: { undoOfEventId: ev.id, tripId: m.tripId, action: "TRIM", restoredCoordinates: back.length } } });
     }, { timeout: 60000 });
@@ -133,7 +154,13 @@ for (const id of eventIds) {
           const there = await tx.shiftSuggestion.findFirst({ where: { userId, key: r.key }, select: { id: true } });
           if (!there) await tx.shiftSuggestion.create({ data: r });
         } else {
-          await tx.shiftSuggestion.updateMany({ where: { id: r.id }, data: { tripIdsJson: r.tripIdsJson } });
+          // Only if it still holds what the cleanup wrote.
+          const cur = await tx.shiftSuggestion.findFirst({ where: { id: r.id } });
+          if (cur && JSON.stringify(cur.tripIdsJson) === JSON.stringify(s.after)) {
+            await tx.shiftSuggestion.update({ where: { id: r.id }, data: { tripIdsJson: r.tripIdsJson } });
+          } else {
+            console.log(`  note: shift suggestion ${r.id.slice(0, 8)} has changed since, left as it is`);
+          }
         }
       }
       if (pointers.length) await tx.trip.updateMany({ where: { id: { in: pointers }, userId, possibleDuplicateOfId: null }, data: { possibleDuplicateOfId: m.tripId } });

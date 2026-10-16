@@ -126,6 +126,7 @@ export const MIN_REAL_FIXES = 5;
 export const MIN_REAL_SECONDS = 60;
 export const ARCHIVE_COORDINATE_CAP = 6000; // tripArchive.ts: more rows than this are not fully archived
 export const TIMING_ONLY_RATIO = 2;
+export const BALANCE_SLACK_MILES = 0.3;
 
 /**
  * Time-span coverage comes from the keeper's OWN fixes, never its saved
@@ -312,6 +313,14 @@ export function planDriver(trips) {
         else flush();
       }
       flush();
+      // Balance: miles taken off must be explained by covered driving, the small
+      // bits dropped, and a little slack. Miles that travelled through anchor-shaped
+      // fixes (neither stretch nor covered) would otherwise vanish unnoticed.
+      const removedMiles = plan.action === "ARCHIVE" ? t.distanceMiles : t.distanceMiles - plan.newMiles;
+      const droppedMiles = (plan.droppedStretches ?? []).reduce((a, s) => a + s.miles, 0);
+      if (removedMiles > copyMiles + droppedMiles + BALANCE_SLACK_MILES) {
+        reviewReasons.push(`removes ${removedMiles.toFixed(2)} mi but only ${copyMiles.toFixed(2)} mi are covered (+${droppedMiles.toFixed(2)} mi of small bits)`);
+      }
       if (copyMiles - keeperMiles > 0.5 || copyMiles > keeperMiles * 1.1 + 0.01) {
         reviewReasons.push(`copy covers ${copyMiles.toFixed(2)} mi where the keeper(s) record ${keeperMiles.toFixed(2)} mi over the same time`);
       }

@@ -337,6 +337,33 @@ test("anchor-shaped fixes are dropped from the kept route unless they lead the s
   assert.ok(Math.abs(it.newMiles - path) < 0.1, `${it.newMiles} vs ${path}`);
 });
 
+test("miles that travelled through anchor-shaped fixes are not silently removed (balance)", () => {
+  const core = run(0, 5); // 6 shared fixes
+  // 100 anchor-shaped fixes (acc 50, speed 0) carry ~4 miles of real travel
+  const through = Array.from({ length: 100 }, (_, i) => ({ id: `an${i}`, t: T0 + 50000 + (i + 1) * 10000, lat: fix(5).lat + (i + 1) * 0.0007, lng: -1, speed: 0, accuracy: 50 }));
+  const items = planDriver([
+    trip("K", 1, core, { distanceMiles: miles(5) }),
+    trip("X", 2, copyOf([...core, ...through], "x"), { distanceMiles: miles(5) + 4.8 }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.match(items[0].reason, /removes/);
+});
+
+test("a held-back trip stays a full keeper for the copies that depend on it", () => {
+  const a = run(0, 30);
+  const b = copyOf([...a.slice(10), ...run(31, 60)], "b"); // would be a TRIM, but it has a shift
+  const c = copyOf(run(40, 60), "c");
+  const items = planDriver([
+    trip("A", 1, a, { distanceMiles: miles(30) }),
+    trip("B", 2, b, { distanceMiles: miles(50), reviewReasons: ["has a shift"] }),
+    trip("C", 3, c, { distanceMiles: miles(20) }),
+  ]);
+  const byId = Object.fromEntries(items.map((i) => [i.tripId, i]));
+  assert.equal(byId.B.action, "REVIEW");
+  assert.equal(byId.C.action, "ARCHIVE");
+  assert.deepEqual(byId.C.keeperIds, ["B"]); // B's own 31..60, not a trimmed form
+});
+
 test("a trip with more than 6000 coordinate rows is held back", () => {
   const a = run(0, 6000);
   const items = planDriver([trip("K", 1, a, { distanceMiles: miles(6000) }), trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(6000) })]);
