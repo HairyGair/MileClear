@@ -16,7 +16,7 @@ test.describe("Tax exports", () => {
     await page.goto("/dashboard/tax/exports");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tax exports");
     await expect(page.getByRole("heading", { name: "Download your records" })).toBeVisible();
-    await expect(page.getByText("Odometer log (CSV)")).toBeVisible();
+    await expect(page.getByText("Odometer readings (CSV)")).toBeVisible();
     await expect(page.getByRole("link", { name: "Upgrade to Pro" })).toHaveAttribute("href", "/dashboard/settings/plan?reason=exports");
     await expect(page.getByRole("button", { name: /Download/ })).toHaveCount(0);
     expect(calls.some((c) => c.path.startsWith("/exports"))).toBe(false);

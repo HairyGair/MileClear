@@ -232,7 +232,7 @@ export default function TaxExportsPage() {
             <li>Self Assessment summary (PDF)</li>
             <li>Trip report (PDF)</li>
             <li>Trips (CSV)</li>
-            <li>Odometer log (CSV)</li>
+            <li>Odometer readings (CSV)</li>
           </ul>
         }
       >
