@@ -13,8 +13,9 @@
 //    the last DAYS days. Pairs of one driver overlapping in time by over 60 s.
 //  - A fix is COVERED when it is exact-shared with a kept trip (same recordedAt
 //    ms, within 50 m, from a pair with 5+ shared timestamps; the departure
-//    anchor never counts) OR its time lies inside [startedAt, endedAt] of such
-//    a kept trip. Uncovered fixes form contiguous stretches; anchor-shaped
+//    anchor never counts) OR it lies between two of that keeper's OWN fixes that
+//    are each within 5 minutes of it (never its saved startedAt / endedAt,
+//    which a long Start Trip or an end edit can stretch). Uncovered fixes form contiguous stretches; anchor-shaped
 //    fixes (accuracy 50, speed 0) neither break a stretch nor make one. A
 //    stretch's miles = its own path plus the joining segment to the adjacent
 //    covered fix; it is REAL at 0.3 mi or more.

@@ -175,6 +175,42 @@ test("anchor-shaped fixes never make a real stretch alone and do not break one",
   assert.equal(items2[0].action, "TRIM");
 });
 
+test("a keeper's stretched endedAt does not swallow a separate drive: coverage comes from its own fixes", () => {
+  // keeper fixes 09:00-09:40, saved endedAt 13:00 (stuck recording / end edit)
+  const keeperFixes = run(0, 240);
+  const drive = Array.from({ length: 181 }, (_, i) => ({ ...fix(1080 + i), lat: fix(5).lat + (i + 1) * 0.0007 })); // 12:00-12:30
+  const copy = copyOf([...run(0, 5), ...drive], "x");
+  const items = planDriver([
+    trip("K", 1, keeperFixes, { distanceMiles: miles(240), endedAt: T0 + 4 * 3600 * 1000 }),
+    trip("X", 2, copy, { distanceMiles: miles(186) }),
+  ]);
+  assert.equal(items[0].action, "TRIM");
+  assert.equal(items[0].keepFixes.length, 182); // the drive plus the joining fix (the last shared one)
+  assert.equal(items[0].keepFixes[0].t, T0 + 5 * 10000);
+  assert.equal(items[0].keepFixes.at(-1).t, T0 + 1260 * 10000);
+});
+
+test("a keeper with a 20 minute gap in its own fixes does not cover copy fixes inside the gap", () => {
+  const keeperFixes = [...run(0, 60), ...run(181, 240)]; // nothing from 10 min to 30 min
+  const copy = copyOf([...run(0, 5), ...run(70, 170)], "x");
+  const items = planDriver([
+    trip("K", 1, keeperFixes, { distanceMiles: miles(120) }),
+    trip("X", 2, copy, { distanceMiles: miles(106) }),
+  ]);
+  assert.equal(items[0].action, "TRIM");
+  assert.ok(items[0].keepFixes.some((f) => f.t === T0 + 100 * 10000), "fix deep in the gap is kept");
+});
+
+test("fixes between keeper fixes that are each within 5 minutes are covered", () => {
+  const keeperFixes = run(0, 60).filter((f) => f.t % 20000 === T0 % 20000); // every 20 s
+  const copy = copyOf(run(0, 60), "x"); // the odd ones are not exact-shared
+  const items = planDriver([
+    trip("K", 1, keeperFixes, { distanceMiles: miles(60) }),
+    trip("X", 2, copy, { distanceMiles: miles(60) }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
+});
+
 test("two real stretches outside the keepers goes to review", () => {
   const core = run(20, 40);
   const items = planDriver([

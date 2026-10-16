@@ -121,6 +121,29 @@ export function rowReviewReasons(t) {
   return r;
 }
 
+export const SPAN_GAP_MS = 5 * 60 * 1000;
+
+/**
+ * Time-span coverage comes from the keeper's OWN fixes, never its saved
+ * startedAt / endedAt (a stretched end time must not swallow a separate drive):
+ * covered when the keeper has a fix at or before `t` and one at or after `t`,
+ * each within 5 minutes of it. `times` is sorted ascending.
+ */
+export function insideOwnFixes(times, t) {
+  let lo = 0;
+  let hi = times.length; // first index with times[i] >= t
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] < t) lo = mid + 1;
+    else hi = mid;
+  }
+  if (lo === times.length) return false; // nothing at or after
+  const after = times[lo];
+  if (after === t) return true;
+  if (lo === 0) return false; // nothing before
+  return after - t <= SPAN_GAP_MS && t - times[lo - 1] <= SPAN_GAP_MS;
+}
+
 /** Did the driver set this classification themselves? */
 export const driverSetClassification = (t) =>
   t.classificationSource === "user" || t.classificationSource === "user_undo" || (t.classificationAutoAccepted ?? null) != null;
@@ -141,8 +164,8 @@ const classOf = (t) => ({
  *
  * COVERED rule (the server is getting the same one): a fix is covered when it
  * is exact-shared with a kept trip (same ms, within 50 m, from a pair with 5+
- * shared timestamps) OR its time lies inside [startedAt, endedAt] of such a
- * kept trip. Uncovered fixes form contiguous stretches; anchor-shaped fixes
+ * shared timestamps) OR it lies between two of that kept trip's own fixes that
+ * are each within 5 minutes of it (insideOwnFixes; never the saved times). Uncovered fixes form contiguous stretches; anchor-shaped fixes
  * (accuracy 50, speed 0) neither break a stretch nor make one. A stretch's
  * miles = its own path plus the joining segment to the adjacent covered fix
  * (each join counted once); it is REAL at 0.3 mi or more.
@@ -173,11 +196,14 @@ export function planDriver(trips) {
       keeperIds.push(k.id);
       sharedBy.set(k.id, distinct);
       for (const i of idx) { covered[i] = true; exact.add(i); }
-      for (let i = 0; i < n; i++) if (sorted[i].t >= k.start && sorted[i].t <= k.end) covered[i] = true;
+      for (let i = 0; i < n; i++) if (!covered[i] && insideOwnFixes(k.times, sorted[i].t)) covered[i] = true;
     }
-    const entry = (start, end, byMs) => ({ id: t.id, byMs, start, end, ...classOf(t) });
+    const entry = (fixes) => {
+      const byMs = indexByMs(fixes);
+      return { id: t.id, byMs, times: [...byMs.keys()].sort((a, b) => a - b), ...classOf(t) };
+    };
     if (keeperIds.length === 0) {
-      kept.push(entry(t.startedAt ?? sorted[0]?.t, t.endedAt ?? sorted.at(-1)?.t, indexByMs(sorted)));
+      kept.push(entry(sorted));
       continue;
     }
     const sharedFixes = exact.size;
@@ -278,10 +304,9 @@ export function planDriver(trips) {
     if (keeperUpdate) Object.assign(primary, keeperUpdate.set);
     // Later trips are compared against what this one will look like.
     if (plan.action === "TRIM") {
-      const ks = sortFixes(plan.keepFixes);
-      kept.push(entry(ks[0].t, ks.at(-1).t, indexByMs(ks)));
+      kept.push(entry(plan.keepFixes));
     } else if (plan.action === "REVIEW") {
-      kept.push(entry(t.startedAt ?? sorted[0].t, t.endedAt ?? sorted.at(-1).t, indexByMs(sorted)));
+      kept.push(entry(sorted));
     } // ARCHIVE: gone, not kept
   }
   return items;
