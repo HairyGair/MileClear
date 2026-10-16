@@ -274,4 +274,35 @@ describe("planOverlapTrim: real Android shapes", () => {
     expect(p.verdict).toBe("refuse");
     expect(p.stretches).toBe(0);
   });
+
+  it("a short 2-fix jump after a copy is not a real stretch", () => {
+    // 0.31 mi in two fixes 40 s apart: over the miles bar, under 5 fixes.
+    const jump = [fx(610, 600 * 15 + 250), fx(650, 600 * 15 + 500)];
+    const p = planOverlapTrim({ incoming: [...run(0, 600), ...jump], others: [trip("A", run(0, 600))], incomingHasShift: false });
+    expect(p.verdict).toBe("refuse");
+    expect(p.realStretches).toBe(0);
+  });
+
+  it("a stretch of 5 fixes over under a minute is not real", () => {
+    const burst = Array.from({ length: 5 }, (_, i) => fx(610 + i * 10, 600 * 15 + (i + 1) * 100)); // 40 s
+    const p = planOverlapTrim({ incoming: [...run(0, 600), ...burst], others: [trip("A", run(0, 600))], incomingHasShift: false });
+    expect(p.verdict).toBe("refuse");
+  });
+
+  it("saves whole when timing-only coverage outnumbers exact matches more than 2:1", () => {
+    const keeper = run(0, 600, 40); // 16 sparse fixes, all in the upload
+    const p = planOverlapTrim({ incoming: [...run(0, 600, 10), ...run(610, 1500)], others: [trip("K", keeper)], incomingHasShift: false });
+    expect(p.verdict).toBe("keeper_sparse");
+    expect(p.reason).toBe("timing_outnumbers_exact");
+  });
+
+  it("saves whole when the upload's path over the covered window is longer than the keeper's", () => {
+    const exactRun = run(0, 190);
+    const keeper = [...exactRun, fx(400, 400 * 15)];
+    // 20 more fixes between the keeper's 190 s and 400 s fixes, zigzagging 680 m sideways.
+    const zig = Array.from({ length: 20 }, (_, i) => ({ ...fx(200 + i * 10, (200 + i * 10) * 15), lng: -1.9 + (i % 2 ? 0.01 : 0) }));
+    const p = planOverlapTrim({ incoming: [...exactRun, ...zig, fx(400, 400 * 15), ...run(410, 1200)], others: [trip("K", keeper)], incomingHasShift: false });
+    expect(p.verdict).toBe("keeper_sparse");
+    expect(p.reason).toBe("keeper_path_short");
+  });
 });

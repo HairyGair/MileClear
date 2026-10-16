@@ -23,7 +23,7 @@ vi.mock("../../lib/prisma.js", () => ({
     vehicle: { findFirst: vi.fn() },
     shift: { findFirst: vi.fn() },
     savedLocation: { findMany: vi.fn().mockResolvedValue([]) },
-    deletedTrip: { create: vi.fn() },
+    deletedTrip: { create: vi.fn(), deleteMany: vi.fn().mockResolvedValue({ count: 1 }) },
     appEvent: { create: vi.fn().mockResolvedValue({}) },
     user: { findUnique: vi.fn().mockResolvedValue(null) },
     $transaction: vi.fn(),
@@ -237,6 +237,16 @@ describe("POST /trips: fixes already saved on another trip", () => {
     expect(events("trip.recorded_overlap_refused")[0][2]).toMatchObject({ archiveId: "archive-1" });
     expect(fn(prisma.deletedTrip.create).mock.calls[0][0].data.deletedBy).toBe("overlap_refused");
     expect(prisma.trip.update).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("on mode: if the create fails after the archive was written, the archive row is removed", async () => {
+    process.env.RECORDED_OVERLAP_TRIM = "on";
+    fn(prisma.$transaction).mockRejectedValue(new Error("create failed"));
+    const app = await createTestApp();
+    const res = await app.inject({ method: "POST", url: "/trips", headers: auth, payload: upload() });
+    expect(res.statusCode).toBe(500);
+    expect(prisma.deletedTrip.deleteMany).toHaveBeenCalledWith({ where: { id: "archive-1" } });
     await app.close();
   });
 

@@ -349,6 +349,20 @@ async function backfillTripAddresses(args: {
   });
 }
 
+// Overlap archive rows written for a request (services/tripArchive.ts), so a
+// failure further on can remove the row instead of leaving strays behind.
+const overlapArchives = new WeakMap<FastifyRequest, string>();
+async function dropOverlapArchive(request: FastifyRequest): Promise<void> {
+  const id = overlapArchives.get(request);
+  if (!id) return;
+  overlapArchives.delete(request);
+  try {
+    await prisma.deletedTrip.deleteMany({ where: { id } });
+  } catch {
+    // best effort
+  }
+}
+
 export async function tripRoutes(app: FastifyInstance) {
   // Auth runs at onRequest, BEFORE Fastify parses the request body. POST /trips
   // carries a big coordinate array; with auth as a preHandler the whole payload
@@ -864,7 +878,8 @@ export async function tripRoutes(app: FastifyInstance) {
             trip: { ...data, coordinates: undefined },
             coordinates: data.coordinates ?? [],
           });
-          if (!id) logEvent("trip.recorded_overlap_archive_failed", userId, { verdict, keptTripIds: plan.keptTripIds });
+          if (id) overlapArchives.set(request, id);
+          else logEvent("trip.recorded_overlap_archive_failed", userId, { verdict, keptTripIds: plan.keptTripIds });
           return id;
         };
 
@@ -875,6 +890,15 @@ export async function tripRoutes(app: FastifyInstance) {
             smallStretches: plan.stretches - plan.realStretches,
             incomingFixes: plan.fixes.length,
             mode: overlapMode,
+          });
+        } else if (verdict === "keeper_sparse") {
+          // The saved trip is too thin to vouch for this stretch: save whole.
+          logEvent("trip.recorded_overlap_would_trim", userId, {
+            ...common,
+            verdict,
+            reason,
+            mode: overlapMode,
+            incomingFixes: plan.fixes.length,
           });
         } else if ((verdict === "trim" || verdict === "refuse") && overlapMode === "log") {
           logEvent("trip.recorded_overlap_would_trim", userId, {
@@ -949,6 +973,8 @@ export async function tripRoutes(app: FastifyInstance) {
       } catch (err) {
         // The check must never cost a drive: on any failure, save as before.
         request.log.warn({ err, userId }, "recorded-overlap check failed");
+        // Saving as before, so the archive row would be a stray copy.
+        await dropOverlapArchive(request);
       }
     }
 
@@ -1543,7 +1569,16 @@ export async function tripRoutes(app: FastifyInstance) {
   // (lib/keyedLock.ts).
   app.post("/", async (request, reply) =>
     request.userId
-      ? withKeyLock(`trip-create:${request.userId}`, () => createTrip(request, reply))
+      ? withKeyLock(`trip-create:${request.userId}`, async () => {
+          try {
+            return await createTrip(request, reply);
+          } catch (err) {
+            // The create failed after an overlap archive was written: the phone
+            // will retry, so don't leave a second archive row behind.
+            await dropOverlapArchive(request);
+            throw err;
+          }
+        })
       : createTrip(request, reply)
   );
 

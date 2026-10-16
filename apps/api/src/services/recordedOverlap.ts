@@ -56,10 +56,19 @@ export const OVERLAP_MIN_SHARED_FIXES = 5;
  *  less than rewriting a trip on thin evidence. */
 export const OVERLAP_MIN_SHARE = 0.1;
 /** A stretch only the incoming trip recorded is real from this many miles
- *  (its own path plus the segment joining it to the covered fix beside it)
- *  and this many fixes of its own. */
+ *  (its own path plus the segment joining it to the covered fix beside it),
+ *  this many fixes of its own and this long: a 2-fix jump is not driving. */
 export const OVERLAP_REAL_STRETCH_MILES = 0.3;
-export const OVERLAP_REAL_STRETCH_FIXES = 2;
+export const OVERLAP_REAL_STRETCH_FIXES = 5;
+export const OVERLAP_REAL_STRETCH_MS = 60 * 1000;
+/** Covered only by timing (no exact match) may outnumber exact-shared fixes by
+ *  at most this much, or the keeper is too thin to vouch for the window. */
+export const OVERLAP_MAX_TIMING_TO_EXACT = 2;
+/** The upload's path over its covered fixes may exceed the keeper's own path
+ *  over the same window by at most this much (miles, or this ratio). A sparse
+ *  keeper holds straight-line miles where the upload has the real road. */
+export const OVERLAP_SPARSE_EXTRA_MILES = 0.5;
+export const OVERLAP_SPARSE_EXTRA_RATIO = 1.1;
 
 /** A fix is covered by a keeper's run only when the keeper has a fix this close
  *  before it AND this close after it. */
@@ -127,7 +136,7 @@ export interface OverlapStretch {
   real: boolean;
 }
 
-export type OverlapVerdict = "none" | "trim" | "refuse" | "multi";
+export type OverlapVerdict = "none" | "trim" | "refuse" | "multi" | "keeper_sparse";
 
 export interface OverlapPlan {
   verdict: OverlapVerdict;
@@ -237,10 +246,10 @@ export function planOverlapTrim(args: {
   const inRun = (t: number) => runs.some((r) => insideRun(r, t));
 
   // Anchor-shaped fixes are neutral: set aside, they take no part in stretches.
-  const solid: Array<{ f: OverlapFix; covered: boolean }> = [];
+  const solid: Array<{ f: OverlapFix; covered: boolean; exact: boolean }> = [];
   for (let i = 0; i < fixes.length; i++) {
     if (isAnchorShaped(fixes[i])) continue;
-    solid.push({ f: fixes[i], covered: exact[i] || inRun(fixes[i].t) });
+    solid.push({ f: fixes[i], covered: exact[i] || inRun(fixes[i].t), exact: exact[i] });
   }
 
   // Stretches of consecutive uncovered fixes, each with its joining fixes.
@@ -264,7 +273,8 @@ export function planOverlapTrim(args: {
     const pts = solid.slice(joinL ? a - 1 : a, joinR ? b + 2 : b + 1).map((s) => s.f);
     stretches.push({ a, b, joinL, joinR, miles: trailMiles(pts) });
   }
-  const isReal = (s: Stretch) => s.miles >= OVERLAP_REAL_STRETCH_MILES && s.b - s.a + 1 >= OVERLAP_REAL_STRETCH_FIXES;
+  const isReal = (s: Stretch) => s.miles >= OVERLAP_REAL_STRETCH_MILES && s.b - s.a + 1 >= OVERLAP_REAL_STRETCH_FIXES &&
+    solid[s.b].f.t - solid[s.a].f.t >= OVERLAP_REAL_STRETCH_MS;
   const stretchList: OverlapStretch[] = stretches.map((s) => ({
     fromT: solid[s.a].f.t,
     toT: solid[s.b].f.t,
@@ -282,6 +292,37 @@ export function planOverlapTrim(args: {
     droppedSmallStretches: small.length,
     droppedSmallMiles: Math.round(small.reduce((m, s) => m + s.miles, 0) * 100) / 100,
   };
+
+  // Sparse keeper (see the constants): save whole rather than drop real miles.
+  const timingOnly = solid.filter((x) => x.covered && !x.exact).length;
+  if (timingOnly > OVERLAP_MAX_TIMING_TO_EXACT * sharedCount) {
+    return { ...out, verdict: "keeper_sparse", reason: "timing_outnumbers_exact" };
+  }
+  const covIdx = solid.map((x, i) => (x.covered ? i : -1)).filter((i) => i >= 0);
+  if (covIdx.length >= 2) {
+    let uploadMiles = 0;
+    for (let k = 1; k < covIdx.length; k++) {
+      if (covIdx[k] === covIdx[k - 1] + 1) uploadMiles += trailMiles([solid[covIdx[k - 1]].f, solid[covIdx[k]].f]);
+    }
+    const w0 = solid[covIdx[0]].f.t;
+    const w1 = solid[covIdx[covIdx.length - 1]].f.t;
+    const keeperMiles = Math.max(
+      0,
+      ...keepers.map((o) =>
+        trailMiles(
+          o.fixes
+            .filter((g) => !isAnchorShaped(g) && g.t >= w0 && g.t <= w1)
+            .sort((x, y) => x.t - y.t)
+        )
+      )
+    );
+    if (
+      uploadMiles - keeperMiles > OVERLAP_SPARSE_EXTRA_MILES ||
+      uploadMiles > keeperMiles * OVERLAP_SPARSE_EXTRA_RATIO
+    ) {
+      return { ...out, verdict: "keeper_sparse", reason: "keeper_path_short" };
+    }
+  }
 
   if (real.length === 0) return { ...out, verdict: "refuse", reason: "no_real_stretch" };
   if (real.length > 1) return { ...out, verdict: "multi", droppedSmallStretches: 0, droppedSmallMiles: 0 };

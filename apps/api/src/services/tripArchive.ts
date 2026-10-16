@@ -26,7 +26,24 @@ import { upsertMileageSummary } from "./mileage.js";
 export const ARCHIVE_COORDINATE_CAP = 6000;
 export const DELETED_TRIP_RETENTION_DAYS = 60;
 
-export type DeletedBy = "user" | "admin";
+export type DeletedBy = "user" | "admin" | "overlap_refused" | "overlap_trimmed";
+
+/** What a deleted_trips row means, in words support can read. The two overlap
+ *  kinds are uploads the SERVER dropped, never something the driver deleted. */
+export function deletedByLabel(deletedBy: string): string {
+  switch (deletedBy) {
+    case "user":
+      return "Deleted by the driver";
+    case "admin":
+      return "Deleted by an admin";
+    case "overlap_refused":
+      return "Upload refused by the server (fixes already on a saved trip). Not a driver deletion";
+    case "overlap_trimmed":
+      return "Upload trimmed by the server (kept as it was sent). Not a driver deletion";
+    default:
+      return deletedBy;
+  }
+}
 
 export interface ArchivedCoordinate {
   lat: number;

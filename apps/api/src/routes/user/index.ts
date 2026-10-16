@@ -13,6 +13,7 @@ import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
+import { deletedByLabel } from "../../services/tripArchive.js";
 import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
 
 const updateProfileSchema = z.object({
@@ -1271,7 +1272,7 @@ export async function userRoutes(app: FastifyInstance) {
       waitlistEntry,
       teamInterest,
       mileageCertificates,
-      deletedTrips,
+      deletedTrips: deletedTrips.map((d) => ({ ...d, deletedByLabel: deletedByLabel(d.deletedBy) })),
       tripDiversions,
       shiftSuggestions,
       supportMessages: supportMessages.map((m) => ({
