@@ -2513,7 +2513,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // driving once drew a seven-mile straight line across a saved drive
   // (0929a432 vs 3f652a2b, 15 Oct 2026). Fixes of a LATER leg (deferredCoords)
   // are not in allCoords, so they are never remembered here.
-  const rememberSaved = (key: string): Promise<number> => recordSavedFixes(db, allCoords, key);
+  // The planted departure anchor is not a recorded fix, so it is left out.
+  const rememberSaved = (key: string): Promise<number> =>
+    recordSavedFixes(
+      db,
+      allCoords.filter((c) => !(c.speed === 0 && c.accuracy === 50 && (c.activity ?? null) === null)),
+      key
+    );
 
   // Idempotency guard for the delete-after-save ordering: a process death
   // between a successful save and consumeProcessedBuffer() re-runs this

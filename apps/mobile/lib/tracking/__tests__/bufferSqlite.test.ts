@@ -8,6 +8,7 @@
 import { createRequire } from "node:module";
 import { describe, it, expect, beforeEach } from "vitest";
 import { ensureRecordedMs, RECORDED_MS_INDEX } from "../../db/recordedMs";
+import { cutFlights, findFlights } from "../flightRule";
 import { insertMissingNativeFixes } from "../nativeBufferRules";
 import {
   applySameStartTrim,
@@ -195,6 +196,73 @@ describe.skipIf(!DatabaseSync)("buffer SQL against a real SQLite", () => {
     expect(await bufferTimes(db)).toEqual([savedFixes[savedFixes.length - 1], ...newDriving]);
   });
 
+  it("refill after a flight: the consumed drive to the airport is stripped, the flight is re-detected and cut, no trip spans it", async () => {
+    const MPL = 69.05;
+    const EDI = { lat: 55.95, lng: -3.37 };
+    const YYZ = { lat: 43.68, lng: -79.63 };
+    const T0 = Date.parse("2026-10-12T10:00:00Z");
+    const mk = (lat: number, lng: number, ms: number) => ({
+      timestamp: iso(ms),
+      coords: { latitude: lat, longitude: lng, speed: 10, accuracy: 8 },
+      activity: null,
+    });
+    // Drive to the airport (25 min at 55 mph), then three fixes at the gate.
+    const toAirport = [];
+    for (let i = 0; i <= 150; i++) toAirport.push(mk(55.88 + i * ((55 * (10 / 3600)) / MPL), EDI.lng, T0 + i * 10_000));
+    const lastDrive = Date.parse(toAirport[toAirport.length - 1].timestamp);
+    const gate = [1, 2, 3].map((i) => mk(EDI.lat, EDI.lng, lastDrive + i * 20 * 60_000));
+    const takeoffAt = Date.parse(gate[2].timestamp) + 30 * 60_000;
+    const roll = [];
+    let lat = EDI.lat;
+    let t = takeoffAt;
+    for (const mph of [40, 90, 140, 180]) {
+      t += 10_000;
+      lat += (mph * (10 / 3600)) / MPL;
+      roll.push(mk(lat, EDI.lng, t));
+    }
+    const cruise = [];
+    for (let i = 1; i < 420; i++) {
+      const f = i / 420;
+      cruise.push(mk(lat + (YYZ.lat - lat) * f, EDI.lng + (YYZ.lng - EDI.lng) * f, t + i * 60_000));
+    }
+    const landT = t + 7 * 3600_000;
+    const landing = mk(YYZ.lat, YYZ.lng, landT);
+    const away = [];
+    for (let i = 0; i <= 90; i++) away.push(mk(YYZ.lat + 0.01 + i * ((45 * (10 / 3600)) / MPL), YYZ.lng, landT + 40 * 60_000 + i * 10_000));
+    const flightFixes = [...roll, ...cruise, landing, ...away];
+    const store = [...toAirport, ...gate, ...flightFixes];
+
+    // The drive to the airport (with the gate) was finalized and saved: the
+    // flight fixes were NEVER remembered. The buffer was consumed.
+    await insertMissingNativeFixes(db, [...toAirport, ...gate], 6000);
+    const consumed = await db.getAllAsync<{ recorded_at: string }>("SELECT recorded_at FROM detection_coordinates", []);
+    await recordSavedFixes(db, consumed, "trip-airport");
+    await db.runAsync("DELETE FROM detection_coordinates", []);
+
+    // Refill from the native store (never cleared), then the finalize start.
+    await insertMissingNativeFixes(db, store, 6000);
+    await dropSavedFixesFromBuffer(db);
+    const rows = await db.getAllAsync<{ lat: number; lng: number; recorded_at: string }>(
+      "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at",
+      []
+    );
+    // Only the gate's last fix (joining point) survives from the saved drive.
+    expect(rows.filter((r) => fixTimeMs(r.recorded_at) <= lastDrive + 3 * 20 * 60_000)).toHaveLength(1);
+    const spans = findFlights(rows);
+    expect(spans).toHaveLength(1);
+    const { kept, legStarts } = cutFlights(rows, spans);
+    expect(legStarts).toHaveLength(1);
+    // No leg contains a step at aeroplane speed, so no trip spans the flight.
+    const legs = [kept.slice(0, legStarts[0]), kept.slice(legStarts[0])];
+    for (const leg of legs) {
+      for (let i = 1; i < leg.length; i++) {
+        const dtH = (fixTimeMs(leg[i].recorded_at) - fixTimeMs(leg[i - 1].recorded_at)) / 3600000;
+        const mi = Math.hypot((leg[i].lat - leg[i - 1].lat) * MPL, (leg[i].lng - leg[i - 1].lng) * MPL * Math.cos((leg[i].lat * Math.PI) / 180));
+        expect(mi / dtH).toBeLessThan(100);
+      }
+    }
+  });
+
   it("a fully saved buffer is emptied", async () => {
     await insertMissingNativeFixes(db, nativeStore.filter((f) => fixTimeMs(f.timestamp) <= T("16:01:39")), 6000);
     const rows = await db.getAllAsync<{ recorded_at: string }>("SELECT recorded_at FROM detection_coordinates", []);
@@ -238,6 +306,36 @@ describe.skipIf(!DatabaseSync)("v12 migration (ensureRecordedMs)", () => {
     expect(rows.filter((r) => r.accuracy !== 50).map((r) => r.recorded_ms)).toEqual([ms, ms + 10_000]);
     await ensureRecordedMs(db); // again: nothing changes
     expect((await db.getAllAsync("SELECT id FROM detection_coordinates", [])).length).toBe(3);
+  });
+
+  it("builds the index when two identical real fixes carry the anchor's signature (Android: activity always null)", async () => {
+    const db = openShim();
+    db.raw.exec(LEGACY_TABLE);
+    // Column and index exist from an earlier boot; real fixes were stored with
+    // recorded_ms set but the index was lost, and a duplicate crept in.
+    await ensureRecordedMs(db);
+    db.raw.exec(`DROP INDEX ${RECORDED_MS_INDEX}`);
+    const ms = T("09:30:00");
+    for (let i = 0; i < 2; i++) {
+      await db.runAsync(
+        "INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at, recorded_ms) VALUES (51.5, -0.1, 0, 50, ?, ?)",
+        [iso(ms), ms]
+      );
+    }
+    // And an unmigrated legacy pair with the same signature, no recorded_ms.
+    for (let i = 0; i < 2; i++) {
+      await db.runAsync(
+        "INSERT INTO detection_coordinates (lat, lng, speed, accuracy, recorded_at) VALUES (51.5, -0.1, 0, 50, ?)",
+        [iso(ms + 10_000)]
+      );
+    }
+    await ensureRecordedMs(db);
+    const idx = await db.getAllAsync<{ name: string }>("PRAGMA index_list(detection_coordinates)", []);
+    expect(idx.some((i) => i.name === RECORDED_MS_INDEX)).toBe(true);
+    const rows = await db.getAllAsync<{ recorded_ms: number | null }>("SELECT recorded_ms FROM detection_coordinates ORDER BY id", []);
+    // The set pair collapsed to one; the unset pair stays as NULLs (never a clash).
+    expect(rows.filter((r) => r.recorded_ms === ms)).toHaveLength(1);
+    expect(rows).toHaveLength(3);
   });
 
   it("recreates the unique index on a later boot when it is missing", async () => {

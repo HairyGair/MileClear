@@ -10,7 +10,6 @@
 // in place: two PRAGMAs. No expo-sqlite import, so it runs under vitest.
 
 import { isAnchorSignature, fixTimeMs } from "../tracking/savedFixes";
-import { duplicateRowIds } from "../tracking/nativeBufferRules";
 
 export const RECORDED_MS_INDEX = "idx_detection_coords_recorded_ms";
 
@@ -42,21 +41,26 @@ export async function ensureRecordedMs(db: RecordedMsDb): Promise<void> {
         accuracy: number | null;
         activity: string | null;
       }>("SELECT id, recorded_at, recorded_ms, speed, accuracy, activity FROM detection_coordinates ORDER BY id ASC", []);
-      // Departure anchors keep a NULL recorded_ms (see nativeLocation.ts).
-      const real = rows.filter((r) => !isAnchorSignature(r));
-      const extra = duplicateRowIds(real);
-      const extraSet = new Set(extra);
-      for (let i = 0; i < extra.length; i += 400) {
-        const chunk = extra.slice(i, i + 400);
-        await db.runAsync(`DELETE FROM detection_coordinates WHERE id IN (${chunk.map(() => "?").join(",")})`, chunk);
-      }
-      for (const r of real) {
-        if (extraSet.has(r.id)) continue;
+      // Backfill first. A row with no recorded_ms and the planted anchor's
+      // signature stays NULL (a legacy anchor cannot be told from a real
+      // fix, and a NULL can never fail the index).
+      for (const r of rows) {
+        if (r.recorded_ms !== null || isAnchorSignature(r)) continue;
         const ms = fixTimeMs(r.recorded_at);
-        if (ms > 0 && r.recorded_ms !== ms) {
+        if (ms > 0) {
           await db.runAsync("UPDATE detection_coordinates SET recorded_ms = ? WHERE id = ?", [ms, r.id]);
         }
       }
+      // Then dedupe on recorded_ms ALONE: any two rows that would clash in the
+      // unique index, whatever they look like (a real Android fix can have the
+      // anchor's signature: speed 0, accuracy 50, no activity). One of each
+      // stays, the lowest id.
+      await db.runAsync(
+        `DELETE FROM detection_coordinates
+         WHERE recorded_ms IS NOT NULL
+           AND id NOT IN (SELECT MIN(id) FROM detection_coordinates WHERE recorded_ms IS NOT NULL GROUP BY recorded_ms)`,
+        []
+      );
       await db.execAsync(
         `CREATE UNIQUE INDEX IF NOT EXISTS ${RECORDED_MS_INDEX} ON detection_coordinates (recorded_ms);`
       );
