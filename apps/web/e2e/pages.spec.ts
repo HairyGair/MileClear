@@ -56,7 +56,7 @@ test("Home has one amber button and the copy sweep passes (work and personal)", 
 test("More hides company-driver and gig rows correctly and shows PRO chips only to free drivers", async ({ page }) => {
   await mockSession(page);
   await page.goto("/dashboard/more");
-  await expect(page.getByRole("link", { name: /Link a bank/ }).getByText("PRO")).toBeVisible();
+  await expect(page.getByRole("link", { name: /Link your bank/ }).getByText("PRO")).toBeVisible();
   await expect(page.getByRole("link", { name: /Earnings/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /EmSee/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Milesheet/ })).toHaveCount(0);

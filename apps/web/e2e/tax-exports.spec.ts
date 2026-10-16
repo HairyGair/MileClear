@@ -31,7 +31,7 @@ test.describe("Tax exports", () => {
       [/Self Assessment summary/, /\.pdf$/],
       [/Trip report/, /\.pdf$/],
       [/Trips \(CSV\)/, /\.csv$/],
-      [/Odometer log/, /\.csv$/],
+      [/Odometer readings/, /\.csv$/],
     ];
     for (const [name, ext] of rows) {
       const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name }).click()]);
@@ -67,7 +67,7 @@ test.describe("Tax exports", () => {
     expect(csv?.search).toContain(`to=${new Date("2026-05-31T23:59:59.999").toISOString()}`);
     expect(csv?.search).not.toContain("classification");
 
-    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Odometer log/ }).click()]);
+    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Odometer readings/ }).click()]);
     const odo = calls.find((c) => c.path === "/exports/odometer-log");
     expect(odo?.search).toContain("from=2026-05-01");
     expect(odo?.search).toContain("to=2026-05-31");
@@ -98,7 +98,7 @@ test.describe("Tax exports", () => {
     });
     await page.goto("/dashboard/tax/exports");
     await page.getByLabel("Vehicle for the odometer log").selectOption("v2");
-    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Odometer log/ }).click()]);
+    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Odometer readings/ }).click()]);
     expect(calls.find((c) => c.path === "/exports/odometer-log")?.search).toContain("vehicleId=v2");
   });
 

@@ -186,34 +186,45 @@ test.describe("Mileage Allowance Relief", () => {
 });
 
 test.describe("Accountant", () => {
-  test("details save through the profile; free sees the sharing card gated", async ({ page }) => {
+  test("fee details save through the profile; sharing is free so a free driver sees the invite card, not an upgrade", async ({ page }) => {
     await mockSession(page, { profile: profile({ accountantName: "Pat", accountantContact: "pat@example.test", accountantAnnualFeePence: 30000 }) });
     const calls = await mockTax(page);
     await page.goto("/dashboard/tax/accountant");
     await expect(page.getByLabel("Name")).toHaveValue("Pat");
     await page.getByLabel("Name").fill("Pat Smith");
-    await page.getByRole("button", { name: "Save details" }).click();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect.poll(() => calls.find((c) => c.method === "PATCH" && c.path === "/user/profile")?.body).toMatchObject({
       accountantName: "Pat Smith",
       accountantAnnualFeePence: 30000,
     });
     await expect(page.getByText("Share your records with your accountant")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Upgrade to Pro" })).toHaveAttribute("href", "/dashboard/settings/plan?reason=accountant_share");
+    await expect(page.getByText("Free for every driver.")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Upgrade to Pro" })).toHaveCount(0);
     await expect(page.locator(".mc-btn--primary")).toHaveCount(1);
   });
 
-  test("Pro can invite and revoke", async ({ page }) => {
+  test("Pro can invite an accountant by email", async ({ page }) => {
     await mockSession(page, { profile: profile({ isPremium: true }) });
     const calls = await mockTax(page);
     await page.goto("/dashboard/tax/accountant");
-    await expect(page.getByText("Your accountant gets a read-only view of your records for 12 months.")).toBeVisible();
-    await page.getByLabel("Accountant's email").fill("Pat@Example.test");
-    await page.getByRole("button", { name: "Send invite" }).click();
-    await expect(page.getByText("pat@example.test")).toBeVisible();
-    expect(calls.find((c) => c.method === "POST" && c.path === "/accountant/invite")?.body).toEqual({ email: "pat@example.test" });
+    await expect(page.getByText("Your accountant sees your business trips, earnings and expenses. Read only. You can stop any time.")).toBeVisible();
+    await page.getByLabel("Their email or practice code").fill("Pat@Example.test");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    expect(calls.find((c) => c.method === "POST" && c.path === "/practice-links/invite")?.body).toEqual({ value: "Pat@Example.test" });
+    await expect(page.getByText("We've emailed them an invite to MileClear.").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel", exact: true })).toBeVisible();
+  });
+
+  test("an old accountant link can still be revoked", async ({ page }) => {
+    await mockSession(page, { profile: profile({ isPremium: true }) });
+    await mockTax(page, {
+      access: [{ id: "a1", email: "pat@example.test", status: "accepted", expiresAt: null, source: "invite" }],
+    });
+    await page.goto("/dashboard/tax/accountant");
+    await expect(page.getByText("Old accountant links")).toBeVisible();
     await page.getByRole("button", { name: "Revoke access for pat@example.test" }).click();
     await page.getByRole("button", { name: "Revoke", exact: true }).last().click();
-    await expect(page.getByText("Nobody has access yet")).toBeVisible();
+    await expect(page.getByText("Old accountant links")).toHaveCount(0);
   });
 });
 

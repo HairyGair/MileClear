@@ -8,7 +8,7 @@ test.describe("EmSee", () => {
   test("hidden in More and an empty state on the page when it is not available", async ({ page }) => {
     await mockSession(page); // the shared fixture says available: false
     await page.goto("/dashboard/more");
-    await expect(page.getByRole("link", { name: /Vehicles/ })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Your cars/ })).toBeVisible();
     await expect(page.getByRole("link", { name: /EmSee/ })).toHaveCount(0);
     await page.goto("/dashboard/emsee");
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("EmSee");
