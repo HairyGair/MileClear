@@ -63,7 +63,7 @@ import {
   SOURCES_KEPT_WHEN_AUTO_TRIPS_OFF,
 } from "../../services/autoTripsOffRule.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
-import { archiveTripBeforeDelete } from "../../services/tripArchive.js";
+import { archiveTripBeforeDelete, archiveDroppedUpload } from "../../services/tripArchive.js";
 import { latestEndingIndex, mergedDistanceMiles } from "../../services/tripMergeRule.js";
 import { SPARSE_MAX_POINTS, isSparseCandidate, judgeSparseRoute, routeThroughPoints, usablePoints, type SparseVerdict } from "../../services/sparseRoute.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
@@ -833,34 +833,39 @@ export async function tripRoutes(app: FastifyInstance) {
             })
           : [];
         const plan = planOverlapTrim({ incoming, others, incomingHasShift: Boolean(data.shiftId) });
-        const gqIn = (data.gpsQuality ?? {}) as Record<string, unknown>;
-        const num = (v: unknown) => (typeof v === "number" ? v : null);
-        // The existing walk/phantom rules, judged on what would be saved.
-        const remainderPhantom =
-          plan.verdict === "trim" &&
-          looksLikePhantomTrip({
-            distanceMiles: plan.remainderMiles,
-            startedAt: new Date(plan.remainder[0].t),
-            endedAt: data.endedAt,
-            isManualEntry: false,
-            coordinateCount: plan.remainder.length,
-            hasRealMovementEvidence: hasRealMovementEvidence(data.gpsQuality),
-            maxSpeedMph: num(gqIn.maxSpeedMph),
-            lowConfidence: gqIn.lowConfidence === true,
-            avgAccuracyM: num(gqIn.avgAccuracyM),
-            sustainedSpeedMph: num(gqIn.sustainedSpeedMph),
-            pctOnFoot: num(gqIn.pctOnFoot),
-            motionFixes: num(gqIn.motionFixes),
-            walkVerdict: typeof gqIn.walkVerdict === "string" ? gqIn.walkVerdict : null,
-          });
-        const verdict = remainderPhantom ? "refuse" : plan.verdict;
-        const reason = remainderPhantom ? "remainder_phantom" : plan.reason;
+        // No phantom pre-check on the remainder: the normal check further down
+        // judges what is saved, and a phantom-flagged trip can be recovered
+        // where a refusal cannot.
+        let archiveId: string | null = null;
+        const verdict = plan.verdict;
+        const reason = plan.reason;
+        const uncovered = plan.stretchList.slice(0, 12).map((s) => ({
+          from: new Date(s.fromT).toISOString(),
+          to: new Date(s.toT).toISOString(),
+          fixes: s.fixes,
+          miles: s.miles,
+          real: s.real,
+        }));
         const common = {
           removedFixes: plan.sharedFixes,
           duplicateTimestamps: plan.duplicateTimestamps,
           fromMiles: plan.fromMiles,
           toMiles: verdict === "multi" ? plan.fromMiles : plan.remainderMiles,
           keptTripIds: plan.keptTripIds,
+          uncovered,
+        };
+        // On mode only, before anything is dropped: keep the whole upload.
+        // If that write fails nothing is dropped and the trip saves as before.
+        const archiveFirst = async (why: "overlap_refused" | "overlap_trimmed") => {
+          const id = await archiveDroppedUpload({
+            userId,
+            reason: why,
+            keeperTripId: plan.bestTripId,
+            trip: { ...data, coordinates: undefined },
+            coordinates: data.coordinates ?? [],
+          });
+          if (!id) logEvent("trip.recorded_overlap_archive_failed", userId, { verdict, keptTripIds: plan.keptTripIds });
+          return id;
         };
 
         if (verdict === "multi") {
@@ -878,7 +883,7 @@ export async function tripRoutes(app: FastifyInstance) {
             reason,
             incomingFixes: plan.fixes.length,
           });
-        } else if (verdict === "refuse" && plan.bestTripId) {
+        } else if (verdict === "refuse" && plan.bestTripId && (await archiveFirst("overlap_refused").then((id) => { archiveId = id; return id !== null; }))) {
           // Answered like the refusal above: the saved trip holding most of the fixes.
           let keeper = await prisma.trip.findUniqueOrThrow({
             where: { id: plan.bestTripId },
@@ -894,11 +899,12 @@ export async function tripRoutes(app: FastifyInstance) {
           logEvent("trip.recorded_overlap_refused", userId, {
             ...common,
             reason,
+            archiveId,
             keptTripId: keeper.id,
             incomingHadShift: Boolean(data.shiftId),
           });
           return reply.send({ data: keeper, duplicateOf: keeper.id });
-        } else if (verdict === "trim") {
+        } else if (verdict === "trim" && (await archiveFirst("overlap_trimmed").then((id) => { archiveId = id; return id !== null; }))) {
           const first = plan.remainder[0];
           const last = plan.remainder[plan.remainder.length - 1];
           // First of each repeated millisecond, matching the planner's dedupe.
@@ -935,6 +941,7 @@ export async function tripRoutes(app: FastifyInstance) {
           };
           logEvent("trip.recorded_overlap_trimmed", userId, {
             ...common,
+            archiveId,
             incomingFixes: plan.fixes.length,
             keptFixes: kept.length,
           });

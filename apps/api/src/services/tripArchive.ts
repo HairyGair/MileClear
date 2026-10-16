@@ -171,6 +171,51 @@ export async function archiveTripBeforeDelete(
   return archived.id;
 }
 
+/**
+ * Keep an upload that POST /trips is about to refuse or trim against trips the
+ * driver already has (RECORDED_OVERLAP_TRIM=on, services/recordedOverlap.ts).
+ * The phone deletes its own copy once the server answers, so this is the only
+ * place the dropped fixes survive; an admin restores it from the same list as
+ * a deleted trip. `trip` is the upload as the phone sent it. Returns the
+ * archive id, or null when the write failed, in which case the caller must
+ * save the trip whole rather than drop anything.
+ */
+export async function archiveDroppedUpload(args: {
+  userId: string;
+  reason: "overlap_refused" | "overlap_trimmed";
+  keeperTripId: string | null;
+  trip: Record<string, unknown>;
+  coordinates: Array<{ lat: number; lng: number; speed?: number | null; accuracy?: number | null; recordedAt: Date | string }>;
+}): Promise<string | null> {
+  try {
+    const coordinates = capArchivedCoordinates(
+      args.coordinates.map((c) => ({
+        lat: c.lat,
+        lng: c.lng,
+        speed: c.speed ?? null,
+        accuracy: c.accuracy ?? null,
+        recordedAt: c.recordedAt,
+      }))
+    ).map(toArchivedCoordinate);
+    const archived = await prisma.deletedTrip.create({
+      data: {
+        userId: args.userId,
+        originalTripId: args.keeperTripId ?? "none",
+        // deleted_trips.deletedBy is VarChar(16): the reason is the label.
+        deletedBy: args.reason,
+        tripJson: JSON.parse(
+          JSON.stringify({ ...args.trip, isManualEntry: false, archivedReason: args.reason })
+        ) as Prisma.InputJsonValue,
+        coordinatesJson: coordinates as unknown as Prisma.InputJsonValue,
+      },
+      select: { id: true },
+    });
+    return archived.id;
+  } catch {
+    return null;
+  }
+}
+
 export class DeletedTripNotFoundError extends Error {
   constructor() {
     super("Deleted trip not found");

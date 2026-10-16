@@ -15,8 +15,11 @@
  *
  * What is "covered" is wider, because the real shape is ragged (a prod dry run,
  * 16 Oct): a keeper rarely holds every fix of the stretch it overlaps, it has
- * gaps. So a fix is covered if it is exact-shared OR its time lies inside a
- * keeper's own start-to-end. What is left are stretches only the incoming trip
+ * gaps. So a fix is covered if it is exact-shared OR it lies between two of a
+ * keeper's OWN fixes that are each within 5 minutes of it. The keeper's saved
+ * startedAt/endedAt is never used: an end stretched by a long Start Trip, a
+ * stuck recording or an end edit would swallow a separate real drive, and a
+ * refusal loses it on the phone too. What is left are stretches only the incoming trip
  * recorded. A stretch under 0.3 mi (counting the segment that joins it to the
  * covered fix beside it) is noise at the seams; a stretch of 0.3 mi or more is
  * real driving. No real stretch: the trip is a copy. Exactly one: trim to it.
@@ -38,12 +41,8 @@ export interface OverlapFix {
 export interface OverlapOtherTrip {
   id: string;
   shiftId: string | null;
+  /** Its fixes over the upload's range plus COVER_MAX_GAP_MS either side. */
   fixes: OverlapFix[];
-  /** The trip's own startedAt / endedAt (epoch ms). Loaded fixes are only the
-   *  ones inside the incoming range, so the real span must come from the row.
-   *  Defaults to the first and last loaded fix. */
-  spanFrom?: number | null;
-  spanTo?: number | null;
 }
 
 /** Same millisecond AND this close. GPS error is a few metres and the same
@@ -61,6 +60,10 @@ export const OVERLAP_MIN_SHARE = 0.1;
  *  and this many fixes of its own. */
 export const OVERLAP_REAL_STRETCH_MILES = 0.3;
 export const OVERLAP_REAL_STRETCH_FIXES = 2;
+
+/** A fix is covered by a keeper's run only when the keeper has a fix this close
+ *  before it AND this close after it. */
+export const COVER_MAX_GAP_MS = 5 * 60 * 1000;
 
 /** The phone's planted departure anchor: accuracy exactly 50, speed 0. It is
  *  where the car was parked, not a measured fix, and two trips leaving the same
@@ -100,6 +103,30 @@ export function trailMiles(fixes: Array<{ lat: number; lng: number }>): number {
   return Math.round(miles * 100) / 100;
 }
 
+/** True when `sorted` (time-ascending) has a fix at or before t within the gap
+ *  and a fix at or after t within the gap. */
+function insideRun(sorted: number[], t: number): boolean {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sorted[mid] < t) lo = mid + 1;
+    else hi = mid;
+  }
+  // lo: first index with sorted[lo] >= t
+  const next = lo < sorted.length ? sorted[lo] : Infinity;
+  const prev = lo < sorted.length && sorted[lo] === t ? t : lo > 0 ? sorted[lo - 1] : -Infinity;
+  return t - prev <= COVER_MAX_GAP_MS && next - t <= COVER_MAX_GAP_MS;
+}
+
+export interface OverlapStretch {
+  fromT: number;
+  toT: number;
+  fixes: number;
+  miles: number;
+  real: boolean;
+}
+
 export type OverlapVerdict = "none" | "trim" | "refuse" | "multi";
 
 export interface OverlapPlan {
@@ -118,6 +145,8 @@ export interface OverlapPlan {
   /** Stretches only the incoming trip recorded, real or not. */
   stretches: number;
   realStretches: number;
+  /** Every uncovered stretch, for the audit log. */
+  stretchList: OverlapStretch[];
   /** trim: the small stretches dropped with the covered fixes. */
   droppedSmallStretches: number;
   droppedSmallMiles: number;
@@ -154,6 +183,7 @@ export function planOverlapTrim(args: {
     bestTripId: null,
     stretches: 0,
     realStretches: 0,
+    stretchList: [],
     droppedSmallStretches: 0,
     droppedSmallMiles: 0,
     remainder: [],
@@ -197,27 +227,28 @@ export function planOverlapTrim(args: {
   const keepers = args.others.filter((o) => keeperIds.has(o.id));
   if (args.incomingHasShift && keepers.some((o) => !o.shiftId)) return { ...info, reason: "shift_vs_unshifted" };
 
-  // Time spans of the keepers.
-  const spans = keepers.map((o) => {
-    const ts = o.fixes.map((g) => g.t).filter(Number.isFinite);
-    return {
-      from: o.spanFrom ?? (ts.length ? Math.min(...ts) : Infinity),
-      to: o.spanTo ?? (ts.length ? Math.max(...ts) : -Infinity),
-    };
-  });
-  const inSpan = (t: number) => spans.some((s) => t >= s.from && t <= s.to);
+  // The keepers' own fixes, as sorted times (anchors are not measured fixes).
+  const runs = keepers.map((o) =>
+    o.fixes
+      .filter((g) => Number.isFinite(g.t) && !isAnchorShaped(g))
+      .map((g) => g.t)
+      .sort((x, y) => x - y)
+  );
+  const inRun = (t: number) => runs.some((r) => insideRun(r, t));
 
   // Anchor-shaped fixes are neutral: set aside, they take no part in stretches.
   const solid: Array<{ f: OverlapFix; covered: boolean }> = [];
   for (let i = 0; i < fixes.length; i++) {
     if (isAnchorShaped(fixes[i])) continue;
-    solid.push({ f: fixes[i], covered: exact[i] || inSpan(fixes[i].t) });
+    solid.push({ f: fixes[i], covered: exact[i] || inRun(fixes[i].t) });
   }
 
   // Stretches of consecutive uncovered fixes, each with its joining fixes.
   interface Stretch {
     a: number;
     b: number;
+    joinL: boolean;
+    joinR: boolean;
     miles: number;
   }
   const stretches: Stretch[] = [];
@@ -226,16 +257,28 @@ export function planOverlapTrim(args: {
     const a = i;
     while (i + 1 < solid.length && !solid[i + 1].covered) i++;
     const b = i;
-    const pts = solid.slice(Math.max(0, a - 1), Math.min(solid.length, b + 2)).map((s) => s.f);
-    stretches.push({ a, b, miles: trailMiles(pts) });
+    // Join to the covered fix beside it, but only when it is close in time: a
+    // covered fix hours away is a different drive, not the stretch's seam.
+    const joinL = a > 0 && solid[a].f.t - solid[a - 1].f.t <= COVER_MAX_GAP_MS;
+    const joinR = b < solid.length - 1 && solid[b + 1].f.t - solid[b].f.t <= COVER_MAX_GAP_MS;
+    const pts = solid.slice(joinL ? a - 1 : a, joinR ? b + 2 : b + 1).map((s) => s.f);
+    stretches.push({ a, b, joinL, joinR, miles: trailMiles(pts) });
   }
   const isReal = (s: Stretch) => s.miles >= OVERLAP_REAL_STRETCH_MILES && s.b - s.a + 1 >= OVERLAP_REAL_STRETCH_FIXES;
+  const stretchList: OverlapStretch[] = stretches.map((s) => ({
+    fromT: solid[s.a].f.t,
+    toT: solid[s.b].f.t,
+    fixes: s.b - s.a + 1,
+    miles: s.miles,
+    real: isReal(s),
+  }));
   const real = stretches.filter(isReal);
   const small = stretches.filter((s) => !isReal(s));
   const out: OverlapPlan = {
     ...info,
     stretches: stretches.length,
     realStretches: real.length,
+    stretchList,
     droppedSmallStretches: small.length,
     droppedSmallMiles: Math.round(small.reduce((m, s) => m + s.miles, 0) * 100) / 100,
   };
@@ -243,9 +286,9 @@ export function planOverlapTrim(args: {
   if (real.length === 0) return { ...out, verdict: "refuse", reason: "no_real_stretch" };
   if (real.length > 1) return { ...out, verdict: "multi", droppedSmallStretches: 0, droppedSmallMiles: 0 };
 
-  const { a, b } = real[0];
-  const lo = a > 0 ? solid[a - 1].f.t : -Infinity;
-  const hi = b < solid.length - 1 ? solid[b + 1].f.t : Infinity;
+  const { a, b, joinL, joinR } = real[0];
+  const lo = joinL ? solid[a - 1].f.t : a > 0 ? solid[a].f.t : -Infinity;
+  const hi = joinR ? solid[b + 1].f.t : b < solid.length - 1 ? solid[b].f.t : Infinity;
   // Everything from the covered fix before to the covered fix after, anchors
   // included; the rest of the covered fixes go.
   const remainder = fixes.filter((f) => f.t >= lo && f.t <= hi);

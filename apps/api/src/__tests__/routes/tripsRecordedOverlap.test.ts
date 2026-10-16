@@ -23,6 +23,7 @@ vi.mock("../../lib/prisma.js", () => ({
     vehicle: { findFirst: vi.fn() },
     shift: { findFirst: vi.fn() },
     savedLocation: { findMany: vi.fn().mockResolvedValue([]) },
+    deletedTrip: { create: vi.fn() },
     appEvent: { create: vi.fn().mockResolvedValue({}) },
     user: { findUnique: vi.fn().mockResolvedValue(null) },
     $transaction: vi.fn(),
@@ -112,6 +113,7 @@ let savedSpan: [Date, Date] = [new Date(T0), new Date(T0 + 600_000)];
 beforeEach(() => {
   vi.clearAllMocks();
   savedPayload = null;
+  fn(prisma.deletedTrip.create).mockResolvedValue({ id: "archive-1" });
   savedSpan = [new Date(T0), new Date(T0 + 600_000)];
   fn(prisma.trip.findFirst).mockResolvedValue(null);
   fn(prisma.shift.findFirst).mockResolvedValue({ id: SHIFT_ID });
@@ -153,6 +155,10 @@ describe("POST /trips: fixes already saved on another trip", () => {
     const would = events("trip.recorded_overlap_would_trim");
     expect(would).toHaveLength(1);
     expect(would[0][2]).toMatchObject({ verdict: "trim", removedFixes: 61, keptTripIds: [SAVED_ID] });
+    expect(would[0][2].uncovered).toEqual([
+      expect.objectContaining({ real: true, fixes: 120, from: new Date(T0 + 610_000).toISOString() }),
+    ]);
+    expect(prisma.deletedTrip.create).not.toHaveBeenCalled();
     await app.close();
   });
 
@@ -185,6 +191,11 @@ describe("POST /trips: fixes already saved on another trip", () => {
     });
     expect(gq.overlapTrimmed.toMiles).toBe(savedPayload?.distanceMiles);
     expect(events("trip.recorded_overlap_trimmed")).toHaveLength(1);
+    expect(events("trip.recorded_overlap_trimmed")[0][2]).toMatchObject({ archiveId: "archive-1" });
+    // The whole upload is archived first, so the dropped fixes are recoverable.
+    const archived = fn(prisma.deletedTrip.create).mock.calls[0][0].data;
+    expect(archived.deletedBy).toBe("overlap_trimmed");
+    expect(archived.coordinatesJson).toHaveLength(181);
     // Never re-extended back over the removed fixes.
     expect(reconcileWakeLagStart).not.toHaveBeenCalled();
     await app.close();
@@ -223,7 +234,21 @@ describe("POST /trips: fixes already saved on another trip", () => {
     expect(res.json().duplicateOf).toBe(SAVED_ID);
     expect(prisma.$transaction).not.toHaveBeenCalled();
     expect(events("trip.recorded_overlap_refused")).toHaveLength(1);
+    expect(events("trip.recorded_overlap_refused")[0][2]).toMatchObject({ archiveId: "archive-1" });
+    expect(fn(prisma.deletedTrip.create).mock.calls[0][0].data.deletedBy).toBe("overlap_refused");
     expect(prisma.trip.update).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("on mode: if the archive cannot be written nothing is dropped", async () => {
+    process.env.RECORDED_OVERLAP_TRIM = "on";
+    fn(prisma.deletedTrip.create).mockRejectedValue(new Error("db down"));
+    const app = await createTestApp();
+    const res = await app.inject({ method: "POST", url: "/trips", headers: auth, payload: upload() });
+    expect(res.statusCode).toBe(201);
+    expect(savedPayload?.coordinateCount).toBe(181);
+    expect(events("trip.recorded_overlap_archive_failed")).toHaveLength(1);
+    expect(events("trip.recorded_overlap_trimmed")).toHaveLength(0);
     await app.close();
   });
 

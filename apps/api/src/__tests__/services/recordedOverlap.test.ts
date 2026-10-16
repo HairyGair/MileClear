@@ -26,18 +26,7 @@ function run(sA: number, sB: number, stepS = 10, extra: Partial<OverlapFix> = {}
   return out;
 }
 
-const trip = (
-  id: string,
-  fixes: OverlapFix[],
-  shiftId: string | null = null,
-  span?: [number, number]
-) => ({
-  id,
-  shiftId,
-  fixes,
-  spanFrom: span ? T0 + span[0] * 1000 : undefined,
-  spanTo: span ? T0 + span[1] * 1000 : undefined,
-});
+const trip = (id: string, fixes: OverlapFix[], shiftId: string | null = null) => ({ id, shiftId, fixes });
 
 describe("planOverlapTrim", () => {
   it("leaves a recording with no overlap alone", () => {
@@ -180,25 +169,27 @@ describe("planOverlapTrim", () => {
 /** Real shapes from the 16 Oct prod dry run, rebuilt with the same fix counts,
  *  gaps and distances. */
 describe("planOverlapTrim: real Android shapes", () => {
-  it("3f652a2b: gaps inside a keeper's span are covered; trims to the last stretch from the 16:01:39 fix", () => {
+  it("3f652a2b: gaps inside a keeper's own run are covered; trims to the last stretch from the 16:01:39 fix", () => {
     const grid = run(0, 1140); // 15:32-15:51, 115 fixes, held by both keepers
-    const n15 = Array.from({ length: 15 }, (_, i) => fx(1200 + i * 30, (1200 + i * 30) * 15)); // 15:52-15:59
-    const s1 = fx(1723, 1723 * 15); // 16:00:43
-    const n2 = [fx(1746, 1746 * 15), fx(1759, 1759 * 15)]; // 16:01:06-19
-    const s6 = [1768, 1770, 1772, 1774, 1776, 1779].map((s) => fx(s, s * 15)); // 16:01:28-39
-    const endNorth = 1779 * 15;
-    const n36 = Array.from({ length: 36 }, (_, i) => fx(1847 + i * 31, endNorth + ((i + 1) / 36) * 600)); // 16:02:47-16:21
+    const base = 1140 * 15; // the car then crawls: everything below is within 600 m
+    const n15 = Array.from({ length: 15 }, (_, i) => fx(1200 + i * 30, base + i * 20)); // 15:52-15:59, 0.18 mi
+    const s1 = fx(1723, base + 300); // 16:00:43
+    const n2 = [fx(1746, base + 300), fx(1759, base + 301)]; // 16:01:06-19
+    const s6 = [1768, 1770, 1772, 1774, 1776, 1779].map((s) => fx(s, base + 300)); // 16:01:28-39
+    const n36 = Array.from({ length: 36 }, (_, i) => fx(1847 + i * 31, base + 300 + ((i + 1) / 36) * 600)); // 16:02:47-16:21
     const incoming = [...grid, ...n15, s1, ...n2, ...s6, ...n36];
-    const k1 = trip("4b4b9e1e", grid, null, [0, 1140]);
-    const k2 = trip("0929a432", [...grid, s1, ...s6], null, [8, 1779]);
+    const k1 = trip("4b4b9e1e", grid);
+    const k2 = trip("0929a432", [...grid, s1, ...s6]);
     const p = planOverlapTrim({ incoming, others: [k1, k2], incomingHasShift: false });
     expect(p.verdict).toBe("trim");
     expect(p.realStretches).toBe(1);
-    expect(p.droppedSmallStretches).toBe(0);
+    // N15 is 0.18 mi and mostly out of the keepers' reach, so it is a small stretch, dropped.
+    expect(p.droppedSmallStretches).toBeGreaterThanOrEqual(1);
     expect(p.remainder[0].t).toBe(T0 + 1779_000);
     expect(p.remainder).toHaveLength(37);
     expect(p.remainderMiles).toBeGreaterThan(0.3);
     expect(p.remainderMiles).toBeLessThan(0.5);
+    expect(p.stretchList.filter((x) => x.real)).toHaveLength(1);
   });
 
   it("ecd864fc: a 0.01 mi head and a 0.27 mi tail around a keeper is a copy", () => {
@@ -251,5 +242,36 @@ describe("planOverlapTrim: real Android shapes", () => {
     expect(p.droppedSmallStretches).toBe(1);
     expect(p.droppedSmallMiles).toBeGreaterThan(0);
     expect(p.remainder[0].t).toBe(shared[shared.length - 1].t);
+  });
+
+  it("a keeper whose saved end time is hours late covers nothing but its own fixes", () => {
+    // Keeper fixes 09:00-09:40 (the row would say it ended at 13:00). The upload
+    // re-sends 6 of them and adds a real 12:00-12:30 drive.
+    const keeperFixes = run(0, 2400, 60);
+    const resent = keeperFixes.slice(0, 6);
+    const drive = Array.from({ length: 31 }, (_, i) => fx(10800 + i * 60, 90_000 + i * 900));
+    const p = planOverlapTrim({ incoming: [...resent, ...drive], others: [trip("K", keeperFixes)], incomingHasShift: false });
+    expect(p.verdict).toBe("trim");
+    expect(p.realStretches).toBe(1);
+    // Hours from the resent fixes: no joining segment is invented across the gap.
+    expect(p.remainder[0].t).toBe(T0 + 10800_000);
+    expect(p.remainder).toHaveLength(31);
+  });
+
+  it("a keeper's 20-minute internal gap does not cover upload fixes inside it", () => {
+    const keeper = [...run(0, 600), ...run(1800, 2400)];
+    const inGap = Array.from({ length: 19 }, (_, i) => fx(660 + i * 60, (660 + i * 60) * 15));
+    const p = planOverlapTrim({ incoming: [...run(0, 600), ...inGap], others: [trip("K", keeper)], incomingHasShift: false });
+    expect(p.verdict).toBe("trim");
+    expect(p.remainder[0].t).toBe(T0 + 600_000);
+    expect(p.remainder).toHaveLength(20);
+  });
+
+  it("a fix between two keeper fixes under 5 minutes either side is covered", () => {
+    const keeper = [...run(0, 600), ...run(800, 1400)]; // 200 s gap
+    const inGap = [fx(700, 700 * 15), fx(710, 710 * 15)];
+    const p = planOverlapTrim({ incoming: [...run(0, 600), ...inGap, ...run(800, 1400)], others: [trip("K", keeper)], incomingHasShift: false });
+    expect(p.verdict).toBe("refuse");
+    expect(p.stretches).toBe(0);
   });
 });
