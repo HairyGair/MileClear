@@ -11,29 +11,35 @@
 // Rules (all in scripts/lib/sharedFixes.mjs, tested with `node --test`):
 //  - Automatic, non-phantom trips with an end, saved more than an hour ago, in
 //    the last DAYS days. Pairs of one driver overlapping in time by over 60 s.
-//  - A fix is shared when the other trip has a fix at the exact same recordedAt
-//    millisecond within 50 m. A pair with fewer than 5 shared timestamps is
-//    ignored. The synthetic departure anchor (first fix, accuracy exactly 50,
-//    speed 0, 15-45 s before the next fix) never counts as shared.
-//  - Per driver, trips are taken in createdAt order (a visit-auto-split tail
-//    sorts with its parent's family) and compared with the trips kept so far,
-//    so a triple or quadruple overlap resolves one at a time. The earliest
-//    saved trip keeps its fixes.
-//  - A later trip loses its shared fixes. If one stretch of >= 2 fixes and
-//    >= 0.3 mi remains: TRIM (one shared fix is kept as the joining point, so
-//    the route stays joined; distance = path of the remaining fixes, never
-//    more than before; start/end times and points from the remainder; an
-//    address is kept only if that end did not move, otherwise cleared for the
-//    geocode backfill job). Less than that: ARCHIVE (deleted_trips, restorable
-//    by support, then deleted). Several separate stretches: REVIEW.
-//  - REVIEW, never changed: a shift, odometer readings, a driver-set
-//    classification (classificationSource user / user_undo, or
-//    classificationAutoAccepted set), a note / purpose / project / category,
-//    a start or end edit (trip.start_edited / end_edited / start_time_edited
-//    events, gpsQuality.endExtension), a split or join the driver made, a
-//    QuickBooks sync, a diversion label, an anomaly, a shift suggestion naming
-//    the trip, or a stored distance more than 0.5 mi above what its fixes
-//    explain.
+//  - A fix is COVERED when it is exact-shared with a kept trip (same recordedAt
+//    ms, within 50 m, from a pair with 5+ shared timestamps; the departure
+//    anchor never counts) OR its time lies inside [startedAt, endedAt] of such
+//    a kept trip. Uncovered fixes form contiguous stretches; anchor-shaped
+//    fixes (accuracy 50, speed 0) neither break a stretch nor make one. A
+//    stretch's miles = its own path plus the joining segment to the adjacent
+//    covered fix; it is REAL at 0.3 mi or more.
+//    0 real stretches: ARCHIVE (deleted_trips, restorable, then deleted).
+//    Exactly 1: TRIM to it (one covered fix kept as the joining point; distance
+//    = path of what is kept, never more than before; times and end points from
+//    the remainder; an address is kept only if that end did not move; dropped
+//    small stretches and their miles are logged). 2+: REVIEW.
+//  - Per driver, trips go in createdAt order (a visit-auto-split tail sorts
+//    with its parent's family) against the trips kept so far, so triple and
+//    quadruple overlaps resolve one at a time.
+//  - The driver's classification is not lost: when the copy's classification
+//    was set by the driver (classificationSource user / user_undo, or
+//    classificationAutoAccepted set) and the keeper is unclassified, the same,
+//    or only auto-classified, the classification, its source and any platform
+//    tag are copied onto the keeper in the same transaction (old keeper values
+//    go in the undo event). Both set differently by the driver: REVIEW.
+//  - A shift suggestion naming an archived trip is cleared (proposed) or
+//    repointed to the keeper (accepted / dismissed); possibleDuplicateOfId
+//    pointers are cleared.
+//  - REVIEW, never changed: a shift, odometer readings, a note / purpose /
+//    project / category, a start or end edit (trip.start_edited / end_edited /
+//    start_time_edited events, gpsQuality.endExtension), a split or join the
+//    driver made, a QuickBooks sync, a diversion label, an anomaly, or a
+//    stored distance more than 0.5 mi above what its fixes explain.
 //
 // DRY RUN by default: writes nothing to the database. It writes the plan file
 // (--out, default ./dedupe-shared-fixes-plan.json). Apply needs the word
@@ -119,17 +125,57 @@ if (APPLY) {
       routePolyline: trip.routePolyline, originalStartLat: trip.originalStartLat, originalStartLng: trip.originalStartLng,
     };
 
+    // The driver's classification travels to the keeper; the keeper must still be as planned.
+    const keeperSelect = { id: true, classification: true, classificationSource: true, platformTag: true };
+    const keeperStillAsPlanned = async (db) => {
+      if (!it.keeperUpdate) return { ok: true, old: null };
+      const k = await db.trip.findFirst({ where: { id: it.keeperUpdate.keeperId, userId: trip.userId }, select: keeperSelect });
+      const o = it.keeperUpdate.old;
+      const ok = k && k.classification === o.classification && (k.classificationSource ?? null) === (o.classificationSource ?? null) && (k.platformTag ?? null) === (o.platformTag ?? null);
+      return { ok: Boolean(ok), old: k };
+    };
+    const carryToKeeper = async (tx) => {
+      if (!it.keeperUpdate) return null;
+      const { ok, old } = await keeperStillAsPlanned(tx);
+      if (!ok) throw new Error("keeper changed since the plan");
+      await tx.trip.update({ where: { id: old.id }, data: { ...it.keeperUpdate.set, autoClassifiedAt: null } });
+      return { keeperId: old.id, old, set: it.keeperUpdate.set };
+    };
+    // Shift suggestions are system-made: a proposed one naming an archived trip is
+    // cleared (the scan proposes it again), any other has the id swapped for the keeper's.
+    const fixShiftSuggestions = async (tx) => {
+      const out = [];
+      const all = await tx.shiftSuggestion.findMany({ where: { userId: trip.userId }, select: { id: true, key: true, status: true, tripIdsJson: true } });
+      for (const s of all) {
+        const list = Array.isArray(s.tripIdsJson) ? s.tripIdsJson : [];
+        if (!list.includes(trip.id) && !s.key.split(":").includes(trip.id)) continue;
+        if (s.status === "proposed") {
+          await tx.shiftSuggestion.delete({ where: { id: s.id } });
+          out.push({ id: s.id, key: s.key, status: s.status, tripIdsJson: list, change: "cleared" });
+        } else {
+          const keeper = it.keeperIds[0];
+          const next = [...new Set(list.map((x) => (x === trip.id ? keeper : x)))];
+          await tx.shiftSuggestion.update({ where: { id: s.id }, data: { tripIdsJson: next } });
+          out.push({ id: s.id, key: s.key, status: s.status, tripIdsJson: list, change: "repointed" });
+        }
+      }
+      return out;
+    };
+
     try {
+      if (!(await keeperStillAsPlanned(p)).ok) { console.log(`  skip ${tag}: keeper ${it.keeperUpdate.keeperId.slice(0, 8)} changed since the plan`); continue; }
       if (it.action === "ARCHIVE") {
         const archivedId = await archiveTripBeforeDelete(trip.id, trip.userId, "admin"); // must succeed
         if (!archivedId) { console.log(`  skip ${tag}: gone before archive`); continue; }
         await p.$transaction(async (tx) => {
+          const keeperOld = await carryToKeeper(tx);
+          const suggestions = await fixShiftSuggestions(tx);
           await tx.trip.updateMany({ where: { userId: trip.userId, possibleDuplicateOfId: trip.id }, data: { possibleDuplicateOfId: null } });
           await tx.tripCoordinate.deleteMany({ where: { tripId: trip.id } });
           await tx.trip.delete({ where: { id: trip.id } });
           await tx.appEvent.create({ data: {
             type: "admin.trip_shared_fixes_archived", userId: trip.userId,
-            metadata: { tripId: trip.id, deletedTripId: archivedId, keeperIds: it.keeperIds, sharedFixes: it.sharedFixes, old: oldValues, source: "dedupe-shared-fixes" },
+            metadata: { tripId: trip.id, deletedTripId: archivedId, keeperIds: it.keeperIds, sharedFixes: it.sharedFixes, old: oldValues, droppedStretches: it.droppedStretches ?? [], keeperClassification: keeperOld, shiftSuggestions: suggestions, source: "dedupe-shared-fixes" },
           } });
         }, { timeout: 60000 });
         summaries.add(`${trip.userId}|${getTaxYear(trip.startedAt)}`);
@@ -148,12 +194,14 @@ if (APPLY) {
           gpsQuality: { ...gq, sharedFixesTrim: { at: new Date().toISOString(), removedFixes: removed.length, oldMiles: trip.distanceMiles, keeperIds: it.keeperIds } },
         };
         await p.$transaction(async (tx) => {
+          const keeperOld = await carryToKeeper(tx);
           for (const c of chunks(removed.map((r) => r.id), 500)) await tx.tripCoordinate.deleteMany({ where: { id: { in: c }, tripId: trip.id } });
           await tx.trip.update({ where: { id: trip.id }, data });
           await tx.appEvent.create({ data: {
             type: "admin.trip_shared_fixes_trimmed", userId: trip.userId,
             metadata: {
               tripId: trip.id, keeperIds: it.keeperIds, sharedFixes: it.sharedFixes, old: oldValues,
+              droppedStretches: it.droppedStretches ?? [], keeperClassification: keeperOld,
               new: { distanceMiles: it.newMiles, startedAt: iso(fields.startedAt), endedAt: iso(fields.endedAt), coordinateCount: fields.coordinateCount },
               removedCoordinates: removed.map((r) => ({ lat: r.lat, lng: r.lng, accuracy: r.accuracy, speed: r.speed, recordedAt: iso(r.recordedAt) })),
               source: "dedupe-shared-fixes",
@@ -192,7 +240,7 @@ const rows = await p.trip.findMany({
     id: true, userId: true, shiftId: true, startedAt: true, endedAt: true, createdAt: true, updatedAt: true,
     distanceMiles: true, classification: true, classificationSource: true, classificationAutoAccepted: true,
     notes: true, businessPurpose: true, projectLabel: true, category: true, odometerStart: true, odometerEnd: true,
-    gpsQuality: true, splitFromTripId: true, joinedCount: true,
+    gpsQuality: true, splitFromTripId: true, joinedCount: true, platformTag: true,
   },
 });
 // no orderBy in SQL (sort memory); everything is sorted in JS
@@ -216,12 +264,8 @@ for (const c of chunks(ids, 500)) {
   for (const r of await p.tripAnomaly.findMany({ where: { tripId: { in: c } }, select: { tripId: true } })) addReason(r.tripId, "has an anomaly record");
 }
 const driverIds = [...new Set(trips.map((t) => t.userId))];
-const idSet = new Set(ids);
-for (const c of chunks(driverIds, 200)) {
-  for (const s of await p.shiftSuggestion.findMany({ where: { userId: { in: c } }, select: { tripIdsJson: true } })) {
-    for (const id of Array.isArray(s.tripIdsJson) ? s.tripIdsJson : []) if (idSet.has(id)) addReason(id, "named in a shift suggestion");
-  }
-}
+// (A shift suggestion naming a trip is system-generated and never holds it back;
+// apply repoints or clears it for an archived trip.)
 
 // Coordinates in batches of 150 trips, no window functions, no joins.
 const fixesByTrip = new Map();
@@ -252,6 +296,8 @@ for (const [userId, list] of byDriver) {
   const input = list.map((t) => ({
     id: t.id, createdAt: t.createdAt.getTime(), startedAt: t.startedAt.getTime(), endedAt: t.endedAt.getTime(),
     distanceMiles: t.distanceMiles, family: familyRoot(t.gpsQuality, t.id),
+    classification: t.classification, classificationSource: t.classificationSource,
+    classificationAutoAccepted: t.classificationAutoAccepted, platformTag: t.platformTag,
     reviewReasons: [...rowReviewReasons(t), ...(linked.get(t.id) ?? [])],
     fixes: fixesByTrip.get(t.id) ?? [],
   }));
@@ -288,13 +334,26 @@ const reviewReasons = {};
 for (const i of act("REVIEW")) for (const r of i.reviewReasons.length ? i.reviewReasons : [i.reason]) reviewReasons[r.replace(/[\d.]+/g, "N")] = (reviewReasons[r.replace(/[\d.]+/g, "N")] ?? 0) + 1;
 console.log("Review reasons:", JSON.stringify(reviewReasons));
 
+console.log("\nPer driver totals:");
+const perDriver = new Map();
+for (const i of planItems) {
+  const e = perDriver.get(i.userId) ?? { ARCHIVE: 0, TRIM: 0, REVIEW: 0, miles: 0 };
+  e[i.action]++; e.miles += removedMiles(i);
+  perDriver.set(i.userId, e);
+}
+for (const [u, e] of [...perDriver].sort((a, b) => b[1].miles - a[1].miles)) {
+  console.log(`  user ${u.slice(0, 8)} (${users.get(u) ?? "unknown"}): ${e.ARCHIVE} archived, ${e.TRIM} trimmed, ${e.REVIEW} for review, ${e.miles.toFixed(1)} mi removed`);
+}
+
 console.log("\nOne line per planned change:");
 const order = { ARCHIVE: 0, TRIM: 1, REVIEW: 2 };
 for (const i of [...planItems].sort((a, b) => order[a.action] - order[b.action] || a.userId.localeCompare(b.userId) || a.startedAt.localeCompare(b.startedAt))) {
   const newTxt = i.action === "ARCHIVE" ? "deleted" : `${i.newMiles.toFixed(2)}`;
   console.log(
     `  ${i.action.padEnd(7)} user ${i.userId.slice(0, 8)} trip ${i.tripId.slice(0, 8)} keeper ${i.keeperIds.map((k) => k.slice(0, 8)).join("+")} ` +
-    `${fmt(i.startedAt)}-${i.endedAt.slice(11, 16)}Z ${i.oldMiles.toFixed(2)} -> ${newTxt} mi | ${i.reason}`
+    `${fmt(i.startedAt)}-${i.endedAt.slice(11, 16)}Z ${i.oldMiles.toFixed(2)} -> ${newTxt} mi | ${i.reason}` +
+    (i.droppedStretches?.length ? ` | drops ${i.droppedStretches.length} small bit(s) ${i.droppedStretches.reduce((a, s) => a + s.miles, 0).toFixed(2)} mi` : "") +
+    (i.keeperUpdate ? ` | carries ${JSON.stringify(i.keeperUpdate.set)} to keeper ${i.keeperUpdate.keeperId.slice(0, 8)}` : "")
   );
 }
 console.log(`\nPlan written to ${OUT}. To apply a reviewed (and, if you like, shortened) copy:`);

@@ -61,7 +61,7 @@ test("two stretches left goes to review", () => {
   const b = copyOf(run(0, 40), "b");
   const items = planDriver([trip("A", 1, a, { distanceMiles: miles(10) }), trip("B", 2, b, { distanceMiles: miles(40) })]);
   assert.equal(items[0].action, "REVIEW");
-  assert.match(items[0].reason, /separate stretches/);
+  assert.match(items[0].reason, /real stretches/);
 });
 
 test("a triple overlap resolves one at a time against what is kept", () => {
@@ -110,6 +110,124 @@ test("stored distance the fixes do not explain is held for review", () => {
   assert.equal(items[0].action, "REVIEW");
 });
 
+// Fixes that crawl: about 8 m apart, so a run of them is a fraction of a mile.
+const slowFrom = (from, to, baseIdx) =>
+  Array.from({ length: to - from + 1 }, (_, i) => ({ ...fix(from + i), lat: 52 + baseIdx * 0.0007 + (i + 1) * 0.00007 }));
+
+test("real shape 3f652a2b: shared core, a keeper whose time span covers the unshared bits inside, one real tail", () => {
+  const X = run(0, 200);
+  const k1 = copyOf(run(0, 117), "k1");
+  // k2 shares only 6 exact fixes (145..150) but its time span runs 118+3 s to fix 150
+  const k2 = [...Array.from({ length: 27 }, (_, i) => ({ ...fix(119 + i), id: `k2s${i}`, t: fix(119 + i).t + 3000 })), ...copyOf(run(145, 150), "k2e")];
+  const items = planDriver([
+    trip("K1", 1, k1, { distanceMiles: miles(117) }),
+    trip("K2", 2, k2, { distanceMiles: miles(32) }),
+    trip("X", 3, copyOf(X, "x"), { distanceMiles: miles(200) }),
+  ]);
+  const x = items.find((i) => i.tripId === "X");
+  assert.equal(x.action, "TRIM");
+  assert.deepEqual([...x.keeperIds].sort(), ["K1", "K2"]);
+  assert.equal(x.keepFixes[0].t, T0 + 150 * 10000); // joining fix is the last covered one
+  assert.equal(x.keepFixes.length, 51);
+  assert.ok(x.droppedStretches.length >= 1 && x.droppedStretches.every((s) => s.miles < 0.3));
+});
+
+test("real shape ecd864fc: small bit | long shared core | small bit is archived", () => {
+  const head = run(0, 2);
+  const core = run(3, 61);
+  const tail = slowFrom(62, 92, 61);
+  const X = copyOf([...head, ...core, ...tail], "x");
+  const items = planDriver([
+    trip("K", 1, copyOf(core, "k"), { distanceMiles: miles(59) }),
+    trip("X", 2, X, { distanceMiles: miles(60) }),
+  ]);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].action, "ARCHIVE");
+  assert.equal(items[0].droppedStretches.length, 2);
+});
+
+test("real shape 6932d6c7: 310 shared fixes with small bits either side is archived", () => {
+  const core = run(12, 321);
+  const head = run(0, 11).map((f, i) => ({ ...f, lat: fix(12).lat - (12 - i) * 0.00007 }));
+  const X = copyOf([...head, ...core, ...slowFrom(322, 367, 321)], "x");
+  const items = planDriver([
+    trip("K", 1, copyOf(core, "k"), { distanceMiles: miles(310) }),
+    trip("X", 2, X, { distanceMiles: miles(310) }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
+});
+
+test("anchor-shaped fixes never make a real stretch alone and do not break one", () => {
+  const core = run(0, 30);
+  const anchorLike = (n) => ({ id: `an${n}`, t: T0 + n * 10000 + 500, lat: 52 + n * 0.0007, lng: -1, speed: 0, accuracy: 50 });
+  // uncovered tail of 1 slow fix plus anchor-shaped fixes far apart: still small
+  const items = planDriver([
+    trip("K", 1, copyOf(core, "k"), { distanceMiles: miles(30) }),
+    trip("X", 2, copyOf([...core, anchorLike(40), anchorLike(50)], "x"), { distanceMiles: miles(30) }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
+  // inside a real stretch an anchor-shaped fix does not split it
+  const mid = [...run(31, 45), anchorLike(46), ...run(47, 70)];
+  const items2 = planDriver([
+    trip("K", 1, copyOf(core, "k"), { distanceMiles: miles(30) }),
+    trip("X", 2, copyOf([...core, ...mid], "x"), { distanceMiles: miles(70) }),
+  ]);
+  assert.equal(items2[0].action, "TRIM");
+});
+
+test("two real stretches outside the keepers goes to review", () => {
+  const core = run(20, 40);
+  const items = planDriver([
+    trip("K", 1, copyOf(core, "k"), { distanceMiles: miles(20) }),
+    trip("X", 2, copyOf(run(0, 60), "x"), { distanceMiles: miles(60) }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+});
+
+const cls = (classification, classificationSource, extra = {}) => ({ classification, classificationSource, ...extra });
+
+test("driver's classification is carried to an unclassified keeper", () => {
+  const a = run(0, 40);
+  const items = planDriver([
+    trip("K", 1, a, { distanceMiles: miles(40), ...cls("unclassified", null) }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), platformTag: "uber", ...cls("business", "user") }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
+  assert.deepEqual(items[0].keeperUpdate.set, { classification: "business", classificationSource: "user", platformTag: "uber" });
+  assert.equal(items[0].keeperUpdate.old.classification, "unclassified");
+});
+
+test("same classification on the keeper: nothing to carry over", () => {
+  const a = run(0, 40);
+  const items = planDriver([
+    trip("K", 1, a, { distanceMiles: miles(40), ...cls("business", "user") }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls("business", "user") }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
+  assert.equal(items[0].keeperUpdate, undefined);
+});
+
+test("keeper and copy both classified differently by the driver is held for review", () => {
+  const a = run(0, 40);
+  const items = planDriver([
+    trip("K", 1, a, { distanceMiles: miles(40), ...cls("personal", "user") }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls("business", "user") }),
+  ]);
+  assert.equal(items[0].action, "REVIEW");
+  assert.equal(items[0].wouldBe, "ARCHIVE");
+});
+
+test("keeper auto-classified differently: the driver's choice wins", () => {
+  const a = run(0, 40);
+  const items = planDriver([
+    trip("K", 1, a, { distanceMiles: miles(40), ...cls("personal", "pattern_learning") }),
+    trip("X", 2, copyOf(a, "x"), { distanceMiles: miles(40), ...cls("business", "user") }),
+  ]);
+  assert.equal(items[0].action, "ARCHIVE");
+  assert.equal(items[0].keeperUpdate.set.classification, "business");
+  assert.equal(items[0].keeperUpdate.old.classification, "personal");
+});
+
 test("candidate pairs need more than 60 s of overlap", () => {
   const mk = (id, s, e) => ({ id, userId: "u", startedAt: s, endedAt: e });
   // a/b overlap 10 s, b/c overlap 50 s: neither counts. c/d overlap 100 s: counts.
@@ -120,7 +238,7 @@ test("candidate pairs need more than 60 s of overlap", () => {
 test("review reasons from the row", () => {
   assert.deepEqual(rowReviewReasons({ gpsQuality: { autoSplitFromTripId: "x" }, splitFromTripId: "x" }), []);
   assert.ok(rowReviewReasons({ shiftId: "s" }).includes("has a shift"));
-  assert.equal(rowReviewReasons({ classificationSource: "user" }).length, 1);
+  assert.equal(rowReviewReasons({ classificationSource: "user" }).length, 0); // carried to the keeper instead
   assert.equal(rowReviewReasons({ splitFromTripId: "x", gpsQuality: {} }).length, 1);
   assert.equal(rowReviewReasons({ odometerEnd: 12 }).length, 1);
   assert.equal(rowReviewReasons({ classification: "business", classificationSource: "pattern_learning" }).length, 0);
