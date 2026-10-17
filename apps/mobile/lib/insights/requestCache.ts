@@ -70,6 +70,12 @@ export class RequestCache {
     }
   }
 
+  /** Forget one answer, finished or still on the wire, because what it
+   *  answers has just changed: the next ask for it goes to the server. */
+  forget(key: string): void {
+    this.entries.delete(key);
+  }
+
   /** Number of requests currently on the wire. */
   pending(): number {
     return this.inflight;

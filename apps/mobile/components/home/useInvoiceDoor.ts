@@ -10,11 +10,13 @@ import { fetchInvoices, type InvoiceListResponse } from "../../lib/api/invoices"
 import { insightsCache } from "../../lib/insights/requestCache";
 import { invoiceDoorFreshMs, usesInvoicesRecently } from "../../lib/home/doors";
 import { invoicesDoorText } from "../../lib/home/doorText";
+import {
+  INVOICES_CACHE_KEY,
+  invoiceAnswerGeneration,
+  lastInvoiceAnswer,
+  rememberInvoiceAnswer,
+} from "../../lib/home/invoiceDoorMemory";
 import type { HomePersona } from "../../lib/home/persona";
-
-// The last answer on this phone, so a driver who never invoices is not asked
-// again on every Home visit.
-let lastAnswer: { usesInvoices: boolean } | null = null;
 
 /** Work drivers the shortcut could ever be for (the personas with a Tax row). */
 export function couldUseInvoiceDoor(mode: "work" | "personal", persona: HomePersona): boolean {
@@ -42,10 +44,13 @@ export function useInvoiceDoor(args: {
       return;
     }
     let cancelled = false;
+    const askedAt = invoiceAnswerGeneration();
     insightsCache
-      .get("more|invoices", () => fetchInvoices({ pageSize: 1 }), invoiceDoorFreshMs(lastAnswer))
+      .get(INVOICES_CACHE_KEY, () => fetchInvoices({ pageSize: 1 }), invoiceDoorFreshMs(lastInvoiceAnswer()))
       .then((r) => {
-        lastAnswer = { usesInvoices: usesInvoicesRecently(r.lastCreatedAt, new Date()) };
+        // The last answer on this phone, so a driver who never invoices is
+        // not asked again on every Home visit (forgotten when they make one).
+        rememberInvoiceAnswer({ usesInvoices: usesInvoicesRecently(r.lastCreatedAt, new Date()) }, askedAt);
         if (!cancelled) setRes(r);
       })
       .catch(() => {});

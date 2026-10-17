@@ -5,6 +5,7 @@
 // PotentialEarningMatch type returned on mark-paid responses.
 
 import { apiRequest } from "./index";
+import { forgetInvoiceAnswer } from "../home/invoiceDoorMemory";
 
 export type InvoiceStatus = "sent" | "paid" | "overdue" | "written_off";
 
@@ -140,11 +141,15 @@ export function fetchInvoice(id: string) {
   return apiRequest<{ data: Invoice }>(`/invoices/${id}`);
 }
 
-export function createInvoice(data: CreateInvoiceInput) {
-  return apiRequest<InvoiceMutationResponse>("/invoices", {
+export async function createInvoice(data: CreateInvoiceInput) {
+  const res = await apiRequest<InvoiceMutationResponse>("/invoices", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  // A driver's first invoice in a while: Home shows its Invoices shortcut on
+  // the next visit instead of waiting out the 30-minute "no invoices" answer.
+  forgetInvoiceAnswer();
+  return res;
 }
 
 export function updateInvoice(id: string, data: UpdateInvoiceInput) {

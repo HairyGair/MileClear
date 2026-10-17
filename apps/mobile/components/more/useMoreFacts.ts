@@ -24,6 +24,7 @@ import { fetchInvoices } from "../../lib/api/invoices";
 import { fetchInboxCount } from "../../lib/api/inbox";
 import { cachedAchievements, cachedRecap, cachedStats, cachedVehicles, dateParam } from "../../lib/insights/api";
 import { insightsCache } from "../../lib/insights/requestCache";
+import { INVOICES_CACHE_KEY } from "../../lib/home/invoiceDoorMemory";
 import { getPeriodRange } from "../../lib/insights/period";
 import { nextBadges } from "../../lib/insights/badges";
 import type { SlotLike } from "../../lib/settings/summaries";
@@ -226,7 +227,7 @@ export function useMoreFacts(a: MoreFactsArgs): MoreFacts {
 
       if (want.has("invoices")) {
         insightsCache
-          .get("more|invoices", () => fetchInvoices({ pageSize: 1 }))
+          .get(INVOICES_CACHE_KEY, () => fetchInvoices({ pageSize: 1 }))
           .then((res) => {
             const s = res.summary;
             const total = Object.values(s).reduce((n, v) => n + (v?.count ?? 0), 0);
