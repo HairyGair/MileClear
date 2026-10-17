@@ -281,7 +281,7 @@ export function rowGroups(
           title: "Self-employed too?",
           rows: [{
             id: "employee_sa", icon: "calendar-outline", label: "Self Assessment and payment plan",
-            hint: "Pick Gig work and an employer under You drive for", route: "/settings/work-tax",
+            hint: "Pick Self-employed and an employer under You drive for", route: "/settings/work-tax",
           }],
         },
         { title: "Settings", rows: [R.taxDetails] },

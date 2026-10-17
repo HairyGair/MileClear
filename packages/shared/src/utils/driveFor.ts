@@ -2,9 +2,9 @@
 // (Oct 2026 Settings redesign). Five answers, stored in fields that already
 // exist, so no database change:
 //
-//   gig       Deliveries or gig work         workType "gig"
+//   gig       Self-employed or gig work      workType "gig"
 //   employee  An employer, in my own car     workType "employee"
-//   both      Gig work and an employer       workType "both"
+//   both      Self-employed and an employer  workType "both"
 //   company   A company car                  workType "company"
 //   personal  Just me, not for work          dashboardMode "personal"
 //
@@ -18,9 +18,9 @@ import type { WorkType } from "../types/index.js";
 export type DriveFor = "gig" | "employee" | "both" | "company" | "personal";
 
 export const DRIVE_FOR_OPTIONS: { value: DriveFor; label: string; hint: string }[] = [
-  { value: "gig", label: "Deliveries or gig work", hint: "Uber, Deliveroo, Just Eat, Amazon Flex and the like" },
+  { value: "gig", label: "Self-employed or gig work", hint: "Deliveries, taxi, trades, visiting clients, your own business" },
   { value: "employee", label: "An employer, in my own car", hint: "Your employer pays you for work miles" },
-  { value: "both", label: "Gig work and an employer", hint: "Both of the above" },
+  { value: "both", label: "Self-employed and an employer", hint: "Both of the above" },
   { value: "company", label: "A company car", hint: "Your employer provides the car" },
   { value: "personal", label: "Just me, not for work", hint: "Everyday driving, no tax or work reminders" },
 ];
@@ -70,12 +70,12 @@ export function driveForSummary(
   const rate = opts.employerRatePence ? ` · employer pays ${opts.employerRatePence}p` : "";
   switch (answer) {
     case "gig":
-      return "Deliveries or gig work";
+      return "Self-employed or gig work";
     case "employee":
       // "An employer · pays 45p" (it read "An employer · employer pays 45p").
       return opts.employerRatePence ? `An employer · pays ${opts.employerRatePence}p` : "An employer";
     case "both":
-      return `Deliveries and an employer${rate}`;
+      return `Self-employed and an employer${rate}`;
     case "company":
       return opts.teamName ? `A company car · ${opts.teamName}` : "A company car";
     case "personal":

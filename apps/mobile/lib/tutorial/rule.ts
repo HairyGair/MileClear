@@ -294,7 +294,7 @@ export function appPlaces(args: {
     tax = { id: "tax", title: "Tax", body: pays };
   } else {
     tripsLine = "Only Business trips count towards your claim";
-    // Gig work and an employer, with the employer's rate set: trips not
+    // Self-employed and an employer, with the employer's rate set: trips not
     // tagged to a gig app count at that rate, so "every mile adds 55p" is wrong.
     const money =
       d === "both" && args.employerRatePence

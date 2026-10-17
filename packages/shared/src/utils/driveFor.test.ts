@@ -49,7 +49,7 @@ describe("helpers", () => {
     expect(isEmployedOnly("gig")).toBe(false);
   });
   it("summaries", () => {
-    expect(driveForSummary("both", { employerRatePence: 45 })).toBe("Deliveries and an employer · employer pays 45p");
+    expect(driveForSummary("both", { employerRatePence: 45 })).toBe("Self-employed and an employer · employer pays 45p");
     expect(driveForSummary("employee")).toBe("An employer");
     expect(driveForSummary("employee", { employerRatePence: 45 })).toBe("An employer · pays 45p");
     expect(driveForSummary("company", { teamName: "Acme Ltd" })).toBe("A company car · Acme Ltd");
