@@ -172,6 +172,7 @@ describe("the one-car documents", () => {
     expect(ONE_CAR_ALLOWANCE_NOTE).toContain("first 10,000 business miles");
     expect(ONE_CAR_ALLOWANCE_NOTE).toContain("across all your cars and vans, not 10,000 per car");
     expect(ONE_CAR_ALLOWANCE_NOTE).toContain("this car's share");
-    expect(ONE_CAR_ALLOWANCE_NOTE).not.toMatch(/HMRC|—/);
+    expect(ONE_CAR_ALLOWANCE_NOTE).not.toContain(String.fromCharCode(0x2014)); // no em dash
+    expect(ONE_CAR_ALLOWANCE_NOTE).not.toContain("HMRC");
   });
 });
