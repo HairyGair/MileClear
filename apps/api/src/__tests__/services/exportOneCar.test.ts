@@ -35,7 +35,13 @@ import {
   fetchExportTrips,
   resolveExportVehicle,
 } from "../../services/export-data.js";
-import { generateTripsCsv, generateTripsPdf, ONE_CAR_ALLOWANCE_NOTE } from "../../services/export.js";
+import {
+  generateTripsCsv,
+  generateTripsPdf,
+  ONE_CAR_ALLOWANCE_NOTE,
+  ONE_MOTORBIKE_NOTE,
+  oneVehicleNote,
+} from "../../services/export.js";
 
 const USER = "00000000-0000-0000-0000-0000000000c1";
 const QASHQAI = { id: "va", make: "Nissan", model: "Qashqai", vehicleType: "car", registrationPlate: "AB12 CDE", isPrimary: true };
@@ -171,8 +177,50 @@ describe("the one-car documents", () => {
   it("the allowance line says the 10,000 is shared across all cars, in plain words", () => {
     expect(ONE_CAR_ALLOWANCE_NOTE).toContain("first 10,000 business miles");
     expect(ONE_CAR_ALLOWANCE_NOTE).toContain("across all your cars and vans, not 10,000 per car");
-    expect(ONE_CAR_ALLOWANCE_NOTE).toContain("this car's share");
+    expect(ONE_CAR_ALLOWANCE_NOTE).toContain("this vehicle's share");
     expect(ONE_CAR_ALLOWANCE_NOTE).not.toContain(String.fromCharCode(0x2014)); // no em dash
     expect(ONE_CAR_ALLOWANCE_NOTE).not.toContain("HMRC");
+  });
+});
+
+describe("other tax years and vehicle types", () => {
+  it("2025-26: a one-vehicle report uses that year's 45p, still across all the driver's cars", async () => {
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([
+      trip("p1", QASHQAI, "2025-05-01", 9000, "business"),
+      trip("p2", FIESTA, "2025-06-01", 2000, "business"),
+    ] as never);
+    const fiesta = await fetchExportTrips({ userId: USER, taxYear: "2025-26", vehicleId: "vb" });
+    expect(fiesta).toHaveLength(1);
+    // 1,000 left at 45p for the person, then 1,000 at 25p. Not 2,000 at 45p, and not 55p.
+    expect(fiesta[0].deductionPence).toBe(1000 * 45 + 1000 * 25);
+    const qashqai = await fetchExportTrips({ userId: USER, taxYear: "2025-26", vehicleId: "va" });
+    expect(qashqai[0].hmrcRatePence).toBe(45);
+  });
+
+  it("a motorbike report is at the flat rate, outside the cars' 10,000", async () => {
+    const BIKE = { ...FIESTA, id: "vm", make: "Honda", model: "PCX", vehicleType: "motorbike" };
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([
+      trip("m1", QASHQAI, "2026-05-01", 12000, "business"),
+      trip("m2", BIKE, "2026-06-01", 500, "business"),
+      trip("m3", QASHQAI, "2026-07-01", 100, "business"),
+    ] as never);
+    const bike = await fetchExportTrips({ userId: USER, taxYear: "2026-27", vehicleId: "vm" });
+    expect(bike).toHaveLength(1);
+    expect(bike[0].hmrcRatePence).toBe(24);
+    expect(bike[0].deductionPence).toBe(500 * 24);
+
+    // The bike's miles don't touch the cars' 10,000, and the bike pays no 25p.
+    const car = await fetchExportTrips({ userId: USER, taxYear: "2026-27", vehicleId: "va" });
+    expect(car[0].deductionPence).toBe(10000 * 55 + 2000 * 25);
+    expect(car[1].hmrcRatePence).toBe(25);
+  });
+
+  it("the motorbike report gets its own note, not the cars' 10,000 one", () => {
+    expect(oneVehicleNote("motorbike")).toBe(ONE_MOTORBIKE_NOTE);
+    expect(oneVehicleNote("van")).toBe(ONE_CAR_ALLOWANCE_NOTE);
+    expect(oneVehicleNote("car")).toBe(ONE_CAR_ALLOWANCE_NOTE);
+    expect(ONE_MOTORBIKE_NOTE).toContain("flat rate");
+    expect(ONE_MOTORBIKE_NOTE).not.toContain("HMRC");
+    expect(ONE_MOTORBIKE_NOTE).not.toContain(String.fromCharCode(0x2014));
   });
 });

@@ -67,6 +67,20 @@ describe("exports: one car", () => {
     });
   }
 
+  for (const type of ["csv", "pdf"] as const) {
+    it(`${type}: 400 "Invalid vehicle" for a repeated, empty or overlong vehicleId, before any lookup`, async () => {
+      for (const q of ["vehicleId=va&vehicleId=vb", "vehicleId=", `vehicleId=${"x".repeat(65)}`]) {
+        const res = await app.inject({ method: "GET", url: `/exports/${type}?taxYear=2026-27&${q}`, headers: auth });
+        expect(res.statusCode, q).toBe(400);
+        expect(res.json().error).toBe("Invalid vehicle");
+      }
+      expect(prisma.vehicle.findFirst).not.toHaveBeenCalled();
+      expect(prisma.trip.count).not.toHaveBeenCalled();
+      expect(generateTripsCsv).not.toHaveBeenCalled();
+      expect(generateTripsPdf).not.toHaveBeenCalled();
+    });
+  }
+
   it("csv: passes the car through and names the file after it", async () => {
     const res = await app.inject({ method: "GET", url: "/exports/csv?taxYear=2026-27&vehicleId=vb", headers: auth });
     expect(res.statusCode).toBe(200);

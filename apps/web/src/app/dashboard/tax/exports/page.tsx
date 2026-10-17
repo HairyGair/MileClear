@@ -106,7 +106,7 @@ function Exports() {
   const [range, setRange] = useState(() => taxYearRange(getTaxYear(new Date())));
   const [businessOnly, setBusinessOnly] = useState(mode === "work");
   const [vehicleId, setVehicleId] = useState("");
-  // The trip report and trips CSV: "" is every car (Colin, 17 Oct 2026).
+  // The trip report and trips CSV: "" is every vehicle (Colin, 17 Oct 2026).
   const [tripCarId, setTripCarId] = useState("");
   const { data: vehicles } = useData<VehicleLite[]>("exports-vehicles", () =>
     api.get<{ data: VehicleLite[] }>("/vehicles").then((r) => r.data)
@@ -203,7 +203,7 @@ function Exports() {
           />
           {carChoices && (
             <SelectField
-              label="Car for the trip report and trips CSV"
+              label="Vehicle for the trip report and trips CSV"
               value={tripCarId}
               onChange={setTripCarId}
               options={carChoices.map((c) => ({ value: c.vehicleId ?? "", label: c.label }))}

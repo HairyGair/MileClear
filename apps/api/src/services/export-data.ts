@@ -67,11 +67,12 @@ export interface ExportVehicle {
   make: string;
   model: string;
   registrationPlate: string | null;
-  /** Trips with no vehicle count against this car (it is the fallback). */
+  vehicleType: string;
+  /** Trips with no vehicle count against this vehicle (it is the fallback). */
   includesUnassigned: boolean;
 }
 
-/** The user's vehicle for a one-car export, or null when it isn't theirs. */
+/** The user's vehicle for a one-vehicle export, or null when it isn't theirs. */
 export async function resolveExportVehicle(
   userId: string,
   vehicleId: string
@@ -79,7 +80,7 @@ export async function resolveExportVehicle(
   const [vehicle, fallback] = await Promise.all([
     prisma.vehicle.findFirst({
       where: { id: vehicleId, userId },
-      select: { id: true, make: true, model: true, registrationPlate: true },
+      select: { id: true, make: true, model: true, registrationPlate: true, vehicleType: true },
     }),
     exportFallbackVehicle(userId),
   ]);

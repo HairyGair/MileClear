@@ -102,7 +102,7 @@ test.describe("Tax exports", () => {
     expect(calls.find((c) => c.path === "/exports/odometer-log")?.search).toContain("vehicleId=v2");
   });
 
-  test("Pro with two cars: the trip report and trips CSV can be for one car, All cars by default", async ({ page }) => {
+  test("Pro with two vehicles: the trip report and trips CSV can be for one vehicle, All vehicles by default", async ({ page }) => {
     await mockSession(page, { profile: profile({ isPremium: true }) });
     const calls = await mockTax(page, {
       download: DOWNLOADS,
@@ -112,9 +112,9 @@ test.describe("Tax exports", () => {
       ],
     });
     await page.goto("/dashboard/tax/exports");
-    const car = page.getByLabel("Car for the trip report and trips CSV");
+    const car = page.getByLabel("Vehicle for the trip report and trips CSV");
     await expect(car).toHaveValue("");
-    await expect(car.locator("option").first()).toHaveText("All cars");
+    await expect(car.locator("option").first()).toHaveText("All vehicles");
 
     await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trip report/ }).click()]);
     expect(calls.find((c) => c.path === "/exports/pdf")?.search).not.toContain("vehicleId");
@@ -127,12 +127,12 @@ test.describe("Tax exports", () => {
     expect(calls.find((c) => c.path === "/exports/csv")?.search).toContain("vehicleId=v2");
   });
 
-  test("Pro with one car: no car choice", async ({ page }) => {
+  test("Pro with one vehicle: no vehicle choice", async ({ page }) => {
     await mockSession(page, { profile: profile({ isPremium: true }) });
     await mockTax(page, { download: DOWNLOADS, vehicles: [{ id: "v1", make: "Ford", model: "Fiesta" }] });
     await page.goto("/dashboard/tax/exports");
     await expect(page.getByRole("button", { name: /Trip report/ })).toBeVisible();
-    await expect(page.getByLabel("Car for the trip report and trips CSV")).toHaveCount(0);
+    await expect(page.getByLabel("Vehicle for the trip report and trips CSV")).toHaveCount(0);
   });
 
   test.describe("390px", () => {

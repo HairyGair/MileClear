@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import {
@@ -33,16 +34,23 @@ interface DateRangeQuery {
   vehicleId?: string;
 }
 
+/** One vehicleId string, or none. ?vehicleId=a&vehicleId=b arrives as an array. */
+const vehicleIdSchema = z.string().min(1).max(64).optional();
+
 /**
- * The car for a one-car CSV or Trip Report. undefined: every car. null: the
- * vehicleId is not one of this user's cars (the route answers 404).
+ * The vehicle for a one-vehicle CSV or Trip Report. undefined: every vehicle.
+ * "invalid": not a single sensible id (400). null: not one of this user's
+ * vehicles (404).
  */
 async function vehicleForQuery(
   userId: string,
-  vehicleId: string | undefined
-): Promise<ExportVehicle | undefined | null> {
-  if (!vehicleId) return undefined;
-  return resolveExportVehicle(userId, vehicleId);
+  vehicleId: unknown
+): Promise<ExportVehicle | undefined | null | "invalid"> {
+  if (vehicleId === undefined) return undefined;
+  const parsed = vehicleIdSchema.safeParse(vehicleId);
+  if (!parsed.success) return "invalid";
+  if (!parsed.data) return undefined;
+  return resolveExportVehicle(userId, parsed.data);
 }
 
 /** "trips" or "trips-nissan-qashqai-ab12cde", for the file name. */
@@ -148,6 +156,7 @@ export async function exportRoutes(app: FastifyInstance) {
   app.get("/csv", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {
     const opts = parseQueryOpts(request.query);
     const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
+    if (vehicle === "invalid") return reply.status(400).send({ error: "Invalid vehicle" });
     if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
 
     const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
@@ -232,6 +241,7 @@ export async function exportRoutes(app: FastifyInstance) {
   app.get("/pdf", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {
     const opts = parseQueryOpts(request.query);
     const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
+    if (vehicle === "invalid") return reply.status(400).send({ error: "Invalid vehicle" });
     if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
 
     const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);

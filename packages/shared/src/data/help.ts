@@ -494,7 +494,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "exports-one-car",
     area: "tax_and_claims",
     q: "Can I get a report for just one car?",
-    a: "Yes, if you have more than one car. In Tax > Downloads, tap Trip Report (PDF) or Trip Data (CSV) and choose the car, or All cars. On the website, pick the car above the downloads. Trips with no car set count towards your main car. The higher mileage rate covers your first 10,000 business miles a tax year across all your cars, not 10,000 per car, so a one-car report shows that car's share of your claim. Claim the total from the All cars report.",
+    a: "Yes, if you have more than one vehicle. In Tax > Downloads, tap Trip Report (PDF) or Trip Data (CSV) and choose the vehicle, or All vehicles. On the website, pick the vehicle above the downloads. Trips with no vehicle count towards your primary vehicle, or your oldest one if none is set as primary. The higher mileage rate covers your first 10,000 business miles a tax year across all your cars and vans, not 10,000 per car, so a one-vehicle report shows that vehicle's share of your claim. Claim the total from the All vehicles report.",
     goTo: "/exports",
     keywords: ["one car", "two cars", "each car", "per car", "vehicle", "second car", "separate report", "report"],
   },

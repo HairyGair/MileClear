@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,14 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { exportVehicleChoices, exportVehicleSlug, parseTaxYear } from "@mileclear/shared";
+import {
+  exportVehicleChoices,
+  exportVehicleLabel,
+  exportVehicleSlug,
+  parseTaxYear,
+  type ExportVehicleLike,
+} from "@mileclear/shared";
+import { PickerSheet, type PickerOption } from "../components/trip/PickerSheet";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { fetchVehicles } from "../lib/api/vehicles";
@@ -31,6 +38,8 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
+/** The "All vehicles" row in the Which vehicle? sheet. Not a vehicle id. */
+const ALL_VEHICLES_KEY = "__all__";
 
 type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | null;
 
@@ -117,37 +126,54 @@ export default function ExportsScreen() {
     [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly]
   );
 
-  // CSV and Trip Report: with 2+ cars, ask which one, "All cars" first
-  // (Colin, 17 Oct 2026). One car or none: straight through, as before.
+  // "Which vehicle?" as a sheet, not Alert.alert: Android keeps only three
+  // Alert buttons (Cancel and the 3rd vehicle onwards were lost) and its Alert
+  // can't be dismissed by tapping outside. Closing the sheet downloads nothing.
+  const [vehiclePicker, setVehiclePicker] = useState<{
+    options: PickerOption[];
+    onPick: (key: string) => void;
+  } | null>(null);
+  // Set before the vehicle list is fetched, so a quick double tap can't open
+  // two pickers or start two downloads.
+  const pickingRef = useRef(false);
+
+  const loadVehicles = useCallback(async (): Promise<ExportVehicleLike[] | null> => {
+    if (pickingRef.current) return null;
+    pickingRef.current = true;
+    try {
+      return (await fetchVehicles()).data;
+    } catch {
+      return []; // No list: carry on as with one vehicle.
+    } finally {
+      pickingRef.current = false;
+    }
+  }, []);
+
+  // CSV and Trip Report: with 2+ vehicles, ask which one, "All vehicles"
+  // first (Colin, 17 Oct 2026). One vehicle or none: straight through, as before.
   const handleTripDownload = useCallback(
     async (type: "csv" | "pdf") => {
+      if (loadingKey !== null) return;
       if (isPremium === false) {
         handleDownload(type);
         return;
       }
-      let vehicles: { id: string; make: string; model: string; registrationPlate?: string | null }[] = [];
-      try {
-        vehicles = (await fetchVehicles()).data;
-      } catch {
-        // No list: every car, as before.
-      }
+      const vehicles = await loadVehicles();
+      if (vehicles === null) return; // a tap is already being handled
       const choices = exportVehicleChoices(vehicles);
       if (!choices) {
         handleDownload(type);
         return;
       }
-      Alert.alert("Which car?", undefined, [
-        ...choices.map((c) => {
-          const v = vehicles.find((x) => x.id === c.vehicleId);
-          return {
-            text: c.label,
-            onPress: () => handleDownload(type, v ? { id: v.id, slug: exportVehicleSlug(v) } : undefined),
-          };
-        }),
-        { text: "Cancel", style: "cancel" as const },
-      ]);
+      setVehiclePicker({
+        options: choices.map((c) => ({ key: c.vehicleId ?? ALL_VEHICLES_KEY, label: c.label })),
+        onPick: (key) => {
+          const v = vehicles.find((x) => x.id === key);
+          handleDownload(type, v ? { id: v.id, slug: exportVehicleSlug(v) } : undefined);
+        },
+      });
     },
-    [isPremium, handleDownload]
+    [loadingKey, isPremium, handleDownload, loadVehicles]
   );
 
   // Odometer log CSV (Pro): the same tax year or date range as the other
@@ -189,28 +215,23 @@ export default function ExportsScreen() {
   );
 
   const handleOdometerLog = useCallback(async () => {
+    if (loadingKey !== null) return;
     if (isPremium === false) {
       showPaywall("odometer_log_csv");
       return;
     }
-    let vehicles: { id: string; make: string; model: string }[] = [];
-    try {
-      vehicles = (await fetchVehicles()).data;
-    } catch {
-      // No list: fall through to the default vehicle.
-    }
+    const vehicles = await loadVehicles();
+    if (vehicles === null) return; // a tap is already being handled
     if (vehicles.length > 1) {
-      Alert.alert("Which vehicle?", undefined, [
-        ...vehicles.map((v) => ({
-          text: `${v.make} ${v.model}`.trim(),
-          onPress: () => downloadOdometerLog(v.id),
-        })),
-        { text: "Cancel", style: "cancel" as const },
-      ]);
+      // The odometer belongs to one vehicle, so there is no "All vehicles" here.
+      setVehiclePicker({
+        options: vehicles.map((v) => ({ key: v.id, label: exportVehicleLabel(v) })),
+        onPick: (key) => downloadOdometerLog(key),
+      });
       return;
     }
     downloadOdometerLog(vehicles[0]?.id);
-  }, [isPremium, showPaywall, downloadOdometerLog]);
+  }, [loadingKey, isPremium, showPaywall, downloadOdometerLog, loadVehicles]);
 
   return (
     <View style={styles.container}>
@@ -471,6 +492,13 @@ export default function ExportsScreen() {
           </View>
         ))}
       </ScrollView>
+      <PickerSheet
+        visible={vehiclePicker !== null}
+        title="Which vehicle?"
+        options={vehiclePicker?.options ?? []}
+        onPick={(key) => vehiclePicker?.onPick(key)}
+        onClose={() => setVehiclePicker(null)}
+      />
     </View>
   );
 }

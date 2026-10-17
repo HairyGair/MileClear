@@ -40,9 +40,9 @@ describe("exportVehicleChoices", () => {
     expect(exportVehicleChoices([])).toBeNull();
     expect(exportVehicleChoices([qashqai])).toBeNull();
   });
-  it("puts All cars first, then each car", () => {
+  it("puts All vehicles first, then each vehicle", () => {
     expect(exportVehicleChoices([qashqai, fiesta])).toEqual([
-      { vehicleId: undefined, label: "All cars" },
+      { vehicleId: undefined, label: "All vehicles" },
       { vehicleId: "v1", label: "Nissan Qashqai (AB12 CDE)" },
       { vehicleId: "v2", label: "Ford Fiesta" },
     ]);

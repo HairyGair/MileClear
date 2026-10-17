@@ -41,14 +41,14 @@ export interface ExportVehicleChoice {
 }
 
 /**
- * The "Which car?" choices for the CSV and Trip Report: "All cars" first,
- * then each car. Null when there is nothing to choose (0 or 1 vehicle), so
+ * The "Which vehicle?" choices for the CSV and Trip Report: "All vehicles" first,
+ * then each vehicle. Null when there is nothing to choose (0 or 1 vehicle), so
  * the download goes straight through as before.
  */
 export function exportVehicleChoices(vehicles: ExportVehicleLike[]): ExportVehicleChoice[] | null {
   if (vehicles.length < 2) return null;
   return [
-    { vehicleId: undefined, label: "All cars" },
+    { vehicleId: undefined, label: "All vehicles" },
     ...vehicles.map((v) => ({ vehicleId: v.id, label: exportVehicleLabel(v) })),
   ];
 }

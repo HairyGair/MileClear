@@ -31,19 +31,28 @@ interface ExportOpts {
   from?: Date;
   to?: Date;
   classification?: "business" | "personal";
-  /** One car only (already checked as the user's). */
-  vehicle?: Pick<ExportVehicle, "id" | "make" | "model" | "registrationPlate">;
+  /** One vehicle only (already checked as the user's). */
+  vehicle?: Pick<ExportVehicle, "id" | "make" | "model" | "registrationPlate" | "vehicleType">;
 }
 
 /**
- * Printed on a one-car Trip Report. The higher rate covers the first 10,000
- * business miles a PERSON drives in a tax year across all their cars and vans,
- * not 10,000 per car, so each trip keeps the price it has on the all-cars
- * report and the total here is this car's share of the claim.
+ * Printed on a one-vehicle Trip Report for a car or van. The higher rate
+ * covers the first 10,000 business miles a PERSON drives in a tax year across
+ * all their cars and vans, not 10,000 per car, so each trip keeps the price it
+ * has on the all-vehicles report and the total here is this vehicle's share.
  */
 export const ONE_CAR_ALLOWANCE_NOTE =
   "The higher mileage rate covers your first 10,000 business miles in a tax year across all your cars and vans, not 10,000 per car. " +
-  "Each trip here is priced as it is on your all-cars report, so the deduction shown is this car's share of your claim. Claim the total from your all-cars report.";
+  "Each trip here is priced as it is on your all-vehicles report, so the deduction shown is this vehicle's share of your claim. Claim the total from your all-vehicles report.";
+
+/** The same note for a motorbike: one flat rate, outside the cars' 10,000. */
+export const ONE_MOTORBIKE_NOTE =
+  "Motorbike business miles are claimed at one flat rate, separate from the 10,000 miles for cars and vans. " +
+  "Each trip here is priced as it is on your all-vehicles report. Claim the total from your all-vehicles report.";
+
+export function oneVehicleNote(vehicleType: string | null | undefined): string {
+  return vehicleType === "motorbike" ? ONE_MOTORBIKE_NOTE : ONE_CAR_ALLOWANCE_NOTE;
+}
 
 // ── Brand colours ─────────────────────────────────────────────────
 const NAVY = "#030712";
@@ -598,7 +607,7 @@ export async function generateTripsPdf(
   const periodLabel = opts.taxYear
     ? `Tax Year ${opts.taxYear}`
     : `${opts.from!.toLocaleDateString("en-GB")} — ${opts.to!.toLocaleDateString("en-GB")}`;
-  // One car: its name goes in every page heading, so two downloads can't be mixed up.
+  // One vehicle: its name goes in every page heading, so two downloads can't be mixed up.
   const carLabel = opts.vehicle ? exportVehicleLabel(opts.vehicle) : null;
   const label = carLabel ? `${carLabel} · ${periodLabel}` : periodLabel;
   doc.info.Title = carLabel ? `Trip Report: ${carLabel}` : "Trip Report";
@@ -642,7 +651,7 @@ export async function generateTripsPdf(
     margin + (boxW + boxGap) * 3,
     boxY,
     boxW,
-    carLabel ? "Deduction (this car's share)" : "HMRC Deduction",
+    carLabel ? "Deduction (this vehicle)" : "HMRC Deduction",
     formatPence(totalDeduction),
     true
   );
@@ -667,13 +676,13 @@ export async function generateTripsPdf(
       .font("Helvetica-Bold")
       .fontSize(10)
       .fillColor(NAVY)
-      .text(`This report covers one car: ${carLabel}`, margin, doc.y, { width: contentWidth });
+      .text(`This report covers one vehicle: ${carLabel}`, margin, doc.y, { width: contentWidth });
     doc.moveDown(0.2);
     doc
       .font("Helvetica")
       .fontSize(8)
       .fillColor(GREY_600)
-      .text(ONE_CAR_ALLOWANCE_NOTE, margin, doc.y, { width: contentWidth, lineGap: 1 });
+      .text(oneVehicleNote(opts.vehicle?.vehicleType), margin, doc.y, { width: contentWidth, lineGap: 1 });
     doc.y += 10;
   }
 
