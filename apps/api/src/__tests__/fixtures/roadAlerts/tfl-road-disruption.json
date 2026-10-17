@@ -1,0 +1,2785 @@
+[
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-224034",
+  "url": "/Road/All/Disruption/TIMS-224034",
+  "point": "[-0.167217,51.48322]",
+  "severity": "Serious",
+  "ordinal": 1,
+  "category": "Works",
+  "subCategory": "Borough works",
+  "comments": "[A3031] Albert Bridge Road (Both directions) at the junction of [A3212] Chelsea Embankment - The bridge is closed to facilitate local borough works.",
+  "currentUpdate": "Use an alternative route. Traffic is slow moving on diversion route. Battersea bridge and Battersea Bridge Road has northbound tailbacks from after Westbridge Road. In addition Chelsea Bridge has southbound queues from Chelsea Bridge Road. Expect delays.",
+  "currentUpdateDateTime": "2026-10-17T18:30:13Z",
+  "corridorIds": [],
+  "startDateTime": "2026-09-23T04:45:00Z",
+  "endDateTime": "2027-02-28T23:59:00Z",
+  "lastModifiedTime": "2026-10-17T18:30:17Z",
+  "levelOfInterest": "High",
+  "location": "[A3031] ALBERT BRIDGE ROAD (SW11 ,SW3 ) (Kensington & Chelsea,Wandsworth)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.167217,
+    51.48322
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A3031] ALBERT BRIDGE ROAD (SW11 ,SW3)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030406334",
+      "lineString": "[[-0.166069,51.480855],[-0.165989,51.480692]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308213725",
+      "lineString": "[[-0.166148,51.481077],[-0.166101,51.48105]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005151586277",
+      "lineString": "[[-0.166101,51.48105],[-0.166069,51.480855]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005110674602",
+      "lineString": "[[-0.167367,51.483574],[-0.16733,51.483498]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308217086",
+      "lineString": "[[-0.16733,51.483498],[-0.167211,51.483256]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308214311",
+      "lineString": "[[-0.16625,51.481302],[-0.166148,51.481077]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030134330",
+      "lineString": "[[-0.165516,51.47957],[-0.165989,51.480692]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005223429936",
+      "lineString": "[[-0.167187,51.483208],[-0.166773,51.482361]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308251162",
+      "lineString": "[[-0.167211,51.483256],[-0.167187,51.483208]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005110674603",
+      "lineString": "[[-0.166773,51.482361],[-0.16625,51.481302]]",
+      "sourceSystemId": 224034,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-236268",
+  "url": "/Road/All/Disruption/TIMS-236268",
+  "point": "[-0.019108,51.473442]",
+  "severity": "Moderate",
+  "ordinal": 2,
+  "category": "Works",
+  "subCategory": "Utility works",
+  "comments": "[A2] Blackheath Road (Eastbound) at the junction of Crosslet Vale - Lane one (of two) is closed facilitate emergency Thames Water works. ",
+  "currentUpdate": "Traffic is flowing well.",
+  "currentUpdateDateTime": "2026-10-17T18:13:18Z",
+  "corridorIds": [
+   "a2"
+  ],
+  "startDateTime": "2026-10-13T18:40:00Z",
+  "endDateTime": "2026-10-24T22:59:00Z",
+  "lastModifiedTime": "2026-10-17T18:13:26Z",
+  "levelOfInterest": "High",
+  "location": "[A2] BLACKHEATH ROAD (SE10 ) (Greenwich)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.019108,
+    51.473442
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-236204",
+  "url": "/Road/All/Disruption/TIMS-236204",
+  "point": "[-0.194259,51.45711]",
+  "severity": "Moderate",
+  "ordinal": 3,
+  "category": "Works",
+  "subCategory": "Utility works",
+  "comments": "[A3] Wandsworth High Street (Both directions) at the junction of [A218] Buckhold Road - Temporary traffic signals in operation to facilitate emergency utility works. Additionally Buckhold Road is closed southbound. ",
+  "currentUpdate": "Use caution. Traffic is flowing well.",
+  "currentUpdateDateTime": "2026-10-17T18:13:03Z",
+  "corridorIds": [
+   "a205"
+  ],
+  "startDateTime": "2026-10-09T19:00:00Z",
+  "endDateTime": "2026-10-21T22:59:00Z",
+  "lastModifiedTime": "2026-10-17T18:13:12Z",
+  "levelOfInterest": "High",
+  "location": "[A3] WANDSWORTH HIGH STREET (SW18 ) (Wandsworth)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.194259,
+    51.45711
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A218] BUCKHOLD ROAD (SW18)",
+    "closure": "Closed",
+    "directions": "Southbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308257386",
+      "lineString": "[[-0.194804,51.456532],[-0.194946,51.456376]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030405898",
+      "lineString": "[[-0.194404,51.45697],[-0.19444,51.457169]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308257383",
+      "lineString": "[[-0.195039,51.456267],[-0.195305,51.45604]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030405878",
+      "lineString": "[[-0.197571,51.452577],[-0.197449,51.452764]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308207342",
+      "lineString": "[[-0.197449,51.452764],[-0.197184,51.453655]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308211776",
+      "lineString": "[[-0.196276,51.455641],[-0.195984,51.455795]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308257375",
+      "lineString": "[[-0.19542,51.455993],[-0.19564,51.455928]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308257381",
+      "lineString": "[[-0.194946,51.456376],[-0.195039,51.456267]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308202341",
+      "lineString": "[[-0.194404,51.45697],[-0.194574,51.456785]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308257388",
+      "lineString": "[[-0.194574,51.456785],[-0.194804,51.456532]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030133820",
+      "lineString": "[[-0.197184,51.453655],[-0.19736,51.454651]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308257378",
+      "lineString": "[[-0.195305,51.45604],[-0.19542,51.455993]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308213318",
+      "lineString": "[[-0.19736,51.454651],[-0.196988,51.455121]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005154253119",
+      "lineString": "[[-0.195984,51.455795],[-0.19564,51.455928]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030133821",
+      "lineString": "[[-0.196988,51.455121],[-0.196359,51.455598]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308200723",
+      "lineString": "[[-0.196359,51.455598],[-0.196276,51.455641]]",
+      "sourceSystemId": 236204,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-236449",
+  "url": "/Road/All/Disruption/TIMS-236449",
+  "point": "[-0.118206,51.557052]",
+  "severity": "Minimal",
+  "ordinal": 16,
+  "category": "Works",
+  "subCategory": "Utility works",
+  "comments": "[A1] Holloway Road (Southbound) at the junction of [A503] Seven Sisters Road - Lane closure in place to facilitate Thames Water works.",
+  "currentUpdate": "Delays are possible. ",
+  "currentUpdateDateTime": "2026-10-17T01:04:37Z",
+  "corridorIds": [
+   "a1"
+  ],
+  "startDateTime": "2026-10-15T14:57:00Z",
+  "endDateTime": "2026-10-17T22:59:00Z",
+  "lastModifiedTime": "2026-10-17T01:04:37Z",
+  "levelOfInterest": "Medium",
+  "location": "[A1] HOLLOWAY ROAD (N7 ) (Islington)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.118206,
+    51.557052
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-213893",
+  "url": "/Road/All/Disruption/TIMS-213893",
+  "point": "[-0.125602,51.440164]",
+  "severity": "Minimal",
+  "ordinal": 22,
+  "category": "Works",
+  "subCategory": "TfL works",
+  "comments": "[A23] Streatham Hill (Both directions) between [A205] Christchurch Road and Leigham Court Road - Various restrictions for TfL works. Lane restrictions, in place over the course of the works. ",
+  "currentUpdate": "Delays are possible. ",
+  "currentUpdateDateTime": "2026-10-17T19:06:02Z",
+  "corridorIds": [
+   "a23"
+  ],
+  "startDateTime": "2026-08-03T21:00:00Z",
+  "endDateTime": "2027-01-15T05:30:00Z",
+  "lastModifiedTime": "2026-10-17T19:06:13Z",
+  "levelOfInterest": "Medium",
+  "location": "[A23] STREATHAM HILL (SW16 ,SW2 ) (Lambeth)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.125602,
+    51.440164
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "All directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339863",
+      "lineString": "[[-0.12465,51.442225],[-0.124748,51.44264]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458264",
+      "lineString": "[[-0.124315,51.445182],[-0.124349,51.445039]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416635",
+      "lineString": "[[-0.124748,51.44264],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366631",
+      "lineString": "[[-0.125958,51.439973],[-0.125895,51.44007]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235132",
+      "lineString": "[[-0.125219,51.440975],[-0.124773,51.44163]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235125",
+      "lineString": "[[-0.126778,51.438383],[-0.126302,51.439113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005160360821",
+      "lineString": "[[-0.126843,51.438201],[-0.12699,51.43795]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235129",
+      "lineString": "[[-0.125781,51.440246],[-0.125412,51.440714]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339859",
+      "lineString": "[[-0.126253,51.43924],[-0.126171,51.439515]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349259",
+      "lineString": "[[-0.125895,51.44007],[-0.125878,51.440096]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309343482",
+      "lineString": "[[-0.125878,51.440096],[-0.125781,51.440246]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309341361",
+      "lineString": "[[-0.124773,51.44163],[-0.124664,51.441883]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005160360757",
+      "lineString": "[[-0.126855,51.438258],[-0.126843,51.438201]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416633",
+      "lineString": "[[-0.126171,51.439515],[-0.126107,51.439667]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235127",
+      "lineString": "[[-0.126107,51.439667],[-0.125958,51.439973]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309426615",
+      "lineString": "[[-0.125412,51.440714],[-0.125219,51.440975]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030475064",
+      "lineString": "[[-0.126824,51.438312],[-0.126855,51.438258]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458243",
+      "lineString": "[[-0.126778,51.438383],[-0.126824,51.438312]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309354225",
+      "lineString": "[[-0.126302,51.439113],[-0.126253,51.43924]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339861",
+      "lineString": "[[-0.124664,51.441883],[-0.12465,51.442225]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339864",
+      "lineString": "[[-0.124574,51.442673],[-0.124462,51.44224]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458264",
+      "lineString": "[[-0.124315,51.445182],[-0.124349,51.445039]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366631",
+      "lineString": "[[-0.125958,51.439973],[-0.125895,51.44007]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235132",
+      "lineString": "[[-0.125219,51.440975],[-0.124773,51.44163]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235125",
+      "lineString": "[[-0.126778,51.438383],[-0.126302,51.439113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005160360821",
+      "lineString": "[[-0.126843,51.438201],[-0.12699,51.43795]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235129",
+      "lineString": "[[-0.125781,51.440246],[-0.125412,51.440714]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339859",
+      "lineString": "[[-0.126253,51.43924],[-0.126171,51.439515]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349259",
+      "lineString": "[[-0.125895,51.44007],[-0.125878,51.440096]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309343482",
+      "lineString": "[[-0.125878,51.440096],[-0.125781,51.440246]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309341361",
+      "lineString": "[[-0.124773,51.44163],[-0.124664,51.441883]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005160360757",
+      "lineString": "[[-0.126855,51.438258],[-0.126843,51.438201]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416633",
+      "lineString": "[[-0.126171,51.439515],[-0.126107,51.439667]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235127",
+      "lineString": "[[-0.126107,51.439667],[-0.125958,51.439973]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309426615",
+      "lineString": "[[-0.125412,51.440714],[-0.125219,51.440975]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030475064",
+      "lineString": "[[-0.126824,51.438312],[-0.126855,51.438258]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458243",
+      "lineString": "[[-0.126778,51.438383],[-0.126824,51.438312]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309354225",
+      "lineString": "[[-0.126302,51.439113],[-0.126253,51.43924]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339861",
+      "lineString": "[[-0.124664,51.441883],[-0.12465,51.442225]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339863",
+      "lineString": "[[-0.12465,51.442225],[-0.124748,51.44264]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458264",
+      "lineString": "[[-0.124315,51.445182],[-0.124349,51.445039]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416635",
+      "lineString": "[[-0.124748,51.44264],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366631",
+      "lineString": "[[-0.125958,51.439973],[-0.125895,51.44007]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235132",
+      "lineString": "[[-0.125219,51.440975],[-0.124773,51.44163]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235125",
+      "lineString": "[[-0.126778,51.438383],[-0.126302,51.439113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005160360821",
+      "lineString": "[[-0.126843,51.438201],[-0.12699,51.43795]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235129",
+      "lineString": "[[-0.125781,51.440246],[-0.125412,51.440714]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339859",
+      "lineString": "[[-0.126253,51.43924],[-0.126171,51.439515]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349259",
+      "lineString": "[[-0.125895,51.44007],[-0.125878,51.440096]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309343482",
+      "lineString": "[[-0.125878,51.440096],[-0.125781,51.440246]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309341361",
+      "lineString": "[[-0.124773,51.44163],[-0.124664,51.441883]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005160360757",
+      "lineString": "[[-0.126855,51.438258],[-0.126843,51.438201]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416633",
+      "lineString": "[[-0.126171,51.439515],[-0.126107,51.439667]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235127",
+      "lineString": "[[-0.126107,51.439667],[-0.125958,51.439973]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309426615",
+      "lineString": "[[-0.125412,51.440714],[-0.125219,51.440975]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030475064",
+      "lineString": "[[-0.126824,51.438312],[-0.126855,51.438258]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458243",
+      "lineString": "[[-0.126778,51.438383],[-0.126824,51.438312]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309354225",
+      "lineString": "[[-0.126302,51.439113],[-0.126253,51.43924]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339861",
+      "lineString": "[[-0.124664,51.441883],[-0.12465,51.442225]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339863",
+      "lineString": "[[-0.12465,51.442225],[-0.124748,51.44264]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458264",
+      "lineString": "[[-0.124315,51.445182],[-0.124349,51.445039]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416635",
+      "lineString": "[[-0.124748,51.44264],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309352480",
+      "lineString": "[[-0.12561,51.440208],[-0.125729,51.440056]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235131",
+      "lineString": "[[-0.124622,51.441599],[-0.125062,51.440945]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339862",
+      "lineString": "[[-0.124462,51.44224],[-0.124506,51.441863]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339860",
+      "lineString": "[[-0.126014,51.439486],[-0.126081,51.439216]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416634",
+      "lineString": "[[-0.125964,51.439647],[-0.126014,51.439486]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235126",
+      "lineString": "[[-0.12613,51.439092],[-0.12654,51.438568]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235130",
+      "lineString": "[[-0.125062,51.440945],[-0.125409,51.440492]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309344092",
+      "lineString": "[[-0.124506,51.441863],[-0.124622,51.441599]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416632",
+      "lineString": "[[-0.12654,51.438568],[-0.126778,51.438383]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309357791",
+      "lineString": "[[-0.126081,51.439216],[-0.12613,51.439092]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235128",
+      "lineString": "[[-0.125816,51.439935],[-0.125964,51.439647]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005153433967",
+      "lineString": "[[-0.125409,51.440492],[-0.12561,51.440208]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458243",
+      "lineString": "[[-0.126778,51.438383],[-0.126824,51.438312]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309369258",
+      "lineString": "[[-0.125795,51.439962],[-0.125816,51.439935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366912",
+      "lineString": "[[-0.125729,51.440056],[-0.125795,51.439962]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339864",
+      "lineString": "[[-0.124574,51.442673],[-0.124462,51.44224]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458264",
+      "lineString": "[[-0.124315,51.445182],[-0.124349,51.445039]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "ARDWELL ROAD (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235141",
+      "lineString": "[[-0.127355,51.43975],[-0.126503,51.439582]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458247",
+      "lineString": "[[-0.126171,51.439515],[-0.126014,51.439486]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030719174",
+      "lineString": "[[-0.126503,51.439582],[-0.126171,51.439515]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "BARRHILL ROAD (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235143",
+      "lineString": "[[-0.126103,51.440341],[-0.12679,51.440559]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030714902",
+      "lineString": "[[-0.125781,51.440246],[-0.126103,51.440341]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "TIERNEY ROAD (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030714901",
+      "lineString": "[[-0.124914,51.443217],[-0.12567,51.443302]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235139",
+      "lineString": "[[-0.126199,51.443397],[-0.126842,51.443501]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005151765720",
+      "lineString": "[[-0.12567,51.443302],[-0.126199,51.443397]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "TELFORD AVENUE (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235138",
+      "lineString": "[[-0.125768,51.442129],[-0.12654,51.442084]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416641",
+      "lineString": "[[-0.124462,51.44224],[-0.12465,51.442225]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005151765703",
+      "lineString": "[[-0.12465,51.442225],[-0.124856,51.442211]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000031167123",
+      "lineString": "[[-0.125399,51.442162],[-0.125768,51.442129]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000031267154",
+      "lineString": "[[-0.124856,51.442211],[-0.125399,51.442162]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Northbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339858",
+      "lineString": "[[-0.124748,51.44264],[-0.124864,51.443005]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339864",
+      "lineString": "[[-0.124574,51.442673],[-0.124462,51.44224]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416635",
+      "lineString": "[[-0.124748,51.44264],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309344092",
+      "lineString": "[[-0.124506,51.441863],[-0.124622,51.441599]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339862",
+      "lineString": "[[-0.124462,51.44224],[-0.124506,51.441863]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235131",
+      "lineString": "[[-0.124622,51.441599],[-0.125062,51.440945]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309369768",
+      "lineString": "[[-0.124864,51.443005],[-0.124914,51.443217]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Northbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309343482",
+      "lineString": "[[-0.125878,51.440096],[-0.125781,51.440246]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309341361",
+      "lineString": "[[-0.124773,51.44163],[-0.124664,51.441883]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366631",
+      "lineString": "[[-0.125958,51.439973],[-0.125895,51.44007]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309426615",
+      "lineString": "[[-0.125412,51.440714],[-0.125219,51.440975]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349259",
+      "lineString": "[[-0.125895,51.44007],[-0.125878,51.440096]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235129",
+      "lineString": "[[-0.125781,51.440246],[-0.125412,51.440714]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416633",
+      "lineString": "[[-0.126171,51.439515],[-0.126107,51.439667]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235127",
+      "lineString": "[[-0.126107,51.439667],[-0.125958,51.439973]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235132",
+      "lineString": "[[-0.125219,51.440975],[-0.124773,51.44163]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Northbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309354225",
+      "lineString": "[[-0.126302,51.439113],[-0.126253,51.43924]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309343482",
+      "lineString": "[[-0.125878,51.440096],[-0.125781,51.440246]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235125",
+      "lineString": "[[-0.126778,51.438383],[-0.126302,51.439113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366631",
+      "lineString": "[[-0.125958,51.439973],[-0.125895,51.44007]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339859",
+      "lineString": "[[-0.126253,51.43924],[-0.126171,51.439515]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349259",
+      "lineString": "[[-0.125895,51.44007],[-0.125878,51.440096]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458243",
+      "lineString": "[[-0.126778,51.438383],[-0.126824,51.438312]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416633",
+      "lineString": "[[-0.126171,51.439515],[-0.126107,51.439667]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235127",
+      "lineString": "[[-0.126107,51.439667],[-0.125958,51.439973]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Southbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235130",
+      "lineString": "[[-0.125062,51.440945],[-0.125409,51.440492]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235128",
+      "lineString": "[[-0.125816,51.439935],[-0.125964,51.439647]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309352480",
+      "lineString": "[[-0.12561,51.440208],[-0.125729,51.440056]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005153433967",
+      "lineString": "[[-0.125409,51.440492],[-0.12561,51.440208]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366912",
+      "lineString": "[[-0.125729,51.440056],[-0.125795,51.439962]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309344092",
+      "lineString": "[[-0.124506,51.441863],[-0.124622,51.441599]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309369258",
+      "lineString": "[[-0.125795,51.439962],[-0.125816,51.439935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235131",
+      "lineString": "[[-0.124622,51.441599],[-0.125062,51.440945]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Southbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309357791",
+      "lineString": "[[-0.126081,51.439216],[-0.12613,51.439092]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416634",
+      "lineString": "[[-0.125964,51.439647],[-0.126014,51.439486]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235128",
+      "lineString": "[[-0.125816,51.439935],[-0.125964,51.439647]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309352480",
+      "lineString": "[[-0.12561,51.440208],[-0.125729,51.440056]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416632",
+      "lineString": "[[-0.12654,51.438568],[-0.126778,51.438383]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309366912",
+      "lineString": "[[-0.125729,51.440056],[-0.125795,51.439962]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339860",
+      "lineString": "[[-0.126014,51.439486],[-0.126081,51.439216]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309369258",
+      "lineString": "[[-0.125795,51.439962],[-0.125816,51.439935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030458243",
+      "lineString": "[[-0.126778,51.438383],[-0.126824,51.438312]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235126",
+      "lineString": "[[-0.12613,51.439092],[-0.12654,51.438568]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW16 ,SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235126",
+      "lineString": "[[-0.12613,51.439092],[-0.12654,51.438568]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309344092",
+      "lineString": "[[-0.124506,51.441863],[-0.124622,51.441599]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030235131",
+      "lineString": "[[-0.124622,51.441599],[-0.125062,51.440945]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339858",
+      "lineString": "[[-0.124748,51.44264],[-0.124864,51.443005]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416635",
+      "lineString": "[[-0.124748,51.44264],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309369768",
+      "lineString": "[[-0.124864,51.443005],[-0.124914,51.443217]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A23] STREATHAM HILL (SW2)",
+    "closure": "Open",
+    "directions": "Northbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030339863",
+      "lineString": "[[-0.12465,51.442225],[-0.124748,51.44264]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030416635",
+      "lineString": "[[-0.124748,51.44264],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030099521",
+      "lineString": "[[-0.124349,51.445039],[-0.124701,51.443935]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309365176",
+      "lineString": "[[-0.124718,51.443113],[-0.124696,51.443022]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030700827",
+      "lineString": "[[-0.124713,51.443879],[-0.124718,51.443113]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309349532",
+      "lineString": "[[-0.124701,51.443935],[-0.124713,51.443879]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030701067",
+      "lineString": "[[-0.124696,51.443022],[-0.124574,51.442673]]",
+      "sourceSystemId": 213893,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-235998",
+  "url": "/Road/All/Disruption/TIMS-235998",
+  "point": "[-0.04693,51.609157]",
+  "severity": "No impact",
+  "ordinal": 41,
+  "category": "Planned events",
+  "subCategory": "Concert",
+  "comments": "Spotify DIA/LUG - Glover Drive (All approaches) at Drumsheds - Spotify DIA/LUG in concert. ",
+  "currentUpdate": "There are no reported delays. ",
+  "currentUpdateDateTime": "2026-10-17T17:28:08Z",
+  "corridorIds": [],
+  "startDateTime": "2026-10-17T10:30:00Z",
+  "endDateTime": "2026-10-17T22:59:00Z",
+  "lastModifiedTime": "2026-10-17T17:28:14Z",
+  "levelOfInterest": "Medium",
+  "location": "GLOVER DRIVE (N18 ) (Enfield)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.04693,
+    51.609157
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-236071",
+  "url": "/Road/All/Disruption/TIMS-236071",
+  "point": "[0.037172,51.503123]",
+  "severity": "No impact",
+  "ordinal": 44,
+  "category": "Planned events",
+  "subCategory": "Sporting",
+  "comments": "Nike After Dark Tour London Marathon  - Charles Street (All approaches) at Silverworks Island - A running event is taking place. \r\n\r\n",
+  "currentUpdate": "Use an alternative route. There are no reported delays on diversion. ",
+  "currentUpdateDateTime": "2026-10-17T17:59:17Z",
+  "corridorIds": [],
+  "startDateTime": "2026-10-17T12:00:00Z",
+  "endDateTime": "2026-10-17T22:59:00Z",
+  "lastModifiedTime": "2026-10-17T17:59:17Z",
+  "levelOfInterest": "Medium",
+  "location": "CHARLES STREET (E16 ) (Newham)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    0.037172,
+    51.503123
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A1020] ROYAL ALBERT WAY (E16 ,E6)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030421791",
+      "lineString": "[[0.037209,51.508516],[0.03751,51.508475]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320393020",
+      "lineString": "[[0.046788,51.509131],[0.047081,51.509171]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320387617",
+      "lineString": "[[0.037209,51.508516],[0.037705,51.508966]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030349285",
+      "lineString": "[[0.03751,51.508475],[0.037517,51.508158]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030866803",
+      "lineString": "[[0.037517,51.508158],[0.037361,51.508081]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320440134",
+      "lineString": "[[0.043513,51.509192],[0.043836,51.50919]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030349287",
+      "lineString": "[[0.03988,51.50927],[0.040614,51.509248]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030100441",
+      "lineString": "[[0.043836,51.50919],[0.046788,51.509131]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030460700",
+      "lineString": "[[0.047081,51.509171],[0.047191,51.509228]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030149676",
+      "lineString": "[[0.037705,51.508966],[0.03988,51.50927]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030149678",
+      "lineString": "[[0.040614,51.509248],[0.043513,51.509192]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "RAYLEIGH ROAD (E16)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005102237910",
+      "lineString": "[[0.027986,51.504368],[0.028007,51.504526]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030421777",
+      "lineString": "[[0.027985,51.504614],[0.027846,51.504712]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005132601097",
+      "lineString": "[[0.028007,51.504526],[0.027985,51.504614]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030244156",
+      "lineString": "[[0.027946,51.504036],[0.027986,51.504368]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "FESTOON WAY (E16)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030866963",
+      "lineString": "[[0.0376,51.508038],[0.039128,51.507999]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030867173",
+      "lineString": "[[0.0376,51.508038],[0.037361,51.508081]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000031233192",
+      "lineString": "[[0.039319,51.508559],[0.039128,51.507999]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "HARTMANN ROAD (E16)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005100735878",
+      "lineString": "[[0.042471,51.503649],[0.043056,51.503751]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005100735879",
+      "lineString": "[[0.043692,51.503889],[0.044046,51.503981]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005100735881",
+      "lineString": "[[0.043056,51.503751],[0.043692,51.503889]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A112] CONNAUGHT ROAD (E16)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005100735877",
+      "lineString": "[[0.039819,51.504684],[0.040146,51.504587]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000031035637",
+      "lineString": "[[0.042471,51.503649],[0.042271,51.503819]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320397356",
+      "lineString": "[[0.045077,51.502384],[0.044846,51.502445]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005118246284",
+      "lineString": "[[0.045759,51.502202],[0.046616,51.502012]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030866710",
+      "lineString": "[[0.043167,51.503169],[0.042471,51.503649]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030460668",
+      "lineString": "[[0.041707,51.504459],[0.041622,51.50456]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005293054602",
+      "lineString": "[[0.04375,51.502867],[0.043167,51.503169]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005102649513",
+      "lineString": "[[0.04098,51.504568],[0.040859,51.504571]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030149670",
+      "lineString": "[[0.042271,51.503819],[0.041805,51.504299]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005102649509",
+      "lineString": "[[0.041622,51.50456],[0.04123,51.50456]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320394609",
+      "lineString": "[[0.045307,51.502323],[0.045077,51.502384]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320384486",
+      "lineString": "[[0.045759,51.502202],[0.045307,51.502323]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005100735880",
+      "lineString": "[[0.040859,51.504571],[0.040146,51.504587]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320388702",
+      "lineString": "[[0.044846,51.502445],[0.044242,51.502659]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005102649512",
+      "lineString": "[[0.04098,51.504568],[0.04123,51.50456]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000031042847",
+      "lineString": "[[0.041805,51.504299],[0.041707,51.504459]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320388700",
+      "lineString": "[[0.044242,51.502659],[0.04375,51.502867]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   },
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "MILL ROAD (E16)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005320441214",
+      "lineString": "[[0.027815,51.502207],[0.02784,51.50256]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030244157",
+      "lineString": "[[0.027907,51.503488],[0.027946,51.504036]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030149462",
+      "lineString": "[[0.02784,51.50256],[0.027907,51.503488]]",
+      "sourceSystemId": 236071,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-236533",
+  "url": "/Road/All/Disruption/TIMS-236533",
+  "point": "[0.009004,51.568407]",
+  "severity": "Minimal",
+  "ordinal": 51,
+  "category": "Collisions",
+  "subCategory": "Vehicle collision",
+  "comments": "Church Lane (All approaches) at the junction of Kirkdale Road - The road is blocked is blocked due to a collison. ",
+  "currentUpdate": "Use an alternative route. There are no reported delays on diversion. ",
+  "currentUpdateDateTime": "2026-10-17T19:16:43Z",
+  "corridorIds": [],
+  "startDateTime": "2026-10-17T12:21:19Z",
+  "endDateTime": "2026-10-17T23:59:59Z",
+  "lastModifiedTime": "2026-10-17T19:17:18Z",
+  "levelOfInterest": "Medium",
+  "location": "CHURCH LANE (E11 ) (Waltham Forest)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    0.009004,
+    51.568407
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "CHURCH LANE (E11)",
+    "closure": "Closed",
+    "directions": "All directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005300872284",
+      "lineString": "[[0.010304,51.568359],[0.010763,51.568329]]",
+      "sourceSystemId": 236533,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030256248",
+      "lineString": "[[0.009004,51.568407],[0.010304,51.568359]]",
+      "sourceSystemId": 236533,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005308743771",
+      "lineString": "[[0.010763,51.568329],[0.010903,51.56832]]",
+      "sourceSystemId": 236533,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-236470",
+  "url": "/Road/All/Disruption/TIMS-236470",
+  "point": "[-0.236032,51.645721]",
+  "severity": "Minimal",
+  "ordinal": 57,
+  "category": "Surface damage",
+  "subCategory": "Collapsed manhole",
+  "comments": "[A411] Barnet Road (Both directions) at the junction of Glebe Lane - The road is closed due to ongoing water works by Thames Water.",
+  "currentUpdate": "Use an alternative route. There are no reported delays on diversion. ",
+  "currentUpdateDateTime": "2026-10-17T19:22:35Z",
+  "corridorIds": [],
+  "startDateTime": "2026-10-16T07:25:25Z",
+  "endDateTime": "2026-10-16T23:59:59Z",
+  "lastModifiedTime": "2026-10-17T19:23:49Z",
+  "levelOfInterest": "Medium",
+  "location": "[A411] BARNET ROAD (EN5 ) (Barnet)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.236032,
+    51.645721
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A411] BARNET ROAD (EN5)",
+    "closure": "Closed",
+    "directions": "Both directions",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030413421",
+      "lineString": "[[-0.231674,51.647718],[-0.231939,51.647596]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005302525449",
+      "lineString": "[[-0.232191,51.647472],[-0.232395,51.647352]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005252986832",
+      "lineString": "[[-0.236634,51.645427],[-0.237296,51.645175]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005302525438",
+      "lineString": "[[-0.2332,51.646816],[-0.234433,51.646255]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005302525446",
+      "lineString": "[[-0.232395,51.647352],[-0.2332,51.646816]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030333645",
+      "lineString": "[[-0.235755,51.645729],[-0.236634,51.645427]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030141459",
+      "lineString": "[[-0.234433,51.646255],[-0.235755,51.645729]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005302525444",
+      "lineString": "[[-0.231939,51.647596],[-0.232191,51.647472]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030141460",
+      "lineString": "[[-0.237296,51.645175],[-0.238873,51.644328]]",
+      "sourceSystemId": 236470,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-233025",
+  "url": "/Road/All/Disruption/TIMS-233025",
+  "point": "[-0.013941,51.456742]",
+  "severity": "No impact",
+  "ordinal": 71,
+  "category": "Works",
+  "subCategory": "TfL works",
+  "comments": "[A21] Lewisham High Street (Southbound) between [B236] Ladywell Road and Longbridge Way - There are lane restrictions in place from 1st October 2026  to 27th October 2026 between Longbridge Way and Ladywell Road to facilitate junction improvements.",
+  "currentUpdate": "Delays are possible.",
+  "currentUpdateDateTime": "2026-10-17T19:07:10Z",
+  "corridorIds": [
+   "a21"
+  ],
+  "startDateTime": "2026-10-05T07:00:00Z",
+  "endDateTime": "2026-10-27T17:00:00Z",
+  "lastModifiedTime": "2026-10-17T19:07:20Z",
+  "levelOfInterest": "Low",
+  "location": "[A21] LEWISHAM HIGH STREET (SE13 ) (Lewisham)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.013941,
+    51.456742
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-235277",
+  "url": "/Road/All/Disruption/TIMS-235277",
+  "point": "[-0.104202,51.513375]",
+  "severity": "No impact",
+  "ordinal": 84,
+  "category": "Asset issues",
+  "subCategory": "Asset maintenance",
+  "comments": "[A201] New Bridge Street (Both directions) at the junction of Bridewell Place - Temporary traffic signals in operation to facilitate maintenance works.",
+  "currentUpdate": "There are no reported delays.",
+  "currentUpdateDateTime": "2026-10-17T19:07:06Z",
+  "corridorIds": [
+   "farringdon cross route"
+  ],
+  "startDateTime": "2026-10-17T08:00:00Z",
+  "endDateTime": "2026-10-18T15:00:00Z",
+  "lastModifiedTime": "2026-10-17T19:07:06Z",
+  "levelOfInterest": "Low",
+  "location": "[A201] NEW BRIDGE STREET (EC4A ,EC4M ,EC4V ,EC4Y ) (City of London)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.104202,
+    51.513375
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-230106",
+  "url": "/Road/All/Disruption/TIMS-230106",
+  "point": "[-0.222262,51.515444]",
+  "severity": "Moderate",
+  "ordinal": 15,
+  "category": "Works",
+  "subCategory": "TfL works",
+  "comments": "[A40] Westway (Eastbound) between Westway Roundabout and Marylebone Flyover - From Friday 16 October to 05:00 Monday 19 October A40 Westway will be closed continuously eastbound between Westway Roundabout and Marylebone flyover to facilitate works.",
+  "currentUpdate": "Use an alternative route. Traffic is slow moving on  diversion route. Expect delays. ",
+  "currentUpdateDateTime": "2026-10-17T19:15:40Z",
+  "corridorIds": [
+   "a40"
+  ],
+  "startDateTime": "2026-10-16T21:00:00Z",
+  "endDateTime": "2026-10-19T20:59:00Z",
+  "lastModifiedTime": "2026-10-17T19:16:04Z",
+  "levelOfInterest": "Medium",
+  "location": "[A40] WESTWAY (W10 ,W12 ) (Hammersmith & Fulham,Kensington & Chelsea)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.222262,
+    51.515444
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "streets": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.Street, Tfl.Api.Presentation.Entities",
+    "name": "[A40] WESTWAY (W10 ,W11 ,W12 ,W2 ,W9)",
+    "closure": "Closed",
+    "directions": "Eastbound",
+    "segments": [
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030096388",
+      "lineString": "[[-0.210291,51.517787],[-0.207271,51.518721]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030217234",
+      "lineString": "[[-0.180969,51.520079],[-0.180178,51.520136]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309545474",
+      "lineString": "[[-0.184817,51.519579],[-0.184704,51.519583]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030872320",
+      "lineString": "[[-0.184704,51.519583],[-0.184583,51.519587]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030217235",
+      "lineString": "[[-0.179318,51.520143],[-0.178416,51.520129]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030135407",
+      "lineString": "[[-0.219931,51.515623],[-0.217532,51.515793]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030324024",
+      "lineString": "[[-0.217532,51.515793],[-0.216792,51.515917]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030217239",
+      "lineString": "[[-0.178416,51.520129],[-0.177569,51.520107]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030096422",
+      "lineString": "[[-0.17624,51.520083],[-0.172749,51.520023]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030096381",
+      "lineString": "[[-0.216792,51.515917],[-0.213875,51.516808]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030135649",
+      "lineString": "[[-0.188741,51.519642],[-0.184939,51.519574]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000031114646",
+      "lineString": "[[-0.184939,51.519574],[-0.184817,51.519579]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030872324",
+      "lineString": "[[-0.184583,51.519587],[-0.182967,51.519789]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309545839",
+      "lineString": "[[-0.177569,51.520107],[-0.17624,51.520083]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030135399",
+      "lineString": "[[-0.221651,51.515496],[-0.219931,51.515623]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309545956",
+      "lineString": "[[-0.202669,51.521408],[-0.201173,51.521667]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030096409",
+      "lineString": "[[-0.182583,51.519849],[-0.180969,51.520079]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005311234161",
+      "lineString": "[[-0.180178,51.520136],[-0.179762,51.520148]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005311234013",
+      "lineString": "[[-0.179712,51.520149],[-0.179318,51.520143]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030216600",
+      "lineString": "[[-0.22246,51.515445],[-0.221651,51.515496]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030135410",
+      "lineString": "[[-0.213875,51.516808],[-0.210291,51.517787]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005309545328",
+      "lineString": "[[-0.204089,51.520894],[-0.202669,51.521408]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030076267",
+      "lineString": "[[-0.201173,51.521667],[-0.193715,51.520203]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030324735",
+      "lineString": "[[-0.189965,51.51967],[-0.189519,51.519654]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030096397",
+      "lineString": "[[-0.207271,51.518721],[-0.204089,51.520894]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005311234347",
+      "lineString": "[[-0.193715,51.520203],[-0.189965,51.51967]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030324733",
+      "lineString": "[[-0.189519,51.519654],[-0.188741,51.519642]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "4000000030872333",
+      "lineString": "[[-0.182967,51.519789],[-0.182583,51.519849]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     },
+     {
+      "$type": "Tfl.Api.Presentation.Entities.StreetSegment, Tfl.Api.Presentation.Entities",
+      "toid": "5000005311234193",
+      "lineString": "[[-0.179762,51.520148],[-0.179712,51.520149]]",
+      "sourceSystemId": 230106,
+      "sourceSystemKey": "TIMS"
+     }
+    ]
+   }
+  ],
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": [
+   {
+    "$type": "Tfl.Api.Presentation.Entities.RoadDisruptionSchedule, Tfl.Api.Presentation.Entities",
+    "startTime": "2026-10-16T21:00:00Z",
+    "endTime": "2026-10-19T20:59:00Z"
+   }
+  ]
+ },
+ {
+  "$type": "Tfl.Api.Presentation.Entities.RoadDisruption, Tfl.Api.Presentation.Entities",
+  "id": "TIMS-235602",
+  "url": "/Road/All/Disruption/TIMS-235602",
+  "point": "[-0.218543,51.576563]",
+  "severity": "Moderate",
+  "ordinal": 8,
+  "category": "Works",
+  "subCategory": "TfL works",
+  "comments": "A41 Brent Cross flyover renewals - [A406] North Circular Road (Westbound) at the junction of [A41] Hendon Way - From 05:00 on Thursday 01 October until 05:00 on Friday 13 November, lane one is closed on the westbound A406 North Circular Road from Golders Green Road. In addition, lane one (of three) is closed in both directions on A41 Hendon Way until Saturday 21 November. From Tuesday 13 October until Friday 16 October between 22:00 and 05:00 each night A406 North Circular Road is closed in both directions at Brent Cross Interchange. From 07:00 on Thursday 29 October until 18:00 Friday 30 November, a contraflow on A41 Hendon Way will be in place. ",
+  "currentUpdate": "Traffic is flowing well. ",
+  "currentUpdateDateTime": "2026-10-17T17:57:49Z",
+  "corridorIds": [
+   "a406"
+  ],
+  "startDateTime": "2026-10-01T04:00:00Z",
+  "endDateTime": "2026-11-20T18:00:00Z",
+  "lastModifiedTime": "2026-10-17T17:57:49Z",
+  "levelOfInterest": "High",
+  "location": "[A406] NORTH CIRCULAR ROAD (NW10 ,NW2 ,NW4 ) (Barnet)",
+  "geography": {
+   "type": "Point",
+   "coordinates": [
+    -0.218543,
+    51.576563
+   ],
+   "crs": {
+    "type": "name",
+    "properties": {
+     "name": "EPSG:4326"
+    }
+   }
+  },
+  "isProvisional": false,
+  "hasClosures": false,
+  "roadDisruptionLines": [],
+  "roadDisruptionImpactAreas": [],
+  "recurringSchedules": []
+ }
+]

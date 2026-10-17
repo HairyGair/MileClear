@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:georss="http://www.georss.org/georss" version="2.0" xml:base="https://traffic.wales/rss">
+    <channel>
+        <atom:link href="https://traffic.wales/feeds/roadworks/rss.xml" rel="self" type="application/rss+xml"/>
+        <title>Traffic Wales RSS for Roadworks</title>
+        <link>https://traffic.wales/feeds/roadworks/rss.xml</link>
+        <description/>
+        <language>en</language>
+        
+        <item>
+  <title>A470 : Both directions : Pont y Bat to Llyswen : Road closed : Resurfacing work : 19/10/26-27/10/26 1900-0700 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595139</link>
+  <description>Description: A470 : Both directions : Pont y Bat to Llyswen : Road closed : Resurfacing work : 19/10/26-27/10/26 1900-0700 : Diversions in place :, Start time: 19/10/2026 19:00 , End Date:  27/10/2026 7:00, Severity: Road closure, Source: Welsh Government,  Last updated: 17/10/2026 9:47</description>
+  <pubDate>Sat, 17 Oct 2026 09:47:07 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132694</guid>
+    <georss:point>52.002762 -3.28621</georss:point>
+    </item>
+<item>
+  <title>A55 : Eastbound : J26 St Asaph Business Park : Onslip closed : Offslip closed : Cyclic maintenance : 22/10/26-23/10/26 2000-0700 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595138</link>
+  <description>Description: A55 : Eastbound : J26 St Asaph Business Park : Onslip closed : Offslip closed : Cyclic maintenance : 22/10/26-23/10/26 2000-0700 : Diversions in place :, Start time: 22/10/2026 20:00 , End Date:  23/10/2026 7:00, Severity: Road closure, Source: Welsh Government,  Last updated: 17/10/2026 9:39</description>
+  <pubDate>Sat, 17 Oct 2026 09:39:52 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132692</guid>
+    <georss:point>53.262344 -3.477441</georss:point>
+    </item>
+<item>
+  <title>A465 : Eastbound : Hirwaun : Offslip closed : adverse weather conditions 23/10/26-24/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595137</link>
+  <description>Description: A465 : Eastbound : Hirwaun : Offslip closed : adverse weather conditions 23/10/26-24/10/26 2000-0600 : Diversions in place :, Start time: 23/10/2026 20:00 , End Date:  24/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:46</description>
+  <pubDate>Fri, 16 Oct 2026 17:46:18 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132687</guid>
+    <georss:point>51.735126 -3.504606</georss:point>
+    </item>
+<item>
+  <title>A40 : Southbound : Raglan Interchange : Offslip closed : 23/10/26-24/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595136</link>
+  <description>Description: A40 : Southbound : Raglan Interchange : Offslip closed : 23/10/26-24/10/26 2000-0600 : Diversions in place :, Start time: 23/10/2026 20:00 , End Date:  24/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:35</description>
+  <pubDate>Fri, 16 Oct 2026 17:35:12 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132681</guid>
+    <georss:point>51.765869 -2.856199</georss:point>
+    </item>
+<item>
+  <title>A465 : Eastbound : Baverstocks : Offslip closed : Onslip closed : 19/10/26-20/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595129</link>
+  <description>Description: A465 : Eastbound : Baverstocks : Offslip closed : Onslip closed : 19/10/26-20/10/26 2000-0600 : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  20/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:48</description>
+  <pubDate>Fri, 16 Oct 2026 17:48:09 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132688</guid>
+    <georss:point>51.755291 -3.442522</georss:point>
+    </item>
+<item>
+  <title>A465 : Westbound : Hirwaun : Offslip closed : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595128</link>
+  <description>Description: A465 : Westbound : Hirwaun : Offslip closed : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :, Start time: 22/10/2026 20:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:45</description>
+  <pubDate>Fri, 16 Oct 2026 17:45:25 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132686</guid>
+    <georss:point>51.735126 -3.504606</georss:point>
+    </item>
+<item>
+  <title>A465 : Westbound : Tredegar : Onslip closed : 21/10/26-22/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595127</link>
+  <description>Description: A465 : Westbound : Tredegar : Onslip closed : 21/10/26-22/10/26 2000-0600 : Diversions in place :, Start time: 21/10/2026 20:00 , End Date:  22/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:43</description>
+  <pubDate>Fri, 16 Oct 2026 17:43:36 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132684</guid>
+    <georss:point>51.788208 -3.261061</georss:point>
+    </item>
+<item>
+  <title>A470 : Northbound : Bridge Street Interchange : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595124</link>
+  <description>Description: A470 : Northbound : Bridge Street Interchange : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :, Start time: 22/10/2026 20:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:32</description>
+  <pubDate>Fri, 16 Oct 2026 17:32:44 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132679</guid>
+    <georss:point>51.575249 -3.28792</georss:point>
+    </item>
+<item>
+  <title>A470 : Southbound : Taff's Well : Onslip closed : Diversions in place : 19/10/26-20/10/26 2000-0600 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595123</link>
+  <description>Description: A470 : Southbound : Taff's Well : Onslip closed : Diversions in place : 19/10/26-20/10/26 2000-0600 :, Start time: 19/10/2026 20:00 , End Date:  20/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:30</description>
+  <pubDate>Fri, 16 Oct 2026 17:30:19 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132678</guid>
+    <georss:point>51.536919 -3.259581</georss:point>
+    </item>
+<item>
+  <title>A40 : Eastbound : Raglan Interchange : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595125</link>
+  <description>Description: A40 : Eastbound : Raglan Interchange : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :, Start time: 22/10/2026 20:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 17:35</description>
+  <pubDate>Fri, 16 Oct 2026 17:35:37 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132680</guid>
+    <georss:point>51.765869 -2.856199</georss:point>
+    </item>
+<item>
+  <title>A55 : Eastbound : J33 Northop (Flint/Mold) to J33B Ewloe (A494) : Road closed : Diversions in place : 19/10/26 2100-0000 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595119</link>
+  <description>Description: A55 : Eastbound : J33 Northop (Flint/Mold) to J33B Ewloe (A494) : Road closed : Diversions in place : 19/10/26 2100-0000 :, Start time: 19/10/2026 21:00 , End Date:  19/10/2026 0:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 16:14</description>
+  <pubDate>Fri, 16 Oct 2026 16:14:01 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132672</guid>
+    <georss:point>53.200306 -3.103938</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J48 Hendy : Offslip closed : Onslip closed : 18/10/26-20/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595114</link>
+  <description>Description: M4 : Westbound : J48 Hendy : Offslip closed : Onslip closed : 18/10/26-20/10/26 2000-0600 : Diversions in place :, Start time: 18/10/2026 20:00 , End Date:  20/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 11:51</description>
+  <pubDate>Fri, 16 Oct 2026 11:51:06 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132667</guid>
+    <georss:point>51.710152 -4.061417</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J45 Ynysforgan : Offslip closed : Onslip closed : 19/10/26-22/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595113</link>
+  <description>Description: M4 : Westbound : J45 Ynysforgan : Offslip closed : Onslip closed : 19/10/26-22/10/26 2000-0600 : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  22/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 11:50</description>
+  <pubDate>Fri, 16 Oct 2026 11:50:12 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132666</guid>
+    <georss:point>51.678543 -3.916326</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J43 Llandarcy : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595112</link>
+  <description>Description: M4 : Westbound : J43 Llandarcy : Onslip closed : 22/10/26-23/10/26 2000-0600 : Diversions in place :, Start time: 22/10/2026 20:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 11:49</description>
+  <pubDate>Fri, 16 Oct 2026 11:49:14 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132665</guid>
+    <georss:point>51.65012 -3.850467</georss:point>
+    </item>
+<item>
+  <title>M4 : Eastbound : J43 Llandarcy : Onslip closed : 18/10/26-20/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595111</link>
+  <description>Description: M4 : Eastbound : J43 Llandarcy : Onslip closed : 18/10/26-20/10/26 2000-0600 : Diversions in place :, Start time: 18/10/2026 20:00 , End Date:  20/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 11:28</description>
+  <pubDate>Fri, 16 Oct 2026 11:28:54 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132664</guid>
+    <georss:point>51.65012 -3.850467</georss:point>
+    </item>
+<item>
+  <title>M4 : Eastbound : J42 Earlswood : Offslip closed : 18/10/26-20/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595110</link>
+  <description>Description: M4 : Eastbound : J42 Earlswood : Offslip closed : 18/10/26-20/10/26 2000-0600 : Diversions in place :, Start time: 18/10/2026 20:00 , End Date:  20/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 11:27</description>
+  <pubDate>Fri, 16 Oct 2026 11:27:31 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132663</guid>
+    <georss:point>51.633686 -3.839985</georss:point>
+    </item>
+<item>
+  <title>M4 : Eastbound : J41 Pentyla/Baglan : Offslip closed : 19/10/26-24/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595109</link>
+  <description>Description: M4 : Eastbound : J41 Pentyla/Baglan : Offslip closed : 19/10/26-24/10/26 2000-0600 : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  24/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 11:04</description>
+  <pubDate>Fri, 16 Oct 2026 11:04:29 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132662</guid>
+    <georss:point>51.60133 -3.794489</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J39 Groes : Onslip closed : 19/10/26-24/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595108</link>
+  <description>Description: M4 : Westbound : J39 Groes : Onslip closed : 19/10/26-24/10/26 2000-0600 : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  24/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 10:58</description>
+  <pubDate>Fri, 16 Oct 2026 10:58:27 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132661</guid>
+    <georss:point>51.570225 -3.747518</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J38 Margam : Offslip closed : 19/10/26-24/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595107</link>
+  <description>Description: M4 : Westbound : J38 Margam : Offslip closed : 19/10/26-24/10/26 2000-0600 : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  24/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 10:56</description>
+  <pubDate>Fri, 16 Oct 2026 10:56:46 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132660</guid>
+    <georss:point>51.562492 -3.740239</georss:point>
+    </item>
+<item>
+  <title>M4 : Eastbound : J25A Grove Park : Onslip closed : 18/10/26 0600-1130 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595106</link>
+  <description>Description: M4 : Eastbound : J25A Grove Park : Onslip closed : 18/10/26 0600-1130 : Diversions in place :, Start time: 18/10/2026 6:00 , End Date:  18/10/2026 11:30, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 10:55</description>
+  <pubDate>Fri, 16 Oct 2026 10:55:46 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132659</guid>
+    <georss:point>51.604462 -2.983775</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J24 Coldra to J28 Tredegar Park : Road closed : 19/10/26-23/10/26 2000-0600 : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595105</link>
+  <description>Description: M4 : Westbound : J24 Coldra to J28 Tredegar Park : Road closed : 19/10/26-23/10/26 2000-0600 : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 10:54</description>
+  <pubDate>Fri, 16 Oct 2026 10:54:03 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132658</guid>
+    <georss:point>51.603439 -2.99628</georss:point>
+    </item>
+<item>
+  <title>M4 : Westbound : J24 Coldra : Offslip closed : 18/10/26-19/10/26 2000-0600 : Road closed : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595104</link>
+  <description>Description: M4 : Westbound : J24 Coldra : Offslip closed : 18/10/26-19/10/26 2000-0600 : Road closed : Diversions in place :, Start time: 18/10/2026 20:00 , End Date:  19/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 16/10/2026 10:53</description>
+  <pubDate>Fri, 16 Oct 2026 10:53:09 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132657</guid>
+    <georss:point>51.601486 -2.920105</georss:point>
+    </item>
+<item>
+  <title>A5 : Both directions : Llangollen : Carriageway maintenance : Speed restrictions Temporary traffic lights : 22/10/26-01/11/26 1800-0600 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595101</link>
+  <description>Description: A5 : Both directions : Llangollen : Carriageway maintenance : Speed restrictions Temporary traffic lights : 22/10/26-01/11/26 1800-0600 :, Start time: 22/10/2026 18:00 , End Date:  01/11/2026 6:00, Severity: Moderate, Source: Welsh Government,  Last updated: 16/10/2026 9:24</description>
+  <pubDate>Fri, 16 Oct 2026 09:24:26 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132653</guid>
+    <georss:point>52.968803 -3.169363</georss:point>
+    </item>
+<item>
+  <title>M48 : Both directions : Dewstoe overbridge to Crick overbridge : 20/10/26-31/03/27 2000-0600 : Improvement work : Lane closed :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595059</link>
+  <description>Description: M48 : Both directions : Dewstoe overbridge to Crick overbridge : 20/10/26-31/03/27 2000-0600 : Improvement work : Lane closed :, Start time: 20/10/2026 20:00 , End Date:  31/03/2027 6:00, Severity: Moderate, Source: Welsh Government,  Last updated: 14/10/2026 13:02</description>
+  <pubDate>Wed, 14 Oct 2026 13:02:26 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132608</guid>
+    <georss:point>51.610458 -2.64214</georss:point>
+    </item>
+<item>
+  <title>A483 : Both directions : Newtown to Welshpool : 19/10/26-18/11/26 2000-0600 : Improvement work : Closed : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595030</link>
+  <description>Description: A483 : Both directions : Newtown to Welshpool : 19/10/26-18/11/26 2000-0600 : Improvement work : Closed : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  18/11/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 13/10/2026 17:58</description>
+  <pubDate>Tue, 13 Oct 2026 17:58:54 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132581</guid>
+    <georss:point>52.572842 -3.207707</georss:point>
+    </item>
+<item>
+  <title>A494 : Both directions : Mold Bypass : 19/10/26-22/10/26 1900-0600 : Cyclic maintenance : Closed : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/595026</link>
+  <description>Description: A494 : Both directions : Mold Bypass : 19/10/26-22/10/26 1900-0600 : Cyclic maintenance : Closed : Diversions in place :, Start time: 19/10/2026 19:00 , End Date:  22/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 13/10/2026 17:29</description>
+  <pubDate>Tue, 13 Oct 2026 17:29:54 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132577</guid>
+    <georss:point>53.157631 -3.159535</georss:point>
+    </item>
+<item>
+  <title>A483 : Both directions : Abermule : 19/10/26-18/11/26 2000-0600 : Carriageway maintenance : Closed : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594998</link>
+  <description>Description: A483 : Both directions : Abermule : 19/10/26-18/11/26 2000-0600 : Carriageway maintenance : Closed : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  18/11/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 12/10/2026 18:25</description>
+  <pubDate>Mon, 12 Oct 2026 18:25:37 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132545</guid>
+    <georss:point>52.546173 -3.240473</georss:point>
+    </item>
+<item>
+  <title>M4 : Eastbound : J35 Pencoed to J34 Miskin : 19/10/26-05/11/26 2000-0600 : Structural inspections : Closed : Diversions in place :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594997</link>
+  <description>Description: M4 : Eastbound : J35 Pencoed to J34 Miskin : 19/10/26-05/11/26 2000-0600 : Structural inspections : Closed : Diversions in place :, Start time: 19/10/2026 20:00 , End Date:  05/11/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 12/10/2026 17:16</description>
+  <pubDate>Mon, 12 Oct 2026 17:16:23 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132541</guid>
+    <georss:point>51.510063 -3.434376</georss:point>
+    </item>
+<item>
+  <title>A494 : Eastbound : A55 J33B Ewloe to Ewloe : Roadworks : Road closed : Diversions in place : 11/10/26-23/10/26 1900-0600 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594947</link>
+  <description>Description: A494 : Eastbound : A55 J33B Ewloe to Ewloe : Roadworks : Road closed : Diversions in place : 11/10/26-23/10/26 1900-0600 :, Start time: 11/10/2026 19:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 11/10/2026 19:00</description>
+  <pubDate>Sun, 11 Oct 2026 19:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132496</guid>
+    <georss:point>53.187664 -3.063533</georss:point>
+    </item>
+<item>
+  <title>A465 : Both directions : Glynneath : Roadworks : Entry slip road closed : and Exit slip road closed : Diversions in place : 15/10/26-22/10/26 2000-0600 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594941</link>
+  <description>Description: A465 : Both directions : Glynneath : Roadworks : Entry slip road closed : and Exit slip road closed : Diversions in place : 15/10/26-22/10/26 2000-0600 :, Start time: 15/10/2026 20:00 , End Date:  22/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 15/10/2026 20:00</description>
+  <pubDate>Thu, 15 Oct 2026 20:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132492</guid>
+    <georss:point>51.745487 -3.61727</georss:point>
+    </item>
+<item>
+  <title>A4076 : Both directions : Steynton to A477 Interchange : Maintenance work : Road closed : 29/09/26-14/11/26 2000-0500 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594543</link>
+  <description>Description: A4076 : Both directions : Steynton to A477 Interchange : Maintenance work : Road closed : 29/09/26-14/11/26 2000-0500 :, Start time: 29/09/2026 20:00 , End Date:  14/11/2026 5:00, Severity: Road closure, Source: Welsh Government,  Last updated: 29/09/2026 20:00</description>
+  <pubDate>Tue, 29 Sep 2026 20:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026132058</guid>
+    <georss:point>51.740864 -5.012877</georss:point>
+    </item>
+<item>
+  <title>A494 : Both directions : Ruthin : Improvement work : STOP/GO in use : Delays possible : 28/09/26-23/10/26 0900-1200 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594479</link>
+  <description>Description: A494 : Both directions : Ruthin : Improvement work : STOP/GO in use : Delays possible : 28/09/26-23/10/26 0900-1200 :, Start time: 28/09/2026 9:00 , End Date:  23/10/2026 12:00, Severity: Moderate, Source: Welsh Government,  Last updated: 28/09/2026 9:00</description>
+  <pubDate>Mon, 28 Sep 2026 09:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026131995</guid>
+    <georss:point>53.116619 -3.307636</georss:point>
+    </item>
+<item>
+  <title>A40 : Both directions : Tarell Roundabout : 27/09/26-23/10/26 1900-0600 : A470 Resurfacing work : 1 lane closed :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594432</link>
+  <description>Description: A40 : Both directions : Tarell Roundabout : 27/09/26-23/10/26 1900-0600 : A470 Resurfacing work : 1 lane closed :, Start time: 27/09/2026 19:00 , End Date:  23/10/2026 6:00, Severity: Road closure, Source: Welsh Government,  Last updated: 27/09/2026 19:00</description>
+  <pubDate>Sun, 27 Sep 2026 19:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026131892</guid>
+    <georss:point>51.7896 -2.748578</georss:point>
+    </item>
+<item>
+  <title>A470 : Both directions : Llanrwst : Resurfacing work : 10mph convoy : Temporary traffic lights : Width limit 3.25m : 07/09/26-24/10/26 0700-0200 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594031</link>
+  <description>Description: A470 : Both directions : Llanrwst : Resurfacing work : 10mph convoy : Temporary traffic lights : Width limit 3.25m : 07/09/26-24/10/26 0700-0200 :, Start time: 07/09/2026 7:00 , End Date:  24/10/2026 2:00, Severity: Road closure, Source: Welsh Government,  Last updated: 07/09/2026 7:00</description>
+  <pubDate>Mon, 07 Sep 2026 07:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026131169</guid>
+    <georss:point>53.106476 -3.785294</georss:point>
+    </item>
+<item>
+  <title>A470 : Both directions : Llanrwst to A55 J19 Glan Conwy : Maenan : Resurfacing work : STOP/GO in use : Width limit 3.25m : 07/09/26-24/10/26 0700-0200 :</title>
+  <link>https://traffic.wales/road-traffic-alerts/594034</link>
+  <description>Description: A470 : Both directions : Llanrwst to A55 J19 Glan Conwy : Maenan : Resurfacing work : STOP/GO in use : Width limit 3.25m : 07/09/26-24/10/26 0700-0200 :, Start time: 07/09/2026 7:00 , End Date:  24/10/2026 2:00, Severity: Moderate, Source: Welsh Government,  Last updated: 07/09/2026 7:00</description>
+  <pubDate>Mon, 07 Sep 2026 07:00:00 +0000</pubDate>
+    <guid isPermaLink="false">RNMDA_2026131462</guid>
+    <georss:point>53.195763 -3.825763</georss:point>
+    </item>
+
+    </channel>
+</rss>

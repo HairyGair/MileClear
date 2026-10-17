@@ -21,7 +21,13 @@
 import type { DirectionMode, LatLng } from "./roadCorridor.js";
 import { bearingDeg, haversineMetres } from "./roadCorridor.js";
 
-export type RoadEventSource = "tomtom" | "street_manager";
+export type RoadEventSource =
+  | "tomtom"
+  | "street_manager"
+  // services/roadSources.ts (17 Oct 2026), each behind its own env flag
+  | "tfl"
+  | "traffic_wales"
+  | "national_highways";
 export type RoadEventSeverity = "closure" | "major" | "minor";
 export type RoadEventCategory =
   | "road_closed"
