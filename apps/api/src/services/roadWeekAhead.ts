@@ -23,6 +23,64 @@ const MAX_ROWS = 3000;
 
 type Bbox = { minLat: number; maxLat: number; minLng: number; maxLng: number };
 
+/** The street_works_events columns the week-ahead and briefing rules need. */
+export const WORKS_SELECT = {
+  reference: true,
+  trafficManagement: true,
+  isTrafficSensitive: true,
+  workStatus: true,
+  workCategory: true,
+  streetName: true,
+  town: true,
+  promoter: true,
+  startAt: true,
+  endAt: true,
+  geometry: true,
+} as const;
+
+export interface WorksRow {
+  reference: string;
+  trafficManagement: string;
+  isTrafficSensitive: boolean;
+  workStatus: string | null;
+  workCategory: string | null;
+  streetName: string | null;
+  town: string | null;
+  promoter: string | null;
+  startAt: Date | null;
+  endAt: Date | null;
+  geometry: unknown;
+}
+
+/** A stored works row -> a RoadEvent plus what Street Manager says about it. */
+export function worksRowToCandidate(r: WorksRow, now: Date): Omit<WeekAheadCandidate, "days"> {
+  const g = (r.geometry ?? {}) as { lines?: LatLng[][]; points?: LatLng[] };
+  return {
+    event: streetWorksToRoadEvent(
+      {
+        reference: r.reference,
+        trafficManagement: r.trafficManagement,
+        isTrafficSensitive: r.isTrafficSensitive,
+        streetName: r.streetName,
+        town: r.town,
+        promoter: r.promoter,
+        startAt: r.startAt,
+        endAt: r.endAt,
+        workCategory: r.workCategory,
+        lines: Array.isArray(g.lines) ? g.lines : [],
+        points: Array.isArray(g.points) ? g.points : [],
+      },
+      now
+    ),
+    works: {
+      trafficManagement: r.trafficManagement,
+      isTrafficSensitive: r.isTrafficSensitive,
+      workStatus: r.workStatus,
+      promoter: r.promoter,
+    },
+  };
+}
+
 /** Stored works in the box that start inside [start, end), with the fields
  *  the week-ahead ranking needs. Empty when Street Manager is off or the
  *  table is missing. */
@@ -41,46 +99,10 @@ export async function loadWeekAheadWorks(
         maxLng: { gte: bbox.minLng },
         startAt: { gte: window.start, lt: window.end },
       },
-      select: {
-        reference: true,
-        trafficManagement: true,
-        isTrafficSensitive: true,
-        workStatus: true,
-        streetName: true,
-        town: true,
-        promoter: true,
-        startAt: true,
-        endAt: true,
-        geometry: true,
-      },
+      select: WORKS_SELECT,
       take: MAX_ROWS,
     });
-    return rows.map((r) => {
-      const g = (r.geometry ?? {}) as { lines?: LatLng[][]; points?: LatLng[] };
-      return {
-        event: streetWorksToRoadEvent(
-          {
-            reference: r.reference,
-            trafficManagement: r.trafficManagement,
-            isTrafficSensitive: r.isTrafficSensitive,
-            streetName: r.streetName,
-            town: r.town,
-            promoter: r.promoter,
-            startAt: r.startAt,
-            endAt: r.endAt,
-            lines: Array.isArray(g.lines) ? g.lines : [],
-            points: Array.isArray(g.points) ? g.points : [],
-          },
-          now
-        ),
-        works: {
-          trafficManagement: r.trafficManagement,
-          isTrafficSensitive: r.isTrafficSensitive,
-          workStatus: r.workStatus,
-          promoter: r.promoter,
-        },
-      };
-    });
+    return rows.map((r) => worksRowToCandidate(r, now));
   } catch (err) {
     console.error("[roadWeekAhead] load failed:", (err as Error).message);
     return [];

@@ -32,6 +32,15 @@ import {
   type StreetWorksRecord,
 } from "./roadEvents.js";
 import type { LatLng } from "./roadCorridor.js";
+import {
+  ROAD_REOPENED_PENDING_EVENT,
+  detectReopened,
+  findingToMetadata,
+  mightReopen,
+  type AppliedChange,
+  type ReopenedFinding,
+  type StoredWorks,
+} from "./roadReopenedRule.js";
 
 /** From the Street Manager open data docs. */
 export const STREET_MANAGER_TOPIC_ARNS = [
@@ -191,18 +200,82 @@ export async function handleSnsBody(raw: string): Promise<SnsResult> {
   const change = parseStreetManagerMessage(m.Message);
   try {
     if (change.kind === "ignore") return { status: 200, outcome: `ignored_${change.reason}` };
-    if (change.kind === "delete") {
-      await prisma.streetWorksEvent.deleteMany({
-        where: { reference: change.reference, lastEventAt: { lte: change.eventAt } },
-      });
-      return { status: 200, outcome: "deleted" };
-    }
-    await upsertWorks(change.record);
-    return { status: 200, outcome: "stored" };
+    return { status: 200, outcome: await applyStreetWorksChange(change) };
   } catch (err) {
     console.error("[streetManager] store failed:", (err as Error).message);
     return { status: 500, outcome: "store_failed" }; // SNS retries
   }
+}
+
+/** Apply one parsed upsert or delete to the store. Throws on a database
+ *  error (the caller answers 500 so SNS retries). */
+export async function applyStreetWorksChange(change: AppliedChange): Promise<"deleted" | "stored"> {
+  // A message that could finish a closure: read the row as it was first,
+  // so "Road reopened" can tell an early finish (services/roadReopenedRule.ts).
+  const before = mightReopen(change) ? await readBefore(change.kind === "delete" ? change.reference : change.record.reference) : null;
+  if (change.kind === "delete") {
+    const res = await prisma.streetWorksEvent.deleteMany({
+      where: { reference: change.reference, lastEventAt: { lte: change.eventAt } },
+    });
+    if (res.count > 0) noteReopened(before, change);
+    return "deleted";
+  }
+  const outcome = await upsertWorks(change.record);
+  if (outcome !== "older") noteReopened(before, change);
+  return "stored";
+}
+
+/** The stored row before a message is applied, for "Road reopened". A failed
+ *  read never fails the message. */
+async function readBefore(reference: string): Promise<StoredWorks | null> {
+  try {
+    return await prisma.streetWorksEvent.findUnique({
+      where: { reference },
+      select: {
+        trafficManagement: true,
+        workStatus: true,
+        startAt: true,
+        endAt: true,
+        streetName: true,
+        town: true,
+        promoter: true,
+        workCategory: true,
+        geometry: true,
+      },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** A closure that just finished early becomes a pending row; the matching
+ *  and sending happen later, on the road alerts tick (jobs/roadReopened.ts),
+ *  so the SNS request returns at once. Fire-and-forget. */
+function noteReopened(before: StoredWorks | null, change: AppliedChange): void {
+  let finding: ReopenedFinding | null;
+  try {
+    finding = detectReopened(before, change);
+  } catch {
+    return;
+  }
+  if (!finding) return;
+  void recordReopened(finding).catch((err) =>
+    console.error("[streetManager] reopened note failed:", (err as Error).message)
+  );
+}
+
+/** One pending row per works reference (a redelivery adds nothing). */
+export async function recordReopened(f: ReopenedFinding): Promise<void> {
+  const seen = await prisma.appEvent.findFirst({
+    where: {
+      type: ROAD_REOPENED_PENDING_EVENT,
+      createdAt: { gte: new Date(Date.now() - 14 * 86400000) },
+      metadata: { path: "$.reference", equals: f.reference },
+    },
+    select: { id: true },
+  });
+  if (seen) return;
+  logEvent(ROAD_REOPENED_PENDING_EVENT, null, findingToMetadata(f));
 }
 
 function bboxOf(lines: LatLng[][], points: LatLng[]) {
@@ -266,6 +339,9 @@ function worksData(r: StreetWorksRecord) {
     trafficManagement: r.trafficManagement,
     isTrafficSensitive: r.isTrafficSensitive,
     workStatus: r.workStatus?.slice(0, 40) ?? null,
+    // Only when the message carries one: activities and some permit events
+    // leave it out, and must never clear a stored category.
+    ...(r.workCategory ? { workCategory: r.workCategory.slice(0, 32) } : {}),
     streetName: r.streetName?.slice(0, 200) ?? null,
     town: r.town?.slice(0, 100) ?? null,
     areaName: r.areaName?.slice(0, 200) ?? null,
@@ -314,6 +390,7 @@ export async function loadStreetWorks(
           promoter: r.promoter,
           startAt: r.startAt,
           endAt: r.endAt,
+          workCategory: r.workCategory,
           lines: Array.isArray(g.lines) ? g.lines : [],
           points: Array.isArray(g.points) ? g.points : [],
         },

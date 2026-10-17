@@ -128,6 +128,20 @@ describe("Street Manager store", () => {
     expect([...db.rows.keys()].sort()).toEqual(["REF-A", "REF-B"]);
   });
 
+  it("saves the work category, and a message without one never clears it", async () => {
+    const { prisma } = await import("../../lib/prisma.js");
+    const update = vi.mocked(prisma.streetWorksEvent.updateMany);
+    update.mockClear();
+    await upsertWorks({ ...record(OLDER, "Old Road"), workCategory: "immediate_emergency" });
+    const created = vi.mocked(prisma.streetWorksEvent.create).mock.calls.at(-1)![0] as { data: Record<string, unknown> };
+    expect(created.data.workCategory).toBe("immediate_emergency");
+    // An activity-style message with no category: the update leaves the
+    // column out altogether, so the stored value stays.
+    await upsertWorks({ ...record(NEWER, "New Road"), workCategory: null });
+    const data = (update.mock.calls.at(-1)![0] as { data: Record<string, unknown> }).data;
+    expect("workCategory" in data).toBe(false);
+  });
+
   it("any other database error still fails the message, so SNS retries it", async () => {
     const { prisma } = await import("../../lib/prisma.js");
     vi.mocked(prisma.streetWorksEvent.create).mockRejectedValueOnce(Object.assign(new Error("Can't reach database"), { code: "P1001" }));
