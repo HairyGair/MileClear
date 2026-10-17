@@ -2,9 +2,16 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
-import { premiumMiddleware } from "../../middleware/premium.js";
+import { premiumMiddleware, hasPremiumAccess } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
-import { truelayerEnabled } from "../../lib/truelayer.js";
+import { truelayerEnabled, TRUELAYER_AUTH_BASE } from "../../lib/truelayer.js";
+import {
+  issueOpenBankingState,
+  readOpenBankingState,
+  consumeOpenBankingState,
+  type OpenBankingReturnTo,
+} from "../../lib/openBankingState.js";
+import { renderCallbackPage, type CallbackOutcome } from "./openBankingPages.js";
 import { parseCsvPreview, confirmCsvImport } from "../../services/csvParser.js";
 import {
   buildAuthLink,
@@ -44,22 +51,19 @@ const listEarningsQuery = z.object({
 });
 
 export async function earningRoutes(app: FastifyInstance) {
-  // Two routes serve HTML to regular browsers as part of the TrueLayer
-  // OAuth handshake — they MUST be public:
-  //   - /open-banking/link   bounces the user to TrueLayer's auth dialog
-  //   - /open-banking/callback receives TrueLayer's post-auth redirect
-  // The flow:
-  //   App opens /link in Safari → /link returns HTML that stashes the
-  //   user's JWT in sessionStorage and window.location's to TrueLayer →
-  //   TrueLayer redirects back to /callback?code=... → /callback's
-  //   inline JS pulls the JWT from sessionStorage and POSTs to
-  //   /exchange with a proper Authorization header.
-  // TrueLayer can't send a Bearer header on the redirect, so gating
-  // /callback (or /link) behind authMiddleware would break the entire
-  // flow. (Anthony 16 May audit — Open Banking has been silently
-  // unusable since launch because of this.)
-  // request.url includes the /earnings prefix from server.ts:170, so
-  // we match the full path here (not just the route-local path).
+  // Two Open Banking routes are opened by a plain browser, not our API
+  // client, so they MUST be public:
+  //   - /open-banking/link     old app builds start here; it redirects to
+  //                            TrueLayer (any ?token= is ignored)
+  //   - /open-banking/callback TrueLayer's redirect back after the bank
+  //                            approves; it exchanges the code itself
+  // The callback knows the driver from the signed, single-use `state`
+  // issued by /open-banking/link-token (lib/openBankingState.ts), so no
+  // JWT ever has to travel in a URL or sit in browser storage. TrueLayer
+  // can't send a Bearer header on its redirect, so gating either route
+  // behind authMiddleware would break the flow.
+  // request.url includes the /earnings prefix from server.ts, so we match
+  // the full path here (not just the route-local path).
   const PUBLIC_PATHS = new Set([
     "/earnings/open-banking/link",
     "/earnings/open-banking/callback",
@@ -351,10 +355,14 @@ export async function earningRoutes(app: FastifyInstance) {
       }
 
       try {
-        // Use userId as state to verify on callback
-        const state = Buffer.from(
-          JSON.stringify({ userId: request.userId, ts: Date.now() })
-        ).toString("base64url");
+        // Signed, expiring, single-use state naming this driver. The
+        // callback trusts nothing else. ?return=web marks a link started
+        // from the website, so the page afterwards points back there.
+        const { return: returnTo } = request.query as { return?: string };
+        const state = issueOpenBankingState(
+          request.userId!,
+          returnTo === "web" ? "web" : "app"
+        );
         const authLink = buildAuthLink(state);
         logEvent("earnings.open_banking_link_issued", request.userId!);
         return reply.send({ data: { authLink } });
@@ -365,7 +373,9 @@ export async function earningRoutes(app: FastifyInstance) {
     }
   );
 
-  // Exchange auth code after TrueLayer redirect (premium only)
+  // Exchange auth code after TrueLayer redirect (premium only). The
+  // callback now exchanges the code itself; this stays for any callback
+  // page from before 17 Oct still open in a browser that posts here.
   app.post(
     "/open-banking/exchange",
     { preHandler: premiumMiddleware },
@@ -480,156 +490,128 @@ export async function earningRoutes(app: FastifyInstance) {
     }
   );
 
-  // ── TrueLayer callback page (opened in WebBrowser after bank auth) ──
+  // ── TrueLayer callback (the bank sends the driver back here) ──
+  //
+  // The code exchange happens HERE, on the server, authenticated by the
+  // signed single-use state issued with the link (lib/openBankingState.ts).
+  // It used to happen in this page's JavaScript with a JWT kept in
+  // sessionStorage, which failed whenever the bank's own app did the
+  // approval: the driver came back in Safari, not the in-app browser that
+  // held the token, so the exchange was never called and nothing was
+  // logged. Every outcome below now logs its own event.
 
   app.get("/open-banking/callback", async (request, reply) => {
-    const { code, error: tlError, state: tlState } = request.query as {
+    const { code, error: tlError, state } = request.query as {
       code?: string;
       error?: string;
       state?: string;
     };
+    const send = (outcome: CallbackOutcome, returnTo: OpenBankingReturnTo | null) =>
+      reply
+        .type("text/html")
+        .header("Cache-Control", "no-store")
+        .send(renderCallbackPage(outcome, returnTo));
 
-    const apiBaseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.API_PORT || 3002}`;
-
-    // This is the first server-side sight of a user coming back from the
-    // bank. The state we issued carries the userId, so the landing can be
-    // attributed even though the route itself is unauthenticated.
-    let stateUserId: string | null = null;
-    try {
-      if (tlState) stateUserId = JSON.parse(Buffer.from(tlState, "base64url").toString("utf8"))?.userId ?? null;
-    } catch { /* malformed state: log unattributed */ }
-    logEvent("earnings.open_banking_callback", stateUserId, {
+    // Attribute the landing before deciding anything. A state that fails
+    // its signature is not trusted to name anyone.
+    const signed = readOpenBankingState(state);
+    logEvent("earnings.open_banking_callback", signed?.userId ?? null, {
       outcome: tlError ? "error" : code ? "code" : "cancelled",
-      error: tlError ?? null,
+      error: tlError ? String(tlError).slice(0, 100) : null,
     });
 
-    // Build the callback HTML page
-    const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connect Your Bank - MileClear</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #030712; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-  .container { text-align: center; max-width: 400px; }
-  h1 { font-size: 22px; margin-bottom: 8px; }
-  p { color: #9ca3af; font-size: 15px; margin-bottom: 24px; }
-  .spinner { width: 40px; height: 40px; border: 3px solid #1f2937; border-top-color: #f5a623; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .btn { display: inline-block; background: #f5a623; color: #030712; font-weight: 700; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-size: 16px; cursor: pointer; border: none; }
-  .success { color: #10b981; }
-  .hidden { display: none; }
-</style>
-</head><body>
-<div class="container">
-  <div id="loading">
-    <div class="spinner"></div>
-    <h1>Connecting your bank...</h1>
-    <p>Please wait while we complete the connection</p>
-  </div>
-  <div id="success" class="hidden">
-    <h1 class="success">Bank Connected!</h1>
-    <p>Your bank has been linked successfully. You can now sync your transactions.</p>
-    <p id="returnApp" style="margin-bottom: 16px;">You can close this window and return to the MileClear app.</p>
-    <div id="returnWeb" class="hidden">
-      <p style="margin-bottom: 16px;">You can close this tab and go back to MileClear.</p>
-      <a class="btn" href="https://mileclear.com/dashboard/bank">Back to MileClear</a>
-    </div>
-  </div>
-  <div id="error" class="hidden">
-    <h1>Connection Failed</h1>
-    <p id="errorMsg">Something went wrong. Please try again.</p>
-    <button onclick="window.close()" class="btn" style="margin-top: 16px;">Close</button>
-  </div>
-</div>
-<script>
-(async function() {
-  const code = ${JSON.stringify(code || "")};
-  const tlError = ${JSON.stringify(tlError || "")};
-
-  if (tlError || !code) {
-    document.getElementById("loading").classList.add("hidden");
-    document.getElementById("errorMsg").textContent = tlError || "Bank authorisation was cancelled.";
-    document.getElementById("error").classList.remove("hidden");
-    return;
-  }
-
-  try {
-    // Retrieve saved auth token from sessionStorage
-    const authToken = sessionStorage.getItem("mc_ob_token");
-    if (!authToken) throw new Error("Session expired. Please try again from the app.");
-
-    const res = await fetch("${apiBaseUrl}/earnings/open-banking/exchange", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + authToken,
-      },
-      body: JSON.stringify({ code: code }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || "Exchange failed");
+    if (tlError || !code || typeof code !== "string") {
+      return send("cancelled", signed?.returnTo ?? null);
     }
-    // A link started from the website says "return=web" on /link; send those
-    // drivers back to the website instead of telling them to open the app.
-    if (sessionStorage.getItem("mc_ob_return") === "web") {
-      document.getElementById("returnApp").classList.add("hidden");
-      document.getElementById("returnWeb").classList.remove("hidden");
-    }
-    document.getElementById("loading").classList.add("hidden");
-    document.getElementById("success").classList.remove("hidden");
-    sessionStorage.removeItem("mc_ob_token");
-    sessionStorage.removeItem("mc_ob_return");
-  } catch (e) {
-    document.getElementById("loading").classList.add("hidden");
-    document.getElementById("errorMsg").textContent = e.message || "Failed to save connection.";
-    document.getElementById("error").classList.remove("hidden");
-  }
-})();
-</script>
-</body></html>`;
 
-    return reply.type("text/html").send(html);
+    const check = consumeOpenBankingState(state);
+    if (!check.ok) {
+      const userId = check.payload?.userId ?? null;
+      logEvent("earnings.open_banking_state_invalid", userId, { reason: check.reason });
+      const returnTo = check.payload?.returnTo ?? null;
+      if (check.reason === "expired") return send("expired", returnTo);
+      if (check.reason === "replayed" && check.payload) {
+        // Most often the driver reloaded the page after it worked. Say so
+        // if a bank was saved for them since this state was issued.
+        const linked = await prisma.plaidConnection
+          .findFirst({
+            where: {
+              userId: check.payload.userId,
+              status: "active",
+              updatedAt: { gte: new Date(check.payload.issuedAt) },
+            },
+            select: { id: true },
+          })
+          .catch(() => null);
+        return send(linked ? "connected" : "replayed", returnTo);
+      }
+      return send("bad_state", returnTo);
+    }
+
+    const { userId, returnTo } = check.payload;
+
+    if (!truelayerEnabled) {
+      logEvent("earnings.open_banking_exchange_failed", userId, { reason: "not_configured" });
+      return send("unavailable", returnTo);
+    }
+
+    let entitled = false;
+    try {
+      entitled = await hasPremiumAccess(userId);
+    } catch (err) {
+      request.log.error(err, "Pro check failed in Open Banking callback");
+      logEvent("earnings.open_banking_exchange_failed", userId, { reason: "pro_check_error" });
+      return send("exchange_failed", returnTo);
+    }
+    if (!entitled) {
+      logEvent("earnings.open_banking_not_premium", userId);
+      return send("not_premium", returnTo);
+    }
+
+    try {
+      const connection = await exchangeCode(userId, code);
+      logEvent("earnings.open_banking_connected", userId, {
+        connectionId: connection.id,
+        institution: connection.institutionName ?? null,
+        via: "callback",
+      });
+      return send("connected", returnTo);
+    } catch (err: any) {
+      request.log.error(err, "Failed to exchange TrueLayer code");
+      const message = String(err?.message ?? err);
+      logEvent("earnings.open_banking_exchange_failed", userId, {
+        reason: message.includes("belongs to another account") ? "another_account" : "exchange_error",
+        message: message.slice(0, 300),
+      });
+      return send("exchange_failed", returnTo);
+    }
   });
 
-  // ── Pre-auth page (stores JWT in sessionStorage before redirect) ──
+  // ── Start page (kept for app builds and website tabs from before 17 Oct) ──
+  //
+  // Older app builds open /link?authLink=...&token=<JWT>. The token is now
+  // ignored (the callback no longer needs it) and this simply sends the
+  // driver on to TrueLayer, so those builds can link a bank too. Only a
+  // TrueLayer address is followed: anything else would make this an open
+  // redirect on our domain.
 
   app.get("/open-banking/link", async (request, reply) => {
-    const { authLink, token, return: returnTo } = request.query as {
-      authLink?: string;
-      token?: string;
-      return?: string;
-    };
-
-    if (!authLink) {
-      return reply.status(400).send({ error: "Missing authLink parameter" });
+    const { authLink } = request.query as { authLink?: string };
+    if (typeof authLink !== "string" || !isTrueLayerAuthLink(authLink)) {
+      return reply
+        .status(400)
+        .send({ error: "Invalid bank link. Please start again from MileClear." });
     }
-
-    const safeAuthLink = JSON.stringify(authLink);
-    const safeToken = JSON.stringify(token || "");
-    // "web" when the link was started from the website dashboard (see callback).
-    const safeReturn = JSON.stringify(returnTo === "web" ? "web" : "");
-
-    const html = `<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Connect Your Bank - MileClear</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #030712; }
-</style>
-</head><body>
-<script>
-  // Store the auth token so the callback page can use it
-  sessionStorage.setItem("mc_ob_token", ${safeToken});
-  sessionStorage.setItem("mc_ob_return", ${safeReturn});
-  // Redirect to TrueLayer auth dialog
-  window.location.href = ${safeAuthLink};
-</script>
-</body></html>`;
-
-    return reply.type("text/html").send(html);
+    return reply.header("Cache-Control", "no-store").redirect(authLink);
   });
+}
+
+function isTrueLayerAuthLink(link: string): boolean {
+  try {
+    const url = new URL(link);
+    const base = new URL(TRUELAYER_AUTH_BASE);
+    return url.protocol === "https:" && url.origin === base.origin;
+  } catch {
+    return false;
+  }
 }
