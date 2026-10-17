@@ -17,6 +17,7 @@ const texts = (over: Partial<DoorTexts> = {}): DoorTexts => ({
   tax: { text: "Tax line", route: "/(tabs)/tax" },
   insights: { text: "Insights line", route: "/insights" },
   earnings: "Earnings line",
+  invoices: "Invoices line",
   badges: "Badges line",
   fuel: "Fuel line",
   ...over,

@@ -27,6 +27,8 @@ export interface DoorTexts {
   tax: { text: string; route: string } | null;
   insights: { text: string; route: string } | null;
   earnings: string | null;
+  /** Only shown to a driver who uses invoices (DoorInputs.usesInvoices). */
+  invoices: string | null;
   badges: string | null;
   fuel: string | null;
 }
@@ -36,6 +38,8 @@ export interface DoorInputs {
   persona: HomePersona;
   /** Total trips ever recorded: zero makes this a new driver. */
   totalTrips: number;
+  /** Made an invoice in the last 90 days (see usesInvoicesRecently). */
+  usesInvoices?: boolean;
   /** Has logged at least one fuel fill-up (Work mode shows Fuel only then). */
   hasFuelLogs: boolean;
   /** Sunday 18:00 to Monday 12:00: the Insights row leads. */
@@ -46,11 +50,15 @@ export interface DoorInputs {
 
 export const MAX_DOOR_ROWS = 3;
 
+/** A driver "uses invoices" when they made one in this many days. */
+export const INVOICE_DOOR_DAYS = 90;
+
 const ICONS: Record<DoorId, string> = {
   road: "warning-outline",
   tax: "document-text-outline",
   insights: "stats-chart-outline",
   earnings: "cash-outline",
+  invoices: "receipt-outline",
   badges: "ribbon-outline",
   fuel: "water-outline",
   odometer: "speedometer-outline",
@@ -62,11 +70,23 @@ const ROUTES: Record<DoorId, string> = {
   tax: "/(tabs)/tax",
   insights: "/insights",
   earnings: "/(tabs)/earnings",
+  invoices: "/invoices",
   badges: "/achievements",
   fuel: "/(tabs)/fuel",
   odometer: "/odometer-log",
   help: "/help",
 };
+
+/**
+ * True when the newest invoice was made in the last 90 days. Drivers who have
+ * never made one, or not lately, get no Invoices shortcut at all.
+ */
+export function usesInvoicesRecently(lastCreatedAt: string | null | undefined, now: Date): boolean {
+  if (!lastCreatedAt) return false;
+  const t = new Date(lastCreatedAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return now.getTime() - t <= INVOICE_DOOR_DAYS * 24 * 60 * 60 * 1000;
+}
 
 /** Candidate order per driver, before hiding and skipping. */
 export function doorOrder(args: {
@@ -74,6 +94,7 @@ export function doorOrder(args: {
   persona: HomePersona;
   totalTrips: number;
   endOfWeek: boolean;
+  usesInvoices?: boolean;
 }): DoorRowId[] {
   const { mode, persona, totalTrips, endOfWeek } = args;
   // A new driver has nothing to tease yet; "How MileClear works" is added by selectDoorRows.
@@ -87,6 +108,11 @@ export function doorOrder(args: {
     order = ["tax", "insights", "badges", "fuel"];
   } else {
     order = ["insights", "badges", "fuel"];
+  }
+  // A Work driver who invoices (company-car drivers excepted, as on More):
+  // Invoices comes straight after Tax, so it is always in the three.
+  if (args.usesInvoices && order[0] === "tax") {
+    order = ["tax", "invoices", ...order.slice(1)];
   }
   if (endOfWeek && order.includes("insights")) {
     order = ["insights", ...order.filter((d) => d !== "insights")];
@@ -121,6 +147,7 @@ export function selectDoorRows(i: DoorInputs): DoorRow[] {
         route = i.texts.insights.route;
       }
     } else if (id === "earnings") text = i.texts.earnings;
+    else if (id === "invoices") text = i.texts.invoices;
     else if (id === "badges") text = i.texts.badges;
     else if (id === "fuel") text = i.texts.fuel;
 
@@ -145,7 +172,12 @@ export function isEndOfWeek(now: Date): boolean {
 /**
  * The shortcuts that can ever show for this driver (Settings > Home screen
  * lists these). The Odometer card can show for everyone, in both modes.
+ * Invoices is listed only for a driver who uses invoices.
  */
-export function availableDoorRows(args: { mode: "work" | "personal"; persona: HomePersona }): DoorRowId[] {
+export function availableDoorRows(args: {
+  mode: "work" | "personal";
+  persona: HomePersona;
+  usesInvoices?: boolean;
+}): DoorRowId[] {
   return [...doorOrder({ ...args, totalTrips: 1, endOfWeek: false }), "odometer"];
 }

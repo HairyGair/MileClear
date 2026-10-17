@@ -17,7 +17,7 @@
  * "odometer" is the Odometer card (15 Oct 2026): it sits above the shortcuts
  * rather than among them, but hides and comes back the same way.
  */
-export const DOOR_ROW_IDS = ["tax", "insights", "earnings", "badges", "fuel", "odometer"] as const;
+export const DOOR_ROW_IDS = ["tax", "insights", "earnings", "invoices", "badges", "fuel", "odometer"] as const;
 export type DoorRowId = (typeof DOOR_ROW_IDS)[number];
 
 /** Plain names for the Settings page. */
@@ -25,6 +25,7 @@ export const DOOR_ROW_LABELS: Record<DoorRowId, string> = {
   tax: "Tax",
   insights: "Insights",
   earnings: "Earnings",
+  invoices: "Invoices",
   badges: "Badges",
   fuel: "Fuel",
   odometer: "Odometer",

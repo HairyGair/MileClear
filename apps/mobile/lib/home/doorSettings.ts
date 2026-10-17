@@ -8,7 +8,14 @@ export interface DoorSwitch {
   label: string;
   hint: string;
   /** The same icon the row shows on Home, so the two are easy to match up. */
-  icon: "document-text-outline" | "stats-chart-outline" | "cash-outline" | "ribbon-outline" | "water-outline" | "speedometer-outline";
+  icon:
+    | "document-text-outline"
+    | "stats-chart-outline"
+    | "cash-outline"
+    | "receipt-outline"
+    | "ribbon-outline"
+    | "water-outline"
+    | "speedometer-outline";
   /** True when the row is allowed to show on Home. */
   shown: boolean;
 }
@@ -17,6 +24,7 @@ const DETAILS: Record<DoorRowId, { hint: string; icon: DoorSwitch["icon"] }> = {
   tax: { hint: "Your tax summary, with 31 January reminders in season", icon: "document-text-outline" },
   insights: { hint: "A line about your week, linking to Insights", icon: "stats-chart-outline" },
   earnings: { hint: "What you were paid this week", icon: "cash-outline" },
+  invoices: { hint: "Invoices still to be paid", icon: "receipt-outline" },
   badges: { hint: "The next badge you can earn", icon: "ribbon-outline" },
   fuel: { hint: "Cheap fuel near you", icon: "water-outline" },
   odometer: { hint: "Your running odometer, once you have added a reading", icon: "speedometer-outline" },

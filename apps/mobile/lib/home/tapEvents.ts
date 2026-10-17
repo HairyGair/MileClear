@@ -22,6 +22,7 @@ export type HomeTapTarget =
   | "door_tax"
   | "door_insights"
   | "door_earnings"
+  | "door_invoices"
   | "door_badges"
   | "door_fuel"
   | "door_help"

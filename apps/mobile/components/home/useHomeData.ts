@@ -22,6 +22,7 @@ import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
 import { homeLineText, isSelfEmployedPersona } from "../../lib/tax/persona";
 import { badgesDoorText, earningsDoorText, fuelDoorText, insightsDoorText, saSeasonText } from "../../lib/home/doorText";
 import { createTtlCache } from "../../lib/home/ttlCache";
+import { useInvoiceDoor } from "./useInvoiceDoor";
 import { isEndOfWeek, type DoorTexts } from "../../lib/home/doors";
 import type { HeroRecapTotals } from "../../lib/home/hero";
 import type { HomePersona } from "../../lib/home/persona";
@@ -43,6 +44,8 @@ export interface HomeData {
   month: (HeroRecapTotals & { previousMiles: number | null }) | null;
   texts: DoorTexts;
   hasFuelLogs: boolean;
+  /** Made an invoice in the last 90 days: Home may show the Invoices row. */
+  usesInvoices: boolean;
   endOfWeek: boolean;
   /** The month recap could not be loaded (Personal hero has nothing to show). */
   monthFailed: boolean;
@@ -184,6 +187,9 @@ export function useHomeData(a: Args): HomeData {
     };
   }, [refreshKey, focusTick, forceOnce]);
 
+  // Invoices: only for Work drivers who made one in the last 90 days.
+  const invoiceDoor = useInvoiceDoor({ mode, persona, refreshKey });
+
   // Tax line, shared with the Tax tab through the same overview cache.
   const { data: overview, refresh: refreshOverview } = useTaxOverview();
   const { totalReliefPence } = useMarRelief(overview?.relief ?? null);
@@ -247,12 +253,13 @@ export function useHomeData(a: Args): HomeData {
       tax,
       insights,
       earnings: mode === "work" ? earningsDoorText(weekRecap) : null,
+      invoices: invoiceDoor.text,
       badges,
       fuel: fuelDoorText(fuelData),
     };
   }, [
     mode, persona, overview, totalReliefPence, endOfWeek, lastWeekRecap, weekRecap, isPro,
-    totalTrips, stats, achievedTypes, roadText, fuelData,
+    totalTrips, stats, achievedTypes, roadText, fuelData, invoiceDoor.text,
   ]);
 
   const week = useMemo(() => (weekRecap ? totals(weekRecap) : null), [weekRecap]);
@@ -261,5 +268,5 @@ export function useHomeData(a: Args): HomeData {
     [monthRecap]
   );
 
-  return { week, month, texts, hasFuelLogs, endOfWeek, monthFailed };
+  return { week, month, texts, hasFuelLogs, usesInvoices: invoiceDoor.usesInvoices, endOfWeek, monthFailed };
 }

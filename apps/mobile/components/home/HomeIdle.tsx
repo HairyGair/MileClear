@@ -7,7 +7,8 @@
 //   Start Trip (+ Start Shift for gig and Both drivers in Work mode)
 //   Last trip        with a one-tap Business / Personal
 //   Odometer         the running reading, once a vehicle has one (15 Oct 2026)
-//   up to three door rows into Tax, Insights, Earnings, Badges, Fuel
+//   up to three door rows into Tax, Insights, Earnings, Badges, Fuel (and
+//   Invoices for a driver who made one in the last 90 days)
 //   one ask, slim, at the bottom
 //
 // What shows is decided by the pure rules in lib/home; this file fetches,
@@ -180,12 +181,13 @@ export function HomeIdle(p: Props) {
         mode,
         persona,
         totalTrips,
+        usesInvoices: data.usesInvoices,
         hasFuelLogs: data.hasFuelLogs,
         endOfWeek: data.endOfWeek,
         hidden,
         texts: data.texts,
       }),
-    [mode, persona, totalTrips, data.hasFuelLogs, data.endOfWeek, hidden, data.texts]
+    [mode, persona, totalTrips, data.usesInvoices, data.hasFuelLogs, data.endOfWeek, hidden, data.texts]
   );
   const hideDoor = useCallback(async (id: DoorRowId) => {
     setHidden(await setDoorRowHidden(id, true));
