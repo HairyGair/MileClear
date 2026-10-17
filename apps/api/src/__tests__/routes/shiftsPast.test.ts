@@ -204,7 +204,7 @@ describe("POST /shifts/past", () => {
   it("runs the ended-shift work without a push and logs shift.past_added", async () => {
     await app.inject({ method: "POST", url: "/shifts/past", payload: body(), headers: auth });
     expect(upsertMileageSummary).toHaveBeenCalledWith(USER_ID, "2026-27");
-    expect(getShiftScorecard).toHaveBeenCalledWith(USER_ID, SHIFT_ID);
+    expect(getShiftScorecard).toHaveBeenCalledWith(USER_ID, SHIFT_ID, expect.objectContaining({ newAchievements: expect.any(Array) }));
     expect(sendShiftSummaryPush).not.toHaveBeenCalled();
     const added = vi.mocked(logEvent).mock.calls.find((c) => c[0] === "shift.past_added");
     expect(added?.[2]).toMatchObject({ tripCount: 2, hasEarning: false, durationSeconds: 4 * 3600 });
