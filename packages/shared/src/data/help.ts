@@ -1007,6 +1007,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
     goTo: "/road-alerts",
     keywords: ["road alerts", "roadworks", "closures", "traffic", "delays"],
   },
+  {
+    id: "trip-roadworks",
+    area: "insights_and_alerts",
+    q: "Why does my trip show roadworks?",
+    a: "Open a recorded trip and, if your route went through roadworks while they were in place, it lists them under \"Roadworks on this trip\", for example temporary lights or a closed road, with the works company. It helps explain a slow drive. It never changes your miles, times or business or personal choice. The works come from DfT Street Manager (England), so recent trips show them best; once works have finished for a couple of days they drop off.",
+    keywords: ["roadworks on this trip", "roadworks", "temporary lights", "road closed", "slow trip", "slow drive", "street manager"],
+  },
 ];
 
 /** Look up one answer by id. */

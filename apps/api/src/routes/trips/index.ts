@@ -32,6 +32,7 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
   return "car";
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
+import { loadTripRoadworks } from "../../services/tripRoadworks.js";
 import { loadProjectTotals, loadProjectLabels } from "../../services/projectTotals.js";
 import { startTimeChangeAllowed } from "../../services/tripTimeEdit.js";
 import {
@@ -2771,6 +2772,17 @@ export async function tripRoutes(app: FastifyInstance) {
   // capture accuracy, not an analytic (Will Holland, 21 Jul 2026).
 
   // GET /trips/:id/split-suggestions — proposed cut points for the UI.
+  // GET /trips/:id/roadworks: Street Manager works this trip drove through
+  // while they were in place. A label for the trip detail only; nothing on
+  // the trip changes. Empty for manual trips and thin recordings.
+  app.get("/:id/roadworks", async (request, reply) => {
+    const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!parsed.success) return reply.status(404).send({ error: "Trip not found" });
+    const result = await loadTripRoadworks(request.userId!, parsed.data.id);
+    if (!result) return reply.status(404).send({ error: "Trip not found" });
+    return reply.send({ data: result });
+  });
+
   app.get("/:id/split-suggestions", async (request, reply) => {
     const { id } = request.params as { id: string };
     const result = await getSplitSuggestions({ userId: request.userId!, tripId: id });
