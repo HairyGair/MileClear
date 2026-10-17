@@ -149,7 +149,7 @@ export async function planRoadWeekAhead(now: Date, opts: WeekAheadPlanOptions): 
       try {
         const corridor = await loadCorridor(user.id, now);
         if (!corridor.bbox || corridor.cells.size === 0) { skip("no_usual_roads"); continue; }
-        selection = await weekAheadForCorridor(corridor, window, now, dismissedByUser.get(user.id) ?? new Set());
+        selection = await weekAheadForCorridor(corridor, window, now, dismissedByUser.get(user.id) ?? new Set(), { pushOnly: true });
       } catch (err) {
         console.error("[jobs/roadWeekAhead] plan failed:", (err as Error).message);
         skip("plan_failed");

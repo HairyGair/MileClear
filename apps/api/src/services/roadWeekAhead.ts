@@ -92,7 +92,8 @@ export async function weekAheadForCorridor(
   corridor: Corridor,
   window: WeekAheadWindow,
   now: Date,
-  dismissed: Set<string>
+  dismissed: Set<string>,
+  opts: { pushOnly?: boolean } = {}
 ): Promise<WeekAheadSelection> {
   const empty: WeekAheadSelection = { items: [], more: 0, total: 0 };
   if (!corridor.bbox || corridor.cells.size === 0) return empty;
@@ -106,5 +107,5 @@ export async function weekAheadForCorridor(
     });
     if (m.matched) candidates.push({ ...w, days: m.days });
   }
-  return selectWeekAhead(candidates, { now, window, dismissed });
+  return selectWeekAhead(candidates, { now, window, dismissed, pushOnly: opts.pushOnly });
 }

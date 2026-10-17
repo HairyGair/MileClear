@@ -141,6 +141,15 @@ export function disruptionTier(w: Pick<WorksMeta, "trafficManagement" | "isTraff
   return null;
 }
 
+/** The push only names works that change how a driver gets through: a
+ *  closure, or lights / lanes / boards. Works on a traffic-sensitive street
+ *  with neither (footway works and the like) stay on the screen only, so a
+ *  city driver's "plus N more" counts things they would notice (Anthony,
+ *  17 Oct 2026). */
+export function pushWorthy(w: Pick<WorksMeta, "trafficManagement">): boolean {
+  return w.trafficManagement === "road_closure" || SIGNALS_AND_LANES.has(w.trafficManagement);
+}
+
 function normStatus(s: string | null): string {
   return (s ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
@@ -184,7 +193,7 @@ function rankEntries(a: WeekAheadEntry, b: WeekAheadEntry): number {
  */
 export function selectWeekAhead(
   candidates: WeekAheadCandidate[],
-  opts: { now: Date; window: Pick<WeekAheadWindow, "start" | "end">; dismissed?: Set<string>; max?: number }
+  opts: { now: Date; window: Pick<WeekAheadWindow, "start" | "end">; dismissed?: Set<string>; max?: number; pushOnly?: boolean }
 ): WeekAheadSelection {
   const { now, window } = opts;
   const max = opts.max ?? WEEK_AHEAD_MAX_ITEMS;
@@ -202,6 +211,7 @@ export function selectWeekAhead(
     if (start < window.start.getTime() || start >= window.end.getTime()) continue;
     if (e.endAt && e.endAt.getTime() <= start) continue;
     if (disruptionTier(c.works) == null) continue;
+    if (opts.pushOnly && !pushWorthy(c.works)) continue;
     worksById.set(e.id, c.works);
     kept.push({ event: e, days: c.days });
   }

@@ -14,6 +14,7 @@ import {
   disruptionTier,
   inWeekAheadSendWindow,
   isoWeekKey,
+  pushWorthy,
   roadWeekAheadEnabled,
   selectWeekAhead,
   shortPromoter,
@@ -136,6 +137,35 @@ describe("roadWeekAheadEnabled", () => {
     expect(roadWeekAheadEnabled({ ROAD_WEEK_AHEAD_PUSH: "true" })).toBe(false);
     expect(roadWeekAheadEnabled({ ROAD_WEEK_AHEAD_PUSH: "0" })).toBe(false);
     expect(roadWeekAheadEnabled({ ROAD_WEEK_AHEAD_PUSH: "1" })).toBe(true);
+  });
+});
+
+describe("the push names only closures and lights or lanes", () => {
+  it("pushWorthy: closures and lights, lanes and boards yes; other works on a busy street no", () => {
+    expect(pushWorthy({ trafficManagement: "road_closure" })).toBe(true);
+    expect(pushWorthy({ trafficManagement: "two_way_signals" })).toBe(true);
+    expect(pushWorthy({ trafficManagement: "lane_closure" })).toBe(true);
+    expect(pushWorthy({ trafficManagement: "stop_go_boards" })).toBe(true);
+    expect(pushWorthy({ trafficManagement: "some_carriageway_incursion" })).toBe(false);
+    expect(pushWorthy({ trafficManagement: "no_carriageway_incursion" })).toBe(false);
+  });
+
+  it("pushOnly leaves out busy-street works with no closure or lights; the screen list keeps them", () => {
+    const closed = works({ street: "SHUT ROAD", tm: "road_closure", start: "2026-10-21T08:00:00Z" });
+    const lights = works({ street: "LIGHTS LANE", tm: "two_way_signals", start: "2026-10-22T08:00:00Z" });
+    const footway = works({ street: "BUSY STREET", tm: "some_carriageway_incursion", sensitive: true, start: "2026-10-20T08:00:00Z" });
+    const screen = sel([closed, lights, footway]);
+    expect(screen.total).toBe(3);
+    const push = selectWeekAhead([closed, lights, footway], { now: SUN_BST, window: WINDOW, pushOnly: true });
+    expect(push.items.map((i) => i.group.roads[0])).toEqual(["Shut Road", "Lights Lane"]);
+    expect(push.total).toBe(2);
+    expect(buildWeekAheadPushCopy(push)?.body).toMatch(/^Shut Road closed from .*, plus 1 more$/);
+  });
+
+  it("a driver with only busy-street works gets no push", () => {
+    const footway = works({ street: "BUSY STREET", tm: "some_carriageway_incursion", sensitive: true, start: "2026-10-20T08:00:00Z" });
+    const push = selectWeekAhead([footway], { now: SUN_BST, window: WINDOW, pushOnly: true });
+    expect(buildWeekAheadPushCopy(push)).toBeNull();
   });
 });
 
