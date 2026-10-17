@@ -1,26 +1,14 @@
 /**
- * Road alerts trial (2 Oct 2026): the free-tier guard rails on TomTom (tiles
- * under the bbox limit, the daily request cap that survives a restart) and the
- * Street Manager SNS signature check.
+ * Road alerts trial (2 Oct 2026): TomTom tiles under the bbox limit and the
+ * Street Manager SNS signature check. The TomTom monthly budget is tested in
+ * tomtomBudget.test.ts, the Street Manager store in streetManagerStore.test.ts.
  */
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { generateKeyPairSync, createSign } from "node:crypto";
 
 vi.mock("../../lib/prisma.js", () => ({ prisma: {} }));
 
-import {
-  DEFAULT_DAILY_CAP,
-  MAX_DAILY_CAP,
-  budgetAllows,
-  dailyCap,
-  restoreBudget,
-  rollBudget,
-  screenMaxAgeMs,
-  tileAreaKm2,
-  tileIdFor,
-  tilesForCorridor,
-  utcDayKey,
-} from "../../services/tomtomTraffic.js";
+import { tileAreaKm2, tileIdFor, tilesForCorridor } from "../../services/tomtomTraffic.js";
 import {
   STREET_MANAGER_TOPIC_ARNS,
   handleSnsBody,
@@ -30,8 +18,6 @@ import {
   type SnsMessage,
 } from "../../services/streetManager.js";
 import { buildCorridor } from "../../services/roadCorridor.js";
-
-const NOW = new Date("2026-10-05T05:00:00Z");
 
 describe("TomTom tiles", () => {
   it("every tile over Great Britain is under TomTom's 10,000 km2 bbox limit", () => {
@@ -50,49 +36,6 @@ describe("TomTom tiles", () => {
     const tiles = tilesForCorridor(c, 3);
     expect(tiles).toHaveLength(3);
     expect(new Set(tiles).size).toBe(3);
-  });
-});
-
-describe("TomTom daily budget", () => {
-  afterEach(() => {
-    delete process.env.TOMTOM_DAILY_REQUEST_CAP;
-  });
-
-  it("defaults to 2,000 a day and never goes above 2,400 whatever the env says", () => {
-    expect(dailyCap()).toBe(DEFAULT_DAILY_CAP);
-    process.env.TOMTOM_DAILY_REQUEST_CAP = "1500";
-    expect(dailyCap()).toBe(1500);
-    process.env.TOMTOM_DAILY_REQUEST_CAP = "100000";
-    expect(dailyCap()).toBe(MAX_DAILY_CAP);
-    process.env.TOMTOM_DAILY_REQUEST_CAP = "nonsense";
-    expect(dailyCap()).toBe(DEFAULT_DAILY_CAP);
-  });
-
-  it("resets at 00:00 UTC, not at a restart", () => {
-    const s = { day: "2026-10-05", used: 1999, stopped: null };
-    expect(rollBudget(s, new Date("2026-10-05T23:59:00Z"))).toBe(s);
-    expect(rollBudget(s, new Date("2026-10-06T00:00:00Z"))).toEqual({ day: "2026-10-06", used: 0, stopped: null });
-    expect(utcDayKey(new Date("2026-10-05T23:30:00Z"))).toBe("2026-10-05"); // 00:30 UK, still the 5th in UTC
-  });
-
-  it("stops at the cap, and for the day after a 403/429", () => {
-    expect(budgetAllows({ day: "d", used: 1999, stopped: null }, 2000)).toBe(true);
-    expect(budgetAllows({ day: "d", used: 2000, stopped: null }, 2000)).toBe(false);
-    expect(budgetAllows({ day: "d", used: 3, stopped: "tomtom_429" }, 2000)).toBe(false);
-  });
-
-  it("a restart takes the larger of the state file and the last checkpoint (plus margin)", () => {
-    const day = utcDayKey(NOW);
-    expect(restoreBudget({ day, used: 700, stopped: null }, { used: 650, stopped: null }, NOW).used).toBe(700);
-    expect(restoreBudget(null, { used: 650, stopped: null }, NOW).used).toBe(675);
-    expect(restoreBudget({ day: "2026-10-04", used: 1999, stopped: "tomtom_429" }, null, NOW)).toEqual({ day, used: 0, stopped: null });
-    expect(restoreBudget(null, { used: 100, stopped: "tomtom_403" }, NOW).stopped).toBe("tomtom_403");
-  });
-
-  it("the screen backs off as the budget runs down", () => {
-    expect(screenMaxAgeMs(100, 2000)).toBe(10 * 60000);
-    expect(screenMaxAgeMs(1400, 2000)).toBe(60 * 60000);
-    expect(screenMaxAgeMs(1800, 2000)).toBeNull();
   });
 });
 
