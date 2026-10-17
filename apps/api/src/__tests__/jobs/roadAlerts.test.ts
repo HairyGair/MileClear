@@ -37,7 +37,7 @@ vi.mock("../../services/roadAlerts.js", () => ({
   loadDismissedIds: async (ids: string[]) => new Map(ids.map((id) => [id, matched.dismissed])),
 }));
 vi.mock("../../services/tomtomTraffic.js", () => ({
-  budgetSnapshot: async () => ({ month: "2026-10", usedMonth: 4, day: "2026-10-05", usedToday: 4, stopped: null, cap: 2300, todayAllowance: 85 }),
+  budgetSnapshot: async () => ({ month: "2026-10", usedMonth: 4, day: "2026-10-05", usedToday: 4, stoppedToday: null, forbiddenSince: null, cap: 2300, todayAllowance: 85 }),
   pruneTileCache: () => {},
 }));
 vi.mock("../../services/streetManager.js", () => ({ purgeEndedStreetWorks: async () => 0 }));

@@ -77,17 +77,18 @@ function windowStart(now: Date): Date {
 }
 
 /** Which sources are set up at all. Used at boot to decide whether the road
- *  alerts job is scheduled, so a TomTom stop for the month never unschedules
- *  it (it resumes on the 1st). */
+ *  alerts job is scheduled, so a TomTom stop (a 403 or 429 day, or the
+ *  monthly cap) never unschedules it. */
 export function roadAlertsAvailable(): { incidents: boolean; plannedWorks: boolean } {
   return { incidents: isTomTomConfigured(), plannedWorks: isStreetManagerEnabled() };
 }
 
 /** Which sources are supplying anything right now. TomTom counts only when it
- *  is set up AND not stopped for the month by a 403/429, so the screen never
- *  credits TomTom (or offers alerts on its strength) when it supplies nothing. */
-export async function roadAlertsServing(now: Date = new Date()): Promise<{ incidents: boolean; plannedWorks: boolean }> {
-  return { incidents: await isTomTomServing(now), plannedWorks: isStreetManagerEnabled() };
+ *  is set up AND not stopped for today by a 403 (a 429 day stop still serves
+ *  cached incidents), so the screen never credits TomTom (or offers alerts on
+ *  its strength) when it supplies nothing. */
+export async function roadAlertsServing(): Promise<{ incidents: boolean; plannedWorks: boolean }> {
+  return { incidents: await isTomTomServing(), plannedWorks: isStreetManagerEnabled() };
 }
 
 /** Usual departure per weekday for each driver (cached a day). One small
@@ -183,7 +184,7 @@ export async function matchedEventsForDriver(
   const corridor = await loadCorridor(userId, now);
   if (!corridor.bbox) return { corridor, matches: [] };
   const [incidents, works] = await Promise.all([
-    (await isTomTomServing(now)) ? getTileEvents(tilesForCorridor(corridor), maxAgeMs, now) : Promise.resolve([] as RoadEvent[]),
+    (await isTomTomServing()) ? getTileEvents(tilesForCorridor(corridor), maxAgeMs) : Promise.resolve([] as RoadEvent[]),
     loadStreetWorks(corridor.bbox, now, UPCOMING_DAYS + 1),
   ]);
   const matches: MatchedEvent[] = [];
@@ -243,7 +244,7 @@ export async function loadDismissedIds(userIds: string[], now: Date): Promise<Ma
 
 /** GET /road-alerts for one driver. */
 export async function roadAlertsForUser(userId: string, now: Date = new Date()): Promise<RoadAlertsResponse["data"]> {
-  const available = await roadAlertsServing(now);
+  const available = await roadAlertsServing();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { pushPrefs: true } });
   const enabled = pushPrefOptedIn(user?.pushPrefs, "roadAlerts");
   const attribution = [
@@ -270,7 +271,7 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
     return { ...base, offerEligible: false, current: [], upcoming: [], hasUsualRoads: false };
   }
 
-  const { corridor, matches } = await matchedEventsForDriver(userId, now, await screenFreshnessMs(now));
+  const { corridor, matches } = await matchedEventsForDriver(userId, now, await screenFreshnessMs());
   const { current, upcoming } = splitForScreen(matches, now);
   // Street names known so far (the rest are looked up in the background and
   // appear on the next load), then one card per closure.

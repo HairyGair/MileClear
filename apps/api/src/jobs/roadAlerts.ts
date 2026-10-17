@@ -251,7 +251,7 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
     }
   }
 
-  if (available.incidents) result.tomtomUsed = (await budgetSnapshot(now)).usedMonth;
+  if (available.incidents) result.tomtomUsed = (await budgetSnapshot()).usedMonth;
   if (result.sent > 0 || result.prefetched > 0) {
     console.log(
       `[jobs/roadAlerts] sent ${result.sent}, prefetched ${result.prefetched} of ${result.candidates} opted in; ` +
