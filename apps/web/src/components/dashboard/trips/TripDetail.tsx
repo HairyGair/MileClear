@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import type { SavedLocation } from "@mileclear/shared";
+import type { SavedLocation, TripRoadworksResponse } from "@mileclear/shared";
 import { api, isApiError } from "../../../lib/api";
 import {
   Button,
@@ -329,6 +329,8 @@ export function TripDetail({ id }: { id: string }) {
             </dl>
           </Card>
 
+          {!t.isManualEntry && coords.length >= 10 && <RoadworksOnTrip tripId={t.id} />}
+
           {caz.length > 0 && <CazNotice tripId={t.id} charges={caz} startedAt={t.startedAt} vehicleId={t.vehicleId} isPro={me.isPro} canLog={t.classification !== "personal"} />}
 
           {merge && (
@@ -650,6 +652,38 @@ function MergeNotice({ trip, onMerged }: { trip: TripDetailData; onMerged: (newI
           Merge with it
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** "Roadworks on this trip": Street Manager works the trip drove through
+ *  while they were in place. A label only. Loaded after the page shows, and
+ *  says nothing when there are none or the request fails. */
+function RoadworksOnTrip({ tripId }: { tripId: string }) {
+  const [data, setData] = useState<TripRoadworksResponse["data"] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<TripRoadworksResponse>(`/trips/${tripId}/roadworks`)
+      .then((r) => {
+        if (!cancelled) setData(r.data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+  const items = data?.items ?? [];
+  if (items.length === 0) return null;
+  return (
+    <div className="mc-block" data-testid="trip-roadworks">
+      <p className="mc-block__label">Roadworks on this trip</p>
+      <ul className="mc-notice mc-roadworks">
+        {items.map((w, i) => (
+          <li key={`${w.phrase}-${i}`}>{w.phrase}</li>
+        ))}
+      </ul>
+      {data?.attribution && <p className="mc-roadworks__credit">{data.attribution}</p>}
     </div>
   );
 }

@@ -124,6 +124,8 @@ export interface TripsState {
   /** Per-trip extras for GET /trips/:id. */
   detail: Record<string, Record<string, unknown>>;
   splitSuggestions: Record<string, unknown[]>;
+  /** GET /trips/:id/roadworks items per trip (none by default). */
+  roadworks: Record<string, unknown[]>;
   projectTotals: unknown;
   importPreview: unknown;
   /** Every non-GET call the page made. */
@@ -141,6 +143,7 @@ export function newState(over: Partial<TripsState> = {}): TripsState {
     odometerDays: [],
     detail: {},
     splitSuggestions: {},
+    roadworks: {},
     projectTotals: { taxYear: "2026-27", projects: [], totals: { trips: 0, miles: 0, valuePence: 0 }, labels: [] },
     importPreview: null,
     calls: [],
@@ -292,6 +295,17 @@ export async function mockTrips(page: Page, state: TripsState): Promise<void> {
           return json({ data: t });
         case "recalc":
           return json({ data: { changed: true, oldMiles: t.distanceMiles, newMiles: 14.2, source: "routing" } });
+        case "roadworks": {
+          const items = state.roadworks[t.id] ?? [];
+          return json({
+            data: {
+              items,
+              attribution: items.length
+                ? "Roadworks: contains public sector information from DfT Street Manager, licensed under the Open Government Licence v3.0"
+                : null,
+            },
+          });
+        }
         case "split-suggestions":
           return json({ data: { suggestions: state.splitSuggestions[t.id] ?? [], coordCount: 50 } });
         case "split":
