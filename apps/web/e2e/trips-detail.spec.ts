@@ -176,6 +176,43 @@ test.describe("summary", () => {
     await expect(page.getByRole("img", { name: /Speed over the trip/ })).toBeVisible();
   });
 
+  test("roadworks the trip drove through are listed with the Street Manager credit", async ({ page }) => {
+    const state = newState({
+      trips: [trip({ id: ID })],
+      detail: { [ID]: { coordinates: route() } },
+      roadworks: {
+        [ID]: [
+          { streetName: "Derby Street", phrase: "Temporary lights on Derby Street (South Staffordshire Water)", promoter: "South Staffordshire Water", startAt: null, endAt: null },
+          { streetName: "Durham Road", phrase: "Road closure booked on Durham Road (Emergency works)", promoter: null, emergency: true, startAt: null, endAt: null },
+        ],
+      },
+    });
+    await open(page, state, `/dashboard/trips/${ID}`);
+    const box = page.getByTestId("trip-roadworks");
+    await expect(box.getByText("Roadworks on your route")).toBeVisible();
+    await expect(box.getByRole("listitem")).toHaveText([
+      "Temporary lights on Derby Street (South Staffordshire Water)",
+      "Road closure booked on Durham Road (Emergency works)",
+    ]);
+    await expect(box.getByText(/DfT Street Manager/)).toBeVisible();
+    // A label only: looking changes nothing.
+    expect(state.calls).toEqual([]);
+  });
+
+  test("no roadworks section when there are none, or for a trip added by hand", async ({ page }) => {
+    const state = newState({
+      trips: [trip({ id: ID }), trip({ id: OTHER, isManualEntry: true })],
+      detail: { [ID]: { coordinates: route() } },
+    });
+    await open(page, state, `/dashboard/trips/${ID}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByTestId("trip-roadworks")).toHaveCount(0);
+    state.roadworks[OTHER] = [{ streetName: "X Road", phrase: "X Road was closed", promoter: null, startAt: null, endAt: null }];
+    await page.goto(`/dashboard/trips/${OTHER}`);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByTestId("trip-roadworks")).toHaveCount(0);
+  });
+
   test("a trip that is gone shows Trip not found", async ({ page }) => {
     await open(page, newState(), `/dashboard/trips/${ID}`);
     await expect(page.getByRole("heading", { name: "Trip not found" })).toBeVisible();

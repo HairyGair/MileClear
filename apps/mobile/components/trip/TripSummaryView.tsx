@@ -18,6 +18,7 @@ import type {
   PlatformTag,
   BusinessPurpose,
   CazTripAssessment,
+  TripRoadworksItem,
 } from "@mileclear/shared";
 import { TripMapWidget } from "../map/TripMapWidget";
 import { MiniRoute } from "../home/MiniRoute";
@@ -66,6 +67,11 @@ export interface TripSummaryViewProps {
   facts?: TripFacts | null;
   editedAt: string | null;
   diversionText: string | null;
+  /** Roadworks the trip drove through while they were in place. A label
+   *  only; loaded after the screen shows, empty until then (and on error). */
+  roadworks?: TripRoadworksItem[];
+  /** The data licence's credit line, shown under the list. */
+  roadworksCredit?: string | null;
   routeCoords: LatLng[];
   routeMatched: LatLng[];
 
@@ -778,6 +784,8 @@ export function TripSummaryView(props: TripSummaryViewProps) {
         onLogCaz={props.onLogCaz}
       />
 
+      <RoadworksOnTrip items={props.roadworks ?? []} credit={props.roadworksCredit ?? null} />
+
       <TouchableOpacity
         style={styles.editButton}
         onPress={props.onEdit}
@@ -933,6 +941,34 @@ export function TripSummaryView(props: TripSummaryViewProps) {
         onClose={() => setSheet(null)}
       />
     </View>
+  );
+}
+
+/** "Roadworks on your route": one plain line per works, only when there is
+ *  at least one. Explains a slow drive; changes nothing on the trip. */
+function RoadworksOnTrip({ items, credit }: { items: TripRoadworksItem[]; credit: string | null }) {
+  if (items.length === 0) return null;
+  return (
+    <>
+      <Text style={styles.groupTitle} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>
+        Roadworks on your route
+      </Text>
+      <View style={styles.group}>
+        {items.map((w, i) => (
+          <View key={`${w.phrase}-${i}`} style={[styles.row, i > 0 && styles.rowBorder]} accessible>
+            <Ionicons name="construct-outline" size={18} color={colors.text2} accessible={false} />
+            <Text style={[styles.rowText, styles.roadworksText]} maxFontSizeMultiplier={fontScaleCap.body}>
+              {w.phrase}
+            </Text>
+          </View>
+        ))}
+      </View>
+      {credit ? (
+        <Text style={styles.roadworksCredit} maxFontSizeMultiplier={fontScaleCap.body}>
+          {credit}
+        </Text>
+      ) : null}
+    </>
   );
 }
 
@@ -1239,6 +1275,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: fonts.semibold,
     color: colors.amber,
+  },
+  roadworksText: {
+    fontSize: 15,
+    fontFamily: fonts.regular,
+    color: colors.text1,
+    lineHeight: 20,
+  },
+  roadworksCredit: {
+    fontSize: 11.5,
+    fontFamily: fonts.regular,
+    color: colors.text3,
+    lineHeight: 16,
+    marginTop: 6,
+    marginHorizontal: 4,
   },
   cazDisclaimer: {
     fontSize: 12,

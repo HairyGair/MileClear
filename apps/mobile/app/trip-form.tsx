@@ -30,8 +30,10 @@ import {
   resolveMissedJourney,
   ClassificationSuggestion,
   type TripDiversion,
+  fetchTripRoadworks,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
+import { fetchRoadworksOnce } from "../lib/trips/roadworksOnce";
 import { TripMapWidget } from "../components/map/TripMapWidget";
 import { TripSummaryView } from "../components/trip/TripSummaryView";
 import { ErrorState } from "../components/ErrorState";
@@ -44,7 +46,7 @@ import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, calculateHmrcDeduction } from "@mileclear/shared";
 import { fetchServerRouteDistance, fetchProjectLabels, type RouteDistanceResult } from "../lib/api/trips";
 import { describeError } from "../lib/api/apiError";
-import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle, CazTripAssessment } from "@mileclear/shared";
+import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle, CazTripAssessment, TripRoadworksItem } from "@mileclear/shared";
 import { createExpense } from "../lib/api/expenses";
 import { getDatabase } from "../lib/db/index";
 import {
@@ -1059,6 +1061,27 @@ export default function TripFormScreen() {
   const [cleanAirZones, setCleanAirZones] = useState<CazTripAssessment | null>(null);
   // Diversion label (server-flagged: went round a road closure on the usual route).
   const [diversion, setDiversion] = useState<TripDiversion | null>(null);
+  // Roadworks the trip drove through (Street Manager). Fetched after the
+  // screen shows, only for a recorded trip loaded from the server; silent on
+  // error or offline, and the section only appears when there is something.
+  const [roadworks, setRoadworks] = useState<TripRoadworksItem[]>([]);
+  const [roadworksCredit, setRoadworksCredit] = useState<string | null>(null);
+  const roadworksAskedRef = useRef<string | null>(null);
+  useEffect(() => {
+    // canSplit is true only for a recorded trip with 10+ breadcrumbs that came
+    // from the server, which is exactly when roadworks can be found. The trip
+    // counts as asked only once an answer arrives (lib/trips/roadworksOnce).
+    if (mode !== "viewing" || !id || !canSplit) return;
+    return fetchRoadworksOnce({
+      id,
+      asked: roadworksAskedRef,
+      fetch: fetchTripRoadworks,
+      onResult: (data) => {
+        setRoadworks(data.items ?? []);
+        setRoadworksCredit(data.attribution ?? null);
+      },
+    });
+  }, [mode, id, canSplit]);
   const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
   const [loggingCaz, setLoggingCaz] = useState<string | null>(null);
 
@@ -4986,6 +5009,8 @@ export default function TripFormScreen() {
             facts={tripFacts}
             editedAt={editedAt}
             diversionText={diversion ? diversionLabel(diversion) : null}
+            roadworks={roadworks}
+            roadworksCredit={roadworksCredit}
             routeCoords={routeCoords}
             routeMatched={routeMatched}
             classification={classification}

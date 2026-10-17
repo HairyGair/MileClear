@@ -32,6 +32,7 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
   return "car";
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
+import { loadTripRoadworks } from "../../services/tripRoadworks.js";
 import { loadProjectTotals, loadProjectLabels } from "../../services/projectTotals.js";
 import { startTimeChangeAllowed } from "../../services/tripTimeEdit.js";
 import {
@@ -2760,6 +2761,17 @@ export async function tripRoutes(app: FastifyInstance) {
     );
 
     return reply.status(201).send({ data: mergedTrip });
+  });
+
+  // GET /trips/:id/roadworks: Street Manager works this trip drove through
+  // while they were in place. A label for the trip detail only; nothing on
+  // the trip changes. Empty for manual trips and thin recordings.
+  app.get("/:id/roadworks", async (request, reply) => {
+    const parsed = z.object({ id: z.string().uuid() }).safeParse(request.params);
+    if (!parsed.success) return reply.status(404).send({ error: "Trip not found" });
+    const result = await loadTripRoadworks(request.userId!, parsed.data.id);
+    if (!result) return reply.status(404).send({ error: "Trip not found" });
+    return reply.send({ data: result });
   });
 
   // ── Trip Split (inverse of /merge) ────────────────────────────────────

@@ -464,9 +464,13 @@ export async function loadStreetWorks(
   }
 }
 
-/** Works that ended more than two days ago, and "Road reopened" pending
- *  rows older than three days (they are written whatever ROAD_REOPENED_PUSH
- *  says, so this runs whatever it says too). */
+/** Ended works are kept this long so a trip's detail can still name the
+ *  roadworks it drove through (GET /trips/:id/roadworks). */
+export const STREET_WORKS_KEEP_ENDED_DAYS = 14;
+
+/** Works that ended more than STREET_WORKS_KEEP_ENDED_DAYS ago, and "Road
+ *  reopened" pending rows older than three days (they are written whatever
+ *  ROAD_REOPENED_PUSH says, so this runs whatever it says too). */
 export async function purgeEndedStreetWorks(now: Date = new Date()): Promise<number> {
   if (!isStreetManagerEnabled()) return 0;
   try {
@@ -481,7 +485,7 @@ export async function purgeEndedStreetWorks(now: Date = new Date()): Promise<num
   }
   try {
     const res = await prisma.streetWorksEvent.deleteMany({
-      where: { endAt: { lt: new Date(now.getTime() - 2 * 86400000) } },
+      where: { endAt: { lt: new Date(now.getTime() - STREET_WORKS_KEEP_ENDED_DAYS * 86400000) } },
     });
     return res.count;
   } catch {

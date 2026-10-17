@@ -202,4 +202,6 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I turn some notifications off?", area: "insights_and_alerts", id: "notifications", expect: [/settings/i, /notifications/i] },
   { q: "Where's the cheapest fuel near me?", area: "insights_and_alerts", id: "fuel-prices", expect: [/fuel/i] },
   { q: "What are road alerts?", area: "insights_and_alerts", id: "road-alerts", expect: [/usual|closed|delay/i] },
+  { q: "Why does my trip show roadworks?", area: "insights_and_alerts", id: "trip-roadworks", expect: [/never changes your miles/i] },
+  { q: "Why was my drive so slow?", area: "insights_and_alerts", id: "trip-roadworks", expect: [/roadworks/i] },
 ];

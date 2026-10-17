@@ -255,6 +255,12 @@ export function fetchTrip(id: string) {
   return apiRequest<{ data: TripDetail }>(`/trips/${id}`);
 }
 
+/** Roadworks this trip drove through while they were in place (Street
+ *  Manager). A label only; nothing on the trip changes. */
+export function fetchTripRoadworks(id: string) {
+  return apiRequest<import("@mileclear/shared").TripRoadworksResponse>(`/trips/${id}/roadworks`);
+}
+
 export interface RecalcTripResult {
   changed: boolean;
   oldMiles: number;

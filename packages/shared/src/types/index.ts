@@ -971,6 +971,30 @@ export interface RoadAlertsResponse {
   };
 }
 
+/** One roadworks item a recorded trip drove through while it was in place. */
+export interface TripRoadworksItem {
+  streetName: string | null;
+  /** The whole line to show: "Temporary lights on Derby Street (South Staffordshire Water)". */
+  phrase: string;
+  /** Works company, short form ("BT"), or null. */
+  promoter: string | null;
+  /** Emergency works (only when the server knows the work category). */
+  emergency?: boolean;
+  /** When the works were in place (ISO), as Street Manager has it. */
+  startAt: string | null;
+  endAt: string | null;
+}
+
+/** GET /trips/:id/roadworks. A label only: nothing on the trip changes. */
+export interface TripRoadworksResponse {
+  data: {
+    /** At most 5, in the order the trip met them. Often empty. */
+    items: TripRoadworksItem[];
+    /** Credit line the data licence requires, when there are items. */
+    attribution: string | null;
+  };
+}
+
 export interface NearbyPricesResponse {
   stations: FuelStation[];
   nationalAverage: NationalAveragePrices | null;
