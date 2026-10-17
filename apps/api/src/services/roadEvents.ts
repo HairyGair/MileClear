@@ -388,8 +388,15 @@ export interface StreetWorksRecord {
   /** The booked end (permit proposed end, activity end), even after the
    *  actual end replaced it in endAt. Used to tell "reopened early". */
   plannedEndAt?: Date | null;
+  /** False when the booked end came as a date with no time (Street Manager
+   *  then means "by the end of that day"; plannedEndAt is 23:59:59 UK). */
+  plannedEndHasTime?: boolean;
+  /** Permit actual_start_date_time: the works were reported started. */
+  actualStartAt?: Date | null;
   /** Permit actual_end_date_time, when the works have been reported stopped. */
   actualEndAt?: Date | null;
+  /** Permit work_reference_number, shared by every permit for one job. */
+  workReference?: string | null;
   eventAt: Date;
   lines: LatLng[][];
   points: LatLng[];
@@ -397,7 +404,20 @@ export interface StreetWorksRecord {
 
 export type StreetWorksChange =
   | { kind: "upsert"; record: StreetWorksRecord }
-  | { kind: "delete"; reference: string; eventAt: Date }
+  | {
+      kind: "delete";
+      reference: string;
+      eventAt: Date;
+      /** Why: "cancelled" (permit cancelled, refused or revoked, or the
+       *  activity cancelled), "completed" (the traffic management dropped
+       *  to nothing we keep, on a message that also says the works are
+       *  finished), or "relaxed" (dropped to nothing we keep, works not
+       *  said to be finished, or no traffic management given at all). Only
+       *  the first two can be a "Road reopened". */
+      reason?: "cancelled" | "completed" | "relaxed";
+      /** Permit actual_end_date_time on a "completed" delete. */
+      actualEndAt?: Date | null;
+    }
   | { kind: "ignore"; reason: string };
 
 /** "work-start", "WORK_START" and "Work start" -> "work_start". */
@@ -496,7 +516,7 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
   if (!reference) return { kind: "ignore", reason: "no_reference" };
 
   const cancelled = objectType === "ACTIVITY" && String(data.cancelled ?? "").toLowerCase() === "yes";
-  if (DELETE_EVENTS.has(eventType) || cancelled) return { kind: "delete", reference, eventAt };
+  if (DELETE_EVENTS.has(eventType) || cancelled) return { kind: "delete", reference, eventAt, reason: "cancelled" };
 
   const tm =
     objectType === "PERMIT"
@@ -505,7 +525,15 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
   if (!STREET_WORKS_KEEP.has(tm)) {
     // A permit whose traffic management was relaxed to nothing worth
     // knowing about: drop any stored copy.
-    return { kind: "delete", reference, eventAt };
+    const status = toRef(str(data.work_status_ref) ?? str(data.work_status));
+    const done = status === "completed" || status === "works_completed";
+    return {
+      kind: "delete",
+      reference,
+      eventAt,
+      reason: done ? "completed" : "relaxed",
+      actualEndAt: done ? parseDate(str(data.actual_end_date_time)) : null,
+    };
   }
 
   const geom = parseBngWkt(
@@ -516,16 +544,21 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
   let startAt: Date | null;
   let endAt: Date | null;
   let plannedEndAt: Date | null;
+  let plannedEndHasTime: boolean;
+  let actualStartAt: Date | null = null;
   let actualEndAt: Date | null = null;
   if (objectType === "PERMIT") {
-    startAt = parseDate(str(data.actual_start_date_time)) ?? combineDateTime(data.proposed_start_date, data.proposed_start_time, false);
+    actualStartAt = parseDate(str(data.actual_start_date_time));
+    startAt = actualStartAt ?? combineDateTime(data.proposed_start_date, data.proposed_start_time, false);
     plannedEndAt = combineDateTime(data.proposed_end_date, data.proposed_end_time, true);
+    plannedEndHasTime = parseDate(str(data.proposed_end_time)) != null;
     actualEndAt = parseDate(str(data.actual_end_date_time));
     endAt = actualEndAt ?? plannedEndAt;
   } else {
     startAt = combineDateTime(data.start_date, data.start_time, false);
     endAt = combineDateTime(data.end_date, data.end_time, true);
     plannedEndAt = endAt;
+    plannedEndHasTime = parseDate(str(data.end_time)) != null;
   }
 
   return {
@@ -545,7 +578,10 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
       startAt,
       endAt,
       plannedEndAt,
+      plannedEndHasTime,
+      actualStartAt,
       actualEndAt,
+      workReference: objectType === "PERMIT" ? str(data.work_reference_number) : null,
       eventAt,
       lines: geom.lines,
       points: geom.points,

@@ -1863,7 +1863,7 @@ model StreetWorksEvent {
   workCategory       String?   @db.VarChar(32)
   streetName         String?   @db.VarChar(200)
   town               String?   @db.VarChar(100)
-  areaName          String?   @db.VarChar(200)
+  areaName           String?   @db.VarChar(200)
   highwayAuthority   String?   @db.VarChar(200)
   promoter           String?   @db.VarChar(200)
   startAt            DateTime?

@@ -156,6 +156,19 @@ describe("copy", () => {
     expect(eventSentence(e, NOW)).toBe("Durham Road, Testtown is closed for roadworks until 14:30 tomorrow.");
   });
 
+  it("closed both ways keeps the prefix", () => {
+    const north = { ...smEvent({ street: "DURHAM ROAD", category: "immediate_emergency" }), directionMode: "along" as const, bearing: 0 };
+    const south: RoadEvent = {
+      ...north,
+      id: "sm:SOUTH",
+      bearing: 180,
+      lines: [[[north.lines[0][1][0], -1.9997], [north.lines[0][0][0], -1.9997]]],
+    };
+    const g = groupMatches([m(north), m(south)], NOW)[0];
+    expect(g.bothDirections).toBe(true);
+    expect(g.headline).toBe("Emergency works: Durham Road, Testtown closed both ways");
+  });
+
   it("the grouped card carries it", () => {
     const g = groupMatches([m(smEvent({ street: "DURHAM ROAD", category: "immediate_emergency" }))], NOW)[0];
     expect(g.headline).toBe("Emergency works: Durham Road, Testtown closed");

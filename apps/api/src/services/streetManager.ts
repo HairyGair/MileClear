@@ -23,6 +23,7 @@ import {
   publicDecrypt,
   timingSafeEqual,
 } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { logEvent } from "./appEvents.js";
 import {
@@ -33,9 +34,12 @@ import {
 } from "./roadEvents.js";
 import type { LatLng } from "./roadCorridor.js";
 import {
+  REOPENED_PENDING_KEEP_DAYS,
   ROAD_REOPENED_PENDING_EVENT,
   detectReopened,
+  findingFromMetadata,
   findingToMetadata,
+  sameClosure,
   mightReopen,
   type AppliedChange,
   type ReopenedFinding,
@@ -264,15 +268,24 @@ function noteReopened(before: StoredWorks | null, change: AppliedChange): void {
   );
 }
 
-/** One pending row per works reference (a redelivery adds nothing). */
+/** One pending row per closure: a redelivery, another permit for the same
+ *  job, or the activity for the same closure adds nothing. */
 export async function recordReopened(f: ReopenedFinding): Promise<void> {
-  const seen = await prisma.appEvent.findFirst({
+  const or: Prisma.AppEventWhereInput[] = [{ metadata: { path: "$.reference", equals: f.reference } }];
+  if (f.workReference) or.push({ metadata: { path: "$.workReference", equals: f.workReference } });
+  if (f.streetName) or.push({ metadata: { path: "$.streetName", equals: f.streetName } });
+  const rows = await prisma.appEvent.findMany({
     where: {
       type: ROAD_REOPENED_PENDING_EVENT,
-      createdAt: { gte: new Date(Date.now() - 14 * 86400000) },
-      metadata: { path: "$.reference", equals: f.reference },
+      createdAt: { gte: new Date(Date.now() - REOPENED_PENDING_KEEP_DAYS * 86400000) },
+      OR: or,
     },
-    select: { id: true },
+    select: { metadata: true },
+    take: 50,
+  });
+  const seen = rows.some((r) => {
+    const other = findingFromMetadata(r.metadata);
+    return other != null && sameClosure(other, f);
   });
   if (seen) return;
   logEvent(ROAD_REOPENED_PENDING_EVENT, null, findingToMetadata(f));
@@ -355,6 +368,54 @@ function worksData(r: StreetWorksRecord) {
   };
 }
 
+/** The street_works_events columns the road alert rules read. Selected
+ *  explicitly, so a column the database lacks can never blank the alerts. */
+const WORKS_COLUMNS = {
+  reference: true,
+  trafficManagement: true,
+  isTrafficSensitive: true,
+  workStatus: true,
+  streetName: true,
+  town: true,
+  promoter: true,
+  startAt: true,
+  endAt: true,
+  geometry: true,
+} as const;
+
+export interface WorksRow {
+  reference: string;
+  trafficManagement: string;
+  isTrafficSensitive: boolean;
+  workStatus: string | null;
+  workCategory: string | null;
+  streetName: string | null;
+  town: string | null;
+  promoter: string | null;
+  startAt: Date | null;
+  endAt: Date | null;
+  geometry: unknown;
+}
+
+let categoryColumnMissing = false;
+
+/** Stored works rows with the columns above plus workCategory. If the
+ *  workCategory column is not there yet (the API restarted before its
+ *  migration ran), the rows come back without it rather than not at all. */
+export async function findWorksRows(where: Prisma.StreetWorksEventWhereInput, take: number): Promise<WorksRow[]> {
+  if (!categoryColumnMissing) {
+    try {
+      return await prisma.streetWorksEvent.findMany({ where, select: { ...WORKS_COLUMNS, workCategory: true }, take });
+    } catch (err) {
+      if (!/workCategory/i.test((err as Error).message)) throw err;
+      categoryColumnMissing = true;
+      console.error("[streetManager] workCategory column missing; run the migration. Loading without it.");
+    }
+  }
+  const rows = await prisma.streetWorksEvent.findMany({ where, select: WORKS_COLUMNS, take });
+  return rows.map((r) => ({ ...r, workCategory: null }));
+}
+
 /** Stored works overlapping a bbox that have not ended and start within the
  *  horizon, as RoadEvents. Empty when the feature is off or the table is not
  *  migrated yet. */
@@ -365,8 +426,8 @@ export async function loadStreetWorks(
 ): Promise<RoadEvent[]> {
   if (!isStreetManagerEnabled()) return [];
   try {
-    const rows = await prisma.streetWorksEvent.findMany({
-      where: {
+    const rows = await findWorksRows(
+      {
         minLat: { lte: bbox.maxLat },
         maxLat: { gte: bbox.minLat },
         minLng: { lte: bbox.maxLng },
@@ -374,8 +435,8 @@ export async function loadStreetWorks(
         OR: [{ endAt: null }, { endAt: { gte: now } }],
         AND: [{ OR: [{ startAt: null }, { startAt: { lte: new Date(now.getTime() + horizonDays * 86400000) } }] }],
       },
-      take: 3000,
-    });
+      3000
+    );
     // Non-closure works are listed only on traffic-sensitive streets.
     const worth = rows.filter((r) => r.trafficManagement === "road_closure" || r.isTrafficSensitive);
     return worth.map((r) => {
@@ -403,9 +464,21 @@ export async function loadStreetWorks(
   }
 }
 
-/** Works that ended more than two days ago. */
+/** Works that ended more than two days ago, and "Road reopened" pending
+ *  rows older than three days (they are written whatever ROAD_REOPENED_PUSH
+ *  says, so this runs whatever it says too). */
 export async function purgeEndedStreetWorks(now: Date = new Date()): Promise<number> {
   if (!isStreetManagerEnabled()) return 0;
+  try {
+    await prisma.appEvent.deleteMany({
+      where: {
+        type: ROAD_REOPENED_PENDING_EVENT,
+        createdAt: { lt: new Date(now.getTime() - REOPENED_PENDING_KEEP_DAYS * 86400000) },
+      },
+    });
+  } catch (err) {
+    console.error("[streetManager] pending purge failed:", (err as Error).message);
+  }
   try {
     const res = await prisma.streetWorksEvent.deleteMany({
       where: { endAt: { lt: new Date(now.getTime() - 2 * 86400000) } },

@@ -9,11 +9,12 @@
 // last 7 days cannot be rebuilt from what was stored before. From the deploy
 // of this change on, every closure that finishes early is noted as it arrives
 // (an AppEvent road_alert.reopened_pending, written whatever
-// ROAD_REOPENED_PUSH says), and this script reads those. Run it a few days
-// after the deploy for a real picture.
+// ROAD_REOPENED_PUSH says), and this script reads those. Pending rows are
+// kept 3 days, so the look-back is at most 3 days (one closure, permit and
+// activity together, counts once). Run it a few days after the deploy.
 //
 // It prints:
-//   - closures noted as reopened early in the look-back (default 7 days)
+//   - closures noted as reopened early in the look-back (default and most: 3 days)
 //   - drivers eligible (road alerts on, with a push token)
 //   - how many would have had a push, and why the rest would not
 //   - 10 sample push texts, anonymised (no names, emails or ids; the street
@@ -43,7 +44,7 @@ if (process.env.STREET_MANAGER_SNS_ENABLED !== "1") {
 const { planRoadReopened } = await import("../dist/jobs/roadReopened.js");
 const { prisma } = await import("../dist/lib/prisma.js");
 
-const days = Number(process.env.LOOKBACK_DAYS ?? 7);
+const days = Math.min(3, Number(process.env.LOOKBACK_DAYS ?? 3));
 if (!Number.isFinite(days) || days <= 0) {
   console.error("LOOKBACK_DAYS is not a positive number.");
   process.exit(1);
@@ -54,6 +55,8 @@ try {
   const t0 = Date.now();
   const plan = await planRoadReopened(now, {
     lookbackMs: days * 86400000,
+    // Every reopening in the look-back, however long ago it happened.
+    maxFinishAgeMs: days * 86400000 + 12 * 3600000,
     checkSent: process.env.CHECK_SENT === "1",
     checkDriving: false,
     checkReverted: true,

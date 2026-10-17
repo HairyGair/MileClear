@@ -20,9 +20,13 @@
 //     alert or the week-ahead push (a reopened push does not count against
 //     the pre-departure alert, so good news never blocks a closure warning);
 //   - quiet hours: the job does nothing in them, and a pending reopening
-//     waits for the next allowed tick (up to 14 hours after it finished,
-//     so an evening reopening arrives at 08:00);
+//     waits for the next allowed tick (up to 14 hours after the road
+//     actually reopened, so an evening reopening arrives at 08:00 and
+//     nothing goes a day late);
 //   - never while they are likely driving (it waits for a later tick);
+//   - a permit and the activity for the same closure (or several permits
+//     for one job) are one closure: one push, and dismissing either part
+//     hides it (services/roadReopenedRule.ts sameClosure);
 //   - never for a closure the driver dismissed, never twice for the same
 //     works, never one with no street name;
 //   - works put back in place since (a work stop reverted) are not sent.
@@ -47,10 +51,14 @@ import {
   ROAD_REOPENED_SENT_EVENT,
   ROAD_REOPENED_SKIPPED_EVENT,
   buildReopenedCopy,
+  clusterFindings,
   isFinishedStatus,
   latestPerReference,
   roadReopenedEnabled,
+  sameClosure,
   sentReferencesFrom,
+  type ClosurePlace,
+  type ReopenedClosure,
   type ReopenedCopy,
   type ReopenedFinding,
 } from "../services/roadReopenedRule.js";
@@ -67,6 +75,8 @@ export interface ReopenedPlan {
   userId: string;
   pushToken: string;
   finding: ReopenedFinding;
+  /** Every works reference of that closure (permit, activity, ...). */
+  references: string[];
   copy: ReopenedCopy;
   /** Days in the last 6 weeks they drove the reopened stretch. */
   days: number;
@@ -82,8 +92,12 @@ export interface ReopenedPlanResult {
 }
 
 export interface ReopenedPlanOptions {
-  /** How far back to read pending reopenings (the job: 14 hours). */
+  /** How far back to read pending rows (the job: 14 hours). */
   lookbackMs: number;
+  /** Leave out closures that reopened longer ago than this (the job: 14
+   *  hours, counted from when the road actually reopened, not from when the
+   *  message arrived). */
+  maxFinishAgeMs: number;
   /** Leave out drivers already sent one today, at the road alerts cap, or
    *  already told about the works. The dry run can turn this off. */
   checkSent: boolean;
@@ -103,15 +117,18 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
     where: { type: ROAD_REOPENED_PENDING_EVENT, createdAt: { gte: new Date(now.getTime() - opts.lookbackMs), lte: now } },
     select: { createdAt: true, metadata: true },
   });
-  let findings = latestPerReference(rows).filter((f) => buildReopenedCopy(f) != null);
-  result.pending = findings.length;
-  if (findings.length === 0) return result;
+  const named = latestPerReference(rows).filter((f) => buildReopenedCopy(f) != null);
+  // One per closure (a permit and its activity are one), and only ones that
+  // reopened recently enough to still be news.
+  let closures = clusterFindings(named).filter((c) => now.getTime() - c.lead.finishedAt.getTime() <= opts.maxFinishAgeMs);
+  result.pending = closures.length;
+  if (closures.length === 0) return result;
 
   if (opts.checkReverted) {
     // A work stop reverted, or the closure booked again under the same
     // reference: the row is back and unfinished.
     const live = await prisma.streetWorksEvent.findMany({
-      where: { reference: { in: findings.map((f) => f.reference) } },
+      where: { reference: { in: closures.flatMap((c) => c.references) } },
       select: { reference: true, workStatus: true, startAt: true, endAt: true, trafficManagement: true },
     });
     const back = new Set(
@@ -125,10 +142,10 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
         )
         .map((r) => r.reference)
     );
-    const before = findings.length;
-    findings = findings.filter((f) => !back.has(f.reference));
-    if (findings.length < before) result.skipped.closure_back_in_place = before - findings.length;
-    if (findings.length === 0) return result;
+    const before = closures.length;
+    closures = closures.filter((c) => !c.references.some((ref) => back.has(ref)));
+    if (closures.length < before) result.skipped.closure_back_in_place = before - closures.length;
+    if (closures.length === 0) return result;
   }
 
   const users = await prisma.user.findMany({
@@ -140,6 +157,7 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
   if (optedIn.length === 0) return result;
 
   const today = localDayBounds(now);
+  const allRefs = new Set(closures.flatMap((c) => c.references));
 
   for (let i = 0; i < optedIn.length; i += BATCH_SIZE) {
     const batch = optedIn.slice(i, i + BATCH_SIZE);
@@ -172,23 +190,52 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
       loadDismissedIds(ids, now),
     ]);
 
+    // Dismissed Street Manager works that are not one of the reopened
+    // references themselves: the other half of a closure (the driver hid the
+    // activity, the permit reopened). Look up where they were, once a batch.
+    const otherDismissed = new Set<string>();
+    for (const set of dismissedByUser.values()) {
+      for (const id of set) if (id.startsWith("sm:") && !allRefs.has(id.slice(3))) otherDismissed.add(id.slice(3));
+    }
+    const dismissedPlaces = new Map<string, ClosurePlace>();
+    if (otherDismissed.size > 0) {
+      const places = await prisma.streetWorksEvent.findMany({
+        where: { reference: { in: [...otherDismissed].slice(0, 2000) } },
+        select: { reference: true, streetName: true, geometry: true },
+      });
+      for (const p of places) {
+        const g = (p.geometry ?? {}) as { lines?: unknown; points?: unknown };
+        dismissedPlaces.set(p.reference, {
+          reference: p.reference,
+          streetName: p.streetName,
+          lines: Array.isArray(g.lines) ? (g.lines as ClosurePlace["lines"]) : [],
+          points: Array.isArray(g.points) ? (g.points as ClosurePlace["points"]) : [],
+        });
+      }
+    }
+
     for (const user of batch) {
       const mine = sentRows.filter((r) => r.userId === user.id);
       const sentRefs = sentReferencesFrom(mine.filter((r) => r.type === ROAD_REOPENED_SENT_EVENT).map((r) => r.metadata));
       const dismissed = dismissedByUser.get(user.id) ?? new Set<string>();
+      const theirPlaces = [...dismissed]
+        .map((id) => (id.startsWith("sm:") ? dismissedPlaces.get(id.slice(3)) : undefined))
+        .filter((p): p is ClosurePlace => p != null);
+      const isDismissed = (c: ReopenedClosure) =>
+        c.references.some((ref) => dismissed.has(`sm:${ref}`)) || theirPlaces.some((p) => sameClosure(p, c.lead));
 
-      let matches: { finding: ReopenedFinding; days: number }[];
+      let matches: { closure: ReopenedClosure; days: number }[];
       try {
         const corridor = await loadCorridor(user.id, now);
         if (!corridor.bbox || corridor.cells.size === 0) { skip("no_usual_roads"); continue; }
         matches = [];
-        for (const f of findings) {
+        for (const c of closures) {
           const m = matchEventToCorridor(corridor, {
-            lines: f.lines,
-            points: f.points,
-            directionMode: f.lines.length > 0 ? "axis" : "none",
+            lines: c.lead.lines,
+            points: c.lead.points,
+            directionMode: c.lead.lines.length > 0 ? "axis" : "none",
           });
-          if (m.matched) matches.push({ finding: f, days: m.days });
+          if (m.matched) matches.push({ closure: c, days: m.days });
         }
       } catch (err) {
         console.error("[jobs/roadReopened] plan failed:", (err as Error).message);
@@ -196,11 +243,10 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
         continue;
       }
       if (matches.length === 0) { skip("not_on_their_roads"); continue; }
-      const fresh = matches
-        .filter((m) => !dismissed.has(`sm:${m.finding.reference}`))
-        .filter((m) => !sentRefs.has(m.finding.reference));
+      const notDismissed = matches.filter((m) => !isDismissed(m.closure));
+      const fresh = notDismissed.filter((m) => !m.closure.references.some((ref) => sentRefs.has(ref)));
       if (fresh.length === 0) {
-        skip(matches.some((m) => dismissed.has(`sm:${m.finding.reference}`)) ? "dismissed" : "already_told");
+        skip(notDismissed.length === 0 ? "dismissed" : "already_told");
         continue;
       }
 
@@ -226,14 +272,14 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
       }
 
       // The road they drive most, then the most recent reopening.
-      fresh.sort((a, b) => b.days - a.days || b.finding.finishedAt.getTime() - a.finding.finishedAt.getTime());
+      fresh.sort((a, b) => b.days - a.days || b.closure.lead.finishedAt.getTime() - a.closure.lead.finishedAt.getTime());
       const pick = fresh[0];
-      const copy = buildReopenedCopy(pick.finding)!;
       result.plans.push({
         userId: user.id,
         pushToken: user.pushToken!,
-        finding: pick.finding,
-        copy,
+        finding: pick.closure.lead,
+        references: pick.closure.references,
+        copy: buildReopenedCopy(pick.closure.lead)!,
         days: pick.days,
         others: fresh.length - 1,
       });
@@ -256,7 +302,10 @@ export async function runRoadReopenedJob(now: Date = new Date()): Promise<RoadRe
   if (isPushQuietHours(now)) return;
 
   const plan = await planRoadReopened(now, {
+    // A row is written when the message arrives, never before the road
+    // reopened, so 14 hours of rows covers every reopening still fresh.
     lookbackMs: REOPENED_PENDING_MAX_AGE_MS,
+    maxFinishAgeMs: REOPENED_PENDING_MAX_AGE_MS,
     checkSent: true,
     checkDriving: true,
     checkReverted: true,
@@ -287,6 +336,7 @@ export async function runRoadReopenedJob(now: Date = new Date()): Promise<RoadRe
       // never-twice check; no street or place.
       logEvent(ROAD_REOPENED_SENT_EVENT, p.userId, {
         reference: p.finding.reference,
+        references: p.references,
         days: p.days,
         others: p.others,
         early: p.finding.plannedEndAt != null,

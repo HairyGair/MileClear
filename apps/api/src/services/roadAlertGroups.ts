@@ -18,7 +18,7 @@
 // folded away, and never pushed or put on the dashboard card.
 
 import type { RoadEvent, RoadEventSeverity } from "./roadEvents.js";
-import { urgencyRank } from "./roadEvents.js";
+import { urgencyLabel, urgencyRank } from "./roadEvents.js";
 import { haversineMetres, ukLocalParts, type LatLng } from "./roadCorridor.js";
 import {
   DEPARTURE_EFFECT_SLACK_MIN,
@@ -218,7 +218,10 @@ function describe(g: Omit<AlertGroup, "headline" | "sentence" | "named">, now: D
   let headline = eventHeadline(withName, label);
   let sentence = eventSentence(withName, now, label);
   if (g.bothDirections) {
-    if (g.severity === "closure") headline = `${label} closed both ways`;
+    if (g.severity === "closure") {
+      const urgent = urgencyLabel(withName);
+      headline = `${urgent ? `${urgent}: ` : ""}${label} closed both ways`;
+    }
     sentence = sentence.replace(/\.$/, ", in both directions.");
   }
   // Closures with no booked end say so, rather than leaving it blank. Live

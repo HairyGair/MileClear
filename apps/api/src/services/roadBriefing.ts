@@ -6,11 +6,10 @@
 // never leaves the server; only the line about the driver's own roads goes
 // back to them.
 
-import { prisma } from "../lib/prisma.js";
 import { matchEventToCorridor } from "./roadCorridor.js";
-import { isStreetManagerEnabled } from "./streetManager.js";
+import { findWorksRows, isStreetManagerEnabled } from "./streetManager.js";
 import { loadCorridor, loadDismissedIds } from "./roadAlerts.js";
-import { WORKS_SELECT, worksRowToCandidate } from "./roadWeekAhead.js";
+import { worksRowToCandidate } from "./roadWeekAhead.js";
 import { selectBriefingWorks, type BriefingWorksEntry } from "./roadBriefingRule.js";
 import type { WeekAheadCandidate } from "./roadWeekAheadRule.js";
 
@@ -25,8 +24,8 @@ export async function briefingRoadworksForDriver(userId: string, now: Date): Pro
     const corridor = await loadCorridor(userId, now);
     if (!corridor.bbox || corridor.cells.size === 0) return [];
     const bbox = corridor.bbox;
-    const rows = await prisma.streetWorksEvent.findMany({
-      where: {
+    const rows = await findWorksRows(
+      {
         minLat: { lte: bbox.maxLat },
         maxLat: { gte: bbox.minLat },
         minLng: { lte: bbox.maxLng },
@@ -34,9 +33,8 @@ export async function briefingRoadworksForDriver(userId: string, now: Date): Pro
         OR: [{ endAt: null }, { endAt: { gt: now } }],
         AND: [{ OR: [{ startAt: null }, { startAt: { lte: now } }] }],
       },
-      select: WORKS_SELECT,
-      take: MAX_ROWS,
-    });
+      MAX_ROWS
+    );
     const candidates: WeekAheadCandidate[] = [];
     for (const r of rows) {
       const c = worksRowToCandidate(r, now);

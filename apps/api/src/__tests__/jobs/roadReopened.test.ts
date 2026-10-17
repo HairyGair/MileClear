@@ -27,7 +27,11 @@ vi.mock("../../lib/prisma.js", () => ({
         args.where.type === "road_alert.reopened_pending" ? db.pending : db.sent
       ),
     },
-    streetWorksEvent: { findMany: vi.fn(async () => db.works) },
+    streetWorksEvent: {
+      findMany: vi.fn(async (args: { where: { reference: { in: string[] } } }) =>
+        (db.works as { reference: string }[]).filter((w) => args.where.reference.in.includes(w.reference))
+      ),
+    },
     trip: { findMany: vi.fn(async () => db.trips) },
     shift: { findMany: vi.fn(async () => db.shifts) },
   },
@@ -153,7 +157,7 @@ describe("runRoadReopenedJob", () => {
   });
 
   it("at most one a day", async () => {
-    db.pending = [pending("REF1-01"), pending("REF2-01")];
+    db.pending = [pending("REF1-01"), pending("REF2-01", { streetName: "MILL LANE", lines: [[[52.6, -1.5], [52.601, -1.5]]] })];
     db.sent = [{ userId: "u1", type: ROAD_REOPENED_SENT_EVENT, metadata: { reference: "REF2-01" }, createdAt: new Date(NOW.getTime() - 1 * H) }];
     const r = await runRoadReopenedJob(NOW);
     expect(r?.sent).toBe(0);
@@ -161,10 +165,45 @@ describe("runRoadReopenedJob", () => {
   });
 
   it("two reopenings at once make one push", async () => {
-    db.pending = [pending("REF1-01"), pending("REF2-01", { streetName: "OTHER STREET" })];
+    db.pending = [pending("REF1-01"), pending("REF2-01", { streetName: "OTHER STREET", lines: [[[52.6, -1.5], [52.601, -1.5]]] })];
     const r = await runRoadReopenedJob(NOW);
     expect(r?.sent).toBe(1);
     expect(sendPushNotifications.mock.calls[0][0]).toHaveLength(1);
+  });
+
+  it("a permit and its activity for one closure are one closure, logged with both references", async () => {
+    db.pending = [pending("REF1-01"), pending("ARN-1", { lines: [[[52.5004, -1.5], [52.502, -1.5]]] })];
+    const r = await runRoadReopenedJob(NOW);
+    expect(r?.pending).toBe(1);
+    expect(r?.sent).toBe(1);
+    const sent = logEvent.mock.calls.find((c) => c[0] === ROAD_REOPENED_SENT_EVENT)!;
+    expect((sent[2] as { references: string[] }).references.sort()).toEqual(["ARN-1", "REF1-01"]);
+  });
+
+  it("dismissing the activity hides the permit's reopening (same street, same place)", async () => {
+    db.dismissed.set("u1", new Set(["sm:ARN-9"]));
+    db.works = [{ reference: "ARN-9", streetName: "Test Road", geometry: { lines: [[[52.5003, -1.5], [52.502, -1.5]]], points: [] } }];
+    const r = await runRoadReopenedJob(NOW);
+    expect(r?.sent).toBe(0);
+    expect(r?.skipped.dismissed).toBe(1);
+  });
+
+  it("told about the activity already: not told again about the permit", async () => {
+    db.pending = [pending("REF1-01"), pending("ARN-1", { lines: [[[52.5004, -1.5], [52.502, -1.5]]] })];
+    db.sent = [
+      { userId: "u1", type: ROAD_REOPENED_SENT_EVENT, metadata: { reference: "ARN-1", references: ["ARN-1"] }, createdAt: new Date(NOW.getTime() - 30 * H) },
+    ];
+    const r = await runRoadReopenedJob(NOW);
+    expect(r?.sent).toBe(0);
+    expect(r?.skipped.already_told).toBe(1);
+  });
+
+  it("freshness is counted from when the road reopened, not when the message arrived", async () => {
+    // Reported 2 hours ago, but the road reopened 16 hours ago.
+    db.pending = [pending("REF1-01", { finishedAt: new Date(NOW.getTime() - 16 * H).toISOString() })];
+    const r = await runRoadReopenedJob(NOW);
+    expect(r?.pending).toBe(0);
+    expect(sendPushNotifications).not.toHaveBeenCalled();
   });
 
   it("respects the one-road-alert-a-day cap", async () => {

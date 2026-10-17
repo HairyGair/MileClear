@@ -7,11 +7,10 @@
 // in view. The corridor never leaves the server; only the matched works go
 // back to the driver who owns it.
 
-import { prisma } from "../lib/prisma.js";
 import type { Corridor, LatLng } from "./roadCorridor.js";
 import { matchEventToCorridor } from "./roadCorridor.js";
 import { streetWorksToRoadEvent } from "./roadEvents.js";
-import { isStreetManagerEnabled } from "./streetManager.js";
+import { findWorksRows, isStreetManagerEnabled, type WorksRow } from "./streetManager.js";
 import {
   selectWeekAhead,
   type WeekAheadCandidate,
@@ -23,34 +22,7 @@ const MAX_ROWS = 3000;
 
 type Bbox = { minLat: number; maxLat: number; minLng: number; maxLng: number };
 
-/** The street_works_events columns the week-ahead and briefing rules need. */
-export const WORKS_SELECT = {
-  reference: true,
-  trafficManagement: true,
-  isTrafficSensitive: true,
-  workStatus: true,
-  workCategory: true,
-  streetName: true,
-  town: true,
-  promoter: true,
-  startAt: true,
-  endAt: true,
-  geometry: true,
-} as const;
-
-export interface WorksRow {
-  reference: string;
-  trafficManagement: string;
-  isTrafficSensitive: boolean;
-  workStatus: string | null;
-  workCategory: string | null;
-  streetName: string | null;
-  town: string | null;
-  promoter: string | null;
-  startAt: Date | null;
-  endAt: Date | null;
-  geometry: unknown;
-}
+export type { WorksRow };
 
 /** A stored works row -> a RoadEvent plus what Street Manager says about it. */
 export function worksRowToCandidate(r: WorksRow, now: Date): Omit<WeekAheadCandidate, "days"> {
@@ -91,17 +63,16 @@ export async function loadWeekAheadWorks(
 ): Promise<Omit<WeekAheadCandidate, "days">[]> {
   if (!isStreetManagerEnabled()) return [];
   try {
-    const rows = await prisma.streetWorksEvent.findMany({
-      where: {
+    const rows = await findWorksRows(
+      {
         minLat: { lte: bbox.maxLat },
         maxLat: { gte: bbox.minLat },
         minLng: { lte: bbox.maxLng },
         maxLng: { gte: bbox.minLng },
         startAt: { gte: window.start, lt: window.end },
       },
-      select: WORKS_SELECT,
-      take: MAX_ROWS,
-    });
+      MAX_ROWS
+    );
     return rows.map((r) => worksRowToCandidate(r, now));
   } catch (err) {
     console.error("[roadWeekAhead] load failed:", (err as Error).message);
