@@ -491,6 +491,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["download", "downloads", "export", "csv", "pdf", "spreadsheet", "report", "send", "mileage log"],
   },
   {
+    id: "exports-one-car",
+    area: "tax_and_claims",
+    q: "Can I get a report for just one car?",
+    a: "Yes, if you have more than one car. In Tax > Downloads, tap Trip Report (PDF) or Trip Data (CSV) and choose the car, or All cars. On the website, pick the car above the downloads. Trips with no car set count towards your main car. The higher mileage rate covers your first 10,000 business miles a tax year across all your cars, not 10,000 per car, so a one-car report shows that car's share of your claim. Claim the total from the All cars report.",
+    goTo: "/exports",
+    keywords: ["one car", "two cars", "each car", "per car", "vehicle", "second car", "separate report", "report"],
+  },
+  {
     id: "accountant",
     area: "tax_and_claims",
     q: "Can my accountant see my records?",

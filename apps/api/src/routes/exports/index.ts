@@ -17,13 +17,37 @@ import {
 } from "../../services/odometer.js";
 import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { prisma } from "../../lib/prisma.js";
-import { parseTaxYear } from "@mileclear/shared";
+import { exportVehicleSlug, parseTaxYear } from "@mileclear/shared";
+import {
+  exportVehicleTripWhere,
+  resolveExportVehicle,
+  type ExportVehicle,
+} from "../../services/export-data.js";
 
 interface DateRangeQuery {
   taxYear?: string;
   from?: string;
   to?: string;
   classification?: "business" | "personal";
+  /** One car only (CSV and Trip Report). Left out: every car. */
+  vehicleId?: string;
+}
+
+/**
+ * The car for a one-car CSV or Trip Report. undefined: every car. null: the
+ * vehicleId is not one of this user's cars (the route answers 404).
+ */
+async function vehicleForQuery(
+  userId: string,
+  vehicleId: string | undefined
+): Promise<ExportVehicle | undefined | null> {
+  if (!vehicleId) return undefined;
+  return resolveExportVehicle(userId, vehicleId);
+}
+
+/** "trips" or "trips-nissan-qashqai-ab12cde", for the file name. */
+function tripsFileType(vehicle: ExportVehicle | undefined): string {
+  return vehicle ? `trips-${exportVehicleSlug(vehicle)}` : "trips";
 }
 
 interface AccountingBody {
@@ -69,7 +93,13 @@ function parseQueryOpts(query: DateRangeQuery) {
  */
 async function countExportableData(
   userId: string,
-  opts: { taxYear?: string; from?: Date; to?: Date; classification?: string },
+  opts: {
+    taxYear?: string;
+    from?: Date;
+    to?: Date;
+    classification?: string;
+    vehicle?: Pick<ExportVehicle, "id" | "includesUnassigned">;
+  },
   includeEarnings: boolean
 ): Promise<{ trips: number; earnings: number }> {
   let start: Date;
@@ -92,6 +122,7 @@ async function countExportableData(
         isPhantomTrip: false,
         startedAt: { gte: start, lte: end },
         ...(opts.classification ? { classification: opts.classification } : {}),
+        ...(opts.vehicle ? exportVehicleTripWhere(opts.vehicle) : {}),
       },
     }),
     includeEarnings
@@ -116,17 +147,19 @@ export async function exportRoutes(app: FastifyInstance) {
   // CSV download
   app.get("/csv", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {
     const opts = parseQueryOpts(request.query);
+    const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
+    if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
 
-    const { trips } = await countExportableData(request.userId!, opts, false);
+    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
     if (trips === 0) {
-      logEvent("export.blocked_empty", request.userId!, { format: "csv", taxYear: opts.taxYear });
-      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, "trips") });
+      logEvent("export.blocked_empty", request.userId!, { format: "csv", taxYear: opts.taxYear, oneCar: !!vehicle });
+      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, vehicle ? "trips in that car" : "trips") });
     }
 
-    const csv = await generateTripsCsv(request.userId!, opts);
-    const filename = buildFilename("trips", opts.taxYear || "custom", "csv");
+    const csv = await generateTripsCsv(request.userId!, { ...opts, vehicle });
+    const filename = buildFilename(tripsFileType(vehicle), opts.taxYear || "custom", "csv");
 
-    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear });
+    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle });
 
     return reply
       .header("Content-Type", "text/csv")
@@ -198,17 +231,19 @@ export async function exportRoutes(app: FastifyInstance) {
   // PDF trip report download
   app.get("/pdf", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {
     const opts = parseQueryOpts(request.query);
+    const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
+    if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
 
-    const { trips } = await countExportableData(request.userId!, opts, false);
+    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
     if (trips === 0) {
-      logEvent("export.blocked_empty", request.userId!, { format: "pdf", taxYear: opts.taxYear });
-      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, "trips") });
+      logEvent("export.blocked_empty", request.userId!, { format: "pdf", taxYear: opts.taxYear, oneCar: !!vehicle });
+      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, vehicle ? "trips in that car" : "trips") });
     }
 
-    const pdf = await generateTripsPdf(request.userId!, opts);
-    const filename = buildFilename("trips", opts.taxYear || "custom", "pdf");
+    const pdf = await generateTripsPdf(request.userId!, { ...opts, vehicle });
+    const filename = buildFilename(tripsFileType(vehicle), opts.taxYear || "custom", "pdf");
 
-    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear });
+    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle });
 
     return reply
       .header("Content-Type", "application/pdf")

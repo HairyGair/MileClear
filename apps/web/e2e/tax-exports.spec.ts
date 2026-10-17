@@ -102,6 +102,39 @@ test.describe("Tax exports", () => {
     expect(calls.find((c) => c.path === "/exports/odometer-log")?.search).toContain("vehicleId=v2");
   });
 
+  test("Pro with two cars: the trip report and trips CSV can be for one car, All cars by default", async ({ page }) => {
+    await mockSession(page, { profile: profile({ isPremium: true }) });
+    const calls = await mockTax(page, {
+      download: DOWNLOADS,
+      vehicles: [
+        { id: "v1", make: "Ford", model: "Fiesta" },
+        { id: "v2", make: "Nissan", model: "Qashqai", registrationPlate: "AB12 CDE" },
+      ],
+    });
+    await page.goto("/dashboard/tax/exports");
+    const car = page.getByLabel("Car for the trip report and trips CSV");
+    await expect(car).toHaveValue("");
+    await expect(car.locator("option").first()).toHaveText("All cars");
+
+    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trip report/ }).click()]);
+    expect(calls.find((c) => c.path === "/exports/pdf")?.search).not.toContain("vehicleId");
+
+    await car.selectOption({ label: "Nissan Qashqai (AB12 CDE)" });
+    const [pdf] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trip report/ }).click()]);
+    expect(calls.filter((c) => c.path === "/exports/pdf").at(-1)?.search).toContain("vehicleId=v2");
+    expect(pdf.suggestedFilename()).toMatch(/^mileclear-trips-nissan-qashqai-ab12cde-/);
+    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trips \(CSV\)/ }).click()]);
+    expect(calls.find((c) => c.path === "/exports/csv")?.search).toContain("vehicleId=v2");
+  });
+
+  test("Pro with one car: no car choice", async ({ page }) => {
+    await mockSession(page, { profile: profile({ isPremium: true }) });
+    await mockTax(page, { download: DOWNLOADS, vehicles: [{ id: "v1", make: "Ford", model: "Fiesta" }] });
+    await page.goto("/dashboard/tax/exports");
+    await expect(page.getByRole("button", { name: /Trip report/ })).toBeVisible();
+    await expect(page.getByLabel("Car for the trip report and trips CSV")).toHaveCount(0);
+  });
+
   test.describe("390px", () => {
     test.use({ viewport: { width: 390, height: 844 } });
     test("fits the phone", async ({ page }) => {

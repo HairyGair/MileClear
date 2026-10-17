@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { postcodesFor } from "./postcodeLookup.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
@@ -29,6 +30,70 @@ interface FetchTripsOpts {
   withPostcodes?: boolean;
   /** Add the running odometer at the start and end of each trip (CSV and PDF). */
   withOdometer?: boolean;
+  /**
+   * Only this car's trips. Every trip is still priced first, so the 10,000-mile
+   * threshold counts the driver's business miles in ALL their cars and vans
+   * (it is per person, not per car), and each row comes out exactly as it does
+   * on the all-cars report. The caller must already have checked the vehicle
+   * belongs to the user (resolveExportVehicle).
+   */
+  vehicleId?: string;
+}
+
+/**
+ * The car a trip counts against in exports: its own vehicle, or the export
+ * fallback (primary, else oldest) when it has none. The same rule groups the
+ * Self Assessment "Vehicle Breakdown", so a one-car report's miles equal
+ * that car's row there.
+ */
+export function exportVehicleIdForTrip(
+  tripVehicleId: string | null,
+  fallbackVehicleId: string | null
+): string | null {
+  return tripVehicleId ?? fallbackVehicleId;
+}
+
+/** The vehicle exports fall back to for trips with no vehicle: primary, else oldest. */
+function exportFallbackVehicle(userId: string) {
+  return prisma.vehicle.findFirst({
+    where: { userId },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+    select: { id: true, make: true, model: true, vehicleType: true },
+  });
+}
+
+export interface ExportVehicle {
+  id: string;
+  make: string;
+  model: string;
+  registrationPlate: string | null;
+  /** Trips with no vehicle count against this car (it is the fallback). */
+  includesUnassigned: boolean;
+}
+
+/** The user's vehicle for a one-car export, or null when it isn't theirs. */
+export async function resolveExportVehicle(
+  userId: string,
+  vehicleId: string
+): Promise<ExportVehicle | null> {
+  const [vehicle, fallback] = await Promise.all([
+    prisma.vehicle.findFirst({
+      where: { id: vehicleId, userId },
+      select: { id: true, make: true, model: true, registrationPlate: true },
+    }),
+    exportFallbackVehicle(userId),
+  ]);
+  if (!vehicle) return null;
+  return { ...vehicle, includesUnassigned: fallback?.id === vehicle.id };
+}
+
+/** Trip where clause for one export vehicle, matching exportVehicleIdForTrip. */
+export function exportVehicleTripWhere(
+  v: Pick<ExportVehicle, "id" | "includesUnassigned">
+): Prisma.TripWhereInput {
+  return v.includesUnassigned
+    ? { OR: [{ vehicleId: v.id }, { vehicleId: null }] }
+    : { vehicleId: v.id };
 }
 
 export async function fetchExportTrips(
@@ -48,7 +113,7 @@ export async function fetchExportTrips(
     throw new Error("Either taxYear or from+to must be provided");
   }
 
-  const [trips, primaryVehicle] = await Promise.all([
+  const [allTrips, primaryVehicle] = await Promise.all([
     prisma.trip.findMany({
       where: {
         userId: opts.userId,
@@ -64,11 +129,7 @@ export async function fetchExportTrips(
       orderBy: { startedAt: "asc" },
     }),
     // Fetch primary vehicle for trips without a vehicleId
-    prisma.vehicle.findFirst({
-      where: { userId: opts.userId },
-      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-      select: { make: true, model: true, vehicleType: true },
-    }),
+    exportFallbackVehicle(opts.userId),
   ]);
 
   // Running tally of business miles for the HMRC rate tiers, per tax year
@@ -79,7 +140,7 @@ export async function fetchExportTrips(
   // cars and vans each had their own 10,000.
   const businessMilesByType: Record<string, number> = {};
 
-  const rows: ExportTripRow[] = trips.map((trip) => {
+  const allRows: ExportTripRow[] = allTrips.map((trip) => {
     const vehicle = trip.vehicle ?? primaryVehicle;
     const vType = (vehicle?.vehicleType || "car") as VehicleType;
     const tripTaxYear = getTaxYear(new Date(trip.startedAt));
@@ -153,6 +214,14 @@ export async function fetchExportTrips(
     };
   });
 
+  // One car: keep its rows only, after pricing every trip (see FetchTripsOpts).
+  const fallbackId = primaryVehicle?.id ?? null;
+  const keep = allTrips.map(
+    (t) => !opts.vehicleId || exportVehicleIdForTrip(t.vehicleId, fallbackId) === opts.vehicleId
+  );
+  const trips = allTrips.filter((_, i) => keep[i]);
+  const rows = allRows.filter((_, i) => keep[i]);
+
   if (opts.withOdometer && trips.length > 0) {
     const odo = await odometerForExportTrips(
       opts.userId,
@@ -217,11 +286,7 @@ export async function fetchExportSummary(
       },
     }),
     // Fetch primary vehicle (or first vehicle) for trips without a vehicleId
-    prisma.vehicle.findFirst({
-      where: { userId },
-      orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
-      select: { id: true, make: true, model: true, vehicleType: true },
-    }),
+    exportFallbackVehicle(userId),
   ]);
 
   let totalMiles = 0;
@@ -251,7 +316,7 @@ export async function fetchExportSummary(
 
     // For trips without a vehicle, fall back to the user's primary vehicle
     const vehicle = trip.vehicle ?? primaryVehicle;
-    const vKey = trip.vehicleId || (primaryVehicle ? primaryVehicle.id : "unassigned");
+    const vKey = exportVehicleIdForTrip(trip.vehicleId, primaryVehicle?.id ?? null) ?? "unassigned";
     const existing = vehicleMap.get(vKey);
     if (existing) {
       existing.totalMiles += trip.distanceMiles;

@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { parseTaxYear } from "@mileclear/shared";
+import { exportVehicleChoices, exportVehicleSlug, parseTaxYear } from "@mileclear/shared";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { fetchVehicles } from "../lib/api/vehicles";
@@ -77,7 +77,7 @@ export default function ExportsScreen() {
   }, [taxYears]);
 
   const handleDownload = useCallback(
-    async (type: "csv" | "pdf" | "self-assessment") => {
+    async (type: "csv" | "pdf" | "self-assessment", car?: { id: string; slug: string }) => {
       setLoadingKey(type);
       try {
         const ext = type === "csv" ? "csv" : "pdf";
@@ -89,11 +89,13 @@ export default function ExportsScreen() {
         // custom date range when selected, else the tax year.
         const useRange = rangeMode === "dateRange" && type !== "self-assessment";
         const rangeLabel = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
-        const filename = `mileclear-${type}-${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
+        const carPart = car ? `${car.slug}-` : "";
+        const filename = `mileclear-${type}-${carPart}${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
         const base = useRange
           ? `from=${fromDate.toISOString()}&to=${toDate.toISOString()}`
           : `taxYear=${selectedYear}`;
-        const param = businessOnly && type !== "self-assessment" ? `${base}&classification=business` : base;
+        let param = businessOnly && type !== "self-assessment" ? `${base}&classification=business` : base;
+        if (car && type !== "self-assessment") param += `&vehicleId=${encodeURIComponent(car.id)}`;
 
         await downloadAndShareExport(
           `/exports/${type}?${param}`,
@@ -113,6 +115,39 @@ export default function ExportsScreen() {
       }
     },
     [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly]
+  );
+
+  // CSV and Trip Report: with 2+ cars, ask which one, "All cars" first
+  // (Colin, 17 Oct 2026). One car or none: straight through, as before.
+  const handleTripDownload = useCallback(
+    async (type: "csv" | "pdf") => {
+      if (isPremium === false) {
+        handleDownload(type);
+        return;
+      }
+      let vehicles: { id: string; make: string; model: string; registrationPlate?: string | null }[] = [];
+      try {
+        vehicles = (await fetchVehicles()).data;
+      } catch {
+        // No list: every car, as before.
+      }
+      const choices = exportVehicleChoices(vehicles);
+      if (!choices) {
+        handleDownload(type);
+        return;
+      }
+      Alert.alert("Which car?", undefined, [
+        ...choices.map((c) => {
+          const v = vehicles.find((x) => x.id === c.vehicleId);
+          return {
+            text: c.label,
+            onPress: () => handleDownload(type, v ? { id: v.id, slug: exportVehicleSlug(v) } : undefined),
+          };
+        }),
+        { text: "Cancel", style: "cancel" as const },
+      ]);
+    },
+    [isPremium, handleDownload]
   );
 
   // Odometer log CSV (Pro): the same tax year or date range as the other
@@ -346,7 +381,7 @@ export default function ExportsScreen() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => handleDownload("pdf")}
+          onPress={() => handleTripDownload("pdf")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -371,7 +406,7 @@ export default function ExportsScreen() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => handleDownload("csv")}
+          onPress={() => handleTripDownload("csv")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
           accessibilityRole="button"
