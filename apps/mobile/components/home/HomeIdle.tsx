@@ -356,7 +356,8 @@ export function HomeIdle(p: Props) {
   const narrow = width < 380 || fontScale > 1.3;
   // A trip on this phone counts too, so a driver who opens Home with no signal
   // (stats not loaded) can still start a shift.
-  const showShift = isWork && showsStartShift(persona) && (totalTrips > 0 || !!lastTrip.trip);
+  const showShift =
+    isWork && showsStartShift(persona, p.stats?.totalShifts ?? 0) && (totalTrips > 0 || !!lastTrip.trip);
 
   const refresh = useCallback(() => {
     insightsCache.invalidate();

@@ -17,7 +17,12 @@ export function homePersona(args: {
   return resolvePersona(args);
 }
 
-/** Start Shift is a gig idea: gig and Both drivers, in Work mode only. */
-export function showsStartShift(persona: HomePersona): boolean {
-  return persona === "gig" || persona === "both";
+/**
+ * Start Shift is a gig idea: gig and Both drivers, in Work mode only. A work
+ * driver who has already used shifts keeps the button whatever "You drive for"
+ * says; 1.3.13 hid it from 11 employer drivers mid-habit (Will, 17 Oct 2026).
+ */
+export function showsStartShift(persona: HomePersona, completedShifts = 0): boolean {
+  if (persona === "gig" || persona === "both") return true;
+  return persona !== "personal" && completedShifts > 0;
 }
