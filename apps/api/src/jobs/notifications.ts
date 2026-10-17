@@ -28,6 +28,7 @@ import { runCheapestFuelAlertJob, runEvWeeklySummaryJob } from "./fuelAlerts.js"
 import { runRoadAlertsJob } from "./roadAlerts.js";
 import { runRoadWeekAheadJob } from "./roadWeekAhead.js";
 import { roadAlertsAvailable } from "../services/roadAlerts.js";
+import { extraRoadSourcesEnabled } from "../services/roadSources.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import {
   runActivationBgLocationNudgeJob,
@@ -1856,7 +1857,7 @@ export function startNotificationJobs(): void {
     // all (no JobRun rows) when neither source is configured at boot.
     const ROAD_ALERTS_INTERVAL_MS = 10 * 60 * 1000;
     const roadSources = roadAlertsAvailable();
-    if (roadSources.incidents || roadSources.plannedWorks) {
+    if (roadSources.incidents || roadSources.plannedWorks || extraRoadSourcesEnabled()) {
       void runJob("road_alerts", runRoadAlertsJob);
       setInterval(() => void runJob("road_alerts", runRoadAlertsJob), ROAD_ALERTS_INTERVAL_MS);
     }

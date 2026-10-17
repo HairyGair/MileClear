@@ -49,6 +49,7 @@ import {
 } from "../services/roadAlerts.js";
 import { budgetSnapshot, pruneTileCache } from "../services/tomtomTraffic.js";
 import { purgeEndedStreetWorks } from "../services/streetManager.js";
+import { extraRoadSourcesEnabled } from "../services/roadSources.js";
 import { localDayBounds } from "./eveningDigest.js";
 
 const BATCH_SIZE = 50;
@@ -70,7 +71,7 @@ let lastPurgeDay = "";
 
 export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAlertJobResult | void> {
   const available = roadAlertsAvailable();
-  if (!available.incidents && !available.plannedWorks) return;
+  if (!available.incidents && !available.plannedWorks && !extraRoadSourcesEnabled()) return;
 
   pruneTileCache();
   pruneRoadAlertCaches(now);
