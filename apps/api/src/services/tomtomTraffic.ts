@@ -17,8 +17,10 @@
 //     nightly pm2 restart does not reset them. On boot we take the larger of
 //     the two, adding a margin only when the file is missing or behind (see
 //     restoreBudget).
-//   - A 403 or 429 from TomTom means "stop until the 1st of next month". That
-//     is persisted too, so a restart never retries it.
+//   - A 403 from TomTom (quota used up, or forbidden) means "stop until the
+//     1st of next month". A 429 means "stop for the rest of the UTC day" only,
+//     because TomTom also answers 429 for a per-second (QPS) breach. Both are
+//     persisted, so a restart never retries them.
 //   - Each request covers one fixed tile of 0.75 x 1.0 degrees (about
 //     5,000-6,000 km2, under TomTom's 10,000 km2 bbox limit). Tiles are shared
 //     by every driver whose usual roads touch them, so ten drivers in Leeds
@@ -108,8 +110,11 @@ export interface BudgetState {
   day: string;
   /** Requests today. */
   usedToday: number;
-  /** Set by a 403/429: no more requests until the 1st of next month. */
+  /** Set by a 403 ("tomtom_403_month"): no more requests until the 1st of
+   *  next month. */
   stopped: string | null;
+  /** Set by a 429 ("tomtom_429_day"): no more requests until 00:00 UTC. */
+  stoppedToday: string | null;
 }
 
 /** One budget checkpoint as stored in AppEvent metadata (or the state file).
@@ -122,6 +127,17 @@ export interface BudgetCheckpoint {
   usedToday?: number;
   used?: number;
   stopped?: string | null;
+  stoppedToday?: string | null;
+}
+
+export const STOP_MONTH_403 = "tomtom_403_month";
+export const STOP_DAY_429 = "tomtom_429_day";
+
+/** A month stop is a 403 (rows before 17 Oct said just "tomtom_403").
+ *  Anything else in `stopped`, such as an old row's "tomtom_429", only ever
+ *  stopped its own day. */
+function isMonthStop(reason: string | null | undefined): boolean {
+  return !!reason && reason.startsWith("tomtom_403");
 }
 
 export function utcDayKey(now: Date): string {
@@ -143,15 +159,15 @@ export function daysLeftInMonth(now: Date): number {
 }
 
 export function freshBudget(now: Date): BudgetState {
-  return { month: utcMonthKey(now), usedMonth: 0, day: utcDayKey(now), usedToday: 0, stopped: null };
+  return { month: utcMonthKey(now), usedMonth: 0, day: utcDayKey(now), usedToday: 0, stopped: null, stoppedToday: null };
 }
 
-/** New month: everything resets, a 403/429 stop included. New day: only
- *  today's counter resets. */
+/** New month: everything resets, a 403 stop included. New day: today's
+ *  counter and a 429 stop reset. */
 export function rollBudget(state: BudgetState, now: Date): BudgetState {
   if (state.month !== utcMonthKey(now)) return freshBudget(now);
   const day = utcDayKey(now);
-  return state.day === day ? state : { ...state, day, usedToday: 0 };
+  return state.day === day ? state : { ...state, day, usedToday: 0, stoppedToday: null };
 }
 
 /**
@@ -166,7 +182,12 @@ export function dayAllowance(state: BudgetState, cap: number, now: Date): number
 }
 
 export function budgetAllows(state: BudgetState, cap: number, now: Date): boolean {
-  return state.stopped == null && state.usedMonth < cap && state.usedToday < dayAllowance(state, cap, now);
+  return (
+    state.stopped == null &&
+    state.stoppedToday == null &&
+    state.usedMonth < cap &&
+    state.usedToday < dayAllowance(state, cap, now)
+  );
 }
 
 /**
@@ -188,22 +209,31 @@ export function restoreBudget(file: unknown, checkpoints: BudgetCheckpoint[] | n
   let fileMonth: number | null = null;
   let fileToday = 0;
   let stopped: string | null = null;
+  let stoppedToday: string | null = null;
+  // A 403 stops the month; any other stop (a 429) only the day it was set on.
+  const noteStops = (c: BudgetCheckpoint) => {
+    for (const reason of [c.stopped, c.stoppedToday]) {
+      if (!reason) continue;
+      if (isMonthStop(reason)) stopped ??= reason;
+      else if (c.day === day) stoppedToday ??= reason;
+    }
+  };
 
   // The state file (this shape, or the per-day one written before 17 Oct).
   const f = (file && typeof file === "object" ? file : null) as BudgetCheckpoint | null;
   if (f && typeof f.usedMonth === "number" && f.month === month) {
     fileMonth = f.usedMonth;
     if (f.day === day && typeof f.usedToday === "number") fileToday = f.usedToday;
-    stopped = f.stopped ?? null;
+    noteStops(f);
   } else if (f && typeof f.used === "number" && typeof f.day === "string" && f.day.startsWith(month)) {
     fileMonth = f.used;
     if (f.day === day) fileToday = f.used;
-    stopped = f.stopped ?? null;
+    noteStops(f);
   }
 
   if (checkpoints == null) {
     const usedMonth = Math.max(fileMonth ?? 0, Math.floor(cap / 2), fileToday);
-    return { month, usedMonth, day, usedToday: fileToday, stopped };
+    return { month, usedMonth, day, usedToday: fileToday, stopped, stoppedToday };
   }
 
   let cpMonth = -1; // -1: no checkpoint this month
@@ -213,10 +243,10 @@ export function restoreBudget(file: unknown, checkpoints: BudgetCheckpoint[] | n
     if (typeof c.usedMonth === "number" && c.month === month) {
       cpMonth = Math.max(cpMonth, c.usedMonth);
       if (c.day === day && typeof c.usedToday === "number") cpToday = Math.max(cpToday, c.usedToday);
-      if (c.stopped && !stopped) stopped = c.stopped;
+      noteStops(c);
     } else if (typeof c.used === "number" && typeof c.day === "string" && c.day.startsWith(month)) {
       legacyByDay.set(c.day, Math.max(legacyByDay.get(c.day) ?? 0, c.used));
-      if (c.stopped && !stopped) stopped = c.stopped;
+      noteStops(c);
     }
   }
   // Old per-day rows (before 17 Oct): the month so far is the sum of each
@@ -236,7 +266,7 @@ export function restoreBudget(file: unknown, checkpoints: BudgetCheckpoint[] | n
   const legacyToday = legacyByDay.get(day);
   if (legacyToday != null) usedToday = Math.max(usedToday, legacyToday + CHECKPOINT_EVERY);
   usedMonth = Math.max(usedMonth, legacyMonth, usedToday);
-  return { month, usedMonth, day, usedToday, stopped };
+  return { month, usedMonth, day, usedToday, stopped, stoppedToday };
 }
 
 /** How fresh the screen insists on: 10 minutes normally, an hour once 70% of
@@ -288,7 +318,9 @@ async function loadBudget(now: Date): Promise<BudgetState> {
   return (budget = rollBudget(budget, now));
 }
 
-function saveBudget(state: BudgetState, checkpoint: boolean): void {
+/** checkpoint: also log an AppEvent. reason: the stop that prompted it
+ *  (tomtom_403_month or tomtom_429_day), logged so the two read apart. */
+function saveBudget(state: BudgetState, checkpoint: boolean, reason?: string): void {
   try {
     mkdirSync(path.dirname(stateFile()), { recursive: true });
     writeFileSync(stateFile(), JSON.stringify(state));
@@ -302,6 +334,8 @@ function saveBudget(state: BudgetState, checkpoint: boolean): void {
       day: state.day,
       usedToday: state.usedToday,
       stopped: state.stopped,
+      stoppedToday: state.stoppedToday,
+      ...(reason ? { reason } : {}),
     });
   }
 }
@@ -333,15 +367,26 @@ async function spendOne(now: Date): Promise<boolean> {
   return true;
 }
 
-async function stopForTheMonth(now: Date, reason: string): Promise<void> {
+/** 403: the month's quota is gone (or the key is refused). Stop until the 1st. */
+async function stopForTheMonth(now: Date): Promise<void> {
   const s = await loadBudget(now);
-  s.stopped = reason;
-  saveBudget(s, true);
-  console.warn(`[tomtom] ${reason}: no more TomTom requests until the 1st of next month (00:00 UTC)`);
+  s.stopped = STOP_MONTH_403;
+  saveBudget(s, true, STOP_MONTH_403);
+  console.warn(`[tomtom] 403: no more TomTom requests until the 1st of next month (00:00 UTC)`);
 }
 
-/** Configured and not stopped for the month by a 403/429: only then does the
- *  road alerts screen use or credit TomTom. */
+/** 429: TomTom also uses it for a per-second (QPS) breach, so it costs the
+ *  rest of the UTC day only, never the month. */
+async function stopForTheDay(now: Date): Promise<void> {
+  const s = await loadBudget(now);
+  s.stoppedToday = STOP_DAY_429;
+  saveBudget(s, true, STOP_DAY_429);
+  console.warn(`[tomtom] 429: no more TomTom requests until 00:00 UTC`);
+}
+
+/** Configured and not stopped for the month by a 403: only then does the
+ *  road alerts screen use or credit TomTom. A 429 day stop does not count:
+ *  that day still shows (and credits) the cached incidents. */
 export async function isTomTomServing(now: Date = new Date()): Promise<boolean> {
   if (!isTomTomConfigured()) return false;
   return (await loadBudget(now)).stopped == null;
@@ -376,7 +421,7 @@ async function fetchTile(id: string, now: Date): Promise<RoadEvent[] | null> {
   try {
     const res = await fetch(`${ENDPOINT}?${params.toString()}`, { signal: ctrl.signal });
     if (res.status === 403 || res.status === 429) {
-      await stopForTheMonth(now, `tomtom_${res.status}`);
+      await (res.status === 403 ? stopForTheMonth(now) : stopForTheDay(now));
       return null;
     }
     if (!res.ok) {
@@ -436,7 +481,7 @@ export async function getTileEvents(tileIds: string[], maxAgeMs: number | null, 
 export async function screenFreshnessMs(now: Date = new Date()): Promise<number | null> {
   if (!isTomTomConfigured()) return null;
   const s = await loadBudget(now);
-  if (s.stopped) return null;
+  if (s.stopped || s.stoppedToday) return null;
   return screenMaxAgeMs(s.usedToday, dayAllowance(s, monthlyCap(), now));
 }
 

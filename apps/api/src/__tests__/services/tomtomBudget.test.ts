@@ -48,6 +48,7 @@ const state = (over: Partial<BudgetState>): BudgetState => ({
   day: "2026-10-01",
   usedToday: 0,
   stopped: null,
+  stoppedToday: null,
   ...over,
 });
 
@@ -100,13 +101,14 @@ describe("TomTom pacing", () => {
     expect(dayAllowance(state({ day: "2026-10-31", usedMonth: 2525 }), 2300, last)).toBe(0);
   });
 
-  it("stops at today's allowance, at the month cap, and after a 403/429", () => {
+  it("stops at today's allowance, at the month cap, after a 403 and after a 429", () => {
     const now = new Date("2026-10-01T06:00:00Z");
     expect(budgetAllows(state({ usedMonth: 73, usedToday: 73 }), 2300, now)).toBe(true);
     expect(budgetAllows(state({ usedMonth: 74, usedToday: 74 }), 2300, now)).toBe(false);
     const last = new Date("2026-10-31T06:00:00Z");
     expect(budgetAllows(state({ day: "2026-10-31", usedMonth: 2300 }), 2300, last)).toBe(false);
-    expect(budgetAllows(state({ usedMonth: 3, usedToday: 3, stopped: "tomtom_403" }), 2300, now)).toBe(false);
+    expect(budgetAllows(state({ usedMonth: 3, usedToday: 3, stopped: "tomtom_403_month" }), 2300, now)).toBe(false);
+    expect(budgetAllows(state({ usedMonth: 3, usedToday: 3, stoppedToday: "tomtom_429_day" }), 2300, now)).toBe(false);
   });
 
   it("the screen backs off as today's allowance runs down", () => {
@@ -118,14 +120,19 @@ describe("TomTom pacing", () => {
 });
 
 describe("TomTom month and day roll", () => {
-  it("a new UTC day resets today's count only, and keeps a stop", () => {
-    const s = state({ day: "2026-10-05", usedMonth: 400, usedToday: 74, stopped: "tomtom_403" });
+  it("a new UTC day resets today's count and a 429 stop, and keeps a 403 stop", () => {
+    const s = state({ day: "2026-10-05", usedMonth: 400, usedToday: 74, stopped: "tomtom_403_month", stoppedToday: "tomtom_429_day" });
     expect(rollBudget(s, new Date("2026-10-05T23:59:00Z"))).toBe(s);
-    expect(rollBudget(s, new Date("2026-10-06T00:00:00Z"))).toEqual({ ...s, day: "2026-10-06", usedToday: 0 });
+    expect(rollBudget(s, new Date("2026-10-06T00:00:00Z"))).toEqual({
+      ...s,
+      day: "2026-10-06",
+      usedToday: 0,
+      stoppedToday: null,
+    });
   });
 
   it("the 1st at 00:00 UTC resets everything, a 403 stop included", () => {
-    const s = state({ day: "2026-10-31", usedMonth: 2300, usedToday: 40, stopped: "tomtom_403" });
+    const s = state({ day: "2026-10-31", usedMonth: 2300, usedToday: 40, stopped: "tomtom_403_month" });
     expect(rollBudget(s, new Date("2026-10-31T23:59:59Z"))).toBe(s);
     expect(rollBudget(s, new Date("2026-11-01T00:00:00Z"))).toEqual({
       month: "2026-11",
@@ -133,6 +140,7 @@ describe("TomTom month and day roll", () => {
       day: "2026-11-01",
       usedToday: 0,
       stopped: null,
+      stoppedToday: null,
     });
     expect(utcMonthKey(new Date("2026-10-31T23:30:00Z"))).toBe("2026-10"); // 00:30 UK on the 1st, still October in UTC
   });
@@ -160,16 +168,38 @@ describe("TomTom restore on boot", () => {
     expect(restoreBudget(behind, cps, NOW, 2300)).toMatchObject({ usedMonth: 700, usedToday: 25 });
   });
 
-  it("a stop in either the file or a checkpoint survives", () => {
-    const cps = [{ month: "2026-10", usedMonth: 300, day: "2026-10-16", usedToday: 3, stopped: "tomtom_429" }];
-    expect(restoreBudget(null, cps, NOW, 2300).stopped).toBe("tomtom_429");
-    expect(restoreBudget(state({ day: "2026-10-17", usedMonth: 310, stopped: "tomtom_403" }), [], NOW, 2300).stopped).toBe("tomtom_403");
+  it("a 403 stop in either the file or a checkpoint survives for the month", () => {
+    const cps = [{ month: "2026-10", usedMonth: 300, day: "2026-10-03", usedToday: 3, stopped: "tomtom_403_month", stoppedToday: null }];
+    expect(restoreBudget(null, cps, NOW, 2300)).toMatchObject({ stopped: "tomtom_403_month", stoppedToday: null });
+    const file = state({ day: "2026-10-12", usedMonth: 310, stopped: "tomtom_403_month" });
+    expect(restoreBudget(file, [], NOW, 2300).stopped).toBe("tomtom_403_month");
+  });
+
+  it("a 429 stop survives only for its own UTC day, and never stops the month", () => {
+    const today = [{ month: "2026-10", usedMonth: 300, day: "2026-10-17", usedToday: 3, stopped: null, stoppedToday: "tomtom_429_day" }];
+    expect(restoreBudget(null, today, NOW, 2300)).toMatchObject({ stopped: null, stoppedToday: "tomtom_429_day" });
+    const yesterday = [{ month: "2026-10", usedMonth: 300, day: "2026-10-16", usedToday: 3, stopped: null, stoppedToday: "tomtom_429_day" }];
+    expect(restoreBudget(null, yesterday, NOW, 2300)).toMatchObject({ stopped: null, stoppedToday: null });
+    // Rows from before 17 Oct put a 429 in `stopped`: still only its own day
+    const legacy = [{ day: "2026-10-16", used: 40, stopped: "tomtom_429" }];
+    expect(restoreBudget(null, legacy, NOW, 2300)).toMatchObject({ stopped: null, stoppedToday: null });
+    expect(restoreBudget({ day: "2026-10-17", used: 5, stopped: "tomtom_429" }, [], NOW, 2300)).toMatchObject({
+      stopped: null,
+      stoppedToday: "tomtom_429",
+    });
   });
 
   it("ignores last month's file and checkpoints", () => {
     const file = state({ month: "2026-09", day: "2026-09-30", usedMonth: 2299, stopped: "tomtom_403" });
     const cps = [{ month: "2026-09", usedMonth: 2275, day: "2026-09-30", usedToday: 10, stopped: "tomtom_403" }];
-    expect(restoreBudget(file, cps, NOW, 2300)).toEqual({ month: "2026-10", usedMonth: 0, day: "2026-10-17", usedToday: 0, stopped: null });
+    expect(restoreBudget(file, cps, NOW, 2300)).toEqual({
+      month: "2026-10",
+      usedMonth: 0,
+      day: "2026-10-17",
+      usedToday: 0,
+      stopped: null,
+      stoppedToday: null,
+    });
   });
 
   it("reads the old per-day checkpoints: the month is the sum of each day, and their 403 stops the month", () => {
@@ -242,7 +272,9 @@ describe("TomTom budget across a restart (IO)", () => {
     tt = await boot();
     await tt.getTileEvents(["73:-2"], 10 * 60000, store.clock);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(store.events.some((e) => e.type === BUDGET_EVENT && (e.metadata as BudgetState).stopped === "tomtom_403")).toBe(true);
+    const stopEvents = store.events.filter((e) => e.type === BUDGET_EVENT && (e.metadata as { reason?: string }).reason);
+    expect(stopEvents.map((e) => (e.metadata as { reason: string }).reason)).toEqual(["tomtom_403_month"]);
+    expect((stopEvents[0].metadata as BudgetState).stopped).toBe("tomtom_403_month");
 
     // 1 November: a fresh month, TomTom is asked again
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ incidents: [] }), { status: 200 }));
@@ -250,6 +282,42 @@ describe("TomTom budget across a restart (IO)", () => {
     expect(await tt.isTomTomServing(store.clock)).toBe(true);
     await tt.getTileEvents(["74:-2"], 10 * 60000, store.clock);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a 429 stops TomTom for the rest of the UTC day only, across a restart, and the next day asks again", async () => {
+    fetchMock.mockResolvedValue(new Response("", { status: 429 }));
+    store.clock = new Date("2026-10-17T06:00:00Z");
+    let tt = await boot();
+    await tt.getTileEvents(["70:-2"], 10 * 60000, store.clock);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Still serving (and credited) for the month; no more requests today
+    expect(await tt.isTomTomServing(store.clock)).toBe(true);
+    expect(await tt.screenFreshnessMs(store.clock)).toBeNull();
+    await tt.getTileEvents(["71:-2"], 10 * 60000, store.clock);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Restart later the same day: still stopped, from the file or the checkpoint alone
+    store.clock = new Date("2026-10-17T22:00:00Z");
+    tt = await boot();
+    await tt.getTileEvents(["72:-2"], 10 * 60000, store.clock);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    rmSync(path.join(dir, "tomtom-budget.json"));
+    tt = await boot();
+    await tt.getTileEvents(["73:-2"], 10 * 60000, store.clock);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const reasons = store.events
+      .map((e) => (e.metadata as { reason?: string }).reason)
+      .filter((r): r is string => !!r);
+    expect(reasons).toEqual(["tomtom_429_day"]);
+
+    // 00:05 UTC the next day, after a restart: asked again
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ incidents: [] }), { status: 200 }));
+    store.clock = new Date("2026-10-18T00:05:00Z");
+    tt = await boot();
+    await tt.getTileEvents(["74:-2"], 10 * 60000, store.clock);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await tt.budgetSnapshot(store.clock)).toMatchObject({ stopped: null, stoppedToday: null });
   });
 
   it("enforces today's allowance, across a restart, and gives a new one the next day", async () => {
