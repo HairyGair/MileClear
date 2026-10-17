@@ -88,6 +88,16 @@ export function usesInvoicesRecently(lastCreatedAt: string | null | undefined, n
   return now.getTime() - t <= INVOICE_DOOR_DAYS * 24 * 60 * 60 * 1000;
 }
 
+/** How long Home reuses the invoices answer: a minute for drivers who invoice, like More. */
+export const INVOICE_DOOR_FRESH_MS = 60_000;
+/** Drivers with no invoice in 90 days are asked again only every 30 minutes. */
+export const NO_INVOICES_FRESH_MS = 30 * 60_000;
+
+/** How long to reuse the cached invoices answer, given the last one (null: none yet). */
+export function invoiceDoorFreshMs(last: { usesInvoices: boolean } | null): number {
+  return last && !last.usesInvoices ? NO_INVOICES_FRESH_MS : INVOICE_DOOR_FRESH_MS;
+}
+
 /** Candidate order per driver, before hiding and skipping. */
 export function doorOrder(args: {
   mode: "work" | "personal";

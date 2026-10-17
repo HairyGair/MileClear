@@ -370,7 +370,8 @@ async function afterShiftCompleted(
   await upsertMileageSummary(userId, taxYear).catch(() => {});
   const newAchievements = await checkAndAwardAchievements(userId).catch(() => [] as never[]);
 
-  const scorecard = await getShiftScorecard(userId, shiftId).catch(() => null);
+  // Hand over the badges just awarded so the scorecard does not check again.
+  const scorecard = await getShiftScorecard(userId, shiftId, { newAchievements }).catch(() => null);
 
   if (scorecard && opts.summaryPush) {
     sendShiftSummaryPush(userId, {

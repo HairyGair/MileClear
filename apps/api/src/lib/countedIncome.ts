@@ -36,6 +36,31 @@ export function countedInvoiceWhere(
   };
 }
 
+/**
+ * Earnings left out by the rule: linked to an invoice that counts. For
+ * summing in the database without loading rows (see incomeFromSums).
+ */
+export function earningsLinkedToCountedWhere(
+  userId: string,
+  basis: IncomeBasis,
+  range?: { start: Date; end: Date }
+): Prisma.EarningWhereInput {
+  return { userId, replacedByInvoice: { is: countedInvoiceWhere(userId, basis, range) } };
+}
+
+/**
+ * The rule from three database sums: all earnings, minus the earnings linked
+ * to a counted invoice, plus the counted invoices. Equal to
+ * countIncome(...).totalPence on the same rows.
+ */
+export function incomeFromSums(s: {
+  allEarningsPence: number;
+  linkedEarningsPence: number;
+  invoicePence: number;
+}): number {
+  return s.allEarningsPence - s.linkedEarningsPence + s.invoicePence;
+}
+
 export interface IncomeEarning {
   amountPence: number;
   replacedByInvoiceId: string | null;

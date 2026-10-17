@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { selectDoorRows, availableDoorRows, usesInvoicesRecently, type DoorInputs, type DoorTexts } from "../doors";
+import {
+  selectDoorRows,
+  availableDoorRows,
+  invoiceDoorFreshMs,
+  usesInvoicesRecently,
+  type DoorInputs,
+  type DoorTexts,
+} from "../doors";
 import { invoicesDoorText, doorKeyFigure } from "../doorText";
 import { parseHiddenDoorRows } from "../doorPrefs";
 import { doorSwitches } from "../doorSettings";
@@ -68,6 +75,16 @@ describe("Invoices shortcut", () => {
     expect(availableDoorRows({ mode: "work", persona: "gig" })).not.toContain("invoices");
     expect(availableDoorRows({ mode: "work", persona: "gig", usesInvoices: true })).toContain("invoices");
     expect(availableDoorRows({ mode: "personal", persona: "personal", usesInvoices: true })).not.toContain("invoices");
+  });
+});
+
+describe("invoiceDoorFreshMs", () => {
+  it("a minute for drivers who invoice, or before the first answer", () => {
+    expect(invoiceDoorFreshMs(null)).toBe(60_000);
+    expect(invoiceDoorFreshMs({ usesInvoices: true })).toBe(60_000);
+  });
+  it("30 minutes for drivers with no recent invoice", () => {
+    expect(invoiceDoorFreshMs({ usesInvoices: false })).toBe(30 * 60_000);
   });
 });
 

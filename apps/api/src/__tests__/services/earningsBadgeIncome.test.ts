@@ -3,64 +3,162 @@
  * linked to a paid invoice, by the same rule as the Tax tab
  * (lib/countedIncome). Laura's data (17 Oct 2026): 9 earnings £570, 7 of them
  * (£400) linked to a paid invoice; invoices 7 paid £2,180 and 3 sent £433.50.
- * Prisma is mocked: nothing touches a database.
+ *
+ * The badge total is three database sums. Here the sums run over in-memory
+ * rows (a small evaluator for the exact where shapes used), so the test proves
+ * the sums equal countIncome on the same rows. Nothing touches a database.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
-    achievement: { findMany: vi.fn(), createMany: vi.fn() },
+    achievement: { findMany: vi.fn(), create: vi.fn() },
     trip: { count: vi.fn(), aggregate: vi.fn() },
     shift: { count: vi.fn() },
-    earning: { findMany: vi.fn() },
-    invoice: { findMany: vi.fn() },
+    earning: { aggregate: vi.fn() },
+    invoice: { aggregate: vi.fn() },
     $queryRaw: vi.fn(),
   },
 }));
 
 import { prisma } from "../../lib/prisma.js";
 import { checkAndAwardAchievements, loadBadgeIncomePence } from "../../services/gamification.js";
-import { countIncome, countedInvoiceWhere } from "../../lib/countedIncome.js";
+import {
+  countIncome,
+  countedInvoiceWhere,
+  earningsLinkedToCountedWhere,
+  incomeFromSums,
+} from "../../lib/countedIncome.js";
 
+type Fn = ReturnType<typeof vi.fn>;
 const db = prisma as unknown as {
-  achievement: { findMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn> };
-  trip: { count: ReturnType<typeof vi.fn>; aggregate: ReturnType<typeof vi.fn> };
-  shift: { count: ReturnType<typeof vi.fn> };
-  earning: { findMany: ReturnType<typeof vi.fn> };
-  invoice: { findMany: ReturnType<typeof vi.fn> };
-  $queryRaw: ReturnType<typeof vi.fn>;
+  achievement: { findMany: Fn; create: Fn };
+  trip: { count: Fn; aggregate: Fn };
+  shift: { count: Fn };
+  earning: { aggregate: Fn };
+  invoice: { aggregate: Fn };
+  $queryRaw: Fn;
 };
 
 const USER = "user-1";
+const OTHER = "user-2";
 
-// Seven paid invoices totalling £2,180; the first covers the 7 linked earnings.
-const PAID = [
-  { id: "inv-1", amountPence: 40000 },
-  { id: "inv-2", amountPence: 30000 },
-  { id: "inv-3", amountPence: 30000 },
-  { id: "inv-4", amountPence: 30000 },
-  { id: "inv-5", amountPence: 30000 },
-  { id: "inv-6", amountPence: 30000 },
-  { id: "inv-7", amountPence: 28000 },
-];
-// Seven £57.14ish earnings linked to inv-1 (£400 total), two unlinked (£170).
-const LINKED = [5714, 5714, 5714, 5714, 5714, 5714, 5716].map((amountPence) => ({
+interface InvoiceRow {
+  id: string;
+  userId: string;
+  amountPence: number;
+  status: string;
+  paidAt: Date | null;
+  sentAt: Date;
+}
+interface EarningRow {
+  userId: string;
+  amountPence: number;
+  replacedByInvoiceId: string | null;
+}
+
+const sent = new Date("2026-08-01");
+const paid = new Date("2026-08-20");
+const inv = (id: string, amountPence: number, over: Partial<InvoiceRow> = {}): InvoiceRow => ({
+  id,
+  userId: USER,
   amountPence,
-  replacedByInvoiceId: "inv-1",
-}));
-const UNLINKED = [
-  { amountPence: 10000, replacedByInvoiceId: null },
-  { amountPence: 7000, replacedByInvoiceId: null },
+  status: "paid",
+  paidAt: paid,
+  sentAt: sent,
+  ...over,
+});
+
+// Laura: seven paid invoices totalling £2,180 (inv-1 covers the 7 linked
+// earnings) and three sent ones totalling £433.50.
+const LAURA_INVOICES: InvoiceRow[] = [
+  inv("inv-1", 40000),
+  inv("inv-2", 30000),
+  inv("inv-3", 30000),
+  inv("inv-4", 30000),
+  inv("inv-5", 30000),
+  inv("inv-6", 30000),
+  inv("inv-7", 28000),
+  inv("inv-8", 20000, { status: "sent", paidAt: null }),
+  inv("inv-9", 15000, { status: "overdue", paidAt: null }),
+  inv("inv-10", 8350, { status: "sent", paidAt: null }),
 ];
-const LAURA_EARNINGS = [...LINKED, ...UNLINKED];
+const LAURA_EARNINGS: EarningRow[] = [
+  ...[5714, 5714, 5714, 5714, 5714, 5714, 5716].map((amountPence) => ({
+    userId: USER,
+    amountPence,
+    replacedByInvoiceId: "inv-1",
+  })),
+  { userId: USER, amountPence: 10000, replacedByInvoiceId: null },
+  { userId: USER, amountPence: 7000, replacedByInvoiceId: null },
+];
+
+// Awkward cases: an earning linked to an unpaid invoice (still counts), a
+// written-off invoice that once had a paid date (never counts, nor does the
+// earning linked to it get left out), and another driver's rows.
+const EDGE_INVOICES: InvoiceRow[] = [
+  ...LAURA_INVOICES,
+  inv("inv-wo", 50000, { status: "written_off", paidAt: paid }),
+  inv("inv-other", 99900, { userId: OTHER }),
+];
+const EDGE_EARNINGS: EarningRow[] = [
+  ...LAURA_EARNINGS,
+  { userId: USER, amountPence: 2000, replacedByInvoiceId: "inv-8" },
+  { userId: USER, amountPence: 3000, replacedByInvoiceId: "inv-wo" },
+  { userId: OTHER, amountPence: 77700, replacedByInvoiceId: "inv-other" },
+  { userId: OTHER, amountPence: 1000, replacedByInvoiceId: null },
+];
+
+// ── in-memory sums for the where shapes countedIncome builds ──
+type Range = { gte?: Date; lte?: Date; not?: null };
+function inRange(v: Date | null, r: Range | undefined): boolean {
+  if (r === undefined) return true;
+  if ("not" in r) return v !== null;
+  if (v === null) return false;
+  return (!r.gte || v >= r.gte) && (!r.lte || v <= r.lte);
+}
+function invoiceMatches(row: InvoiceRow, where: Record<string, unknown>): boolean {
+  if (where.userId !== undefined && row.userId !== where.userId) return false;
+  const status = where.status as { not?: string } | undefined;
+  if (status?.not !== undefined && row.status === status.not) return false;
+  if (!inRange(row.paidAt, where.paidAt as Range | undefined)) return false;
+  if (!inRange(row.sentAt, where.sentAt as Range | undefined)) return false;
+  return true;
+}
+function useRows(invoices: InvoiceRow[], earnings: EarningRow[]) {
+  db.invoice.aggregate.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+    const rows = invoices.filter((r) => invoiceMatches(r, where));
+    return { _sum: { amountPence: rows.length ? rows.reduce((s, r) => s + r.amountPence, 0) : null } };
+  });
+  db.earning.aggregate.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
+    const link = where.replacedByInvoice as { is: Record<string, unknown> } | undefined;
+    const rows = earnings.filter((e) => {
+      if (e.userId !== where.userId) return false;
+      if (!link) return true;
+      const invoice = invoices.find((i) => i.id === e.replacedByInvoiceId);
+      return !!invoice && invoiceMatches(invoice, link.is);
+    });
+    return { _sum: { amountPence: rows.length ? rows.reduce((s, r) => s + r.amountPence, 0) : null } };
+  });
+}
+
+/** The rule written out directly: cash basis, all time, this driver only. */
+function expectedByCountIncome(invoices: InvoiceRow[], earnings: EarningRow[]): number {
+  const counted = invoices.filter((i) => i.userId === USER && i.status !== "written_off" && i.paidAt !== null);
+  return countIncome(
+    earnings.filter((e) => e.userId === USER),
+    counted
+  ).totalPence;
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
 describe("countIncome (the shared rule)", () => {
+  const counted = LAURA_INVOICES.filter((i) => i.paidAt !== null);
   it("leaves out earnings linked to a counted invoice and adds the invoices", () => {
-    const r = countIncome(LAURA_EARNINGS, PAID);
+    const r = countIncome(LAURA_EARNINGS, counted);
     expect(r.earningsPence).toBe(17000);
     expect(r.invoicePence).toBe(218000);
     expect(r.totalPence).toBe(235000);
@@ -68,13 +166,17 @@ describe("countIncome (the shared rule)", () => {
   });
 
   it("keeps an earning linked to an invoice that is not counted (still unpaid)", () => {
-    const r = countIncome(LAURA_EARNINGS, PAID.filter((i) => i.id !== "inv-1"));
+    const r = countIncome(LAURA_EARNINGS, counted.filter((i) => i.id !== "inv-1"));
     expect(r.earningsPence).toBe(57000);
     expect(r.dedupedEarningCount).toBe(0);
   });
+
+  it("incomeFromSums is the same arithmetic", () => {
+    expect(incomeFromSums({ allEarningsPence: 57000, linkedEarningsPence: 40000, invoicePence: 218000 })).toBe(235000);
+  });
 });
 
-describe("countedInvoiceWhere", () => {
+describe("where clauses", () => {
   it("badges and cash basis: paid and not written off", () => {
     expect(countedInvoiceWhere(USER, "cash")).toEqual({
       userId: USER,
@@ -100,53 +202,89 @@ describe("countedInvoiceWhere", () => {
       sentAt: { gte: start, lte: end },
     });
   });
+  it("linked earnings: this driver's, pointing at a counted invoice", () => {
+    expect(earningsLinkedToCountedWhere(USER, "cash")).toEqual({
+      userId: USER,
+      replacedByInvoice: { is: countedInvoiceWhere(USER, "cash") },
+    });
+  });
 });
 
-describe("loadBadgeIncomePence", () => {
-  it("asks only for paid invoices, so sent and overdue ones never count", async () => {
-    db.earning.findMany.mockResolvedValue(LAURA_EARNINGS);
-    db.invoice.findMany.mockResolvedValue(PAID);
-    expect(await loadBadgeIncomePence(USER)).toBe(235000);
-    expect(db.invoice.findMany.mock.calls[0][0].where).toEqual(countedInvoiceWhere(USER, "cash"));
-    expect(db.earning.findMany.mock.calls[0][0].where).toEqual({ userId: USER });
+describe("loadBadgeIncomePence equals countIncome on the same rows", () => {
+  it("Laura: £2,350", async () => {
+    useRows(LAURA_INVOICES, LAURA_EARNINGS);
+    const got = await loadBadgeIncomePence(USER);
+    expect(got).toBe(235000);
+    expect(got).toBe(expectedByCountIncome(LAURA_INVOICES, LAURA_EARNINGS));
   });
 
-  it("earnings alone when there are no paid invoices", async () => {
-    db.earning.findMany.mockResolvedValue(LAURA_EARNINGS);
-    db.invoice.findMany.mockResolvedValue([]);
+  it("unpaid links, written-off invoices and other drivers' rows", async () => {
+    useRows(EDGE_INVOICES, EDGE_EARNINGS);
+    const got = await loadBadgeIncomePence(USER);
+    expect(got).toBe(expectedByCountIncome(EDGE_INVOICES, EDGE_EARNINGS));
+    // £570 + £20 + £30 earnings, less £400 linked to inv-1, plus £2,180 paid.
+    expect(got).toBe(240000);
+  });
+
+  it("no paid invoices: earnings alone", async () => {
+    const unpaid = LAURA_INVOICES.map((i) => ({ ...i, status: "sent", paidAt: null }));
+    useRows(unpaid, LAURA_EARNINGS);
     expect(await loadBadgeIncomePence(USER)).toBe(57000);
+    expect(expectedByCountIncome(unpaid, LAURA_EARNINGS)).toBe(57000);
+  });
+
+  it("nothing at all is zero, not NaN", async () => {
+    useRows([], []);
+    expect(await loadBadgeIncomePence(USER)).toBe(0);
   });
 });
 
 describe("checkAndAwardAchievements earnings badges", () => {
-  function stats(existing: string[]) {
-    db.achievement.findMany
-      .mockResolvedValueOnce(existing.map((type) => ({ type })))
-      .mockImplementation(async (args: { where: { type: { in: string[] } } }) =>
-        args.where.type.in.map((type) => ({ id: type, type, achievedAt: new Date() }))
-      );
+  /** A badges table with the (userId, type) unique key. */
+  function badgeTable(existing: string[]) {
+    const rows = new Set(existing);
+    db.achievement.findMany.mockImplementation(async () => [...rows].map((type) => ({ type })));
+    db.achievement.create.mockImplementation(async ({ data }: { data: { type: string } }) => {
+      await Promise.resolve();
+      if (rows.has(data.type)) throw Object.assign(new Error("Unique constraint"), { code: "P2002" });
+      rows.add(data.type);
+      return { id: data.type, type: data.type, achievedAt: new Date() };
+    });
     db.trip.count.mockResolvedValue(1);
     db.shift.count.mockResolvedValue(0);
     db.trip.aggregate.mockResolvedValue({ _sum: { distanceMiles: 1 } });
     db.$queryRaw.mockResolvedValue([]);
-    db.achievement.createMany.mockResolvedValue({ count: 1 });
   }
 
   it("Laura gets the £1,000 badge from paid invoices, not the £5,000 one", async () => {
-    stats(["first_trip", "earned_100", "earned_500"]);
-    db.earning.findMany.mockResolvedValue(LAURA_EARNINGS);
-    db.invoice.findMany.mockResolvedValue(PAID);
-    const fresh = await checkAndAwardAchievements(USER);
-    const types = fresh.map((a) => a.type);
-    expect(types).toContain("earned_1000");
-    expect(types).not.toContain("earned_5000");
+    badgeTable(["first_trip", "earned_100", "earned_500"]);
+    useRows(LAURA_INVOICES, LAURA_EARNINGS);
+    const types = (await checkAndAwardAchievements(USER)).map((a) => a.type);
+    expect(types).toEqual(["earned_1000"]);
   });
 
   it("linked earnings are not counted twice: £570 of earnings alone is not £1,000", async () => {
-    stats(["first_trip", "earned_100", "earned_500"]);
-    db.earning.findMany.mockResolvedValue(LAURA_EARNINGS);
-    db.invoice.findMany.mockResolvedValue([]);
-    const fresh = await checkAndAwardAchievements(USER);
-    expect(fresh.map((a) => a.type)).not.toContain("earned_1000");
+    badgeTable(["first_trip", "earned_100", "earned_500"]);
+    useRows(
+      LAURA_INVOICES.map((i) => ({ ...i, status: "sent", paidAt: null })),
+      LAURA_EARNINGS
+    );
+    expect(await checkAndAwardAchievements(USER)).toEqual([]);
+  });
+
+  it("two checks at once return the new badge once between them, so one push", async () => {
+    badgeTable(["first_trip", "earned_100", "earned_500"]);
+    useRows(LAURA_INVOICES, LAURA_EARNINGS);
+    const [a, b] = await Promise.all([checkAndAwardAchievements(USER), checkAndAwardAchievements(USER)]);
+    const all = [...a, ...b].map((x) => x.type);
+    expect(all).toEqual(["earned_1000"]);
+  });
+
+  it("a database error other than a duplicate still fails the check", async () => {
+    badgeTable(["first_trip"]);
+    useRows([], []);
+    db.trip.count.mockResolvedValue(10);
+    db.achievement.create.mockRejectedValue(Object.assign(new Error("down"), { code: "P1001" }));
+    await expect(checkAndAwardAchievements(USER)).rejects.toThrow("down");
   });
 });
