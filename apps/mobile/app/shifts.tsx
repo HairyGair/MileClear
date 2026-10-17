@@ -20,7 +20,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, Stack } from "expo-router";
+import { useFocusEffect, useRouter, Stack } from "expo-router";
 import { fetchShifts, fetchActiveShift, ShiftWithVehicle } from "../lib/api/shifts";
 import { formatMiles } from "@mileclear/shared";
 import { EmptyState } from "../components/EmptyState";
@@ -179,6 +179,7 @@ function ShiftCard({ item, showVehicle }: { item: ShiftRow; showVehicle: boolean
 }
 
 export default function ShiftsScreen() {
+  const router = useRouter();
   const [activeShift, setActiveShift] = useState<ShiftRow | null>(null);
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -344,6 +345,22 @@ export default function ShiftsScreen() {
         ListHeaderComponent={
           <>
             {activeShift && <ActiveShiftCard shift={activeShift} />}
+            {/* A whole earlier shift with all its trips in one go (Oct 2026). */}
+            <TouchableOpacity
+              style={styles.addPastRow}
+              onPress={() => router.push("/past-shift-form" as never)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Add a past shift"
+              accessibilityHint="Add a shift you worked earlier, with all its trips"
+            >
+              <Ionicons name="add-circle-outline" size={20} color={colors.amber} />
+              <View style={styles.addPastBody}>
+                <Text style={styles.addPastTitle}>Add a past shift</Text>
+                <Text style={styles.addPastSub}>A shift you worked earlier, with all its trips</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.text3} />
+            </TouchableOpacity>
             {loadFailed && (shifts.length > 0 || activeShift) && (
               <Text style={styles.errorBanner}>
                 Couldn't refresh shifts. Showing the last loaded data.
@@ -371,7 +388,7 @@ export default function ShiftsScreen() {
               <EmptyState
                 icon="time-outline"
                 title="No shifts yet"
-                description="Start and end a shift from Home. Once a shift ends, it will show up here with its trips and miles."
+                description="Start and end a shift from Home, or add one you worked earlier above. Once a shift ends, it will show up here with its trips and miles."
               />
             )
           ) : null
@@ -389,6 +406,31 @@ const styles = StyleSheet.create({
   listContent: {
     padding: spacing.lg,
     flexGrow: 1,
+  },
+  addPastRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  addPastBody: {
+    flex: 1,
+    gap: 2,
+  },
+  addPastTitle: {
+    fontSize: 15,
+    fontFamily: fonts.semibold,
+    color: colors.text1,
+  },
+  addPastSub: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.text3,
   },
   summaryCard: {
     backgroundColor: colors.surface,

@@ -69,8 +69,15 @@ import { SPARSE_MAX_POINTS, isSparseCandidate, judgeSparseRoute, routeThroughPoi
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
 import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
 import { parseReportedDate, formatReportedDate } from "../../lib/reportedDate.js";
-import { resolveRouteDistance, routedDurationUsable } from "../../services/routing.js";
-import { reverseGeocode } from "../../services/geocoding.js";
+import { resolveRouteDistance } from "../../services/routing.js";
+import {
+  geocodeAddress,
+  hasValidCoords,
+  resolveManualTripPlaces,
+  backfillTripAddresses,
+  attachManualRoutePolyline,
+  loadDuplicateNeighbours,
+} from "../../services/manualTripPlaces.js";
 import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, type KnownPlace } from "../../services/mapMatching.js";
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
@@ -108,48 +115,6 @@ import {
 const signalStartCooldown = new Map<string, number>();
 const SIGNAL_START_COOLDOWN_MS = 90 * 1000;
 
-// Server-side geocoding: resolve an address to coordinates via Postcodes.io or Nominatim
-async function geocodeAddress(addr: string): Promise<{ lat: number; lng: number } | null> {
-  // Extract UK postcode (full or partial outcode)
-  const fullMatch = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i);
-  const partialMatch = addr.match(/\b([A-Z]{1,2}\d[A-Z\d]?)\b/i);
-  const pc = fullMatch
-    ? { code: fullMatch[1].replace(/\s+/g, ""), partial: false }
-    : partialMatch
-      ? { code: partialMatch[1], partial: true }
-      : null;
-
-  if (pc) {
-    try {
-      const endpoint = pc.partial
-        ? `https://api.postcodes.io/outcodes/${pc.code}`
-        : `https://api.postcodes.io/postcodes/${pc.code}`;
-      const res = await fetch(endpoint);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === 200 && data.result) {
-          return { lat: data.result.latitude, lng: data.result.longitude };
-        }
-      }
-    } catch { /* fall through */ }
-  }
-
-  // Fallback: Nominatim
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1&countrycodes=gb`,
-      { headers: { "User-Agent": "MileClear/1.0" } }
-    );
-    const data = await res.json();
-    if (data?.[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-  } catch { /* give up */ }
-  return null;
-}
-
-// Check if coordinates look like real values (not 0,0 dummy or null-island)
-function hasValidCoords(lat: number, lng: number): boolean {
-  return !(Math.abs(lat) < 0.1 && Math.abs(lng) < 0.1);
-}
 
 const coordinateInputSchema = z.object({
   lat: z.number().min(-90).max(90),
@@ -295,59 +260,6 @@ const listTripsQuery = z.object({
   pageSize: z.coerce.number().int().positive().max(200).default(DEFAULT_PAGE_SIZE),
 });
 
-/**
- * Give a trip a name the driver recognises, when the device could not.
- *
- * Addresses normally arrive from the client. When its reverse geocode fails it
- * sends null, and a trip with BOTH addresses null draws no route line at all in
- * the trips list — a captured drive that reads as a missing one. Six of the
- * people who filed missing-trip reports in the week to 15 Aug had trips in this
- * state; Hanson reported his twice and then tried to re-enter it by hand while
- * it was already saved.
- *
- * Fire-and-forget, after the row is written, exactly like the manual route
- * polyline: trip capture is Priority 1 and must not take on a new external
- * dependency in its critical path. Only ever FILLS a null — whatever the client
- * sent always wins, because the device was there and we were not.
- */
-async function backfillTripAddresses(args: {
-  tripId: string;
-  userId: string;
-  startLat: number;
-  startLng: number;
-  endLat: number | null;
-  endLng: number | null;
-  hasStart: boolean;
-  hasEnd: boolean;
-}): Promise<void> {
-  const wantStart = !args.hasStart && hasValidCoords(args.startLat, args.startLng);
-  const wantEnd =
-    !args.hasEnd &&
-    args.endLat != null &&
-    args.endLng != null &&
-    hasValidCoords(args.endLat, args.endLng);
-  if (!wantStart && !wantEnd) return;
-
-  const [start, end] = await Promise.all([
-    wantStart ? reverseGeocode(args.startLat, args.startLng) : Promise.resolve(null),
-    wantEnd ? reverseGeocode(args.endLat!, args.endLng!) : Promise.resolve(null),
-  ]);
-  if (!start && !end) return;
-
-  await prisma.trip.update({
-    where: { id: args.tripId },
-    data: {
-      ...(start ? { startAddress: start } : {}),
-      ...(end ? { endAddress: end } : {}),
-    },
-  });
-
-  logEvent("trip.address_backfilled", args.userId, {
-    tripId: args.tripId,
-    filledStart: Boolean(start),
-    filledEnd: Boolean(end),
-  });
-}
 
 // Overlap archive rows written for a request (services/tripArchive.ts), so a
 // failure further on can remove the row instead of leaving strays behind.
@@ -978,56 +890,23 @@ export async function tripRoutes(app: FastifyInstance) {
       }
     }
 
-    // Server-side geocoding fallback: resolve addresses to coordinates if missing/zero
-    let resolvedStartLat = data.startLat;
-    let resolvedStartLng = data.startLng;
-    let resolvedEndLat = data.endLat ?? null;
-    let resolvedEndLng = data.endLng ?? null;
-
-    if (!hasValidCoords(resolvedStartLat, resolvedStartLng) && data.startAddress) {
-      const geo = await geocodeAddress(data.startAddress);
-      if (geo) {
-        resolvedStartLat = geo.lat;
-        resolvedStartLng = geo.lng;
-      }
-    }
-
-    if (data.endAddress && (resolvedEndLat == null || resolvedEndLng == null || !hasValidCoords(resolvedEndLat, resolvedEndLng))) {
-      const geo = await geocodeAddress(data.endAddress);
-      if (geo) {
-        resolvedEndLat = geo.lat;
-        resolvedEndLng = geo.lng;
-      }
-    }
-
-    // Auto-calculate distance if end coords present and distance not provided.
-    // Use the routing service (cache → GraphHopper → Google) — never silently
-    // falls back to haversine, which previously caused identical-address
-    // trips to return inconsistent miles (Laura Joyce report 10 May 2026).
-    let distanceMiles = data.distanceMiles ?? 0;
-    if (resolvedEndLat != null && resolvedEndLng != null && hasValidCoords(resolvedStartLat, resolvedStartLng) && data.distanceMiles == null) {
-      const route = await resolveRouteDistance({
-        startLat: resolvedStartLat,
-        startLng: resolvedStartLng,
-        endLat: resolvedEndLat,
-        endLng: resolvedEndLng,
-        userId,
-      });
-      if (route) {
-        distanceMiles = route.distanceMiles;
-      } else {
-        // All routing engines unavailable. Use haversine as the explicit
-        // last resort and flag it so we can audit how often it fires.
-        distanceMiles = haversineDistance(resolvedStartLat, resolvedStartLng, resolvedEndLat, resolvedEndLng);
-        logEvent("routing.haversine_fallback_used", userId, {
-          startLat: resolvedStartLat,
-          startLng: resolvedStartLng,
-          endLat: resolvedEndLat,
-          endLng: resolvedEndLng,
-          distanceMiles,
-        });
-      }
-    }
+    // Typed addresses to pins, and the road miles between them
+    // (services/manualTripPlaces.ts, shared with POST /shifts/past).
+    const places = await resolveManualTripPlaces({
+      userId,
+      startLat: data.startLat,
+      startLng: data.startLng,
+      endLat: data.endLat ?? null,
+      endLng: data.endLng ?? null,
+      startAddress: data.startAddress,
+      endAddress: data.endAddress,
+      distanceMiles: data.distanceMiles,
+    });
+    let resolvedStartLat = places.startLat;
+    let resolvedStartLng = places.startLng;
+    let resolvedEndLat = places.endLat;
+    let resolvedEndLng = places.endLng;
+    let distanceMiles = places.distanceMiles;
 
     const { coordinates: rawCoordinates, ...tripData } = data;
 
@@ -1356,28 +1235,7 @@ export async function tripRoutes(app: FastifyInstance) {
     // the save.
     if (!isPhantomTrip && trip.endedAt) {
       try {
-        const dayMs = 24 * 60 * 60 * 1000;
-        const neighbours = await prisma.trip.findMany({
-          where: {
-            userId,
-            id: { not: trip.id },
-            isPhantomTrip: false,
-            startedAt: {
-              gte: new Date(trip.startedAt.getTime() - dayMs),
-              lte: new Date(trip.startedAt.getTime() + dayMs),
-            },
-          },
-          select: {
-            id: true,
-            startedAt: true,
-            endedAt: true,
-            startLat: true,
-            startLng: true,
-            endLat: true,
-            endLng: true,
-            isManualEntry: true,
-          },
-        });
+        const neighbours = await loadDuplicateNeighbours(userId, trip);
         const duplicateOf = findDuplicateCandidate(trip, neighbours);
         if (duplicateOf) {
           trip = await prisma.trip.update({
@@ -4520,89 +4378,6 @@ export async function runSparseRoutingForTrip(args: {
   return verdict;
 }
 
-/**
- * Resolve the road-route geometry for a manual trip and store it as
- * routePolyline. Manual entries have no GPS breadcrumbs, so without
- * this every map draws them as a straight dashed line (Sarjit's Trip
- * Map, 16 Jul 2026 — 17 manual trips, all crow-flies). The routing
- * cache is usually warm here (the manual-trip form resolved the same
- * pair for its distance moments earlier), so this is typically a
- * single cache read.
- *
- * Geometry only — NEVER touches distanceMiles. The user saw and
- * accepted a specific figure when they saved the trip; a background
- * hook silently changing a tax-relevant number is not acceptable.
- * Called fire-and-forget; failures leave routePolyline null and the
- * map falls back to the dashed straight line, same as before.
- */
-async function attachManualRoutePolyline(args: {
-  tripId: string;
-  startLat: number;
-  startLng: number;
-  endLat: number;
-  endLng: number;
-  userId: string;
-}): Promise<void> {
-  const route = await resolveRouteDistance({
-    startLat: args.startLat,
-    startLng: args.startLng,
-    endLat: args.endLat,
-    endLng: args.endLng,
-    userId: args.userId,
-  });
-  if (!route) return;
-
-  // The same lookup answers "how long does this drive take?", which is the
-  // only end time a manually-entered trip can have when the user did not
-  // give one. The web form has no end-time field at all and mobile's is
-  // optional, so ~11% of manual trips were stored with endedAt NULL and
-  // dropped out of every duration-derived figure (shift grades, earnings
-  // per hour, golden hours, the weekly P&L). An estimate beats absence
-  // there, but it must be labelled, so gpsQuality carries its provenance
-  // and the trip is only touched when the user left the field empty.
-  const current = await prisma.trip.findUnique({
-    where: { id: args.tripId },
-    select: { startedAt: true, endedAt: true, distanceMiles: true, gpsQuality: true },
-  });
-  if (!current) return;
-
-  const inferEndedAt =
-    current.endedAt === null &&
-    routedDurationUsable({
-      routedMiles: route.distanceMiles,
-      routedSecs: route.durationSecs,
-      storedMiles: current.distanceMiles,
-    });
-
-  if (!route.encodedPolyline && !inferEndedAt) return;
-
-  await prisma.trip.update({
-    where: { id: args.tripId },
-    data: {
-      ...(route.encodedPolyline ? { routePolyline: route.encodedPolyline } : {}),
-      ...(inferEndedAt
-        ? {
-            endedAt: new Date(current.startedAt.getTime() + route.durationSecs * 1000),
-            gpsQuality: {
-              ...(current.gpsQuality && typeof current.gpsQuality === "object" && !Array.isArray(current.gpsQuality)
-                ? (current.gpsQuality as Prisma.JsonObject)
-                : {}),
-              endedAtSource: "routed_duration",
-              endedAtDurationSecs: route.durationSecs,
-            },
-          }
-        : {}),
-    },
-  });
-
-  if (inferEndedAt) {
-    logEvent("trip.ended_at_inferred", args.userId, {
-      tripId: args.tripId,
-      durationSecs: route.durationSecs,
-      source: route.source,
-    });
-  }
-}
 
 /**
  * Approximate distance in metres between two coordinates using a

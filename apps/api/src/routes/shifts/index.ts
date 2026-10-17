@@ -1,13 +1,37 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
 import { prisma } from "../../lib/prisma.js";
-import { SHIFT_STATUSES, getTaxYear, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from "@mileclear/shared";
+import {
+  SHIFT_STATUSES,
+  PLATFORM_TAGS,
+  getTaxYear,
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  PAST_SHIFT_MAX_TRIPS,
+  pastShiftProblem,
+  pastShiftMilesProblem,
+  clampedTripEnd,
+  isSamePastShift,
+  resolveRecordedBy,
+} from "@mileclear/shared";
+import { resolveRouteDistance } from "../../services/routing.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements, getShiftScorecard } from "../../services/gamification.js";
-import { sendShiftSummaryPush, sendAchievementPush } from "../../jobs/notifications.js";
+import { sendShiftSummaryPush, sendAchievementPush, sendMilestonePush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
+import { withKeyLock } from "../../lib/keyedLock.js";
+import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
+import { advanceLastTripAt } from "../../services/userActivity.js";
+import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
+import {
+  resolveManualTripPlaces,
+  hasValidCoords,
+  attachManualRoutePolyline,
+  backfillTripAddresses,
+  loadDuplicateNeighbours,
+} from "../../services/manualTripPlaces.js";
 import {
   clusterTripsIntoSessions,
   SHIFT_SUGGESTION_SCAN_DAYS,
@@ -21,6 +45,35 @@ const startShiftSchema = z.object({
 
 const endShiftSchema = z.object({
   status: z.literal("completed"),
+});
+
+// A trip in a past shift: typed in, so it has both ends and no breadcrumbs.
+// The miles are the app's road figure when it had one; without them the
+// server works them out exactly as it does for one typed trip.
+const pastShiftTripSchema = z.object({
+  startLat: z.number().min(-90).max(90),
+  startLng: z.number().min(-180).max(180),
+  endLat: z.number().min(-90).max(90),
+  endLng: z.number().min(-180).max(180),
+  startAddress: z.string().max(500).optional(),
+  endAddress: z.string().max(500).optional(),
+  distanceMiles: z.number().nonnegative().max(2000, "Distance exceeds reasonable limit").optional(),
+  startedAt: z.coerce.date(),
+  endedAt: z.coerce.date().optional(),
+  platformTag: z.enum(PLATFORM_TAGS).optional(),
+});
+
+const pastShiftSchema = z.object({
+  startedAt: z.coerce.date(),
+  endedAt: z.coerce.date(),
+  vehicleId: z.string().uuid().optional(),
+  trips: z.array(pastShiftTripSchema).min(1, "Add at least one trip.").max(PAST_SHIFT_MAX_TRIPS),
+  earning: z
+    .object({
+      platform: z.enum(PLATFORM_TAGS),
+      amountPence: z.number().int().positive("Amount must be positive").max(10_000_000),
+    })
+    .optional(),
 });
 
 export async function shiftRoutes(app: FastifyInstance) {
@@ -69,6 +122,307 @@ export async function shiftRoutes(app: FastifyInstance) {
 
     return reply.status(201).send({ data: shift });
   });
+
+  // ── Add a past shift ──────────────────────────────────────────────
+  //
+  // A driver asked (Oct 2026) to add a whole earlier work session in one go
+  // instead of typing each trip on its own. One request carries the shift's
+  // times, every trip in it and, optionally, what it earned. The shift, its
+  // trips and the earning are written in one transaction, so a failure
+  // leaves nothing half saved. Each trip gets what a typed trip gets on
+  // POST /trips (pins from addresses, road miles, route line, names,
+  // possible-double mark, events) through services/manualTripPlaces.ts, and
+  // the shift gets what an ended shift gets (afterShiftCompleted below).
+  // Shift trips are work, so every trip is saved as Business.
+  const addPastShift = async (request: FastifyRequest, reply: FastifyReply) => {
+    const parsed = pastShiftSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: parsed.error.issues[0].message });
+    }
+
+    const userId = request.userId!;
+    const body = parsed.data;
+
+    const problem = pastShiftProblem({
+      startedAt: body.startedAt,
+      endedAt: body.endedAt,
+      trips: body.trips,
+      now: Date.now(),
+    });
+    if (problem) {
+      return reply.status(400).send({ error: problem });
+    }
+
+    if (body.vehicleId) {
+      const vehicle = await prisma.vehicle.findFirst({
+        where: { id: body.vehicleId, userId },
+      });
+      if (!vehicle) {
+        return reply.status(404).send({ error: "Vehicle not found" });
+      }
+    }
+    const vehicleId = body.vehicleId ?? (await defaultVehicleIdForUser(userId));
+
+    // Shifts already saved that overlap this one, the running one included.
+    // Two shifts over the same hours would count the same work twice, so
+    // this is refused, with one exception: the same save sent again (a retry
+    // after the answer was lost), which is answered with what was saved. A
+    // save with the same times but different trips or earnings is a
+    // different save and is refused like any other overlap, never merged.
+    const overlapping = await prisma.shift.findMany({
+      where: {
+        userId,
+        startedAt: { lt: body.endedAt },
+        OR: [{ endedAt: null }, { endedAt: { gt: body.startedAt } }],
+      },
+      include: { vehicle: true },
+      orderBy: { startedAt: "asc" },
+    });
+    if (overlapping.length > 0) {
+      const same = overlapping.find(
+        (s) =>
+          s.status === "completed" &&
+          s.startedAt.getTime() === body.startedAt.getTime() &&
+          s.endedAt?.getTime() === body.endedAt.getTime()
+      );
+      if (same) {
+        const [savedTrips, savedEarning] = await Promise.all([
+          prisma.trip.findMany({ where: { userId, shiftId: same.id }, orderBy: { startedAt: "asc" } }),
+          prisma.earning.findFirst({
+            where: { userId, source: "manual", periodStart: same.startedAt, periodEnd: same.endedAt! },
+          }),
+        ]);
+        const repeat = isSamePastShift(
+          {
+            trips: savedTrips,
+            earning: savedEarning ? { platform: savedEarning.platform, amountPence: savedEarning.amountPence } : null,
+          },
+          { trips: body.trips, earning: body.earning ?? null }
+        );
+        if (repeat) {
+          logEvent("shift.past_add_repeated", userId, { shiftId: same.id, tripCount: savedTrips.length });
+          return reply.send({ data: same, trips: savedTrips, earning: savedEarning, scorecard: null, duplicate: true });
+        }
+      }
+      const clash = same ?? overlapping[0];
+      logEvent("shift.past_add_overlap_refused", userId, {
+        existingShiftId: clash.id,
+        existingActive: clash.status === "active",
+        sameTimes: Boolean(same),
+      });
+      return reply.status(409).send({ error: shiftClashMessage(clash), existingShiftId: clash.id });
+    }
+
+    // Pins and miles first: they can call out to geocoders and routers,
+    // which must never run inside the transaction.
+    const places: Array<Awaited<ReturnType<typeof resolveManualTripPlaces>>> = [];
+    for (const t of body.trips) {
+      places.push(
+        await resolveManualTripPlaces({
+          userId,
+          startLat: t.startLat,
+          startLng: t.startLng,
+          endLat: t.endLat,
+          endLng: t.endLng,
+          startAddress: t.startAddress,
+          endAddress: t.endAddress,
+          distanceMiles: t.distanceMiles,
+        })
+      );
+    }
+    // Checked again here: miles the server worked out count too.
+    const milesProblem = pastShiftMilesProblem(places.map((p) => p.distanceMiles));
+    if (milesProblem) {
+      return reply.status(400).send({ error: milesProblem });
+    }
+
+    // A trip sent without an end gets one here, from its route, held inside
+    // the shift and before now. Left empty, the route-line hook would fill it
+    // later with no regard for the shift's end.
+    const tripEnds: Date[] = [];
+    for (let i = 0; i < body.trips.length; i++) {
+      const t = body.trips[i];
+      if (t.endedAt) {
+        tripEnds.push(t.endedAt);
+        continue;
+      }
+      const p = places[i];
+      let routedSecs: number | null = null;
+      if (p.endLat != null && p.endLng != null && hasValidCoords(p.startLat, p.startLng) && hasValidCoords(p.endLat, p.endLng)) {
+        const route = await resolveRouteDistance({
+          startLat: p.startLat,
+          startLng: p.startLng,
+          endLat: p.endLat,
+          endLng: p.endLng,
+          userId,
+        }).catch(() => null);
+        routedSecs = route?.durationSecs ?? null;
+      }
+      tripEnds.push(clampedTripEnd({ startedAt: t.startedAt, routedSecs, shiftEnd: body.endedAt, now: Date.now() }));
+    }
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const shift = await tx.shift.create({
+        data: {
+          userId,
+          vehicleId,
+          startedAt: body.startedAt,
+          endedAt: body.endedAt,
+          status: "completed",
+        },
+        include: { vehicle: true },
+      });
+      const trips = [];
+      for (let i = 0; i < body.trips.length; i++) {
+        const t = body.trips[i];
+        const p = places[i];
+        trips.push(
+          await tx.trip.create({
+            data: {
+              userId,
+              shiftId: shift.id,
+              vehicleId,
+              startLat: p.startLat,
+              startLng: p.startLng,
+              endLat: p.endLat,
+              endLng: p.endLng,
+              startAddress: t.startAddress ?? null,
+              endAddress: t.endAddress ?? null,
+              distanceMiles: p.distanceMiles,
+              startedAt: t.startedAt,
+              endedAt: tripEnds[i],
+              isManualEntry: true,
+              isPhantomTrip: false,
+              classification: "business",
+              platformTag: t.platformTag ?? null,
+              recordedBy: resolveRecordedBy(null, true),
+            },
+          })
+        );
+      }
+      const earning = body.earning
+        ? await tx.earning.create({
+            data: {
+              userId,
+              platform: body.earning.platform,
+              amountPence: body.earning.amountPence,
+              periodStart: body.startedAt,
+              periodEnd: body.endedAt,
+              source: "manual",
+            },
+          })
+        : null;
+      return { shift, trips, earning };
+    });
+
+    const { shift, earning } = saved;
+    const trips = saved.trips;
+    const newIds = new Set(trips.map((t) => t.id));
+
+    for (let i = 0; i < trips.length; i++) {
+      const trip = trips[i];
+      const p = places[i];
+
+      // Route line for the map (and an end time from the route when none
+      // was given), exactly as for one typed trip. Fire-and-forget.
+      if (p.endLat != null && p.endLng != null && hasValidCoords(p.startLat, p.startLng) && hasValidCoords(p.endLat, p.endLng)) {
+        attachManualRoutePolyline({
+          tripId: trip.id,
+          startLat: p.startLat,
+          startLng: p.startLng,
+          endLat: p.endLat,
+          endLng: p.endLng,
+          userId,
+        }).catch(() => {});
+      }
+
+      // Possible double-count against trips already saved (POST /trips does
+      // the same). The shift's own trips are left out: they follow on from
+      // each other and are never the same journey.
+      if (trip.endedAt) {
+        try {
+          const neighbours = (await loadDuplicateNeighbours(userId, trip)).filter((n) => !newIds.has(n.id));
+          const duplicateOf = findDuplicateCandidate(trip, neighbours);
+          if (duplicateOf) {
+            trips[i] = await prisma.trip.update({
+              where: { id: trip.id },
+              data: { possibleDuplicateOfId: duplicateOf.id },
+            });
+            logEvent("trip.possible_duplicate", userId, {
+              tripId: trip.id,
+              ofTripId: duplicateOf.id,
+              newIsManual: true,
+            });
+          }
+        } catch (err) {
+          request.log.warn({ err, tripId: trip.id }, "possible-duplicate check failed");
+        }
+      }
+
+      backfillTripAddresses({
+        tripId: trip.id,
+        userId,
+        startLat: p.startLat,
+        startLng: p.startLng,
+        endLat: p.endLat,
+        endLng: p.endLng,
+        hasStart: Boolean(body.trips[i].startAddress),
+        hasEnd: Boolean(body.trips[i].endAddress),
+      }).catch(() => {});
+
+      logEvent("trip.created", userId, {
+        distanceMiles: trip.distanceMiles,
+        classification: "business",
+        isManualEntry: true,
+        platformTag: trip.platformTag,
+        autoClassified: false,
+        source: "past_shift",
+      });
+    }
+
+    if (earning) {
+      logEvent("earnings.created", userId, {
+        platform: earning.platform,
+        amountPence: earning.amountPence,
+        source: "manual",
+        from: "past_shift",
+      });
+    }
+
+    // Tax years the trips fall in, beyond the shift's own (which
+    // afterShiftCompleted refreshes): a shift over 5 April midnight.
+    const shiftTaxYear = getTaxYear(shift.startedAt);
+    const otherTaxYears = new Set(trips.map((t) => getTaxYear(t.startedAt)).filter((y) => y !== shiftTaxYear));
+    for (const y of otherTaxYears) {
+      await upsertMileageSummary(userId, y).catch(() => {});
+    }
+    const latestStart = trips.reduce((m, t) => (t.startedAt > m ? t.startedAt : m), trips[0].startedAt);
+    advanceLastTripAt(userId, latestStart).catch(() => {});
+
+    // The driver is on the form waiting, so the scorecard comes back in the
+    // response and no "shift done" push goes out.
+    const scorecard = await afterShiftCompleted(userId, shift.id, shift.startedAt, {
+      summaryPush: false,
+    });
+    sendMilestonePush(userId).catch(() => {});
+
+    const totalMiles = Math.round(trips.reduce((sum, t) => sum + t.distanceMiles, 0) * 100) / 100;
+    logEvent("shift.past_added", userId, {
+      shiftId: shift.id,
+      tripCount: trips.length,
+      totalMiles,
+      durationSeconds: Math.round((shift.endedAt!.getTime() - shift.startedAt.getTime()) / 1000),
+      hasEarning: Boolean(earning),
+      daysBack: Math.floor((Date.now() - shift.startedAt.getTime()) / (24 * 60 * 60 * 1000)),
+    });
+
+    return reply.status(201).send({ data: shift, trips, earning, scorecard });
+  };
+  // One at a time per driver, so a double tap cannot pass the repeat check
+  // above twice (lib/keyedLock.ts).
+  app.post("/past", async (request, reply) =>
+    withKeyLock(`past-shift:${request.userId}`, () => addPastShift(request, reply))
+  );
 
   // List shifts
   const listShiftsQuery = z.object({
@@ -351,6 +705,22 @@ export async function shiftRoutes(app: FastifyInstance) {
 
     return reply.send({ ok: true, shiftId: shift.id, scorecard });
   });
+}
+
+// UK times for the words below: the server runs in UTC, drivers read BST/GMT.
+function ukTime(d: Date): string {
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+}
+function ukDay(d: Date): string {
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+}
+
+/** Why a past shift was refused for overlapping one already saved. */
+export function shiftClashMessage(clash: { status: string; startedAt: Date; endedAt: Date | null }): string {
+  if (clash.status === "active" || !clash.endedAt) {
+    return `You have a shift running now, started at ${ukTime(clash.startedAt)} on ${ukDay(clash.startedAt)}. End it first, or change this shift's times so they don't overlap it.`;
+  }
+  return `You already have a shift from ${ukTime(clash.startedAt)} to ${ukTime(clash.endedAt)} on ${ukDay(clash.startedAt)}. Change this shift's times so they don't overlap it.`;
 }
 
 /**

@@ -777,6 +777,7 @@ function RootNavigator() {
         <Stack.Screen name="vehicles" options={{ headerShown: true, title: "Your cars" }} />
         <Stack.Screen name="odometer-log" options={{ headerShown: true, title: "Odometer" }} />
         <Stack.Screen name="shifts" options={{ headerShown: true, title: "Shifts" }} />
+        <Stack.Screen name="past-shift-form" options={{ headerShown: true, title: "Add a past shift" }} />
         <Stack.Screen name="journey-map" options={{ headerShown: true, title: "Journey map" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work hours" }} />
