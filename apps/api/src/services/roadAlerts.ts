@@ -41,6 +41,7 @@ import { applyKnownNames, queueNames } from "./roadEventNames.js";
 import {
   getTileEvents,
   isTomTomConfigured,
+  isTomTomServing,
   screenFreshnessMs,
   tilesForCorridor,
 } from "./tomtomTraffic.js";
@@ -75,8 +76,18 @@ function windowStart(now: Date): Date {
   return new Date(now.getTime() - CORRIDOR_WINDOW_DAYS * 86400000);
 }
 
+/** Which sources are set up at all. Used at boot to decide whether the road
+ *  alerts job is scheduled, so a TomTom stop for the month never unschedules
+ *  it (it resumes on the 1st). */
 export function roadAlertsAvailable(): { incidents: boolean; plannedWorks: boolean } {
   return { incidents: isTomTomConfigured(), plannedWorks: isStreetManagerEnabled() };
+}
+
+/** Which sources are supplying anything right now. TomTom counts only when it
+ *  is set up AND not stopped for the month by a 403/429, so the screen never
+ *  credits TomTom (or offers alerts on its strength) when it supplies nothing. */
+export async function roadAlertsServing(now: Date = new Date()): Promise<{ incidents: boolean; plannedWorks: boolean }> {
+  return { incidents: await isTomTomServing(now), plannedWorks: isStreetManagerEnabled() };
 }
 
 /** Usual departure per weekday for each driver (cached a day). One small
@@ -172,7 +183,7 @@ export async function matchedEventsForDriver(
   const corridor = await loadCorridor(userId, now);
   if (!corridor.bbox) return { corridor, matches: [] };
   const [incidents, works] = await Promise.all([
-    isTomTomConfigured() ? getTileEvents(tilesForCorridor(corridor), maxAgeMs, now) : Promise.resolve([] as RoadEvent[]),
+    (await isTomTomServing(now)) ? getTileEvents(tilesForCorridor(corridor), maxAgeMs, now) : Promise.resolve([] as RoadEvent[]),
     loadStreetWorks(corridor.bbox, now, UPCOMING_DAYS + 1),
   ]);
   const matches: MatchedEvent[] = [];
@@ -232,7 +243,7 @@ export async function loadDismissedIds(userIds: string[], now: Date): Promise<Ma
 
 /** GET /road-alerts for one driver. */
 export async function roadAlertsForUser(userId: string, now: Date = new Date()): Promise<RoadAlertsResponse["data"]> {
-  const available = roadAlertsAvailable();
+  const available = await roadAlertsServing(now);
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { pushPrefs: true } });
   const enabled = pushPrefOptedIn(user?.pushPrefs, "roadAlerts");
   const attribution = [
