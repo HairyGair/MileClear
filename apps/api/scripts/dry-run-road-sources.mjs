@@ -27,7 +27,9 @@ if (!process.env.DATABASE_URL) {
 }
 
 const { loadTfl, loadWales, loadNh, isSourceEnabled, FEED_SPECS } = await import("../dist/services/roadSources.js");
-const { bboxTouches, eventBbox, withoutStreetManagerDuplicates } = await import("../dist/services/roadSourcesParse.js");
+const { bboxTouches, eventBbox, padBbox, screenWorthy, withoutStreetManagerDuplicates } = await import(
+  "../dist/services/roadSourcesParse.js"
+);
 const { loadCorridor } = await import("../dist/services/roadAlerts.js");
 const { matchEventToCorridor } = await import("../dist/services/roadCorridor.js");
 const { splitForScreen } = await import("../dist/services/roadAlertsRule.js");
@@ -75,9 +77,11 @@ for (const s of want) {
     const live = all.filter(
       (e) => (!e.endAt || e.endAt > now) && (!e.startAt || e.startAt.getTime() <= now.getTime() + HORIZON_MS)
     );
-    bySource[s] = live.map((e) => ({ ...e, future: e.startAt != null && e.startAt > now, _box: eventBbox(e) }));
+    const dropped = live.filter((e) => !screenWorthy(e)).length;
+    if (dropped > 0) console.log(`  (${dropped} slip, lane or link road items are not shown on the screen)`);
+    bySource[s] = live.filter(screenWorthy).map((e) => ({ ...e, future: e.startAt != null && e.startAt > now, _box: eventBbox(e) }));
     console.log(`\n${s}: ${all.length} items fetched in ${Date.now() - t0} ms; ${live.length} in effect now or starting within 8 days`);
-    for (const [k, v] of Object.entries(tally(live)).sort((a, b) => b[1] - a[1])) console.log(`  ${k}: ${v}`);
+    for (const [k, v] of Object.entries(tally(live.filter(screenWorthy))).sort((a, b) => b[1] - a[1])) console.log(`  ${k}: ${v}`);
   } catch (err) {
     console.log(`\n${s}: FETCH FAILED (${err?.message ?? err})`);
     bySource[s] = [];
@@ -103,9 +107,10 @@ try {
       ? await loadStreetWorks(corridor.bbox, now, 8)
       : [];
     for (const s of want) {
-      if (!bboxTouches(corridor.bbox, FEED_SPECS[s].area)) continue;
+      const padded = padBbox(corridor.bbox);
+      if (!bboxTouches(padded, FEED_SPECS[s].area)) continue;
       stats[s].touchArea++;
-      let candidates = bySource[s].filter((e) => e._box && bboxTouches(e._box, corridor.bbox));
+      let candidates = bySource[s].filter((e) => e._box && bboxTouches(e._box, padded));
       if (s === "tfl") {
         const kept = withoutStreetManagerDuplicates(candidates, works);
         stats[s].dupesDropped += candidates.length - kept.length;
@@ -133,7 +138,10 @@ try {
         (s === "tfl" ? `\n  dropped as Street Manager duplicates: ${x.dupesDropped}${isStreetManagerEnabled() ? "" : " (Street Manager off here)"}` : "")
     );
   }
-  console.log("\nNothing was written and nothing was sent. (Grouping, dismissals and the Sunday push are not applied here.)");
+  console.log(
+    "\nNothing was written and nothing was sent. (Grouping, dismissals and the Sunday push are not applied here." +
+      " Traffic Wales items are never pushed, only shown.)"
+  );
 } finally {
   await prisma.$disconnect();
 }

@@ -68,6 +68,10 @@ export interface RoadEvent {
   placeTown?: string | null;
   lines: LatLng[][];
   points: LatLng[];
+  /** false: shown on the Road alerts screen but never the reason for a push
+   *  (Traffic Wales gives one point for kilometres of road, so drivers who
+   *  only cross it or drive the other way would match). Absent = pushable. */
+  pushable?: boolean;
 }
 
 /** Delay that turns a lane closure or incident into "major". */

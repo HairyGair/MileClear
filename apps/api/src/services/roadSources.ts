@@ -30,6 +30,8 @@ import {
   parseNhClosures,
   parseTflDisruptions,
   parseTrafficWalesRss,
+  padBbox,
+  screenWorthy,
   withoutStreetManagerDuplicates,
   type Bbox,
   type ExtraSource,
@@ -74,14 +76,28 @@ const ERROR_LOG_EVERY_MS = HOUR;
  *  shows 7 days; the same horizon as Street Manager's load). */
 const HORIZON_DAYS = 8;
 
+/** Responses bigger than this are refused before parsing (today the
+ *  biggest, a National Highways page, is under 3 MB). */
+export const MAX_RESPONSE_BYTES = 20 * 1024 * 1024;
+/** With no copy yet, a caller waits at most this long for the first fetch;
+ *  the fetch carries on and the next caller (the job's prefetch tick) gets
+ *  the data. */
+export const FIRST_LOAD_WAIT_MS = 5000;
+
 type FetchLike = (url: string, init?: { signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{
   ok: boolean;
   status: number;
-  json(): Promise<unknown>;
+  headers?: { get(name: string): string | null };
   text(): Promise<string>;
 }>;
 
 let fetchImpl: FetchLike = (url, init) => fetch(url, init);
+let firstLoadWaitMs = FIRST_LOAD_WAIT_MS;
+
+/** Tests only. */
+export function setFirstLoadWaitMs(ms: number | null): void {
+  firstLoadWaitMs = ms ?? FIRST_LOAD_WAIT_MS;
+}
 
 /** Tests only. */
 export function setRoadSourcesFetch(f: FetchLike | null): void {
@@ -94,7 +110,16 @@ async function get(url: string, as: "json" | "text"): Promise<unknown> {
     headers: { Accept: as === "json" ? "application/json" : "application/rss+xml, application/xml, text/xml" },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return as === "json" ? res.json() : res.text();
+  const length = Number(res.headers?.get("content-length") ?? NaN);
+  if (Number.isFinite(length) && length > MAX_RESPONSE_BYTES) throw new Error(`response too big (${length} bytes)`);
+  const text = await res.text();
+  if (text.length > MAX_RESPONSE_BYTES) throw new Error(`response too big (${text.length} characters)`);
+  if (as === "text") return text;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("response is not JSON");
+  }
 }
 
 // ── Loaders (no gating, no cache; the dry-run script calls these) ────
@@ -109,8 +134,9 @@ export async function loadTfl(now: Date): Promise<RoadEvent[]> {
 }
 
 /** Last good copy of each Wales feed, so one feed failing does not empty
- *  the others. */
-const walesLastGood = new Map<keyof typeof WALES_FEEDS, RoadEvent[]>();
+ *  the others; each copy expires on its own after the Wales staleness
+ *  limit. */
+const walesLastGood = new Map<keyof typeof WALES_FEEDS, { at: number; events: RoadEvent[] }>();
 
 export async function loadWales(now: Date): Promise<RoadEvent[]> {
   const names = Object.keys(WALES_FEEDS) as (keyof typeof WALES_FEEDS)[];
@@ -120,7 +146,7 @@ export async function loadWales(now: Date): Promise<RoadEvent[]> {
   results.forEach((r, i) => {
     const name = names[i];
     if (r.status === "fulfilled" && typeof r.value === "string" && /<rss[\s>]/i.test(r.value)) {
-      walesLastGood.set(name, parseTrafficWalesRss(r.value, name, now));
+      walesLastGood.set(name, { at: now.getTime(), events: parseTrafficWalesRss(r.value, name, now) });
       ok++;
     } else {
       errors.push(`${name}: ${r.status === "rejected" ? (r.reason as Error)?.message : "not RSS"}`);
@@ -130,15 +156,40 @@ export async function loadWales(now: Date): Promise<RoadEvent[]> {
   if (errors.length > 0) logFailure("traffic_wales", new Error(`partial: ${errors.join("; ")}`), Date.now());
   // The headlines feed can repeat an incident: one copy per id.
   const byId = new Map<string, RoadEvent>();
-  for (const n of names) for (const e of walesLastGood.get(n) ?? []) if (!byId.has(e.id)) byId.set(e.id, e);
+  const staleMs = FEED_SPECS.traffic_wales.staleMs;
+  for (const n of names) {
+    const copy = walesLastGood.get(n);
+    if (!copy) continue;
+    if (now.getTime() - copy.at >= staleMs) {
+      walesLastGood.delete(n);
+      continue;
+    }
+    for (const e of copy.events) if (!byId.has(e.id)) byId.set(e.id, e);
+  }
   return [...byId.values()];
+}
+
+/** ArcGIS TIMESTAMP literal (UTC). */
+function arcgisTimestamp(d: Date): string {
+  return `TIMESTAMP '${d.toISOString().slice(0, 19).replace("T", " ")}'`;
+}
+
+/** Only closures not yet over that start within the horizon (checked live
+ *  on 17 Oct 2026: 1,545 of 3,030). */
+export function nhWhere(now: Date): string {
+  const horizon = new Date(now.getTime() + HORIZON_DAYS * 86400000);
+  return `scheduledplannedenddate > ${arcgisTimestamp(now)} AND scheduledplannedstartdate < ${arcgisTimestamp(horizon)}`;
 }
 
 export async function loadNh(now: Date): Promise<RoadEvent[]> {
   const out: RoadEvent[] = [];
-  for (let page = 0; page < NH_MAX_PAGES; page++) {
+  for (let page = 0; ; page++) {
+    if (page >= NH_MAX_PAGES) {
+      console.warn(`[roadSources] national_highways: stopped at the ${NH_MAX_PAGES}-page cap; some closures were not read`);
+      break;
+    }
     const q = new URLSearchParams({
-      where: "1=1",
+      where: nhWhere(now),
       outFields: "objectid,description,road_number,eventtype,natureofworks,scheduledplannedstartdate,scheduledplannedenddate",
       orderByFields: "objectid",
       resultOffset: String(page * NH_PAGE_SIZE),
@@ -265,14 +316,24 @@ export async function sourceEvents(source: ExtraSource, bbox: Bbox, now: Date): 
   try {
     if (!isSourceEnabled(source)) return [];
     const spec = FEED_SPECS[source];
-    if (!bboxTouches(bbox, spec.area)) return [];
+    const padded = padBbox(bbox);
+    if (!bboxTouches(padded, spec.area)) return [];
     const st = stateOf(source);
     const t = now.getTime();
     const due =
       st.fetchedAt == null || t - st.fetchedAt >= spec.refreshMs;
     const waited = st.lastAttemptAt == null || t - st.lastAttemptAt >= (st.lastFailed ? spec.retryMs : 0);
     if (due && waited && !st.inFlight) void refresh(spec, st, now);
-    if (!usable(spec, st, now) && st.inFlight) await st.inFlight;
+    if (!usable(spec, st, now) && st.inFlight) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        st.inFlight,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, firstLoadWaitMs);
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+    }
     if (!usable(spec, st, now)) return [];
 
     const horizon = t + HORIZON_DAYS * 86400000;
@@ -280,7 +341,8 @@ export async function sourceEvents(source: ExtraSource, bbox: Bbox, now: Date): 
     for (let i = 0; i < st.events.length; i++) {
       const e = st.events[i];
       const b = st.boxes[i];
-      if (!b || !bboxTouches(b, bbox)) continue;
+      if (!b || !bboxTouches(b, padded)) continue;
+      if (!screenWorthy(e)) continue;
       if (e.endAt && e.endAt.getTime() <= t) continue;
       if (e.startAt && e.startAt.getTime() > horizon) continue;
       out.push({ ...e, future: e.startAt != null && e.startAt.getTime() > t });

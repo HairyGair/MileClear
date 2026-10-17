@@ -346,13 +346,13 @@ describe("roadSources gating and fail-soft", () => {
     setRoadSourcesFetch(async (url) => {
       calls.push(url);
       if (mode === "fail") throw new Error("network down");
-      if (mode === "http500") return { ok: false, status: 500, json: async () => ({}), text: async () => "" };
-      if (url.includes("tfl.gov.uk")) return { ok: true, status: 200, json: async () => tflJson, text: async () => "" };
+      if (mode === "http500") return { ok: false, status: 500, text: async () => "" };
+      if (url.includes("tfl.gov.uk")) return { ok: true, status: 200, text: async () => JSON.stringify(tflJson) };
       if (url.includes("traffic.wales")) {
         const body = url.includes("roadworks") ? walesXml : walesEmptyXml;
-        return { ok: true, status: 200, json: async () => ({}), text: async () => body };
+        return { ok: true, status: 200, text: async () => body };
       }
-      return { ok: true, status: 200, json: async () => ({ ...nhJson, properties: {} }), text: async () => "" };
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ...nhJson, properties: {} }) };
     });
   });
 
@@ -448,8 +448,8 @@ describe("roadSources gating and fail-soft", () => {
     process.env.ROAD_SOURCE_NH = "1";
     setRoadSourcesFetch(async (url) => {
       if (url.includes("tfl.gov.uk")) throw new Error("boom");
-      if (url.includes("traffic.wales")) return { ok: true, status: 200, json: async () => ({}), text: async () => (url.includes("roadworks") ? walesXml : walesEmptyXml) };
-      return { ok: true, status: 200, json: async () => ({ ...nhJson, properties: {} }), text: async () => "" };
+      if (url.includes("traffic.wales")) return { ok: true, status: 200, text: async () => (url.includes("roadworks") ? walesXml : walesEmptyXml) };
+      return { ok: true, status: 200, text: async () => JSON.stringify({ ...nhJson, properties: {} }) };
     });
     const wide = { minLat: 51.2, maxLat: 52.2, minLng: -3.5, maxLng: 0.2 };
     const ev = await extraRoadEventsFor(wide, [], NOW);

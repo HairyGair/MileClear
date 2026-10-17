@@ -19,6 +19,7 @@
 
 import type { RoadEvent, RoadEventSeverity } from "./roadEvents.js";
 import { haversineMetres, ukLocalParts, type LatLng } from "./roadCorridor.js";
+import { mayMergeAsOnePlan, oppositeDirectionLabels, stripDirectionWord } from "./roadSourcesParse.js";
 import {
   DEPARTURE_EFFECT_SLACK_MIN,
   daysPhrase,
@@ -184,7 +185,9 @@ function describe(g: Omit<AlertGroup, "headline" | "sentence" | "named">, now: D
   // and no direction when both carriageways are shut.
   const withName: RoadEvent = {
     ...lead,
-    road: lead.road ?? g.members.map((m) => m.event.road).find(Boolean) ?? null,
+    road: (g.bothDirections ? stripDirectionWord : (r: string | null) => r)(
+      lead.road ?? g.members.map((m) => m.event.road).find(Boolean) ?? null
+    ),
     placeName: lead.placeName ?? g.members.map((m) => m.event.placeName).find(Boolean) ?? null,
     placeTown: lead.placeTown ?? g.members.map((m) => m.event.placeTown).find(Boolean) ?? null,
     directionMode: g.bothDirections ? "none" : lead.directionMode,
@@ -257,6 +260,7 @@ export function groupMatches(matches: MatchedEvent[], now: Date): AlertGroup[] {
     for (let j = i + 1; j < n; j++) {
       const a = matches[i].event, b = matches[j].event;
       if (a.source !== b.source || kind(a) !== kind(b)) continue;
+      if (!mayMergeAsOnePlan(a, b)) continue;
       if (sameWindow(a, b) && minDistance(pts[i], pts[j]) <= SAME_PLAN_M) { union(i, j); continue; }
       if (samePlace(i, j) && (overlaps(a, b) || sameHours(a, b))) union(i, j);
     }
@@ -308,12 +312,18 @@ export function groupMatches(matches: MatchedEvent[], now: Date): AlertGroup[] {
     const dirs = new Set(
       events.filter((e) => e.directionMode === "along").map((e) => directionWord(e.bearing)).filter(Boolean)
     );
+    // Sources with no line direction say it in the label instead ("M25
+    // clockwise" and "M25 anti-clockwise" on the same night: both ways).
+    const labelBoth = oppositeDirectionLabels(events.map((e) => e.road));
+    if (labelBoth) multiPlace = false;
     const bothDirections =
-      !multiPlace && ((dirs.has("northbound") && dirs.has("southbound")) || (dirs.has("eastbound") && dirs.has("westbound")));
+      labelBoth ||
+      (!multiPlace && ((dirs.has("northbound") && dirs.has("southbound")) || (dirs.has("eastbound") && dirs.has("westbound"))));
 
     const roadSet = new Map<string, number>();
     for (const m of members) {
-      const name = nameOf(m.event);
+      const raw = nameOf(m.event);
+      const name = labelBoth ? stripDirectionWord(raw) : raw;
       if (name && !roadSet.has(name)) roadSet.set(name, m.days);
     }
     const roads = [...roadSet.entries()]
@@ -377,7 +387,11 @@ export function selectPushGroup(
   const eligible = groups
     .filter((g) => !g.ongoing)
     .filter((g) => g.named)
-    .filter((g) => g.members.some((m) => isSerious(m.event) && inEffectAt(m.event, opts.departureAt, DEPARTURE_EFFECT_SLACK_MIN)))
+    .filter((g) =>
+      g.members.some(
+        (m) => m.event.pushable !== false && isSerious(m.event) && inEffectAt(m.event, opts.departureAt, DEPARTURE_EFFECT_SLACK_MIN)
+      )
+    )
     .filter((g) => !g.members.some((m) => opts.sentEventIds.has(m.event.id)))
     .sort(
       (a, b) =>

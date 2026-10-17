@@ -46,7 +46,7 @@ import {
   tilesForCorridor,
 } from "./tomtomTraffic.js";
 import { isStreetManagerEnabled, loadStreetWorks } from "./streetManager.js";
-import { attributionForSources, extraRoadEventsFor, extraRoadSourcesEnabled } from "./roadSources.js";
+import { attributionForSources, extraRoadEventsFor, extraRoadSourcesEnabled, isSourceEnabled } from "./roadSources.js";
 import { pushPrefOptedIn } from "./pushPrefs.js";
 import { weekAheadForCorridor } from "./roadWeekAhead.js";
 import { weekAheadWindow } from "./roadWeekAheadRule.js";
@@ -257,7 +257,8 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
   const base = {
     enabled,
     available: available.incidents || available.plannedWorks || extraRoadSourcesEnabled(),
-    plannedWorksCoverage: available.plannedWorks ? ("england" as const) : null,
+    // Traffic Wales adds Welsh trunk roads, so "England only" would be wrong.
+    plannedWorksCoverage: available.plannedWorks && !isSourceEnabled("traffic_wales") ? ("england" as const) : null,
     attribution,
     updatedAt: now.toISOString(),
   };

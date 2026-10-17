@@ -51,6 +51,28 @@ export const GREATER_LONDON_BBOX: Bbox = { minLat: 51.28, maxLat: 51.69, minLng:
 export const WALES_BBOX: Bbox = { minLat: 51.3, maxLat: 53.5, minLng: -5.4, maxLng: -2.6 };
 export const ENGLAND_BBOX: Bbox = { minLat: 49.8, maxLat: 55.85, minLng: -6.5, maxLng: 1.8 };
 
+/** The same margin matchEventToCorridor allows around a corridor's box, so
+ *  the prefilter never drops an event matching would have kept. */
+export const CORRIDOR_PAD_LAT = 0.01;
+export const CORRIDOR_PAD_LNG = 0.015;
+
+export function padBbox(b: Bbox): Bbox {
+  return {
+    minLat: b.minLat - CORRIDOR_PAD_LAT,
+    maxLat: b.maxLat + CORRIDOR_PAD_LAT,
+    minLng: b.minLng - CORRIDOR_PAD_LNG,
+    maxLng: b.maxLng + CORRIDOR_PAD_LNG,
+  };
+}
+
+/** National Highways and Traffic Wales list many slip, lane and link road
+ *  closures on motorways; only closures and serious items reach matching
+ *  (and so the screen), so a motorway driver is not flooded. */
+export function screenWorthy(e: Pick<RoadEvent, "source" | "severity">): boolean {
+  if (e.source === "national_highways" || e.source === "traffic_wales") return e.severity !== "minor";
+  return true;
+}
+
 export function bboxTouches(a: Bbox, b: Bbox): boolean {
   return a.minLat <= b.maxLat && a.maxLat >= b.minLat && a.minLng <= b.maxLng && a.maxLng >= b.minLng;
 }
@@ -345,18 +367,42 @@ function decodeXml(s: string): string {
     .trim();
 }
 
+/** The text of the first <name ...>...</name> in a small chunk, found with
+ *  indexOf (linear, no backtracking). */
 function tag(xml: string, name: string): string {
-  const m = xml.match(new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i"));
-  return m ? decodeXml(m[1]) : "";
+  const lower = xml.toLowerCase();
+  const open = `<${name.toLowerCase()}`;
+  let i = lower.indexOf(open);
+  while (i !== -1) {
+    const next = lower.charAt(i + open.length);
+    if (next === ">" || next === " " || next === "\t" || next === "\n" || next === "\r" || next === "/") break;
+    i = lower.indexOf(open, i + 1);
+  }
+  if (i === -1) return "";
+  const gt = lower.indexOf(">", i);
+  if (gt === -1 || lower.charAt(gt - 1) === "/") return "";
+  const close = lower.indexOf(`</${name.toLowerCase()}>`, gt);
+  if (close === -1) return "";
+  return decodeXml(xml.slice(gt + 1, close));
 }
 
 /** RSS 2.0 items with an optional georss:point ("lat lng"). Small and
- *  forgiving: anything that is not an item is ignored. */
+ *  forgiving: anything that is not an item is ignored. Linear: the feed is
+ *  cut at each <item> and each piece read with indexOf. */
 export function parseRssItems(xml: string): RssItem[] {
   if (typeof xml !== "string") return [];
   const out: RssItem[] = [];
-  for (const m of xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)) {
-    const body = m[1];
+  const lower = xml.toLowerCase();
+  let from = 0;
+  for (;;) {
+    let i = lower.indexOf("<item", from);
+    // "<items>" or "<itemfoo>" are not items.
+    while (i !== -1 && !/[\s>]/.test(lower.charAt(i + 5))) i = lower.indexOf("<item", i + 5);
+    if (i === -1) break;
+    const end = lower.indexOf("</item>", i);
+    if (end === -1) break;
+    const body = xml.slice(lower.indexOf(">", i) + 1, end);
+    from = end + 7;
     const pt = tag(body, "georss:point").split(/[\s,]+/).map(Number);
     const point: LatLng | null =
       pt.length >= 2 && Number.isFinite(pt[0]) && Number.isFinite(pt[1]) && pt[0] !== 0 ? [pt[0], pt[1]] : null;
@@ -391,8 +437,10 @@ export function walesTitleWindows(title: string, now: Date | null = null): { sta
   const first = Date.UTC(yr(m[3]), Number(m[2]) - 1, Number(m[1]));
   const last = m[4] ? Date.UTC(yr(m[6]), Number(m[5]) - 1, Number(m[4])) : first;
   const sh = Number(m[7]), sm = Number(m[8]), eh = Number(m[9]), em = Number(m[10]);
-  if (sh > 24 || eh > 24 || sm > 59 || em > 59 || last < first) return null;
-  const overnight = eh * 60 + em <= sh * 60 + sm;
+  if (sh > 23 || eh > 24 || sm > 59 || em > 59 || (eh === 24 && em > 0) || last < first) return null;
+  // "2000-2400" ends at midnight: the next day at 00:00, not an overnight wrap.
+  const overnight = eh !== 24 && eh * 60 + em <= sh * 60 + sm;
+  const endsNextDay = overnight || eh === 24;
   // A range of overnight windows ends on the morning of the last date.
   const lastStart = overnight && m[4] ? last - 86400000 : last;
   const out: { start: Date; end: Date }[] = [];
@@ -400,7 +448,7 @@ export function walesTitleWindows(title: string, now: Date | null = null): { sta
     const d = new Date(t);
     const y = d.getUTCFullYear(), mo = d.getUTCMonth() + 1, day = d.getUTCDate();
     const start = ukLocalToUtc(y, mo, day, sh, sm);
-    const e = overnight ? new Date(t + 86400000) : d;
+    const e = endsNextDay ? new Date(t + 86400000) : d;
     const end = ukLocalToUtc(e.getUTCFullYear(), e.getUTCMonth() + 1, e.getUTCDate(), eh % 24, em);
     // Nights already over are left out, so the cap counts only those to come.
     if (now && end.getTime() <= now.getTime()) continue;
@@ -409,22 +457,35 @@ export function walesTitleWindows(title: string, now: Date | null = null): { sta
   return out.length > 0 || now ? out : null;
 }
 
-function walesCategory(text: string, severityField: string): { category: RoadEventCategory; severity: RoadEventSeverity; description: string } {
-  const t = text.toLowerCase();
-  // "Onslip closed", "Exit slip road closed": not the main road.
-  const withoutSlips = t.replace(/\b(on|off|entry|exit)?\s*slip( road)?s?\s+closed\b/g, " ").replace(/\bslip roads?\b/g, " ");
-  const fullyClosed = /\broad closed\b|\bclosed\b|\bcarriageway closure\b/.test(withoutSlips) && !LANE_RE.test(withoutSlips.replace(/\broad closed\b/g, ""));
-  if (/\b(accident|collision|rtc)\b/.test(t)) {
-    return { category: "accident", severity: fullyClosed ? "closure" : majorWord(severityField) ? "major" : "minor", description: "Accident" };
-  }
+/** Things that can be shut without the road itself being shut: slip roads,
+ *  link roads, the hard shoulder, lay-bys. "Entry slip road and link road
+ *  closed" is removed whole before looking for a closure of the road. */
+const PART = String.raw`(?:(?:entry|exit|on|off)\s*-?\s*slip(?:\s*roads?)?|onslips?|offslips?|slip\s*roads?|slips|link\s*roads?|hard\s*shoulders?|lay-?bys?)`;
+const PART_CLOSED_RE = new RegExp(`\\b${PART}(?:\\s*(?:,|and|&|or)\\s*${PART})*\\s*(?:closed|closures?)\\b`, "g");
+const ROAD_CLOSED_RE = /\b(?:road|carriageway|motorway|bridge|tunnel) closed\b|\b(?:carriageway|road|full) closures?\b/;
+
+export function walesCategory(
+  title: string,
+  extra: string,
+  severityField: string
+): { category: RoadEventCategory; severity: RoadEventSeverity; description: string } {
+  const t = `${title} ${extra}`.toLowerCase();
+  const main = t.replace(PART_CLOSED_RE, " ");
+  // The road itself: "Road closed", "Carriageway closed", or a bare
+  // ": Closed :" field in the title.
+  const titleFields = title.split(":").map((f) => f.trim().toLowerCase());
+  const fullyClosed = ROAD_CLOSED_RE.test(main) || titleFields.includes("closed");
+  const sev = (fallback: RoadEventSeverity): RoadEventSeverity => (fullyClosed ? "closure" : majorWord(severityField) ? "major" : fallback);
+  if (/\b(accident|collision|rtc)\b/.test(t)) return { category: "accident", severity: sev("minor"), description: "Accident" };
   if (/\bbroken[- ]down\b|\bbreakdown\b/.test(t)) {
-    return { category: "broken_down_vehicle", severity: fullyClosed ? "closure" : majorWord(severityField) ? "major" : "minor", description: "Broken-down vehicle" };
+    return { category: "broken_down_vehicle", severity: sev("minor"), description: "Broken-down vehicle" };
   }
-  if (/\bflood/.test(t)) {
-    return { category: "flooding", severity: fullyClosed ? "closure" : majorWord(severityField) ? "major" : "minor", description: "Flooding" };
-  }
+  if (/\bflood/.test(t)) return { category: "flooding", severity: sev("minor"), description: "Flooding" };
   if (fullyClosed) return { category: "road_closed", severity: "closure", description: "Closed" };
-  if (/\bslip\b|onslip|offslip/.test(t)) return { category: "roadworks", severity: "minor", description: "Slip road closed" };
+  if (/\bslip|onslip|offslip/.test(t)) return { category: "roadworks", severity: "minor", description: "Slip road closed" };
+  if (/\blink roads?\b/.test(t)) return { category: "roadworks", severity: "minor", description: "Link road closed" };
+  if (/\bhard shoulders?\b/.test(t)) return { category: "roadworks", severity: "minor", description: "Hard shoulder closed" };
+  if (/\blay-?bys?\b/.test(t)) return { category: "roadworks", severity: "minor", description: "Lay-by closed" };
   if (LANE_RE.test(t)) return { category: "roadworks", severity: "minor", description: "Lane closed" };
   if (STOPGO_RE.test(t)) return { category: "roadworks", severity: "minor", description: "Stop/go boards" };
   if (LIGHTS_RE.test(t)) return { category: "roadworks", severity: "minor", description: "Temporary lights" };
@@ -459,12 +520,15 @@ export function parseTrafficWalesRss(
     }
     const severityField = item.description.match(/Severity:\s*([^,]*)/i)?.[1]?.trim() ?? "";
     const isIncidentFeed = feed !== "roadworks";
-    const mapped = walesCategory(`${item.title} ${isIncidentFeed ? item.description : ""}`, severityField);
+    const mapped = walesCategory(item.title, isIncidentFeed ? item.description.replace(/Severity:[^,]*/i, "") : "", severityField);
     const start = ukDateTime(item.description.match(/Start time:\s*([^,]*)/i)?.[1]);
     const end = ukDateTime(item.description.match(/End Date:\s*([^,]*)/i)?.[1]);
     const base: RoadEvent = {
       ...blank(`tw:${key}`, "traffic_wales"),
       ...mapped,
+      // One point for what can be kilometres of road: drivers who only cross
+      // it, or drive the other carriageway, would match. Screen only.
+      pushable: false,
       road: withDirection(road ?? (roadPart || null), dir),
       from,
       to,
@@ -575,6 +639,8 @@ export function parseNhClosures(json: unknown, now: Date): RoadEvent[] {
  *  street within this distance and overlapping in time are dropped. */
 export const DEDUPE_DISTANCE_M = 50;
 
+const SEVERITY_ORDER: Record<RoadEventSeverity, number> = { minor: 0, major: 1, closure: 2 };
+
 /** "A3031 Albert Bridge Road eastbound" and "Albert Bridge Road" -> both
  *  "albert bridge road". */
 export function streetKey(name: string | null | undefined): string | null {
@@ -639,10 +705,55 @@ export function withoutStreetManagerDuplicates(tfl: RoadEvent[], streetWorks: Ro
     if (e.source !== "tfl" || e.category === "accident" || e.category === "event") return true;
     for (const w of streetWorks) {
       if (w.source !== "street_manager") continue;
+      // Never hide a TfL closure behind a lesser Street Manager item.
+      if (SEVERITY_ORDER[w.severity] < SEVERITY_ORDER[e.severity]) continue;
       if (!sameStreet(e.road, w.road)) continue;
       if (!overlapsInTime(e, w)) continue;
       if (minDistanceMetres(e, w) <= DEDUPE_DISTANCE_M) return false;
     }
     return true;
   });
+}
+
+// ── Grouping helpers (used by roadAlertGroups.ts) ───────────────────
+
+const DIRECTION_WORD_RE = /\s*\b(northbound|southbound|eastbound|westbound|anti-clockwise|clockwise)\b\s*$/i;
+
+/** "M25 anti-clockwise" -> "M25"; anything without a trailing direction
+ *  word is returned as it is. */
+export function stripDirectionWord(road: string | null | undefined): string | null {
+  if (!road) return road ?? null;
+  return road.replace(DIRECTION_WORD_RE, "").trim() || road;
+}
+
+function directionWordOf(road: string | null | undefined): string | null {
+  return road?.match(DIRECTION_WORD_RE)?.[1]?.toLowerCase() ?? null;
+}
+
+const OPPOSITE: [string, string][] = [
+  ["northbound", "southbound"],
+  ["eastbound", "westbound"],
+  ["clockwise", "anti-clockwise"],
+];
+
+/** True when the labels are one road in opposite directions ("M25
+ *  clockwise" and "M25 anti-clockwise"): both carriageways are shut. */
+export function oppositeDirectionLabels(roads: (string | null | undefined)[]): boolean {
+  const named = roads.filter((r): r is string => Boolean(r));
+  if (named.length < 2) return false;
+  const bases = new Set(named.map((r) => stripDirectionWord(r)!.toLowerCase()));
+  if (bases.size !== 1) return false;
+  const dirs = new Set(named.map(directionWordOf).filter(Boolean));
+  return OPPOSITE.some(([a, b]) => dirs.has(a) && dirs.has(b));
+}
+
+/** National Highways and Traffic Wales book many unrelated closures for the
+ *  same night: those may only be merged into one card when they are on the
+ *  same road (direction ignored). Other sources are not restricted here. */
+export function mayMergeAsOnePlan(a: Pick<RoadEvent, "source" | "road">, b: Pick<RoadEvent, "source" | "road">): boolean {
+  const strict = (s: string) => s === "national_highways" || s === "traffic_wales";
+  if (!strict(a.source) && !strict(b.source)) return true;
+  const ra = stripDirectionWord(a.road)?.toLowerCase();
+  const rb = stripDirectionWord(b.road)?.toLowerCase();
+  return Boolean(ra && rb && ra === rb);
 }
