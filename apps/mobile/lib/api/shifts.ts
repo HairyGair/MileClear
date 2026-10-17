@@ -1,5 +1,6 @@
 import { apiRequest } from "./index";
-import type { Shift, ShiftScorecard, Vehicle } from "@mileclear/shared";
+import type { Earning, Shift, ShiftScorecard, Trip, Vehicle } from "@mileclear/shared";
+import type { PastShiftBody } from "../shifts/pastShiftRule";
 
 export interface ShiftWithVehicle extends Shift {
   vehicle: Vehicle | null;
@@ -30,6 +31,25 @@ export function resolveShiftSuggestion(id: string, action: "accept" | "dismiss")
   }>(`/shifts/suggestions/${id}/resolve`, {
     method: "POST",
     body: JSON.stringify({ action }),
+  });
+}
+
+// Add a past shift (Oct 2026): the shift, its trips and an optional earning
+// saved together. The Idempotency-Key makes a retry after a lost answer
+// return the first save instead of adding the shift twice.
+export interface PastShiftResult {
+  data: ShiftWithVehicle;
+  trips: Trip[];
+  earning: Earning | null;
+  scorecard: ShiftScorecard | null;
+  duplicate?: boolean;
+}
+
+export function createPastShift(body: PastShiftBody, idempotencyKey: string) {
+  return apiRequest<PastShiftResult>("/shifts/past", {
+    method: "POST",
+    headers: { "Idempotency-Key": idempotencyKey },
+    body: JSON.stringify(body),
   });
 }
 

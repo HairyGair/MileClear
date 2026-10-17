@@ -49,6 +49,8 @@ export async function resetHydration(): Promise<void> {
 }
 
 // ── Per-entity inserters ───────────────────────────────────────────────────
+// Shifts, trips and earnings are exported for "Add a past shift", which puts
+// what the server just saved onto the phone the same way hydration does.
 
 async function hydrateVehicles(vehicles: Vehicle[]): Promise<void> {
   if (!vehicles.length) return;
@@ -84,7 +86,7 @@ async function hydrateVehicles(vehicles: Vehicle[]): Promise<void> {
   }
 }
 
-async function hydrateShifts(shifts: Shift[]): Promise<void> {
+export async function hydrateShifts(shifts: Shift[]): Promise<void> {
   if (!shifts.length) return;
   const db = await getDatabase();
   const now = new Date().toISOString();
@@ -106,7 +108,7 @@ async function hydrateShifts(shifts: Shift[]): Promise<void> {
   }
 }
 
-async function hydrateTrips(trips: TripWithVehicle[]): Promise<void> {
+export async function hydrateTrips(trips: TripWithVehicle[]): Promise<void> {
   if (!trips.length) return;
   const db = await getDatabase();
   const now = new Date().toISOString();
@@ -141,7 +143,7 @@ async function hydrateTrips(trips: TripWithVehicle[]): Promise<void> {
   }
 }
 
-async function hydrateEarnings(earnings: Earning[]): Promise<void> {
+export async function hydrateEarnings(earnings: Earning[]): Promise<void> {
   if (!earnings.length) return;
   const db = await getDatabase();
   const now = new Date().toISOString();

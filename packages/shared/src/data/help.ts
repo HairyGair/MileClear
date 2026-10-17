@@ -201,6 +201,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["shift", "session", "start shift", "end shift", "scorecard", "grade", "graded"],
   },
   {
+    id: "past-shift",
+    area: "recording_trips",
+    q: "How do I add a past shift?",
+    a: "Go to More > Shifts and tap Add a past shift. Set when the shift started and ended, then add each trip: where from, where to and when you set off. MileClear works out the road miles, and Add the next trip starts the next one where and when the last one arrived. You can add what you earned too. Every trip is saved as Business in that shift, and you get its scorecard. If a trip clashes with one you already have, you're told before saving. Saving needs a connection. Shifts are free.",
+    goTo: "/past-shift-form",
+    appOnly: true,
+    keywords: ["past shift", "add shift", "earlier shift", "old shift", "backfill", "log shift", "whole shift", "several trips", "many trips"],
+  },
+  {
     id: "pickup-wait",
     area: "recording_trips",
     q: "What is \"Wait at pickup\"?",

@@ -57,6 +57,8 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "What's this 'Still on your trip?' message?", area: "recording_trips", id: "still-on-your-trip", expect: [/10 minutes/i, /keep going/i] },
   { q: "What's a shift and how is it graded?", area: "recording_trips", id: "shifts", expect: [/start shift/i] },
   { q: "Where do I see my old shifts?", area: "recording_trips", id: "shifts", expect: [/more/i, /shifts/i] },
+  { q: "How do I add a past shift with all its trips in one go?", area: "recording_trips", id: "past-shift", expect: [/add a past shift/i, /more/i, /shifts/i] },
+  { q: "Can I log an earlier work session instead of adding each trip?", area: "recording_trips", id: "past-shift", expect: [/add a past shift/i, /free/i] },
   { q: "How do I time how long I wait at a restaurant?", area: "recording_trips", id: "pickup-wait", expect: [/wait at pickup/i] },
   { q: "I'm on holiday, how can I stop it recording for a week?", area: "recording_trips", id: "pause-recording", expect: [/pause/i, /for a week/i] },
   { q: "How do I resume recording after a pause?", area: "recording_trips", id: "pause-recording", expect: [/resume/i] },
