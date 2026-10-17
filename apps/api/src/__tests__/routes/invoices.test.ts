@@ -54,8 +54,13 @@ vi.mock("../../lib/prisma.js", () => {
   return { prisma: mockPrisma };
 });
 
+vi.mock("../../services/achievementCheck.js", () => ({
+  checkAchievementsSoon: vi.fn(),
+}));
+
 import { invoiceRoutes } from "../../routes/invoices/index.js";
 import { prisma } from "../../lib/prisma.js";
+import { checkAchievementsSoon } from "../../services/achievementCheck.js";
 
 const USER_ID = "00000000-0000-0000-0000-000000000099";
 const INVOICE_ID = "11111111-1111-1111-1111-111111111111";
@@ -341,5 +346,59 @@ describe("PATCH /invoices/:id — duplicate-earning surfacing", () => {
       userId: USER_ID,
       replacedByInvoiceId: null,
     });
+  });
+});
+
+describe("Earnings badges check when an invoice is paid", () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>;
+
+  beforeEach(async () => {
+    resetMocks();
+    app = await createTestApp();
+  });
+
+  it("runs the badge check when an unpaid invoice is marked paid", async () => {
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(SENT_INVOICE as any);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({
+      ...SENT_INVOICE,
+      paidAt: new Date("2026-05-20"),
+      status: "paid",
+    } as any);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/invoices/${INVOICE_ID}`,
+      payload: { paidAt: "2026-05-20" },
+      headers: authHeader(),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(vi.mocked(checkAchievementsSoon)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(checkAchievementsSoon)).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it("does not run it for an edit to an invoice that was already paid", async () => {
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(PAID_INVOICE as any);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({ ...PAID_INVOICE, amountPence: 41000 } as any);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/invoices/${INVOICE_ID}`,
+      payload: { amountPence: 41000 },
+      headers: authHeader(),
+    });
+    expect(vi.mocked(checkAchievementsSoon)).not.toHaveBeenCalled();
+  });
+
+  it("does not run it when an invoice is only sent, not paid", async () => {
+    vi.mocked(prisma.invoice.findFirst).mockResolvedValue(SENT_INVOICE as any);
+    vi.mocked(prisma.invoice.update).mockResolvedValue({ ...SENT_INVOICE, notes: "Chased" } as any);
+
+    await app.inject({
+      method: "PATCH",
+      url: `/invoices/${INVOICE_ID}`,
+      payload: { notes: "Chased" },
+      headers: authHeader(),
+    });
+    expect(vi.mocked(checkAchievementsSoon)).not.toHaveBeenCalled();
   });
 });

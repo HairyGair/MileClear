@@ -21,6 +21,7 @@ import { apiRequest } from "../../lib/api";
 import { getDatabase } from "../../lib/db";
 import { availableDoorRows } from "../../lib/home/doors";
 import { homePersona } from "../../lib/home/persona";
+import { useInvoiceDoor } from "../../components/home/useInvoiceDoor";
 import { DOOR_ROW_LABELS } from "../../lib/home/doorPrefs";
 import { getNewestTripFirst, setNewestTripFirst } from "../../lib/trips/orderPref";
 import { useMode } from "../../lib/mode/context";
@@ -66,10 +67,10 @@ export default function SettingsPage() {
   const car = carSummary(page.cars, { companyCar, failed: page.carsFailed });
   const taxYear = getTaxYear(new Date());
 
-  const available = availableDoorRows({
-    mode,
-    persona: homePersona({ isPersonal, isCompanyDriver, workType: user?.workType }),
-  });
+  const persona = homePersona({ isPersonal, isCompanyDriver, workType: user?.workType });
+  // Invoices is listed only for a driver Home would show it to.
+  const { usesInvoices } = useInvoiceDoor({ mode, persona });
+  const available = availableDoorRows({ mode, persona, usesInvoices });
   const homeSummary = homeScreenSummary(
     available.map((id) => ({ label: DOOR_ROW_LABELS[id], shown: !page.hiddenDoors.includes(id) }))
   );

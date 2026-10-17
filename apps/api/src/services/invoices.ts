@@ -10,6 +10,7 @@
 import { Prisma, type Invoice } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { logEvent } from "./appEvents.js";
+import { checkAchievementsSoon } from "./achievementCheck.js";
 
 export const INVOICE_STATUSES = ["sent", "paid", "overdue", "written_off"] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
@@ -191,6 +192,9 @@ export async function markInvoicePaid(args: {
       (paidAt.getTime() - invoice.sentAt.getTime()) / 86_400_000
     ),
   });
+
+  // Money in: an earnings badge may be due (paid invoices count).
+  checkAchievementsSoon(userId);
 
   const potentialEarningMatches = await findPotentialEarningMatches({
     userId,

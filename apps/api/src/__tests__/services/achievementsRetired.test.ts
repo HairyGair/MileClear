@@ -7,10 +7,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
-    achievement: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
+    achievement: { findMany: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
     trip: { count: vi.fn(), aggregate: vi.fn() },
     shift: { count: vi.fn() },
     earning: { aggregate: vi.fn() },
+    invoice: { aggregate: vi.fn() },
     $queryRaw: vi.fn(),
   },
 }));
@@ -19,10 +20,11 @@ import { prisma } from "../../lib/prisma.js";
 import { checkAndAwardAchievements, getAchievements } from "../../services/gamification.js";
 
 const db = prisma as unknown as {
-  achievement: { findMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
+  achievement: { findMany: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
   trip: { count: ReturnType<typeof vi.fn>; aggregate: ReturnType<typeof vi.fn> };
   shift: { count: ReturnType<typeof vi.fn> };
   earning: { aggregate: ReturnType<typeof vi.fn> };
+  invoice: { aggregate: ReturnType<typeof vi.fn> };
   $queryRaw: ReturnType<typeof vi.fn>;
 };
 
@@ -32,18 +34,22 @@ beforeEach(() => {
 
 describe("checkAndAwardAchievements", () => {
   it("awards first_trip and first_shift but not trips_1 or shifts_1", async () => {
-    db.achievement.findMany.mockResolvedValueOnce([]).mockResolvedValue([]);
+    db.achievement.findMany.mockResolvedValue([]);
     db.trip.count.mockResolvedValue(1);
     db.shift.count.mockResolvedValue(1);
     db.trip.aggregate.mockResolvedValue({ _sum: { distanceMiles: 3 } });
-    db.earning.aggregate.mockResolvedValue({ _sum: { amountPence: 0 } });
+    db.earning.aggregate.mockResolvedValue({ _sum: { amountPence: null } });
+    db.invoice.aggregate.mockResolvedValue({ _sum: { amountPence: null } });
     db.$queryRaw.mockResolvedValue([]);
-    db.achievement.createMany.mockResolvedValue({ count: 2 });
+    db.achievement.create.mockImplementation(async ({ data }: { data: { type: string } }) => ({
+      id: data.type,
+      type: data.type,
+      achievedAt: new Date(),
+    }));
 
     await checkAndAwardAchievements("u1");
 
-    const data = db.achievement.createMany.mock.calls[0][0].data as { type: string }[];
-    const types = data.map((d) => d.type);
+    const types = db.achievement.create.mock.calls.map((c) => (c[0] as { data: { type: string } }).data.type);
     expect(types).toContain("first_trip");
     expect(types).toContain("first_shift");
     expect(types).not.toContain("trips_1");

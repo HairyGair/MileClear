@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { periodClaimPence } from "../lib/mileageRates.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
+import { countedInvoiceWhere, earningsLinkedToCountedWhere, incomeFromSums } from "../lib/countedIncome.js";
 import { percentChange, toRated, ukDailyMiles } from "../lib/insightsMath.js";
 import { periodBounds, previousBounds, ukDayBounds, ukParts, ukWeekBounds } from "../lib/ukTime.js";
 import { loadEarlierClaimable, loadPeriodFigures, loadPeriodFiguresSeries, loadRateContext } from "./periodFigures.js";
@@ -305,13 +306,47 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   };
 }
 
+// ── Earnings badge income ───────────────────────────────────────────
+
+/**
+ * The money the earnings badges (earned_100 and up) measure: every earning
+ * plus every paid invoice, leaving out any earning linked to a paid invoice
+ * so the same money is not counted twice. Sent, overdue and written-off
+ * invoices do not count. This is the Tax tab's rule (lib/countedIncome) on
+ * cash basis, over all time rather than one tax year. Before 17 Oct 2026 the
+ * badges summed earnings only, so a driver paid through invoices was held
+ * back while her linked earnings still counted.
+ *
+ * Three sums rather than loading rows: this runs after every trip save.
+ * all earnings - earnings linked to a counted invoice + counted invoices,
+ * which is countIncome's answer (tested against it on the same rows).
+ */
+export async function loadBadgeIncomePence(userId: string): Promise<number> {
+  const [allEarnings, linkedEarnings, paidInvoices] = await Promise.all([
+    prisma.earning.aggregate({ where: { userId }, _sum: { amountPence: true } }),
+    prisma.earning.aggregate({
+      where: earningsLinkedToCountedWhere(userId, "cash"),
+      _sum: { amountPence: true },
+    }),
+    prisma.invoice.aggregate({
+      where: countedInvoiceWhere(userId, "cash"),
+      _sum: { amountPence: true },
+    }),
+  ]);
+  return incomeFromSums({
+    allEarningsPence: allEarnings._sum.amountPence ?? 0,
+    linkedEarningsPence: linkedEarnings._sum.amountPence ?? 0,
+    invoicePence: paidInvoices._sum.amountPence ?? 0,
+  });
+}
+
 // ── checkAndAwardAchievements ───────────────────────────────────────
 
 export async function checkAndAwardAchievements(
   userId: string
 ): Promise<AchievementWithMeta[]> {
   // Fetch existing achievements + stats in parallel
-  const [existing, totalTrips, totalShifts, totalMilesAgg, totalEarningsAgg, tripDates] =
+  const [existing, totalTrips, totalShifts, totalMilesAgg, badgeIncomePence, tripDates] =
     await Promise.all([
       prisma.achievement.findMany({
         where: { userId },
@@ -323,10 +358,7 @@ export async function checkAndAwardAchievements(
         where: { userId, isPhantomTrip: false },
         _sum: { distanceMiles: true },
       }),
-      prisma.earning.aggregate({
-        where: { userId },
-        _sum: { amountPence: true },
-      }),
+      loadBadgeIncomePence(userId),
       prisma.$queryRaw<{ tripDate: string }[]>`
         SELECT DISTINCT DATE(startedAt) as tripDate
         FROM trips
@@ -337,7 +369,7 @@ export async function checkAndAwardAchievements(
 
   const existingTypes = new Set(existing.map((a) => a.type));
   const totalMiles = totalMilesAgg._sum.distanceMiles ?? 0;
-  const totalEarningsPounds = (totalEarningsAgg._sum.amountPence ?? 0) / 100;
+  const totalEarningsPounds = badgeIncomePence / 100;
   const { longest: longestStreak } = computeStreak(
     tripDates.map((r) => {
       const d = r.tripDate;
@@ -392,16 +424,20 @@ export async function checkAndAwardAchievements(
 
   if (earned.length === 0) return [];
 
-  // Bulk create, skipDuplicates handles race conditions
-  await prisma.achievement.createMany({
-    data: earned.map((type) => ({ userId, type })),
-    skipDuplicates: true,
-  });
-
-  // Fetch newly created to get IDs + achievedAt
-  const newAchievements = await prisma.achievement.findMany({
-    where: { userId, type: { in: earned } },
-  });
+  // One insert per badge, so only the rows this call actually created come
+  // back. Two checks running at once (a trip save and an earning save) both
+  // see the badge as missing; the loser hits the unique key (P2002) and
+  // returns nothing for it, so the driver gets one notification, not two.
+  const newAchievements = (
+    await Promise.all(
+      earned.map((type) =>
+        prisma.achievement.create({ data: { userId, type } }).catch((err: unknown) => {
+          if ((err as { code?: string } | null)?.code === "P2002") return null;
+          throw err;
+        })
+      )
+    )
+  ).filter((a): a is NonNullable<typeof a> => a !== null);
 
   return newAchievements.map((a) => {
     const meta = ACHIEVEMENT_META[a.type as AchievementType];
@@ -444,7 +480,9 @@ export async function getAchievements(
 
 export async function getShiftScorecard(
   userId: string,
-  shiftId?: string
+  shiftId?: string,
+  /** Badges the caller has just checked for, so the check is not run twice. */
+  opts: { newAchievements?: AchievementWithMeta[] } = {}
 ): Promise<ShiftScorecard | null> {
   // If no shiftId, find the most recently completed shift
   const shift = shiftId
@@ -523,7 +561,7 @@ export async function getShiftScorecard(
   const isPersonalBestTrips = tripsCompleted > 0 && tripsCompleted > bestTrips;
 
   // Get newly awarded achievements (from the current check)
-  const newAchievements = await checkAndAwardAchievements(userId);
+  const newAchievements = opts.newAchievements ?? (await checkAndAwardAchievements(userId));
 
   const durationSeconds = shift.endedAt
     ? Math.floor(

@@ -20,6 +20,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
+import { countIncome, countedInvoiceWhere } from "../lib/countedIncome.js";
 import { fetchExpenseSummary } from "./export-data.js";
 import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import { pushPrefEnabled } from "./pushPrefs.js";
@@ -121,11 +122,7 @@ async function yearProfit(
       select: { amountPence: true, replacedByInvoiceId: true },
     }),
     prisma.invoice.findMany({
-      where: {
-        userId,
-        status: { not: "written_off" },
-        ...(basis === "cash" ? { paidAt: { gte: start, lte: end } } : { sentAt: { gte: start, lte: end } }),
-      },
+      where: countedInvoiceWhere(userId, basis, { start, end }),
       select: { id: true, amountPence: true },
     }),
     fetchExpenseSummary(userId, taxYear),
@@ -146,11 +143,8 @@ async function yearProfit(
     mileagePence += calculateMileageDeduction(type, miles, { taxYear }).deductionPence;
   }
 
-  const invoiceIds = new Set(invoices.map((i) => i.id));
-  const earningsPence = earnings
-    .filter((e) => !e.replacedByInvoiceId || !invoiceIds.has(e.replacedByInvoiceId))
-    .reduce((sum, e) => sum + e.amountPence, 0);
-  const grossEarningsPence = earningsPence + invoices.reduce((sum, i) => sum + i.amountPence, 0);
+  // The same rule as the Tax tab and the earnings badges (lib/countedIncome).
+  const grossEarningsPence = countIncome(earnings, invoices).totalPence;
 
   return {
     taxableProfitPence: Math.max(0, grossEarningsPence - mileagePence - expenses.totalAllowablePence),

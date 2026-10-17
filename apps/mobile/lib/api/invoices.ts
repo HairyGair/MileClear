@@ -70,6 +70,8 @@ export interface InvoiceListResponse {
   pageSize: number;
   totalPages: number;
   summary: Record<InvoiceStatus, { count: number; totalPence: number }>;
+  /** When the newest invoice was made (ISO). Absent on older servers. */
+  lastCreatedAt?: string | null;
 }
 
 export interface LineItemInput {

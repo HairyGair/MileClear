@@ -122,6 +122,21 @@ export function earningsDoorText(week: WeekRecapLike | null): string | null {
   return base;
 }
 
+/**
+ * The Invoices door: "2 unpaid · £433.50", or "All paid" when nothing is
+ * waiting. Unpaid means sent or overdue (not paid, not written off). Null when
+ * the figures are not known.
+ */
+export function invoicesDoorText(
+  summary: Partial<Record<"sent" | "overdue", { count: number; totalPence: number }>> | null | undefined
+): string | null {
+  if (!summary) return null;
+  const count = (summary.sent?.count ?? 0) + (summary.overdue?.count ?? 0);
+  const pence = (summary.sent?.totalPence ?? 0) + (summary.overdue?.totalPence ?? 0);
+  if (count <= 0) return "All paid";
+  return `${count} unpaid · ${formatPence(pence)}`;
+}
+
 /** "Next badge: Explorer, 22 mi to go". */
 export function badgesDoorText(next: { label: string; progressText: string } | null): string | null {
   if (!next) return null;

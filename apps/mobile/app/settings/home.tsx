@@ -9,6 +9,7 @@ import { getHiddenDoorRows, setDoorRowHidden, showAllDoorRows, type DoorRowId } 
 import { doorSwitches, hiddenSummary } from "../../lib/home/doorSettings";
 import { availableDoorRows } from "../../lib/home/doors";
 import { homePersona } from "../../lib/home/persona";
+import { useInvoiceDoor } from "../../components/home/useInvoiceDoor";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { colors, fonts, spacing } from "../../lib/theme";
@@ -22,10 +23,10 @@ export default function HomeScreenSettings() {
   const [hidden, setHidden] = useState<DoorRowId[]>([]);
   const { mode, isPersonal } = useMode();
   const { user, isCompanyDriver } = useUser();
-  const available = availableDoorRows({
-    mode,
-    persona: homePersona({ isPersonal, isCompanyDriver, workType: user?.workType }),
-  });
+  const persona = homePersona({ isPersonal, isCompanyDriver, workType: user?.workType });
+  // Invoices is listed only for a driver Home would show it to.
+  const { usesInvoices } = useInvoiceDoor({ mode, persona });
+  const available = availableDoorRows({ mode, persona, usesInvoices });
 
   useFocusEffect(
     useCallback(() => {
