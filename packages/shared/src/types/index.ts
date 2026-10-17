@@ -893,7 +893,7 @@ export interface CheapestTodayResponse {
 /** One event on the Road alerts screen (road alerts trial, Oct 2026). */
 export interface RoadAlertItem {
   id: string;
-  source: "tomtom" | "street_manager";
+  source: "tomtom" | "street_manager" | "tfl" | "traffic_wales" | "national_highways";
   severity: "closure" | "major" | "minor";
   category:
     | "road_closed"

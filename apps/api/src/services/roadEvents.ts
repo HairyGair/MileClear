@@ -21,7 +21,13 @@
 import type { DirectionMode, LatLng } from "./roadCorridor.js";
 import { bearingDeg, haversineMetres } from "./roadCorridor.js";
 
-export type RoadEventSource = "tomtom" | "street_manager";
+export type RoadEventSource =
+  | "tomtom"
+  | "street_manager"
+  // services/roadSources.ts (17 Oct 2026), each behind its own env flag
+  | "tfl"
+  | "traffic_wales"
+  | "national_highways";
 export type RoadEventSeverity = "closure" | "major" | "minor";
 export type RoadEventCategory =
   | "road_closed"
@@ -65,6 +71,10 @@ export interface RoadEvent {
   urgency?: WorksUrgency | null;
   lines: LatLng[][];
   points: LatLng[];
+  /** false: shown on the Road alerts screen but never the reason for a push
+   *  (Traffic Wales gives one point for kilometres of road, so drivers who
+   *  only cross it or drive the other way would match). Absent = pushable. */
+  pushable?: boolean;
 }
 
 export type WorksUrgency = "emergency" | "urgent";

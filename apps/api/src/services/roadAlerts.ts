@@ -46,6 +46,7 @@ import {
   tilesForCorridor,
 } from "./tomtomTraffic.js";
 import { isStreetManagerEnabled, loadStreetWorks } from "./streetManager.js";
+import { attributionForSources, extraRoadEventsFor, extraRoadSourcesEnabled, isSourceEnabled } from "./roadSources.js";
 import { pushPrefOptedIn } from "./pushPrefs.js";
 import { weekAheadForCorridor } from "./roadWeekAhead.js";
 import { weekAheadWindow } from "./roadWeekAheadRule.js";
@@ -187,8 +188,10 @@ export async function matchedEventsForDriver(
     (await isTomTomServing()) ? getTileEvents(tilesForCorridor(corridor), maxAgeMs) : Promise.resolve([] as RoadEvent[]),
     loadStreetWorks(corridor.bbox, now, UPCOMING_DAYS + 1),
   ]);
+  // TfL, Traffic Wales, National Highways (each off unless its flag is set).
+  const extra = await extraRoadEventsFor(corridor.bbox, works, now);
   const matches: MatchedEvent[] = [];
-  for (const event of [...incidents, ...works]) {
+  for (const event of [...incidents, ...works, ...extra]) {
     const m = matchEventToCorridor(corridor, { lines: event.lines, points: event.points, directionMode: event.directionMode });
     if (m.matched) matches.push({ event, days: m.days });
   }
@@ -253,8 +256,9 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
   ];
   const base = {
     enabled,
-    available: available.incidents || available.plannedWorks,
-    plannedWorksCoverage: available.plannedWorks ? ("england" as const) : null,
+    available: available.incidents || available.plannedWorks || extraRoadSourcesEnabled(),
+    // Traffic Wales adds Welsh trunk roads, so "England only" would be wrong.
+    plannedWorksCoverage: available.plannedWorks && !isSourceEnabled("traffic_wales") ? ("england" as const) : null,
     attribution,
     updatedAt: now.toISOString(),
   };
@@ -287,8 +291,11 @@ export async function roadAlertsForUser(userId: string, now: Date = new Date()):
   // "Coming up this week" (Sunday: next week): planned works starting in the
   // week in view, most disruptive first. Same opt-in, same corridor.
   const week = await weekAheadForCorridor(corridor, weekAheadWindow(now), now, dismissed);
+  // The newer sources are credited only when their items are on the screen.
+  const shownSources = [...groups.current, ...groups.upcoming, ...groups.ongoing].flatMap((g) => g.members.map((m) => m.event.source));
   return {
     ...base,
+    attribution: [...base.attribution, ...attributionForSources(shownSources)],
     offerEligible: false,
     hasUsualRoads: corridor.cells.size > 0,
     // Older apps read only current and upcoming, so ongoing closures stay
