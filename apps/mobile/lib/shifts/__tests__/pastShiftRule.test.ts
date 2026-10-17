@@ -6,6 +6,7 @@ import {
   emptyTrip,
   missingForPastShift,
   mostUsedPlatform,
+  moveShiftEnd,
   moveTripTimes,
   parseAmountPence,
   planShiftWindow,
@@ -40,6 +41,34 @@ describe("moveTripTimes", () => {
     const out = moveTripTimes([t("a", at2(3, 9, 10)), t("b", at2(3, 11), true)], at2(3, 9), at2(4, 9));
     expect(out[0].setOffAt).toEqual(at2(4, 9, 10));
     expect(out[1].setOffAt).toEqual(at2(3, 11));
+  });
+});
+
+describe("moveShiftEnd", () => {
+  const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m, 0, 0);
+  const NOW = at(10, 12).getTime();
+
+  it("moves the end with the start when the start goes to another day, keeping the length", () => {
+    expect(moveShiftEnd(at(3, 17), at(3, 9), at(2, 9), NOW)).toEqual(at(2, 17));
+    expect(moveShiftEnd(at(3, 17), at(3, 9), at(4, 10), NOW)).toEqual(at(4, 18));
+  });
+
+  it("keeps an end that still fits the new start", () => {
+    expect(moveShiftEnd(at(3, 17), at(3, 9), at(3, 8, 30), NOW)).toEqual(at(3, 17));
+    expect(moveShiftEnd(at(4, 2), at(3, 20), at(3, 21), NOW)).toEqual(at(4, 2));
+  });
+
+  it("moves an end the new start would land on or after", () => {
+    expect(moveShiftEnd(at(3, 17), at(3, 9), at(3, 17), NOW)).toEqual(at(4, 1));
+  });
+
+  it("never moves the end past now", () => {
+    expect(moveShiftEnd(at(9, 17), at(9, 9), at(10, 9), NOW)).toEqual(new Date(NOW));
+  });
+
+  it("leaves an end that is not set, or a first start", () => {
+    expect(moveShiftEnd(null, at(3, 9), at(2, 9), NOW)).toBeNull();
+    expect(moveShiftEnd(at(3, 17), null, at(1, 9), NOW)).toEqual(at(3, 17));
   });
 });
 

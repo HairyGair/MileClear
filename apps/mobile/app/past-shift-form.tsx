@@ -52,6 +52,7 @@ import {
   chainedTrip,
   missingForPastShift,
   mostUsedPlatform,
+  moveShiftEnd,
   moveTripTimes,
   sentSaveFailureMessage,
   stableBodyText,
@@ -109,11 +110,13 @@ export default function PastShiftFormScreen() {
   }, []);
 
   // Moving the shift's start moves every trip time the driver has not set
-  // themselves by the same amount; the first trip starts with the shift.
+  // themselves by the same amount; the first trip starts with the shift. The
+  // end moves too when it no longer fits the new start (another day).
   const onShiftStart = useCallback((d: Date) => {
     const from = shiftStartRef.current;
     shiftStartRef.current = d;
     setShiftStart(d);
+    setShiftEnd((prev) => moveShiftEnd(prev, from, d, Date.now()));
     setTrips((prev) => moveTripTimes(prev, from, d));
   }, []);
 

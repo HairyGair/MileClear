@@ -10,7 +10,12 @@
 //
 // Pure: no React, no database, no clock (callers pass `now`).
 
-import { pastShiftProblem, windowCoveringTrips, firstOverlappingTrip } from "@mileclear/shared";
+import {
+  pastShiftProblem,
+  windowCoveringTrips,
+  firstOverlappingTrip,
+  PAST_SHIFT_MAX_HOURS,
+} from "@mileclear/shared";
 import { endTimeFor } from "../trips/missingReportRule";
 import { clockTime } from "../trips/manualTimeRule";
 import { sameLocalDay } from "../trips/pastTripRule";
@@ -68,6 +73,22 @@ export function moveTripTimes(trips: DraftTrip[], from: Date | null, to: Date): 
     if (t.timeEdited || delta === 0) return t;
     return { ...t, setOffAt: new Date(t.setOffAt.getTime() + delta) };
   });
+}
+
+/**
+ * The shift's end after its start moves from `from` to `to`. Ended is only
+ * ever filled in by the driver, so it is kept whenever it still makes a shift
+ * with the new start (after it, and no longer than a shift can be). When it
+ * no longer does, which is what happens when the driver moves the start to
+ * another day, it moves by the same amount, keeping the shift's length, but
+ * never past `now`. No end yet, or no earlier start: nothing to move.
+ */
+export function moveShiftEnd(end: Date | null, from: Date | null, to: Date, now: number): Date | null {
+  if (!end || !from) return end;
+  const length = end.getTime() - to.getTime();
+  if (length > 0 && length <= PAST_SHIFT_MAX_HOURS * 3_600_000) return end;
+  const moved = end.getTime() + (to.getTime() - from.getTime());
+  return new Date(Math.min(moved, now));
 }
 
 /** "Trip 2 is on Fri 2 Oct, a different day from the shift." for a trip on
