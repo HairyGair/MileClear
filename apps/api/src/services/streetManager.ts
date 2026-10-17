@@ -217,14 +217,51 @@ function bboxOf(lines: LatLng[][], points: LatLng[]) {
 
 const round6 = (p: LatLng): LatLng => [Math.round(p[0] * 1e6) / 1e6, Math.round(p[1] * 1e6) / 1e6];
 
-async function upsertWorks(r: StreetWorksRecord): Promise<void> {
-  const existing = await prisma.streetWorksEvent.findUnique({
-    where: { reference: r.reference },
-    select: { lastEventAt: true },
-  });
-  if (existing && existing.lastEventAt > r.eventAt) return; // a late, older message
+function isUniqueClash(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === "P2002";
+}
+
+/**
+ * Store one works record, newest event wins.
+ *
+ * This used to be findUnique, then prisma.upsert. On MySQL Prisma's upsert is
+ * a read followed by an INSERT or UPDATE, not one atomic statement, and SNS
+ * often delivers two messages for one reference at once (a permit and its
+ * activity, or a redelivery). Both saw no row, both inserted, and the second
+ * failed with P2002 on street_works_events_reference_key (many a night). The
+ * separate findUnique was also a check-then-act race: an older message could
+ * pass the check and then overwrite a newer one written in between.
+ *
+ * Now each write is a single statement that carries the guard itself:
+ *   1. UPDATE ... WHERE reference = ? AND lastEventAt <= eventAt. One row
+ *      changed: done. MySQL locks the row, so the guard and the write are
+ *      atomic and an older event can never overwrite a newer one.
+ *   2. Nothing changed: either there is no row yet, or the stored one is
+ *      newer. Try to INSERT.
+ *   3. The INSERT clashes on the reference (P2002): another message created
+ *      the row in between. Run the guarded UPDATE again, so this event still
+ *      lands if it is the newer one and is dropped if it is older.
+ */
+export async function upsertWorks(r: StreetWorksRecord): Promise<"updated" | "created" | "older"> {
+  const data = worksData(r);
+  const guardedUpdate = () =>
+    prisma.streetWorksEvent.updateMany({
+      where: { reference: r.reference, lastEventAt: { lte: r.eventAt } },
+      data,
+    });
+  if ((await guardedUpdate()).count > 0) return "updated";
+  try {
+    await prisma.streetWorksEvent.create({ data: { reference: r.reference, ...data } });
+    return "created";
+  } catch (err) {
+    if (!isUniqueClash(err)) throw err;
+  }
+  return (await guardedUpdate()).count > 0 ? "updated" : "older";
+}
+
+function worksData(r: StreetWorksRecord) {
   const bb = bboxOf(r.lines, r.points);
-  const data = {
+  return {
     objectType: r.objectType,
     trafficManagement: r.trafficManagement,
     isTrafficSensitive: r.isTrafficSensitive,
@@ -240,11 +277,6 @@ async function upsertWorks(r: StreetWorksRecord): Promise<void> {
     geometry: { lines: r.lines.map((l) => l.map(round6)), points: r.points.map(round6) },
     lastEventAt: r.eventAt,
   };
-  await prisma.streetWorksEvent.upsert({
-    where: { reference: r.reference },
-    create: { reference: r.reference, ...data },
-    update: data,
-  });
 }
 
 /** Stored works overlapping a bbox that have not ended and start within the
