@@ -359,3 +359,28 @@ describe("roadSources IO fixes", () => {
     expect([...nh, ...wales].every((e) => e.severity !== "minor")).toBe(true);
   });
 });
+
+describe("Street Manager cards are untouched by the 'both ways' labels", () => {
+  const sm = (ref: string, street: string, lines: [number, number][][]) =>
+    streetWorksToRoadEvent(
+      {
+        reference: ref, trafficManagement: "road_closure", isTrafficSensitive: true, streetName: street, town: "PLYMOUTH",
+        promoter: null, startAt: new Date("2026-10-18T20:00:00Z"), endAt: new Date("2026-10-19T05:00:00Z"), lines, points: [],
+      },
+      NOW
+    );
+  it("A38 Northbound and A38 Southbound stay as Street Manager always showed them", () => {
+    const nb = sm("SM-N", "A38 NORTHBOUND", [[[50.4, -4.1], [50.401, -4.1]]]);
+    const sb = sm("SM-S", "A38 SOUTHBOUND", [[[50.4, -4.1003], [50.401, -4.1003]]]);
+    const groups = groupMatches([{ event: nb, days: 6 }, { event: sb, days: 4 }], NOW);
+    expect(groups).toHaveLength(1);
+    const g = groups[0];
+    expect(g.bothDirections).toBe(false);
+    expect(g.multiPlace).toBe(false);
+    expect(g.roads).toEqual(["A38 Northbound", "A38 Southbound"]);
+    expect(g.headline).not.toContain("both ways");
+    // The whole card, snapshot taken with roadAlertGroups.ts as it was before
+    // the new sources (5a8278ba), and checked to match that version.
+    expect(JSON.stringify({ ...g, members: undefined, lead: undefined })).toMatchSnapshot();
+  });
+});

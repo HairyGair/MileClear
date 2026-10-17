@@ -19,7 +19,7 @@
 
 import type { RoadEvent, RoadEventSeverity } from "./roadEvents.js";
 import { haversineMetres, ukLocalParts, type LatLng } from "./roadCorridor.js";
-import { mayMergeAsOnePlan, oppositeDirectionLabels, stripDirectionWord } from "./roadSourcesParse.js";
+import { isExtraSource, mayMergeAsOnePlan, oppositeDirectionLabels, stripDirectionWord } from "./roadSourcesParse.js";
 import {
   DEPARTURE_EFFECT_SLACK_MIN,
   daysPhrase,
@@ -185,7 +185,7 @@ function describe(g: Omit<AlertGroup, "headline" | "sentence" | "named">, now: D
   // and no direction when both carriageways are shut.
   const withName: RoadEvent = {
     ...lead,
-    road: (g.bothDirections ? stripDirectionWord : (r: string | null) => r)(
+    road: (g.bothDirections && g.members.every((m) => isExtraSource(m.event.source)) ? stripDirectionWord : (r: string | null) => r)(
       lead.road ?? g.members.map((m) => m.event.road).find(Boolean) ?? null
     ),
     placeName: lead.placeName ?? g.members.map((m) => m.event.placeName).find(Boolean) ?? null,
@@ -314,7 +314,9 @@ export function groupMatches(matches: MatchedEvent[], now: Date): AlertGroup[] {
     );
     // Sources with no line direction say it in the label instead ("M25
     // clockwise" and "M25 anti-clockwise" on the same night: both ways).
-    const labelBoth = oppositeDirectionLabels(events.map((e) => e.road));
+    // Only the newer sources: Street Manager street names can end in a
+    // direction word ("A38 Northbound") and keep their cards as they were.
+    const labelBoth = events.every((e) => isExtraSource(e.source)) && oppositeDirectionLabels(events.map((e) => e.road));
     if (labelBoth) multiPlace = false;
     const bothDirections =
       labelBoth ||

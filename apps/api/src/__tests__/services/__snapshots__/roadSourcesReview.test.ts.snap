@@ -1,0 +1,3 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Street Manager cards are untouched by the 'both ways' labels > A38 Northbound and A38 Southbound stay as Street Manager always showed them 1`] = `"{"id":"sm:SM-N","severity":"closure","days":6,"when":"upcoming","ongoing":false,"startAt":"2026-10-18T20:00:00.000Z","endAt":"2026-10-19T05:00:00.000Z","roads":["A38 Northbound","A38 Southbound"],"bothDirections":false,"multiPlace":false,"occurrences":1,"recurring":false,"centre":[50.401,-4.1],"line":[[50.4,-4.1],[50.401,-4.1]],"named":true,"headline":"A38 Northbound, Plymouth closed","sentence":"A38 Northbound, Plymouth is closed for roadworks until 06:00 on Mon 19 Oct."}"`;

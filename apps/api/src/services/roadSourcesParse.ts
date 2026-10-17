@@ -719,6 +719,12 @@ export function withoutStreetManagerDuplicates(tfl: RoadEvent[], streetWorks: Ro
 
 const DIRECTION_WORD_RE = /\s*\b(northbound|southbound|eastbound|westbound|anti-clockwise|clockwise)\b\s*$/i;
 
+/** TfL, Traffic Wales or National Highways (the sources whose labels carry
+ *  the direction word). */
+export function isExtraSource(source: string): source is ExtraSource {
+  return source === "tfl" || source === "traffic_wales" || source === "national_highways";
+}
+
 /** "M25 anti-clockwise" -> "M25"; anything without a trailing direction
  *  word is returned as it is. */
 export function stripDirectionWord(road: string | null | undefined): string | null {
