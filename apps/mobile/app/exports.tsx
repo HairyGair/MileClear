@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -40,6 +40,8 @@ const BG = colors.bg;
 const GREEN = colors.green;
 /** The "All vehicles" row in the Which vehicle? sheet. Not a vehicle id. */
 const ALL_VEHICLES_KEY = "__all__";
+/** Fallback wait for the sheet's slide-out when onDismiss doesn't fire (Android). */
+const PICKER_DISMISS_MS = 350;
 
 type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | null;
 
@@ -136,9 +138,41 @@ export default function ExportsScreen() {
   // Set before the vehicle list is fetched, so a quick double tap can't open
   // two pickers or start two downloads.
   const pickingRef = useRef(false);
+  // The chosen download waits until the sheet has gone, so the share sheet or
+  // the paywall never tries to open while the picker is still sliding out.
+  // iOS tells us (onDismiss); otherwise a timer, long enough for the slide.
+  const pendingPickRef = useRef<(() => void) | null>(null);
+  const pickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const runPendingPick = useCallback(() => {
+    if (pickTimerRef.current) {
+      clearTimeout(pickTimerRef.current);
+      pickTimerRef.current = null;
+    }
+    const run = pendingPickRef.current;
+    pendingPickRef.current = null;
+    run?.();
+  }, []);
+
+  const closeVehiclePicker = useCallback(() => {
+    setVehiclePicker(null);
+    if (pendingPickRef.current && !pickTimerRef.current) {
+      pickTimerRef.current = setTimeout(runPendingPick, PICKER_DISMISS_MS);
+    }
+  }, [runPendingPick]);
+
+  useEffect(
+    () => () => {
+      // Leaving the screen mid-slide: start nothing.
+      if (pickTimerRef.current) clearTimeout(pickTimerRef.current);
+      pendingPickRef.current = null;
+    },
+    []
+  );
 
   const loadVehicles = useCallback(async (): Promise<ExportVehicleLike[] | null> => {
-    if (pickingRef.current) return null;
+    // Also refuse while a picked download is waiting for the sheet to go.
+    if (pickingRef.current || pendingPickRef.current) return null;
     pickingRef.current = true;
     try {
       return (await fetchVehicles()).data;
@@ -496,8 +530,13 @@ export default function ExportsScreen() {
         visible={vehiclePicker !== null}
         title="Which vehicle?"
         options={vehiclePicker?.options ?? []}
-        onPick={(key) => vehiclePicker?.onPick(key)}
-        onClose={() => setVehiclePicker(null)}
+        onPick={(key) => {
+          // PickerSheet calls onClose straight after this; the download starts once it has gone.
+          const picker = vehiclePicker;
+          if (picker) pendingPickRef.current = () => picker.onPick(key);
+        }}
+        onClose={closeVehiclePicker}
+        onDismiss={runPendingPick}
       />
     </View>
   );
