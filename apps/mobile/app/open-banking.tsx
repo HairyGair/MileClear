@@ -21,8 +21,6 @@ import { Button } from "../components/Button";
 import { BetaBanner } from "../components/BetaBanner";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
-import * as SecureStore from "expo-secure-store";
-import { ACCESS_TOKEN_KEY } from "../lib/api/index";
 import { colors, fonts } from "../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -33,8 +31,6 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
 const RED = colors.red;
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-GB", {
@@ -91,19 +87,16 @@ export default function OpenBankingScreen() {
       const res = await createOpenBankingAuthLink();
       const authLink = res.data.authLink;
 
-      // Get current auth token so the callback page can exchange the code.
-      // Previously read "access_token" but the key is actually
-      // "mileclear_access_token" (ACCESS_TOKEN_KEY) — the unprefixed
-      // version always returned null, so the callback page hit
-      // sessionStorage with an empty token and the exchange call was
-      // refused with 401. Discovered during the 16 May TrueLayer smoke
-      // test.
-      const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-      const linkUrl = `${API_URL}/earnings/open-banking/link?authLink=${encodeURIComponent(authLink)}&token=${encodeURIComponent(token || "")}`;
+      // The server finishes the link itself when the bank sends the
+      // driver back (the link carries a signed one-time code naming them),
+      // so no sign-in token goes in any URL. The page it shows has an
+      // "Open MileClear" button to mileclear://open-banking, which closes
+      // this browser sheet. If the bank's own app did the approval, the
+      // driver comes back in Safari instead; that same button brings them
+      // here, and this screen reloads on focus.
+      await WebBrowser.openAuthSessionAsync(authLink, "mileclear://open-banking");
 
-      await WebBrowser.openBrowserAsync(linkUrl);
-
-      // Refresh connections after returning from browser
+      // Refresh connections after returning from the browser, however it closed.
       await loadConnections();
     } catch (err: any) {
       if (err.message?.includes("503")) {

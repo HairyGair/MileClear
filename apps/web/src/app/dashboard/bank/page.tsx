@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { api, getAccessToken } from "@/lib/api";
+import { api } from "@/lib/api";
 import { formatDay } from "@/lib/dashboard/dates";
 import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Skeleton, StatusChip, useData, useToast } from "@/components/dashboard/kit";
 import { ProPage, SelfEmployedOnly } from "@/components/dashboard/money/Company";
 import s from "@/components/dashboard/money/money.module.css";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
 interface Connection {
   id: string;
@@ -34,10 +32,15 @@ function Banks() {
     // Open the tab straight away (inside the click) so the browser doesn't block it.
     const tab = window.open("", "_blank");
     try {
-      const res = await api.post<{ data: { authLink: string } }>("/earnings/open-banking/link-token");
-      const token = getAccessToken() ?? "";
-      const url = `${API_URL}/earnings/open-banking/link?authLink=${encodeURIComponent(res.data.authLink)}&token=${encodeURIComponent(token)}&return=web`;
-      if (tab) tab.location.href = url;
+      // return=web: the page after the bank points back to the website. The
+      // server finishes the link itself, so no sign-in token goes in the URL.
+      const res = await api.post<{ data: { authLink: string } }>("/earnings/open-banking/link-token?return=web");
+      const url = res.data.authLink;
+      if (tab) {
+        // Cut the link back to this page before the bank's pages load in it.
+        tab.opener = null;
+        tab.location.href = url;
+      }
       else setBlockedUrl(url);
       setWaiting(true);
     } catch (e) {

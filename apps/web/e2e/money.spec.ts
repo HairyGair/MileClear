@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 import { BANNED_COPY, mockSession, profile } from "./fixtures/api";
-import { API } from "./fixtures/api";
 import { mockApi } from "./fixtures/insightsMoney";
 
 const earning = (id: string, over: Record<string, unknown> = {}) => ({
@@ -378,7 +377,7 @@ test.describe("Bank", () => {
     await expect.poll(() => calls.find("DELETE", "/earnings/open-banking/connections/c1").length).toBe(1);
   });
 
-  test("Pro: Link a bank opens the API link page in a new tab asking to return to the website", async ({ page, context }) => {
+  test("Pro: Link a bank opens TrueLayer in a new tab, asking to return to the website, with no token in the URL", async ({ page, context }) => {
     await mockSession(page, { profile: profile({ isPremium: true }) });
     const calls = await mockApi(page, {
       "GET /earnings/open-banking/connections": { data: [connection] },
@@ -386,7 +385,7 @@ test.describe("Bank", () => {
     });
     // The new tab is its own page, so catch its request on the context.
     const seen: string[] = [];
-    await context.route(`${API}/earnings/open-banking/link**`, (route) => {
+    await context.route("https://auth.truelayer.example/**", (route) => {
       seen.push(route.request().url());
       return route.fulfill({ status: 200, contentType: "text/html", body: "<html><body>ok</body></html>" });
     });
@@ -394,12 +393,12 @@ test.describe("Bank", () => {
     const popup = page.waitForEvent("popup");
     await page.getByRole("button", { name: "Link a bank" }).click();
     const tab = await popup;
-    expect(calls.find("POST", "/earnings/open-banking/link-token")).toHaveLength(1);
+    const linkCalls = calls.find("POST", "/earnings/open-banking/link-token");
+    expect(linkCalls).toHaveLength(1);
+    expect(new URLSearchParams(linkCalls[0].search).get("return")).toBe("web");
     await expect.poll(() => seen.length).toBe(1);
-    const q = new URL(seen[0]).searchParams;
-    expect(q.get("return")).toBe("web");
-    expect(q.get("authLink")).toBe("https://auth.truelayer.example/?state=abc");
-    expect(q.get("token")).toBe("test-token");
+    expect(seen[0]).toBe("https://auth.truelayer.example/?state=abc");
+    expect(seen[0]).not.toContain("test-token");
     await tab.close();
     await expect(page.getByText("Finish in the new tab. Come back here when your bank says you're done.")).toBeVisible();
   });

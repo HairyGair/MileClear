@@ -18,6 +18,12 @@ export function redactUrlSecrets(url: string): string {
       .replace(/\/[0-9a-f]{32,}/gi, "/<redacted>")
       // And in a query value (practice invites: /practice-links/lookup?invite=...).
       .replace(/=[0-9a-f]{32,}(?=&|$)/gi, "=<redacted>")
+      // And a token query value of any shape: app builds from before
+      // 17 Oct put the driver's access token (a JWT) in the Open Banking
+      // /link URL as ?token=.
+      // The Open Banking callback carries the bank's one-time code and our
+      // signed state as ?code= and ?state=.
+      .replace(/([?&](?:token|code|state)=)[^&#]*/gi, "$1<redacted>")
   );
 }
 
