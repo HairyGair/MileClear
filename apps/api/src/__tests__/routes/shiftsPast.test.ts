@@ -16,7 +16,7 @@ vi.mock("../../lib/prisma.js", () => ({
   prisma: {
     shift: {
       create: vi.fn(),
-      findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     trip: {
       create: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock("../../lib/prisma.js", () => ({
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
     },
-    earning: { create: vi.fn() },
+    earning: { create: vi.fn(), findFirst: vi.fn().mockResolvedValue(null) },
     vehicle: {
       findFirst: vi.fn(),
       findMany: vi.fn().mockResolvedValue([]),
@@ -104,7 +104,9 @@ let tripSeq = 0;
 function resetMocks() {
   vi.clearAllMocks();
   tripSeq = 0;
-  vi.mocked(prisma.shift.findFirst).mockResolvedValue(null);
+  vi.mocked(prisma.shift.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.earning.findFirst).mockResolvedValue(null);
+  vi.mocked(resolveRouteDistance).mockResolvedValue({ distanceMiles: 4.2, durationSecs: 600, source: "cache" } as never);
   vi.mocked(prisma.vehicle.findFirst).mockResolvedValue(null);
   vi.mocked(prisma.vehicle.findMany).mockResolvedValue([]);
   vi.mocked(prisma.trip.findMany).mockResolvedValue([]);
@@ -276,12 +278,140 @@ describe("POST /shifts/past", () => {
     }
   });
 
-  it("answers a repeat of the same save with what was saved, writing nothing", async () => {
-    vi.mocked(prisma.shift.findFirst).mockResolvedValue({ id: SHIFT_ID, userId: USER_ID } as never);
-    vi.mocked(prisma.trip.findMany).mockResolvedValue([{ id: "t1" }, { id: "t2" }] as never);
-    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: body(), headers: auth });
+  // ── An earlier save of the same hours ──────────────────────────────
+
+  const SAVED_SHIFT = {
+    id: SHIFT_ID,
+    userId: USER_ID,
+    status: "completed",
+    startedAt: new Date(SHIFT_START),
+    endedAt: new Date(SHIFT_END),
+    vehicle: null,
+  };
+  const SAVED_TRIPS = [
+    { id: "t1", startedAt: new Date("2026-10-03T09:10:00.000Z"), startLat: 53.8, startLng: -1.55 },
+    { id: "t2", startedAt: new Date("2026-10-03T09:30:00.000Z"), startLat: 53.81, startLng: -1.56 },
+  ];
+  const SAVED_EARNING = { id: "e1", platform: "deliveroo", amountPence: 6450 };
+
+  it("answers the same save sent again with what was saved, earning included, writing nothing", async () => {
+    vi.mocked(prisma.shift.findMany).mockResolvedValue([SAVED_SHIFT] as never);
+    vi.mocked(prisma.trip.findMany).mockResolvedValue(SAVED_TRIPS as never);
+    vi.mocked(prisma.earning.findFirst).mockResolvedValue(SAVED_EARNING as never);
+    const res = await app.inject({
+      method: "POST",
+      url: "/shifts/past",
+      payload: body({ earning: { platform: "deliveroo", amountPence: 6450 } }),
+      headers: auth,
+    });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toMatchObject({ duplicate: true, data: { id: SHIFT_ID } });
+    expect(res.json()).toMatchObject({ duplicate: true, data: { id: SHIFT_ID }, earning: { id: "e1", amountPence: 6450 } });
+    expect(res.json().trips).toHaveLength(2);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses, never merges, a different save over the same hours (a 4th trip and £40)", async () => {
+    vi.mocked(prisma.shift.findMany).mockResolvedValue([SAVED_SHIFT] as never);
+    vi.mocked(prisma.trip.findMany).mockResolvedValue(SAVED_TRIPS as never);
+    const b = body({ earning: { platform: "deliveroo", amountPence: 4000 } });
+    (b.trips as Array<Record<string, unknown>>).push({
+      startLat: 53.79, startLng: -1.54, endLat: 53.8, endLng: -1.55,
+      startedAt: "2026-10-03T10:00:00.000Z", endedAt: "2026-10-03T10:20:00.000Z",
+    });
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: b, headers: auth });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toMatch(/^You already have a shift from \d\d:\d\d to \d\d:\d\d on Sat 3 Oct\./);
+    expect(res.json().existingShiftId).toBe(SHIFT_ID);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a past shift that overlaps one already saved, before any lookups", async () => {
+    vi.mocked(prisma.shift.findMany).mockResolvedValue([
+      { ...SAVED_SHIFT, startedAt: new Date("2026-10-03T08:10:00.000Z"), endedAt: new Date("2026-10-03T11:40:00.000Z") },
+    ] as never);
+    const b = body();
+    delete (b.trips as Array<Record<string, unknown>>)[0].distanceMiles;
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: b, headers: auth });
+    expect(res.statusCode).toBe(409);
+    // 08:10 to 11:40 UTC is 09:10 to 12:40 in the UK on 3 Oct (BST).
+    expect(res.json().error).toBe(
+      "You already have a shift from 09:10 to 12:40 on Sat 3 Oct. Change this shift's times so they don't overlap it."
+    );
+    expect(resolveRouteDistance).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    // Overlap means: starts before this one ends, and has not ended or ends after this one starts.
+    const where = vi.mocked(prisma.shift.findMany).mock.calls[0][0]!.where as Record<string, unknown>;
+    expect(where).toMatchObject({
+      userId: USER_ID,
+      startedAt: { lt: new Date(SHIFT_END) },
+      OR: [{ endedAt: null }, { endedAt: { gt: new Date(SHIFT_START) } }],
+    });
+  });
+
+  it("refuses a past shift that overlaps the shift running now", async () => {
+    vi.mocked(prisma.shift.findMany).mockResolvedValue([
+      { ...SAVED_SHIFT, status: "active", startedAt: new Date("2026-10-03T08:10:00.000Z"), endedAt: null },
+    ] as never);
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: body(), headers: auth });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toBe(
+      "You have a shift running now, started at 09:10 on Sat 3 Oct. End it first, or change this shift's times so they don't overlap it."
+    );
+  });
+
+  // ── Other edges ────────────────────────────────────────────────────
+
+  it("refreshes both tax years for a shift across 5 April", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/shifts/past",
+      payload: body({
+        startedAt: "2026-04-05T12:00:00.000Z",
+        endedAt: "2026-04-06T11:00:00.000Z",
+        trips: [
+          { startLat: 53.8, startLng: -1.55, endLat: 53.81, endLng: -1.56, distanceMiles: 3,
+            startedAt: "2026-04-05T13:00:00.000Z", endedAt: "2026-04-05T13:20:00.000Z" },
+          { startLat: 53.81, startLng: -1.56, endLat: 53.8, endLng: -1.55, distanceMiles: 3,
+            startedAt: "2026-04-06T10:00:00.000Z", endedAt: "2026-04-06T10:20:00.000Z" },
+        ],
+      }),
+      headers: auth,
+    });
+    expect(res.statusCode).toBe(201);
+    const years = vi.mocked(upsertMileageSummary).mock.calls.map((c) => c[1]);
+    expect(years).toContain("2025-26");
+    expect(years).toContain("2026-27");
+  });
+
+  it("lets the driver's next save through after one fails", async () => {
+    vi.mocked(prisma.$transaction).mockRejectedValueOnce(new Error("database went away"));
+    const first = await app.inject({ method: "POST", url: "/shifts/past", payload: body(), headers: auth });
+    expect(first.statusCode).toBe(500);
+    const second = await app.inject({ method: "POST", url: "/shifts/past", payload: body(), headers: auth });
+    expect(second.statusCode).toBe(201);
+  });
+
+  it("gives a trip with no end one from its route, held inside the shift", async () => {
+    const b = body();
+    const trips = b.trips as Array<Record<string, unknown>>;
+    trips.splice(1, 1);
+    trips[0].startedAt = "2026-10-03T12:55:00.000Z";
+    delete trips[0].endedAt;
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: b, headers: auth });
+    expect(res.statusCode).toBe(201);
+    const t = vi.mocked(prisma.trip.create).mock.calls[0][0].data as Record<string, unknown>;
+    // 600 s of route from 12:55 would be 13:05; the shift ends at 13:00.
+    expect((t.endedAt as Date).toISOString()).toBe(SHIFT_END);
+  });
+
+  it("refuses over 1,000 miles once the server has worked out the miles", async () => {
+    vi.mocked(resolveRouteDistance).mockResolvedValue({ distanceMiles: 1001, durationSecs: 600, source: "cache" } as never);
+    const b = body();
+    (b.trips as Array<Record<string, unknown>>).splice(1, 1);
+    delete (b.trips as Array<Record<string, unknown>>)[0].distanceMiles;
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: b, headers: auth });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("That's over 1,000 miles for one shift. Check where each trip started and ended.");
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 

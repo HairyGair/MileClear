@@ -11,8 +11,12 @@ import {
   MAX_PAGE_SIZE,
   PAST_SHIFT_MAX_TRIPS,
   pastShiftProblem,
+  pastShiftMilesProblem,
+  clampedTripEnd,
+  isSamePastShift,
   resolveRecordedBy,
 } from "@mileclear/shared";
+import { resolveRouteDistance } from "../../services/routing.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { checkAndAwardAchievements, getShiftScorecard } from "../../services/gamification.js";
 import { sendShiftSummaryPush, sendAchievementPush, sendMilestonePush } from "../../jobs/notifications.js";
@@ -159,21 +163,54 @@ export async function shiftRoutes(app: FastifyInstance) {
     }
     const vehicleId = body.vehicleId ?? (await defaultVehicleIdForUser(userId));
 
-    // The same save arriving twice (a retry after the answer was lost, with
-    // no Idempotency-Key or after it expired): answer with what was saved.
-    const same = await prisma.shift.findFirst({
-      where: { userId, status: "completed", startedAt: body.startedAt, endedAt: body.endedAt },
+    // Shifts already saved that overlap this one, the running one included.
+    // Two shifts over the same hours would count the same work twice, so
+    // this is refused, with one exception: the same save sent again (a retry
+    // after the answer was lost), which is answered with what was saved. A
+    // save with the same times but different trips or earnings is a
+    // different save and is refused like any other overlap, never merged.
+    const overlapping = await prisma.shift.findMany({
+      where: {
+        userId,
+        startedAt: { lt: body.endedAt },
+        OR: [{ endedAt: null }, { endedAt: { gt: body.startedAt } }],
+      },
       include: { vehicle: true },
+      orderBy: { startedAt: "asc" },
     });
-    if (same) {
-      const savedTrips = await prisma.trip.findMany({
-        where: { userId, shiftId: same.id },
-        orderBy: { startedAt: "asc" },
-      });
-      if (savedTrips.length > 0) {
-        logEvent("shift.past_add_repeated", userId, { shiftId: same.id, tripCount: savedTrips.length });
-        return reply.send({ data: same, trips: savedTrips, earning: null, scorecard: null, duplicate: true });
+    if (overlapping.length > 0) {
+      const same = overlapping.find(
+        (s) =>
+          s.status === "completed" &&
+          s.startedAt.getTime() === body.startedAt.getTime() &&
+          s.endedAt?.getTime() === body.endedAt.getTime()
+      );
+      if (same) {
+        const [savedTrips, savedEarning] = await Promise.all([
+          prisma.trip.findMany({ where: { userId, shiftId: same.id }, orderBy: { startedAt: "asc" } }),
+          prisma.earning.findFirst({
+            where: { userId, source: "manual", periodStart: same.startedAt, periodEnd: same.endedAt! },
+          }),
+        ]);
+        const repeat = isSamePastShift(
+          {
+            trips: savedTrips,
+            earning: savedEarning ? { platform: savedEarning.platform, amountPence: savedEarning.amountPence } : null,
+          },
+          { trips: body.trips, earning: body.earning ?? null }
+        );
+        if (repeat) {
+          logEvent("shift.past_add_repeated", userId, { shiftId: same.id, tripCount: savedTrips.length });
+          return reply.send({ data: same, trips: savedTrips, earning: savedEarning, scorecard: null, duplicate: true });
+        }
       }
+      const clash = same ?? overlapping[0];
+      logEvent("shift.past_add_overlap_refused", userId, {
+        existingShiftId: clash.id,
+        existingActive: clash.status === "active",
+        sameTimes: Boolean(same),
+      });
+      return reply.status(409).send({ error: shiftClashMessage(clash), existingShiftId: clash.id });
     }
 
     // Pins and miles first: they can call out to geocoders and routers,
@@ -192,6 +229,36 @@ export async function shiftRoutes(app: FastifyInstance) {
           distanceMiles: t.distanceMiles,
         })
       );
+    }
+    // Checked again here: miles the server worked out count too.
+    const milesProblem = pastShiftMilesProblem(places.map((p) => p.distanceMiles));
+    if (milesProblem) {
+      return reply.status(400).send({ error: milesProblem });
+    }
+
+    // A trip sent without an end gets one here, from its route, held inside
+    // the shift and before now. Left empty, the route-line hook would fill it
+    // later with no regard for the shift's end.
+    const tripEnds: Date[] = [];
+    for (let i = 0; i < body.trips.length; i++) {
+      const t = body.trips[i];
+      if (t.endedAt) {
+        tripEnds.push(t.endedAt);
+        continue;
+      }
+      const p = places[i];
+      let routedSecs: number | null = null;
+      if (p.endLat != null && p.endLng != null && hasValidCoords(p.startLat, p.startLng) && hasValidCoords(p.endLat, p.endLng)) {
+        const route = await resolveRouteDistance({
+          startLat: p.startLat,
+          startLng: p.startLng,
+          endLat: p.endLat,
+          endLng: p.endLng,
+          userId,
+        }).catch(() => null);
+        routedSecs = route?.durationSecs ?? null;
+      }
+      tripEnds.push(clampedTripEnd({ startedAt: t.startedAt, routedSecs, shiftEnd: body.endedAt, now: Date.now() }));
     }
 
     const saved = await prisma.$transaction(async (tx) => {
@@ -223,7 +290,7 @@ export async function shiftRoutes(app: FastifyInstance) {
               endAddress: t.endAddress ?? null,
               distanceMiles: p.distanceMiles,
               startedAt: t.startedAt,
-              endedAt: t.endedAt ?? null,
+              endedAt: tripEnds[i],
               isManualEntry: true,
               isPhantomTrip: false,
               classification: "business",
@@ -638,6 +705,22 @@ export async function shiftRoutes(app: FastifyInstance) {
 
     return reply.send({ ok: true, shiftId: shift.id, scorecard });
   });
+}
+
+// UK times for the words below: the server runs in UTC, drivers read BST/GMT.
+function ukTime(d: Date): string {
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" });
+}
+function ukDay(d: Date): string {
+  return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+}
+
+/** Why a past shift was refused for overlapping one already saved. */
+export function shiftClashMessage(clash: { status: string; startedAt: Date; endedAt: Date | null }): string {
+  if (clash.status === "active" || !clash.endedAt) {
+    return `You have a shift running now, started at ${ukTime(clash.startedAt)} on ${ukDay(clash.startedAt)}. End it first, or change this shift's times so they don't overlap it.`;
+  }
+  return `You already have a shift from ${ukTime(clash.startedAt)} to ${ukTime(clash.endedAt)} on ${ukDay(clash.startedAt)}. Change this shift's times so they don't overlap it.`;
 }
 
 /**

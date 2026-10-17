@@ -6,11 +6,82 @@ import {
   emptyTrip,
   missingForPastShift,
   mostUsedPlatform,
+  moveTripTimes,
   parseAmountPence,
   planShiftWindow,
+  sentSaveFailureMessage,
+  stableBodyText,
+  tripOnAnotherDay,
   tripsRunIntoEachOther,
+  PAST_SHIFT_UNCONFIRMED_MESSAGE,
   type DraftTrip,
 } from "../pastShiftRule";
+
+describe("moveTripTimes", () => {
+  const at2 = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m, 0, 0);
+  const t = (key: string, setOff: Date | null, timeEdited = false): DraftTrip => ({
+    ...emptyTrip(key),
+    setOffAt: setOff,
+    timeEdited,
+  });
+
+  it("starts the first trip with the shift when it has no time", () => {
+    const out = moveTripTimes([t("a", null)], null, at2(3, 9));
+    expect(out[0].setOffAt).toEqual(at2(3, 9));
+  });
+
+  it("moves every trip time the driver has not set by the same amount", () => {
+    const out = moveTripTimes([t("a", at2(3, 9, 10)), t("b", at2(3, 9, 30))], at2(3, 9), at2(4, 10));
+    expect(out[0].setOffAt).toEqual(at2(4, 10, 10));
+    expect(out[1].setOffAt).toEqual(at2(4, 10, 30));
+  });
+
+  it("leaves a time the driver set", () => {
+    const out = moveTripTimes([t("a", at2(3, 9, 10)), t("b", at2(3, 11), true)], at2(3, 9), at2(4, 9));
+    expect(out[0].setOffAt).toEqual(at2(4, 9, 10));
+    expect(out[1].setOffAt).toEqual(at2(3, 11));
+  });
+});
+
+describe("tripOnAnotherDay", () => {
+  const at2 = (d: number, h: number) => new Date(2026, 9, d, h, 0, 0, 0);
+  const t = (setOff: Date): DraftTrip => ({ ...emptyTrip("k"), setOffAt: setOff });
+
+  it("names a trip left on another day", () => {
+    expect(tripOnAnotherDay(at2(4, 9), at2(4, 13), [t(at2(4, 10)), t(at2(3, 11))])).toBe(
+      "Trip 2 is on Sat 3 Oct, a different day from the shift."
+    );
+  });
+
+  it("accepts trips on the day the shift ends, past midnight", () => {
+    expect(tripOnAnotherDay(at2(3, 20), at2(4, 2), [t(at2(3, 21)), t(at2(4, 1))])).toBeNull();
+  });
+});
+
+describe("stableBodyText", () => {
+  it("is the same for the same request whatever the key order", () => {
+    expect(stableBodyText({ b: 1, a: [{ y: 2, x: "z" }] })).toBe(stableBodyText({ a: [{ x: "z", y: 2 }], b: 1 }));
+  });
+
+  it("changes when anything is edited, and ignores missing values", () => {
+    expect(stableBodyText({ a: 1 })).not.toBe(stableBodyText({ a: 2 }));
+    expect(stableBodyText({ a: 1, b: undefined })).toBe(stableBodyText({ a: 1 }));
+  });
+});
+
+describe("sentSaveFailureMessage", () => {
+  it("shows the server's own words for a refusal", () => {
+    expect(sentSaveFailureMessage(400)).toBeNull();
+    expect(sentSaveFailureMessage(409)).toBeNull();
+  });
+
+  it("asks the driver to check before trying again when no answer came back", () => {
+    expect(sentSaveFailureMessage(null)).toBe(PAST_SHIFT_UNCONFIRMED_MESSAGE);
+    expect(sentSaveFailureMessage(500)).toBe(PAST_SHIFT_UNCONFIRMED_MESSAGE);
+    expect(sentSaveFailureMessage(504)).toBe(PAST_SHIFT_UNCONFIRMED_MESSAGE);
+    expect(PAST_SHIFT_UNCONFIRMED_MESSAGE).toBe("We couldn't confirm the save. Check More > Shifts before trying again.");
+  });
+});
 
 // Local times, as the form works in them.
 const at = (h: number, m = 0) => new Date(2026, 9, 3, h, m, 0, 0);
@@ -219,6 +290,25 @@ describe("buildPastShiftBody", () => {
     });
   });
 
+  it("asks for a car when there are several and none is picked", () => {
+    expect(buildPastShiftBody({ ...base, vehicleId: null, carNeeded: true })).toEqual({
+      problem: "Pick which car you drove",
+    });
+  });
+
+  it("names a trip left on another day after the shift moved", () => {
+    const r = buildPastShiftBody({ ...base, trips: [trip("a", new Date(2026, 9, 2, 10, 0), 20)] });
+    expect(r).toEqual({ problem: "Trip 1 is on Fri 2 Oct, a different day from the shift." });
+  });
+
+  it("refuses over 1,000 miles for the shift", () => {
+    const r = buildPastShiftBody({
+      ...base,
+      trips: [trip("a", at(9, 10), 20, { miles: 600 }), trip("b", at(9, 30), 15, { miles: 401 })],
+    });
+    expect(r).toEqual({ problem: "That's over 1,000 miles for one shift. Check where each trip started and ended." });
+  });
+
   it("names a trip later than now", () => {
     const now = at(10).getTime();
     const r = buildPastShiftBody({ ...base, shiftEnd: at(9, 50), trips: [trip("a", at(11), 10)], now });
@@ -229,7 +319,7 @@ describe("buildPastShiftBody", () => {
     const r = buildPastShiftBody({
       ...base,
       shiftStart: new Date(2026, 9, 1, 9, 0),
-      shiftEnd: new Date(2026, 9, 2, 9, 30),
+      shiftEnd: new Date(2026, 9, 2, 10, 30),
       trips: [trip("a", new Date(2026, 9, 1, 10, 0), 20)],
     });
     expect(r).toEqual({ problem: "A shift can be up to 24 hours long." });

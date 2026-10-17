@@ -10,6 +10,7 @@ export type PastShiftEvent =
   | "past_shift.overlap_warned"
   | "past_shift.overlap_answered"
   | "past_shift.offline_blocked"
+  | "past_shift.save_unconfirmed"
   | "past_shift.left";
 
 export function trackPastShift(type: PastShiftEvent, metadata?: Record<string, unknown>): void {

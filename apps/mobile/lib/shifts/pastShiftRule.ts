@@ -13,6 +13,8 @@
 import { pastShiftProblem, windowCoveringTrips, firstOverlappingTrip } from "@mileclear/shared";
 import { endTimeFor } from "../trips/missingReportRule";
 import { clockTime } from "../trips/manualTimeRule";
+import { sameLocalDay } from "../trips/pastTripRule";
+import { shortDay } from "../tracking/pauseRule";
 
 export type RouteState = "idle" | "working" | "done" | "failed";
 
@@ -31,6 +33,8 @@ export interface DraftTrip {
   routedSecs: number | null;
   route: RouteState;
   platformTag: string | null;
+  /** The driver set this trip's time themselves; moving the shift leaves it. */
+  timeEdited: boolean;
 }
 
 export function emptyTrip(key: string): DraftTrip {
@@ -47,7 +51,52 @@ export function emptyTrip(key: string): DraftTrip {
     routedSecs: null,
     route: "idle",
     platformTag: null,
+    timeEdited: false,
   };
+}
+
+/**
+ * The trips after the shift's start moves from `from` to `to`. Every trip
+ * time the driver has not set themselves moves by the same amount, so
+ * changing the day or the start keeps the chain intact. A first trip with no
+ * time yet takes the shift's start.
+ */
+export function moveTripTimes(trips: DraftTrip[], from: Date | null, to: Date): DraftTrip[] {
+  const delta = from ? to.getTime() - from.getTime() : 0;
+  return trips.map((t, i) => {
+    if (!t.setOffAt) return i === 0 ? { ...t, setOffAt: to } : t;
+    if (t.timeEdited || delta === 0) return t;
+    return { ...t, setOffAt: new Date(t.setOffAt.getTime() + delta) };
+  });
+}
+
+/** "Trip 2 is on Fri 2 Oct, a different day from the shift." for a trip on
+ *  neither the day the shift started nor the day it ended, or null. */
+export function tripOnAnotherDay(shiftStart: Date, shiftEnd: Date, trips: DraftTrip[]): string | null {
+  for (let i = 0; i < trips.length; i++) {
+    const d = trips[i].setOffAt;
+    if (!d || sameLocalDay(d, shiftStart) || sameLocalDay(d, shiftEnd)) continue;
+    return `Trip ${i + 1} is on ${shortDay(d)}, a different day from the shift.`;
+  }
+  return null;
+}
+
+/**
+ * The request as text with its keys in a fixed order, for the Idempotency-Key:
+ * the same request sent again gets the same key (and the first answer back),
+ * and an edited one gets a new key.
+ */
+export function stableBodyText(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableBodyText).join(",")}]`;
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return `{${Object.keys(obj)
+      .filter((k) => obj[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stableBodyText(obj[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 /** When the trip arrives: set-off plus the route's drive time (the trip
@@ -84,9 +133,12 @@ export function missingForPastShift(args: {
   shiftStart: Date | null;
   shiftEnd: Date | null;
   trips: DraftTrip[];
+  /** Several cars and none picked: the server would save no car at all. */
+  carNeeded?: boolean;
 }): string | null {
   if (!args.shiftStart) return "Add when the shift started";
   if (!args.shiftEnd) return "Add when the shift ended";
+  if (args.carNeeded) return "Pick which car you drove";
   if (args.trips.length === 0) return "Add a trip";
   for (let i = 0; i < args.trips.length; i++) {
     const t = args.trips[i];
@@ -171,6 +223,25 @@ export interface PastShiftBody {
   earning?: { platform: string; amountPence: number };
 }
 
+// ── When the save does not go through ───────────────────────────────────────
+
+/** The phone knew it was offline, so nothing was sent. */
+export const PAST_SHIFT_OFFLINE_MESSAGE =
+  "You need a connection to save a past shift. Nothing was lost; try again when you're online.";
+/** The request went out but no answer came back: it may have been saved. */
+export const PAST_SHIFT_UNCONFIRMED_MESSAGE = "We couldn't confirm the save. Check More > Shifts before trying again.";
+
+/**
+ * What to tell the driver when a save that was sent fails. A 4xx is the
+ * server refusing it, and its own words are shown (null here). Anything else
+ * (no answer, a timeout, a server error) may have saved, so the driver is
+ * sent to look before trying again.
+ */
+export function sentSaveFailureMessage(statusCode: number | null): string | null {
+  if (statusCode != null && statusCode >= 400 && statusCode < 500) return null;
+  return PAST_SHIFT_UNCONFIRMED_MESSAGE;
+}
+
 /** "64.50", "£64.50", "64,5" -> 6450 pence. Null for anything else or nothing. */
 export function parseAmountPence(text: string): number | null {
   const cleaned = text.trim().replace(/^£\s*/, "").replace(",", ".");
@@ -191,16 +262,24 @@ export function buildPastShiftBody(args: {
   earningText: string;
   earningPlatform: string | null;
   now: number;
+  carNeeded?: boolean;
 }): { body: PastShiftBody; plan: ShiftWindowPlan } | { problem: string } {
-  const missing = missingForPastShift({ shiftStart: args.shiftStart, shiftEnd: args.shiftEnd, trips: args.trips });
+  const missing = missingForPastShift({
+    shiftStart: args.shiftStart,
+    shiftEnd: args.shiftEnd,
+    trips: args.trips,
+    carNeeded: args.carNeeded,
+  });
   if (missing) return { problem: missing };
   const shiftStart = args.shiftStart as Date;
   const shiftEnd = args.shiftEnd as Date;
   if (shiftEnd.getTime() <= shiftStart.getTime()) return { problem: "The shift has to end after it starts." };
   // Named before the window is stretched, which would otherwise report it as
-  // a shift that ends after now.
+  // a shift that ends after now, or a day longer than it is.
   const future = args.trips.findIndex((t) => (t.setOffAt as Date).getTime() > args.now);
   if (future >= 0) return { problem: `Trip ${future + 1} is later than now.` };
+  const otherDay = tripOnAnotherDay(shiftStart, shiftEnd, args.trips);
+  if (otherDay) return { problem: otherDay };
   const runInto = tripsRunIntoEachOther(args.trips, args.now);
   if (runInto) return { problem: runInto };
 
@@ -232,7 +311,11 @@ export function buildPastShiftBody(args: {
   const problem = pastShiftProblem({
     startedAt: plan.startedAt,
     endedAt: plan.endedAt,
-    trips: trips.map((t) => ({ startedAt: new Date(t.startedAt), endedAt: t.endedAt ? new Date(t.endedAt) : null })),
+    trips: trips.map((t) => ({
+      startedAt: new Date(t.startedAt),
+      endedAt: t.endedAt ? new Date(t.endedAt) : null,
+      distanceMiles: t.distanceMiles ?? null,
+    })),
     now: args.now,
   });
   if (problem) return { problem };

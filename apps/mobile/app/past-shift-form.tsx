@@ -13,6 +13,9 @@
 // "now", so queueing a past one would mean a new kind of queued item in the
 // engine that also carries recorded drives. Offline, the form says so and
 // keeps everything typed. What the server saved is then put on the phone.
+// When a sent save gets no answer, the driver is asked to check More > Shifts
+// first; sending it again unchanged is safe (the key is made from the
+// request, so the server answers with the first save).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -28,7 +31,7 @@ import {
 } from "react-native";
 import { useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { randomUUID } from "expo-crypto";
+import * as Crypto from "expo-crypto";
 import { GIG_PLATFORMS, formatMiles } from "@mileclear/shared";
 import type { Vehicle } from "@mileclear/shared";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -39,7 +42,6 @@ import { fetchServerRouteDistance } from "../lib/api/trips";
 import { createPastShift } from "../lib/api/shifts";
 import { isApiError } from "../lib/api/index";
 import { isOnline } from "../lib/network";
-import { isNetworkError, isServerUnavailable } from "../lib/sync/errors";
 import { hydrateShifts, hydrateTrips, hydrateEarnings } from "../lib/sync/hydrate";
 import { findTripAround, type KnownTrip } from "../lib/trips/overlapLookup";
 import { describeKnownTrip } from "../lib/trips/overlapText";
@@ -50,13 +52,16 @@ import {
   chainedTrip,
   missingForPastShift,
   mostUsedPlatform,
+  moveTripTimes,
+  sentSaveFailureMessage,
+  stableBodyText,
+  PAST_SHIFT_OFFLINE_MESSAGE,
   type DraftTrip,
+  type PastShiftBody,
 } from "../lib/shifts/pastShiftRule";
 import { trackPastShift } from "../lib/events/pastShift";
 import { colors, fonts, spacing, radii } from "../lib/theme";
 import { haptic } from "../lib/haptics";
-
-const OFFLINE_MESSAGE = "You need a connection to save a past shift. Nothing was lost; try again when you're online.";
 
 function routeKey(t: DraftTrip): string {
   return `${t.fromLat},${t.fromLng},${t.toLat},${t.toLng}`;
@@ -78,9 +83,7 @@ export default function PastShiftFormScreen() {
   const [overlaps, setOverlaps] = useState<Record<string, KnownTrip | null>>({});
   const [saving, setSaving] = useState(false);
 
-  // One key per filled-in form: a retry after a lost answer gets the first
-  // save back instead of a second shift.
-  const idempotencyKey = useRef(randomUUID());
+  const shiftStartRef = useRef<Date | null>(null);
   const savedRef = useRef(false);
   const warnedRef = useRef(new Set<string>());
 
@@ -105,10 +108,13 @@ export default function PastShiftFormScreen() {
     setTrips((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
   }, []);
 
-  // The first trip sets off when the shift started, until the driver says otherwise.
+  // Moving the shift's start moves every trip time the driver has not set
+  // themselves by the same amount; the first trip starts with the shift.
   const onShiftStart = useCallback((d: Date) => {
+    const from = shiftStartRef.current;
+    shiftStartRef.current = d;
     setShiftStart(d);
-    setTrips((prev) => (prev.length > 0 && !prev[0].setOffAt ? [{ ...prev[0], setOffAt: d }, ...prev.slice(1)] : prev));
+    setTrips((prev) => moveTripTimes(prev, from, d));
   }, []);
 
   // Road miles for every trip with both ends and no route yet: the same
@@ -182,14 +188,20 @@ export default function PastShiftFormScreen() {
     setTrips((prev) => prev.filter((t) => t.key !== key));
   }, []);
 
-  const hint = missingForPastShift({ shiftStart, shiftEnd, trips });
+  // Several cars and none primary: the server would save no car, so the
+  // driver picks one rather than the screen guessing.
+  const carNeeded = vehicles.length > 1 && !vehicleId;
+  const hint = missingForPastShift({ shiftStart, shiftEnd, trips, carNeeded });
   const totalMiles = trips.reduce((sum, t) => sum + (t.miles ?? 0), 0);
 
   const send = useCallback(
-    async (body: Parameters<typeof createPastShift>[0]) => {
+    async (body: PastShiftBody) => {
       setSaving(true);
       try {
-        const res = await createPastShift(body, idempotencyKey.current);
+        // The key comes from the request itself: sent again unchanged, the
+        // server answers with the first save; edited, it is a new request.
+        const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, stableBodyText(body));
+        const res = await createPastShift(body, `ps-${digest.slice(0, 48)}`);
         savedRef.current = true;
         // Put what the server saved on the phone, as hydration would, so
         // Trips and Home show it straight away.
@@ -204,13 +216,15 @@ export default function PastShiftFormScreen() {
           [{ text: "OK", onPress: () => router.back() }]
         );
       } catch (err) {
-        if (isNetworkError(err) || isServerUnavailable(err)) {
-          trackPastShift("past_shift.offline_blocked", { where: "save" });
-          Alert.alert("No connection", OFFLINE_MESSAGE);
-        } else if (isApiError(err) && err.statusCode >= 400 && err.statusCode < 500) {
-          Alert.alert("Couldn't save the shift", err.message);
+        // The request went out. A refusal (4xx) is shown in the server's own
+        // words; anything else may have saved, so the driver checks first.
+        const status = isApiError(err) ? err.statusCode : null;
+        const unconfirmed = sentSaveFailureMessage(status);
+        if (unconfirmed) {
+          trackPastShift("past_shift.save_unconfirmed", { status });
+          Alert.alert("Couldn't confirm the save", unconfirmed);
         } else {
-          Alert.alert("Couldn't save the shift", "Something went wrong. Nothing was lost; try again in a moment.");
+          Alert.alert("Couldn't save the shift", err instanceof Error ? err.message : "Check the shift and try again.");
         }
       } finally {
         setSaving(false);
@@ -221,8 +235,8 @@ export default function PastShiftFormScreen() {
 
   const handleSave = useCallback(() => {
     if (!isOnline()) {
-      trackPastShift("past_shift.offline_blocked", { where: "before_save" });
-      Alert.alert("No connection", OFFLINE_MESSAGE);
+      trackPastShift("past_shift.offline_blocked");
+      Alert.alert("No connection", PAST_SHIFT_OFFLINE_MESSAGE);
       return;
     }
     const built = buildPastShiftBody({
@@ -233,6 +247,7 @@ export default function PastShiftFormScreen() {
       earningText,
       earningPlatform,
       now: Date.now(),
+      carNeeded,
     });
     if ("problem" in built) {
       Alert.alert("Check the shift", built.problem);
@@ -276,7 +291,7 @@ export default function PastShiftFormScreen() {
       return;
     }
     go();
-  }, [shiftStart, shiftEnd, vehicleId, trips, earningText, earningPlatform, overlaps, send]);
+  }, [shiftStart, shiftEnd, vehicleId, trips, earningText, earningPlatform, overlaps, send, carNeeded]);
 
   const now = new Date();
 
@@ -362,7 +377,7 @@ export default function PastShiftFormScreen() {
               <DateTimePickerField
                 label="Set off"
                 value={t.setOffAt}
-                onChange={(d) => updateTrip(t.key, { setOffAt: d })}
+                onChange={(d) => updateTrip(t.key, { setOffAt: d, timeEdited: true })}
                 maximumDate={now}
                 hideNow
               />
