@@ -21,7 +21,9 @@ export function redactUrlSecrets(url: string): string {
       // And a token query value of any shape: app builds from before
       // 17 Oct put the driver's access token (a JWT) in the Open Banking
       // /link URL as ?token=.
-      .replace(/([?&]token=)[^&#]*/gi, "$1<redacted>")
+      // The Open Banking callback carries the bank's one-time code and our
+      // signed state as ?code= and ?state=.
+      .replace(/([?&](?:token|code|state)=)[^&#]*/gi, "$1<redacted>")
   );
 }
 

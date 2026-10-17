@@ -216,7 +216,8 @@ export function categoriseExpenseMerchant(
 
 // ── TrueLayer Auth ────────────────────────────────────────────────────
 
-const REDIRECT_URI =
+/** Where TrueLayer sends the driver back: our /earnings/open-banking/callback. */
+export const TRUELAYER_REDIRECT_URI =
   process.env.TRUELAYER_REDIRECT_URI ||
   `${process.env.API_BASE_URL || "http://localhost:3002"}/earnings/open-banking/callback`;
 
@@ -232,7 +233,7 @@ export function buildAuthLink(state: string): string {
     response_type: "code",
     client_id: TRUELAYER_CLIENT_ID,
     scope: SCOPES,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: TRUELAYER_REDIRECT_URI,
     providers,
     state,
   });
@@ -254,7 +255,7 @@ export async function exchangeCode(
       grant_type: "authorization_code",
       client_id: TRUELAYER_CLIENT_ID,
       client_secret: TRUELAYER_CLIENT_SECRET,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: TRUELAYER_REDIRECT_URI,
       code,
     }).toString(),
   });

@@ -31,6 +31,12 @@ describe("redactUrlSecrets", () => {
     expect(redactUrlSecrets("/x?token=abc")).toBe("/x?token=<redacted>");
   });
 
+  it("redacts the bank's code and our state on the Open Banking callback", () => {
+    expect(
+      redactUrlSecrets("/earnings/open-banking/callback?code=abc-123&scope=info&state=v1.eyJ1Ijo.sig")
+    ).toBe("/earnings/open-banking/callback?code=<redacted>&scope=info&state=<redacted>");
+  });
+
   it("redacts a practice invite token in a query value", () => {
     expect(redactUrlSecrets(`/practice-links/lookup?invite=${token}`)).toBe(
       "/practice-links/lookup?invite=<redacted>"

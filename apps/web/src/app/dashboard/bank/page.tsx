@@ -36,7 +36,11 @@ function Banks() {
       // server finishes the link itself, so no sign-in token goes in the URL.
       const res = await api.post<{ data: { authLink: string } }>("/earnings/open-banking/link-token?return=web");
       const url = res.data.authLink;
-      if (tab) tab.location.href = url;
+      if (tab) {
+        // Cut the link back to this page before the bank's pages load in it.
+        tab.opener = null;
+        tab.location.href = url;
+      }
       else setBlockedUrl(url);
       setWaiting(true);
     } catch (e) {

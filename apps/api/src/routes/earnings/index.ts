@@ -4,14 +4,26 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { attachIdempotency } from "../../middleware/idempotency.js";
 import { premiumMiddleware, hasPremiumAccess } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
-import { truelayerEnabled, TRUELAYER_AUTH_BASE } from "../../lib/truelayer.js";
+import {
+  truelayerEnabled,
+  TRUELAYER_AUTH_BASE,
+  TRUELAYER_CLIENT_ID,
+} from "../../lib/truelayer.js";
 import {
   issueOpenBankingState,
   readOpenBankingState,
   consumeOpenBankingState,
   type OpenBankingReturnTo,
 } from "../../lib/openBankingState.js";
-import { renderCallbackPage, type CallbackOutcome } from "./openBankingPages.js";
+import {
+  renderCallbackPage,
+  linkedAccountLabel,
+  CALLBACK_PAGE_CSP,
+  type CallbackOutcome,
+} from "./openBankingPages.js";
+
+/** Banks one driver can link in 24 hours before we stop and ask them to wait. */
+const MAX_LINKS_PER_DAY = 5;
 import { parseCsvPreview, confirmCsvImport } from "../../services/csvParser.js";
 import {
   buildAuthLink,
@@ -19,6 +31,7 @@ import {
   syncTransactions,
   getConnections,
   disconnectConnection,
+  TRUELAYER_REDIRECT_URI,
 } from "../../services/openBanking.js";
 import {
   DEFAULT_PAGE_SIZE,
@@ -376,6 +389,8 @@ export async function earningRoutes(app: FastifyInstance) {
   // Exchange auth code after TrueLayer redirect (premium only). The
   // callback now exchanges the code itself; this stays for any callback
   // page from before 17 Oct still open in a browser that posts here.
+  // Remove it around 31 Oct 2026, once old builds have moved on (check
+  // app_events for open_banking_connected without via: "callback").
   app.post(
     "/open-banking/exchange",
     { preHandler: premiumMiddleware },
@@ -506,11 +521,16 @@ export async function earningRoutes(app: FastifyInstance) {
       error?: string;
       state?: string;
     };
-    const send = (outcome: CallbackOutcome, returnTo: OpenBankingReturnTo | null) =>
+    const send = (
+      outcome: CallbackOutcome,
+      returnTo: OpenBankingReturnTo | null,
+      linkedTo: string | null = null
+    ) =>
       reply
         .type("text/html")
         .header("Cache-Control", "no-store")
-        .send(renderCallbackPage(outcome, returnTo));
+        .header("Content-Security-Policy", CALLBACK_PAGE_CSP)
+        .send(renderCallbackPage(outcome, returnTo, linkedTo));
 
     // Attribute the landing before deciding anything. A state that fails
     // its signature is not trusted to name anyone.
@@ -521,6 +541,9 @@ export async function earningRoutes(app: FastifyInstance) {
     });
 
     if (tlError || !code || typeof code !== "string") {
+      // Use the state up anyway, so the address of a cancelled attempt
+      // can't be finished later with someone else's code.
+      consumeOpenBankingState(state);
       return send("cancelled", signed?.returnTo ?? null);
     }
 
@@ -543,7 +566,10 @@ export async function earningRoutes(app: FastifyInstance) {
             select: { id: true },
           })
           .catch(() => null);
-        return send(linked ? "connected" : "replayed", returnTo);
+        if (linked) {
+          return send("connected", returnTo, await accountLabel(check.payload.userId));
+        }
+        return send("replayed", returnTo);
       }
       return send("bad_state", returnTo);
     }
@@ -568,6 +594,22 @@ export async function earningRoutes(app: FastifyInstance) {
       return send("not_premium", returnTo);
     }
 
+    // A driver links one or two banks. Many in a day means something is
+    // wrong (or someone is being talked into approving links), so stop.
+    const linkedToday = await prisma.appEvent
+      .count({
+        where: {
+          userId,
+          type: "earnings.open_banking_connected",
+          createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
+      })
+      .catch(() => 0);
+    if (linkedToday >= MAX_LINKS_PER_DAY) {
+      logEvent("earnings.open_banking_link_limit", userId, { linkedToday });
+      return send("too_many", returnTo);
+    }
+
     try {
       const connection = await exchangeCode(userId, code);
       logEvent("earnings.open_banking_connected", userId, {
@@ -575,7 +617,7 @@ export async function earningRoutes(app: FastifyInstance) {
         institution: connection.institutionName ?? null,
         via: "callback",
       });
-      return send("connected", returnTo);
+      return send("connected", returnTo, await accountLabel(userId));
     } catch (err: any) {
       request.log.error(err, "Failed to exchange TrueLayer code");
       const message = String(err?.message ?? err);
@@ -592,26 +634,43 @@ export async function earningRoutes(app: FastifyInstance) {
   // Older app builds open /link?authLink=...&token=<JWT>. The token is now
   // ignored (the callback no longer needs it) and this simply sends the
   // driver on to TrueLayer, so those builds can link a bank too. Only a
-  // TrueLayer address is followed: anything else would make this an open
-  // redirect on our domain.
+  // link to TrueLayer for our client and our callback is followed:
+  // anything else would make this an open redirect on our domain.
 
   app.get("/open-banking/link", async (request, reply) => {
     const { authLink } = request.query as { authLink?: string };
-    if (typeof authLink !== "string" || !isTrueLayerAuthLink(authLink)) {
+    const target = typeof authLink === "string" ? trueLayerAuthLink(authLink) : null;
+    if (!target) {
       return reply
         .status(400)
         .send({ error: "Invalid bank link. Please start again from MileClear." });
     }
-    return reply.header("Cache-Control", "no-store").redirect(authLink);
+    return reply.header("Cache-Control", "no-store").redirect(target);
   });
 }
 
-function isTrueLayerAuthLink(link: string): boolean {
+/**
+ * The normalised link when it is one buildAuthLink would make (TrueLayer's
+ * auth address, our client, our callback), otherwise null.
+ */
+function trueLayerAuthLink(link: string): string | null {
   try {
     const url = new URL(link);
     const base = new URL(TRUELAYER_AUTH_BASE);
-    return url.protocol === "https:" && url.origin === base.origin;
+    if (url.protocol !== "https:" || url.origin !== base.origin) return null;
+    if (url.username || url.password) return null;
+    if (!TRUELAYER_CLIENT_ID || url.searchParams.get("client_id") !== TRUELAYER_CLIENT_ID) return null;
+    if (url.searchParams.get("redirect_uri") !== TRUELAYER_REDIRECT_URI) return null;
+    return url.href;
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Which MileClear account the bank went to, masked, for the page. */
+async function accountLabel(userId: string): Promise<string | null> {
+  const user = await prisma.user
+    .findUnique({ where: { id: userId }, select: { email: true } })
+    .catch(() => null);
+  return linkedAccountLabel(user?.email ?? null);
 }

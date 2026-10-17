@@ -9,18 +9,29 @@ import { buildApp } from "../helpers/build-app.js";
 import { makeAccessToken } from "../helpers/tokens.js";
 
 vi.mock("../../lib/prisma.js", () => ({
-  prisma: { plaidConnection: { findFirst: vi.fn() } },
+  prisma: {
+    plaidConnection: { findFirst: vi.fn() },
+    user: { findUnique: vi.fn() },
+    appEvent: { count: vi.fn() },
+  },
 }));
 vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
 vi.mock("../../middleware/idempotency.js", () => ({ attachIdempotency: vi.fn() }));
 vi.mock("../../lib/truelayer.js", () => ({
   truelayerEnabled: true,
   TRUELAYER_AUTH_BASE: "https://auth.truelayer-sandbox.com",
+  TRUELAYER_CLIENT_ID: "mileclear-test-client",
 }));
 vi.mock("../../services/proEntitlement.js", () => ({ isProUser: vi.fn() }));
 vi.mock("../../services/openBanking.js", () => ({
+  TRUELAYER_REDIRECT_URI: "https://api.test/earnings/open-banking/callback",
   buildAuthLink: vi.fn(
-    (state: string) => `https://auth.truelayer-sandbox.com/?state=${encodeURIComponent(state)}`
+    (state: string) =>
+      `https://auth.truelayer-sandbox.com/?${new URLSearchParams({
+        client_id: "mileclear-test-client",
+        redirect_uri: "https://api.test/earnings/open-banking/callback",
+        state,
+      })}`
   ),
   exchangeCode: vi.fn(),
   syncTransactions: vi.fn(),
@@ -75,7 +86,13 @@ beforeEach(async () => {
     status: "active",
   });
   vi.mocked(prisma.plaidConnection.findFirst).mockResolvedValue(null as never);
+  vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: "anna.driver@icloud.com" } as never);
+  vi.mocked(prisma.appEvent.count).mockResolvedValue(0 as never);
 });
+
+const GOOD_LINK =
+  "https://auth.truelayer-sandbox.com/?response_type=code&client_id=mileclear-test-client" +
+  "&redirect_uri=https%3A%2F%2Fapi.test%2Fearnings%2Fopen-banking%2Fcallback&state=v1.x.y";
 
 describe("POST /open-banking/link-token", () => {
   it("issues a signed state for the signed-in Pro driver", async () => {
@@ -120,6 +137,13 @@ describe("GET /open-banking/callback", () => {
     expect(res.body).toContain('data-outcome="connected"');
     expect(res.body).toContain('href="mileclear://open-banking"');
     expect(res.body).not.toContain("sessionStorage");
+    expect(res.headers["content-security-policy"]).toBe(
+      "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    );
+    expect(res.body).not.toContain("<script");
+    // Which account it went to, masked, never the whole email.
+    expect(res.body).toContain("Linked to a•••@icloud.com");
+    expect(res.body).not.toContain("anna.driver");
     expect(vi.mocked(exchangeCode)).toHaveBeenCalledWith(USER, "auth-code-1");
     expect(events("earnings.open_banking_connected")).toEqual([
       ["earnings.open_banking_connected", USER, { connectionId: "conn-1", institution: "Monzo", via: "callback" }],
@@ -229,9 +253,53 @@ describe("GET /open-banking/callback", () => {
       USER,
       { outcome: "error", error: "<script>alert(1)</script>" },
     ]);
-    // The same state still works if they then go through with it.
-    const done = await callback(q(state));
-    expect(done.body).toContain('data-outcome="connected"');
+    // The cancelled attempt's state is used up: it can't be finished later.
+    const later = await callback(q(state));
+    expect(later.body).toContain('data-outcome="replayed"');
+    expect(vi.mocked(exchangeCode)).not.toHaveBeenCalled();
+    expect(events("earnings.open_banking_state_invalid")[0][2]).toEqual({ reason: "replayed" });
+  });
+
+  it("a plain cancel (no code, no error) also uses the state up", async () => {
+    const state = issueOpenBankingState(USER, "app");
+    await callback(`state=${encodeURIComponent(state)}`);
+    const later = await callback(q(state));
+    expect(later.body).toContain('data-outcome="replayed"');
+    expect(vi.mocked(exchangeCode)).not.toHaveBeenCalled();
+  });
+
+  it("an Apple hidden email says signed in with Apple, not the relay address", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      email: "x7k2abc@privaterelay.appleid.com",
+    } as never);
+    const res = await callback(q(issueOpenBankingState(USER, "app")));
+    expect(res.body).toContain("Linked to your MileClear account signed in with Apple");
+    expect(res.body).not.toContain("x7k2abc");
+    expect(res.body).not.toContain("privaterelay");
+  });
+
+  it("stops at 5 banks linked in 24 hours, without exchanging, and logs link_limit", async () => {
+    vi.mocked(prisma.appEvent.count).mockResolvedValue(5 as never);
+    const res = await callback(q(issueOpenBankingState(USER, "app")));
+    expect(res.body).toContain('data-outcome="too_many"');
+    expect(vi.mocked(exchangeCode)).not.toHaveBeenCalled();
+    expect(events("earnings.open_banking_link_limit")).toEqual([
+      ["earnings.open_banking_link_limit", USER, { linkedToday: 5 }],
+    ]);
+    const where = vi.mocked(prisma.appEvent.count).mock.calls[0][0]!.where!;
+    expect(where).toMatchObject({ userId: USER, type: "earnings.open_banking_connected" });
+  });
+
+  it("the fourth or fifth bank of the day still links", async () => {
+    vi.mocked(prisma.appEvent.count).mockResolvedValue(4 as never);
+    const res = await callback(q(issueOpenBankingState(USER, "app")));
+    expect(res.body).toContain('data-outcome="connected"');
+  });
+
+  it("failure pages carry the same CSP and no account line", async () => {
+    const res = await callback("code=abc");
+    expect(res.headers["content-security-policy"]).toContain("default-src 'none'");
+    expect(res.body).not.toContain("Linked to");
   });
 
   it("needs no Authorization header", async () => {
@@ -242,7 +310,7 @@ describe("GET /open-banking/callback", () => {
 
 describe("GET /open-banking/link (old app builds)", () => {
   it("redirects to TrueLayer and ignores the token old builds send", async () => {
-    const authLink = "https://auth.truelayer-sandbox.com/?response_type=code&state=v1.x.y";
+    const authLink = GOOD_LINK;
     const a = await app();
     const res = await a.inject({
       method: "GET",
@@ -254,8 +322,36 @@ describe("GET /open-banking/link (old app builds)", () => {
     expect(res.body).not.toContain("eyJ.old.jwt");
   });
 
+  it("redirects to the normalised link", async () => {
+    const a = await app();
+    const messy = GOOD_LINK.replace("https://auth.truelayer-sandbox.com/", "HTTPS://Auth.TrueLayer-Sandbox.com:443/");
+    const res = await a.inject({
+      method: "GET",
+      url: `/earnings/open-banking/link?authLink=${encodeURIComponent(messy)}`,
+    });
+    await a.close();
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe(new URL(messy).href);
+    expect(res.headers.location!.startsWith("https://auth.truelayer-sandbox.com/?")).toBe(true);
+  });
+
+  it("refuses a TrueLayer link for another client or another callback", async () => {
+    const a = await app();
+    const otherClient = GOOD_LINK.replace("mileclear-test-client", "someone-else");
+    const otherCallback = GOOD_LINK.replace("api.test", "evil.example");
+    const noClient = "https://auth.truelayer-sandbox.com/?redirect_uri=https%3A%2F%2Fapi.test%2Fearnings%2Fopen-banking%2Fcallback";
+    for (const bad of [otherClient, otherCallback, noClient]) {
+      const res = await a.inject({
+        method: "GET",
+        url: `/earnings/open-banking/link?authLink=${encodeURIComponent(bad)}`,
+      });
+      expect(res.statusCode).toBe(400);
+    }
+    await a.close();
+  });
+
   it("also takes the website's old return=web form", async () => {
-    const authLink = "https://auth.truelayer-sandbox.com/?state=abc";
+    const authLink = GOOD_LINK;
     const a = await app();
     const res = await a.inject({
       method: "GET",
@@ -273,6 +369,7 @@ describe("GET /open-banking/link (old app builds)", () => {
       "http://auth.truelayer-sandbox.com/",
       "https://auth.truelayer-sandbox.com.evil.example/",
       "https://user@evil.example/",
+      GOOD_LINK.replace("https://", "https://user:pw@"),
       "",
     ]) {
       const res = await a.inject({

@@ -6,8 +6,16 @@ import type { OpenBankingReturnTo } from "../../lib/openBankingState.js";
 export const APP_RETURN_LINK = "mileclear://open-banking";
 export const WEB_RETURN_LINK = "https://mileclear.com/dashboard/bank";
 
+/**
+ * The page has no script, image, font or form: only its own inline styles
+ * and plain links.
+ */
+export const CALLBACK_PAGE_CSP =
+  "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
 export type CallbackOutcome =
   | "connected"
+  | "too_many"
   | "cancelled"
   | "expired"
   | "replayed"
@@ -37,6 +45,10 @@ const COPY: Record<CallbackOutcome, { title: string; body: string }> = {
     title: "We couldn't check this link",
     body: "Nothing was linked. Please start again from MileClear.",
   },
+  too_many: {
+    title: "Too many banks linked today",
+    body: "You've linked 5 banks in the last 24 hours, so this one was not linked. Please try again tomorrow, or email support@mileclear.com if you need a hand.",
+  },
   not_premium: {
     title: "MileClear Pro needed",
     body: "Linking a bank is part of MileClear Pro, so your bank was not linked.",
@@ -61,15 +73,37 @@ function escapeHtml(s: string): string {
 }
 
 /**
+ * Which MileClear account a bank was linked to, without giving the email
+ * away: "a•••@icloud.com". Shown on the success page so a driver who was
+ * talked into approving someone else's link can see it is not their own
+ * account. Apple's hidden addresses mean nothing to the driver, so those
+ * say "signed in with Apple" instead.
+ */
+export function linkedAccountLabel(email: string | null): string | null {
+  if (!email) return null;
+  const at = email.lastIndexOf("@");
+  if (at < 1 || at === email.length - 1) return null;
+  const domain = email.slice(at + 1).toLowerCase();
+  if (domain === "privaterelay.appleid.com") {
+    return "your MileClear account signed in with Apple";
+  }
+  return `${email[0]}•••@${domain}`;
+}
+
+/**
  * `returnTo` is null when the state could not be read, so we don't know
  * whether the driver started in the app or on the website: offer both.
  */
 export function renderCallbackPage(
   outcome: CallbackOutcome,
-  returnTo: OpenBankingReturnTo | null
+  returnTo: OpenBankingReturnTo | null,
+  linkedTo: string | null = null
 ): string {
   const { title, body } = COPY[outcome];
   const ok = outcome === "connected";
+  const account =
+    ok && linkedTo ? `
+  <p class="account">Linked to ${escapeHtml(linkedTo)}</p>` : "";
 
   let actions: string;
   if (returnTo === "web") {
@@ -99,11 +133,12 @@ export function renderCallbackPage(
   .hint a { color: #f5a623; }
   .btn { display: inline-block; background: #f5a623; color: #030712; font-weight: 700; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-size: 16px; }
   .success { color: #10b981; }
+  .account { color: #fff; font-weight: 600; }
 </style>
 </head><body>
 <div class="container" data-outcome="${outcome}">
   <h1${ok ? ' class="success"' : ""}>${escapeHtml(title)}</h1>
-  <p>${escapeHtml(body)}</p>
+  <p>${escapeHtml(body)}</p>${account}
   ${actions}
 </div>
 </body></html>`;

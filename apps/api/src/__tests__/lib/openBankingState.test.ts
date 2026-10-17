@@ -107,6 +107,20 @@ describe("Open Banking state", () => {
     expect(readOpenBankingState(old)).toBeNull();
   });
 
+  it("only the canonical spelling of the signature is accepted", () => {
+    const state = issueOpenBankingState(USER, "app");
+    const [v, p, sig] = state.split(".");
+    // Characters base64url decoding skips, and a changed spare low bit on
+    // the last character, both decode to the same bytes.
+    const last = sig[sig.length - 1];
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const sibling = alphabet[alphabet.indexOf(last) ^ 1];
+    for (const variant of [`${sig}=`, `${sig.slice(0, 4)}!${sig.slice(4)}`, sig.slice(0, -1) + sibling]) {
+      expect(consumeOpenBankingState(`${v}.${p}.${variant}`)).toEqual({ ok: false, reason: "bad_signature" });
+    }
+    expect(consumeOpenBankingState(state).ok).toBe(true);
+  });
+
   it("a missing state is reported as missing", () => {
     expect(consumeOpenBankingState(undefined)).toEqual({ ok: false, reason: "missing" });
     expect(consumeOpenBankingState("")).toEqual({ ok: false, reason: "missing" });

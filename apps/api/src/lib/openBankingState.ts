@@ -92,12 +92,11 @@ export function readOpenBankingState(state: unknown): OpenBankingStatePayload | 
   if (parts.length !== 3 || parts[0] !== VERSION) return null;
 
   const expected = sign(`${parts[0]}.${parts[1]}`);
-  let given: Buffer;
-  try {
-    given = Buffer.from(parts[2], "base64url");
-  } catch {
-    return null;
-  }
+  // Buffer.from(..., "base64url") skips characters it doesn't know and
+  // ignores spare low bits, so several strings decode to the same bytes.
+  // Only the one canonical spelling is accepted.
+  const given = Buffer.from(parts[2], "base64url");
+  if (given.toString("base64url") !== parts[2]) return null;
   if (given.length !== expected.length) return null;
   if (!crypto.timingSafeEqual(given, expected)) return null;
 
