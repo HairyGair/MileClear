@@ -1857,6 +1857,10 @@ model StreetWorksEvent {
   trafficManagement  String    @db.VarChar(40)
   isTrafficSensitive Boolean   @default(false)
   workStatus         String?   @db.VarChar(40)
+  // Permit work_category_ref: immediate_emergency, immediate_urgent, major,
+  // standard, minor. Null for activities; a message without one never
+  // clears a stored value.
+  workCategory       String?   @db.VarChar(32)
   streetName         String?   @db.VarChar(200)
   town               String?   @db.VarChar(100)
   areaName           String?   @db.VarChar(200)

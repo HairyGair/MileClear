@@ -13,7 +13,7 @@
 
 import type { RoadEvent } from "./roadEvents.js";
 import { ukLocalParts } from "./roadCorridor.js";
-import { groupMatches, withoutDismissed, type AlertGroup } from "./roadAlertGroups.js";
+import { groupMatches, groupUrgency, withoutDismissed, type AlertGroup } from "./roadAlertGroups.js";
 import type { MatchedEvent } from "./roadAlertsRule.js";
 
 export const WEEK_AHEAD_SENT_EVENT = "road_alert.week_ahead_sent";
@@ -180,6 +180,7 @@ function sameStreetKey(g: AlertGroup, promoter: string | null): string | null {
 function rankEntries(a: WeekAheadEntry, b: WeekAheadEntry): number {
   return (
     a.tier - b.tier ||
+    groupUrgency(b.group) - groupUrgency(a.group) ||
     Number(b.trafficSensitive) - Number(a.trafficSensitive) ||
     b.group.days - a.group.days ||
     (a.group.startAt?.getTime() ?? 0) - (b.group.startAt?.getTime() ?? 0)

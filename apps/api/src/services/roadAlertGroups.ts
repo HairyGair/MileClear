@@ -18,6 +18,7 @@
 // folded away, and never pushed or put on the dashboard card.
 
 import type { RoadEvent, RoadEventSeverity } from "./roadEvents.js";
+import { urgencyLabel, urgencyRank } from "./roadEvents.js";
 import { haversineMetres, ukLocalParts, type LatLng } from "./roadCorridor.js";
 import {
   DEPARTURE_EFFECT_SLACK_MIN,
@@ -122,6 +123,8 @@ function sameHours(a: RoadEvent, b: RoadEvent): boolean {
 function rankMember(a: MatchedEvent, b: MatchedEvent): number {
   const s = SEVERITY_RANK[b.event.severity] - SEVERITY_RANK[a.event.severity];
   if (s !== 0) return s;
+  const u = urgencyRank(b.event) - urgencyRank(a.event);
+  if (u !== 0) return u;
   const d = (b.event.delayMinutes ?? 0) - (a.event.delayMinutes ?? 0);
   if (d !== 0) return d;
   const n = Number(Boolean(b.event.road)) - Number(Boolean(a.event.road));
@@ -215,7 +218,10 @@ function describe(g: Omit<AlertGroup, "headline" | "sentence" | "named">, now: D
   let headline = eventHeadline(withName, label);
   let sentence = eventSentence(withName, now, label);
   if (g.bothDirections) {
-    if (g.severity === "closure") headline = `${label} closed both ways`;
+    if (g.severity === "closure") {
+      const urgent = urgencyLabel(withName);
+      headline = `${urgent ? `${urgent}: ` : ""}${label} closed both ways`;
+    }
     sentence = sentence.replace(/\.$/, ", in both directions.");
   }
   // Closures with no booked end say so, rather than leaving it blank. Live
@@ -348,6 +354,12 @@ export function groupMatches(matches: MatchedEvent[], now: Date): AlertGroup[] {
 
 // ── Order ──────────────────────────────────────────────────────────
 
+/** Emergency (2) or urgent (1) works anywhere in the closure, else 0. Ranks
+ *  emergency works first within the same severity. */
+export function groupUrgency(g: Pick<AlertGroup, "members">): number {
+  return Math.max(0, ...g.members.map((m) => urgencyRank(m.event)));
+}
+
 /** Now: worst first, then the roads they drive most. Upcoming: soonest
  *  first, then most driven. Ongoing: most driven first. */
 export function sortGroups(groups: AlertGroup[]): { current: AlertGroup[]; upcoming: AlertGroup[]; ongoing: AlertGroup[] } {
@@ -357,6 +369,7 @@ export function sortGroups(groups: AlertGroup[]): { current: AlertGroup[]; upcom
   current.sort(
     (a, b) =>
       SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] ||
+      groupUrgency(b) - groupUrgency(a) ||
       (b.lead.delayMinutes ?? 0) - (a.lead.delayMinutes ?? 0) ||
       b.days - a.days
   );
@@ -382,6 +395,7 @@ export function selectPushGroup(
     .sort(
       (a, b) =>
         SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] ||
+        groupUrgency(b) - groupUrgency(a) ||
         (b.lead.delayMinutes ?? 0) - (a.lead.delayMinutes ?? 0) ||
         b.days - a.days
     );

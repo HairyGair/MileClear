@@ -5,7 +5,7 @@ import { runPracticeLinksJob } from "./practiceLinks.js";
 import { devicePlatformOf, openSettingsLocationSteps } from "./activationBgLocation.js";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, sendPushToUser, ExpoPushMessage } from "../lib/push.js";
-import { pushPrefEnabled } from "../services/pushPrefs.js";
+import { pushPrefEnabled, pushPrefOptedIn } from "../services/pushPrefs.js";
 import { runRecordingWatchdogJob } from "./recordingWatchdog.js";
 import { runIdempotencyPurgeJob } from "./idempotencyPurge.js";
 import { runPrivacyPurgeJob } from "./privacyPurge.js";
@@ -27,6 +27,10 @@ import { prewarmStationCache } from "../services/fuel.js";
 import { runCheapestFuelAlertJob, runEvWeeklySummaryJob } from "./fuelAlerts.js";
 import { runRoadAlertsJob } from "./roadAlerts.js";
 import { runRoadWeekAheadJob } from "./roadWeekAhead.js";
+import { runRoadReopenedJob } from "./roadReopened.js";
+import { isStreetManagerEnabled } from "../services/streetManager.js";
+import { briefingRoadworksForDriver } from "../services/roadBriefing.js";
+import { addRoadworksLine, briefingRoadworksEnabled } from "../services/roadBriefingRule.js";
 import { roadAlertsAvailable } from "../services/roadAlerts.js";
 import { runVehicleRemindersJob } from "./vehicleReminders.js";
 import {
@@ -716,6 +720,9 @@ async function runMorningBriefingJob(): Promise<void> {
   // Phones that went quiet on a nearly flat battery get "open MileClear
   // before you drive" instead of the summary (services/phoneQuiet.ts).
   const quietPhones = await findPhonesQuietAfterLowBattery(now).catch(() => new Set<string>());
+  // One roadworks line for drivers with road alerts on (services/
+  // roadBriefingRule.ts). Off unless BRIEFING_ROADWORKS=1.
+  const roadworksOn = briefingRoadworksEnabled() && isStreetManagerEnabled();
 
   let sent = 0;
   for (const user of users) {
@@ -823,16 +830,23 @@ async function runMorningBriefingJob(): Promise<void> {
       continue;
     }
 
+    // Roadworks on their usual roads today: one line on a briefing that is
+    // going anyway, never a push of its own, left out if it would not fit.
+    let briefingParts = parts;
+    if (roadworksOn && pushPrefOptedIn(user.pushPrefs, "roadAlerts")) {
+      briefingParts = addRoadworksLine(parts, await briefingRoadworksForDriver(user.id, now));
+    }
+
     const title = tripCount > 0
       ? "Your daily summary"
       : probablyHasUnsyncedTrips
         ? "Trips waiting to sync"
         : "Trips to sort";
-    const body = parts.join(". ") + ".";
+    const body = briefingParts.join(". ") + ".";
 
     try {
       await sendPushToUser(user.id, title, body, { action: "open_dashboard" });
-      logEvent("notification.morning_briefing", user.id);
+      logEvent("notification.morning_briefing", user.id, briefingParts !== parts ? { roadworks: true } : undefined);
       sent++;
     } catch {}
   }
@@ -1811,6 +1825,10 @@ export function startNotificationJobs(): void {
     // "Next week on your roads": Sunday 18:00-19:59 UK, road alerts opt-in
     // only, once per driver per week. Off unless ROAD_WEEK_AHEAD_PUSH=1.
     void runJob("road_week_ahead", runRoadWeekAheadJob);
+    // "Road reopened": closures on a driver's usual roads that finished
+    // earlier than planned, noted as Street Manager messages arrive and sent
+    // here. Off unless ROAD_REOPENED_PUSH=1.
+    void runJob("road_reopened", runRoadReopenedJob);
     // Quarterly update deadlines (Making Tax Digital): 7 days and 1 day before
     // each deadline at 10:00 UK, push + email, for drivers connected to HMRC.
     // Does nothing unless HMRC_ENVIRONMENT=production.

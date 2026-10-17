@@ -12,6 +12,7 @@
 //     closures and roadworks on their roads in the next 7 days.
 
 import type { RoadEvent, RoadEventSeverity } from "./roadEvents.js";
+import { urgencyRank } from "./roadEvents.js";
 import { ukLocalParts } from "./roadCorridor.js";
 
 export const ROAD_ALERT_SENT_EVENT = "road_alert.sent";
@@ -54,6 +55,9 @@ export function inEffectAt(e: RoadEvent, at: Date, slackMin: number = 0): boolea
 function rank(a: MatchedEvent, b: MatchedEvent): number {
   const s = SEVERITY_RANK[b.event.severity] - SEVERITY_RANK[a.event.severity];
   if (s !== 0) return s;
+  // Emergency, then urgent, works first within the same severity.
+  const u = urgencyRank(b.event) - urgencyRank(a.event);
+  if (u !== 0) return u;
   const d = (b.event.delayMinutes ?? 0) - (a.event.delayMinutes ?? 0);
   if (d !== 0) return d;
   return b.days - a.days;
@@ -165,8 +169,23 @@ function lowerFirst(s: string): string {
   return s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 }
 
-/** One-line headline for the screen: "M6 southbound closed". */
+/** "emergency works" / "urgent works" for Street Manager works that carry
+ *  that category, else null. */
+function urgencyWords(e: RoadEvent): string | null {
+  if (e.source !== "street_manager") return null;
+  return e.urgency === "emergency" ? "emergency works" : e.urgency === "urgent" ? "urgent works" : null;
+}
+
+/** One-line headline for the screen: "M6 southbound closed",
+ *  "Emergency works: Durham Road closed". */
 export function eventHeadline(e: RoadEvent, label: string = roadLabel(e)): string {
+  const urgent = urgencyWords(e);
+  if (urgent) {
+    const lead = urgent.charAt(0).toUpperCase() + urgent.slice(1);
+    if (e.severity === "closure") return `${lead}: ${label} closed`;
+    if (e.category === "lane_closed") return `${lead}: lanes closed on ${label}`;
+    return `${lead}: ${lowerFirst(e.description || "roadworks")} on ${label}`;
+  }
   if (e.severity === "closure") return `${label} closed`;
   switch (e.category) {
     case "lane_closed": return `${label}: lanes closed`;
@@ -181,11 +200,12 @@ export function eventHeadline(e: RoadEvent, label: string = roadLabel(e)): strin
 /** Plain sentence for the screen and the push body. */
 export function eventSentence(e: RoadEvent, now: Date, label: string = roadLabel(e)): string {
   const until = untilPhrase(e, now);
+  const urgent = urgencyWords(e);
   if (e.severity === "closure") {
-    const why = e.source === "street_manager" ? " for roadworks" : "";
+    const why = urgent ? ` for ${urgent}` : e.source === "street_manager" ? " for roadworks" : "";
     return `${label} is closed${stretch(e)}${why}${until}.`;
   }
-  const what = lowerFirst(e.description || "incident");
+  const what = lowerFirst(e.description || "incident") + (urgent ? ` for ${urgent}` : "");
   const delay = e.delayMinutes && e.delayMinutes > 0 ? `, delays of about ${e.delayMinutes} minutes` : "";
   return `${label}: ${what}${stretch(e)}${delay}${until}.`;
 }

@@ -60,9 +60,14 @@ export interface RoadEvent {
    *  looked up from OpenStreetMap after matching (services/roadEventNames.ts). */
   placeName?: string | null;
   placeTown?: string | null;
+  /** Street Manager emergency or urgent works (permit work category). Ranks
+   *  first within the same severity and is named in the copy. */
+  urgency?: WorksUrgency | null;
   lines: LatLng[][];
   points: LatLng[];
 }
+
+export type WorksUrgency = "emergency" | "urgent";
 
 /** Delay that turns a lane closure or incident into "major". */
 export const MAJOR_DELAY_MINUTES = 15;
@@ -375,8 +380,23 @@ export interface StreetWorksRecord {
   areaName: string | null;
   highwayAuthority: string | null;
   promoter: string | null;
+  /** Permit work_category_ref, normalised ("immediate_emergency", "minor").
+   *  Null for activities and permits without one. */
+  workCategory?: string | null;
   startAt: Date | null;
   endAt: Date | null;
+  /** The booked end (permit proposed end, activity end), even after the
+   *  actual end replaced it in endAt. Used to tell "reopened early". */
+  plannedEndAt?: Date | null;
+  /** False when the booked end came as a date with no time (Street Manager
+   *  then means "by the end of that day"; plannedEndAt is 23:59:59 UK). */
+  plannedEndHasTime?: boolean;
+  /** Permit actual_start_date_time: the works were reported started. */
+  actualStartAt?: Date | null;
+  /** Permit actual_end_date_time, when the works have been reported stopped. */
+  actualEndAt?: Date | null;
+  /** Permit work_reference_number, shared by every permit for one job. */
+  workReference?: string | null;
   eventAt: Date;
   lines: LatLng[][];
   points: LatLng[];
@@ -384,7 +404,20 @@ export interface StreetWorksRecord {
 
 export type StreetWorksChange =
   | { kind: "upsert"; record: StreetWorksRecord }
-  | { kind: "delete"; reference: string; eventAt: Date }
+  | {
+      kind: "delete";
+      reference: string;
+      eventAt: Date;
+      /** Why: "cancelled" (permit cancelled, refused or revoked, or the
+       *  activity cancelled), "completed" (the traffic management dropped
+       *  to nothing we keep, on a message that also says the works are
+       *  finished), or "relaxed" (dropped to nothing we keep, works not
+       *  said to be finished, or no traffic management given at all). Only
+       *  the first two can be a "Road reopened". */
+      reason?: "cancelled" | "completed" | "relaxed";
+      /** Permit actual_end_date_time on a "completed" delete. */
+      actualEndAt?: Date | null;
+    }
   | { kind: "ignore"; reason: string };
 
 /** "work-start", "WORK_START" and "Work start" -> "work_start". */
@@ -402,6 +435,46 @@ export function combineDateTime(date: unknown, time: unknown, endOfDay: boolean)
   if (!d) return null;
   if (!endOfDay) return d;
   return new Date(d.getTime() + 24 * 60 * 60 * 1000 - 1000);
+}
+
+/** Street Manager work categories (work_category_ref). */
+export const WORK_CATEGORIES = new Set([
+  "immediate_emergency",
+  "immediate_urgent",
+  "major",
+  "standard",
+  "minor",
+  "hs2_highway",
+]);
+
+/** "immediate_emergency", "Immediate - emergency" and "Immediate emergency"
+ *  -> "immediate_emergency". Unknown values are kept (trimmed to the column),
+ *  nothing at all gives null. */
+export function normaliseWorkCategory(raw: unknown): string | null {
+  const ref = String(raw ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_").replace(/_+/g, "_");
+  if (!ref) return null;
+  if (WORK_CATEGORIES.has(ref)) return ref;
+  if (ref.includes("emergency")) return "immediate_emergency";
+  if (ref.includes("urgent")) return "immediate_urgent";
+  return ref.slice(0, 32);
+}
+
+/** Emergency or urgent works, from a stored work category. */
+export function worksUrgency(workCategory: string | null | undefined): WorksUrgency | null {
+  if (workCategory === "immediate_emergency") return "emergency";
+  if (workCategory === "immediate_urgent") return "urgent";
+  return null;
+}
+
+/** 2 emergency, 1 urgent, 0 anything else: ranks emergency works first
+ *  within the same severity. */
+export function urgencyRank(e: Pick<RoadEvent, "urgency">): number {
+  return e.urgency === "emergency" ? 2 : e.urgency === "urgent" ? 1 : 0;
+}
+
+/** "Emergency works", "Urgent works", or null. */
+export function urgencyLabel(e: Pick<RoadEvent, "urgency">): string | null {
+  return e.urgency === "emergency" ? "Emergency works" : e.urgency === "urgent" ? "Urgent works" : null;
 }
 
 function str(v: unknown): string | null {
@@ -443,7 +516,7 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
   if (!reference) return { kind: "ignore", reason: "no_reference" };
 
   const cancelled = objectType === "ACTIVITY" && String(data.cancelled ?? "").toLowerCase() === "yes";
-  if (DELETE_EVENTS.has(eventType) || cancelled) return { kind: "delete", reference, eventAt };
+  if (DELETE_EVENTS.has(eventType) || cancelled) return { kind: "delete", reference, eventAt, reason: "cancelled" };
 
   const tm =
     objectType === "PERMIT"
@@ -452,7 +525,15 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
   if (!STREET_WORKS_KEEP.has(tm)) {
     // A permit whose traffic management was relaxed to nothing worth
     // knowing about: drop any stored copy.
-    return { kind: "delete", reference, eventAt };
+    const status = toRef(str(data.work_status_ref) ?? str(data.work_status));
+    const done = status === "completed" || status === "works_completed";
+    return {
+      kind: "delete",
+      reference,
+      eventAt,
+      reason: done ? "completed" : "relaxed",
+      actualEndAt: done ? parseDate(str(data.actual_end_date_time)) : null,
+    };
   }
 
   const geom = parseBngWkt(
@@ -462,12 +543,22 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
 
   let startAt: Date | null;
   let endAt: Date | null;
+  let plannedEndAt: Date | null;
+  let plannedEndHasTime: boolean;
+  let actualStartAt: Date | null = null;
+  let actualEndAt: Date | null = null;
   if (objectType === "PERMIT") {
-    startAt = parseDate(str(data.actual_start_date_time)) ?? combineDateTime(data.proposed_start_date, data.proposed_start_time, false);
-    endAt = parseDate(str(data.actual_end_date_time)) ?? combineDateTime(data.proposed_end_date, data.proposed_end_time, true);
+    actualStartAt = parseDate(str(data.actual_start_date_time));
+    startAt = actualStartAt ?? combineDateTime(data.proposed_start_date, data.proposed_start_time, false);
+    plannedEndAt = combineDateTime(data.proposed_end_date, data.proposed_end_time, true);
+    plannedEndHasTime = parseDate(str(data.proposed_end_time)) != null;
+    actualEndAt = parseDate(str(data.actual_end_date_time));
+    endAt = actualEndAt ?? plannedEndAt;
   } else {
     startAt = combineDateTime(data.start_date, data.start_time, false);
     endAt = combineDateTime(data.end_date, data.end_time, true);
+    plannedEndAt = endAt;
+    plannedEndHasTime = parseDate(str(data.end_time)) != null;
   }
 
   return {
@@ -483,8 +574,14 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
       areaName: str(data.area_name),
       highwayAuthority: str(data.highway_authority),
       promoter: str(data.promoter_organisation) ?? (objectType === "ACTIVITY" ? str(data.activity_name) : null),
+      workCategory: objectType === "PERMIT" ? normaliseWorkCategory(data.work_category_ref ?? data.work_category) : null,
       startAt,
       endAt,
+      plannedEndAt,
+      plannedEndHasTime,
+      actualStartAt,
+      actualEndAt,
+      workReference: objectType === "PERMIT" ? str(data.work_reference_number) : null,
       eventAt,
       lines: geom.lines,
       points: geom.points,
@@ -492,7 +589,7 @@ export function parseStreetManagerMessage(message: unknown): StreetWorksChange {
   };
 }
 
-function titleCase(s: string | null): string | null {
+export function titleCase(s: string | null): string | null {
   if (!s) return null;
   return s.toLowerCase().replace(/\b([a-z])/g, (c) => c.toUpperCase());
 }
@@ -518,6 +615,7 @@ export function streetWorksToRoadEvent(r: {
   promoter: string | null;
   startAt: Date | null;
   endAt: Date | null;
+  workCategory?: string | null;
   lines: LatLng[][];
   points: LatLng[];
 }, now: Date): RoadEvent {
@@ -538,6 +636,7 @@ export function streetWorksToRoadEvent(r: {
     endAt: r.endAt,
     future: r.startAt != null && r.startAt.getTime() > now.getTime(),
     town: titleCase(r.town),
+    urgency: worksUrgency(r.workCategory),
     lines: r.lines,
     points: r.points,
   };
