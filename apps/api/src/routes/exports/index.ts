@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import {
@@ -17,13 +18,44 @@ import {
 } from "../../services/odometer.js";
 import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { prisma } from "../../lib/prisma.js";
-import { parseTaxYear } from "@mileclear/shared";
+import { exportVehicleSlug, parseTaxYear } from "@mileclear/shared";
+import {
+  exportVehicleTripWhere,
+  resolveExportVehicle,
+  type ExportVehicle,
+} from "../../services/export-data.js";
 
 interface DateRangeQuery {
   taxYear?: string;
   from?: string;
   to?: string;
   classification?: "business" | "personal";
+  /** One car only (CSV and Trip Report). Left out: every car. */
+  vehicleId?: string;
+}
+
+/** One vehicleId string, or none. ?vehicleId=a&vehicleId=b arrives as an array. */
+const vehicleIdSchema = z.string().min(1).max(64).optional();
+
+/**
+ * The vehicle for a one-vehicle CSV or Trip Report. undefined: every vehicle.
+ * "invalid": not a single sensible id (400). null: not one of this user's
+ * vehicles (404).
+ */
+async function vehicleForQuery(
+  userId: string,
+  vehicleId: unknown
+): Promise<ExportVehicle | undefined | null | "invalid"> {
+  if (vehicleId === undefined) return undefined;
+  const parsed = vehicleIdSchema.safeParse(vehicleId);
+  if (!parsed.success) return "invalid";
+  if (!parsed.data) return undefined;
+  return resolveExportVehicle(userId, parsed.data);
+}
+
+/** "trips" or "trips-nissan-qashqai-ab12cde", for the file name. */
+function tripsFileType(vehicle: ExportVehicle | undefined): string {
+  return vehicle ? `trips-${exportVehicleSlug(vehicle)}` : "trips";
 }
 
 interface AccountingBody {
@@ -69,7 +101,13 @@ function parseQueryOpts(query: DateRangeQuery) {
  */
 async function countExportableData(
   userId: string,
-  opts: { taxYear?: string; from?: Date; to?: Date; classification?: string },
+  opts: {
+    taxYear?: string;
+    from?: Date;
+    to?: Date;
+    classification?: string;
+    vehicle?: Pick<ExportVehicle, "id" | "includesUnassigned">;
+  },
   includeEarnings: boolean
 ): Promise<{ trips: number; earnings: number }> {
   let start: Date;
@@ -92,6 +130,7 @@ async function countExportableData(
         isPhantomTrip: false,
         startedAt: { gte: start, lte: end },
         ...(opts.classification ? { classification: opts.classification } : {}),
+        ...(opts.vehicle ? exportVehicleTripWhere(opts.vehicle) : {}),
       },
     }),
     includeEarnings
@@ -116,17 +155,20 @@ export async function exportRoutes(app: FastifyInstance) {
   // CSV download
   app.get("/csv", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {
     const opts = parseQueryOpts(request.query);
+    const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
+    if (vehicle === "invalid") return reply.status(400).send({ error: "Invalid vehicle" });
+    if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
 
-    const { trips } = await countExportableData(request.userId!, opts, false);
+    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
     if (trips === 0) {
-      logEvent("export.blocked_empty", request.userId!, { format: "csv", taxYear: opts.taxYear });
-      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, "trips") });
+      logEvent("export.blocked_empty", request.userId!, { format: "csv", taxYear: opts.taxYear, oneCar: !!vehicle });
+      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, vehicle ? "trips in that car" : "trips") });
     }
 
-    const csv = await generateTripsCsv(request.userId!, opts);
-    const filename = buildFilename("trips", opts.taxYear || "custom", "csv");
+    const csv = await generateTripsCsv(request.userId!, { ...opts, vehicle });
+    const filename = buildFilename(tripsFileType(vehicle), opts.taxYear || "custom", "csv");
 
-    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear });
+    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle });
 
     return reply
       .header("Content-Type", "text/csv")
@@ -198,17 +240,20 @@ export async function exportRoutes(app: FastifyInstance) {
   // PDF trip report download
   app.get("/pdf", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {
     const opts = parseQueryOpts(request.query);
+    const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
+    if (vehicle === "invalid") return reply.status(400).send({ error: "Invalid vehicle" });
+    if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
 
-    const { trips } = await countExportableData(request.userId!, opts, false);
+    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
     if (trips === 0) {
-      logEvent("export.blocked_empty", request.userId!, { format: "pdf", taxYear: opts.taxYear });
-      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, "trips") });
+      logEvent("export.blocked_empty", request.userId!, { format: "pdf", taxYear: opts.taxYear, oneCar: !!vehicle });
+      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, vehicle ? "trips in that car" : "trips") });
     }
 
-    const pdf = await generateTripsPdf(request.userId!, opts);
-    const filename = buildFilename("trips", opts.taxYear || "custom", "pdf");
+    const pdf = await generateTripsPdf(request.userId!, { ...opts, vehicle });
+    const filename = buildFilename(tripsFileType(vehicle), opts.taxYear || "custom", "pdf");
 
-    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear });
+    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle });
 
     return reply
       .header("Content-Type", "application/pdf")

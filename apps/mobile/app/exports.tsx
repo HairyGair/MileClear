@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,14 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import { parseTaxYear } from "@mileclear/shared";
+import {
+  exportVehicleChoices,
+  exportVehicleLabel,
+  exportVehicleSlug,
+  parseTaxYear,
+  type ExportVehicleLike,
+} from "@mileclear/shared";
+import { PickerSheet, type PickerOption } from "../components/trip/PickerSheet";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
 import { fetchVehicles } from "../lib/api/vehicles";
@@ -31,6 +38,10 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;
 const GREEN = colors.green;
+/** The "All vehicles" row in the Which vehicle? sheet. Not a vehicle id. */
+const ALL_VEHICLES_KEY = "__all__";
+/** Fallback wait for the sheet's slide-out when onDismiss doesn't fire (Android). */
+const PICKER_DISMISS_MS = 350;
 
 type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | null;
 
@@ -77,7 +88,7 @@ export default function ExportsScreen() {
   }, [taxYears]);
 
   const handleDownload = useCallback(
-    async (type: "csv" | "pdf" | "self-assessment") => {
+    async (type: "csv" | "pdf" | "self-assessment", car?: { id: string; slug: string }) => {
       setLoadingKey(type);
       try {
         const ext = type === "csv" ? "csv" : "pdf";
@@ -89,11 +100,13 @@ export default function ExportsScreen() {
         // custom date range when selected, else the tax year.
         const useRange = rangeMode === "dateRange" && type !== "self-assessment";
         const rangeLabel = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
-        const filename = `mileclear-${type}-${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
+        const carPart = car ? `${car.slug}-` : "";
+        const filename = `mileclear-${type}-${carPart}${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
         const base = useRange
           ? `from=${fromDate.toISOString()}&to=${toDate.toISOString()}`
           : `taxYear=${selectedYear}`;
-        const param = businessOnly && type !== "self-assessment" ? `${base}&classification=business` : base;
+        let param = businessOnly && type !== "self-assessment" ? `${base}&classification=business` : base;
+        if (car && type !== "self-assessment") param += `&vehicleId=${encodeURIComponent(car.id)}`;
 
         await downloadAndShareExport(
           `/exports/${type}?${param}`,
@@ -113,6 +126,88 @@ export default function ExportsScreen() {
       }
     },
     [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly]
+  );
+
+  // "Which vehicle?" as a sheet, not Alert.alert: Android keeps only three
+  // Alert buttons (Cancel and the 3rd vehicle onwards were lost) and its Alert
+  // can't be dismissed by tapping outside. Closing the sheet downloads nothing.
+  const [vehiclePicker, setVehiclePicker] = useState<{
+    options: PickerOption[];
+    onPick: (key: string) => void;
+  } | null>(null);
+  // Set before the vehicle list is fetched, so a quick double tap can't open
+  // two pickers or start two downloads.
+  const pickingRef = useRef(false);
+  // The chosen download waits until the sheet has gone, so the share sheet or
+  // the paywall never tries to open while the picker is still sliding out.
+  // iOS tells us (onDismiss); otherwise a timer, long enough for the slide.
+  const pendingPickRef = useRef<(() => void) | null>(null);
+  const pickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const runPendingPick = useCallback(() => {
+    if (pickTimerRef.current) {
+      clearTimeout(pickTimerRef.current);
+      pickTimerRef.current = null;
+    }
+    const run = pendingPickRef.current;
+    pendingPickRef.current = null;
+    run?.();
+  }, []);
+
+  const closeVehiclePicker = useCallback(() => {
+    setVehiclePicker(null);
+    if (pendingPickRef.current && !pickTimerRef.current) {
+      pickTimerRef.current = setTimeout(runPendingPick, PICKER_DISMISS_MS);
+    }
+  }, [runPendingPick]);
+
+  useEffect(
+    () => () => {
+      // Leaving the screen mid-slide: start nothing.
+      if (pickTimerRef.current) clearTimeout(pickTimerRef.current);
+      pendingPickRef.current = null;
+    },
+    []
+  );
+
+  const loadVehicles = useCallback(async (): Promise<ExportVehicleLike[] | null> => {
+    // Also refuse while a picked download is waiting for the sheet to go.
+    if (pickingRef.current || pendingPickRef.current) return null;
+    pickingRef.current = true;
+    try {
+      return (await fetchVehicles()).data;
+    } catch {
+      return []; // No list: carry on as with one vehicle.
+    } finally {
+      pickingRef.current = false;
+    }
+  }, []);
+
+  // CSV and Trip Report: with 2+ vehicles, ask which one, "All vehicles"
+  // first (Colin, 17 Oct 2026). One vehicle or none: straight through, as before.
+  const handleTripDownload = useCallback(
+    async (type: "csv" | "pdf") => {
+      if (loadingKey !== null) return;
+      if (isPremium === false) {
+        handleDownload(type);
+        return;
+      }
+      const vehicles = await loadVehicles();
+      if (vehicles === null) return; // a tap is already being handled
+      const choices = exportVehicleChoices(vehicles);
+      if (!choices) {
+        handleDownload(type);
+        return;
+      }
+      setVehiclePicker({
+        options: choices.map((c) => ({ key: c.vehicleId ?? ALL_VEHICLES_KEY, label: c.label })),
+        onPick: (key) => {
+          const v = vehicles.find((x) => x.id === key);
+          handleDownload(type, v ? { id: v.id, slug: exportVehicleSlug(v) } : undefined);
+        },
+      });
+    },
+    [loadingKey, isPremium, handleDownload, loadVehicles]
   );
 
   // Odometer log CSV (Pro): the same tax year or date range as the other
@@ -154,28 +249,23 @@ export default function ExportsScreen() {
   );
 
   const handleOdometerLog = useCallback(async () => {
+    if (loadingKey !== null) return;
     if (isPremium === false) {
       showPaywall("odometer_log_csv");
       return;
     }
-    let vehicles: { id: string; make: string; model: string }[] = [];
-    try {
-      vehicles = (await fetchVehicles()).data;
-    } catch {
-      // No list: fall through to the default vehicle.
-    }
+    const vehicles = await loadVehicles();
+    if (vehicles === null) return; // a tap is already being handled
     if (vehicles.length > 1) {
-      Alert.alert("Which vehicle?", undefined, [
-        ...vehicles.map((v) => ({
-          text: `${v.make} ${v.model}`.trim(),
-          onPress: () => downloadOdometerLog(v.id),
-        })),
-        { text: "Cancel", style: "cancel" as const },
-      ]);
+      // The odometer belongs to one vehicle, so there is no "All vehicles" here.
+      setVehiclePicker({
+        options: vehicles.map((v) => ({ key: v.id, label: exportVehicleLabel(v) })),
+        onPick: (key) => downloadOdometerLog(key),
+      });
       return;
     }
     downloadOdometerLog(vehicles[0]?.id);
-  }, [isPremium, showPaywall, downloadOdometerLog]);
+  }, [loadingKey, isPremium, showPaywall, downloadOdometerLog, loadVehicles]);
 
   return (
     <View style={styles.container}>
@@ -346,7 +436,7 @@ export default function ExportsScreen() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => handleDownload("pdf")}
+          onPress={() => handleTripDownload("pdf")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -371,7 +461,7 @@ export default function ExportsScreen() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => handleDownload("csv")}
+          onPress={() => handleTripDownload("csv")}
           disabled={loadingKey !== null}
           activeOpacity={0.7}
           accessibilityRole="button"
@@ -436,6 +526,18 @@ export default function ExportsScreen() {
           </View>
         ))}
       </ScrollView>
+      <PickerSheet
+        visible={vehiclePicker !== null}
+        title="Which vehicle?"
+        options={vehiclePicker?.options ?? []}
+        onPick={(key) => {
+          // PickerSheet calls onClose straight after this; the download starts once it has gone.
+          const picker = vehiclePicker;
+          if (picker) pendingPickRef.current = () => picker.onPick(key);
+        }}
+        onClose={closeVehiclePicker}
+        onDismiss={runPendingPick}
+      />
     </View>
   );
 }

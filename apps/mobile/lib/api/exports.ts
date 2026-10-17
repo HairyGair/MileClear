@@ -1,6 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as SecureStore from "expo-secure-store";
+import { exportErrorMessage } from "./exportError";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://api.mileclear.com";
 
@@ -34,8 +35,16 @@ export async function downloadAndShareExport(
   }
 
   if (result.status !== 200) {
+    // The refusal was written to the file: show the server's sentence (for
+    // example "There are no trips in that car ...") rather than "Download failed".
+    let body: string | null = null;
+    try {
+      body = await FileSystem.readAsStringAsync(fileUri);
+    } catch {
+      // Nothing readable: the plain message below.
+    }
     await FileSystem.deleteAsync(fileUri, { idempotent: true });
-    throw new Error("Download failed");
+    throw new Error(exportErrorMessage(body, "Download failed"));
   }
 
   const canShare = await Sharing.isAvailableAsync();

@@ -25,12 +25,20 @@ interface Props {
   selectedKey?: string | null;
   onPick: (key: string) => void;
   onClose: () => void;
+  /** iOS: called once the sheet has finished sliding away. Use it to present
+   *  something else (a share sheet, the paywall) without clashing. */
+  onDismiss?: () => void;
 }
 
-export function PickerSheet({ visible, title, options, selectedKey, onPick, onClose }: Props) {
+export function PickerSheet({ visible, title, options, selectedKey, onPick, onClose, onDismiss }: Props) {
   const { height } = useWindowDimensions();
   return (
-    <AppModal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <AppModal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      rest={onDismiss ? { onDismiss } : undefined}
+    >
       {/* Not an accessibility element: on iOS a focusable parent hides
           everything inside it, so VoiceOver would find one "Close" button and
           none of the choices. Cancel closes the sheet for VoiceOver. */}

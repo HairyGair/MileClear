@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getTaxYear } from "@mileclear/shared";
+import { exportVehicleChoices, exportVehicleSlug, getTaxYear } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { taxYearRange } from "@/lib/dashboard/periods";
 import {
@@ -33,6 +33,7 @@ interface VehicleLite {
   make: string;
   model: string;
   registration?: string | null;
+  registrationPlate?: string | null;
   isPrimary?: boolean;
 }
 
@@ -105,9 +106,15 @@ function Exports() {
   const [range, setRange] = useState(() => taxYearRange(getTaxYear(new Date())));
   const [businessOnly, setBusinessOnly] = useState(mode === "work");
   const [vehicleId, setVehicleId] = useState("");
+  // The trip report and trips CSV: "" is every vehicle (Colin, 17 Oct 2026).
+  const [tripCarId, setTripCarId] = useState("");
   const { data: vehicles } = useData<VehicleLite[]>("exports-vehicles", () =>
     api.get<{ data: VehicleLite[] }>("/vehicles").then((r) => r.data)
   );
+  const carChoices = exportVehicleChoices(vehicles ?? []);
+  const tripCar = carChoices ? vehicles?.find((v) => v.id === tripCarId) : undefined;
+  const carParam = tripCar ? `&vehicleId=${encodeURIComponent(tripCar.id)}` : "";
+  const carSlug = tripCar ? `${exportVehicleSlug(tripCar)}-` : "";
 
   // Dates: the trip exports take instants, so the last day runs to the end of that day.
   const period = periodMode === "year" ? `taxYear=${taxYear}` : `from=${range.from}&to=${range.to}`;
@@ -137,8 +144,8 @@ function Exports() {
       title: "Trip report (PDF)",
       hint: "Every trip in the period, with a mileage summary.",
       button: "Download",
-      path: `/exports/pdf?${tripPeriod}${biz}`,
-      filename: `mileclear-trips-${label}-${stamp}.pdf`,
+      path: `/exports/pdf?${tripPeriod}${biz}${carParam}`,
+      filename: `mileclear-trips-${carSlug}${label}-${stamp}.pdf`,
       disabledReason: invalid,
     },
     {
@@ -146,8 +153,8 @@ function Exports() {
       title: "Trips (CSV)",
       hint: "One row per trip, for a spreadsheet or your accountant.",
       button: "Download",
-      path: `/exports/csv?${tripPeriod}${biz}`,
-      filename: `mileclear-trips-${label}-${stamp}.csv`,
+      path: `/exports/csv?${tripPeriod}${biz}${carParam}`,
+      filename: `mileclear-trips-${carSlug}${label}-${stamp}.csv`,
       disabledReason: invalid,
     },
     {
@@ -194,6 +201,14 @@ function Exports() {
             value={businessOnly}
             onChange={setBusinessOnly}
           />
+          {carChoices && (
+            <SelectField
+              label="Vehicle for the trip report and trips CSV"
+              value={tripCarId}
+              onChange={setTripCarId}
+              options={carChoices.map((c) => ({ value: c.vehicleId ?? "", label: c.label }))}
+            />
+          )}
           {vehicles && vehicles.length > 1 && (
             <SelectField
               label="Vehicle for the odometer log"
@@ -211,7 +226,7 @@ function Exports() {
       <Card padded={false}>
         {rows.map((r) => (
           // Remount when the period changes so an old error does not linger.
-          <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}`} row={r} />
+          <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}-${tripCarId}`} row={r} />
         ))}
       </Card>
 
