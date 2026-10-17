@@ -2763,15 +2763,6 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.status(201).send({ data: mergedTrip });
   });
 
-  // ── Trip Split (inverse of /merge) ────────────────────────────────────
-  //
-  // Multi-drop delivery runs record as ONE trip because quick drops sit
-  // below the stop-detection window. These endpoints un-merge after the
-  // fact: suggest scans the stored breadcrumbs for low-speed dwell windows,
-  // split partitions the trip at the user-confirmed stops. Free tier —
-  // capture accuracy, not an analytic (Will Holland, 21 Jul 2026).
-
-  // GET /trips/:id/split-suggestions — proposed cut points for the UI.
   // GET /trips/:id/roadworks: Street Manager works this trip drove through
   // while they were in place. A label for the trip detail only; nothing on
   // the trip changes. Empty for manual trips and thin recordings.
@@ -2783,6 +2774,15 @@ export async function tripRoutes(app: FastifyInstance) {
     return reply.send({ data: result });
   });
 
+  // ── Trip Split (inverse of /merge) ────────────────────────────────────
+  //
+  // Multi-drop delivery runs record as ONE trip because quick drops sit
+  // below the stop-detection window. These endpoints un-merge after the
+  // fact: suggest scans the stored breadcrumbs for low-speed dwell windows,
+  // split partitions the trip at the user-confirmed stops. Free tier —
+  // capture accuracy, not an analytic (Will Holland, 21 Jul 2026).
+
+  // GET /trips/:id/split-suggestions — proposed cut points for the UI.
   app.get("/:id/split-suggestions", async (request, reply) => {
     const { id } = request.params as { id: string };
     const result = await getSplitSuggestions({ userId: request.userId!, tripId: id });

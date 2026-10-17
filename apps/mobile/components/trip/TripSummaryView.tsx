@@ -944,14 +944,14 @@ export function TripSummaryView(props: TripSummaryViewProps) {
   );
 }
 
-/** "Roadworks on this trip": one plain line per works, only when there is
+/** "Roadworks on your route": one plain line per works, only when there is
  *  at least one. Explains a slow drive; changes nothing on the trip. */
 function RoadworksOnTrip({ items, credit }: { items: TripRoadworksItem[]; credit: string | null }) {
   if (items.length === 0) return null;
   return (
     <>
       <Text style={styles.groupTitle} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>
-        Roadworks on this trip
+        Roadworks on your route
       </Text>
       <View style={styles.group}>
         {items.map((w, i) => (

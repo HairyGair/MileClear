@@ -33,6 +33,7 @@ import {
   fetchTripRoadworks,
 } from "../lib/api/trips";
 import { getLocalTrip } from "../lib/db/queries";
+import { fetchRoadworksOnce } from "../lib/trips/roadworksOnce";
 import { TripMapWidget } from "../components/map/TripMapWidget";
 import { TripSummaryView } from "../components/trip/TripSummaryView";
 import { ErrorState } from "../components/ErrorState";
@@ -1068,20 +1069,18 @@ export default function TripFormScreen() {
   const roadworksAskedRef = useRef<string | null>(null);
   useEffect(() => {
     // canSplit is true only for a recorded trip with 10+ breadcrumbs that came
-    // from the server, which is exactly when roadworks can be found.
-    if (mode !== "viewing" || !id || !canSplit || roadworksAskedRef.current === id) return;
-    roadworksAskedRef.current = id;
-    let cancelled = false;
-    fetchTripRoadworks(id)
-      .then((res) => {
-        if (cancelled) return;
-        setRoadworks(res.data.items ?? []);
-        setRoadworksCredit(res.data.attribution ?? null);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    // from the server, which is exactly when roadworks can be found. The trip
+    // counts as asked only once an answer arrives (lib/trips/roadworksOnce).
+    if (mode !== "viewing" || !id || !canSplit) return;
+    return fetchRoadworksOnce({
+      id,
+      asked: roadworksAskedRef,
+      fetch: fetchTripRoadworks,
+      onResult: (data) => {
+        setRoadworks(data.items ?? []);
+        setRoadworksCredit(data.attribution ?? null);
+      },
+    });
   }, [mode, id, canSplit]);
   const [loggedCazZones, setLoggedCazZones] = useState<Set<string>>(new Set());
   const [loggingCaz, setLoggingCaz] = useState<string | null>(null);

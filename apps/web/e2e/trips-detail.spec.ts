@@ -183,16 +183,16 @@ test.describe("summary", () => {
       roadworks: {
         [ID]: [
           { streetName: "Derby Street", phrase: "Temporary lights on Derby Street (South Staffordshire Water)", promoter: "South Staffordshire Water", startAt: null, endAt: null },
-          { streetName: "Durham Road", phrase: "Durham Road was closed (Emergency works)", promoter: null, emergency: true, startAt: null, endAt: null },
+          { streetName: "Durham Road", phrase: "Road closure booked on Durham Road (Emergency works)", promoter: null, emergency: true, startAt: null, endAt: null },
         ],
       },
     });
     await open(page, state, `/dashboard/trips/${ID}`);
     const box = page.getByTestId("trip-roadworks");
-    await expect(box.getByText("Roadworks on this trip")).toBeVisible();
+    await expect(box.getByText("Roadworks on your route")).toBeVisible();
     await expect(box.getByRole("listitem")).toHaveText([
       "Temporary lights on Derby Street (South Staffordshire Water)",
-      "Durham Road was closed (Emergency works)",
+      "Road closure booked on Durham Road (Emergency works)",
     ]);
     await expect(box.getByText(/DfT Street Manager/)).toBeVisible();
     // A label only: looking changes nothing.

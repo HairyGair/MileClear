@@ -56,16 +56,18 @@ function tripRow(extra: Record<string, unknown> = {}) {
   };
 }
 
-function coords(n = 50) {
+function coords(n = 50, accuracy: number | null = 8) {
   return Array.from({ length: n }, (_, i) => ({
     lat: at(i * 20)[0],
     lng: at(i * 20)[1],
+    accuracy,
     recordedAt: new Date(Date.parse("2026-10-14T08:00:00Z") + i * 5000),
   }));
 }
 
 function worksRow(extra: Record<string, unknown> = {}) {
   return {
+    id: "w-1",
     reference: "TSR1",
     trafficManagement: "road_closure",
     isTrafficSensitive: true,
@@ -75,9 +77,30 @@ function worksRow(extra: Record<string, unknown> = {}) {
     promoter: "Northumbrian Water Limited",
     startAt: new Date("2026-10-12T07:00:00Z"),
     endAt: new Date("2026-10-16T17:00:00Z"),
-    geometry: { lines: [[at(300), at(400)]], points: [] },
+    geometry: { lines: [[at(300), at(350)]], points: [] },
     ...extra,
   };
+}
+
+/** Phase 1 asks for ids and boxes (a select); phase 2 for full rows by id. */
+function mockWorks(rows: Record<string, unknown>[]) {
+  vi.mocked(prisma.streetWorksEvent.findMany).mockImplementation((async (args: any) => {
+    if (args?.select) {
+      return rows.map((r) => {
+        const g = r.geometry as { lines: [number, number][][]; points: [number, number][] };
+        const all = [...g.points, ...g.lines.flat()];
+        return {
+          id: r.id,
+          minLat: Math.min(...all.map((p) => p[0])),
+          maxLat: Math.max(...all.map((p) => p[0])),
+          minLng: Math.min(...all.map((p) => p[1])),
+          maxLng: Math.max(...all.map((p) => p[1])),
+        };
+      });
+    }
+    const ids: string[] = args.where.id.in;
+    return rows.filter((r) => ids.includes(r.id as string));
+  }) as any);
 }
 
 async function createTestApp() {
@@ -97,7 +120,7 @@ describe("GET /trips/:id/roadworks", () => {
     updatedAtMs += 60000; // a fresh cache key per test
     vi.mocked(prisma.trip.findFirst).mockResolvedValue(tripRow() as any);
     vi.mocked(prisma.tripCoordinate.findMany).mockResolvedValue(coords() as any);
-    vi.mocked(prisma.streetWorksEvent.findMany).mockResolvedValue([worksRow()] as any);
+    mockWorks([worksRow()]);
     app = await createTestApp();
   });
 
@@ -117,7 +140,7 @@ describe("GET /trips/:id/roadworks", () => {
     expect(body.items).toEqual([
       {
         streetName: "Durham Road",
-        phrase: "Durham Road was closed (Northumbrian Water)",
+        phrase: "Road closure booked on Durham Road (Northumbrian Water)",
         promoter: "Northumbrian Water",
         startAt: "2026-10-12T07:00:00.000Z",
         endAt: "2026-10-16T17:00:00.000Z",
@@ -134,20 +157,23 @@ describe("GET /trips/:id/roadworks", () => {
       where: { tripId: TRIP_ID },
       orderBy: { recordedAt: "asc" },
     });
-    // Only works with a traffic effect, in the trip's box and time.
-    const where = (vi.mocked(prisma.streetWorksEvent.findMany).mock.calls[0][0] as any).where;
-    expect(where.trafficManagement.in).toContain("road_closure");
-    expect(where.trafficManagement.in).not.toContain("some_carriageway_incursion");
-    expect(where.startAt).toEqual({ lte: new Date("2026-10-14T08:20:00Z") });
+    // Only works with a traffic effect, in the trip's box and time, with no
+    // cap; then the full rows by id.
+    const first = vi.mocked(prisma.streetWorksEvent.findMany).mock.calls[0][0] as any;
+    expect(first.where.trafficManagement.in).toContain("road_closure");
+    expect(first.where.trafficManagement.in).not.toContain("some_carriageway_incursion");
+    expect(first.where.startAt).toEqual({ lte: new Date("2026-10-14T08:20:00Z") });
+    expect(first.take).toBeUndefined();
+    expect(Object.keys(first.select).sort()).toEqual(["id", "maxLat", "maxLng", "minLat", "minLng"]);
+    const second = vi.mocked(prisma.streetWorksEvent.findMany).mock.calls[1][0] as any;
+    expect(second.where).toEqual({ id: { in: ["w-1"] } });
   });
 
   it("reads emergency works when the work category is stored", async () => {
-    vi.mocked(prisma.streetWorksEvent.findMany).mockResolvedValue([
-      worksRow({ workCategory: "immediate_emergency" }),
-    ] as any);
+    mockWorks([worksRow({ workCategory: "immediate_emergency" })]);
     const res = await app.inject({ method: "GET", url, headers: auth });
     expect(res.json().data.items[0]).toMatchObject({
-      phrase: "Durham Road was closed (Emergency works)",
+      phrase: "Road closure booked on Durham Road (Emergency works)",
       emergency: true,
     });
   });
@@ -191,13 +217,41 @@ describe("GET /trips/:id/roadworks", () => {
     const second = await app.inject({ method: "GET", url, headers: auth });
     expect(second.json().data.items).toHaveLength(1);
     expect(prisma.tripCoordinate.findMany).toHaveBeenCalledTimes(1);
-    expect(prisma.streetWorksEvent.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.streetWorksEvent.findMany).toHaveBeenCalledTimes(2);
 
     vi.mocked(prisma.trip.findFirst).mockResolvedValue(
       tripRow({ updatedAt: new Date(updatedAtMs + 1000) }) as any
     );
     await app.inject({ method: "GET", url, headers: auth });
     expect(prisma.tripCoordinate.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves out fixes less accurate than 50 m", async () => {
+    vi.mocked(prisma.tripCoordinate.findMany).mockResolvedValue([
+      ...coords(9, 8),
+      ...coords(40, 80).map((c, i) => ({ ...c, recordedAt: new Date(Date.parse("2026-10-14T08:01:00Z") + i * 5000) })),
+    ] as any);
+    const res = await app.inject({ method: "GET", url, headers: auth });
+    expect(res.json().data.items).toEqual([]);
+    expect(prisma.streetWorksEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it("a long trip's box full of works far off the route never pushes out the one on it", async () => {
+    // 1,200 works in the trip's bbox but 400 m north of the road, then the
+    // one on the road last: a capped, unordered query could drop it.
+    const far = Array.from({ length: 1200 }, (_, i) =>
+      worksRow({ id: `far-${i}`, reference: `F${i}`, geometry: { lines: [], points: [[LAT0 + 400 / 111320, at(i % 900)[1]]] } })
+    );
+    // Stretch the trip's bbox north so the far works sit inside it.
+    vi.mocked(prisma.tripCoordinate.findMany).mockResolvedValue([
+      ...coords(50),
+      { lat: LAT0 + 500 / 111320, lng: at(980)[1], accuracy: 8, recordedAt: new Date("2026-10-14T08:10:00Z") },
+    ] as any);
+    mockWorks([...far, worksRow({ id: "on-route" })]);
+    const res = await app.inject({ method: "GET", url, headers: auth });
+    expect(res.json().data.items.map((i: { streetName: string }) => i.streetName)).toEqual(["Durham Road"]);
+    const loads = vi.mocked(prisma.streetWorksEvent.findMany).mock.calls.slice(1).map((c) => (c[0] as any).where.id.in);
+    expect(loads.flat()).toEqual(["on-route"]);
   });
 
   it("stays quiet (empty) when the works lookup fails", async () => {

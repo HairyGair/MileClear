@@ -2,10 +2,11 @@
 // the pure rule in services/tripRoadworksRule.ts. Read only: it never writes
 // anything, and never touches the trip.
 //
-// Street Manager works are deleted two days after they end
-// (purgeEndedStreetWorks), and cancelled permits are deleted at once, so the
-// list can only name works still stored: on an older trip it is usually
-// empty. That is fine for a label that says "if in doubt, say nothing".
+// Street Manager works are deleted 14 days after they end
+// (STREET_WORKS_KEEP_ENDED_DAYS in streetManager.ts), and cancelled permits
+// are deleted at once, so the list can only name works still stored: on a
+// trip older than about two weeks it is usually empty. That is fine for a
+// label that says "if in doubt, say nothing".
 
 import { prisma } from "../lib/prisma.js";
 import { cacheGet, cacheSet } from "../lib/redis.js";
@@ -13,8 +14,10 @@ import type { LatLng } from "./roadCorridor.js";
 import { isStreetManagerEnabled } from "./streetManager.js";
 import { ATTRIBUTION_STREET_MANAGER } from "./roadAlerts.js";
 import {
+  TRIP_ROADWORKS_MAX_ACCURACY_M,
   TRIP_ROADWORKS_MIN_POINTS,
   TRIP_ROADWORKS_NEAR_M,
+  tripNearBoxTest,
   tripRoadworks,
   type TripRoadworksItemOut,
   type TripWorksInput,
@@ -24,7 +27,8 @@ import {
  *  only. The key carries the trip's updatedAt, so an edited trip is looked
  *  at again at once. */
 const CACHE_TTL_S = 6 * 3600;
-const MAX_WORKS = 500;
+/** Full works rows (with geometry) are loaded this many at a time. */
+const LOAD_CHUNK = 200;
 const TRAFFIC_TYPES = [
   "road_closure",
   "lane_closure",
@@ -80,15 +84,17 @@ async function compute(trip: {
   startedAt: Date;
   endedAt: Date | null;
 }): Promise<TripRoadworksResult> {
-  // One trip's breadcrumbs, by the (tripId, recordedAt) index.
+  // One trip's breadcrumbs, by the (tripId, recordedAt) index. Fixes less
+  // accurate than 50 m are left out.
   const rows = await prisma.tripCoordinate.findMany({
     where: { tripId: trip.id },
-    select: { lat: true, lng: true, recordedAt: true },
+    select: { lat: true, lng: true, accuracy: true, recordedAt: true },
     orderBy: { recordedAt: "asc" },
   });
   const points: LatLng[] = [];
   for (const r of rows) {
     if (!Number.isFinite(r.lat) || !Number.isFinite(r.lng) || (r.lat === 0 && r.lng === 0)) continue;
+    if (r.accuracy != null && r.accuracy > TRIP_ROADWORKS_MAX_ACCURACY_M) continue;
     points.push([r.lat, r.lng]);
   }
   if (points.length < TRIP_ROADWORKS_MIN_POINTS) return EMPTY;
@@ -105,9 +111,10 @@ async function compute(trip: {
 
   let works: TripWorksInput[];
   try {
-    // No select: the work category column is being added separately; when it
-    // exists it comes back with the row and is read below.
-    const found = await prisma.streetWorksEvent.findMany({
+    // 1. Ids and boxes only, no cap: a long trip's bbox can hold thousands of
+    //    works, and a cap with no order would drop on-route ones at random.
+    //    Keep those whose box comes near a fix or a drawn stretch of the trip.
+    const boxes = await prisma.streetWorksEvent.findMany({
       where: {
         trafficManagement: { in: TRAFFIC_TYPES },
         minLat: { lte: maxLat + padLat },
@@ -117,26 +124,36 @@ async function compute(trip: {
         startAt: { lte: endedAt },
         OR: [{ endAt: null }, { endAt: { gte: trip.startedAt } }],
       },
-      take: MAX_WORKS,
+      select: { id: true, minLat: true, maxLat: true, minLng: true, maxLng: true },
     });
-    works = found.map((r) => {
-      const g = (r.geometry ?? {}) as { lines?: LatLng[][]; points?: LatLng[] };
-      const category = (r as Record<string, unknown>).workCategory;
-      return {
-        reference: r.reference,
-        trafficManagement: r.trafficManagement,
-        isTrafficSensitive: r.isTrafficSensitive,
-        workStatus: r.workStatus,
-        streetName: r.streetName,
-        town: r.town,
-        promoter: r.promoter,
-        startAt: r.startAt,
-        endAt: r.endAt,
-        lines: Array.isArray(g.lines) ? g.lines : [],
-        points: Array.isArray(g.points) ? g.points : [],
-        workCategory: typeof category === "string" ? category : null,
-      };
-    });
+    const nearTrip = tripNearBoxTest(points);
+    const ids = boxes.filter(nearTrip).map((b) => b.id);
+
+    // 2. Full rows for those, in chunks. No select: the work category column
+    //    is being added separately; when it exists it comes back with the
+    //    row and is read below.
+    works = [];
+    for (let i = 0; i < ids.length; i += LOAD_CHUNK) {
+      const found = await prisma.streetWorksEvent.findMany({ where: { id: { in: ids.slice(i, i + LOAD_CHUNK) } } });
+      for (const r of found) {
+        const g = (r.geometry ?? {}) as { lines?: LatLng[][]; points?: LatLng[] };
+        const category = (r as Record<string, unknown>).workCategory;
+        works.push({
+          reference: r.reference,
+          trafficManagement: r.trafficManagement,
+          isTrafficSensitive: r.isTrafficSensitive,
+          workStatus: r.workStatus,
+          streetName: r.streetName,
+          town: r.town,
+          promoter: r.promoter,
+          startAt: r.startAt,
+          endAt: r.endAt,
+          lines: Array.isArray(g.lines) ? g.lines : [],
+          points: Array.isArray(g.points) ? g.points : [],
+          workCategory: typeof category === "string" ? category : null,
+        });
+      }
+    }
   } catch (err) {
     console.error("[tripRoadworks] works load failed:", (err as Error).message);
     return EMPTY;

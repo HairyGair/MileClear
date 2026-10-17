@@ -656,7 +656,7 @@ function MergeNotice({ trip, onMerged }: { trip: TripDetailData; onMerged: (newI
   );
 }
 
-/** "Roadworks on this trip": Street Manager works the trip drove through
+/** "Roadworks on your route": Street Manager works the trip drove through
  *  while they were in place. A label only. Loaded after the page shows, and
  *  says nothing when there are none or the request fails. */
 function RoadworksOnTrip({ tripId }: { tripId: string }) {
@@ -677,7 +677,7 @@ function RoadworksOnTrip({ tripId }: { tripId: string }) {
   if (items.length === 0) return null;
   return (
     <div className="mc-block" data-testid="trip-roadworks">
-      <p className="mc-block__label">Roadworks on this trip</p>
+      <p className="mc-block__label">Roadworks on your route</p>
       <ul className="mc-notice mc-roadworks">
         {items.map((w, i) => (
           <li key={`${w.phrase}-${i}`}>{w.phrase}</li>
