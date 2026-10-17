@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { periodClaimPence } from "../lib/mileageRates.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
+import { countIncome, countedInvoiceWhere } from "../lib/countedIncome.js";
 import { percentChange, toRated, ukDailyMiles } from "../lib/insightsMath.js";
 import { periodBounds, previousBounds, ukDayBounds, ukParts, ukWeekBounds } from "../lib/ukTime.js";
 import { loadEarlierClaimable, loadPeriodFigures, loadPeriodFiguresSeries, loadRateContext } from "./periodFigures.js";
@@ -305,13 +306,38 @@ export async function getStats(userId: string): Promise<GamificationStats> {
   };
 }
 
+// ── Earnings badge income ───────────────────────────────────────────
+
+/**
+ * The money the earnings badges (earned_100 and up) measure: every earning
+ * plus every paid invoice, leaving out any earning linked to a paid invoice
+ * so the same money is not counted twice. Sent, overdue and written-off
+ * invoices do not count. This is the Tax tab's rule (lib/countedIncome) on
+ * cash basis, over all time rather than one tax year. Before 17 Oct 2026 the
+ * badges summed earnings only, so a driver paid through invoices was held
+ * back while her linked earnings still counted.
+ */
+export async function loadBadgeIncomePence(userId: string): Promise<number> {
+  const [earnings, paidInvoices] = await Promise.all([
+    prisma.earning.findMany({
+      where: { userId },
+      select: { amountPence: true, replacedByInvoiceId: true },
+    }),
+    prisma.invoice.findMany({
+      where: countedInvoiceWhere(userId, "cash"),
+      select: { id: true, amountPence: true },
+    }),
+  ]);
+  return countIncome(earnings, paidInvoices).totalPence;
+}
+
 // ── checkAndAwardAchievements ───────────────────────────────────────
 
 export async function checkAndAwardAchievements(
   userId: string
 ): Promise<AchievementWithMeta[]> {
   // Fetch existing achievements + stats in parallel
-  const [existing, totalTrips, totalShifts, totalMilesAgg, totalEarningsAgg, tripDates] =
+  const [existing, totalTrips, totalShifts, totalMilesAgg, badgeIncomePence, tripDates] =
     await Promise.all([
       prisma.achievement.findMany({
         where: { userId },
@@ -323,10 +349,7 @@ export async function checkAndAwardAchievements(
         where: { userId, isPhantomTrip: false },
         _sum: { distanceMiles: true },
       }),
-      prisma.earning.aggregate({
-        where: { userId },
-        _sum: { amountPence: true },
-      }),
+      loadBadgeIncomePence(userId),
       prisma.$queryRaw<{ tripDate: string }[]>`
         SELECT DISTINCT DATE(startedAt) as tripDate
         FROM trips
@@ -337,7 +360,7 @@ export async function checkAndAwardAchievements(
 
   const existingTypes = new Set(existing.map((a) => a.type));
   const totalMiles = totalMilesAgg._sum.distanceMiles ?? 0;
-  const totalEarningsPounds = (totalEarningsAgg._sum.amountPence ?? 0) / 100;
+  const totalEarningsPounds = badgeIncomePence / 100;
   const { longest: longestStreak } = computeStreak(
     tripDates.map((r) => {
       const d = r.tripDate;

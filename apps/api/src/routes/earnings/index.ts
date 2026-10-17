@@ -18,6 +18,7 @@ import {
   MAX_PAGE_SIZE,
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
+import { checkAchievementsSoon } from "../../services/achievementCheck.js";
 
 const createEarningSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
@@ -98,6 +99,7 @@ export async function earningRoutes(app: FastifyInstance) {
     });
 
     logEvent("earnings.created", userId, { platform, amountPence, source: "manual" });
+    checkAchievementsSoon(userId);
 
     return reply.status(201).send({ data: earning });
   });

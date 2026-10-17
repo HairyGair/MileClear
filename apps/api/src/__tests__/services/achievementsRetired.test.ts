@@ -10,7 +10,8 @@ vi.mock("../../lib/prisma.js", () => ({
     achievement: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
     trip: { count: vi.fn(), aggregate: vi.fn() },
     shift: { count: vi.fn() },
-    earning: { aggregate: vi.fn() },
+    earning: { findMany: vi.fn() },
+    invoice: { findMany: vi.fn() },
     $queryRaw: vi.fn(),
   },
 }));
@@ -22,7 +23,8 @@ const db = prisma as unknown as {
   achievement: { findMany: ReturnType<typeof vi.fn>; createMany: ReturnType<typeof vi.fn>; deleteMany: ReturnType<typeof vi.fn> };
   trip: { count: ReturnType<typeof vi.fn>; aggregate: ReturnType<typeof vi.fn> };
   shift: { count: ReturnType<typeof vi.fn> };
-  earning: { aggregate: ReturnType<typeof vi.fn> };
+  earning: { findMany: ReturnType<typeof vi.fn> };
+  invoice: { findMany: ReturnType<typeof vi.fn> };
   $queryRaw: ReturnType<typeof vi.fn>;
 };
 
@@ -36,7 +38,8 @@ describe("checkAndAwardAchievements", () => {
     db.trip.count.mockResolvedValue(1);
     db.shift.count.mockResolvedValue(1);
     db.trip.aggregate.mockResolvedValue({ _sum: { distanceMiles: 3 } });
-    db.earning.aggregate.mockResolvedValue({ _sum: { amountPence: 0 } });
+    db.earning.findMany.mockResolvedValue([]);
+    db.invoice.findMany.mockResolvedValue([]);
     db.$queryRaw.mockResolvedValue([]);
     db.achievement.createMany.mockResolvedValue({ count: 2 });
 

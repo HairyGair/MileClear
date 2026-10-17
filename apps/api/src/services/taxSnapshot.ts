@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { fetchExpenseSummary } from "./export-data.js";
 import { fallbackVehicleTypeFromList } from "./vehicleDefaults.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
+import { countIncome, countedInvoiceWhere } from "../lib/countedIncome.js";
 import {
   estimateUkTax,
   calculateMileageDeduction,
@@ -201,13 +202,7 @@ export async function buildTaxSnapshot(userId: string, now: Date = new Date()): 
   // hasn't been written off. Default basis is cash for new users.
   const userTaxBasis = (user?.taxBasis ?? "cash") as "cash" | "accruals";
   const countedInvoices = await prisma.invoice.findMany({
-    where: {
-      userId,
-      status: { not: "written_off" },
-      ...(userTaxBasis === "cash"
-        ? { paidAt: { gte: start, lte: end } }
-        : { sentAt: { gte: start, lte: end } }),
-    },
+    where: countedInvoiceWhere(userId, userTaxBasis, { start, end }),
     select: {
       id: true,
       company: true,
@@ -216,31 +211,24 @@ export async function buildTaxSnapshot(userId: string, now: Date = new Date()): 
       sentAt: true,
     },
   });
-  const invoiceIncomePence = countedInvoices.reduce(
-    (sum, inv) => sum + inv.amountPence,
-    0
-  );
 
   // Dedup: any earning explicitly linked to a counted invoice is excluded
   // from the gig-earnings sum. Stops the double-count when a freelancer
   // logs the same money as both a manual earning AND an invoice marked
-  // paid (Laura Joyce, 21 May 2026). The link is user-driven — see
+  // paid (Laura Joyce, 21 May 2026). The link is user-driven, see
   // POST /invoices/:id/link-earning. We never auto-link based on
-  // amount/date guessing.
+  // amount/date guessing. The rule lives in lib/countedIncome.ts and is
+  // shared with the earnings badges.
   //
-  // Direction is many earnings → one invoice (Earning.replacedByInvoiceId):
+  // Direction is many earnings to one invoice (Earning.replacedByInvoiceId):
   // Laura's £400 invoice covers 7 daily £57.14 earnings, all 7 get
   // excluded once they're linked to the same invoice.
-  const countedInvoiceIds = new Set(countedInvoices.map((inv) => inv.id));
-  const countedEarnings = earningsYtdRows.filter(
-    (e) => !e.replacedByInvoiceId || !countedInvoiceIds.has(e.replacedByInvoiceId)
-  );
-  const dedupedEarningCount = earningsYtdRows.length - countedEarnings.length;
-  const earningsBasePence = countedEarnings.reduce(
-    (sum, e) => sum + e.amountPence,
-    0
-  );
-  const grossEarningsPence = earningsBasePence + invoiceIncomePence;
+  const income = countIncome(earningsYtdRows, countedInvoices);
+  const countedEarnings = income.countedEarnings;
+  const dedupedEarningCount = income.dedupedEarningCount;
+  const earningsBasePence = income.earningsPence;
+  const invoiceIncomePence = income.invoicePence;
+  const grossEarningsPence = income.totalPence;
   const earningsLast7DaysPence = earningsLast7d._sum.amountPence ?? 0;
 
   // Profit = earnings - mileage deduction - allowable (non-motor) expenses.

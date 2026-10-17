@@ -23,6 +23,7 @@ import { Prisma } from "@prisma/client";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
+import { checkAchievementsSoon } from "../../services/achievementCheck.js";
 import { isProUser } from "../../services/proEntitlement.js";
 import {
   INVOICE_STATUSES,
@@ -283,6 +284,8 @@ export async function invoiceRoutes(app: FastifyInstance) {
       amountPence: invoice.amountPence,
       company: invoice.company,
     });
+    // Money in: an earnings badge may be due (paid invoices count).
+    if (paidAt) checkAchievementsSoon(userId);
 
     // If the invoice was created directly as paid, look for duplicate
     // earnings so the client can prompt the user to link them. We anchor
@@ -326,7 +329,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
       ...(status ? { status } : {}),
     };
 
-    const [data, total, totals] = await Promise.all([
+    const [data, total, totals, newest] = await Promise.all([
       prisma.invoice.findMany({
         where,
         orderBy: [{ status: "asc" }, { sentAt: "desc" }],
@@ -339,6 +342,13 @@ export async function invoiceRoutes(app: FastifyInstance) {
         where: { userId },
         _sum: { amountPence: true },
         _count: { id: true },
+      }),
+      // When the newest invoice was made: Home shows an Invoices shortcut to
+      // drivers who made one in the last 90 days.
+      prisma.invoice.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true },
       }),
     ]);
 
@@ -362,6 +372,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
       pageSize,
       totalPages: Math.ceil(total / pageSize),
       summary,
+      lastCreatedAt: newest?.createdAt.toISOString() ?? null,
     });
   });
 
@@ -726,6 +737,8 @@ export async function invoiceRoutes(app: FastifyInstance) {
           (updated.paidAt!.getTime() - updated.sentAt.getTime()) / 86_400_000
         ),
       });
+      // Money in: an earnings badge may be due (paid invoices count).
+      checkAchievementsSoon(request.userId!);
     } else if (updates.writeOff && existing.status !== "written_off") {
       logEvent("invoice.written_off", request.userId!, {
         invoiceId: id,
