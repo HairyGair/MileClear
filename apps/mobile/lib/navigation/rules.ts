@@ -1,7 +1,28 @@
 // Small pure rules for the Directions screens (docs/navigation-1.4.0/DESIGN.md).
 // Each is tested in __tests__/rules.test.ts.
 
-import { distanceMeters, type LatLng } from "./geo";
+import { distanceMeters, offset, type LatLng } from "./geo";
+
+// ── Where a reroute starts (voice re-test, 19 Oct 2026) ──────────────────
+
+export const REROUTE_LEAD_MIN_M = 30;
+export const REROUTE_LEAD_MAX_M = 150;
+export const REROUTE_LEAD_S = 4;
+
+/**
+ * The `from` point for a reroute: ahead of the car along its course by
+ * max(30 m, 4 s of driving), capped at 150 m. The route takes a second or
+ * two to arrive, so one that starts where the car asked has its first
+ * manoeuvre behind the car already (Gallowgate: "Turn round using
+ * Strawberry Place" was missed 4 runs in 6). Stopped or no course: the car's
+ * own position. The navigator keeps using the real position.
+ */
+export function rerouteOrigin(p: LatLng, courseDeg: number | null, speedMps: number | null): LatLng {
+  const v = speedMps ?? 0;
+  if (courseDeg == null || v < 1) return { lat: p.lat, lng: p.lng };
+  const lead = Math.min(REROUTE_LEAD_MAX_M, Math.max(REROUTE_LEAD_MIN_M, v * REROUTE_LEAD_S));
+  return offset(p, courseDeg, lead);
+}
 
 const MPH = 0.44704;
 

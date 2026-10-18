@@ -32,7 +32,7 @@ import {
 import { shouldReroute, type RerouteFailure } from "./offRoute";
 import { HALF_MILE_M } from "./announcer";
 import { REROUTE_FAILED_PHRASE } from "./phrases";
-import { inGreatBritain, thinLine } from "./rules";
+import { inGreatBritain, rerouteOrigin, thinLine } from "./rules";
 import { loadOptional } from "./optionalNative";
 import { getVoice } from "./voice";
 import * as store from "./store";
@@ -183,7 +183,8 @@ export function useGuidance(opts: { focused: boolean }) {
       rr.current.lastAt = Date.now();
       setReroute({ kind: "searching" });
       try {
-        const next = await fetchNavigationRoute({ from: fix, to: state.destination, headingDeg: state.courseDeg });
+        const from = rerouteOrigin(fix, state.courseDeg, smoothedSpeed(speeds.current) ?? fix.speedMps);
+        const next = await fetchNavigationRoute({ from, to: state.destination, headingDeg: state.courseDeg });
         if (!mounted.current || phaseRef.current !== "guiding" || !nav.current) return;
         // Back on the old line before the answer came: carry on with it.
         if (!nav.current.offRoute.offRoute) {

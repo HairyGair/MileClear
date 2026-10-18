@@ -16,7 +16,14 @@ import {
 } from "./announcer";
 import { bearingDeg, bearingDiff, distanceMeters, type LatLng } from "./geo";
 import { assessOffRoute, initialOffRouteState, USELESS_ACCURACY_M, type OffRouteState } from "./offRoute";
-import { arrivedPhrase } from "./phrases";
+import { arrivedPhrase, shortPhrase } from "./phrases";
+
+/** A fresh route's first manoeuvre closer than this much driving is taken as reached. */
+const TOO_LATE_S = 3;
+
+function capitalise(s: string): string {
+  return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
+}
 import { spokenRoad } from "./streetSpeech";
 import {
   distanceToStep,
@@ -132,11 +139,12 @@ export function startNavigation(
 /** A U-turn the car has to make before anything else, if there is one. */
 export const UTURN_START_M = 60;
 function uturnAtStart(route: NavigationRoute, r: PreparedRoute): number | null {
-  // Only a plain U-turn on one road. A turn round through a side street
-  // (`via`, e.g. right into Strawberry Place and right back) is an ordinary
-  // manoeuvre with its own distance prompts.
+  // Step 0: any U-turn, plain or through a side street (`via`): it is where
+  // the car already is, so nothing else would ever say it. Step 1 near the
+  // start: only a plain U-turn; a turn round through a side street there is
+  // an ordinary manoeuvre with its own distance prompts.
+  if (route.steps[0]?.type === "uturn") return 0;
   const plain = (i: number) => route.steps[i]?.type === "uturn" && !route.steps[i]?.via?.trim();
-  if (plain(0)) return 0;
   if (plain(1) && (r.stepAlong[1] ?? Infinity) <= UTURN_START_M) return 1;
   return null;
 }
@@ -363,9 +371,24 @@ export function stepNavigation(state: NavigatorState, fix: NavFix, opts: StepOpt
       speedMps: speed,
       arriveName: state.destinationName,
     });
-    const said = a.say && opts.canSay && !opts.canSay(a.say) ? null : a.say;
+    // Through a side street the first thing said is "Turn round using X".
+    const viaFirst = steps[next.uturnAt]?.via?.trim();
+    const text = a.say && viaFirst ? { ...a.say, text: capitalise(shortPhrase(steps[next.uturnAt])) } : a.say;
+    const said = text && opts.canSay && !opts.canSay(text) ? null : text;
     next = { ...next, announcer: said || !a.say ? a.state : state.announcer };
     return { state: next, view: viewOf(next, { position: snap.point, distanceFromRoute: snap.distance }), say: said, wantReroute: false, usable: true };
+  }
+
+  // A fresh route whose first manoeuvre is closer than 3 s of driving: the
+  // driver cannot make a "now" said that late, so count it as reached. If
+  // the car really misses it, off-route handling reroutes again.
+  if (next.announcer.fresh === "reroute") {
+    const first = nextManoeuvreIndex(steps, next.stepIndex);
+    const firstStep = steps[first];
+    const gap = distanceToStep(r, first, along);
+    if (firstStep && firstStep.type !== "arrive" && gap < Math.max(0, speed ?? 0) * TOO_LATE_S) {
+      next = { ...next, stepIndex: Math.max(next.stepIndex, first) };
+    }
   }
 
   // Prompts are for the next real manoeuvre (same-road "continue" steps are

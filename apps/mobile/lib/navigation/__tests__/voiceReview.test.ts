@@ -3,7 +3,8 @@
 import { describe, it, expect } from "vitest";
 import type { NavigationRoute, NavigationStep } from "@mileclear/shared";
 import { announce, initialAnnouncerState, type AnnouncerState } from "../announcer";
-import { offset } from "../geo";
+import { bearingDeg, distanceMeters, offset } from "../geo";
+import { rerouteOrigin } from "../rules";
 import { bannerAction, glyphFor, inDistancePhrase, nowPhrase, thenPhrase } from "../phrases";
 import { startNavigation, stepNavigation, type NavFix, type NavigatorState } from "../navigator";
 import { buildRoute, drive, pointAt, READING, roundaboutArc, routeLine } from "./fixtures";
@@ -276,5 +277,71 @@ describe("turn round using a side street (via)", () => {
     });
     expect(first.say?.text).toBe("In 50 yards, turn round using Strawberry Place");
     expect(first.view.next?.via).toBe("Strawberry Place");
+  });
+
+  it("a step-0 turn round through a side street is said and shown first", () => {
+    const route = buildRoute(READING, [
+      { step: { type: "uturn", streetName: "Gallowgate", via: "Strawberry Place" }, pieces: [{ bearing: 270, metres: 400 }] },
+      { step: { type: "turn", modifier: "left", streetName: "St James Street" }, pieces: [{ bearing: 180, metres: 400 }] },
+    ]);
+    const first = stepNavigation(startNavigation(route, undefined, { fresh: "reroute" }), {
+      lat: READING.lat,
+      lng: READING.lng,
+      speedMps: 0,
+      accuracyM: 5,
+      headingDeg: 90,
+      atMs: 1000,
+    });
+    expect(first.say?.text).toBe("Turn round using Strawberry Place");
+    expect(first.view.next?.via).toBe("Strawberry Place");
+    expect(first.view.next?.type).toBe("uturn");
+  });
+});
+
+describe("reroute origin and too-late first manoeuvres", () => {
+  it("the route is asked from ahead of the car: max(30 m, 4 s), capped at 150 m", () => {
+    const here = READING;
+    const d = (v: number) => {
+      const p = rerouteOrigin(here, 90, v);
+      return Math.round(distanceMeters(here, p));
+    };
+    expect(d(5)).toBe(30);
+    expect(d(13.4)).toBe(54);
+    expect(d(31)).toBe(124);
+    expect(d(60)).toBe(150);
+    expect(bearingDeg(here, rerouteOrigin(here, 90, 13))).toBeCloseTo(90, 0);
+    // Stopped or no course: the car's own position.
+    expect(rerouteOrigin(here, null, 13)).toEqual(here);
+    expect(rerouteOrigin(here, 90, 0)).toEqual(here);
+  });
+
+  it("asking from ahead keeps a manoeuvre 20 m in front of the car on the new route", () => {
+    // The car is driving east at 30 mph; Strawberry Place is 20 m ahead.
+    const car = READING;
+    const from = rerouteOrigin(car, 90, 30 * MPH);
+    expect(distanceMeters(car, from)).toBeGreaterThan(20);
+  });
+
+  it("a fresh route's first manoeuvre under 3 s away is taken as reached, not said", () => {
+    const route = buildRoute(READING, [
+      { step: { type: "depart", streetName: "Gallowgate" }, pieces: [{ bearing: 90, metres: 20 }] },
+      { step: { type: "turn", modifier: "left", streetName: "Strawberry Place" }, pieces: [{ bearing: 0, metres: 600 }] },
+      { step: { type: "turn", modifier: "right", streetName: "St James Street" }, pieces: [{ bearing: 90, metres: 400 }] },
+    ]);
+    const fixes = drive(routeLine(route), { speedMps: 13.4, heading: true });
+    const { said } = replay(route, fixes, startNavigation(route, undefined, { fresh: "reroute" }));
+    expect(said.some((t) => t.startsWith("Turn left now onto Strawberry Place"))).toBe(false);
+    expect(said[0]).toMatch(/turn right onto St James Street$/);
+  });
+
+  it("a first manoeuvre further than 3 s away is still said", () => {
+    const route = buildRoute(READING, [
+      { step: { type: "depart", streetName: "Gallowgate" }, pieces: [{ bearing: 90, metres: 120 }] },
+      { step: { type: "turn", modifier: "left", streetName: "Strawberry Place" }, pieces: [{ bearing: 0, metres: 300 }] },
+    ]);
+    const { said } = replay(route, drive(routeLine(route), { speedMps: 13.4, heading: true }), startNavigation(route, undefined, { fresh: "reroute" }));
+    // 120 m at 30 mph: the 250 m prompt would land under 5 s before the
+    // "now", so only the "now" is said, about 4 s out.
+    expect(said[0]).toBe("Turn left now onto Strawberry Place");
   });
 });
