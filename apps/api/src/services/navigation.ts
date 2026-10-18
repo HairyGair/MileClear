@@ -69,6 +69,14 @@ export function navigationEnabledFor(
   return ids.includes(user.id);
 }
 
+/** A compass heading 0-359 from the query, or null (absent or nonsense). */
+export function parseHeading(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0 || n >= 360) return null;
+  return Math.round(n) % 360; // 359.6 rounds to 360, which is north: 0
+}
+
 /** "lat,lng" within sane bounds, or null. */
 export function parseLatLng(raw: unknown): [number, number] | null {
   if (typeof raw !== "string") return null;
@@ -186,7 +194,8 @@ export type NavRouteResult =
 export async function fetchNavRoute(
   from: [number, number],
   to: [number, number],
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
+  heading: number | null = null
 ): Promise<NavRouteResult> {
   // Navigation has its own GraphHopper (GRAPHHOPPER_NAV_URL) so a navigation
   // map refresh or load never touches the instance behind manual-trip
@@ -199,7 +208,12 @@ export async function fetchNavRoute(
     const url =
       `${base}/route?point=${from[0]},${from[1]}&point=${to[0]},${to[1]}` +
       `&profile=${encodeURIComponent(profile)}&instructions=true&locale=en-GB` +
-      `&points_encoded=false&calc_points=true&details=max_speed`;
+      `&points_encoded=false&calc_points=true&details=max_speed` +
+      // With the car's direction (reroutes, setting off while moving), the
+      // route starts the way the car is already going instead of "make a
+      // U-turn". The CH speed-up mode can't take a heading, so these use the
+      // landmark (LM) mode of car_nav: a little slower, still well under a second.
+      (heading !== null && profile !== "car" ? `&heading=${heading}&ch.disable=true&heading_penalty=120` : "");
     let res: Response;
     try {
       res = await fetch(url, { signal: AbortSignal.timeout(8000) });

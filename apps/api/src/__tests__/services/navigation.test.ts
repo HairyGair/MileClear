@@ -6,6 +6,7 @@ import {
   kmhToUkMph,
   navigationEnabledFor,
   parseLatLng,
+  parseHeading,
   type GraphHopperPath,
 } from "../../services/navigation.js";
 
@@ -120,5 +121,17 @@ describe("parseLatLng", () => {
     expect(parseLatLng("91,0")).toBeNull();
     expect(parseLatLng("abc")).toBeNull();
     expect(parseLatLng(undefined)).toBeNull();
+  });
+});
+
+describe("parseHeading", () => {
+  it("takes a compass heading and ignores anything else", () => {
+    expect(parseHeading("90")).toBe(90);
+    expect(parseHeading("359.6")).toBe(0);
+    expect(parseHeading(undefined)).toBeNull();
+    expect(parseHeading("")).toBeNull();
+    expect(parseHeading("400")).toBeNull();
+    expect(parseHeading("-5")).toBeNull();
+    expect(parseHeading("north")).toBeNull();
   });
 });
