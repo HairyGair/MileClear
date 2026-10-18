@@ -242,3 +242,49 @@ export function usePracticeAsk(): { ask: HomePracticeAsk | null; reload: () => v
   );
   return { ask, reload: () => load(true) };
 }
+
+const FIRST_WEEK_DONE_KEY = "home_first_week_done";
+
+/**
+ * This phone's trips for the first-week card (lib/home/firstWeek.ts): count,
+ * miles, and how many are sorted. Once any trip has been sorted the card is
+ * gone for good, even if that trip is later set back to "sort later".
+ * `key` changes when the last trip does (a new trip, or a sort).
+ */
+export function useFirstWeekLocal(enabled: boolean, key: string): {
+  local: { trips: number; miles: number; sorted: number } | null;
+  done: boolean;
+} {
+  const [local, setLocal] = useState<{ trips: number; miles: number; sorted: number } | null>(null);
+  const [done, setDone] = useState(true);
+  const [focusTick, setFocusTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setFocusTick((n) => n + 1);
+    }, [])
+  );
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    (async () => {
+      if ((await readKey(FIRST_WEEK_DONE_KEY)) === "1") {
+        if (!cancelled) setDone(true);
+        return;
+      }
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ n: number; miles: number | null; sorted: number | null }>(
+        "SELECT COUNT(*) AS n, SUM(distance_miles) AS miles, " +
+          "SUM(CASE WHEN classification IN ('business', 'personal') THEN 1 ELSE 0 END) AS sorted FROM trips"
+      );
+      const next = { trips: row?.n ?? 0, miles: row?.miles ?? 0, sorted: row?.sorted ?? 0 };
+      if (next.sorted > 0) await writeKey(FIRST_WEEK_DONE_KEY, "1");
+      if (cancelled) return;
+      setLocal(next);
+      setDone(next.sorted > 0);
+    })().catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, key, focusTick]);
+  return { local, done };
+}

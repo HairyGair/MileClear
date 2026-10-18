@@ -28,7 +28,8 @@ export type TutorialEvent =
   | "whats_new.shown"
   | "whats_new.dismissed"
   | "whats_new.tour"
-  | "whats_new.skipped";
+  | "whats_new.skipped"
+  | "home.first_week_shown";
 
 export function trackTutorial(type: TutorialEvent, metadata?: Record<string, unknown>): void {
   try {

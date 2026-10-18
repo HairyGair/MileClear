@@ -21,6 +21,7 @@ import { useRouter } from "expo-router";
 import { MiniRoute } from "./MiniRoute";
 import { ClassifyControl } from "./ClassifyControl";
 import { classifyTripFromHome, type ClassifyResult } from "../../lib/home/classifyTrip";
+import type { FirstWeekView } from "../../lib/home/firstWeek";
 import type { LastTripFooter, LastTripView, SyncChip, TripChoice } from "../../lib/home/lastTrip";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import { trackTutorial } from "../../lib/events/tutorial";
@@ -39,6 +40,9 @@ interface Props {
   /** The one-line note for a driver's very first trip, until it is sorted
    *  (first-run tour, the just-in-time note borrowed from direction B). */
   firstSortHint?: string | null;
+  /** A new driver's first trips and what they add up to (lib/home/firstWeek.ts),
+   *  above the choice until it is made. Takes the place of firstSortHint. */
+  firstWeek?: FirstWeekView | null;
 }
 
 function ChipView({ chip, text, onPress }: { chip: SyncChip; text: string; onPress?: () => void }) {
@@ -85,7 +89,7 @@ function Footer({ footer, onPress }: { footer: NonNullable<LastTripFooter>; onPr
   );
 }
 
-export function LastTripCard({ view, mode, state, onChanged, firstSortHint }: Props) {
+export function LastTripCard({ view, mode, state, onChanged, firstSortHint, firstWeek }: Props) {
   const router = useRouter();
   const { fontScale } = useWindowDimensions();
   // The driver's tap, shown at once; cleared when the stored trip catches up.
@@ -155,15 +159,23 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint }: Pr
     [mode, state, onChanged]
   );
 
-  // The first-trip note shows while the choice is still open, and is measured once.
-  const showFirstSortHint =
-    !!firstSortHint && view.look === "full" && view.showChoice && (chosen ?? view.choice) === "unclassified";
+  // The first-trip note (or the first-week line) shows while the choice is
+  // still open, and is measured once.
+  const choiceOpen = view.look === "full" && view.showChoice && (chosen ?? view.choice) === "unclassified";
+  const showFirstWeek = !!firstWeek && choiceOpen;
+  const showFirstSortHint = !showFirstWeek && !!firstSortHint && choiceOpen;
   const hintLogged = useRef(false);
   useEffect(() => {
     if (!showFirstSortHint || hintLogged.current) return;
     hintLogged.current = true;
     trackTutorial("tutorial.first_sort_note_shown", { mode });
   }, [showFirstSortHint, mode]);
+  const weekLogged = useRef(false);
+  useEffect(() => {
+    if (!showFirstWeek || weekLogged.current) return;
+    weekLogged.current = true;
+    trackTutorial("home.first_week_shown", { mode, money: !!firstWeek?.value });
+  }, [showFirstWeek, mode, firstWeek]);
 
   if (view.look === "none") return null;
 
@@ -310,6 +322,18 @@ export function LastTripCard({ view, mode, state, onChanged, firstSortHint }: Pr
       </View>
       {v.showChoice ? (
         <View style={s.choiceWrap}>
+          {showFirstWeek && firstWeek ? (
+            <View style={s.firstWeek} accessible accessibilityLabel={firstWeek.a11y}>
+              <Text style={s.firstWeekTitle} maxFontSizeMultiplier={fontScaleCap.body}>
+                {firstWeek.title}
+              </Text>
+              {firstWeek.value ? (
+                <Text style={s.firstWeekValue} maxFontSizeMultiplier={fontScaleCap.body}>
+                  {firstWeek.value}
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
           {showFirstSortHint ? (
             <View style={s.firstSort}>
               <Ionicons name="information-circle-outline" size={16} color={colors.amber} accessible={false} />
@@ -360,6 +384,9 @@ const s = StyleSheet.create({
   choiceWrap: { marginTop: 10 },
   firstSort: { flexDirection: "row", gap: 6, alignItems: "flex-start", marginBottom: 10 },
   firstSortText: { flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.regular, color: colors.text1 },
+  firstWeek: { marginBottom: 10 },
+  firstWeekTitle: { fontSize: 14, lineHeight: 20, fontFamily: fonts.semibold, color: colors.text1 },
+  firstWeekValue: { marginTop: 2, fontSize: 13, lineHeight: 19, fontFamily: fonts.regular, color: colors.text2 },
   note: { marginTop: 6, fontSize: 12, fontFamily: fonts.regular, color: colors.text2, minHeight: 16 },
   footerLine: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline, marginTop: 12, marginHorizontal: -16 },
   footer: {
