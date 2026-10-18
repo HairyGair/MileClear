@@ -1599,7 +1599,9 @@ ${SIGN_OFF}`;
   });
 }
 
-/** Weekly recap of trips / miles / deduction. */
+/** Weekly recap of trips / miles / mileage claim (drivers push can't reach).
+ *  `claimPence` is null for Personal-mode and company-car drivers, who have
+ *  no mileage claim to show (Tax tab rule, Oct 2026). */
 export async function sendWeeklyRecapEmail(
   email: string,
   displayName: string | null | undefined,
@@ -1607,7 +1609,7 @@ export async function sendWeeklyRecapEmail(
     weekLabel: string;
     trips: number;
     miles: number;
-    deductionPence: number;
+    claimPence: number | null;
   },
   userId: string
 ): Promise<void> {
@@ -1616,19 +1618,22 @@ export async function sendWeeklyRecapEmail(
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
   });
+  const showClaim = data.claimPence != null && data.claimPence > 0;
   const bodyHtml = `
 ${para(greeting)}
-${para("Here's how last week shaped up - all tracked automatically:")}
+${para("Here's how last week went:")}
 ${statGrid([
     { value: data.trips.toLocaleString("en-GB"), label: "Trips" },
     { value: miles, label: "Miles" },
-    { value: gbp(data.deductionPence), label: "Deduction" },
+    ...(showClaim ? [{ value: gbp(data.claimPence!), label: "Mileage claim" }] : []),
   ])}
-${para(`That's <strong style="color:#f5a623;">${gbp(data.deductionPence)}</strong> closer to a sorted tax return, without a single button press. Open the app for your full breakdown, achievements, and where you drove.`)}
+${para("Open MileClear for the full breakdown, your achievements and where you drove.")}
 ${ctaButton("Open your dashboard", DASHBOARD_URL)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: `${data.trips} trips, ${miles} miles, ${gbp(data.deductionPence)} deduction last week.`,
+    preheader: showClaim
+      ? `${data.trips} trips, ${miles} miles and ${gbp(data.claimPence!)} of mileage claim last week.`
+      : `${data.trips} trips and ${miles} miles last week.`,
     eyebrow: `Your week &middot; ${escapeHtml(data.weekLabel)}`,
     title: "Your week in miles",
     bodyHtml,
@@ -1646,7 +1651,25 @@ ${SIGN_OFF}`;
 
 // ── Tax / HMRC seasonal ───────────────────────────────────────────────
 
-/** Tax-deduction milestone crossed within the current tax year (e.g. £250).
+/** Who a tax email is for. Employees claim from their employer (and tax
+ *  relief on any shortfall), so they never hear about Self Assessment.
+ *  "mixed" drivers (workType "both") have a claim that blends gig trips with
+ *  untagged trips at their employer's rate, so the emails never say the whole
+ *  figure goes on the return; the Tax tab splits it. Company-car and
+ *  Personal-mode drivers get no tax emails at all. */
+export type TaxEmailAudience = "self_employed" | "employee" | "mixed";
+
+const EMPLOYEE_RELIEF_LINE =
+  "If your employer pays you less than the approved mileage rates, you may be able to claim tax relief on the difference. The Tax tab in MileClear shows how.";
+const MIXED_TAX_LINE =
+  "As you drive for yourself and for an employer, the Tax tab in MileClear shows how much of it goes on your Self Assessment return.";
+
+function taxAudienceLine(audience: TaxEmailAudience, selfEmployed: string): string {
+  if (audience === "self_employed") return selfEmployed;
+  return audience === "employee" ? EMPLOYEE_RELIEF_LINE : MIXED_TAX_LINE;
+}
+
+/** Mileage claim milestone crossed within the current tax year (e.g. £250).
  *  Sent once per milestone from jobs/triggeredEmails.ts. */
 export async function sendTaxMilestoneEmail(
   email: string,
@@ -1654,8 +1677,9 @@ export async function sendTaxMilestoneEmail(
   data: {
     taxYear: string;
     milestonePence: number;
-    deductionPence: number;
+    claimPence: number;
     businessMiles: number;
+    audience: TaxEmailAudience;
   },
   userId: string
 ): Promise<void> {
@@ -1666,25 +1690,31 @@ export async function sendTaxMilestoneEmail(
   });
   const bodyHtml = `
 ${para(greeting)}
-${para(`Your business mileage for ${escapeHtml(data.taxYear)} has just passed <strong style="color:#f5a623;">${gbp(data.milestonePence)}</strong> in tax deduction.`)}
+${para(`Your mileage claim for ${escapeHtml(data.taxYear)} has just passed <strong style="color:#f5a623;">${gbp(data.milestonePence)}</strong>.`)}
 ${statGrid([
-    { value: gbp(data.deductionPence), label: "Deduction so far" },
+    { value: gbp(data.claimPence), label: "Mileage claim so far" },
     { value: miles, label: "Business miles" },
   ])}
-${para("That figure is built from the trips you have marked as business, at the HMRC rate for the year. It goes straight into the Self Assessment wizard when you need it, so there is nothing to do now except keep driving with MileClear on.")}
-${para("If any of those trips are still unclassified, sorting them is the quickest way to move this number.")}
-${ctaButton("See your tax figure", `${DASHBOARD_URL}/tax`)}
+${para("It's worked out from the trips you've marked as Business.")}
+${para(
+    taxAudienceLine(
+      data.audience,
+      "It counts towards the expenses on your Self Assessment return, and MileClear keeps it ready for when you file. Nothing to do now except keep MileClear recording."
+    )
+  )}
+${para("If any trips are still waiting to be sorted, sorting them is the quickest way to move this number.")}
+${ctaButton("See your tax figures", `${DASHBOARD_URL}/tax`)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: `${gbp(data.deductionPence)} of tax deduction so far this year.`,
+    preheader: `${gbp(data.claimPence)} of mileage claim so far this tax year.`,
     eyebrow: `Tax year ${escapeHtml(data.taxYear)}`,
-    title: `Past ${gbp(data.milestonePence)} in deductions`,
+    title: `Your mileage claim has passed ${gbp(data.milestonePence)}`,
     bodyHtml,
     footerHtml: unsubscribeFooterHtml(userId),
   });
   await deliver({
     email,
-    subject: `You've passed ${gbp(data.milestonePence)} in mileage deductions`,
+    subject: `Your mileage claim has passed ${gbp(data.milestonePence)} this tax year`,
     html,
     userId,
     label: "Tax milestone",
@@ -1692,7 +1722,7 @@ ${SIGN_OFF}`;
   });
 }
 
-/** Tax year-end summary (~5 April). */
+/** Tax year-end summary (6-12 April). */
 export async function sendTaxYearEndSummaryEmail(
   email: string,
   displayName: string | null | undefined,
@@ -1700,7 +1730,8 @@ export async function sendTaxYearEndSummaryEmail(
     taxYear: string;
     businessMiles: number;
     trips: number;
-    deductionPence: number;
+    claimPence: number;
+    audience: TaxEmailAudience;
   },
   userId: string
 ): Promise<void> {
@@ -1711,17 +1742,22 @@ export async function sendTaxYearEndSummaryEmail(
   });
   const bodyHtml = `
 ${para(greeting)}
-${para(`The <strong style="color:#f0f2f5;">${escapeHtml(data.taxYear)}</strong> tax year has closed. Here's everything you tracked - this is the figure you can claim against your Self Assessment:`)}
+${para(`The <strong style="color:#f0f2f5;">${escapeHtml(data.taxYear)}</strong> tax year has closed. Here's what you tracked:`)}
 ${statGrid([
     { value: miles, label: "Business miles" },
-    { value: data.trips.toLocaleString("en-GB"), label: "Trips" },
-    { value: gbp(data.deductionPence), label: "Deduction" },
+    { value: data.trips.toLocaleString("en-GB"), label: "Business trips" },
+    { value: gbp(data.claimPence), label: "Mileage claim" },
   ])}
-${para("When you're ready to file, your full Self Assessment breakdown - box by box - is one tap away. No spreadsheets, no guesswork.")}
-${ctaButton("View your tax summary", "https://mileclear.com/dashboard/tax")}
+${para(
+    taxAudienceLine(
+      data.audience,
+      "When you're ready to file, the Self Assessment wizard in MileClear shows which box each figure goes in."
+    )
+  )}
+${ctaButton("See your tax figures", `${DASHBOARD_URL}/tax`)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: `${miles} business miles, ${gbp(data.deductionPence)} deduction for ${data.taxYear}.`,
+    preheader: `${miles} business miles and ${gbp(data.claimPence)} of mileage claim for ${data.taxYear}.`,
     eyebrow: `${escapeHtml(data.taxYear)} &middot; Year-end summary`,
     title: `Your ${escapeHtml(data.taxYear)} mileage is ready`,
     bodyHtml,
@@ -1786,7 +1822,9 @@ ${SIGN_OFF}`;
   });
 }
 
-/** Self Assessment deadline reminder (register / file / payment on account). */
+/** Self Assessment deadline reminder. Self-employed drivers only. The
+ *  mileage claim lowers the profit tax is worked out on; it is not money
+ *  off the bill, so the email never says so. */
 export async function sendSelfAssessmentDeadlineEmail(
   email: string,
   displayName: string | null | undefined,
@@ -1795,29 +1833,39 @@ export async function sendSelfAssessmentDeadlineEmail(
     dateLabel: string; // e.g. "31 January 2027"
     daysLeft: number;
     actionLine: string; // e.g. "file your 2025-26 return and pay any tax due"
-    deductionPence?: number;
+    returnYear: string; // e.g. "2025-26"
+    claimPence?: number;
+    /** "self_employed" or "mixed"; employees never get this email. */
+    audience: TaxEmailAudience;
   },
   userId: string
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const days = `${data.daysLeft} day${data.daysLeft !== 1 ? "s" : ""}`;
   const bodyHtml = `
 ${para(greeting)}
-${warningCard(`<strong style="color:#fca5a5;">${escapeHtml(data.dateLabel)}</strong> is the deadline to ${escapeHtml(data.actionLine)} - that's ${data.daysLeft} day${data.daysLeft !== 1 ? "s" : ""} away.`)}
-${data.deductionPence ? para(`Good news: your mileage has already added up to <strong style="color:#f5a623;">${gbp(data.deductionPence)}</strong> in deductions this year. That's money off your bill, ready to claim.`) : ""}
-${para("Your numbers are ready in MileClear. Export your Self Assessment breakdown and the mileage section of your return is done.")}
-${ctaButton("Get your numbers ready", "https://mileclear.com/dashboard/exports")}
-${para("Questions about what counts? Just reply - happy to help.", 8)}
+${warningCard(`<strong style="color:#fca5a5;">${escapeHtml(data.dateLabel)}</strong> is the deadline to ${escapeHtml(data.actionLine)}. That's ${days} away.`)}
+${data.claimPence
+    ? para(`Your mileage claim for ${escapeHtml(data.returnYear)} is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>. ${
+        data.audience === "self_employed"
+          ? "It counts as a business expense, so it lowers the profit you pay tax on."
+          : "The Tax tab in MileClear shows how much of it goes on your return."
+      }`)
+    : ""}
+${para("The Self Assessment wizard in MileClear shows which box each figure goes in. Pro members can also download it as a PDF.")}
+${ctaButton("See your tax figures", `${DASHBOARD_URL}/tax`)}
+${para("Questions about what counts? Just reply, happy to help.", 8)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: `${data.dateLabel} deadline - your mileage figures are ready to file.`,
+    preheader: `${data.dateLabel} deadline. Your mileage figures are in MileClear.`,
     eyebrow: "Self Assessment",
-    title: `${escapeHtml(data.deadlineLabel)} is ${data.daysLeft} day${data.daysLeft !== 1 ? "s" : ""} away`,
+    title: `${escapeHtml(data.deadlineLabel)} is ${days} away`,
     bodyHtml,
     footerHtml: unsubscribeFooterHtml(userId),
   });
   await deliver({
     email,
-    subject: `${data.daysLeft} days to the Self Assessment deadline`,
+    subject: `${days} to the Self Assessment deadline`,
     html,
     userId,
     label: "Self Assessment deadline",
@@ -1825,40 +1873,142 @@ ${SIGN_OFF}`;
   });
 }
 
-/** Nudge to classify unclassified trips so they count toward the deduction. */
+/** Nudge to sort trips so they count towards the mileage claim. Only for
+ *  drivers the Sunday classify push can't reach. */
 export async function sendUnclassifiedTripsNudgeEmail(
   email: string,
   displayName: string | null | undefined,
-  data: { count: number; potentialDeductionPence: number },
+  data: { count: number; potentialClaimPence: number },
   userId: string
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const trips = `${data.count} trip${data.count !== 1 ? "s" : ""}`;
   const bodyHtml = `
 ${para(greeting)}
 ${statGrid([
-    { value: data.count.toLocaleString("en-GB"), label: "Unclassified trips" },
-    {
-      value: gbp(data.potentialDeductionPence),
-      label: "Potential deduction",
-    },
+    { value: data.count.toLocaleString("en-GB"), label: "Trips to sort" },
+    { value: gbp(data.potentialClaimPence), label: "Up to" },
   ])}
-${para(`Trips only count towards your tax deduction once they're marked as business. You've got <strong style="color:#f0f2f5;">${data.count}</strong> waiting - that's up to <strong style="color:#f5a623;">${gbp(data.potentialDeductionPence)}</strong> you could be claiming.`)}
-${para("A minute or two sorts them: open Trips, then To sort, and tap Business or Personal on each. MileClear learns your regular journeys and sorts them for you after a few.")}
-${ctaButton("Classify my trips", DASHBOARD_URL)}
+${para(`Trips only count towards your mileage claim once they're marked as Business. You've got <strong style="color:#f0f2f5;">${trips}</strong> waiting, worth up to <strong style="color:#f5a623;">${gbp(data.potentialClaimPence)}</strong>.`)}
+${para("In the MileClear app, go to Trips, then To sort, and tap Business or Personal on each. After a few, MileClear learns your regular journeys and sorts them for you. You can also sort them on the website.")}
+${ctaButton("Sort them on the website", `${DASHBOARD_URL}/trips`)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: `${data.count} trips to classify - up to ${gbp(data.potentialDeductionPence)} in deductions waiting.`,
-    eyebrow: "Don't leave money behind",
-    title: `You've got ${data.count} trip${data.count !== 1 ? "s" : ""} to classify`,
+    preheader: `${trips} to sort, worth up to ${gbp(data.potentialClaimPence)}.`,
+    eyebrow: "Trips to sort",
+    title: `You've got ${trips} to sort`,
     bodyHtml,
     footerHtml: unsubscribeFooterHtml(userId),
   });
   await deliver({
     email,
-    subject: `${data.count} trips waiting - up to ${gbp(data.potentialDeductionPence)} to claim`,
+    subject: `${trips} to sort, worth up to ${gbp(data.potentialClaimPence)}`,
     html,
     userId,
     label: "Unclassified trips nudge",
+    gated: true,
+  });
+}
+
+// ── Retention (18 Oct 2026) ───────────────────────────────────────────
+// Joiners who stop recording mostly stop in their first week, and most of
+// them never sorted a trip; by day 14 they have stopped opening the app, so
+// email is the only way to reach them (retention read, 18 Oct 2026).
+
+const RECORDING_SETTINGS_LINE =
+  "If a drive is ever missing, check MileClear's Location setting is Always (iPhone) or Allow all the time (Android), so it records with the app closed.";
+
+/** Day 5-8 after joining, to drivers who have recorded at least one trip. */
+export async function sendWeekOneEmail(
+  email: string,
+  displayName: string | null | undefined,
+  data: {
+    trips: number;
+    miles: number;
+    /** Null for Personal-mode and company-car drivers. */
+    claimPence: number | null;
+    /** Trips still to sort. 0 when there's nothing to sort, or for Personal-mode and company-car drivers. */
+    toSort: number;
+  },
+  userId: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const miles = data.miles.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: 1 });
+  const trips = `${data.trips} trip${data.trips !== 1 ? "s" : ""}`;
+  const showClaim = data.claimPence != null && data.claimPence > 0;
+  const bodyHtml = `
+${para(greeting)}
+${para("Here's your first week with MileClear:")}
+${statGrid([
+    { value: data.trips.toLocaleString("en-GB"), label: "Trips" },
+    { value: miles, label: "Miles" },
+    ...(showClaim ? [{ value: gbp(data.claimPence!), label: "Mileage claim" }] : []),
+  ])}
+${data.toSort > 0
+    ? para(`<strong style="color:#f0f2f5;">${data.toSort}</strong> of them ${data.toSort === 1 ? "is" : "are"} still waiting to be sorted. In the app, go to Trips, then To sort, and tap Business or Personal. Business trips count towards your mileage claim, and after a few MileClear starts sorting your regular journeys for you.`)
+    : para("MileClear keeps recording in the background, so there's nothing to press before you drive.")}
+${para(RECORDING_SETTINGS_LINE)}
+${ctaButton("Open your dashboard", DASHBOARD_URL)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: `${trips} and ${miles} miles in your first week.`,
+    eyebrow: "Your first week",
+    title: `${trips}, ${miles} miles`,
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+  await deliver({
+    email,
+    subject: `Your first week with MileClear: ${trips}, ${miles} miles`,
+    html,
+    userId,
+    label: "Week one",
+    gated: true,
+  });
+}
+
+/** 10-21 days without a recorded drive, after at least three trips. */
+export async function sendGoneQuietEmail(
+  email: string,
+  displayName: string | null | undefined,
+  data: {
+    lastTripLabel: string; // e.g. "Tuesday 6 October"
+    android: boolean;
+    /** This tax year's mileage claim; null for Personal-mode and company-car drivers. */
+    claimPence: number | null;
+  },
+  userId: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const steps = [
+    "Open MileClear. If there's a message on Home about recording, follow it.",
+    data.android
+      ? "Check Location is set to Allow all the time, and Battery to Unrestricted, in your phone's settings for MileClear."
+      : "Check Location is set to Always in Settings, then MileClear.",
+  ];
+  const bodyHtml = `
+${para(greeting)}
+${para(`MileClear hasn't recorded a drive since <strong style="color:#f0f2f5;">${escapeHtml(data.lastTripLabel)}</strong>. If you haven't been driving, that's fine, you can ignore this.`)}
+${para("If you have, recording may have stopped. Two quick checks:")}
+${stepsCard(steps)}
+${data.claimPence != null && data.claimPence > 0
+    ? para(`Your mileage claim so far this tax year is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>, so it's worth catching the rest of the year's drives too.`)
+    : ""}
+${para("If it still isn't recording, just reply and I'll take a look.", 8)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: `No drives recorded since ${data.lastTripLabel}.`,
+    eyebrow: "Still driving?",
+    title: `No drives since ${escapeHtml(data.lastTripLabel)}`,
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+  await deliver({
+    email,
+    subject: `We haven't seen a drive since ${data.lastTripLabel}`,
+    html,
+    userId,
+    label: "Gone quiet",
     gated: true,
   });
 }

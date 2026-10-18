@@ -8,6 +8,16 @@
 // previewTriggeredEmails() runs the same selection without sending, for the
 // dry run that precedes enabling it (the fleet-rewrite lesson, Aug 2026).
 //
+// Retention pair (18 Oct 2026): a week-one email and a "gone quiet" email,
+// behind their own switch, RETENTION_EMAILS_ENABLED=1. The five above all
+// need a trip in the last 30 days, so none reached the drivers who leave:
+// 60% of those who stop do so in week one, and by day 14 most no longer
+// open the app (retention read, 18 Oct 2026).
+//
+// Wording (18 Oct 2026): "mileage claim", never "deduction" (Tax tab rule);
+// employees never hear about Self Assessment; Personal-mode and company-car
+// drivers get no money figures.
+//
 // Why these five and not a newsletter: the app's value is that it needs no
 // attention, so the emails that earn their place are the ones about the
 // user's own numbers - unclassified trips waiting, a deduction milestone,
@@ -21,12 +31,16 @@ import {
   sendTaxMilestoneEmail,
   sendTaxYearEndSummaryEmail,
   sendSelfAssessmentDeadlineEmail,
+  sendWeekOneEmail,
+  sendGoneQuietEmail,
+  type TaxEmailAudience,
 } from "../services/email.js";
 import { getPeriodRecap } from "../services/gamification.js";
 import { calculateMileageDeduction, resolveMileageRates, getTaxYear } from "@mileclear/shared";
 import { claimableWhere } from "../lib/claimableTrips.js";
 
 const ENABLED = () => process.env.TRIGGERED_EMAILS_ENABLED === "1";
+const RETENTION_ENABLED = () => process.env.RETENTION_EMAILS_ENABLED === "1";
 const SEND_DELAY_MS = 300;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -40,6 +54,17 @@ const UNCLASSIFIED_COOLDOWN_MS = 13 * DAY_MS; // at most every other Sunday
 const ACTIVE_WINDOW_MS = 30 * DAY_MS; // must have driven recently to hear from us
 const MILESTONES_PENCE = [10000, 25000, 50000, 100000, 250000, 500000];
 const MILESTONE_COOLDOWN_MS = 14 * DAY_MS; // one milestone email a fortnight, tops
+// Below £1 the "worth up to" line reads as a joke (dry run 18 Oct: some at £0).
+const UNCLASSIFIED_MIN_PENCE = 100;
+export const WEEK_ONE_MIN_AGE_MS = 5 * DAY_MS;
+export const WEEK_ONE_MAX_AGE_MS = 8 * DAY_MS;
+export const GONE_QUIET_MIN_SILENCE_MS = 10 * DAY_MS;
+// Older silences are long gone; this email is for drivers still within reach.
+export const GONE_QUIET_MAX_SILENCE_MS = 21 * DAY_MS;
+export const GONE_QUIET_MIN_TRIPS = 3;
+export const GONE_QUIET_COOLDOWN_MS = 90 * DAY_MS;
+// capture_lapsed already told them the permission is off; don't stack a second message.
+export const GONE_QUIET_LAPSED_GAP_MS = 14 * DAY_MS;
 
 export const EVENT = {
   unclassified: "email.unclassified_nudge_sent",
@@ -47,7 +72,58 @@ export const EVENT = {
   milestone: "email.tax_milestone_sent",
   yearEnd: "email.tax_year_end_sent",
   saDeadline: "email.sa_deadline_sent",
+  weekOne: "email.week_one_sent",
+  goneQuiet: "email.gone_quiet_sent",
 } as const;
+
+/** Who gets money figures and which tax wording. Null = no tax emails:
+ *  Personal mode (driving for themselves) and company-car drivers (no
+ *  mileage to claim). */
+export function taxAudience(u: { workType: string; dashboardMode: string }): TaxEmailAudience | null {
+  if (u.dashboardMode === "personal" || u.workType === "company") return null;
+  if (u.workType === "employee") return "employee";
+  return u.workType === "both" ? "mixed" : "self_employed";
+}
+
+/** Android tips only when the account has only been seen on Android, or
+ *  signed up there when it has been seen on both. */
+export function isAndroidUser(u: { platformsSeen: string | null; signupPlatform: string | null }): boolean {
+  const seen = (u.platformsSeen ?? "").split(",").filter(Boolean);
+  if (seen.includes("android") && !seen.includes("ios")) return true;
+  if (seen.includes("android") && seen.includes("ios")) return u.signupPlatform === "android";
+  return seen.length === 0 && u.signupPlatform === "android";
+}
+
+/** "Tuesday 6 October", London time. */
+export function londonDayLabel(d: Date): string {
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" });
+}
+
+export type GoneQuietFacts = {
+  now: Date;
+  createdAt: Date;
+  lastTripAt: Date | null;
+  totalTrips: number;
+  lastGoneQuietAt: Date | null;
+  lastCaptureLapsedAt: Date | null;
+  /** The app is alive with push but can't see location in the background:
+   *  the capture_lapsed push (activation.ts) names that exact cause at 14
+   *  days, so this email stands aside rather than stack a second message. */
+  capturedLapsedWillCover: boolean;
+};
+
+/** Pure: should this driver get the gone-quiet email now? */
+export function decideGoneQuiet(f: GoneQuietFacts): boolean {
+  if (!f.lastTripAt) return false;
+  const silence = f.now.getTime() - f.lastTripAt.getTime();
+  if (silence < GONE_QUIET_MIN_SILENCE_MS || silence > GONE_QUIET_MAX_SILENCE_MS) return false;
+  if (f.now.getTime() - f.createdAt.getTime() < 14 * DAY_MS) return false;
+  if (f.totalTrips < GONE_QUIET_MIN_TRIPS) return false;
+  if (f.lastGoneQuietAt && f.now.getTime() - f.lastGoneQuietAt.getTime() < GONE_QUIET_COOLDOWN_MS) return false;
+  if (f.lastCaptureLapsedAt && f.now.getTime() - f.lastCaptureLapsedAt.getTime() < GONE_QUIET_LAPSED_GAP_MS) return false;
+  if (f.capturedLapsedWillCover) return false;
+  return true;
+}
 
 function ukNow(): { hour: number; day: number; date: number; month: number; year: number } {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -76,11 +152,11 @@ async function sentWithin(userId: string, type: string, ms: number): Promise<boo
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type Candidate = {
-  id: string; email: string; displayName: string | null; workType: string;
+  id: string; email: string; displayName: string | null; workType: string; dashboardMode: string;
   employerMileageRatePence: number | null; employerMileageRatePenceAfter10k: number | null;
 };
 const CANDIDATE_SELECT = {
-  id: true, email: true, displayName: true, workType: true,
+  id: true, email: true, displayName: true, workType: true, dashboardMode: true,
   employerMileageRatePence: true, employerMileageRatePenceAfter10k: true,
 } as const;
 
@@ -102,8 +178,14 @@ async function unclassifiedTargets(): Promise<Array<{ user: Candidate; count: nu
   const out: Array<{ user: Candidate; count: number; pence: number }> = [];
   const taxYear = getTaxYear(new Date());
   // Personal-mode users track for themselves; business classification is
-  // not a thing they are neglecting.
-  for (const user of await activeCandidates({ NOT: { dashboardMode: "personal" } })) {
+  // not a thing they are neglecting. Drivers with a push token already get
+  // the Sunday 19:00 classify push about the same trips (classifyNudge.ts),
+  // so the email only goes where that push can't (18 Oct 2026: 216 of 288
+  // would have had both on one evening).
+  for (const user of await activeCandidates({
+    pushToken: null,
+    NOT: [{ dashboardMode: "personal" }, { workType: "company" }],
+  })) {
     const agg = await prisma.trip.aggregate({
       where: { userId: user.id, classification: "unclassified", isPhantomTrip: false },
       _count: { _all: true },
@@ -125,6 +207,7 @@ async function unclassifiedTargets(): Promise<Array<{ user: Candidate; count: nu
     const pence = calculateMileageDeduction("car", claimable._sum.distanceMiles ?? 0, {
       ...resolveMileageRates(user), taxYear,
     }).deductionPence;
+    if (pence < UNCLASSIFIED_MIN_PENCE) continue;
     out.push({ user, count, pence });
   }
   return out;
@@ -137,8 +220,8 @@ export async function runUnclassifiedNudgeEmailJob(): Promise<void> {
   let sent = 0;
   for (const { user, count, pence } of await unclassifiedTargets()) {
     try {
-      await sendUnclassifiedTripsNudgeEmail(user.email, user.displayName, { count, potentialDeductionPence: pence }, user.id);
-      logEvent(EVENT.unclassified, user.id, { count, potentialDeductionPence: pence });
+      await sendUnclassifiedTripsNudgeEmail(user.email, user.displayName, { count, potentialClaimPence: pence }, user.id);
+      logEvent(EVENT.unclassified, user.id, { count, potentialClaimPence: pence });
       sent++;
       await sleep(SEND_DELAY_MS);
     } catch (err) {
@@ -169,7 +252,8 @@ export async function runWeeklyRecapEmailJob(): Promise<void> {
   for (const { user, recap } of await recapTargets()) {
     try {
       await sendWeeklyRecapEmail(user.email, user.displayName, {
-        weekLabel: recap.label, trips: recap.totalTrips, miles: recap.totalMiles, deductionPence: recap.deductionPence,
+        weekLabel: recap.label, trips: recap.totalTrips, miles: recap.totalMiles,
+        claimPence: taxAudience(user) ? recap.deductionPence : null,
       }, user.id);
       logEvent(EVENT.recap, user.id, { trips: recap.totalTrips, miles: recap.totalMiles });
       sent++;
@@ -194,7 +278,7 @@ async function milestoneTargets(seed = false): Promise<Array<{ user: Candidate; 
   const byId = new Map(users.map((u) => [u.id, u]));
   for (const s of summaries) {
     const user = byId.get(s.userId);
-    if (!user) continue;
+    if (!user || !taxAudience(user)) continue;
     const crossed = MILESTONES_PENCE.filter((m) => s.deductionPence >= m);
     const top = crossed[crossed.length - 1];
     const already = await prisma.appEvent.findMany({
@@ -228,7 +312,8 @@ export async function runTaxMilestoneEmailJob(): Promise<void> {
   for (const m of await milestoneTargets(true)) {
     try {
       await sendTaxMilestoneEmail(m.user.email, m.user.displayName, {
-        taxYear: m.taxYear, milestonePence: m.milestone, deductionPence: m.deductionPence, businessMiles: m.businessMiles,
+        taxYear: m.taxYear, milestonePence: m.milestone, claimPence: m.deductionPence, businessMiles: m.businessMiles,
+        audience: taxAudience(m.user)!,
       }, m.user.id);
       logEvent(EVENT.milestone, m.user.id, { milestone: m.milestone, taxYear: m.taxYear, deductionPence: m.deductionPence });
       sent++;
@@ -256,7 +341,7 @@ async function yearEndTargets(): Promise<Array<{ user: Candidate; taxYear: strin
   const byId = new Map(users.map((u) => [u.id, u]));
   for (const s of summaries) {
     const user = byId.get(s.userId);
-    if (!user) continue;
+    if (!user || !taxAudience(user)) continue;
     if (await sentWithin(user.id, EVENT.yearEnd, 300 * DAY_MS)) continue;
     const trips = await prisma.trip.count({
       where: { userId: user.id, classification: "business", isPhantomTrip: false,
@@ -275,7 +360,8 @@ export async function runTaxYearEndEmailJob(): Promise<void> {
   for (const y of await yearEndTargets()) {
     try {
       await sendTaxYearEndSummaryEmail(y.user.email, y.user.displayName, {
-        taxYear: y.taxYear, businessMiles: y.businessMiles, trips: y.trips, deductionPence: y.deductionPence,
+        taxYear: y.taxYear, businessMiles: y.businessMiles, trips: y.trips, claimPence: y.deductionPence,
+        audience: taxAudience(y.user)!,
       }, y.user.id);
       logEvent(EVENT.yearEnd, y.user.id, { taxYear: y.taxYear, deductionPence: y.deductionPence });
       sent++;
@@ -314,7 +400,8 @@ async function saDeadlineTargets(t: ReturnType<typeof ukNow>): Promise<Array<{ u
   const byId = new Map(users.map((u) => [u.id, u]));
   for (const s of summaries) {
     const user = byId.get(s.userId);
-    if (!user) continue;
+    const audience = user ? taxAudience(user) : null;
+    if (!user || (audience !== "self_employed" && audience !== "mixed")) continue;
     if (await sentWithin(user.id, EVENT.saDeadline, (d.daysLeft === 30 ? 300 : 20) * DAY_MS)) continue;
     out.push({ user, ...d, deductionPence: s.deductionPence });
   }
@@ -334,7 +421,9 @@ export async function runSaDeadlineEmailJob(): Promise<void> {
         dateLabel: x.dateLabel,
         daysLeft: x.daysLeft,
         actionLine: `file your ${x.returnYear} return and pay any tax due`,
-        deductionPence: x.deductionPence,
+        returnYear: x.returnYear,
+        claimPence: x.deductionPence,
+        audience: taxAudience(x.user)!,
       }, x.user.id);
       logEvent(EVENT.saDeadline, x.user.id, { daysLeft: x.daysLeft, returnYear: x.returnYear });
       sent++;
@@ -346,6 +435,159 @@ export async function runSaDeadlineEmailJob(): Promise<void> {
   if (sent) console.log(`[triggeredEmails] SA deadline (${sent ? "sent" : ""} ${sent})`);
 }
 
+// ── 6. Week one: what the first days recorded (10:00 UK daily) ─────────
+type WeekOneTarget = { user: Candidate; trips: number; miles: number; claimPence: number | null; toSort: number };
+
+async function weekOneTargets(now = new Date()): Promise<WeekOneTarget[]> {
+  const out: WeekOneTarget[] = [];
+  const users = await prisma.user.findMany({
+    where: {
+      emailVerified: true,
+      marketingEmailsEnabled: true,
+      createdAt: { gte: new Date(now.getTime() - WEEK_ONE_MAX_AGE_MS), lte: new Date(now.getTime() - WEEK_ONE_MIN_AGE_MS) },
+      lastTripAt: { not: null },
+    },
+    select: { ...CANDIDATE_SELECT, createdAt: true },
+  });
+  if (users.length === 0) return out;
+  const ids = users.map((u) => u.id);
+  // Only trips driven since joining: a driver who back-filled months of
+  // past trips by hand must not read "your first week: 180 trips".
+  const earliestJoin = new Date(Math.min(...users.map((u) => u.createdAt.getTime())));
+  const [sent, trips] = await Promise.all([
+    prisma.appEvent.findMany({ where: { type: EVENT.weekOne, userId: { in: ids } }, select: { userId: true } }),
+    prisma.trip.findMany({
+      where: { userId: { in: ids }, isPhantomTrip: false, startedAt: { gte: earliestJoin } },
+      select: { userId: true, startedAt: true, distanceMiles: true, classification: true },
+    }),
+  ]);
+  const claimable = await prisma.trip.findMany({
+    where: claimableWhere({ userId: { in: ids }, isPhantomTrip: false, classification: "business", startedAt: { gte: earliestJoin } }),
+    select: { userId: true, startedAt: true, distanceMiles: true },
+  });
+  const done = new Set(sent.map((e) => e.userId));
+  const taxYear = getTaxYear(now);
+  for (const u of users) {
+    if (done.has(u.id)) continue;
+    const mine = trips.filter((t) => t.userId === u.id && t.startedAt >= u.createdAt);
+    if (mine.length === 0) continue;
+    const audience = taxAudience(u);
+    const businessMiles = claimable
+      .filter((t) => t.userId === u.id && t.startedAt >= u.createdAt)
+      .reduce((sum, t) => sum + t.distanceMiles, 0);
+    out.push({
+      user: u,
+      trips: mine.length,
+      miles: mine.reduce((sum, t) => sum + t.distanceMiles, 0),
+      claimPence: audience
+        ? calculateMileageDeduction("car", businessMiles, { ...resolveMileageRates(u), taxYear }).deductionPence
+        : null,
+      // Personal-mode and company-car drivers have no mileage claim to sort towards.
+      toSort: audience ? mine.filter((t) => t.classification === "unclassified").length : 0,
+    });
+  }
+  return out;
+}
+
+export async function runWeekOneEmailJob(): Promise<void> {
+  if (ukNow().hour !== 10) return; // 10:00-10:59 UK daily
+  if (!RETENTION_ENABLED()) return;
+  let sent = 0;
+  for (const w of await weekOneTargets()) {
+    try {
+      await sendWeekOneEmail(w.user.email, w.user.displayName, {
+        trips: w.trips, miles: w.miles, claimPence: w.claimPence, toSort: w.toSort,
+      }, w.user.id);
+      logEvent(EVENT.weekOne, w.user.id, { trips: w.trips, toSort: w.toSort });
+      sent++;
+      await sleep(SEND_DELAY_MS);
+    } catch (err) {
+      console.error(`[triggeredEmails] week one failed for ${w.user.id}:`, err);
+    }
+  }
+  if (sent) console.log(`[triggeredEmails] week one: sent ${sent}`);
+}
+
+// ── 7. Gone quiet: 10-21 days with no drive (17:00 UK daily) ───────────
+type GoneQuietTarget = { user: Candidate; lastTripAt: Date; android: boolean; claimPence: number | null };
+
+async function goneQuietTargets(now = new Date()): Promise<GoneQuietTarget[]> {
+  const out: GoneQuietTarget[] = [];
+  const users = await prisma.user.findMany({
+    where: {
+      emailVerified: true,
+      marketingEmailsEnabled: true,
+      createdAt: { lte: new Date(now.getTime() - 14 * DAY_MS) },
+      lastTripAt: {
+        gte: new Date(now.getTime() - GONE_QUIET_MAX_SILENCE_MS),
+        lte: new Date(now.getTime() - GONE_QUIET_MIN_SILENCE_MS),
+      },
+    },
+    select: {
+      ...CANDIDATE_SELECT, createdAt: true, lastTripAt: true, platformsSeen: true, signupPlatform: true,
+      lastHeartbeatAt: true, pushToken: true, bgLocationPermission: true,
+    },
+  });
+  if (users.length === 0) return out;
+  const ids = users.map((u) => u.id);
+  const [counts, events, summaries] = await Promise.all([
+    prisma.trip.groupBy({ by: ["userId"], where: { userId: { in: ids }, isPhantomTrip: false }, _count: { _all: true } }),
+    prisma.appEvent.findMany({
+      where: { userId: { in: ids }, type: { in: [EVENT.goneQuiet, "notification.capture_lapsed"] } },
+      select: { userId: true, type: true, createdAt: true },
+    }),
+    prisma.mileageSummary.findMany({ where: { userId: { in: ids }, taxYear: getTaxYear(now) }, select: { userId: true, deductionPence: true } }),
+  ]);
+  const countBy = new Map(counts.map((c) => [c.userId, c._count._all]));
+  const claimBy = new Map(summaries.map((m) => [m.userId, m.deductionPence]));
+  const latest = (userId: string, type: string): Date | null => {
+    const hits = events.filter((e) => e.userId === userId && e.type === type).map((e) => e.createdAt.getTime());
+    return hits.length ? new Date(Math.max(...hits)) : null;
+  };
+  for (const u of users) {
+    const ok = decideGoneQuiet({
+      now,
+      createdAt: u.createdAt,
+      lastTripAt: u.lastTripAt,
+      totalTrips: countBy.get(u.id) ?? 0,
+      lastGoneQuietAt: latest(u.id, EVENT.goneQuiet),
+      lastCaptureLapsedAt: latest(u.id, "notification.capture_lapsed"),
+      capturedLapsedWillCover:
+        !!u.pushToken &&
+        !!u.lastHeartbeatAt &&
+        now.getTime() - u.lastHeartbeatAt.getTime() < 14 * DAY_MS &&
+        u.bgLocationPermission !== "granted",
+    });
+    if (!ok) continue;
+    out.push({
+      user: u,
+      lastTripAt: u.lastTripAt!,
+      android: isAndroidUser(u),
+      claimPence: taxAudience(u) ? (claimBy.get(u.id) ?? 0) : null,
+    });
+  }
+  return out;
+}
+
+export async function runGoneQuietEmailJob(): Promise<void> {
+  if (ukNow().hour !== 17) return; // 17:00-17:59 UK daily
+  if (!RETENTION_ENABLED()) return;
+  let sent = 0;
+  for (const g of await goneQuietTargets()) {
+    try {
+      await sendGoneQuietEmail(g.user.email, g.user.displayName, {
+        lastTripLabel: londonDayLabel(g.lastTripAt), android: g.android, claimPence: g.claimPence,
+      }, g.user.id);
+      logEvent(EVENT.goneQuiet, g.user.id, { lastTripAt: g.lastTripAt.toISOString(), android: g.android });
+      sent++;
+      await sleep(SEND_DELAY_MS);
+    } catch (err) {
+      console.error(`[triggeredEmails] gone quiet failed for ${g.user.id}:`, err);
+    }
+  }
+  if (sent) console.log(`[triggeredEmails] gone quiet: sent ${sent}`);
+}
+
 /** Dry run: who would each job email right now, ignoring the time windows. */
 export async function previewTriggeredEmails(): Promise<{
   enabled: boolean;
@@ -354,10 +596,14 @@ export async function previewTriggeredEmails(): Promise<{
   milestone: Array<{ userId: string; milestone: number; deductionPence: number }>;
   yearEnd: number;
   saDeadline: number;
+  retentionEnabled: boolean;
+  weekOne: Array<{ userId: string; trips: number; toSort: number; claimPence: number | null }>;
+  goneQuiet: Array<{ userId: string; lastTripAt: string; android: boolean; claimPence: number | null }>;
 }> {
   const t = ukNow();
-  const [u, r, m, y, s] = await Promise.all([
+  const [u, r, m, y, s, w, g] = await Promise.all([
     unclassifiedTargets(), recapTargets(), milestoneTargets(), yearEndTargets(), saDeadlineTargets(t),
+    weekOneTargets(), goneQuietTargets(),
   ]);
   return {
     enabled: ENABLED(),
@@ -366,5 +612,8 @@ export async function previewTriggeredEmails(): Promise<{
     milestone: m.map((x) => ({ userId: x.user.id, milestone: x.milestone, deductionPence: x.deductionPence })),
     yearEnd: y.length,
     saDeadline: s.length,
+    retentionEnabled: RETENTION_ENABLED(),
+    weekOne: w.map((x) => ({ userId: x.user.id, trips: x.trips, toSort: x.toSort, claimPence: x.claimPence })),
+    goneQuiet: g.map((x) => ({ userId: x.user.id, lastTripAt: x.lastTripAt.toISOString(), android: x.android, claimPence: x.claimPence })),
   };
 }

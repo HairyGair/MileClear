@@ -61,6 +61,8 @@ import {
   runTaxMilestoneEmailJob,
   runTaxYearEndEmailJob,
   runSaDeadlineEmailJob,
+  runWeekOneEmailJob,
+  runGoneQuietEmailJob,
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert, discordUserLabel } from "../services/discord.js";
@@ -1812,6 +1814,10 @@ export function startNotificationJobs(): void {
     void runJob("email_tax_milestone", runTaxMilestoneEmailJob);
     void runJob("email_tax_year_end", runTaxYearEndEmailJob);
     void runJob("email_sa_deadline", runSaDeadlineEmailJob);
+    // Retention pair (18 Oct 2026): week one 10:00, gone quiet 17:00 UK.
+    // Sends nothing unless RETENTION_EMAILS_ENABLED=1.
+    void runJob("email_week_one", runWeekOneEmailJob);
+    void runJob("email_gone_quiet", runGoneQuietEmailJob);
     // Weekly classify nudge, Sunday 19:00 UK. Dry run unless CLASSIFY_NUDGE=1.
     void runJob("classify_nudge", runClassifyNudgeJob);
     // "Ready for 31 January?" pushes: 1 Dec, 2 Jan, 20 Jan, 29 Jan at 18:00

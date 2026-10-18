@@ -1,6 +1,6 @@
 // One-off: send the redesigned + new campaign/lifecycle emails to Anthony.
 // Run: cd apps/api && npx tsx --env-file=../../.env scripts/send-test-emails.ts [group]
-//   group = "core" (original 3) | "new" (16 new) | "all" (default)
+//   group = "core" (original 3) | "new" (16 new) | "all" (default) | "lifecycle" (18 Oct rewording + retention pair)
 import {
   sendReEngagementEmail,
   sendUpdateEmail,
@@ -21,6 +21,9 @@ import {
   sendAccountDeletedEmail,
   sendReferralRewardEmail,
   sendFeatureShippedEmail,
+  sendTaxMilestoneEmail,
+  sendWeekOneEmail,
+  sendGoneQuietEmail,
 } from "../src/services/email.js";
 
 const TO = "anthonygair@icloud.com";
@@ -30,6 +33,23 @@ const UID = "test-preview-0000-0000-000000000000";
 const MANAGE_URL = "https://mileclear.com/dashboard/settings";
 
 const group = process.argv[2] ?? "all";
+
+// The lifecycle set as reworded 18 Oct 2026, plus the two retention emails.
+async function lifecycle() {
+  await sendUnclassifiedTripsNudgeEmail(TO, NAME, { count: 12, potentialClaimPence: 5400 }, UID);
+  await sendWeeklyRecapEmail(TO, NAME, { weekLabel: "12 - 18 Oct", trips: 14, miles: 173.6, claimPence: 9548 }, UID);
+  await sendTaxMilestoneEmail(TO, NAME, { taxYear: "2026-27", milestonePence: 50000, claimPence: 51230, businessMiles: 931, audience: "self_employed" }, UID);
+  await sendTaxMilestoneEmail(TO, NAME, { taxYear: "2026-27", milestonePence: 25000, claimPence: 26010, businessMiles: 650, audience: "employee" }, UID);
+  await sendTaxYearEndSummaryEmail(TO, NAME, { taxYear: "2026-27", businessMiles: 8420, trips: 612, claimPence: 431000, audience: "self_employed" }, UID);
+  await sendSelfAssessmentDeadlineEmail(TO, NAME, {
+    deadlineLabel: "The Self Assessment filing deadline", dateLabel: "31 January 2027", daysLeft: 30,
+    actionLine: "file your 2025-26 return and pay any tax due", returnYear: "2025-26", claimPence: 120000, audience: "self_employed",
+  }, UID);
+  await sendWeekOneEmail(TO, NAME, { trips: 9, miles: 64.2, claimPence: 2140, toSort: 7 }, UID);
+  await sendWeekOneEmail(TO, NAME, { trips: 6, miles: 41.0, claimPence: null, toSort: 0 }, UID);
+  await sendGoneQuietEmail(TO, NAME, { lastTripLabel: "Tuesday 6 October", android: false, claimPence: 41250 }, UID);
+  await sendGoneQuietEmail(TO, NAME, { lastTripLabel: "Tuesday 6 October", android: true, claimPence: null }, UID);
+}
 
 async function core() {
   await sendReEngagementEmail(TO, NAME, { totalTrips: 47, totalMiles: 612.4 }, UID);
@@ -45,14 +65,14 @@ async function fresh() {
   await sendWeeklyRecapEmail(
     TO,
     NAME,
-    { weekLabel: "26 May - 1 Jun", trips: 14, miles: 173.6, deductionPence: 9548 },
+    { weekLabel: "26 May - 1 Jun", trips: 14, miles: 173.6, claimPence: 9548 },
     UID
   );
   // Tax / HMRC
   await sendTaxYearEndSummaryEmail(
     TO,
     NAME,
-    { taxYear: "2025-26", businessMiles: 8420, trips: 612, deductionPence: 379000 },
+    { taxYear: "2025-26", businessMiles: 8420, trips: 612, claimPence: 379000, audience: "self_employed" },
     UID
   );
   await sendSelfAssessmentDeadlineEmail(
@@ -63,14 +83,16 @@ async function fresh() {
       dateLabel: "31 January 2027",
       daysLeft: 21,
       actionLine: "file your 2025-26 return and pay any tax due",
-      deductionPence: 379000,
+      returnYear: "2025-26",
+      claimPence: 379000,
+      audience: "self_employed",
     },
     UID
   );
   await sendUnclassifiedTripsNudgeEmail(
     TO,
     NAME,
-    { count: 12, potentialDeductionPence: 5400 },
+    { count: 12, potentialClaimPence: 5400 },
     UID
   );
   // Billing
@@ -122,6 +144,7 @@ async function fresh() {
 async function main() {
   if (group === "core" || group === "all") await core();
   if (group === "new" || group === "all") await fresh();
+  if (group === "lifecycle") await lifecycle();
   console.log(`Done (${group}). Sent to ${TO}`);
 }
 
