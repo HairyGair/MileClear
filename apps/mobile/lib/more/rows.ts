@@ -25,7 +25,6 @@ export type MoreRowId =
   | "drive_for_work"
   | "insights"
   | "badges"
-  | "navigate"
   | "ticket"
   | "emsee"
   | "settings"
@@ -56,9 +55,6 @@ export interface MoreDriver {
   /** The server offers EmSee. */
   assistant: boolean;
   isAdmin: boolean;
-  /** The server has switched in-app navigation on for this driver
-   *  (/user/profile navigationEnabled, Oct 2026 trial). */
-  navigation?: boolean;
 }
 
 /** "Just me" drivers who are not company drivers. */
@@ -108,9 +104,7 @@ export function moreGroups(d: MoreDriver): MoreGroup[] {
   progress.push("badges");
   groups.push({ title: "Your progress", rows: progress });
 
-  const tools: MoreRowId[] = [];
-  if (d.navigation) tools.push("navigate");
-  tools.push("ticket");
+  const tools: MoreRowId[] = ["ticket"];
   if (d.assistant && !company) tools.push("emsee");
   groups.push({ title: "Tools", rows: tools });
 

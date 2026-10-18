@@ -27,6 +27,7 @@ import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
+import { offerFix as offerNavigationFix } from "../navigation/fixBus";
 import { recordedByForTrail } from "../trips/recordedBy";
 import {
   ARRIVED_PENDING_SHIFT_ID,
@@ -875,6 +876,19 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (!data) return;
 
   const { locations } = data as { locations: Location.LocationObject[] };
+
+  // Directions read the newest fix of the batch (lib/navigation/fixBus.ts),
+  // the same read-only hand-off as the top of handleNativeLocation: during an
+  // Android shift or Start Trip this task, not the native engine, has the
+  // trip's real fixes. A no-op with no Directions screen open; listeners run
+  // on a later tick and offerFix never throws, so storing the breadcrumbs
+  // below cannot be delayed, changed or broken by it.
+  try {
+    const newest = locations?.[locations.length - 1];
+    if (newest) offerNavigationFix(newest, "task");
+  } catch {
+    // never into the recorder
+  }
 
   try {
     const db = await getDatabase();
