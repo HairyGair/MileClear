@@ -19,8 +19,11 @@ import {
   loadTeamMonthExportData,
   generateTeamMonthCsv,
   generateTeamMonthPdf,
+  generateTeamDrivingTimesCsv,
+  loadTeamDrivingTimesExport,
   buildTeamExportFilename,
 } from "../../services/teamExport.js";
+import { DRIVING_TIMES_NOTICE_EVENT, loadTeamDrivingDays } from "../../services/drivingTimes.js";
 
 // Milesheet Phase 1 (23 Aug 2026, design-partner pilot).
 //
@@ -216,7 +219,9 @@ export async function teamRoutes(app: FastifyInstance) {
     "/invites/accept",
     { preHandler: [authMiddleware] },
     async (request, reply) => {
-      const parsed = z.object({ token: z.string().min(32).max(128) }).safeParse(request.body);
+      const parsed = z
+        .object({ token: z.string().min(32).max(128), drivingTimesNoticeShown: z.boolean().optional() })
+        .safeParse(request.body);
       if (!parsed.success) return reply.status(400).send({ error: "token required" });
 
       const membership = await prisma.orgMembership.findUnique({
@@ -262,6 +267,26 @@ export async function teamRoutes(app: FastifyInstance) {
 
       // Seat count just changed. Fire-and-forget by design: syncSeats never
       // throws, and a Stripe hiccup must not fail the driver's acceptance.
+      // Driving times notice: the web invite page shows "Your manager can
+      // also see when your business drives start and finish each day."
+      // above its Accept button and sends drivingTimesNoticeShown only from
+      // that button, so this driver was told before they joined. Nothing
+      // else records it here: nominating drivers activated above, admin
+      // moves and waitlist-created teams are told by the notice email
+      // (scripts/send-driving-times-notice.mjs). Awaited so the portal
+      // reads it straight away; a failure only leaves the times hidden.
+      if (acceptingRole === "driver" && parsed.data.drivingTimesNoticeShown === true) {
+        await prisma.appEvent
+          .create({
+            data: {
+              type: DRIVING_TIMES_NOTICE_EVENT,
+              userId: request.userId!,
+              metadata: { orgId: membership.orgId, via: "invite_accept" },
+            },
+          })
+          .catch((err: Error) => request.log.error({ err }, "driving times notice event failed"));
+      }
+
       void syncSeats(membership.orgId);
       logEvent("team.invite_accepted", request.userId!, { orgId: membership.orgId });
       return reply.send({ data: { orgId: membership.orgId, orgName: membership.org.name } });
@@ -410,6 +435,27 @@ export async function teamRoutes(app: FastifyInstance) {
     return reply.send({ data: summary });
   });
 
+  // ── Org admin: each driver's daily driving times for a month ───────────
+  // Oct 2026, for Rob Lyons (Maids Of Glory): first business drive to last
+  // business drive per UK day (widened by a shift on a day with business
+  // trips), from the day the driver joined. Scoped to the caller's own org; no userId is read from the client.
+  // Drivers who have not been told yet come back with told:false and no
+  // days (services/drivingTimes.ts).
+  app.get("/month/days", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+
+    const parsed = z
+      .object({ month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format").optional() })
+      .safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+
+    const month = parsed.data.month ?? currentLondonMonth();
+    const data = await loadTeamDrivingDays(admin.orgId, month);
+    logEvent("team.driving_times_viewed", request.userId!, { orgId: admin.orgId, month });
+    return reply.send({ data });
+  });
+
   // ── Org admin: approve or query a driver's month ────────────────────────
   app.post("/approvals", { preHandler: [authMiddleware] }, async (request, reply) => {
     const admin = await requireOrgAdmin(request.userId!);
@@ -515,11 +561,27 @@ export async function teamRoutes(app: FastifyInstance) {
     const parsed = z
       .object({
         month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format"),
-        format: z.enum(["csv", "pdf"]),
+        format: z.enum(["csv", "pdf", "times-csv"]),
       })
       .safeParse(request.query);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
     const { month, format } = parsed.data;
+
+    // Daily driving times, a file of their own so the payroll CSV keeps its
+    // exact shape. Every active driver, approved or not; the notice gate
+    // and join day are applied in services/drivingTimes.ts.
+    if (format === "times-csv") {
+      const times = await loadTeamDrivingTimesExport(admin.orgId, month);
+      if (times.drivers.length === 0) {
+        return reply.status(400).send({ error: `There are no drivers in your team for ${month}.` });
+      }
+      logEvent("team.export", request.userId!, { orgId: admin.orgId, month, format, driverCount: times.drivers.length });
+      const timesName = `${buildTeamExportFilename(times.orgName, month)}-driving-times`;
+      return reply
+        .header("Content-Type", "text/csv")
+        .header("Content-Disposition", `attachment; filename="${timesName}.csv"`)
+        .send(generateTeamDrivingTimesCsv(times.drivers));
+    }
 
     const data = await loadTeamMonthExportData(admin.orgId, month);
     if (data.rows.length === 0) {

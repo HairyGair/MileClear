@@ -2157,6 +2157,46 @@ export interface TeamMonthSummary {
   queriedCount: number;
 }
 
+/**
+ * One UK-local day of a Milesheet driver's driving times (Oct 2026): the
+ * start of the first business drive and the end of the last, widened by a
+ * shift the driver recorded on that day. Not hours worked.
+ */
+export interface TeamDrivingDay {
+  /** London calendar date, "YYYY-MM-DD". */
+  date: string;
+  /** UTC instants. */
+  start: string;
+  end: string;
+  /** London wall-clock times, "HH:MM" (BST/GMT already applied). */
+  startLocal: string;
+  endLocal: string;
+  /** True when the day's last drive or shift finished after midnight. */
+  endsNextDay: boolean;
+  spanMinutes: number;
+  /** Business trips that started on this day. */
+  trips: number;
+  /** "shift" when a recorded shift supplied the start or the end. */
+  source: "trips" | "shift";
+}
+
+export interface TeamDriverDays {
+  userId: string;
+  displayName: string | null;
+  email: string;
+  /**
+   * False until the driver has been told their manager can see these times.
+   * Days are always empty while false: the server never sends them.
+   */
+  told: boolean;
+  days: TeamDrivingDay[];
+}
+
+export interface TeamMonthDays {
+  month: string;
+  drivers: TeamDriverDays[];
+}
+
 export interface TeamSeatBilling {
   pilotFree: boolean;
   activeSeats: number;

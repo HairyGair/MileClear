@@ -135,7 +135,8 @@ export default function MilesheetPortalPage() {
           You are set up with <strong>{me.orgName}</strong>. There is nothing for you to do here.
           Just drive: your business mileage records itself, and whoever manages the claims at
           {" "}{me.orgName} approves it at the end of the month. Your personal journeys stay
-          private to you and never appear in the company&rsquo;s figures.
+          private to you and never appear in the company&rsquo;s figures. Your manager can also see
+          when your business drives start and finish each day.
         </p>
       </div>
     );

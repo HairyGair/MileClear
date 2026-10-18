@@ -41,7 +41,7 @@ const answers = [
   },
   {
     q: "Can staff see each other's journeys?",
-    a: "No. A driver sees only their own trips. You see your team's business mileage totals. Personal journeys stay private to the person who made them and never appear in your figures.",
+    a: "No. A driver sees only their own trips. You see your team's business mileage totals, and when each driver's business drives start and finish each day (first drive to last drive, not hours worked). Personal journeys stay private to the person who made them and never appear in your figures.",
   },
   {
     q: "What if a trip changes after I approve it?",

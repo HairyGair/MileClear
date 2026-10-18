@@ -3152,6 +3152,70 @@ export async function sendWaitlistConfirmation(
 }
 
 /**
+ * Milesheet driving times notice (Oct 2026). Goes once to each active team
+ * driver who has not been told yet (joined before the consent line existed,
+ * nominated their manager, was moved by us, or is in a waitlist-created
+ * team), so they hear it from us before their manager sees their times. A
+ * service notice about their account, not marketing, so it is not gated.
+ * Sent by scripts/send-driving-times-notice.mjs, which records the
+ * team.driving_times_notice event that lets the portal show the times.
+ */
+export function renderDrivingTimesNotice(
+  displayName: string | null | undefined,
+  orgName: string,
+  joinedAt: Date | null
+): { subject: string; html: string } {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const safeOrg = escapeHtml(orgName);
+  const joined = joinedAt
+    ? ` (${joinedAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London" })})`
+    : "";
+  const bodyHtml = `
+${para(greeting)}
+${para(`A quick note about your account. Your manager at <strong style="color:#f0f2f5;">${safeOrg}</strong> can now see your driving times in Milesheet, as well as your business mileage. Times are shown from the day you joined the team${joined}, including drives you have already recorded.`)}
+${para("Here's exactly what they see:")}
+${bulletList([
+    "When your first business drive of each day started, and when your last business drive that day finished.",
+    "How many business drives you made that day.",
+    "If you recorded a shift on a day with business drives, the day runs from whichever started first to whichever finished last.",
+  ])}
+${para("These are driving times, not hours worked: time spent at a job between drives isn't counted, and neither is anything before your first drive or after your last. Your manager sees them labelled that way.")}
+${para("Your personal trips are never shown to your manager, and nothing changes in the app for you.")}
+${para("If you have any questions, just reply to this email.", 8)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: "When your business drives start and finish each day, from the day you joined the team. Personal trips are never shown.",
+    eyebrow: "Milesheet",
+    title: "Your manager can now see your driving times",
+    bodyHtml,
+    footerHtml: plainFooterHtml(),
+  });
+  return { subject: "Your manager can now see your driving times in Milesheet", html };
+}
+
+/**
+ * Sends the notice. Resolves true only when a mail provider accepted it,
+ * false when nothing was sent (test run or no transport); throws on a
+ * failed send. The script records the event only on true.
+ */
+export async function sendDrivingTimesNoticeEmail(
+  email: string,
+  displayName: string | null | undefined,
+  orgName: string,
+  joinedAt: Date | null,
+  _userId: string
+): Promise<boolean> {
+  if (process.env.NODE_ENV === "test") return false;
+  if (!transporter) {
+    console.log(`[EMAIL] Milesheet driving times notice for ${email} (no transport, not sent)`);
+    return false;
+  }
+  const { subject, html } = renderDrivingTimesNotice(displayName, orgName, joinedAt);
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: SUPPORT_INBOX, subject, html });
+  return true;
+}
+
+/**
  * Milesheet invite (P1 pilot). The link lands on the web accept page;
  * a driver without an account registers first and the token survives the
  * round trip. The raw token exists only in this email.
@@ -3175,7 +3239,7 @@ export async function sendTeamInviteEmail(
       <p style="color: #333; font-size: 15px; line-height: 1.6;">${
         isAdmin
           ? `You have been set up as the Milesheet admin for <strong>${safeOrg}</strong>. Accept below to open the portal: invite your drivers, see everyone's month in one place, approve it, and download a single file for payroll.`
-          : `Accept below and your business journeys are recorded automatically, so there is nothing to fill in on the road. ${safeOrg} covers the cost, and your personal journeys stay private to you.`
+          : `Accept below and your business journeys are recorded automatically, so there is nothing to fill in on the road. ${safeOrg} covers the cost, and your personal journeys stay private to you. Your manager can also see when your business drives start and finish each day.`
       }</p>
       <p style="margin: 24px 0;">
         <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept invitation</a>

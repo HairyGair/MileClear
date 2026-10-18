@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 11 October 2026</p>
+            <p className="legal__date">Last updated: 18 October 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -490,6 +490,19 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text legal__text--small">Our team receives operational alerts in a private Discord workspace so we can respond to support requests, billing problems and tracking failures. These alerts identify you by your display name (often just its first word) and your account ID, and can include your subscription status, trip counts and the text of a problem or missing-trip report you send us. They do not include your email address, your National Insurance number, your location data or trip routes. The server is private to our team, and we keep these alerts to the minimum we need to act on them.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Slack (Internal Service Alerts)</strong></p>
                 <p className="legal__card-text legal__text--small">A copy of two kinds of alert goes to our team&apos;s Slack: a new account (the first word of your display name, account ID, platform, sign-in method and approximate town from your IP address) and a new subscription (plan, display name and account ID). Slack Technologies processes this data on our behalf under its data processing terms.</p>
+              </div>
+
+              <div className="legal__card">
+                <h3 className="legal__card-title">Your Employer, If You Join a Milesheet Team</h3>
+                <p className="legal__card-text">
+                  Milesheet is the company side of MileClear. If you join a Milesheet team, whether you accepted an invitation or asked your manager to set one up, the people who manage that team can see your business mileage for each month: how many business trips you made, the miles, and the amount due to you.
+                </p>
+                <p className="legal__card-text">
+                  Your manager can also see when your business drives start and finish each day: the start of your first business drive and the end of your last one, and how many business drives you made that day. If you recorded a shift on a day with business drives, the day runs from whichever started first to whichever finished last. Times are shown from the day you joined the team. These are driving times, not hours worked, and they are labelled that way.
+                </p>
+                <p className="legal__card-text">
+                  Your personal trips, your routes and your location are never shown to your manager. If you leave the team, or your employer removes you from it, they can no longer see your driving times or mileage, apart from the monthly totals they had already approved.
+                </p>
               </div>
 
               {/* EmSee, was Ask MileClear (Pro, Oct 2026). Anthropic's commercial terms and
