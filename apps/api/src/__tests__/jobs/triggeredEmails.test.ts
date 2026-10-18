@@ -8,6 +8,10 @@ import {
   isAndroidUser,
   londonDayLabel,
   decideGoneQuiet,
+  winBackGroup,
+  winBackChanges,
+  winBackSinceLabel,
+  type WinBackFacts,
   GONE_QUIET_MIN_SILENCE_MS,
   GONE_QUIET_MAX_SILENCE_MS,
   type GoneQuietFacts,
@@ -103,5 +107,70 @@ describe("decideGoneQuiet", () => {
   it("stays quiet for two weeks after the capture-lapsed push", () => {
     expect(decideGoneQuiet(facts({ lastCaptureLapsedAt: ago(5) }))).toBe(false);
     expect(decideGoneQuiet(facts({ lastCaptureLapsedAt: ago(15) }))).toBe(true);
+  });
+});
+
+describe("winBackGroup", () => {
+  const facts = (over: Partial<WinBackFacts> = {}): WinBackFacts => ({
+    now: NOW,
+    createdAt: ago(90),
+    lastTripAt: ago(40),
+    totalTrips: 25,
+    lastHeartbeatAt: ago(30),
+    alreadySent: false,
+    lastGoneQuietAt: null,
+    lastCaptureLapsedAt: null,
+    ...over,
+  });
+
+  it("picks out a driver who has clearly stopped", () => {
+    expect(winBackGroup(facts())).toBe("stopped");
+    expect(winBackGroup(facts({ lastHeartbeatAt: null }))).toBe("stopped");
+  });
+
+  it("leaves alone anyone still opening the app, or only recently quiet", () => {
+    expect(winBackGroup(facts({ lastHeartbeatAt: ago(3) }))).toBeNull();
+    expect(winBackGroup(facts({ lastTripAt: ago(25) }))).toBeNull();
+    expect(winBackGroup(facts({ totalTrips: 2 }))).toBeNull();
+  });
+
+  it("picks out someone who never recorded, once the setup nudges have had their turn", () => {
+    expect(winBackGroup(facts({ lastTripAt: null, totalTrips: 0, createdAt: ago(20) }))).toBe("never");
+    expect(winBackGroup(facts({ lastTripAt: null, totalTrips: 0, createdAt: ago(10) }))).toBeNull();
+  });
+
+  it("skips anyone older than six months", () => {
+    expect(winBackGroup(facts({ lastTripAt: null, totalTrips: 0, createdAt: ago(200) }))).toBeNull();
+    expect(winBackGroup(facts({ lastTripAt: ago(200) }))).toBeNull();
+  });
+
+  it("sends once ever, and not on top of gone quiet or the capture-lapsed push", () => {
+    expect(winBackGroup(facts({ alreadySent: true }))).toBeNull();
+    expect(winBackGroup(facts({ lastGoneQuietAt: ago(20) }))).toBeNull();
+    expect(winBackGroup(facts({ lastCaptureLapsedAt: ago(5) }))).toBeNull();
+  });
+});
+
+describe("winBackChanges", () => {
+  it("lists only what changed after the driver's last drive, four at most, best first", () => {
+    const all = winBackChanges("stopped", new Date("2026-10-01T00:00:00Z"));
+    expect(all).toHaveLength(4);
+    expect(all[0]).toMatch(/saved twice/);
+    expect(winBackChanges("stopped", new Date("2026-10-16T12:00:00Z"))).toEqual([
+      "Add a whole past shift in one go, with its trips and earnings",
+      "Each trip lists any roadworks on its route",
+    ]);
+    expect(winBackChanges("stopped", new Date("2026-10-18T00:00:00Z"))).toEqual([]);
+  });
+
+  it("gives never-recorded drivers the getting-started changes", () => {
+    const never = winBackChanges("never", new Date("2026-08-01T00:00:00Z"));
+    expect(never).toHaveLength(3);
+    expect(never.join(" ")).not.toMatch(/saved twice/);
+  });
+
+  it("labels the date the way each email reads", () => {
+    expect(winBackSinceLabel("stopped", new Date("2026-10-06T10:00:00Z"))).toBe("6 October");
+    expect(winBackSinceLabel("never", new Date("2026-08-14T10:00:00Z"))).toBe("August");
   });
 });

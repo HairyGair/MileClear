@@ -1967,6 +1967,65 @@ ${SIGN_OFF}`;
   });
 }
 
+/** Win-back (18 Oct 2026), once ever: drivers who have clearly stopped
+ *  (no drive for 30+ days, app not opened for 14+) or who never recorded a
+ *  trip. Lists only what changed after their last drive or sign-up. */
+export async function sendWinBackEmail(
+  email: string,
+  displayName: string | null | undefined,
+  data: {
+    group: "stopped" | "never";
+    /** Stopped: "6 October". Never: "August". */
+    sinceLabel: string;
+    changes: string[];
+    /** Stopped work drivers only; null hides the line. */
+    claimPence: number | null;
+  },
+  userId: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const list = `<ul style="color:#c0c8d4;font-size:15px;line-height:1.7;margin:0 0 16px;padding-left:20px;">${data.changes
+    .map((c) => `<li style="margin:0 0 6px;">${escapeHtml(c)}</li>`)
+    .join("")}</ul>`;
+  const since = escapeHtml(data.sinceLabel);
+  const bodyHtml =
+    data.group === "stopped"
+      ? `
+${para(greeting)}
+${para(`You haven't used MileClear since <strong style="color:#f0f2f5;">${since}</strong>, and a lot has changed since then:`)}
+${list}
+${para("Open MileClear to pick them up.")}
+${data.claimPence != null && data.claimPence > 0
+    ? para(`Your mileage claim so far this tax year is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>, and every drive from here adds to it.`)
+    : ""}
+${para("If something put you off, just reply and tell me what it was.", 8)}
+${SIGN_OFF}`
+      : `
+${para(greeting)}
+${para(`You signed up to MileClear in <strong style="color:#f0f2f5;">${since}</strong>, but it hasn't recorded a drive for you yet. Since then we've made getting started easier:`)}
+${list}
+${para('To record drives on its own, MileClear needs Location set to <strong style="color:#f0f2f5;">Always</strong> (iPhone) or <strong style="color:#f0f2f5;">Allow all the time</strong> (Android).')}
+${para("If something stopped you, just reply and tell me what it was.", 8)}
+${SIGN_OFF}`;
+  const subject =
+    data.group === "stopped" ? "MileClear has changed since you last drove" : "Still want MileClear to track your miles?";
+  const html = emailShell({
+    preheader: data.changes[0] ?? subject,
+    eyebrow: data.group === "stopped" ? "What's changed" : "Getting started",
+    title: data.group === "stopped" ? "What's new since you last drove" : "Getting started is easier now",
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+  await deliver({
+    email,
+    subject,
+    html,
+    userId,
+    label: data.group === "stopped" ? "Win-back (stopped)" : "Win-back (never recorded)",
+    gated: true,
+  });
+}
+
 /** 10-21 days without a recorded drive, after at least three trips. */
 export async function sendGoneQuietEmail(
   email: string,

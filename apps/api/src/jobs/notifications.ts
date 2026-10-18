@@ -63,6 +63,7 @@ import {
   runSaDeadlineEmailJob,
   runWeekOneEmailJob,
   runGoneQuietEmailJob,
+  runWinBackEmailJob,
 } from "./triggeredEmails.js";
 import { runTaxDeadlineRemindersJob } from "./taxDeadlineReminders.js";
 import { postFounderAlert, discordUserLabel } from "../services/discord.js";
@@ -1818,6 +1819,8 @@ export function startNotificationJobs(): void {
     // Sends nothing unless RETENTION_EMAILS_ENABLED=1.
     void runJob("email_week_one", runWeekOneEmailJob);
     void runJob("email_gone_quiet", runGoneQuietEmailJob);
+    // Win-back, 11:00 UK, 150 a day at most. Sends nothing unless WINBACK_EMAILS_ENABLED=1.
+    void runJob("email_win_back", runWinBackEmailJob);
     // Weekly classify nudge, Sunday 19:00 UK. Dry run unless CLASSIFY_NUDGE=1.
     void runJob("classify_nudge", runClassifyNudgeJob);
     // "Ready for 31 January?" pushes: 1 Dec, 2 Jan, 20 Jan, 29 Jan at 18:00

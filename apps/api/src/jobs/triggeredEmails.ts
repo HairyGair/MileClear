@@ -33,6 +33,7 @@ import {
   sendSelfAssessmentDeadlineEmail,
   sendWeekOneEmail,
   sendGoneQuietEmail,
+  sendWinBackEmail,
   type TaxEmailAudience,
 } from "../services/email.js";
 import { getPeriodRecap } from "../services/gamification.js";
@@ -41,6 +42,7 @@ import { claimableWhere } from "../lib/claimableTrips.js";
 
 const ENABLED = () => process.env.TRIGGERED_EMAILS_ENABLED === "1";
 const RETENTION_ENABLED = () => process.env.RETENTION_EMAILS_ENABLED === "1";
+const WINBACK_ENABLED = () => process.env.WINBACK_EMAILS_ENABLED === "1";
 const SEND_DELAY_MS = 300;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -74,7 +76,79 @@ export const EVENT = {
   saDeadline: "email.sa_deadline_sent",
   weekOne: "email.week_one_sent",
   goneQuiet: "email.gone_quiet_sent",
+  winBack: "email.win_back_sent",
 } as const;
+
+// ── Win-back (18 Oct 2026) ────────────────────────────────────────────
+// What changed, in plain words, with the day it reached drivers. A driver
+// only hears about changes made after their last drive (stopped) or after
+// they joined (never recorded), best first, four at most. ADD A LINE HERE
+// when something drivers would care about ships, so later leavers hear it.
+export type WinBackGroup = "stopped" | "never";
+export const WIN_BACK_CHANGES: Array<{ live: string; text: string; for: WinBackGroup[] }> = [
+  { live: "2026-10-16", text: "Drives are no longer saved twice, so your miles don't double", for: ["stopped"] },
+  { live: "2026-10-12", text: "A drive your phone can't save straight away now waits and uploads later, instead of being lost", for: ["stopped"] },
+  { live: "2026-10-13", text: "Starting a trip or a shift no longer wipes an earlier drive that hadn't saved yet", for: ["stopped"] },
+  { live: "2026-10-10", text: "Home now tells you straight away if something is stopping it recording, and what to change", for: ["never", "stopped"] },
+  { live: "2026-10-11", text: "A short guide walks you through your first trip", for: ["never"] },
+  { live: "2026-10-11", text: "Add a past trip in a few taps, with a warning before you save a duplicate", for: ["stopped"] },
+  { live: "2026-10-14", text: "A stray GPS point no longer adds extra miles to a trip", for: ["stopped"] },
+  { live: "2026-10-11", text: "Add a drive by hand in a few taps if you'd rather not have it record by itself", for: ["never"] },
+  { live: "2026-10-09", text: "A \"Still on your trip?\" reminder if you forget to press Arrived", for: ["stopped"] },
+  { live: "2026-10-17", text: "Add a whole past shift in one go, with its trips and earnings", for: ["stopped"] },
+  { live: "2026-10-17", text: "Each trip lists any roadworks on its route", for: ["stopped"] },
+];
+export const WIN_BACK_MAX_CHANGES = 4;
+export const WIN_BACK_DAILY_CAP = 150; // first runs clear a ~480 backlog over about three days
+export const WIN_BACK_STOPPED_SILENCE_MS = 30 * DAY_MS;
+export const WIN_BACK_APP_UNOPENED_MS = 14 * DAY_MS;
+export const WIN_BACK_MIN_TRIPS = 3;
+export const WIN_BACK_NEVER_MIN_AGE_MS = 14 * DAY_MS; // the day 1/3/7 setup nudges go first
+export const WIN_BACK_MAX_AGE_MS = 183 * DAY_MS;
+
+/** Pure: the changes worth telling this driver, best first. */
+export function winBackChanges(group: WinBackGroup, since: Date): string[] {
+  return WIN_BACK_CHANGES
+    .filter((c) => c.for.includes(group) && new Date(`${c.live}T00:00:00Z`).getTime() > since.getTime())
+    .slice(0, WIN_BACK_MAX_CHANGES)
+    .map((c) => c.text);
+}
+
+export type WinBackFacts = {
+  now: Date;
+  createdAt: Date;
+  lastTripAt: Date | null;
+  totalTrips: number;
+  lastHeartbeatAt: Date | null;
+  alreadySent: boolean;
+  lastGoneQuietAt: Date | null;
+  lastCaptureLapsedAt: Date | null;
+};
+
+/** Pure: which win-back email (if any) this driver qualifies for. */
+export function winBackGroup(f: WinBackFacts): WinBackGroup | null {
+  const now = f.now.getTime();
+  if (f.alreadySent) return null;
+  if (f.lastGoneQuietAt && now - f.lastGoneQuietAt.getTime() < GONE_QUIET_COOLDOWN_MS) return null;
+  if (f.lastCaptureLapsedAt && now - f.lastCaptureLapsedAt.getTime() < GONE_QUIET_LAPSED_GAP_MS) return null;
+  if (f.totalTrips === 0 && !f.lastTripAt) {
+    const age = now - f.createdAt.getTime();
+    return age >= WIN_BACK_NEVER_MIN_AGE_MS && age <= WIN_BACK_MAX_AGE_MS ? "never" : null;
+  }
+  if (!f.lastTripAt || f.totalTrips < WIN_BACK_MIN_TRIPS) return null;
+  const silence = now - f.lastTripAt.getTime();
+  if (silence < WIN_BACK_STOPPED_SILENCE_MS || silence > WIN_BACK_MAX_AGE_MS) return null;
+  // "Definitely stopped": the app hasn't been opened for a fortnight either.
+  if (f.lastHeartbeatAt && now - f.lastHeartbeatAt.getTime() < WIN_BACK_APP_UNOPENED_MS) return null;
+  return "stopped";
+}
+
+/** "6 October" / "August", London time. */
+export function winBackSinceLabel(group: WinBackGroup, d: Date): string {
+  return group === "stopped"
+    ? d.toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "Europe/London" })
+    : d.toLocaleDateString("en-GB", { month: "long", timeZone: "Europe/London" });
+}
 
 /** Who gets money figures and which tax wording. Null = no tax emails:
  *  Personal mode (driving for themselves) and company-car drivers (no
@@ -588,6 +662,96 @@ export async function runGoneQuietEmailJob(): Promise<void> {
   if (sent) console.log(`[triggeredEmails] gone quiet: sent ${sent}`);
 }
 
+// ── 8. Win-back: stopped for good, or never recorded (11:00 UK daily) ──
+type WinBackTarget = { user: Candidate; group: WinBackGroup; since: Date; sinceLabel: string; changes: string[]; claimPence: number | null };
+
+async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
+  const out: WinBackTarget[] = [];
+  const oldest = new Date(now.getTime() - WIN_BACK_MAX_AGE_MS);
+  const users = await prisma.user.findMany({
+    where: {
+      emailVerified: true,
+      marketingEmailsEnabled: true,
+      OR: [
+        // Never recorded: joined 14 days to 6 months ago.
+        { lastTripAt: null, createdAt: { gte: oldest, lte: new Date(now.getTime() - WIN_BACK_NEVER_MIN_AGE_MS) } },
+        // Stopped: last drive 30 days to 6 months ago.
+        { lastTripAt: { gte: oldest, lte: new Date(now.getTime() - WIN_BACK_STOPPED_SILENCE_MS) } },
+      ],
+    },
+    select: { ...CANDIDATE_SELECT, createdAt: true, lastTripAt: true, lastHeartbeatAt: true },
+  });
+  if (users.length === 0) return out;
+  const ids = users.map((u) => u.id);
+  const [counts, events, summaries] = await Promise.all([
+    prisma.trip.groupBy({ by: ["userId"], where: { userId: { in: ids }, isPhantomTrip: false }, _count: { _all: true } }),
+    prisma.appEvent.findMany({
+      where: { userId: { in: ids }, type: { in: [EVENT.winBack, EVENT.goneQuiet, "notification.capture_lapsed"] } },
+      select: { userId: true, type: true, createdAt: true },
+    }),
+    prisma.mileageSummary.findMany({ where: { userId: { in: ids }, taxYear: getTaxYear(now) }, select: { userId: true, deductionPence: true } }),
+  ]);
+  const countBy = new Map(counts.map((c) => [c.userId, c._count._all]));
+  const claimBy = new Map(summaries.map((m) => [m.userId, m.deductionPence]));
+  const latest = (userId: string, type: string): Date | null => {
+    const hits = events.filter((e) => e.userId === userId && e.type === type).map((e) => e.createdAt.getTime());
+    return hits.length ? new Date(Math.max(...hits)) : null;
+  };
+  for (const u of users) {
+    const group = winBackGroup({
+      now,
+      createdAt: u.createdAt,
+      lastTripAt: u.lastTripAt,
+      totalTrips: countBy.get(u.id) ?? 0,
+      lastHeartbeatAt: u.lastHeartbeatAt,
+      alreadySent: latest(u.id, EVENT.winBack) !== null,
+      lastGoneQuietAt: latest(u.id, EVENT.goneQuiet),
+      lastCaptureLapsedAt: latest(u.id, "notification.capture_lapsed"),
+    });
+    if (!group) continue;
+    const since = group === "stopped" ? u.lastTripAt! : u.createdAt;
+    const changes = winBackChanges(group, since);
+    if (changes.length === 0) continue; // nothing new to tell them
+    out.push({
+      user: u,
+      group,
+      since,
+      sinceLabel: winBackSinceLabel(group, since),
+      changes,
+      claimPence: group === "stopped" && taxAudience(u) ? (claimBy.get(u.id) ?? 0) : null,
+    });
+  }
+  // Stopped drivers first, most recent first: the people likeliest to come
+  // back go in the first batch.
+  return out.sort((a, b) =>
+    a.group !== b.group ? (a.group === "stopped" ? -1 : 1) : b.since.getTime() - a.since.getTime()
+  );
+}
+
+export async function runWinBackEmailJob(): Promise<void> {
+  if (ukNow().hour !== 11) return; // 11:00-11:59 UK daily
+  if (!WINBACK_ENABLED()) return;
+  // The cap is per day, counted from the events, so the half-hourly ticks
+  // inside the 11:00 hour can't send more than WIN_BACK_DAILY_CAP between them.
+  const sentToday = await prisma.appEvent.count({ where: { type: EVENT.winBack, createdAt: { gte: new Date(Date.now() - 20 * 60 * 60 * 1000) } } });
+  const room = WIN_BACK_DAILY_CAP - sentToday;
+  if (room <= 0) return;
+  let sent = 0;
+  for (const w of (await winBackTargets()).slice(0, room)) {
+    try {
+      await sendWinBackEmail(w.user.email, w.user.displayName, {
+        group: w.group, sinceLabel: w.sinceLabel, changes: w.changes, claimPence: w.claimPence,
+      }, w.user.id);
+      await prisma.appEvent.create({ data: { type: EVENT.winBack, userId: w.user.id, metadata: { group: w.group, changes: w.changes.length } } });
+      sent++;
+      await sleep(SEND_DELAY_MS);
+    } catch (err) {
+      console.error(`[triggeredEmails] win-back failed for ${w.user.id}:`, err);
+    }
+  }
+  if (sent) console.log(`[triggeredEmails] win-back: sent ${sent}`);
+}
+
 /** Dry run: who would each job email right now, ignoring the time windows. */
 export async function previewTriggeredEmails(): Promise<{
   enabled: boolean;
@@ -599,12 +763,15 @@ export async function previewTriggeredEmails(): Promise<{
   retentionEnabled: boolean;
   weekOne: Array<{ userId: string; trips: number; toSort: number; claimPence: number | null }>;
   goneQuiet: Array<{ userId: string; lastTripAt: string; android: boolean; claimPence: number | null }>;
+  winBackEnabled: boolean;
+  winBack: Array<{ userId: string; group: WinBackGroup; sinceLabel: string; changes: number; claimPence: number | null }>;
 }> {
   const t = ukNow();
   const [u, r, m, y, s, w, g] = await Promise.all([
     unclassifiedTargets(), recapTargets(), milestoneTargets(), yearEndTargets(), saDeadlineTargets(t),
     weekOneTargets(), goneQuietTargets(),
   ]);
+  const wb = await winBackTargets();
   return {
     enabled: ENABLED(),
     unclassified: u.map((x) => ({ userId: x.user.id, count: x.count, pence: x.pence })),
@@ -615,5 +782,7 @@ export async function previewTriggeredEmails(): Promise<{
     retentionEnabled: RETENTION_ENABLED(),
     weekOne: w.map((x) => ({ userId: x.user.id, trips: x.trips, toSort: x.toSort, claimPence: x.claimPence })),
     goneQuiet: g.map((x) => ({ userId: x.user.id, lastTripAt: x.lastTripAt.toISOString(), android: x.android, claimPence: x.claimPence })),
+    winBackEnabled: WINBACK_ENABLED(),
+    winBack: wb.map((x) => ({ userId: x.user.id, group: x.group, sinceLabel: x.sinceLabel, changes: x.changes.length, claimPence: x.claimPence })),
   };
 }
