@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TeamDriverDays, TeamMonthDays, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { formatPence } from "@mileclear/shared";
 import { api, fetchWithAuth } from "../../../lib/api";
@@ -80,6 +80,7 @@ export function MonthView() {
 
   const [csvState, setCsvState] = useState<DownloadState>("idle");
   const [pdfState, setPdfState] = useState<DownloadState>("idle");
+  const [timesCsvState, setTimesCsvState] = useState<DownloadState>("idle");
 
   // Driving times: loaded once per month, the first time a manager opens
   // a driver's times, so the main table does not wait on it.
@@ -90,21 +91,34 @@ export function MonthView() {
 
   const isCurrentMonth = month === currentMonthStr();
 
+  // The month a times request was made for. A response that arrives after
+  // the manager has moved to another month is dropped, so one month's
+  // times never show under another.
+  const monthRef = useRef(month);
   useEffect(() => {
+    monthRef.current = month;
     setDaysData(null);
     setDaysError(null);
+    setDaysLoading(false);
   }, [month]);
 
   const openTimes = (driver: TeamMonthDriver) => {
     setTimesDriver(driver);
     if (daysData?.month === month || daysLoading) return;
+    const requested = month;
     setDaysLoading(true);
     setDaysError(null);
     api
-      .get<{ data: TeamMonthDays }>(`/team/month/days?month=${month}`)
-      .then((res) => setDaysData(res.data))
-      .catch((err: Error) => setDaysError(err.message || "Could not load driving times"))
-      .finally(() => setDaysLoading(false));
+      .get<{ data: TeamMonthDays }>(`/team/month/days?month=${requested}`)
+      .then((res) => {
+        if (monthRef.current === requested) setDaysData(res.data);
+      })
+      .catch((err: Error) => {
+        if (monthRef.current === requested) setDaysError(err.message || "Could not load driving times");
+      })
+      .finally(() => {
+        if (monthRef.current === requested) setDaysLoading(false);
+      });
   };
 
   const timesFor: TeamDriverDays | undefined =
@@ -188,8 +202,8 @@ export function MonthView() {
     }
   };
 
-  const handleDownload = async (format: "csv" | "pdf") => {
-    const setState = format === "csv" ? setCsvState : setPdfState;
+  const handleDownload = async (format: "csv" | "pdf" | "times-csv") => {
+    const setState = format === "csv" ? setCsvState : format === "pdf" ? setPdfState : setTimesCsvState;
     setState("loading");
     try {
       const res = await fetchWithAuth(`/team/export?month=${month}&format=${format}`);
@@ -206,7 +220,11 @@ export function MonthView() {
       // nothing about which company it belongs to.
       const disposition = res.headers.get("content-disposition") ?? "";
       const named = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)?.[1];
-      a.download = named ? decodeURIComponent(named) : `mileclear-team-${month}.${format}`;
+      a.download = named
+        ? decodeURIComponent(named)
+        : format === "times-csv"
+          ? `mileclear-team-${month}-driving-times.csv`
+          : `mileclear-team-${month}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -467,6 +485,15 @@ export function MonthView() {
             >
               {pdfState === "loading" ? "Downloading..." : "Download PDF"}
             </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleDownload("times-csv")}
+              disabled={timesCsvState === "loading"}
+              title={DRIVING_TIMES_LABEL}
+            >
+              {timesCsvState === "loading" ? "Downloading..." : "Driving times (CSV)"}
+            </Button>
             {nothingApproved && (
               <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)" }}>
                 Approve at least one driver before you can download {monthLabel(month)}&rsquo;s report.
@@ -489,9 +516,10 @@ export function MonthView() {
       >
         <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.25rem" }}>{DRIVING_TIMES_LABEL}</p>
         <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1rem" }}>
-          The start of the first business drive and the end of the last on each day, in UK time. On a day
-          the driver recorded a shift, the shift&rsquo;s own start and finish are used. Personal trips are
-          never included.
+          The start of the first business drive and the end of the last on each day, in UK time, from the
+          day the driver joined your team. If the driver recorded a shift on a day with business drives,
+          the day runs from whichever started first to whichever finished last. Personal trips are never
+          included.
         </p>
         {daysLoading || (!daysData && !daysError) ? (
           <LoadingSkeleton variant="row" count={4} style={{ marginBottom: 8 }} />
