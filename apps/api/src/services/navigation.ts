@@ -19,6 +19,11 @@ export interface NavStep {
   modifier?: NavModifier;
   exit?: number;
   streetName: string | null;
+  /** Road number from OpenStreetMap ("A1", "A189", "M62"), or null. Many
+   *  major roads have a number and no name, so say "the A1" then. */
+  roadRef: string | null;
+  /** Signposted destinations for the exit ("Sunderland, Washington"), or null. */
+  towards: string | null;
   text: string;
   distanceMeters: number;
   durationSeconds: number;
@@ -42,6 +47,8 @@ export interface GraphHopperInstruction {
   sign: number;
   text?: string;
   street_name?: string;
+  street_ref?: string;
+  street_destination?: string;
   distance: number;
   time: number;
   interval: [number, number];
@@ -152,6 +159,16 @@ export function stepText(type: NavStepType, modifier: NavModifier | undefined, s
   }
 }
 
+/** OSM destination signs, minus the "Non-motorway traffic" sign text. */
+export function cleanTowards(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const parts = raw
+    .split(/[,;]/)
+    .map((p) => p.trim())
+    .filter((p) => p && !/non-motorway traffic/i.test(p));
+  return parts.length ? parts.join(", ") : null;
+}
+
 /** km/h from OpenStreetMap to the UK sign it came from, in mph (nearest 5). */
 export function kmhToUkMph(kmh: number | null | undefined): number | null {
   if (kmh == null || !Number.isFinite(kmh) || kmh <= 0) return null;
@@ -168,13 +185,19 @@ export function toNavRoute(path: GraphHopperPath, opts: { dataDate: string; prof
     // GraphHopper's first instruction is "Continue" from the start point.
     if (i === 0 && type === "continue") type = "depart";
     const streetName = ins.street_name && ins.street_name.trim() ? ins.street_name.trim() : null;
+    const roadRef = ins.street_ref && ins.street_ref.trim() ? ins.street_ref.trim() : null;
+    const towards = cleanTowards(ins.street_destination);
+    // Name first ("Gallowgate"); a road with only a number reads "the A1".
+    const label = streetName ?? (roadRef ? `the ${roadRef}` : null);
     const exit = type === "roundabout" && typeof ins.exit_number === "number" && ins.exit_number > 0 ? ins.exit_number : undefined;
     return {
       type,
       ...(modifier && type !== "depart" ? { modifier } : {}),
       ...(exit ? { exit } : {}),
       streetName,
-      text: stepText(type, modifier, streetName, exit),
+      roadRef,
+      towards,
+      text: stepText(type, modifier, label, exit),
       distanceMeters: Math.round(ins.distance * 10) / 10,
       durationSeconds: Math.round(ins.time / 1000),
       startIndex: ins.interval[0],
@@ -227,7 +250,7 @@ export async function fetchNavRoute(
       // route starts the way the car is already going instead of "make a
       // U-turn". The CH speed-up mode can't take a heading, so these use the
       // landmark (LM) mode of car_nav: a little slower, still well under a second.
-      (heading !== null && profile !== "car" ? `&heading=${heading}&ch.disable=true&heading_penalty=120` : "");
+      (heading !== null && profile !== "car" ? `&heading=${heading}&ch.disable=true` : "");
     let res: Response;
     try {
       res = await fetch(url, { signal: AbortSignal.timeout(8000) });

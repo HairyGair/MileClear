@@ -7,6 +7,7 @@ import {
   navigationEnabledFor,
   parseLatLng,
   parseHeading,
+  cleanTowards,
   type GraphHopperPath,
 } from "../../services/navigation.js";
 
@@ -29,7 +30,7 @@ const PATH: GraphHopperPath = {
     { distance: 18.422, sign: 0, interval: [0, 1], text: "Continue", time: 3316, street_name: "" },
     { distance: 353.146, sign: 2, interval: [1, 2], text: "Turn right onto Queen Victoria Road", time: 45404, street_name: "Queen Victoria Road" },
     { exit_number: 1, distance: 261.611, sign: 6, interval: [2, 3], text: "At roundabout, take exit 1 onto Claremont Road", time: 22307, street_name: "Claremont Road" },
-    { exit_number: 4, distance: 113.291, sign: 6, interval: [3, 4], text: "At roundabout, take exit 4 onto B1318", time: 7085, street_name: "" },
+    { exit_number: 4, distance: 113.291, sign: 6, interval: [3, 4], text: "At roundabout, take exit 4 onto B1318", time: 7085, street_name: "", street_ref: "B1318", street_destination: "Sunderland, Washington, Non-motorway traffic" },
     { distance: 0, sign: 4, interval: [4, 4], text: "Arrive at destination", time: 0, street_name: "" },
   ],
   details: { max_speed: [[0, 1, null], [1, 2, 32], [2, 3, 48], [3, 4, 96]] },
@@ -48,9 +49,14 @@ describe("toNavRoute", () => {
       "Set off",
       "Turn right onto Queen Victoria Road",
       "At the roundabout, take the 1st exit onto Claremont Road",
-      "At the roundabout, take the 4th exit",
+      "At the roundabout, take the 4th exit onto the B1318",
       "You have arrived",
     ]);
+  });
+
+  it("passes on road numbers and signposts, without the non-motorway sign text", () => {
+    expect(route.steps[3]).toMatchObject({ streetName: null, roadRef: "B1318", towards: "Sunderland, Washington" });
+    expect(route.steps[1]).toMatchObject({ roadRef: null, towards: null });
   });
 
   it("keeps where each manoeuvre happens on the line", () => {
@@ -146,5 +152,13 @@ describe("parseHeading", () => {
     expect(parseHeading("400")).toBeNull();
     expect(parseHeading("-5")).toBeNull();
     expect(parseHeading("north")).toBeNull();
+  });
+});
+
+describe("cleanTowards", () => {
+  it("drops the non-motorway sign text and empty parts", () => {
+    expect(cleanTowards("Non-motorway traffic")).toBeNull();
+    expect(cleanTowards("Sunderland; Washington")).toBe("Sunderland, Washington");
+    expect(cleanTowards(undefined)).toBeNull();
   });
 });
