@@ -382,7 +382,7 @@ export interface TeamExportRow {
   approvedByName: string;
 }
 
-/** One approved driver's daily driving times for the export. `told` false
+/** One driver's daily driving times for an export. `told` false
  *  means the driver has not been told yet: no days, and the file says so. */
 export interface TeamExportDriverDays {
   driverName: string;
@@ -465,6 +465,23 @@ export async function loadTeamMonthExportData(orgId: string, month: string): Pro
   return { orgName: org.name, month, rows, totalMiles, totalAmountPence, drivingTimes };
 }
 
+/**
+ * Every active driver's daily driving times for the times CSV. Not limited
+ * to approved drivers: when someone drove is not part of the approval.
+ * loadTeamDrivingDays applies the notice gate and the join day.
+ */
+export async function loadTeamDrivingTimesExport(
+  orgId: string,
+  month: string
+): Promise<{ orgName: string; drivers: TeamExportDriverDays[] }> {
+  const org = await prisma.organisation.findUniqueOrThrow({ where: { id: orgId }, select: { name: true } });
+  const dayData = await loadTeamDrivingDays(orgId, month);
+  const drivers = dayData.drivers
+    .map((d) => ({ driverName: d.displayName ?? d.email, told: d.told, days: d.days }))
+    .sort((a, b) => a.driverName.localeCompare(b.driverName, "en-GB"));
+  return { orgName: org.name, drivers };
+}
+
 export function buildTeamExportFilename(orgName: string, month: string): string {
   const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "team";
   const match = MONTH_RE.exec(month);
@@ -510,10 +527,7 @@ export function generateTeamMonthCsv(data: TeamExportData): string {
       .join(",")
   );
   const total = ["TOTAL", data.totalMiles, "", formatPenceGbp(data.totalAmountPence), "", ""].map(escapeCsvField).join(",");
-  // The first section above is unchanged, so an existing payroll import that
-  // reads the header, driver rows and TOTAL keeps working. Driving times
-  // follow after one blank line as a second section.
-  return [headers.join(","), ...rows, total, ...drivingTimesCsvLines(data.drivingTimes)].join("\r\n") + "\r\n";
+  return [headers.join(","), ...rows, total].join("\r\n") + "\r\n";
 }
 
 /** "2026-10-01" -> "01/10/2026" (UK spreadsheets read this as a date). */
@@ -522,9 +536,13 @@ function csvDate(date: string): string {
   return `${d}/${m}/${y}`;
 }
 
-function drivingTimesCsvLines(drivers: TeamExportDriverDays[] | undefined): string[] {
-  if (!drivers || drivers.length === 0) return [];
-  const lines: string[] = ["", escapeCsvField(DRIVING_TIMES_LABEL)];
+/**
+ * Daily driving times as their own CSV (format=times-csv), so the payroll
+ * CSV above stays exactly as it was. One row per driver per day; a driver
+ * who has not been told yet gets one line saying so and no times.
+ */
+export function generateTeamDrivingTimesCsv(drivers: TeamExportDriverDays[]): string {
+  const lines: string[] = [escapeCsvField(DRIVING_TIMES_LABEL)];
   lines.push(["Driver", "Date", "First drive", "Last drive", "Span", "Trips", "Times from"].join(","));
   for (const d of drivers) {
     if (!d.told) continue;
@@ -547,7 +565,7 @@ function drivingTimesCsvLines(drivers: TeamExportDriverDays[] | undefined): stri
   for (const d of drivers) {
     if (!d.told) lines.push(escapeCsvField(`Times appear once ${d.driverName} has been told`));
   }
-  return lines;
+  return lines.join("\r\n") + "\r\n";
 }
 
 // ── PDF (portrait A4 - consolidated monthly summary) ────────────────────

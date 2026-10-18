@@ -2159,8 +2159,8 @@ export interface TeamMonthSummary {
 
 /**
  * One UK-local day of a Milesheet driver's driving times (Oct 2026): the
- * start of the first business drive and the end of the last, or the
- * driver's own shift when they recorded one. Not hours worked.
+ * start of the first business drive and the end of the last, widened by a
+ * shift the driver recorded on that day. Not hours worked.
  */
 export interface TeamDrivingDay {
   /** London calendar date, "YYYY-MM-DD". */
@@ -2176,7 +2176,7 @@ export interface TeamDrivingDay {
   spanMinutes: number;
   /** Business trips that started on this day. */
   trips: number;
-  /** "shift" when a recorded shift supplied the times. */
+  /** "shift" when a recorded shift supplied the start or the end. */
   source: "trips" | "shift";
 }
 

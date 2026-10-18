@@ -3152,41 +3152,39 @@ export async function sendWaitlistConfirmation(
 }
 
 /**
- * Milesheet driving times notice (Oct 2026). Goes once to each driver who
- * joined a team before the consent line about driving times existed, so
- * they hear it from us before their manager sees their times. A service
- * notice about their account, not marketing, so it is not gated.
+ * Milesheet driving times notice (Oct 2026). Goes once to each active team
+ * driver who has not been told yet (joined before the consent line existed,
+ * nominated their manager, was moved by us, or is in a waitlist-created
+ * team), so they hear it from us before their manager sees their times. A
+ * service notice about their account, not marketing, so it is not gated.
  * Sent by scripts/send-driving-times-notice.mjs, which records the
  * team.driving_times_notice event that lets the portal show the times.
  */
 export function renderDrivingTimesNotice(
   displayName: string | null | undefined,
   orgName: string,
-  fromDate: Date
+  joinedAt: Date | null
 ): { subject: string; html: string } {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const safeOrg = escapeHtml(orgName);
-  const when = fromDate.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: "Europe/London",
-  });
+  const joined = joinedAt
+    ? ` (${joinedAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/London" })})`
+    : "";
   const bodyHtml = `
 ${para(greeting)}
-${para(`A quick note about your account. From ${when}, your manager at <strong style="color:#f0f2f5;">${safeOrg}</strong> can see your driving times in Milesheet, as well as your business mileage. That includes drives you have already recorded.`)}
+${para(`A quick note about your account. Your manager at <strong style="color:#f0f2f5;">${safeOrg}</strong> can now see your driving times in Milesheet, as well as your business mileage. Times are shown from the day you joined the team${joined}, including drives you have already recorded.`)}
 ${para("Here's exactly what they see:")}
 ${bulletList([
     "When your first business drive of each day started, and when your last business drive that day finished.",
     "How many business drives you made that day.",
-    "If you recorded a shift that day, the shift's start and finish instead.",
+    "If you recorded a shift on a day with business drives, the day runs from whichever started first to whichever finished last.",
   ])}
 ${para("These are driving times, not hours worked: time spent at a job between drives isn't counted, and neither is anything before your first drive or after your last. Your manager sees them labelled that way.")}
 ${para("Your personal trips are never shown to your manager, and nothing changes in the app for you.")}
 ${para("If you have any questions, just reply to this email.", 8)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: "When your business drives start and finish each day, from your first drive to your last. Personal trips are never shown.",
+    preheader: "When your business drives start and finish each day, from the day you joined the team. Personal trips are never shown.",
     eyebrow: "Milesheet",
     title: "Your manager can now see your driving times",
     bodyHtml,
@@ -3195,22 +3193,26 @@ ${SIGN_OFF}`;
   return { subject: "Your manager can now see your driving times in Milesheet", html };
 }
 
+/**
+ * Sends the notice. Resolves true only when a mail provider accepted it,
+ * false when nothing was sent (test run or no transport); throws on a
+ * failed send. The script records the event only on true.
+ */
 export async function sendDrivingTimesNoticeEmail(
   email: string,
   displayName: string | null | undefined,
   orgName: string,
-  fromDate: Date,
-  userId: string
-): Promise<void> {
-  const { subject, html } = renderDrivingTimesNotice(displayName, orgName, fromDate);
-  await deliver({
-    email,
-    subject,
-    html,
-    userId,
-    label: "Milesheet driving times notice",
-    gated: false,
-  });
+  joinedAt: Date | null,
+  _userId: string
+): Promise<boolean> {
+  if (process.env.NODE_ENV === "test") return false;
+  if (!transporter) {
+    console.log(`[EMAIL] Milesheet driving times notice for ${email} (no transport, not sent)`);
+    return false;
+  }
+  const { subject, html } = renderDrivingTimesNotice(displayName, orgName, joinedAt);
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: SUPPORT_INBOX, subject, html });
+  return true;
 }
 
 /**

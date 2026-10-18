@@ -1,12 +1,15 @@
 // Tell existing Milesheet drivers that their manager can now see their
 // driving times (first business drive to last business drive each day).
 //
-// Oct 2026. The portal and the payroll file only show a driver's times once
-// that driver has been told: either they joined their team after the consent
-// line went live (DRIVING_TIMES_NOTICE_FROM in src/services/drivingTimes.ts),
-// or this script has emailed them and recorded a team.driving_times_notice
-// event { orgId } for them. Drivers who are already told are skipped, so the
-// script is safe to run again.
+// Oct 2026. The portal and the exports only show a driver's times once that
+// driver has been told, which means a team.driving_times_notice event
+// { orgId } for that team. The web invite page records it when a driver
+// accepts after seeing the consent line; everyone else (drivers who joined
+// before the line existed, nominating drivers, admin moves, waitlist-created
+// teams) is told by this script, which emails them and then records the
+// event. Drivers who already have the event for their team are skipped, so
+// the script is safe to run again. Times show from the day the driver
+// joined the team, and the email says so.
 //
 // DRY RUN BY DEFAULT: lists the active team drivers who would get the email,
 // grouped by team. Nothing is sent or written without --send.
@@ -56,10 +59,15 @@ try {
         select: { userId: true, metadata: true },
       })
     : [];
-  const noticed = new Set(notices.map((n) => `${n.userId}:${n.metadata?.orgId ?? ""}`));
+  const noticesBy = new Map();
+  for (const n of notices) {
+    const list = noticesBy.get(n.userId) ?? [];
+    list.push(n);
+    noticesBy.set(n.userId, list);
+  }
 
   const due = memberships.filter(
-    (m) => m.user && !isDriverToldAboutTimes(m, noticed.has(`${m.userId}:${m.orgId}`))
+    (m) => m.user && !isDriverToldAboutTimes(noticesBy.get(m.userId) ?? [], m.orgId)
   );
 
   const byOrg = new Map();
@@ -82,20 +90,34 @@ try {
     console.log("\nNothing sent. Run again with --send to email these drivers.");
   } else {
     // With no mail transport, deliver() only logs, and recording the event
-    // would then unlock times for drivers who were never emailed.
-    if (!process.env.RESEND_API_KEY && !process.env.BREVO_API_KEY && !process.env.BREVO_SMTP_KEY) {
-      console.error("No email transport configured (RESEND_API_KEY / BREVO_*). Refusing to send.");
+    // would then unlock times for drivers who were never emailed. Brevo SMTP
+    // needs both its user and its key.
+    const env = process.env;
+    const hasTransport =
+      !!env.RESEND_API_KEY || !!env.BREVO_API_KEY || (!!env.BREVO_SMTP_USER && !!env.BREVO_SMTP_KEY);
+    if (!hasTransport) {
+      console.error(
+        "No email transport configured (RESEND_API_KEY, BREVO_API_KEY, or BREVO_SMTP_USER and BREVO_SMTP_KEY). Refusing to send."
+      );
       process.exitCode = 1;
       throw new Error("no email transport");
     }
     const { sendDrivingTimesNoticeEmail } = await import("../dist/services/email.js");
-    const fromDate = new Date();
     let sent = 0;
     let failed = 0;
     for (const m of due) {
       try {
-        await sendDrivingTimesNoticeEmail(m.user.email, m.user.displayName, m.org.name, fromDate, m.userId);
-        // Recorded only after the email went, so a failed send leaves the
+        // True only once a mail provider accepted the message; it throws on
+        // a failed send and returns false when nothing could be sent.
+        const delivered = await sendDrivingTimesNoticeEmail(
+          m.user.email,
+          m.user.displayName,
+          m.org.name,
+          m.acceptedAt,
+          m.userId
+        );
+        if (delivered !== true) throw new Error("not sent (no mail transport)");
+        // Recorded only after a confirmed send, so a failed send leaves the
         // driver's times hidden and the next run tries again.
         await prisma.appEvent.create({
           data: { type: DRIVING_TIMES_NOTICE_EVENT, userId: m.userId, metadata: { orgId: m.orgId } },

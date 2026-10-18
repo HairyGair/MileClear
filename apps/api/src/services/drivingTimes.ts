@@ -1,5 +1,6 @@
 import type { TeamDriverDays, TeamDrivingDay, TeamMonthDays } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
+import { claimableWhere } from "../lib/claimableTrips.js";
 import { londonMonthBounds } from "./teamExport.js";
 
 // Milesheet driving times (Oct 2026).
@@ -7,37 +8,36 @@ import { londonMonthBounds } from "./teamExport.js";
 // Rob Lyons (Maids Of Glory) asked for his drivers' start and finish times
 // for payroll. Most Milesheet drivers never press Start Shift, but their
 // business trips mark out a working day, so each UK-local day shows the
-// start of the first business drive and the end of the last. When the
-// driver did record a shift that day, the shift's own start and end are
-// used instead. This is driving times, not hours worked, and every place it
-// is shown says so.
+// start of the first business drive and the end of the last. A shift the
+// driver recorded on a day that also has business trips can widen that
+// day; a shift on its own never makes a day. This is driving times, not
+// hours worked, and every place it is shown says so.
 //
 // A manager only sees a driver's times once that driver has been told
-// (isDriverToldAboutTimes below).
+// (isDriverToldAboutTimes below), and only from the day the driver joined
+// that team.
 
 export const DRIVING_TIMES_LABEL = "Driving times: first drive to last drive. Not hours worked.";
 
-/** App event recorded per driver when the notice email has gone to them. */
+/**
+ * App event, one per driver per team, with metadata { orgId }. Recorded
+ * when a driver accepts an invite on the web invite page (which shows the
+ * consent line before the Accept button), or by
+ * scripts/send-driving-times-notice.mjs after the notice email has gone.
+ */
 export const DRIVING_TIMES_NOTICE_EVENT = "team.driving_times_notice";
 
 /**
- * Drivers who joined their team on or after this moment saw the consent
- * line "Your manager can also see when your business drives start and
- * finish each day." when they accepted. Set to the day this ships
- * (19 October 2026, 00:00 London). If it ships later, move this to the
- * deploy day: a date that is too early would count drivers as told who
- * never saw the line.
+ * The notice gate: told means a team.driving_times_notice event for THIS
+ * org. Membership acceptedAt is deliberately not used: nominating drivers
+ * get it when their manager accepts, admin moves and waitlist-created teams
+ * set it too, and none of them saw the consent line.
  */
-export const DRIVING_TIMES_NOTICE_FROM = new Date("2026-10-18T23:00:00.000Z");
-
-/** The notice gate. Pure so it can be pinned by tests. */
 export function isDriverToldAboutTimes(
-  membership: { acceptedAt: Date | null },
-  hasNoticeEvent: boolean,
-  noticeFrom: Date = DRIVING_TIMES_NOTICE_FROM
+  noticeEvents: Array<{ metadata: unknown }>,
+  orgId: string
 ): boolean {
-  if (hasNoticeEvent) return true;
-  return membership.acceptedAt != null && membership.acceptedAt.getTime() >= noticeFrom.getTime();
+  return noticeEvents.some((e) => (e.metadata as { orgId?: unknown } | null)?.orgId === orgId);
 }
 
 // ── Day building ─────────────────────────────────────────────────────────
@@ -71,41 +71,42 @@ export function londonDate(d: Date): string {
 /**
  * Builds one row per London day from a driver's business trips and shifts.
  *
+ * - Only business trips make a day. A shift counts only on a day that also
+ *   has business trips, so an evening gig shift on its own never appears.
+ * - The day runs from the earliest start to the latest end across that
+ *   day's business trips and shifts together. `source` is "shift" when a
+ *   shift supplied the start or the end, otherwise "trips".
  * - A trip or shift belongs to the day it STARTED, even if it ends after
  *   midnight (endsNextDay is then true).
- * - A day with a completed shift takes the shift's start and end (earliest
- *   start, latest end when there are several) and is marked "shift"; trips
- *   on that day are still counted.
- * - A shift still running (no endedAt) is ignored, so the day falls back to
- *   its trips until the shift ends.
+ * - A shift still running (no endedAt) is ignored.
  * - A trip with no endedAt counts as ending when it started.
- * - Callers pass only business, non-phantom trips. Days outside `month`
- *   (if given) are dropped.
+ * - Callers pass only claimable business, non-phantom trips, so the trip
+ *   count matches what the payroll miles cover.
+ * - Days outside `opts.month`, and days before `opts.fromDate` (a London
+ *   date, the day the driver joined the team), are dropped.
  */
 export function buildDrivingDays(
   trips: DrivingInterval[],
   shifts: DrivingInterval[],
-  month?: string
+  opts: { month?: string; fromDate?: string } = {}
 ): TeamDrivingDay[] {
-  type Acc = { tripStart?: number; tripEnd?: number; trips: number; shiftStart?: number; shiftEnd?: number };
+  type Acc = { tripStart: number; tripEnd: number; trips: number; shiftStart?: number; shiftEnd?: number };
   const byDay = new Map<string, Acc>();
-  const acc = (date: string): Acc => {
-    let a = byDay.get(date);
-    if (!a) {
-      a = { trips: 0 };
-      byDay.set(date, a);
-    }
-    return a;
-  };
 
   for (const t of trips) {
     const s = t.startedAt.getTime();
     if (!Number.isFinite(s)) continue;
-    const e = Math.max(s, t.endedAt ? t.endedAt.getTime() : s);
-    const a = acc(londonDate(t.startedAt));
-    a.trips++;
-    a.tripStart = a.tripStart === undefined ? s : Math.min(a.tripStart, s);
-    a.tripEnd = a.tripEnd === undefined ? e : Math.max(a.tripEnd, e);
+    const endMs = t.endedAt ? t.endedAt.getTime() : s;
+    const e = Number.isFinite(endMs) ? Math.max(s, endMs) : s;
+    const date = londonDate(t.startedAt);
+    const a = byDay.get(date);
+    if (!a) {
+      byDay.set(date, { tripStart: s, tripEnd: e, trips: 1 });
+    } else {
+      a.trips++;
+      a.tripStart = Math.min(a.tripStart, s);
+      a.tripEnd = Math.max(a.tripEnd, e);
+    }
   }
 
   for (const sh of shifts) {
@@ -113,18 +114,20 @@ export function buildDrivingDays(
     const s = sh.startedAt.getTime();
     const e = sh.endedAt.getTime();
     if (!Number.isFinite(s) || !Number.isFinite(e) || e < s) continue;
-    const a = acc(londonDate(sh.startedAt));
+    const a = byDay.get(londonDate(sh.startedAt));
+    if (!a) continue; // no business trips that day: the shift alone is not shown
     a.shiftStart = a.shiftStart === undefined ? s : Math.min(a.shiftStart, s);
     a.shiftEnd = a.shiftEnd === undefined ? e : Math.max(a.shiftEnd, e);
   }
 
   const days: TeamDrivingDay[] = [];
   for (const [date, a] of byDay) {
-    if (month && !date.startsWith(`${month}-`)) continue;
-    const useShift = a.shiftStart !== undefined && a.shiftEnd !== undefined;
-    const start = useShift ? a.shiftStart! : a.tripStart;
-    const end = useShift ? a.shiftEnd! : a.tripEnd;
-    if (start === undefined || end === undefined) continue;
+    if (opts.month && !date.startsWith(`${opts.month}-`)) continue;
+    if (opts.fromDate && date < opts.fromDate) continue;
+    const startFromShift = a.shiftStart !== undefined && a.shiftStart < a.tripStart;
+    const endFromShift = a.shiftEnd !== undefined && a.shiftEnd > a.tripEnd;
+    const start = startFromShift ? a.shiftStart! : a.tripStart;
+    const end = endFromShift ? a.shiftEnd! : a.tripEnd;
     const startD = new Date(start);
     const endD = new Date(end);
     const endParts = londonParts(endD);
@@ -137,7 +140,7 @@ export function buildDrivingDays(
       endsNextDay: endParts.date !== date,
       spanMinutes: Math.round((end - start) / 60000),
       trips: a.trips,
-      source: useShift ? "shift" : "trips",
+      source: startFromShift || endFromShift ? "shift" : "trips",
     });
   }
   days.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
@@ -157,7 +160,9 @@ export function formatSpan(minutes: number): string {
  * Driving days for the given drivers of one org in one month. Only drivers
  * with an active driver membership in `orgId` are returned, whatever ids
  * are passed; a driver who has not been told gets told:false and no days
- * (their trips are not even read).
+ * (their trips are not even read). Days before the London day the driver
+ * joined this team are left out; a membership with no acceptedAt shows no
+ * days rather than guessing.
  */
 export async function loadTeamDrivingDays(
   orgId: string,
@@ -175,33 +180,38 @@ export async function loadTeamDrivingDays(
     },
     select: { userId: true, acceptedAt: true, user: { select: { displayName: true, email: true } } },
   });
-  const userIds = memberships.map((m) => m.userId!).filter(Boolean);
+  const withUser = memberships.filter((m) => !!m.userId);
+  const userIds = withUser.map((m) => m.userId!);
   if (userIds.length === 0) return { month, drivers: [] };
 
   const notices = await prisma.appEvent.findMany({
     where: { type: DRIVING_TIMES_NOTICE_EVENT, userId: { in: userIds } },
     select: { userId: true, metadata: true },
   });
-  const noticed = new Set(
-    notices
-      .filter((n) => (n.metadata as { orgId?: unknown } | null)?.orgId === orgId)
-      .map((n) => n.userId!)
-  );
+  const noticesBy = new Map<string, Array<{ metadata: unknown }>>();
+  for (const n of notices) {
+    if (!n.userId) continue;
+    const list = noticesBy.get(n.userId);
+    if (list) list.push(n);
+    else noticesBy.set(n.userId, [n]);
+  }
 
   const told = new Set(
-    memberships.filter((m) => isDriverToldAboutTimes(m, noticed.has(m.userId!))).map((m) => m.userId!)
+    withUser.filter((m) => isDriverToldAboutTimes(noticesBy.get(m.userId!) ?? [], orgId)).map((m) => m.userId!)
   );
   const toldIds = [...told];
 
   const [trips, shifts] = toldIds.length
     ? await Promise.all([
+        // The same business-trip filter as the payroll miles
+        // (computeTeamMonthSummary), phantom trips left out.
         prisma.trip.findMany({
-          where: {
+          where: claimableWhere({
             userId: { in: toldIds },
             classification: "business",
             isPhantomTrip: false,
             startedAt: { gte: start, lt: end },
-          },
+          }),
           select: { userId: true, startedAt: true, endedAt: true },
         }),
         prisma.shift.findMany({
@@ -223,15 +233,22 @@ export async function loadTeamDrivingDays(
   const tripsBy = group(trips);
   const shiftsBy = group(shifts);
 
-  const drivers: TeamDriverDays[] = memberships.map((m) => {
+  const drivers: TeamDriverDays[] = withUser.map((m) => {
     const uid = m.userId!;
     const isTold = told.has(uid);
+    const days =
+      isTold && m.acceptedAt
+        ? buildDrivingDays(tripsBy.get(uid) ?? [], shiftsBy.get(uid) ?? [], {
+            month,
+            fromDate: londonDate(m.acceptedAt),
+          })
+        : [];
     return {
       userId: uid,
       displayName: m.user?.displayName ?? null,
       email: m.user?.email ?? "",
       told: isTold,
-      days: isTold ? buildDrivingDays(tripsBy.get(uid) ?? [], shiftsBy.get(uid) ?? [], month) : [],
+      days,
     };
   });
   return { month, drivers };
