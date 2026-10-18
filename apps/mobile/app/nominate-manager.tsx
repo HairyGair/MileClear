@@ -257,7 +257,9 @@ export default function NominateManagerScreen() {
 
         <Text style={styles.footnote}>
           You'll keep tracking exactly as you do now. Nothing changes for you until your manager
-          has finished setting things up.
+          has finished setting things up. Once they have, your manager sees your business mileage
+          each month, and your personal journeys stay private to you. Your manager can also see
+          when your business drives start and finish each day.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

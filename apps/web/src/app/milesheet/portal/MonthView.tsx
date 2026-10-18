@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
+import type { TeamDriverDays, TeamMonthDays, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { formatPence } from "@mileclear/shared";
 import { api, fetchWithAuth } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth-context";
@@ -42,6 +42,26 @@ function formatDateTime(iso: string): string {
   });
 }
 
+const DRIVING_TIMES_LABEL = "Driving times: first drive to last drive. Not hours worked.";
+
+/** "2026-10-01" -> "Thu 1 Oct". */
+function dayLabel(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
+/** 472 -> "7h 52m". */
+function spanLabel(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
 type DownloadState = "idle" | "loading";
 
 export function MonthView() {
@@ -61,7 +81,37 @@ export function MonthView() {
   const [csvState, setCsvState] = useState<DownloadState>("idle");
   const [pdfState, setPdfState] = useState<DownloadState>("idle");
 
+  // Driving times: loaded once per month, the first time a manager opens
+  // a driver's times, so the main table does not wait on it.
+  const [timesDriver, setTimesDriver] = useState<TeamMonthDriver | null>(null);
+  const [daysData, setDaysData] = useState<TeamMonthDays | null>(null);
+  const [daysLoading, setDaysLoading] = useState(false);
+  const [daysError, setDaysError] = useState<string | null>(null);
+
   const isCurrentMonth = month === currentMonthStr();
+
+  useEffect(() => {
+    setDaysData(null);
+    setDaysError(null);
+  }, [month]);
+
+  const openTimes = (driver: TeamMonthDriver) => {
+    setTimesDriver(driver);
+    if (daysData?.month === month || daysLoading) return;
+    setDaysLoading(true);
+    setDaysError(null);
+    api
+      .get<{ data: TeamMonthDays }>(`/team/month/days?month=${month}`)
+      .then((res) => setDaysData(res.data))
+      .catch((err: Error) => setDaysError(err.message || "Could not load driving times"))
+      .finally(() => setDaysLoading(false));
+  };
+
+  const timesFor: TeamDriverDays | undefined =
+    timesDriver && daysData?.month === month
+      ? daysData.drivers.find((d) => d.userId === timesDriver.userId)
+      : undefined;
+  const timesName = timesDriver ? timesDriver.displayName || timesDriver.email : "";
 
   const load = useCallback(() => {
     setLoading(true);
@@ -344,6 +394,14 @@ export function MonthView() {
                       </td>
                       <td>
                         <div className="table__actions">
+                          <button
+                            type="button"
+                            className="table__action-btn"
+                            aria-label={`Driving times in ${monthLabel(month)} for ${name}`}
+                            onClick={() => openTimes(d)}
+                          >
+                            Times
+                          </button>
                           {!isCurrentMonth && (d.status !== "approved" || d.driftMiles !== null) ? (
                             <button
                               type="button"
@@ -417,6 +475,74 @@ export function MonthView() {
           </div>
         </>
       )}
+
+      <Modal
+        open={!!timesDriver}
+        onClose={() => setTimesDriver(null)}
+        title={timesDriver ? `${timesName}: ${monthLabel(month)}` : "Driving times"}
+        large
+        footer={
+          <Button variant="ghost" size="sm" onClick={() => setTimesDriver(null)}>
+            Close
+          </Button>
+        }
+      >
+        <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.25rem" }}>{DRIVING_TIMES_LABEL}</p>
+        <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.6, margin: "0 0 1rem" }}>
+          The start of the first business drive and the end of the last on each day, in UK time. On a day
+          the driver recorded a shift, the shift&rsquo;s own start and finish are used. Personal trips are
+          never included.
+        </p>
+        {daysLoading || (!daysData && !daysError) ? (
+          <LoadingSkeleton variant="row" count={4} style={{ marginBottom: 8 }} />
+        ) : daysError ? (
+          <div className="alert alert--error">{daysError}</div>
+        ) : !timesFor ? (
+          <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+            No driving times for {timesName} in {monthLabel(month)}.
+          </p>
+        ) : !timesFor.told ? (
+          <div className="alert alert--warning">Times appear once {timesName} has been told.</div>
+        ) : timesFor.days.length === 0 ? (
+          <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)" }}>
+            No business drives recorded in {monthLabel(month)}.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>First drive</th>
+                  <th>Last drive</th>
+                  <th style={{ textAlign: "right" }}>Span</th>
+                  <th style={{ textAlign: "right" }}>Trips</th>
+                  <th className="hide-mobile">Times from</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timesFor.days.map((day) => (
+                  <tr key={day.date}>
+                    <td>{dayLabel(day.date)}</td>
+                    <td style={{ fontVariantNumeric: "tabular-nums" }}>{day.startLocal}</td>
+                    <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {day.endLocal}
+                      {day.endsNextDay && (
+                        <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginLeft: 4 }}>next day</span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{spanLabel(day.spanMinutes)}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{day.trips}</td>
+                    <td className="hide-mobile">
+                      {day.source === "shift" ? <Badge variant="source">Shift</Badge> : "Trips"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         open={!!queryDriver}

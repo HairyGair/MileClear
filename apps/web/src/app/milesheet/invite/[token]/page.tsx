@@ -46,7 +46,8 @@ export default function MilesheetInvitePage() {
               <p style={{ color: "var(--text-secondary)" }}>
                 Your business journeys will be recorded automatically, and whoever handles claims at{" "}
                 {detail} approves them at the end of each month. Your personal journeys stay private
-                to you and never appear in the company&rsquo;s figures.
+                to you and never appear in the company&rsquo;s figures. Your manager can also see when
+                your business drives start and finish each day.
               </p>
               <p style={{ color: "var(--text-secondary)", marginTop: "1rem" }}>
                 Milesheet is the company side of <strong>MileClear</strong>. Install the MileClear app
@@ -67,6 +68,11 @@ export default function MilesheetInvitePage() {
               <p style={{ color: "var(--text-secondary)" }}>
                 Log in first, or create a free account if you do not have one. You will be brought
                 straight back here and your invitation will be accepted automatically.
+              </p>
+              <p style={{ color: "var(--text-secondary)", marginTop: "1rem" }}>
+                Once you join, your business journeys are shared with your company for mileage claims.
+                Your personal journeys stay private to you. Your manager can also see when your business
+                drives start and finish each day.
               </p>
               <p style={{ marginTop: "1.25rem", display: "flex", gap: "1.5rem" }}>
                 <Link href={`/login?next=${encodeURIComponent(returnPath)}`} style={link}>Log in</Link>
