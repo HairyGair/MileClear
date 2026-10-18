@@ -9,6 +9,7 @@
 
 export type AskId =
   | "practice" // An accountant's practice asked something (share, keep sharing, a request)
+  | "first_week" // What your first trips add up to: sort one (lib/home/firstWeek.ts)
   | "acquisition" // Where did you hear about MileClear? (first 30 days)
   | "vehicle" // Add your vehicle
   | "odometer" // Odometer readings for work
@@ -23,8 +24,14 @@ export const ASK_ORDER: readonly AskId[] = [
   // First: someone (the driver's accountant) is waiting on an answer, often
   // with a deadline. Outranks every other ask, Pro included.
   "practice",
-  "acquisition",
+  // Add your vehicle first: it sets the rate the first-week figure uses.
   "vehicle",
+  // A new driver's first trips and what they could claim, with the sort on
+  // the Last trip card. Above the rest: 60% of drivers who stopped did so in
+  // week one, and a third of them never sorted a trip (18 Oct 2026). Drawn on
+  // the Last trip card, not the ask row.
+  "first_week",
+  "acquisition",
   "odometer",
   "employer",
   "shift",

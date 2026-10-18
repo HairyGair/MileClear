@@ -99,7 +99,6 @@ import {
 import { startLiveActivity, updateLiveActivity, endLiveActivityWithSummary, markLiveActivityClassified } from "../lib/liveActivity";
 import { getLiveActivityContext } from "../lib/liveActivity/context";
 import { fetchCommunityInsights } from "../lib/api/communityInsights";
-import * as Notifications from "expo-notifications";
 import { colors, fonts, fontScaleCap } from "../lib/theme";
 import { haptic } from "../lib/haptics";
 import { plausibleMissedJourneyTimes } from "../lib/trips/missedJourneyTimes";
@@ -146,36 +145,6 @@ import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } fro
 import { WhenCard } from "../components/addTrip/WhenCard";
 import type { ClockValue } from "../components/addTrip/TimeRow";
 import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
-
-/**
- * One-time contextual notification permission ask for users who skipped onboarding.
- * Only fires once - after first trip save, if notifications aren't granted yet.
- */
-async function askNotificationPermissionOnce(): Promise<void> {
-  try {
-    const { status } = await Notifications.getPermissionsAsync();
-    if (status === "granted") return;
-    const db = await getDatabase();
-    const asked = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'notification_contextual_asked'"
-    );
-    if (asked) return;
-    await db.runAsync(
-      "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('notification_contextual_asked', 'true')"
-    );
-    Alert.alert(
-      "Stay on track",
-      "Get streak reminders, weekly summaries, and trip detection alerts?",
-      [
-        { text: "Not now", style: "cancel" },
-        {
-          text: "Enable",
-          onPress: () => Notifications.requestPermissionsAsync().catch(() => {}),
-        },
-      ]
-    );
-  } catch {}
-}
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -3204,8 +3173,8 @@ export default function TripFormScreen() {
         setTimeout(() => maybeRequestReview("trip_saved"), 2000);
       }
 
-      // One-time notification permission nudge for users who skipped onboarding
-      askNotificationPermissionOnce().catch(() => {});
+      // Notifications are asked for on Home once a trip is saved, with a short
+      // explanation first (lib/home/notifAsk.ts), not with a bare Alert here.
 
       // Paywall after 5th trip (new trips only, once ever)
       if (!isEditing) {

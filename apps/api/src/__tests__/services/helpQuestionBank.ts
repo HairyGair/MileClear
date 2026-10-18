@@ -38,6 +38,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Why is one drive two trips?", area: "missing_or_wrong_trips", id: "split-trip", expect: [/4 minutes/i, /join/i] },
   { q: "What's all the stuff on the home screen?", area: "getting_started", id: "home-screen", expect: [/start trip/i, /status|recording/i] },
   { q: "How do I hide one of the shortcuts on home?", area: "getting_started", id: "home-screen", expect: [/hold/i, /home screen/i] },
+  { q: "What is the your first 3 trips line on Home, and what can I claim for them?", area: "getting_started", id: "home-first-trips", expect: [/14 days/i, /Business or Personal/i] },
   { q: "How do I switch to personal mode?", area: "getting_started", id: "work-personal-mode", expect: [/top of home|work \| personal|switch/i] },
   { q: "Whats the diffrence between work and personal mode", area: "getting_started", id: "work-personal-mode", expect: [/tax/i, /insights/i] },
   { q: "What does 'You drive for' mean?", area: "getting_started", id: "you-drive-for", expect: [/gig|employer/i, /just me/i] },

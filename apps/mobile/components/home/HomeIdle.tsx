@@ -47,6 +47,7 @@ import {
   useAcquisitionAsk,
   useAskQuietDay,
   useEmployerAsk,
+  useFirstWeekLocal,
   useOdometerAsk,
   usePracticeAsk,
   useShiftAsk,
@@ -59,6 +60,7 @@ import { insightsCache } from "../../lib/insights/requestCache";
 import { stampInsightsLink } from "../../lib/insights/linkParams";
 import { selectAsk, proAskLine, type AskId } from "../../lib/home/ask";
 import { selectDoorRows } from "../../lib/home/doors";
+import { FIRST_WEEK_DAYS, selectFirstWeek } from "../../lib/home/firstWeek";
 import { getHiddenDoorRows, setDoorRowHidden, type DoorRowId } from "../../lib/home/doorPrefs";
 import { selectHero } from "../../lib/home/hero";
 import { selectLastTrip, RECENT_TRIP_MS } from "../../lib/home/lastTrip";
@@ -218,12 +220,40 @@ export function HomeIdle(p: Props) {
   const shiftEligibleDriver = isWork && showsStartShift(persona);
   const shiftAsk = useShiftAsk(shiftEligibleDriver);
   const practice = usePracticeAsk();
+  // A new driver's first trips and what they add up to (lib/home/firstWeek.ts).
+  const createdMs = user?.createdAt ? Date.parse(user.createdAt) : NaN;
+  const youngAccount = Number.isFinite(createdMs) && Date.now() - createdMs < FIRST_WEEK_DAYS * 24 * 60 * 60 * 1000;
+  const fwLocal = useFirstWeekLocal(
+    youngAccount,
+    lastTrip.trip ? `${lastTrip.trip.id}|${lastTrip.trip.classification}|${lastTrip.trip.distanceMiles}` : ""
+  );
+  const firstWeek = useMemo(
+    () =>
+      selectFirstWeek({
+        persona,
+        createdAt: user?.createdAt,
+        now: Date.now(),
+        local: fwLocal.local,
+        doneBefore: fwLocal.done,
+        rates: {
+          workType: user?.workType,
+          employerMileageRatePence: user?.employerMileageRatePence,
+          employerMileageRatePenceAfter10k: user?.employerMileageRatePenceAfter10k,
+        },
+      }),
+    [persona, user?.createdAt, user?.workType, user?.employerMileageRatePence, user?.employerMileageRatePenceAfter10k, fwLocal.local, fwLocal.done]
+  );
+  // Only while the Last trip card is offering the newest (unsorted) trip's
+  // Business / Personal: the value line sits right above that choice.
+  const firstWeekOnCard =
+    !!firstWeek && lastTripView.look === "full" && lastTripView.showChoice && lastTripView.choice === "unclassified";
   const [gradingShift, setGradingShift] = useState(false);
   const [acqOpen, setAcqOpen] = useState(false);
   const [odoOpen, setOdoOpen] = useState(false);
 
   const eligible: Partial<Record<AskId, boolean>> = {
     practice: !!practice.ask,
+    first_week: firstWeekOnCard && !!firstWeek?.isAsk,
     acquisition: acq.eligible,
     vehicle: !p.hasVehicle && !vehicleSnooze.snoozed,
     odometer: !!odo.vehicle,
@@ -248,6 +278,9 @@ export function HomeIdle(p: Props) {
       quiet.markDismissedToday();
     };
     switch (askId) {
+      // Drawn on the Last trip card (firstWeek prop), not as an ask row.
+      case "first_week":
+        return null;
       case "practice": {
         const a = practice.ask!;
         if (a.kind === "consent") {
@@ -453,6 +486,11 @@ export function HomeIdle(p: Props) {
                 state={p.status.kind}
                 onChanged={onTripChanged}
                 firstSortHint={totalTrips <= 1 ? firstSortHint(persona) : null}
+                firstWeek={
+                  firstWeekOnCard && firstWeek && (firstWeek.isAsk ? askId === "first_week" : true)
+                    ? firstWeek
+                    : null
+                }
               />
             </View>
           </FadeInStagger>

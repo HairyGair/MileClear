@@ -78,6 +78,7 @@ import {
   type NotificationPermissionState,
 } from "../../lib/notifications/index";
 import { registerPushToken } from "../../lib/api/notifications";
+import { useNotificationAsk } from "../../components/home/NotificationAsk";
 import {
   getBatteryOptimisationState,
   openBatteryOptimisationSettings,
@@ -676,6 +677,10 @@ export default function DashboardScreen() {
     }
   }, [notifRequesting]);
 
+  const rereadNotifPermission = useCallback(() => {
+    getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
+  }, []);
+
   // A driver with zero trips and some location permission has one job, so the
   // referral ask stands aside for them. (Their "Your first trip" card is on
   // Home itself; the no-location blocker owns the "none" case.)
@@ -885,6 +890,14 @@ export default function DashboardScreen() {
     },
     onSnoozeSetup: snoozeSetupChecklist,
     onRecoveredTap: dismissDqBanner,
+  });
+  // A second chance at notifications for a driver who skipped the tour's row:
+  // once a trip is saved, while the phone has still never been asked
+  // (lib/home/notifAsk.ts). Never over a red status line or during a shift.
+  const notifAsk = useNotificationAsk({
+    permission: notifPermission,
+    enabled: !loading && !activeShift && !home.status.red,
+    onChanged: rereadNotifPermission,
   });
   // "We recovered..." shows for one visit: leaving Home counts as seeing it.
   const recoveredShown = useRef(false);
@@ -1976,6 +1989,7 @@ export default function DashboardScreen() {
       {workExplainerModal}
       {locPrimerModal}
       <WhatsNewSheet />
+      {notifAsk.sheet}
       <HomeIdle
         stats={stats}
         previousYear={previousYear}
