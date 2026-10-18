@@ -121,10 +121,10 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     id: "home-first-trips",
     area: "getting_started",
-    q: "What is \"Your first 3 trips\" on Home?",
-    a: "In your first two weeks, once you have 3 trips and haven't sorted any yet, your last trip on Home shows how many miles they add up to. In Work mode (not for a company car) it also says what they could be worth as a mileage claim if they were for work, worked out at the approved rate for a car (or your employer's rate, if you've set one). It's an \"up to\" figure: only trips you mark Business count. Tap Business or Personal on the trip and the line goes away for good. It also goes after 14 days.",
+    q: "What is the first-week line on Home?",
+    a: "In your first two weeks, once you have 3 trips and none sorted yet, Home shows how many miles they add up to. In Work mode (not for a company car) it also says what that could be worth as a mileage claim, at the approved rate for a car or your employer's rate if you've set one. It's an \"up to\" figure: only what you mark Business counts. Tap Business or Personal and the line goes for good. It also goes after 14 days.",
     appOnly: true,
-    keywords: ["first trips", "first 3 trips", "you can claim", "up to", "new", "worth", "home"],
+    keywords: ["you can claim", "first week", "worth"],
   },
   {
     id: "work-personal-mode",
@@ -198,7 +198,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     q: "What is the \"Still on your trip?\" notification?",
     a: "When a Start Trip runs until you tap Arrived (the setting is on, or Automatic trips is off), MileClear reminds you once you've been stopped for 10 minutes. Tap Arrived to save the trip up to where you stopped driving, or Keep going if you're still working. You get one reminder per stop and it works without signal. It needs notifications allowed.",
     appOnly: true,
-    keywords: ["still on your trip", "keep going", "reminder", "stopped 10 minutes"],
+    keywords: ["still on your trip", "keep going", "reminder", "message", "stopped 10 minutes"],
   },
   {
     id: "shifts",
