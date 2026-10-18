@@ -69,6 +69,45 @@ export function londonDate(d: Date): string {
 }
 
 /**
+ * The day a driver counts as on this team, for driving times: the earlier of
+ * the London day they accepted, the first day of the earliest month their
+ * manager approved or queried for them, and (for a driver who set the team
+ * up by nominating their manager) the day they created it: nominators get
+ * acceptedAt only when the manager accepts. Invites were re-sent after the invite
+ * fault (4 Oct 2026), so some drivers' acceptedAt is later than months their
+ * manager had already approved (Maids Of Glory approved Marie's September,
+ * acceptedAt 4 Oct). A month the manager signed off is a month they were on
+ * the team. Null when there is neither.
+ */
+export function teamStartDate(
+  acceptedAt: Date | null,
+  earliestApprovalMonth: string | null,
+  createdTeamAt: Date | null = null
+): string | null {
+  const dates = [
+    acceptedAt ? londonDate(acceptedAt) : null,
+    earliestApprovalMonth ? `${earliestApprovalMonth}-01` : null,
+    createdTeamAt ? londonDate(createdTeamAt) : null,
+  ].filter((d): d is string => d !== null);
+  return dates.length ? dates.sort()[0] : null;
+}
+
+/** Earliest approved or queried month per driver in one org. */
+export async function earliestApprovalMonths(orgId: string, userIds: string[]): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await prisma.teamApproval.findMany({
+    where: { orgId, userId: { in: userIds }, status: { in: ["approved", "queried"] } },
+    select: { userId: true, month: true },
+  });
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    const prev = out.get(r.userId);
+    if (!prev || r.month < prev) out.set(r.userId, r.month);
+  }
+  return out;
+}
+
+/**
  * Builds one row per London day from a driver's business trips and shifts.
  *
  * - Only business trips make a day. A shift counts only on a day that also
@@ -161,8 +200,8 @@ export function formatSpan(minutes: number): string {
  * with an active driver membership in `orgId` are returned, whatever ids
  * are passed; a driver who has not been told gets told:false and no days
  * (their trips are not even read). Days before the London day the driver
- * joined this team are left out; a membership with no acceptedAt shows no
- * days rather than guessing.
+ * joined this team (teamStartDate) are left out; with no join date and no
+ * approved month it shows no days rather than guessing.
  */
 export async function loadTeamDrivingDays(
   orgId: string,
@@ -232,16 +271,20 @@ export async function loadTeamDrivingDays(
   };
   const tripsBy = group(trips);
   const shiftsBy = group(shifts);
+  const approvalStart = await earliestApprovalMonths(orgId, toldIds);
+  const org = await prisma.organisation.findUnique({ where: { id: orgId }, select: { createdByUserId: true, createdAt: true } });
 
   const drivers: TeamDriverDays[] = withUser.map((m) => {
     const uid = m.userId!;
     const isTold = told.has(uid);
+    const fromDate = teamStartDate(
+      m.acceptedAt,
+      approvalStart.get(uid) ?? null,
+      org && org.createdByUserId === uid ? org.createdAt : null
+    );
     const days =
-      isTold && m.acceptedAt
-        ? buildDrivingDays(tripsBy.get(uid) ?? [], shiftsBy.get(uid) ?? [], {
-            month,
-            fromDate: londonDate(m.acceptedAt),
-          })
+      isTold && fromDate
+        ? buildDrivingDays(tripsBy.get(uid) ?? [], shiftsBy.get(uid) ?? [], { month, fromDate })
         : [];
     return {
       userId: uid,

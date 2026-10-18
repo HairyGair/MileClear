@@ -4,7 +4,7 @@ import {
   isDriverToldAboutTimes,
   formatSpan,
   londonDate,
-  DRIVING_TIMES_LABEL,
+  DRIVING_TIMES_LABEL, teamStartDate
 } from "../../services/drivingTimes.js";
 import {
   generateTeamDrivingTimesCsv,
@@ -250,5 +250,27 @@ describe("payroll CSV and the driving times CSV", () => {
     expect(generateTeamDrivingTimesCsv([{ driverName: "Ann", told: true, days }]).split("\r\n")).toContain(
       "Ann,10/01/2026,17:00,00:25 (next day),7h 25m,1,Shift"
     );
+  });
+});
+
+describe("teamStartDate", () => {
+  it("counts a driver from the first month their manager signed off, when that is earlier than accepting", () => {
+    // Maids Of Glory: Marie's September approved, invite re-accepted 4 Oct after the invite fault.
+    expect(teamStartDate(new Date("2026-10-04T09:00:00Z"), "2026-09")).toBe("2026-09-01");
+  });
+
+  it("uses the London day they accepted when no earlier month was signed off", () => {
+    expect(teamStartDate(new Date("2026-10-15T23:30:00Z"), null)).toBe("2026-10-16");
+    expect(teamStartDate(new Date("2026-10-15T10:00:00Z"), "2026-11")).toBe("2026-10-15");
+  });
+
+  it("counts a driver who set the team up from the day they created it", () => {
+    // Nominators get acceptedAt only when their manager accepts.
+    expect(teamStartDate(new Date("2026-10-06T08:00:00Z"), null, new Date("2026-09-30T18:00:00Z"))).toBe("2026-09-30");
+  });
+
+  it("has no start with neither", () => {
+    expect(teamStartDate(null, null)).toBeNull();
+    expect(teamStartDate(null, "2026-09")).toBe("2026-09-01");
   });
 });

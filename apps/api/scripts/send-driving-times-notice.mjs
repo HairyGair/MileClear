@@ -30,7 +30,9 @@ if (!process.env.DATABASE_URL) {
 const SEND = process.argv.includes("--send");
 const ORG_ID = process.argv.find((a) => a.startsWith("--org="))?.slice("--org=".length) || null;
 
-const { isDriverToldAboutTimes, DRIVING_TIMES_NOTICE_EVENT } = await import("../dist/services/drivingTimes.js");
+const { isDriverToldAboutTimes, DRIVING_TIMES_NOTICE_EVENT, teamStartDate, earliestApprovalMonths } = await import(
+  "../dist/services/drivingTimes.js"
+);
 
 const prisma = new PrismaClient();
 
@@ -46,7 +48,7 @@ try {
       orgId: true,
       userId: true,
       acceptedAt: true,
-      org: { select: { name: true } },
+      org: { select: { name: true, createdByUserId: true, createdAt: true } },
       user: { select: { email: true, displayName: true } },
     },
     orderBy: [{ orgId: "asc" }, { acceptedAt: "asc" }],
@@ -70,6 +72,23 @@ try {
     (m) => m.user && !isDriverToldAboutTimes(noticesBy.get(m.userId) ?? [], m.orgId)
   );
 
+  // The same team start the portal uses: the earlier of accepting and the
+  // first month the manager approved, so the email's date matches the portal.
+  const startBy = new Map();
+  for (const orgId of new Set(due.map((m) => m.orgId))) {
+    const ids = due.filter((m) => m.orgId === orgId).map((m) => m.userId);
+    const months = await earliestApprovalMonths(orgId, ids);
+    for (const m of due.filter((x) => x.orgId === orgId)) {
+      const d = teamStartDate(
+        m.acceptedAt,
+        months.get(m.userId) ?? null,
+        m.org.createdByUserId === m.userId ? m.org.createdAt : null
+      );
+      startBy.set(`${orgId}:${m.userId}`, d ? new Date(`${d}T12:00:00Z`) : null);
+    }
+  }
+  const startOf = (m) => startBy.get(`${m.orgId}:${m.userId}`) ?? null;
+
   const byOrg = new Map();
   for (const m of due) {
     const list = byOrg.get(m.orgId) ?? { name: m.org.name, drivers: [] };
@@ -81,7 +100,7 @@ try {
   for (const [orgId, { name, drivers }] of byOrg) {
     console.log(`\n${name} (${orgId}): ${drivers.length}`);
     for (const m of drivers) {
-      const joined = m.acceptedAt ? m.acceptedAt.toISOString().slice(0, 10) : "unknown";
+      const joined = startOf(m) ? startOf(m).toISOString().slice(0, 10) : "unknown";
       console.log(`  ${m.user.displayName ?? "(no name)"} <${m.user.email}> joined ${joined}`);
     }
   }
@@ -113,7 +132,7 @@ try {
           m.user.email,
           m.user.displayName,
           m.org.name,
-          m.acceptedAt,
+          startOf(m),
           m.userId
         );
         if (delivered !== true) throw new Error("not sent (no mail transport)");
