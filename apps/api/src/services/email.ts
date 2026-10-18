@@ -1983,8 +1983,8 @@ export async function sendGoneQuietEmail(
   const steps = [
     "Open MileClear. If there's a message on Home about recording, follow it.",
     data.android
-      ? "Check Location is set to Allow all the time, and Battery to Unrestricted, in your phone's settings for MileClear."
-      : "Check Location is set to Always in Settings, then MileClear.",
+      ? "In your phone's Settings, go to Apps, then MileClear. Check Location is set to Allow all the time and Battery to Unrestricted."
+      : "In your iPhone's Settings, go to MileClear and check Location is set to Always.",
   ];
   const bodyHtml = `
 ${para(greeting)}
