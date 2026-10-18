@@ -111,4 +111,13 @@ describe("More rows by driver", () => {
     expect(rows({})).not.toContain("admin");
     expect(titles({ isAdmin: true }).at(-1)).toBe("Admin");
   });
+
+  it("Navigate only when the server has switched it on, first in Tools", () => {
+    expect(rows({})).not.toContain("navigate");
+    expect(rows({ navigation: false })).not.toContain("navigate");
+    for (const driveFor of ["gig", "employee", "both", "company", "personal"] as const) {
+      const tools = page({ driveFor, companyApp: driveFor === "company", navigation: true }).find((g) => g.title === "Tools")!;
+      expect(tools.rows[0]).toBe("navigate");
+    }
+  });
 });

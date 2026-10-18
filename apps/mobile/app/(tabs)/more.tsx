@@ -79,6 +79,7 @@ export default function MoreScreen() {
     bankLinked: true,
     assistant: assistantAvailable === true,
     isAdmin: !!user?.isAdmin,
+    navigation: user?.navigationEnabled === true,
   });
   const want = useMemo(
     () => new Set<MoreRowId>(probeGroups.flatMap((g) => g.rows)),
@@ -100,6 +101,7 @@ export default function MoreScreen() {
     bankLinked: (facts.bank?.banks.length ?? 0) > 0,
     assistant: assistantAvailable === true,
     isAdmin: !!user?.isAdmin,
+    navigation: user?.navigationEnabled === true,
   });
 
   const now = new Date();
@@ -137,6 +139,7 @@ export default function MoreScreen() {
     },
     insights: { icon: "stats-chart-outline", label: "Insights", line: { text: insightsLine(facts.week) }, route: "/(tabs)/insights" },
     badges: { icon: "trophy-outline", label: "Badges", line: { text: badgesLine(facts.badges) }, route: "/achievements" },
+    navigate: { icon: "navigate-outline", label: "Navigate", line: { text: "Spoken directions, no live traffic yet" }, route: "/navigate" },
     ticket: { icon: "shield-checkmark-outline", label: "Ticket defender", line: { text: "Check a fine against your trips" }, route: "/ticket-defender" },
     emsee: { icon: "chatbubbles-outline", label: "Ask EmSee", line: { text: "Questions about your trips and tax" }, route: "/assistant" },
     settings: {
