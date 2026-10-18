@@ -154,7 +154,15 @@ export interface TourCheckRow {
   fix: CheckFix | null;
 }
 
-export function tourCheckRows(i: PhoneSnapshot & { platform: "ios" | "android"; startTripOnly: boolean }): TourCheckRow[] {
+export function tourCheckRows(
+  i: PhoneSnapshot & {
+    platform: "ios" | "android";
+    startTripOnly: boolean;
+    /** First run: notifications are asked on Home after the first trip
+     *  (lib/home/notifAsk.ts), so a never-asked phone gets no row here. */
+    deferNotifications?: boolean;
+  }
+): TourCheckRow[] {
   const ios = i.platform === "ios";
   const rows: TourCheckRow[] = [];
 
@@ -209,6 +217,7 @@ export function tourCheckRows(i: PhoneSnapshot & { platform: "ios" | "android"; 
   if (i.notifications === "granted") {
     rows.push({ id: "notifications", ok: true, title: "Notifications", hint: "So we can tell you a trip is saved", action: null, fix: null });
   } else if (i.notifications === "undetermined") {
+    if (i.deferNotifications) return rows;
     rows.push({ id: "notifications", ok: false, title: "Notifications", hint: "So we can tell you a trip is saved", action: "Allow", fix: "notifications" });
   } else {
     rows.push({

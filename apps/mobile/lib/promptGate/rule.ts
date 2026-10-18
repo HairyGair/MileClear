@@ -6,7 +6,13 @@
 //
 // No React Native imports here, so the rule runs under vitest.
 
-export type PromptId = "location_primer" | "whats_new" | "work_explainer" | "saved_places" | "rating";
+export type PromptId =
+  | "location_primer"
+  | "whats_new"
+  | "work_explainer"
+  | "notifications"
+  | "saved_places"
+  | "rating";
 
 // Highest first. Why this order:
 // 1. location_primer: without Always location (or any location) automatic
@@ -18,13 +24,16 @@ export type PromptId = "location_primer" | "whats_new" | "work_explainer" | "sav
 //    driver who still has that unseen gets the news first.
 // 3. work_explainer: tells a new Work-mode driver what the mode is for. Worth
 //    seeing early, but nothing is lost while it waits.
-// 4. saved_places: names stops the driver already visits. Needs 10+ trips, so
+// 4. notifications: the after-first-trip ask (lib/home/notifAsk.ts). Asked
+//    once a trip is saved, so it can wait an app open for the explainer.
+// 5. saved_places: names stops the driver already visits. Needs 10+ trips, so
 //    it is never the first thing a new driver needs.
-// 5. rating: asks for something for us, not the driver. Always last.
+// 6. rating: asks for something for us, not the driver. Always last.
 export const PROMPT_PRIORITY: readonly PromptId[] = [
   "location_primer",
   "whats_new",
   "work_explainer",
+  "notifications",
   "saved_places",
   "rating",
 ];

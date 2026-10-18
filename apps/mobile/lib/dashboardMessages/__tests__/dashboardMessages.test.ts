@@ -271,6 +271,14 @@ describe("selectDashboardMessages", () => {
     expect(r.setup).toBeNull();
   });
 
+  it("leaves notifications out while Home's after-first-trip ask is still to come", () => {
+    expect(on({ notifPermission: "undetermined", notifAskPending: true }).setup).toBeNull();
+    const later = on({ notifPermission: "undetermined", notifAskPending: false }).setup;
+    expect(later?.items.find((it) => it.id === "notifications")?.applicable).toBe(true);
+    // Denied is not deferred: that row is the route to Settings.
+    expect(on({ notifPermission: "denied", notifAskPending: true }).setup).not.toBeNull();
+  });
+
   it("uses the denied snooze when notifications were refused", () => {
     const r = on({ notifPermission: "denied", notifDeniedNudgeSilenced: true });
     expect(r.setup).toBeNull();

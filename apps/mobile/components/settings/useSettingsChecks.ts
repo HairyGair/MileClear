@@ -119,7 +119,10 @@ export function usePhoneState(): PhoneState {
 }
 
 /** Home's blocker and setup rules, run on this phone's state. */
-export function recordingMessages(p: PhoneState): { blocker: BlockerId | null; setup: { done: number; total: number } | null } {
+export function recordingMessages(
+  p: PhoneState,
+  opts?: { notifAskPending?: boolean }
+): { blocker: BlockerId | null; setup: { done: number; total: number } | null } {
   const m = selectDashboardMessages({
     activeShift: false,
     loading: !p.loaded,
@@ -129,6 +132,7 @@ export function recordingMessages(p: PhoneState): { blocker: BlockerId | null; s
     motionStatus: p.motion,
     chaseUndeterminedMotion: Platform.OS === "android",
     notifPermission: p.notifications,
+    notifAskPending: opts?.notifAskPending,
     // Battery optimisation is an Android nudge Home snoozes and shows on its
     // own; Settings leaves it out so one phone setting cannot colour the whole
     // page (Check recording in detail covers it).

@@ -88,6 +88,10 @@ export interface MessageInputs {
    *  iPhone drivers, and this release is not adding them a new nag. */
   chaseUndeterminedMotion: boolean;
   notifPermission: NotifPermission;
+  /** Home's own after-first-trip ask is still to come (lib/home/notifAsk.ts):
+   *  leave an undetermined notifications row out of setup until then.
+   *  Optional, so Settings and the tour keep showing the plain truth. */
+  notifAskPending?: boolean;
 
   /** Android only. `batteryApplicable` distinguishes "not on this platform"
    *  from "already sorted" - without it, iOS would show 3 of 4 done forever. */
@@ -194,7 +198,7 @@ function buildSetup(i: MessageInputs): SetupItem[] {
     },
     {
       id: "notifications",
-      applicable: true,
+      applicable: !(i.notifAskPending === true && i.notifPermission === "undetermined"),
       done: i.notifPermission === "granted",
       actionable: i.notifPermission !== "granted",
       silenced:

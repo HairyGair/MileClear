@@ -78,6 +78,7 @@ import {
   type NotificationPermissionState,
 } from "../../lib/notifications/index";
 import { registerPushToken } from "../../lib/api/notifications";
+import { useNotificationAsk } from "../../components/home/NotificationAsk";
 import {
   getBatteryOptimisationState,
   openBatteryOptimisationSettings,
@@ -676,6 +677,18 @@ export default function DashboardScreen() {
     }
   }, [notifRequesting]);
 
+  // Home's own notification ask, once a trip is saved (lib/home/notifAsk.ts).
+  // Until it has had its turn, an undetermined permission stays out of the
+  // setup checklist below.
+  const rereadNotifPermission = useCallback(() => {
+    getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
+  }, []);
+  const notifAsk = useNotificationAsk({
+    permission: notifPermission,
+    enabled: !loading && !activeShift,
+    onChanged: rereadNotifPermission,
+  });
+
   // A driver with zero trips and some location permission has one job, so the
   // referral ask stands aside for them. (Their "Your first trip" card is on
   // Home itself; the no-location blocker owns the "none" case.)
@@ -764,6 +777,7 @@ export default function DashboardScreen() {
         motionStatus,
         chaseUndeterminedMotion: Platform.OS === "android",
         notifPermission,
+        notifAskPending: notifAsk.pending,
         batteryApplicable: Platform.OS === "android",
         batteryIgnoring: batteryOptState?.ignoring ?? null,
         batteryDismissedAt: batteryNudgeDismissedAt,
@@ -777,7 +791,7 @@ export default function DashboardScreen() {
       }),
     [
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
-      motionStatus, notifPermission, batteryOptState, batteryNudgeDismissedAt,
+      motionStatus, notifPermission, notifAsk.pending, batteryOptState, batteryNudgeDismissedAt,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
       notifPrimerSilenced, detectionOffSince, lowPowerMode,
     ]
@@ -1976,6 +1990,7 @@ export default function DashboardScreen() {
       {workExplainerModal}
       {locPrimerModal}
       <WhatsNewSheet />
+      {notifAsk.sheet}
       <HomeIdle
         stats={stats}
         previousYear={previousYear}

@@ -21,6 +21,8 @@ describe("pickWinner", () => {
 
   it("puts existing drivers' What's new below the location ask and above the work explainer", () => {
     expect(pickWinner(["work_explainer", "whats_new"])).toBe("whats_new");
+    expect(pickWinner(["rating", "saved_places", "notifications"])).toBe("notifications");
+    expect(pickWinner(["notifications", "work_explainer"])).toBe("work_explainer");
     expect(pickWinner(["whats_new", "location_primer"])).toBe("location_primer");
   });
 
