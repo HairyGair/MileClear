@@ -188,8 +188,11 @@ export async function fetchNavRoute(
   to: [number, number],
   env: NodeJS.ProcessEnv = process.env
 ): Promise<NavRouteResult> {
-  const base = env.GRAPHHOPPER_URL?.replace(/\/$/, "");
-  if (!base) return { ok: false, code: "ROUTING_UNAVAILABLE", detail: "GRAPHHOPPER_URL not set" };
+  // Navigation has its own GraphHopper (GRAPHHOPPER_NAV_URL) so a navigation
+  // map refresh or load never touches the instance behind manual-trip
+  // distances and map-matching (GRAPHHOPPER_URL), which feed trip mileage.
+  const base = (env.GRAPHHOPPER_NAV_URL || env.GRAPHHOPPER_URL)?.replace(/\/$/, "");
+  if (!base) return { ok: false, code: "ROUTING_UNAVAILABLE", detail: "GRAPHHOPPER_NAV_URL not set" };
   const wanted = env.GRAPHHOPPER_NAV_PROFILE || "car_nav";
   const profiles = wanted === "car" ? ["car"] : [wanted, "car"];
   for (const profile of profiles) {
