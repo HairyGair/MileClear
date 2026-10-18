@@ -23,6 +23,7 @@
 // user's own numbers - unclassified trips waiting, a deduction milestone,
 // the year-end figure, the January deadline - and the weekly recap only for
 // people who cannot get it as a push.
+import crypto from "node:crypto";
 import { prisma } from "../lib/prisma.js";
 import { logEvent } from "../services/appEvents.js";
 import {
@@ -79,6 +80,21 @@ export const EVENT = {
   winBack: "email.win_back_sent",
 } as const;
 
+// ── Hold-back (18 Oct 2026) ──────────────────────────────────────────
+// One driver in ten is held back from each retention email (week one, gone
+// quiet, win-back): their event is logged with held: true, nothing is sent,
+// and the once-ever / cooldown checks treat it as sent, so the two groups
+// stay comparable. scripts/retention-email-effect.mjs compares how many in
+// each group record a trip in the 14 days after. Without it there is no way
+// to tell whether these emails bring anyone back.
+export const HOLDOUT_SHARE = 0.1;
+
+/** Pure and stable: the same driver is always in or out for a given email. */
+export function isHeldBack(userId: string, emailEvent: string): boolean {
+  const h = crypto.createHash("sha256").update(`${emailEvent}:${userId}`).digest();
+  return h.readUInt32BE(0) / 0x1_0000_0000 < HOLDOUT_SHARE;
+}
+
 // ── Win-back (18 Oct 2026) ────────────────────────────────────────────
 // What changed, in plain words, with the day it reached drivers. A driver
 // only hears about changes made after their last drive (stopped) or after
@@ -101,6 +117,9 @@ export const WIN_BACK_CHANGES: Array<{ live: string; text: string; for: WinBackG
 export const WIN_BACK_MAX_CHANGES = 4;
 export const WIN_BACK_DAILY_CAP = 150; // first runs clear a ~480 backlog over about three days
 export const WIN_BACK_STOPPED_SILENCE_MS = 30 * DAY_MS;
+// The app was deleted (push.device_unregistered, lib/push.ts): no need to wait a month.
+export const WIN_BACK_DELETED_SILENCE_MS = 3 * DAY_MS;
+export const APP_DELETED_EVENT = "push.device_unregistered";
 export const WIN_BACK_APP_UNOPENED_MS = 14 * DAY_MS;
 export const WIN_BACK_MIN_TRIPS = 3;
 export const WIN_BACK_NEVER_MIN_AGE_MS = 14 * DAY_MS; // the day 1/3/7 setup nudges go first
@@ -123,6 +142,8 @@ export type WinBackFacts = {
   alreadySent: boolean;
   lastGoneQuietAt: Date | null;
   lastCaptureLapsedAt: Date | null;
+  /** Set when the push service said the app was removed and the phone hasn't checked in since. */
+  appDeletedAt: Date | null;
 };
 
 /** Pure: which win-back email (if any) this driver qualifies for. */
@@ -137,7 +158,10 @@ export function winBackGroup(f: WinBackFacts): WinBackGroup | null {
   }
   if (!f.lastTripAt || f.totalTrips < WIN_BACK_MIN_TRIPS) return null;
   const silence = now - f.lastTripAt.getTime();
-  if (silence < WIN_BACK_STOPPED_SILENCE_MS || silence > WIN_BACK_MAX_AGE_MS) return null;
+  if (silence > WIN_BACK_MAX_AGE_MS) return null;
+  // Deleted the app: they've told us they've stopped, so a few days is enough.
+  if (f.appDeletedAt) return silence >= WIN_BACK_DELETED_SILENCE_MS ? "stopped" : null;
+  if (silence < WIN_BACK_STOPPED_SILENCE_MS) return null;
   // "Definitely stopped": the app hasn't been opened for a fortnight either.
   if (f.lastHeartbeatAt && now - f.lastHeartbeatAt.getTime() < WIN_BACK_APP_UNOPENED_MS) return null;
   return "stopped";
@@ -168,6 +192,12 @@ export function isAndroidUser(u: { platformsSeen: string | null; signupPlatform:
   return seen.length === 0 && u.signupPlatform === "android";
 }
 
+/** The removal still stands only if the phone hasn't checked in since (a reinstall would have). */
+export function appDeletedSince(deletedAt: Date | null, lastHeartbeatAt: Date | null): Date | null {
+  if (!deletedAt) return null;
+  return lastHeartbeatAt && lastHeartbeatAt > deletedAt ? null : deletedAt;
+}
+
 /** "Tuesday 6 October", London time. */
 export function londonDayLabel(d: Date): string {
   return d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/London" });
@@ -184,6 +214,8 @@ export type GoneQuietFacts = {
    *  the capture_lapsed push (activation.ts) names that exact cause at 14
    *  days, so this email stands aside rather than stack a second message. */
   capturedLapsedWillCover: boolean;
+  /** The app was removed: "open MileClear" makes no sense, so the win-back email takes them. */
+  appDeleted: boolean;
 };
 
 /** Pure: should this driver get the gone-quiet email now? */
@@ -196,6 +228,7 @@ export function decideGoneQuiet(f: GoneQuietFacts): boolean {
   if (f.lastGoneQuietAt && f.now.getTime() - f.lastGoneQuietAt.getTime() < GONE_QUIET_COOLDOWN_MS) return false;
   if (f.lastCaptureLapsedAt && f.now.getTime() - f.lastCaptureLapsedAt.getTime() < GONE_QUIET_LAPSED_GAP_MS) return false;
   if (f.capturedLapsedWillCover) return false;
+  if (f.appDeleted) return false;
   return true;
 }
 
@@ -568,6 +601,10 @@ export async function runWeekOneEmailJob(): Promise<void> {
   if (!RETENTION_ENABLED()) return;
   let sent = 0;
   for (const w of await weekOneTargets()) {
+    if (isHeldBack(w.user.id, EVENT.weekOne)) {
+      logEvent(EVENT.weekOne, w.user.id, { held: true, trips: w.trips, toSort: w.toSort });
+      continue;
+    }
     try {
       await sendWeekOneEmail(w.user.email, w.user.displayName, {
         trips: w.trips, miles: w.miles, claimPence: w.claimPence, toSort: w.toSort,
@@ -607,7 +644,7 @@ async function goneQuietTargets(now = new Date()): Promise<GoneQuietTarget[]> {
   const [counts, events, summaries] = await Promise.all([
     prisma.trip.groupBy({ by: ["userId"], where: { userId: { in: ids }, isPhantomTrip: false }, _count: { _all: true } }),
     prisma.appEvent.findMany({
-      where: { userId: { in: ids }, type: { in: [EVENT.goneQuiet, "notification.capture_lapsed"] } },
+      where: { userId: { in: ids }, type: { in: [EVENT.goneQuiet, "notification.capture_lapsed", APP_DELETED_EVENT] } },
       select: { userId: true, type: true, createdAt: true },
     }),
     prisma.mileageSummary.findMany({ where: { userId: { in: ids }, taxYear: getTaxYear(now) }, select: { userId: true, deductionPence: true } }),
@@ -631,6 +668,7 @@ async function goneQuietTargets(now = new Date()): Promise<GoneQuietTarget[]> {
         !!u.lastHeartbeatAt &&
         now.getTime() - u.lastHeartbeatAt.getTime() < 14 * DAY_MS &&
         u.bgLocationPermission !== "granted",
+      appDeleted: appDeletedSince(latest(u.id, APP_DELETED_EVENT), u.lastHeartbeatAt) !== null,
     });
     if (!ok) continue;
     out.push({
@@ -648,6 +686,10 @@ export async function runGoneQuietEmailJob(): Promise<void> {
   if (!RETENTION_ENABLED()) return;
   let sent = 0;
   for (const g of await goneQuietTargets()) {
+    if (isHeldBack(g.user.id, EVENT.goneQuiet)) {
+      logEvent(EVENT.goneQuiet, g.user.id, { held: true, lastTripAt: g.lastTripAt.toISOString(), android: g.android });
+      continue;
+    }
     try {
       await sendGoneQuietEmail(g.user.email, g.user.displayName, {
         lastTripLabel: londonDayLabel(g.lastTripAt), android: g.android, claimPence: g.claimPence,
@@ -663,11 +705,18 @@ export async function runGoneQuietEmailJob(): Promise<void> {
 }
 
 // ── 8. Win-back: stopped for good, or never recorded (11:00 UK daily) ──
-type WinBackTarget = { user: Candidate; group: WinBackGroup; since: Date; sinceLabel: string; changes: string[]; claimPence: number | null };
+type WinBackTarget = {
+  user: Candidate; group: WinBackGroup; since: Date; sinceLabel: string; changes: string[]; claimPence: number | null; appDeleted: boolean;
+};
 
 async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
   const out: WinBackTarget[] = [];
   const oldest = new Date(now.getTime() - WIN_BACK_MAX_AGE_MS);
+  const deletedIds = (await prisma.appEvent.findMany({
+    where: { type: APP_DELETED_EVENT, createdAt: { gte: oldest }, userId: { not: null } },
+    select: { userId: true },
+    distinct: ["userId"],
+  })).map((e) => e.userId!);
   const users = await prisma.user.findMany({
     where: {
       emailVerified: true,
@@ -677,6 +726,10 @@ async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
         { lastTripAt: null, createdAt: { gte: oldest, lte: new Date(now.getTime() - WIN_BACK_NEVER_MIN_AGE_MS) } },
         // Stopped: last drive 30 days to 6 months ago.
         { lastTripAt: { gte: oldest, lte: new Date(now.getTime() - WIN_BACK_STOPPED_SILENCE_MS) } },
+        // Deleted the app: last drive 3+ days ago.
+        ...(deletedIds.length
+          ? [{ id: { in: deletedIds }, lastTripAt: { gte: oldest, lte: new Date(now.getTime() - WIN_BACK_DELETED_SILENCE_MS) } }]
+          : []),
       ],
     },
     select: { ...CANDIDATE_SELECT, createdAt: true, lastTripAt: true, lastHeartbeatAt: true },
@@ -686,7 +739,7 @@ async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
   const [counts, events, summaries] = await Promise.all([
     prisma.trip.groupBy({ by: ["userId"], where: { userId: { in: ids }, isPhantomTrip: false }, _count: { _all: true } }),
     prisma.appEvent.findMany({
-      where: { userId: { in: ids }, type: { in: [EVENT.winBack, EVENT.goneQuiet, "notification.capture_lapsed"] } },
+      where: { userId: { in: ids }, type: { in: [EVENT.winBack, EVENT.goneQuiet, "notification.capture_lapsed", APP_DELETED_EVENT] } },
       select: { userId: true, type: true, createdAt: true },
     }),
     prisma.mileageSummary.findMany({ where: { userId: { in: ids }, taxYear: getTaxYear(now) }, select: { userId: true, deductionPence: true } }),
@@ -698,6 +751,7 @@ async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
     return hits.length ? new Date(Math.max(...hits)) : null;
   };
   for (const u of users) {
+    const appDeletedAt = appDeletedSince(latest(u.id, APP_DELETED_EVENT), u.lastHeartbeatAt);
     const group = winBackGroup({
       now,
       createdAt: u.createdAt,
@@ -707,6 +761,7 @@ async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
       alreadySent: latest(u.id, EVENT.winBack) !== null,
       lastGoneQuietAt: latest(u.id, EVENT.goneQuiet),
       lastCaptureLapsedAt: latest(u.id, "notification.capture_lapsed"),
+      appDeletedAt,
     });
     if (!group) continue;
     const since = group === "stopped" ? u.lastTripAt! : u.createdAt;
@@ -719,6 +774,7 @@ async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
       sinceLabel: winBackSinceLabel(group, since),
       changes,
       claimPence: group === "stopped" && taxAudience(u) ? (claimBy.get(u.id) ?? 0) : null,
+      appDeleted: appDeletedAt !== null,
     });
   }
   // Stopped drivers first, most recent first: the people likeliest to come
@@ -738,11 +794,15 @@ export async function runWinBackEmailJob(): Promise<void> {
   if (room <= 0) return;
   let sent = 0;
   for (const w of (await winBackTargets()).slice(0, room)) {
+    if (isHeldBack(w.user.id, EVENT.winBack)) {
+      await prisma.appEvent.create({ data: { type: EVENT.winBack, userId: w.user.id, metadata: { held: true, group: w.group, changes: w.changes.length } } });
+      continue;
+    }
     try {
       await sendWinBackEmail(w.user.email, w.user.displayName, {
-        group: w.group, sinceLabel: w.sinceLabel, changes: w.changes, claimPence: w.claimPence,
+        group: w.group, sinceLabel: w.sinceLabel, changes: w.changes, claimPence: w.claimPence, appDeleted: w.appDeleted,
       }, w.user.id);
-      await prisma.appEvent.create({ data: { type: EVENT.winBack, userId: w.user.id, metadata: { group: w.group, changes: w.changes.length } } });
+      await prisma.appEvent.create({ data: { type: EVENT.winBack, userId: w.user.id, metadata: { group: w.group, changes: w.changes.length, appDeleted: w.appDeleted } } });
       sent++;
       await sleep(SEND_DELAY_MS);
     } catch (err) {

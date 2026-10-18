@@ -10,6 +10,8 @@ import {
   decideGoneQuiet,
   winBackGroup,
   winBackChanges,
+  isHeldBack,
+  appDeletedSince,
   winBackSinceLabel,
   type WinBackFacts,
   GONE_QUIET_MIN_SILENCE_MS,
@@ -75,6 +77,7 @@ describe("decideGoneQuiet", () => {
     lastGoneQuietAt: null,
     lastCaptureLapsedAt: null,
     capturedLapsedWillCover: false,
+    appDeleted: false,
     ...over,
   });
 
@@ -100,6 +103,10 @@ describe("decideGoneQuiet", () => {
     expect(decideGoneQuiet(facts({ lastGoneQuietAt: ago(91) }))).toBe(true);
   });
 
+  it("leaves a driver who deleted the app to the win-back email", () => {
+    expect(decideGoneQuiet(facts({ appDeleted: true }))).toBe(false);
+  });
+
   it("stands aside when the capture-lapsed push will name the real cause", () => {
     expect(decideGoneQuiet(facts({ capturedLapsedWillCover: true }))).toBe(false);
   });
@@ -120,7 +127,14 @@ describe("winBackGroup", () => {
     alreadySent: false,
     lastGoneQuietAt: null,
     lastCaptureLapsedAt: null,
+    appDeletedAt: null,
     ...over,
+  });
+
+  it("treats a deleted app as stopped after 3 days, not 30", () => {
+    expect(winBackGroup(facts({ lastTripAt: ago(5), lastHeartbeatAt: ago(5), appDeletedAt: ago(2) }))).toBe("stopped");
+    expect(winBackGroup(facts({ lastTripAt: ago(2), lastHeartbeatAt: ago(2), appDeletedAt: ago(1) }))).toBeNull();
+    expect(winBackGroup(facts({ lastTripAt: ago(5), appDeletedAt: ago(2), totalTrips: 2 }))).toBeNull();
   });
 
   it("picks out a driver who has clearly stopped", () => {
@@ -172,5 +186,35 @@ describe("winBackChanges", () => {
   it("labels the date the way each email reads", () => {
     expect(winBackSinceLabel("stopped", new Date("2026-10-06T10:00:00Z"))).toBe("6 October");
     expect(winBackSinceLabel("never", new Date("2026-08-14T10:00:00Z"))).toBe("August");
+  });
+});
+
+describe("isHeldBack", () => {
+  it("always gives the same answer for the same driver and email", () => {
+    expect(isHeldBack("user-1", "email.win_back_sent")).toBe(isHeldBack("user-1", "email.win_back_sent"));
+  });
+
+  it("holds back about one in ten", () => {
+    let held = 0;
+    for (let i = 0; i < 10_000; i++) if (isHeldBack(`user-${i}`, "email.gone_quiet_sent")) held++;
+    expect(held).toBeGreaterThan(900);
+    expect(held).toBeLessThan(1100);
+  });
+
+  it("draws a separate one in ten for each email", () => {
+    let both = 0;
+    for (let i = 0; i < 10_000; i++) {
+      if (isHeldBack(`user-${i}`, "email.week_one_sent") && isHeldBack(`user-${i}`, "email.win_back_sent")) both++;
+    }
+    expect(both).toBeLessThan(200); // ~100 if independent, 1,000 if the same people
+  });
+});
+
+describe("appDeletedSince", () => {
+  it("counts a removal only until the phone checks in again", () => {
+    expect(appDeletedSince(ago(3), ago(10))).toEqual(ago(3));
+    expect(appDeletedSince(ago(3), null)).toEqual(ago(3));
+    expect(appDeletedSince(ago(3), ago(1))).toBeNull(); // reinstalled
+    expect(appDeletedSince(null, ago(1))).toBeNull();
   });
 });

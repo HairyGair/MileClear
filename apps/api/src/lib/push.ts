@@ -1,5 +1,6 @@
 import { prisma } from "./prisma.js";
 import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
+import { logEvent } from "../services/appEvents.js";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -50,6 +51,36 @@ export interface ExpoPushTicket {
   details?: { error?: string };
 }
 
+/** The tokens Expo says no longer reach a phone with the app on it. */
+export function unregisteredTokens(messages: ExpoPushMessage[], tickets: (ExpoPushTicket | null)[]): string[] {
+  const out = new Set<string>();
+  tickets.forEach((t, i) => {
+    if (t?.status === "error" && t.details?.error === "DeviceNotRegistered" && messages[i]?.to) out.add(messages[i].to);
+  });
+  return [...out];
+}
+
+/**
+ * App deleted (18 Oct 2026). Expo answers DeviceNotRegistered when a token no
+ * longer reaches an install, which in practice means the app was removed.
+ * Record it as push.device_unregistered (the win-back email treats it as a
+ * driver who has stopped, after 3 days rather than 30) and clear the dead
+ * token so the jobs that fall back to email for drivers without push reach
+ * them. A reinstall registers a fresh token on its first launch. Never
+ * throws: a push send must not fail because of this.
+ */
+async function noteUnregistered(messages: ExpoPushMessage[], tickets: (ExpoPushTicket | null)[]): Promise<void> {
+  const tokens = unregisteredTokens(messages, tickets);
+  if (tokens.length === 0) return;
+  try {
+    const users = await prisma.user.findMany({ where: { pushToken: { in: tokens } }, select: { id: true } });
+    await prisma.user.updateMany({ where: { pushToken: { in: tokens } }, data: { pushToken: null } });
+    for (const u of users) logEvent("push.device_unregistered", u.id, {});
+  } catch (err) {
+    console.error("[push] could not record unregistered devices:", err);
+  }
+}
+
 /**
  * Send a single push notification via the Expo Push API.
  * Returns the ticket from Expo. Errors are logged but not thrown so
@@ -77,7 +108,9 @@ export async function sendPushNotification(
     }
 
     const json = (await res.json()) as { data: ExpoPushTicket };
-    return json.data ?? null;
+    const ticket = json.data ?? null;
+    void noteUnregistered([message], [ticket]);
+    return ticket;
   } catch (err) {
     console.error("[push] Failed to send notification:", err);
     return null;
@@ -100,6 +133,7 @@ export async function sendPushNotifications(
   const held = messages.map((m) => heldForQuietHours(m, options));
   const toSend = messages.filter((_, i) => !held[i]);
   const sentTickets = await sendPushBatches(toSend);
+  void noteUnregistered(toSend, sentTickets);
   let next = 0;
   return messages.map((_, i) =>
     held[i]

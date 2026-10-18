@@ -4,6 +4,7 @@
 import nodemailer from "nodemailer";
 import { prisma } from "../lib/prisma.js";
 import { signUnsubscribeToken } from "../lib/unsubscribeToken.js";
+import { signStopReasonToken, STOP_REASONS } from "./stopReasons.js";
 import { ANDROID_NEW_NOTE, bgLocationSettingsPath, type DevicePlatform } from "../jobs/activationBgLocation.js";
 import {
   getLatestRelease,
@@ -1980,10 +1981,21 @@ export async function sendWinBackEmail(
     changes: string[];
     /** Stopped work drivers only; null hides the line. */
     claimPence: number | null;
+    /** The push service said the app was removed: tell them how to come back. */
+    appDeleted?: boolean;
   },
   userId: string
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const token = signStopReasonToken(data.group, userId);
+  const reasons = `<p style="color:#c0c8d4;font-size:15px;line-height:1.7;margin:8px 0 6px;">${
+    data.group === "stopped" ? "Or tap the reason you stopped:" : "Or tap what got in the way:"
+  }</p><p style="font-size:14px;line-height:2.1;margin:0 0 16px;">${STOP_REASONS[data.group]
+    .map(
+      (r) =>
+        `<a href="${API_BASE_URL}/why-stopped?t=${encodeURIComponent(token)}&amp;r=${r.code}" style="color:#f5a623;text-decoration:underline;">${escapeHtml(r.label)}</a>`
+    )
+    .join("<br/>")}</p>`;
   const list = `<ul style="color:#c0c8d4;font-size:15px;line-height:1.7;margin:0 0 16px;padding-left:20px;">${data.changes
     .map((c) => `<li style="margin:0 0 6px;">${escapeHtml(c)}</li>`)
     .join("")}</ul>`;
@@ -1994,11 +2006,16 @@ export async function sendWinBackEmail(
 ${para(greeting)}
 ${para(`You haven't used MileClear since <strong style="color:#f0f2f5;">${since}</strong>, and a lot has changed since then:`)}
 ${list}
-${para("Open MileClear to pick them up.")}
+${para(
+        data.appDeleted
+          ? "If you've removed MileClear, download it again and sign in. Your trips are all still there."
+          : "Open MileClear to pick them up."
+      )}
 ${data.claimPence != null && data.claimPence > 0
     ? para(`Your mileage claim so far this tax year is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>, and every drive from here adds to it.`)
     : ""}
 ${para("If something put you off, just reply and tell me what it was.", 8)}
+${reasons}
 ${SIGN_OFF}`
       : `
 ${para(greeting)}
@@ -2006,6 +2023,7 @@ ${para(`You signed up to MileClear in <strong style="color:#f0f2f5;">${since}</s
 ${list}
 ${para('To record drives on its own, MileClear needs Location set to <strong style="color:#f0f2f5;">Always</strong> (iPhone) or <strong style="color:#f0f2f5;">Allow all the time</strong> (Android).')}
 ${para("If something stopped you, just reply and tell me what it was.", 8)}
+${reasons}
 ${SIGN_OFF}`;
   const subject =
     data.group === "stopped" ? "MileClear has changed since you last drove" : "Still want MileClear to track your miles?";
