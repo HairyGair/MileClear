@@ -15,7 +15,7 @@ export interface Piece {
 }
 
 export interface Leg {
-  step: Pick<NavigationStep, "type" | "modifier" | "exit" | "streetName">;
+  step: Pick<NavigationStep, "type" | "modifier" | "exit" | "streetName" | "roadRef" | "towards" | "via">;
   pieces: Piece[];
   /** Free-flow speed for the step's duration, m/s. */
   speedMps?: number;

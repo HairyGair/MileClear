@@ -2661,6 +2661,10 @@ export interface NavigationStep {
   roadRef?: string | null;
   /** Signposted destinations ("Sunderland, Washington"). */
   towards?: string | null;
+  /** On a uturn step that turns round through a side street ("Strawberry
+   *  Place"): said "Turn round using Strawberry Place". Null for a plain
+   *  U-turn on one road. */
+  via?: string | null;
   /** Plain UK English, e.g. "Turn right onto Queen Victoria Road". */
   text: string;
   /** Length of this step, from its manoeuvre to the next. */

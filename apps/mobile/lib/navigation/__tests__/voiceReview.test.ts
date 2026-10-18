@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import type { NavigationRoute, NavigationStep } from "@mileclear/shared";
 import { announce, initialAnnouncerState, type AnnouncerState } from "../announcer";
 import { offset } from "../geo";
+import { bannerAction, glyphFor, inDistancePhrase, nowPhrase, thenPhrase } from "../phrases";
 import { startNavigation, stepNavigation, type NavFix, type NavigatorState } from "../navigator";
 import { buildRoute, drive, pointAt, READING, roundaboutArc, routeLine } from "./fixtures";
 
@@ -230,5 +231,50 @@ describe("re-test fixes", () => {
     });
     expect(first.say?.text).toBe("Turn around when it is safe");
     expect(first.view.next?.type).toBe("uturn");
+  });
+});
+
+// Gallowgate reroute, 19 Oct 2026: a legal right into Strawberry Place and
+// right back, which GraphHopper labels a U-turn; the server sends `via`.
+describe("turn round using a side street (via)", () => {
+  const viaStep = step({ type: "uturn", streetName: "Gallowgate", via: "Strawberry Place" });
+
+  it("says and shows the side street, with the usual distance tiers", () => {
+    const said = approach(viaStep, 400, 10);
+    expect(said.map((s) => s.text)).toEqual([
+      "In 250 yards, turn round using Strawberry Place",
+      "Turn round using Strawberry Place now",
+    ]);
+    expect(inDistancePhrase(91, viaStep)).toBe("In 100 yards, turn round using Strawberry Place");
+    expect(bannerAction(viaStep)).toBe("Turn round using Strawberry Place");
+    expect(glyphFor(viaStep)).toBe("uturn");
+    expect(thenPhrase(viaStep)).toBe(", then turn round using Strawberry Place");
+  });
+
+  it("a plain U-turn on one road still says Turn around when it is safe", () => {
+    const plain = step({ type: "uturn", streetName: "Gallowgate" });
+    expect(nowPhrase(plain)).toBe("Turn around when it is safe");
+    expect(bannerAction(plain)).toBe("Turn around");
+  });
+
+  it("the start-of-route U-turn handling never replaces it", () => {
+    const route = buildRoute(READING, [
+      { step: { type: "depart", streetName: "Gallowgate" }, pieces: [{ bearing: 90, metres: 50 }] },
+      { step: { type: "uturn", streetName: "Gallowgate", via: "Strawberry Place" }, pieces: [{ bearing: 270, metres: 400 }] },
+      { step: { type: "turn", modifier: "left", streetName: "St James Street" }, pieces: [{ bearing: 180, metres: 400 }] },
+    ]);
+    const run = replay(route, drive(routeLine(route), { speedMps: 8, heading: true }));
+    expect(run.said).not.toContain("Turn around when it is safe");
+    expect(run.said).toContain("Turn round using Strawberry Place now");
+    const first = stepNavigation(startNavigation(route, undefined, { fresh: "reroute" }), {
+      lat: READING.lat,
+      lng: READING.lng,
+      speedMps: 0,
+      accuracyM: 5,
+      headingDeg: 90,
+      atMs: 1000,
+    });
+    expect(first.say?.text).toBe("In 50 yards, turn round using Strawberry Place");
+    expect(first.view.next?.via).toBe("Strawberry Place");
   });
 });

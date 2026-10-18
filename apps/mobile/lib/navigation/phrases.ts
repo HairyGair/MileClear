@@ -7,7 +7,7 @@
 
 import type { NavigationStep } from "@mileclear/shared";
 import { METRES_PER_MILE, METRES_PER_YARD } from "./geo";
-import { displayRoad, spokenRoad, towardsWords } from "./streetSpeech";
+import { displayRoad, spokenRoad, spokenStreet, towardsWords } from "./streetSpeech";
 
 const ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 
@@ -100,6 +100,11 @@ function exitRoad(step: NavigationStep): { streetName: string | null; roadRef?: 
   return step;
 }
 
+/** The side street a "turn round" goes through, as spoken (server's `via`). */
+function viaName(step: NavigationStep): string | null {
+  return spokenStreet(step.via ?? null);
+}
+
 function onto(step: NavigationStep): string {
   const road = spokenRoad(exitRoad(step));
   const towards = step.type === "keep" || step.type === "roundabout" ? towardsWords(step.towards) : null;
@@ -128,7 +133,7 @@ export function manoeuvrePhrase(step: NavigationStep, opts: { arriveName?: strin
         ? `at the roundabout, take the ${ordinalWord(step.exit)} exit${onto(step)}`
         : `at the roundabout, take the exit${onto(step)}`;
     case "uturn":
-      return "turn around when it is safe";
+      return viaName(step) ? `turn round using ${viaName(step)}` : "turn around when it is safe";
     case "continue":
       return `carry straight on${onto(step)}`;
     case "arrive":
@@ -164,7 +169,7 @@ export function nowPhrase(step: NavigationStep, opts: { arriveName?: string | nu
     case "roundabout":
       return step.exit && step.exit > 0 ? `Now take the ${ordinalWord(step.exit)} exit${st}` : `Now take the exit${st}`;
     case "uturn":
-      return "Turn around when it is safe";
+      return viaName(step) ? `Turn round using ${viaName(step)} now` : "Turn around when it is safe";
     case "continue":
       return `Carry straight on${st}`;
     case "arrive":
@@ -194,7 +199,7 @@ export function shortPhrase(step: NavigationStep): string {
     case "roundabout":
       return step.exit && step.exit > 0 ? `take the ${ordinalWord(step.exit)} exit` : "take the exit";
     case "uturn":
-      return "turn around";
+      return viaName(step) ? `turn round using ${viaName(step)}` : "turn around";
     case "continue":
       return "carry straight on";
     case "arrive":
@@ -260,7 +265,7 @@ export function bannerAction(step: NavigationStep): string {
     case "roundabout":
       return step.exit && step.exit > 0 ? `${ordinal(step.exit)} exit` : "Roundabout";
     case "uturn":
-      return "Turn around";
+      return step.via?.trim() ? `Turn round using ${step.via.trim()}` : "Turn around";
     case "continue":
       return "Straight on";
     case "arrive":

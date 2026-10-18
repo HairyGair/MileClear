@@ -132,8 +132,12 @@ export function startNavigation(
 /** A U-turn the car has to make before anything else, if there is one. */
 export const UTURN_START_M = 60;
 function uturnAtStart(route: NavigationRoute, r: PreparedRoute): number | null {
-  if (route.steps[0]?.type === "uturn") return 0;
-  if (route.steps[1]?.type === "uturn" && (r.stepAlong[1] ?? Infinity) <= UTURN_START_M) return 1;
+  // Only a plain U-turn on one road. A turn round through a side street
+  // (`via`, e.g. right into Strawberry Place and right back) is an ordinary
+  // manoeuvre with its own distance prompts.
+  const plain = (i: number) => route.steps[i]?.type === "uturn" && !route.steps[i]?.via?.trim();
+  if (plain(0)) return 0;
+  if (plain(1) && (r.stepAlong[1] ?? Infinity) <= UTURN_START_M) return 1;
   return null;
 }
 
