@@ -14,7 +14,7 @@ import {
   type AnnouncerState,
   type Announcement,
 } from "./announcer";
-import { bearingDeg, distanceMeters, type LatLng } from "./geo";
+import { bearingDeg, bearingDiff, distanceMeters, type LatLng } from "./geo";
 import { assessOffRoute, initialOffRouteState, USELESS_ACCURACY_M, type OffRouteState } from "./offRoute";
 import { arrivedPhrase } from "./phrases";
 import {
@@ -74,6 +74,9 @@ export interface NavigatorState {
   speeds: Array<{ atMs: number; v: number }>;
   courseDeg: number | null;
   arrived: boolean;
+  /** The route starts with a U-turn (the car faces the wrong way): it is the
+   *  first thing said and shown until the car is heading along the line. */
+  uturnFirst: boolean;
 }
 
 export interface NavView {
@@ -120,6 +123,7 @@ export function startNavigation(
     speeds: [],
     courseDeg: null,
     arrived: false,
+    uturnFirst: route.steps[0]?.type === "uturn",
   };
 }
 
@@ -170,7 +174,7 @@ function thenStep(r: PreparedRoute, stepIndex: number, speed: number | null): Na
 
 export function viewOf(state: NavigatorState, extra?: Partial<NavView>): NavView {
   const r = state.prepared;
-  const next = r.route.steps[state.stepIndex + 1] ?? null;
+  const next = state.uturnFirst ? r.route.steps[0] : (r.route.steps[state.stepIndex + 1] ?? null);
   const speed = smoothedSpeed(state.speeds);
   return {
     position: null,
@@ -180,10 +184,11 @@ export function viewOf(state: NavigatorState, extra?: Partial<NavView>): NavView
     segIndex: state.segIndex,
     next,
     then: thenStep(r, state.stepIndex, speed),
-    distanceToNext: distanceToStep(r, state.stepIndex + 1, state.along),
+    distanceToNext: state.uturnFirst ? 0 : distanceToStep(r, state.stepIndex + 1, state.along),
     remainingMeters: Math.max(0, r.total - state.along),
     remainingSeconds: remainingSeconds(r, state.stepIndex, state.along),
-    speedLimitMph: speedLimitAt(r, state.segIndex),
+    // Not while off the line: the limit belongs to a road the car is not on.
+    speedLimitMph: state.offRoute.offRoute ? null : speedLimitAt(r, state.segIndex),
     speedMps: speed,
     offRoute: state.offRoute.offRoute,
     arrived: state.arrived,
@@ -202,7 +207,15 @@ export interface NavStep {
   usable: boolean;
 }
 
-export function stepNavigation(state: NavigatorState, fix: NavFix): NavStep {
+export interface StepOptions {
+  /** Would this prompt be spoken now? When it would not (another prompt is
+   *  still playing, or one started under 5 s ago), the announcer does not
+   *  count it as said, so it is tried again on the next fix instead of being
+   *  lost. Muted or on a call counts as said: those prompts are never owed. */
+  canSay?: (a: Announcement) => boolean;
+}
+
+export function stepNavigation(state: NavigatorState, fix: NavFix, opts: StepOptions = {}): NavStep {
   if (state.arrived) return { state, view: viewOf(state), say: null, wantReroute: false, usable: false };
 
   // Too fuzzy to place the car: as if no fix came (DESIGN 2.6).
@@ -272,9 +285,14 @@ export function stepNavigation(state: NavigatorState, fix: NavFix): NavStep {
   // final step's manoeuvre.
   const remaining = Math.max(0, r.total - along);
   const nearEnd = remaining <= ARRIVE_ALONG_WINDOW_M;
-  const atDestination =
-    nearEnd && distanceMeters(fix, state.destination) <= ARRIVE_RADIUS_M + Math.min(fix.accuracyM ?? 0, 20);
   const lastStep = r.route.steps.length - 1;
+  // Close to the destination counts only once no manoeuvre is left before
+  // the end: a turn just short of it must still be given.
+  const noManoeuvreLeft = stepIndex + 1 >= lastStep;
+  const atDestination =
+    nearEnd &&
+    noManoeuvreLeft &&
+    distanceMeters(fix, state.destination) <= ARRIVE_RADIUS_M + Math.min(fix.accuracyM ?? 0, 20);
   const pastFinal = r.total > 0 && (remaining <= 10 || (lastStep > 0 && stepIndex >= lastStep));
   if (atDestination || pastFinal) {
     next = { ...next, arrived: true };
@@ -287,7 +305,34 @@ export function stepNavigation(state: NavigatorState, fix: NavFix): NavStep {
     };
   }
 
+  // A route that starts with a U-turn: say and show that first, until the
+  // car is going the line's way (moving, within 30 m, heading within 60
+  // degrees of it) or has gone 50 m along.
+  if (next.uturnFirst) {
+    const turned =
+      along > 50 ||
+      (snap.distance < 30 && (v ?? 0) > 2 && travelCourse != null && bearingDiff(travelCourse, snap.bearing) < 60);
+    if (turned) next = { ...next, uturnFirst: false };
+  }
+
   const steps = r.route.steps;
+  if (next.uturnFirst) {
+    const a = announce(state.announcer, {
+      stepIndex: -1,
+      next: steps[0],
+      distanceToNext: 0,
+      current: null,
+      stepLength: 0,
+      after: steps[1] ?? null,
+      gapAfter: null,
+      speedMps: speed,
+      arriveName: state.destinationName,
+    });
+    const said = a.say && opts.canSay && !opts.canSay(a.say) ? null : a.say;
+    next = { ...next, announcer: said || !a.say ? a.state : state.announcer };
+    return { state: next, view: viewOf(next, { position: snap.point, distanceFromRoute: snap.distance }), say: said, wantReroute: false, usable: true };
+  }
+
   const nextStep = steps[stepIndex + 1] ?? null;
   const after = steps[stepIndex + 2] ?? null;
   const distanceToNext = distanceToStep(r, stepIndex + 1, along);
@@ -307,12 +352,14 @@ export function stepNavigation(state: NavigatorState, fix: NavFix): NavStep {
     speedMps: speed,
     arriveName: state.destinationName,
   });
-  next = { ...next, announcer: a.state };
+  // Only count a prompt as said if the voice will actually say it now.
+  const say = a.say && opts.canSay && !opts.canSay(a.say) ? null : a.say;
+  next = { ...next, announcer: say || !a.say ? a.state : state.announcer };
 
   return {
     state: next,
     view: viewOf(next, { position: snap.point, distanceFromRoute: snap.distance }),
-    say: a.say,
+    say,
     wantReroute: false,
     usable: true,
   };

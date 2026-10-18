@@ -1,6 +1,6 @@
 // How a street name is said out loud (docs/navigation-1.4.0/DESIGN.md 3.5).
 //
-//   "A1" -> "A one", "M62" -> "M sixty-two", "A1(M)" -> "A one M",
+//   "A1" -> "A one", "M62" -> "M sixty two", "A1(M)" -> "A one M", "A19(T)" -> "A nineteen",
 //   "A184" -> "A one eight four", "B1301" -> "B one three oh one".
 // One or two digits are said as a number, three or more digit by digit with
 // zero as "oh". A road number on its own gets "the": "onto the A19".
@@ -16,7 +16,7 @@ function twoDigits(n: number): string {
   if (n < 20) return TEENS[n - 10];
   const t = Math.floor(n / 10);
   const o = n % 10;
-  return o === 0 ? TENS[t] : `${TENS[t]}-${ONES[o]}`;
+  return o === 0 ? TENS[t] : `${TENS[t]} ${ONES[o]}`;
 }
 
 function digits(s: string): string {
@@ -27,7 +27,8 @@ function digits(s: string): string {
     .join(" ");
 }
 
-const ROAD_NUMBER = /^([ABM])(\d{1,4})(\(M\))?$/i;
+// "(T)" marks a trunk road on signs and in OSM refs; it is not said.
+const ROAD_NUMBER = /^([ABM])(\d{1,4})(\(M\))?(\(T\))?$/i;
 
 /** "A1(M)" -> "A one M"; null when it is not a road number. */
 export function spokenRoadNumber(token: string): string | null {
@@ -60,4 +61,48 @@ export function spokenStreet(name: string | null | undefined): string | null {
     .split(" ")
     .map((w) => spokenRoadNumber(w) ?? w)
     .join(" ");
+}
+
+/** The parts of a step that name a road. */
+export interface RoadParts {
+  streetName: string | null;
+  roadRef?: string | null;
+  towards?: string | null;
+}
+
+function cleanRef(ref: string | null | undefined): string | null {
+  const r = ref?.split(";")[0]?.trim();
+  return r ? r : null;
+}
+
+/**
+ * The road as spoken: the name when there is one ("Coast Road"), else the
+ * number with "the" ("the A one"). Null when the step has neither.
+ */
+export function spokenRoad(p: RoadParts): string | null {
+  const name = spokenStreet(p.streetName);
+  if (name) return name;
+  const ref = cleanRef(p.roadRef);
+  if (!ref) return null;
+  const n = spokenRoadNumber(ref);
+  return n ? `the ${n}` : ref;
+}
+
+/** The road as shown: "Coast Road (A1058)", "A1", "Park Lane". */
+export function displayRoad(p: RoadParts): string | null {
+  const name = p.streetName?.trim() || null;
+  const ref = cleanRef(p.roadRef);
+  if (name && ref) return name.toUpperCase().includes(ref.toUpperCase()) ? name : `${name} (${ref})`;
+  return name ?? ref;
+}
+
+/** "Sunderland and Washington" from "Sunderland, Washington" (at most two). */
+export function towardsWords(towards: string | null | undefined): string | null {
+  const parts = (towards ?? "")
+    .split(/[,;]/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  if (parts.length === 0) return null;
+  return parts.join(" and ");
 }

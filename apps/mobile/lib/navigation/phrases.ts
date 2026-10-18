@@ -7,7 +7,7 @@
 
 import type { NavigationStep } from "@mileclear/shared";
 import { METRES_PER_MILE, METRES_PER_YARD } from "./geo";
-import { spokenStreet } from "./streetSpeech";
+import { displayRoad, spokenRoad, towardsWords } from "./streetSpeech";
 
 const ORDINAL_WORDS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"];
 
@@ -36,15 +36,38 @@ function capitalise(s: string): string {
   return s.length === 0 ? s : s[0].toUpperCase() + s.slice(1);
 }
 
-/** Spoken distance (DESIGN 3.2, voice table). */
+const SPOKEN_ERROR = 0.15;
+const FRACTIONS: Array<[number, string]> = [
+  [0.25, "a quarter of a mile"],
+  [0.5, "half a mile"],
+  [0.75, "three quarters of a mile"],
+];
+
+function milesWords(q: number): string {
+  const whole = Math.floor(q + 1e-9);
+  const frac = Math.round((q - whole) * 4) / 4;
+  const w = whole === 1 ? "one" : String(whole);
+  if (frac === 0) return whole === 1 ? "1 mile" : `${whole} miles`;
+  if (frac === 0.25) return `${w} and a quarter miles`;
+  if (frac === 0.5) return `${w} and a half miles`;
+  return `${w} and three quarter miles`;
+}
+
+/**
+ * Spoken distance (DESIGN 3.2), never more than 15% from the real one (PLAN
+ * section 3): a quarter, half or three quarters of a mile only when that is
+ * true, otherwise yards to the nearest 50; from about a mile, miles to the
+ * nearest quarter (to the nearest half from 2 miles).
+ */
 export function spokenDistance(metres: number): string {
   const miles = metres / METRES_PER_MILE;
-  if (miles >= 1.75) return `${Math.round(miles)} miles`;
-  if (miles >= 1.25) return "one and a half miles";
-  if (miles >= 0.85) return "1 mile";
-  if (miles >= 0.6) return "three quarters of a mile";
-  if (miles >= 0.375) return "half a mile";
-  if (miles >= 0.2) return "a quarter of a mile";
+  if (miles >= 1 / (1 + SPOKEN_ERROR)) {
+    const q = miles < 2 ? Math.round(miles * 4) / 4 : Math.round(miles * 2) / 2;
+    return milesWords(Math.max(1, q));
+  }
+  for (const [f, words] of FRACTIONS) {
+    if (Math.abs(f - miles) <= SPOKEN_ERROR * miles) return words;
+  }
   const yards = metres / METRES_PER_YARD;
   return `${Math.max(50, Math.round(yards / 50) * 50)} yards`;
 }
@@ -57,15 +80,19 @@ export function displayDistance(metres: number, speedMps?: number | null): strin
   const yards = metres / METRES_PER_YARD;
   const miles = metres / METRES_PER_MILE;
   if (yards < 20 || (speedMps != null && speedMps > 1 && metres / speedMps < 2)) return "Now";
-  if (miles >= 10) return `${Math.round(miles)} mi`;
-  if (miles >= 0.2) return `${miles.toFixed(1)} mi`;
+  const tenth = Math.round(miles * 10) / 10;
+  if (tenth >= 10) return `${Math.round(miles)} mi`;
+  if (miles >= 0.2) return `${tenth.toFixed(1)} mi`;
   if (yards >= 100) return `${Math.round(yards / 50) * 50} yd`;
   return `${Math.round(yards / 10) * 10} yd`;
 }
 
+/** " onto the A1 towards Sunderland": the road (name, else number), and
+ *  where the signs point on a keep or a roundabout exit. */
 function onto(step: NavigationStep): string {
-  const s = spokenStreet(step.streetName);
-  return s ? ` onto ${s}` : "";
+  const road = spokenRoad(step);
+  const towards = step.type === "keep" || step.type === "roundabout" ? towardsWords(step.towards) : null;
+  return `${road ? ` onto ${road}` : ""}${towards ? ` towards ${towards}` : ""}`;
 }
 
 /** The manoeuvre in the "In 300 yards, ..." form, lower case, with street. */
@@ -172,20 +199,28 @@ export function thenPhrase(step: NavigationStep): string {
 
 /** Spoken on Start (DESIGN 3.3, depart row). */
 export function departPhrase(step: NavigationStep | null, nextDistance: number | null): string {
-  const s = step ? spokenStreet(step.streetName) : null;
-  if (!s) return "Follow the route on the screen";
-  const along = s.startsWith("the ") ? s : s;
+  const along = step ? spokenRoad(step) : null;
+  if (!along) return "Follow the route on the screen";
   if (nextDistance != null && nextDistance > 2 * METRES_PER_MILE) {
     return `Head along ${along}, then follow the road for ${Math.round(nextDistance / METRES_PER_MILE)} miles`;
   }
   return `Head along ${along}`;
 }
 
-/** After a manoeuvre, when the next one is over 2 miles away. */
-export function followPhrase(streetName: string | null, metres: number): string {
-  const s = spokenStreet(streetName);
+/**
+ * After a manoeuvre, when the next one is over 2 miles away: "Follow the A1
+ * for 6 miles". After a roundabout the step's name is often the roundabout's
+ * own, so only its road number is used there, else "the road".
+ */
+export function followPhrase(current: NavigationStep | null, metres: number): string {
   const miles = Math.round(metres / METRES_PER_MILE);
-  return s ? `Follow ${s} for ${miles} miles` : `Follow the road for ${miles} miles`;
+  let road: string | null = null;
+  if (current?.type === "roundabout") {
+    road = spokenRoad({ streetName: null, roadRef: current.roadRef });
+  } else if (current) {
+    road = spokenRoad(current);
+  }
+  return `Follow ${road ?? "the road"} for ${miles} miles`;
 }
 
 export function arrivedPhrase(name: string | null): string {
@@ -224,10 +259,14 @@ export function bannerAction(step: NavigationStep): string {
   }
 }
 
-/** The street as shown (full, brackets and all), or null. */
+/** The road as shown ("Coast Road (A1058)", "A1"), with "towards ..." on a
+ *  keep or a roundabout exit; or null. */
 export function bannerStreet(step: NavigationStep, arriveName?: string | null): string | null {
   if (step.type === "arrive") return arriveName ?? null;
-  return step.streetName?.trim() || null;
+  const road = displayRoad(step);
+  const towards = step.type === "keep" || step.type === "roundabout" ? towardsWords(step.towards) : null;
+  if (road && towards) return `${road} towards ${towards}`;
+  return road ?? (towards ? `Towards ${towards}` : null);
 }
 
 /** Which glyph to draw (graphics/manoeuvres file name without .svg). */

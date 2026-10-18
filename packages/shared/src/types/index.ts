@@ -2656,6 +2656,11 @@ export interface NavigationStep {
   /** Roundabouts: which exit, 1-based. */
   exit?: number;
   streetName: string | null;
+  /** Road number from OpenStreetMap ("A1", "A189"). Many major roads have no
+   *  name, only this. Optional: routes from before 19 Oct 2026 lack it. */
+  roadRef?: string | null;
+  /** Signposted destinations ("Sunderland, Washington"). */
+  towards?: string | null;
   /** Plain UK English, e.g. "Turn right onto Queen Victoria Road". */
   text: string;
   /** Length of this step, from its manoeuvre to the next. */

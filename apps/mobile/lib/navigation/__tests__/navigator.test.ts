@@ -253,7 +253,7 @@ describe("a fast road", () => {
   it("Head along, then 2 miles (a keep on a long step), 1 mile, half a mile, close, now", () => {
     const run = replay(route, drive(routeLine(route), { speedMps: 70 * MPH, heading: true }));
     expect(run.said.slice(0, 6)).toEqual([
-      "Head along the A thirty-four, then follow the road for 4 miles",
+      "Head along the A thirty four, then follow the road for 4 miles",
       "In 2 miles, keep left onto the M four",
       "In 1 mile, keep left onto the M four",
       "In half a mile, keep left onto the M four",

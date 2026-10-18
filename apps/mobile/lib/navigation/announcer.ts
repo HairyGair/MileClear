@@ -3,7 +3,8 @@
 //
 // Speed bands, from speed smoothed over the last 5 seconds:
 //   slow   (under 35 mph): half a mile only on a step over 0.75 mi; main at
-//          about 250 yd (200 yd under 20 mph); "now" about 3 s out (25 m min).
+//          about 250 yd (200 yd under 20 mph); "now" at s x 4 + 10 m (25 m
+//          min), so at least 3 s out even when the fix is a second late.
 //   medium (35 to 55 mph): 1 mile only on a step over 1.5 mi; half a mile;
 //          about 350 m; "now" about 4 s out (30 m min).
 //   fast   (over 55 mph): 1 mile (2 miles too for a keep on a step over 3 mi);
@@ -18,6 +19,7 @@
 
 import type { NavigationStep } from "@mileclear/shared";
 import { METRES_PER_MILE } from "./geo";
+import { spokenRoad } from "./streetSpeech";
 import {
   departPhrase,
   followPhrase,
@@ -70,7 +72,7 @@ export function triggerDistances(args: {
   if (band === "slow") {
     if (len > 0.75 * METRES_PER_MILE) t.early = HALF_MILE;
     t.main = s < 20 * MPH ? 183 : 250;
-    t.now = Math.max(25, s * 4);
+    t.now = Math.max(25, s * 4 + 10);
   } else if (band === "medium") {
     if (len > 1.5 * METRES_PER_MILE) t.early = METRES_PER_MILE;
     t.main = HALF_MILE;
@@ -164,10 +166,12 @@ function promptText(tier: Tier, ctx: AnnounceContext, t: Triggers): { text: stri
   const lastBeforeNow = activeTiers(t).filter((k) => k !== "now").at(-1);
   const thenTier = tier === "now" || tier === "near" || tier === lastBeforeNow;
   const s = Math.max(1, ctx.speedMps ?? 0);
+  // Never "..., then carry straight on": a name change is not a manoeuvre.
   const close =
     ctx.after != null &&
     ctx.gapAfter != null &&
     next.type !== "arrive" &&
+    ctx.after.type !== "continue" &&
     (ctx.gapAfter <= THEN_GAP_M || ctx.gapAfter / s <= THEN_GAP_S);
   if (thenTier && close && ctx.after) {
     return {
@@ -187,7 +191,11 @@ export function announce(prev: AnnouncerState, ctx: AnnounceContext): { state: A
   }
   const next = ctx.next;
   if (!next || next.type === "depart") return { state, say: null };
-  if (next.type === "continue" && !next.streetName?.trim()) return { state, say: null };
+  // A road-name change is said only when it names a different road.
+  if (next.type === "continue") {
+    const to = spokenRoad(next);
+    if (!to || (ctx.current && spokenRoad(ctx.current) === to)) return { state, say: null };
+  }
 
   const d = ctx.distanceToNext;
   const t = triggerDistances({ speedMps: ctx.speedMps, stepLength: ctx.stepLength, next });
@@ -205,12 +213,15 @@ export function announce(prev: AnnouncerState, ctx: AnnounceContext): { state: A
     }
   }
 
-  // A new route: its first instruction straight away, with distance.
+  // A new route: its first instruction straight away, with distance, counted
+  // as the tier that distance falls in so the schedule does not say it
+  // again a few seconds later.
   if (state.fresh === "reroute") {
     state = { ...state, fresh: null };
     if (tier == null) {
+      const covered = activeTiers(t).filter((k) => k !== "now" && (t[k] as number) >= SKIP_FRACTION * d).at(-1);
       return {
-        state: { ...state, rank: FOLLOW_RANK },
+        state: { ...state, rank: covered ? RANK[covered] : FOLLOW_RANK },
         say: { text: inDistancePhrase(d, next, { arriveName: ctx.arriveName }), urgent: false, tier: "main" },
       };
     }
@@ -221,7 +232,7 @@ export function announce(prev: AnnouncerState, ctx: AnnounceContext): { state: A
     if (newStep && prev.stepIndex >= 0 && state.rank < FOLLOW_RANK && d > FOLLOW_MIN_M) {
       return {
         state: { ...state, rank: FOLLOW_RANK },
-        say: { text: followPhrase(ctx.current?.streetName ?? null, d), urgent: false, tier: "follow" },
+        say: { text: followPhrase(ctx.current, d), urgent: false, tier: "follow" },
       };
     }
     return { state, say: null };

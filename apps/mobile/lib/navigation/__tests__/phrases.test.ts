@@ -33,10 +33,15 @@ function step(p: Partial<NavigationStep>): NavigationStep {
 describe("spoken distance (DESIGN 3.2)", () => {
   it.each([
     [2.2 * MILE, "2 miles"],
-    [3.6 * MILE, "4 miles"],
+    [3.6 * MILE, "3 and a half miles"],
+    [1.25 * MILE, "one and a quarter miles"],
+    [9.9 * MILE, "10 miles"],
     [1.5 * MILE, "one and a half miles"],
     [1.0 * MILE, "1 mile"],
     [0.7 * MILE, "three quarters of a mile"],
+    // Not close enough to a quarter or a half (more than 15% off): yards.
+    [0.32 * MILE, "550 yards"],
+    [0.38 * MILE, "650 yards"],
     [0.5 * MILE, "half a mile"],
     [0.25 * MILE, "a quarter of a mile"],
     [300 * YARD, "300 yards"],
@@ -53,6 +58,7 @@ describe("spoken distance (DESIGN 3.2)", () => {
 describe("banner distance (DESIGN 3.2)", () => {
   it.each([
     [12.3 * MILE, "12 mi"],
+    [9.96 * MILE, "10 mi"],
     [3.24 * MILE, "3.2 mi"],
     [0.4 * MILE, "0.4 mi"],
     [300 * YARD, "300 yd"],
@@ -113,8 +119,12 @@ describe("voice templates (DESIGN 3.3)", () => {
     expect(departPhrase(T({ type: "depart", streetName: "Station Road" }), 400)).toBe("Head along Station Road");
     expect(departPhrase(T({ type: "depart", streetName: "A19" }), 3.2 * MILE)).toBe("Head along the A nineteen, then follow the road for 3 miles");
     expect(departPhrase(T({ type: "depart" }), 400)).toBe("Follow the route on the screen");
-    expect(followPhrase("A1", 6.2 * MILE)).toBe("Follow the A one for 6 miles");
+    expect(followPhrase(T({ roadRef: "A1" }), 6.2 * MILE)).toBe("Follow the A one for 6 miles");
+    expect(followPhrase(T({ streetName: "Coast Road", roadRef: "A1058" }), 6.2 * MILE)).toBe("Follow Coast Road for 6 miles");
     expect(followPhrase(null, 6.2 * MILE)).toBe("Follow the road for 6 miles");
+    // After a roundabout: its road number, or "the road", never its own name.
+    expect(followPhrase(T({ type: "roundabout", streetName: "Testo's Roundabout", roadRef: "A19" }), 3 * MILE)).toBe("Follow the A nineteen for 3 miles");
+    expect(followPhrase(T({ type: "roundabout", streetName: "Testo's Roundabout" }), 3 * MILE)).toBe("Follow the road for 3 miles");
     expect(thenPhrase(T({ modifier: "right" }))).toBe(", then turn right");
     expect(thenPhrase(T({ type: "roundabout", exit: 1 }))).toBe(", then take the first exit");
     expect(thenPhrase(T({ type: "keep", modifier: "left" }))).toBe(", then keep left");
@@ -131,6 +141,26 @@ describe("voice templates (DESIGN 3.3)", () => {
     }
     const text = all.join(" | ");
     expect(text).not.toMatch(/—|!|recalculat|please/i);
+  });
+});
+
+describe("road numbers and signposts (roadRef, towards)", () => {
+  it("an unnamed A-road is said and shown by its number", () => {
+    const s = step({ type: "keep", modifier: "left", roadRef: "A1", towards: "Sunderland" });
+    expect(inDistancePhrase(0.5 * MILE, s)).toBe("In half a mile, keep left onto the A one towards Sunderland");
+    expect(nowPhrase(s)).toBe("Keep left now onto the A one towards Sunderland");
+    expect(bannerStreet(s)).toBe("A1 towards Sunderland");
+  });
+  it("name and number: the name is said, both are shown", () => {
+    const s = step({ modifier: "right", streetName: "Coast Road", roadRef: "A189" });
+    expect(inDistancePhrase(300 * 0.9144, s)).toBe("In 300 yards, turn right onto Coast Road");
+    expect(bannerStreet(s)).toBe("Coast Road (A189)");
+  });
+  it("towards only on keeps and roundabout exits, at most two places", () => {
+    const rb = step({ type: "roundabout", exit: 3, roadRef: "A1231", towards: "Sunderland, Washington, Gateshead" });
+    expect(nowPhrase(rb)).toBe("Now take the third exit onto the A one two three one towards Sunderland and Washington");
+    const turn = step({ modifier: "left", roadRef: "A19", towards: "Teesside" });
+    expect(inDistancePhrase(200, turn)).toBe("In 200 yards, turn left onto the A nineteen");
   });
 });
 

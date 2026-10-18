@@ -102,8 +102,7 @@ describe("voice timing criteria", () => {
       const half = said.find((s) => s.text.startsWith("In half a mile"))!;
       expect(half.at / MILE).toBeGreaterThanOrEqual(0.45);
       expect(half.at / MILE).toBeLessThanOrEqual(0.55);
-      // 320 to 400 m is over 0.2 mi, so it is said as a quarter of a mile.
-      const near = said.find((s) => s.text.startsWith("In a quarter of a mile"))!;
+      const near = said.find((s) => /^In (a quarter of a mile|\d+ yards)/.test(s.text))!;
       expect(near.at).toBeGreaterThanOrEqual(320);
       expect(near.at).toBeLessThanOrEqual(400);
       expect(said.at(-1)!.at / (mph * MPH)).toBeGreaterThanOrEqual(3.5);
@@ -135,16 +134,16 @@ describe("prompts for one manoeuvre", () => {
     const { said } = approach(rb, 0.6 * MILE, 45 * MPH, { stepLength: 0.6 * MILE });
     expect(said.map((s) => s.text)).toEqual([
       "In half a mile, at the roundabout, take the second exit onto Claremont Road",
-      "In a quarter of a mile, at the roundabout, take the second exit onto Claremont Road",
+      "In 350 yards, at the roundabout, take the second exit onto Claremont Road",
       "Now take the second exit onto Claremont Road",
     ]);
   });
 
   it("a short step due late is said with the real distance, and the tier below is not repeated", () => {
     const { said } = approach(right, 500, 45 * MPH, { stepLength: 500 });
-    // Half a mile is due straight away at 500 m (62% of it): said once as
-    // "a quarter of a mile", and the 350 m prompt is not said on top.
-    expect(said.map((s) => s.text)).toEqual(["In a quarter of a mile, turn right onto Park Lane", "Turn right now onto Park Lane"]);
+    // Half a mile is due straight away at 500 m (62% of it): said once with
+    // the real distance, and the 350 m prompt is not said on top.
+    expect(said.map((s) => s.text)).toEqual(["In 550 yards, turn right onto Park Lane", "Turn right now onto Park Lane"]);
   });
 
   it("jitter backwards never repeats a prompt", () => {
