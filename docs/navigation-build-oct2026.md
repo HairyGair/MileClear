@@ -36,6 +36,7 @@ Query: `from=lat,lng` (required), `to=lat,lng` (required), `heading=0-359` (opti
       streetName: string | null;
       roadRef: string | null;     // road number from OSM ("A1", "A189"); many major roads have no name (added 19 Oct)
       towards: string | null;     // signposted destinations ("Sunderland, Washington"), "Non-motorway traffic" removed (added 19 Oct)
+      via: string | null;         // on a uturn step that turns round through a side street ("Strawberry Place"): text reads "Turn round using Strawberry Place, back onto Gallowgate" (added 19 Oct)
       text: string;               // plain UK English; a road with only a number reads "onto the A1", e.g. "Turn right onto Queen Victoria Road", "At the roundabout, take the 1st exit onto Claremont Road"
       distanceMeters: number;     // length of this step (from its manoeuvre to the next)
       durationSeconds: number;

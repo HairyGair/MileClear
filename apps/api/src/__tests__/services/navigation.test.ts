@@ -8,6 +8,7 @@ import {
   parseLatLng,
   parseHeading,
   cleanTowards,
+  uturnVia,
   type GraphHopperPath,
 } from "../../services/navigation.js";
 
@@ -171,6 +172,32 @@ describe("exit roads", () => {
     );
     expect(route.steps[1]).toMatchObject({ roadRef: "A1231", towards: "Sunderland, Washington", text: "Keep left onto the A1231" });
     expect(route.steps[0].roadRef).toBe("A1");
+  });
+});
+
+describe("U-turns through a side street", () => {
+  // The real Gallowgate reroute: right into Strawberry Place for 10 m, right
+  // back onto Gallowgate. GraphHopper calls it a U-turn.
+  const path: GraphHopperPath = {
+    distance: 124, time: 20000,
+    points: { coordinates: [[-1.62201, 54.97392], [-1.62224, 54.97408], [-1.62212, 54.97412], [-1.62182, 54.97391], [-1.62155, 54.97376], [-1.62125, 54.97367]] },
+    instructions: [
+      { sign: 0, distance: 23, time: 3000, interval: [0, 1], street_name: "Gallowgate" },
+      { sign: 8, distance: 85, time: 15000, interval: [1, 5], street_name: "Gallowgate" },
+      { sign: 4, distance: 0, time: 0, interval: [5, 5] },
+    ],
+    details: { street_name: [[0, 1, "Gallowgate"], [1, 2, "Strawberry Place"], [2, 5, "Gallowgate"]] },
+  };
+
+  it("says which street to turn round in", () => {
+    const route = toNavRoute(path, { dataDate: "2026-10-17", profile: "car_nav" });
+    expect(route.steps[1]).toMatchObject({ type: "uturn", via: "Strawberry Place", text: "Turn round using Strawberry Place, back onto Gallowgate" });
+    expect(route.steps[0].via).toBeNull();
+  });
+
+  it("keeps the plain U-turn when it stays on one road", () => {
+    expect(uturnVia([[0, 5, "Gallowgate"]], [1, 5], "Gallowgate")).toBeNull();
+    expect(uturnVia(undefined, [1, 5], null)).toBeNull();
   });
 });
 

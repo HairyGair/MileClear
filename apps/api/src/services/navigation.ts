@@ -24,6 +24,10 @@ export interface NavStep {
   roadRef: string | null;
   /** Signposted destinations for the exit ("Sunderland, Washington"), or null. */
   towards: string | null;
+  /** On a U-turn step, the side street the turn-round goes through
+   *  ("Strawberry Place"), when there is one: say "Turn round using X"
+   *  rather than "Make a U-turn" on a main road. Null otherwise. */
+  via: string | null;
   text: string;
   distanceMeters: number;
   durationSeconds: number;
@@ -61,7 +65,10 @@ export interface GraphHopperPath {
   time: number;
   points: { type?: string; coordinates: Array<[number, number] | [number, number, number]> };
   instructions: GraphHopperInstruction[];
-  details?: { max_speed?: Array<[number, number, number | null]> };
+  details?: {
+    max_speed?: Array<[number, number, number | null]>;
+    street_name?: Array<[number, number, string | null]>;
+  };
 }
 
 /** Who sees navigation (18 Oct 2026, Anthony: Pro only, every Pro driver can
@@ -154,10 +161,29 @@ export function stepText(type: NavStepType, modifier: NavModifier | undefined, s
     case "arrive": return "You have arrived";
     case "roundabout": return exit ? `At the roundabout, take the ${ordinal(exit)} exit${onto}` : `At the roundabout, continue${onto}`;
     case "uturn": return "Make a U-turn when it is safe to do so";
+    // (A U-turn through a side street is worded in toNavRoute: "Turn round using X".)
     case "keep": return `Keep ${modifier === "left" ? "left" : "right"}${onto}`;
     case "turn": return `Turn ${MODIFIER_WORDS[modifier ?? "straight"]}${onto}`;
     default: return street ? `Continue on ${street}` : "Continue";
   }
+}
+
+/** The side street a U-turn passes through. GraphHopper calls "right into
+ *  Strawberry Place, then right back onto Gallowgate" a U-turn when the side
+ *  street part is short (Gallowgate reroute, 19 Oct 2026); the street_name
+ *  detail shows the street it went through. */
+export function uturnVia(
+  names: Array<[number, number, string | null]> | undefined,
+  interval: [number, number],
+  ownName: string | null
+): string | null {
+  if (!names) return null;
+  for (const [from, to, name] of names) {
+    if (to <= interval[0] || from >= interval[1]) continue;
+    const n = name?.trim();
+    if (n && n !== ownName) return n;
+  }
+  return null;
 }
 
 /** First road number in an OSM ref list ("A1231;A182" -> "A1231"). */
@@ -209,7 +235,11 @@ export function toNavRoute(path: GraphHopperPath, opts: { dataDate: string; prof
       streetName,
       roadRef,
       towards,
-      text: stepText(type, modifier, label, exit),
+      via: type === "uturn" ? uturnVia(path.details?.street_name, ins.interval, streetName) : null,
+      text:
+        type === "uturn" && uturnVia(path.details?.street_name, ins.interval, streetName)
+          ? `Turn round using ${uturnVia(path.details?.street_name, ins.interval, streetName)}${label ? `, back onto ${label}` : ""}`
+          : stepText(type, modifier, label, exit),
       distanceMeters: Math.round(ins.distance * 10) / 10,
       durationSeconds: Math.round(ins.time / 1000),
       startIndex: ins.interval[0],
@@ -257,7 +287,7 @@ export async function fetchNavRoute(
     const url =
       `${base}/route?point=${from[0]},${from[1]}&point=${to[0]},${to[1]}` +
       `&profile=${encodeURIComponent(profile)}&instructions=true&locale=en-GB` +
-      `&points_encoded=false&calc_points=true&details=max_speed` +
+      `&points_encoded=false&calc_points=true&details=max_speed&details=street_name` +
       // With the car's direction (reroutes, setting off while moving), the
       // route starts the way the car is already going instead of "make a
       // U-turn". The CH speed-up mode can't take a heading, so these use the
