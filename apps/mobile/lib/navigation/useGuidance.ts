@@ -10,6 +10,7 @@
 // lets the screen sleep.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AppState } from "react-native";
 import * as Location from "expo-location";
 import type { NavigationRoute } from "@mileclear/shared";
 import { fetchNavigationRoute, NavigationError, toNavigationError, type NavigationErrorKind } from "../api/navigation";
@@ -106,6 +107,11 @@ export function useGuidance(opts: { focused: boolean }) {
   const lastSavedStep = useRef(-1);
   const autoStart = useRef(false);
   const mounted = useRef(true);
+  /** Foreground only: with the phone locked or the app in the background,
+   *  only the navigator and the voice run; no map or view state updates
+   *  (R1: nothing that keeps the app busier than recording needs). */
+  const appActive = useRef(AppState.currentState === "active");
+  const latestFixRef = useRef<NavFix | null>(null);
   const voice = getVoice();
 
   phaseRef.current = phase;
@@ -222,31 +228,42 @@ export function useGuidance(opts: { focused: boolean }) {
 
   const onArrived = useCallback(() => {
     releaseAwake();
+    // Let "You have arrived" finish before the audio category goes back.
+    setTimeout(() => voice.endGuidance({ hush: false }), 6_000);
     void store.clearSession();
     setArrivedAtMs(Date.now());
     setPhase("arrived");
     phaseRef.current = "arrived";
     finishCounts("directions.arrived");
-  }, [releaseAwake, finishCounts]);
+  }, [releaseAwake, finishCounts, voice]);
+
+  /** Commit a prompt only if it will be heard now; muted or on a call it
+   *  counts as said (never owed later), busy it is tried on the next fix. */
+  const canSay = useCallback(
+    (a: { urgent: boolean }) => mutedRef.current || voice.dropReason(a) !== "busy",
+    [voice]
+  );
 
   const onFix = useCallback(
     (fix: NavFix) => {
       if (fix.source === "native" || fix.source === "task" || fix.source === "bridge") counts.current[fix.source]++;
       const usable = fix.accuracyM == null || fix.accuracyM <= 50;
+      const ui = appActive.current;
       if (usable) {
         lastUsableAt.current = Date.now();
-        setGps("ok");
+        if (ui) setGps("ok");
       }
-      setLastFix(fix);
+      latestFixRef.current = fix;
+      if (ui) setLastFix(fix);
       if (fix.speedMps != null) {
         speeds.current = [...speeds.current, { atMs: fix.atMs, v: fix.speedMps }].filter((s) => fix.atMs - s.atMs <= 5000);
-        setMovingMps(smoothedSpeed(speeds.current));
+        if (ui) setMovingMps(smoothedSpeed(speeds.current));
       }
       if (phaseRef.current !== "guiding" || !nav.current) return;
       try {
-        const step = stepNavigation(nav.current, fix);
+        const step = stepNavigation(nav.current, fix, { canSay });
         nav.current = step.state;
-        setView(step.view);
+        if (ui) setView(step.view);
         if (step.say) speak(step.say.text, step.say.urgent);
         if (step.view.arrived) {
           onArrived();
@@ -279,7 +296,7 @@ export function useGuidance(opts: { focused: boolean }) {
         setCrashed(true);
       }
     },
-    [onArrived, persist, requestReroute, speak]
+    [onArrived, persist, requestReroute, speak, canSay]
   );
 
   const onFixRef = useRef(onFix);
@@ -291,10 +308,22 @@ export function useGuidance(opts: { focused: boolean }) {
     return () => {
       mounted.current = false;
       off();
-      voice.hush();
+      voice.endGuidance();
       releaseAwake();
     };
   }, [voice, releaseAwake]);
+
+  // Back in the foreground: show where things are now, in one update.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (st) => {
+      appActive.current = st === "active";
+      if (!appActive.current || !mounted.current) return;
+      if (latestFixRef.current) setLastFix(latestFixRef.current);
+      setMovingMps(smoothedSpeed(speeds.current));
+      if (nav.current && phaseRef.current === "guiding") setView(viewOf(nav.current));
+    });
+    return () => sub.remove();
+  }, []);
 
   // A call or Siri ended: say the instruction again if it is close.
   useEffect(() => {
@@ -314,6 +343,7 @@ export function useGuidance(opts: { focused: boolean }) {
     }
     let wasWaiting = false;
     const tick = () => {
+      if (!appActive.current) return;
       const now = Date.now();
       const last = lastUsableAt.current;
       const since = startedAt.current ?? now;
@@ -427,6 +457,7 @@ export function useGuidance(opts: { focused: boolean }) {
     setCrashed(false);
     setPhase("guiding");
     phaseRef.current = "guiding";
+    voice.startGuidance();
     try {
       void keepAwake()?.activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
     } catch {
@@ -443,7 +474,7 @@ export function useGuidance(opts: { focused: boolean }) {
     });
     const recent = latestFix(5_000);
     if (recent) onFixRef.current(recent);
-  }, [route, destination, persist]);
+  }, [route, destination, persist, voice]);
 
   // A resumed session starts by itself once its fresh route is in.
   useEffect(() => {
@@ -456,7 +487,7 @@ export function useGuidance(opts: { focused: boolean }) {
 
   const end = useCallback(() => {
     if (phaseRef.current === "guiding") finishCounts("directions.ended");
-    voice.hush();
+    voice.endGuidance();
     releaseAwake();
     void store.clearSession();
     nav.current = null;

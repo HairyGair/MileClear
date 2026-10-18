@@ -8,7 +8,7 @@
 // splits or sorts a trip, and nothing writes the recorder's state.
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BackHandler, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View } from "react-native";
+import { AppState, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -116,7 +116,10 @@ export default function DirectionsScreen() {
 
   // One clock for the time-based rules on this screen.
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    // Foreground only: no screen work while the phone is locked.
+    const id = setInterval(() => {
+      if (AppState.currentState === "active") setNow(Date.now());
+    }, 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -237,7 +240,7 @@ export default function DirectionsScreen() {
 
   // Guiding: heading-up, tilted, zoom by speed.
   useEffect(() => {
-    if (!guiding || !following || !position || !mapRef.current || g.gps !== "ok") return;
+    if (!guiding || !following || !position || !mapRef.current || g.gps !== "ok" || AppState.currentState !== "active") return;
     zoom.current = reduceMotion ? zoom.current ?? { level: 16, changedAtMs: now } : nextZoom(zoom.current, view?.speedMps ?? null, Date.now());
     const level = reduceMotion ? zoom.current.level : zoomNearManoeuvre(zoom.current.level, view?.distanceToNext ?? Infinity);
     const altitude = ALTITUDE_FOR[Math.max(15, Math.min(17, Math.round(level))) as 15 | 16 | 17] / (level > 17 ? 1.6 : 1);

@@ -11,7 +11,11 @@ import CallKit
 //   - .duckOthers: music dips while a prompt is spoken;
 //   - .interruptSpokenAudioAndMixWithOthers: podcasts and audiobooks pause for
 //     the prompt and resume after it.
-// The session is active only while a prompt is spoken (beginPrompt / endPrompt).
+// The category is set ONCE when guidance starts (startGuidance) and put back
+// as it was when guidance ends (endGuidance), so a prompt never changes it:
+// every category change posts a route change, which modules/car-audio could
+// otherwise read as the car connecting. The session is active only while a
+// prompt is spoken (beginPrompt / endPrompt).
 // Deactivating with .notifyOthersOnDeactivation brings music back up and lets a
 // paused podcast carry on. Holding the session for the whole drive would keep
 // music ducked the entire time.
@@ -24,6 +28,8 @@ import CallKit
 public class NavVoiceModule: Module {
   private let callObserver = CXCallObserver()
   private var observing = false
+  private var prepared = false
+  private var saved: (AVAudioSession.Category, AVAudioSession.Mode, AVAudioSession.CategoryOptions)?
 
   public func definition() -> ModuleDefinition {
     Name("NavVoice")
@@ -34,18 +40,24 @@ public class NavVoiceModule: Module {
       return self.callActive()
     }
 
+    // Guidance starts: remember the category, set ours once.
+    AsyncFunction("startGuidance") { () -> Bool in
+      return self.prepare()
+    }
+
+    // Guidance ends: put the category back as it was.
+    AsyncFunction("endGuidance") { () -> Void in
+      self.restore()
+    }
+
     // Activate the session for one prompt. False: do not speak now (a call,
-    // or the session could not be activated).
+    // or the session could not be activated). Never changes the category
+    // once guidance has started.
     AsyncFunction("beginPrompt") { () -> Bool in
       if self.callActive() { return false }
-      let session = AVAudioSession.sharedInstance()
+      if !self.prepared && !self.prepare() { return false }
       do {
-        try session.setCategory(
-          .playback,
-          mode: .voicePrompt,
-          options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers]
-        )
-        try session.setActive(true)
+        try AVAudioSession.sharedInstance().setActive(true)
         return true
       } catch {
         return false
@@ -81,6 +93,35 @@ public class NavVoiceModule: Module {
         object: AVAudioSession.sharedInstance()
       )
     }
+  }
+
+  private func prepare() -> Bool {
+    if prepared { return true }
+    let session = AVAudioSession.sharedInstance()
+    saved = (session.category, session.mode, session.categoryOptions)
+    do {
+      try session.setCategory(
+        .playback,
+        mode: .voicePrompt,
+        options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers]
+      )
+      prepared = true
+      return true
+    } catch {
+      saved = nil
+      return false
+    }
+  }
+
+  private func restore() {
+    guard prepared else { return }
+    prepared = false
+    let session = AVAudioSession.sharedInstance()
+    try? session.setActive(false, options: [.notifyOthersOnDeactivation])
+    if let (category, mode, options) = saved {
+      try? session.setCategory(category, mode: mode, options: options)
+    }
+    saved = nil
   }
 
   private func callActive() -> Bool {

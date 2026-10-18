@@ -24,6 +24,8 @@ export interface NavVoiceLike {
   isCallActive: () => boolean;
   beginPrompt: () => Promise<boolean>;
   endPrompt: () => Promise<void>;
+  startGuidance?: () => Promise<void>;
+  endGuidance?: () => Promise<void>;
 }
 
 /** A prompt that never reports done is released after this. */
@@ -33,6 +35,16 @@ export interface Voice {
   /** Both native pieces are present. */
   available: boolean;
   say: (prompt: { text: string; urgent: boolean }) => Promise<boolean>;
+  /** Would a prompt be spoken right now? (The announcer only marks a prompt
+   *  said when it was: a dropped one is tried again on the next fix.) */
+  canSpeak: (prompt: { urgent: boolean }) => boolean;
+  /** Why a prompt would not be spoken now, or null if it would. */
+  dropReason: (prompt: { urgent: boolean }) => "muted" | "call" | "busy" | "unavailable" | null;
+  /** Guidance starts: nav-voice sets the audio category once (iOS). */
+  startGuidance: () => void;
+  /** Guidance ends: stop speaking (unless hush is false) and put the
+   *  audio category back as it was. */
+  endGuidance: (o?: { hush?: boolean }) => void;
   hush: () => void;
   setMuted: (m: boolean) => void;
   /** iPhone: an Enhanced en-GB voice when installed; Android: false when the
@@ -130,9 +142,29 @@ export function createVoice(deps: {
     void nav?.endPrompt();
   }
 
+  function inCallNow(): boolean {
+    try {
+      return nav?.isCallActive() ?? false;
+    } catch {
+      return false;
+    }
+  }
+
   return {
     available: !!speech && !!nav,
     say,
+    canSpeak: (prompt) => !!speech && gate(state, prompt, { muted, inCall: inCallNow(), nowMs: now() }) !== "drop",
+    dropReason: (prompt) => {
+      if (!speech) return "unavailable";
+      if (muted) return "muted";
+      if (inCallNow()) return "call";
+      return gate(state, prompt, { muted: false, inCall: false, nowMs: now() }) === "drop" ? "busy" : null;
+    },
+    startGuidance: () => void nav?.startGuidance?.().catch(() => {}),
+    endGuidance: (o = {}) => {
+      if (o.hush !== false) hush();
+      void nav?.endGuidance?.().catch(() => {});
+    },
     hush,
     setMuted: (m) => {
       muted = m;

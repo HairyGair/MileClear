@@ -153,19 +153,47 @@ const FORBIDDEN = [
   "BGGeo",
   "startLocationUpdatesAsync",
   "react-native-background-geolocation",
+  "changePace",
+  "wakeNativeTracking",
+  "setConfig",
 ];
+
+/** Every module a file loads: static, bare, dynamic import() and require(). */
+function importsOf(src: string): string[] {
+  const out: string[] = [];
+  for (const re of [
+    /\bfrom\s*["']([^"']+)["']/g,
+    /^\s*import\s*["']([^"']+)["']/gm,
+    /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+    /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ]) {
+    for (const m of src.matchAll(re)) out.push(m[1]);
+  }
+  return out;
+}
+
+const TRACKING = /(^|\/)tracking(\/|$)/;
 
 describe("Directions never reach into trip recording", () => {
   it("finds the Directions code", () => {
     expect(NAV_FILES.length).toBeGreaterThan(15);
   });
 
+  it("the import check catches every way of loading the recorder", () => {
+    const sneaky = [
+      'import { x } from "../tracking/detection";',
+      'import "../tracking/nativeLocation";',
+      'const m = await import("../tracking/nativeLocation");',
+      'const n = require("../tracking/index");',
+    ].join("\n");
+    expect(importsOf(sneaky).filter((i) => TRACKING.test(i)).length).toBe(4);
+  });
+
   for (const f of NAV_FILES) {
     const rel = f.slice(MOBILE.length + 1);
     it(`${rel} imports nothing from lib/tracking and names no engine call`, () => {
       const src = code(f);
-      const imports = [...src.matchAll(/(?:from\s+|require\()\s*["']([^"']+)["']/g)].map((m) => m[1]);
-      for (const i of imports) expect(i).not.toMatch(/(^|\/)tracking(\/|$)/);
+      for (const i of importsOf(src)) expect(i).not.toMatch(TRACKING);
       for (const name of FORBIDDEN) expect(src).not.toContain(name);
       // Never writes the recorder's state.
       expect(src).not.toMatch(/(INSERT|UPDATE|DELETE|REPLACE)[^"'`]*tracking_state/i);

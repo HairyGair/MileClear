@@ -1,7 +1,8 @@
 // The foreground bridge (rule in bridgeRule.ts): a foreground-only
 // expo-location watch that fills in while the recorder is silent and the
 // Directions screen is on screen. Checked every second, so it stops within
-// 2 seconds of recorder fixes flowing again or the screen going away.
+// 2 seconds of the screen going away, and of recorder fixes flowing again
+// once it has been on for 15 seconds.
 //
 // Never the trip recorder's engine, never a background task, never the
 // recorder's state. On the next recorder fix the watch is removed.
@@ -17,6 +18,7 @@ const TICK_MS = 1_000;
 export function useFixBridge(focused: boolean, onRunningChange?: (running: boolean) => void): void {
   const sub = useRef<Location.LocationSubscription | null>(null);
   const starting = useRef(false);
+  const runningSince = useRef<number | null>(null);
   const since = useRef(Date.now());
   const appActive = useRef(AppState.currentState === "active");
   const changed = useRef(onRunningChange);
@@ -34,6 +36,7 @@ export function useFixBridge(focused: boolean, onRunningChange?: (running: boole
           // best effort
         }
         sub.current = null;
+        runningSince.current = null;
         changed.current?.(false);
       }
     };
@@ -54,6 +57,7 @@ export function useFixBridge(focused: boolean, onRunningChange?: (running: boole
           return;
         }
         sub.current = s;
+        runningSince.current = Date.now();
         changed.current?.(true);
       } catch {
         // no bridge: Directions wait for the recorder
@@ -69,6 +73,7 @@ export function useFixBridge(focused: boolean, onRunningChange?: (running: boole
         nowMs: Date.now(),
         lastRecorderAtMs: lastRecorderFixAt(),
         listeningSinceMs: since.current,
+        runningSinceMs: runningSince.current,
       });
 
     const tick = () => {

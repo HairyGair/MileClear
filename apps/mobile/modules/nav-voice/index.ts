@@ -13,6 +13,8 @@ type NavVoiceEvents = {
 
 declare class NavVoiceNativeModule extends NativeModule<NavVoiceEvents> {
   isCallActive(): boolean;
+  startGuidance(): Promise<boolean>;
+  endGuidance(): Promise<void>;
   beginPrompt(): Promise<boolean>;
   endPrompt(): Promise<void>;
 }
@@ -41,6 +43,28 @@ export function isCallActive(): boolean {
     return m ? m.isCallActive() : false;
   } catch {
     return false;
+  }
+}
+
+/** Guidance starts: iOS sets its voice audio category once, here. */
+export async function startGuidance(): Promise<void> {
+  const m = load();
+  if (!m) return;
+  try {
+    await m.startGuidance();
+  } catch {
+    // best effort
+  }
+}
+
+/** Guidance ends: the audio category goes back as it was. */
+export async function endGuidance(): Promise<void> {
+  const m = load();
+  if (!m) return;
+  try {
+    await m.endGuidance();
+  } catch {
+    // best effort
   }
 }
 

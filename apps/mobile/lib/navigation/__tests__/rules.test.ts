@@ -15,7 +15,7 @@ import {
   zoomNearManoeuvre,
   type SavedSession,
 } from "../rules";
-import { bridgeShouldRun, BRIDGE_QUIET_MS } from "../bridgeRule";
+import { bridgeShouldRun, BRIDGE_MIN_ON_MS, BRIDGE_QUIET_MS } from "../bridgeRule";
 import { countsOnly } from "../countsOnly";
 import { previewErrorCopy, rerouteFailureBody } from "../errorCopy";
 
@@ -156,6 +156,13 @@ describe("foreground bridge rule", () => {
     expect(bridgeShouldRun({ ...base, lastRecorderAtMs: 5_000 })).toBe(true);
     expect(bridgeShouldRun({ ...base, focused: false })).toBe(false);
     expect(bridgeShouldRun({ ...base, appActive: false })).toBe(false);
+  });
+  it("once on, stays on at least 15 s even if the recorder wakes; focus and background still stop it", () => {
+    const running = { ...base, lastRecorderAtMs: 9_500, runningSinceMs: 10_000 - BRIDGE_MIN_ON_MS + 1 };
+    expect(bridgeShouldRun(running)).toBe(true);
+    expect(bridgeShouldRun({ ...running, runningSinceMs: 10_000 - BRIDGE_MIN_ON_MS })).toBe(false);
+    expect(bridgeShouldRun({ ...running, focused: false })).toBe(false);
+    expect(bridgeShouldRun({ ...running, appActive: false })).toBe(false);
   });
 });
 

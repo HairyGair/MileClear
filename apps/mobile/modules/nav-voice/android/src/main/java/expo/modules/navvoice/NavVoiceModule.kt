@@ -44,6 +44,14 @@ class NavVoiceModule : Module() {
       callActive()
     }
 
+    // iOS sets its audio category here; Android has nothing to hold between
+    // prompts (focus is per prompt), so these only keep the API the same.
+    AsyncFunction("startGuidance") { true }
+
+    AsyncFunction("endGuidance") {
+      Unit
+    }
+
     AsyncFunction("beginPrompt") {
       val am = audioManager ?: return@AsyncFunction false
       if (callActive()) return@AsyncFunction false
