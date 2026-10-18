@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  rerouteIntervalMs,
   assessOffRoute,
   initialOffRouteState,
   shouldReroute,
@@ -40,14 +41,9 @@ describe("off route", () => {
     expect(s.at(-1)!.offRoute).toBe(false);
   });
 
-  it("ignores useless fixes, even 300 m out", () => {
-    const s = run([{ distance: 5 }, { distance: 300, accuracyM: 250 }, { distance: 300, accuracyM: 250 }, { distance: 300, accuracyM: 250 }]);
+  it("ignores fixes worse than 50 m, even 300 m out", () => {
+    const s = run([{ distance: 5 }, { distance: 300, accuracyM: 60 }, { distance: 300, accuracyM: 250 }, { distance: 300, accuracyM: 51 }]);
     expect(s.at(-1)!.offRoute).toBe(false);
-  });
-
-  it("a fuzzy fix 160 m out does not trip the 150 m rule on its own", () => {
-    const s = run([{ distance: 5 }, { distance: 160, accuracyM: 80 }]);
-    expect(s[1].offRoute).toBe(false);
   });
 
   it("parked: GPS wander does not add up", () => {
@@ -74,5 +70,17 @@ describe("reroute throttle", () => {
     expect(shouldReroute({ offRoute: true, nowMs: 10_000, lastRequestAtMs: 0, inFlight: false })).toBe(true);
     expect(shouldReroute({ offRoute: true, nowMs: 60_000, lastRequestAtMs: 0, inFlight: true })).toBe(false);
     expect(shouldReroute({ offRoute: false, nowMs: 60_000, lastRequestAtMs: null, inFlight: false })).toBe(false);
+  });
+});
+
+describe("reroute backoff (PLAN Dev3, DESIGN 2.4)", () => {
+  it("10 / 20 / 40 s after failures in a row, never sooner than the failure asks", () => {
+    expect(rerouteIntervalMs(0, null)).toBe(10_000);
+    expect(rerouteIntervalMs(1, "ROUTING_UNAVAILABLE")).toBe(20_000);
+    expect(rerouteIntervalMs(1, "NO_ROUTE")).toBe(30_000);
+    expect(rerouteIntervalMs(2, "OFFLINE")).toBe(40_000);
+    expect(rerouteIntervalMs(9, "OFFLINE")).toBe(40_000);
+    expect(shouldReroute({ offRoute: true, nowMs: 25_000, lastRequestAtMs: 0, inFlight: false, failures: 2, lastFailure: "OFFLINE" })).toBe(false);
+    expect(shouldReroute({ offRoute: true, nowMs: 40_000, lastRequestAtMs: 0, inFlight: false, failures: 2, lastFailure: "OFFLINE" })).toBe(true);
   });
 });

@@ -3,7 +3,9 @@
 // Off route: more than about 50 m from the line for 3 fixes in a row, or more
 // than 150 m once. The 50 m grows with the accuracy the phone reports, so a
 // fuzzy fix between tall buildings does not count as leaving the road; a fix
-// worse than 100 m says nothing either way.
+// worse than 50 m says nothing either way (PLAN Dev3). The navigator also
+// skips this for the first 2 fixes after a gap of more than 10 seconds, so a
+// tunnel exit never starts a reroute.
 //
 // Before the car has reached the route (it starts in a car park or a side
 // road the router snapped past) it is only off route once it is driving
@@ -13,7 +15,7 @@ export const SOFT_LIMIT_M = 50;
 export const HARD_LIMIT_M = 150;
 export const SOFT_FIXES = 3;
 /** Fixes worse than this are ignored. */
-export const USELESS_ACCURACY_M = 100;
+export const USELESS_ACCURACY_M = 50;
 /** Within this (plus a little accuracy) the car has reached the route. */
 export const JOIN_M = 40;
 export const REROUTE_MIN_INTERVAL_MS = 10_000;
@@ -55,7 +57,7 @@ export function assessOffRoute(
     return { ...state, startDistance, offRoute: d > startDistance + HARD_LIMIT_M };
   }
 
-  if (d > HARD_LIMIT_M && (acc == null || acc <= 50)) {
+  if (d > HARD_LIMIT_M) {
     return { ...state, consecutive: Math.max(state.consecutive, SOFT_FIXES), offRoute: true };
   }
   if (d > softLimit(acc)) {
@@ -67,14 +69,29 @@ export function assessOffRoute(
   return { ...state, consecutive: 0, offRoute: false };
 }
 
-/** At most one route request every 10 seconds, and never two at once. */
+/**
+ * When the next route request may go: never two at once, at most one every
+ * 10 seconds, backing off 10 / 20 / 40 s after failures in a row, and no
+ * sooner than the failure itself asks for (DESIGN 2.4: no internet or server
+ * down 15 s, no route 30 s).
+ */
+export function rerouteIntervalMs(failures: number, lastFailure: RerouteFailure | null): number {
+  const backoff = REROUTE_MIN_INTERVAL_MS * 2 ** Math.min(Math.max(0, failures), 2);
+  const floor = lastFailure === "NO_ROUTE" ? 30_000 : lastFailure ? 15_000 : 0;
+  return Math.max(backoff, failures > 0 ? floor : 0);
+}
+
+export type RerouteFailure = "OFFLINE" | "ROUTING_UNAVAILABLE" | "NO_ROUTE" | "OTHER";
+
 export function shouldReroute(args: {
   offRoute: boolean;
   nowMs: number;
   lastRequestAtMs: number | null;
   inFlight: boolean;
+  failures?: number;
+  lastFailure?: RerouteFailure | null;
 }): boolean {
   if (!args.offRoute || args.inFlight) return false;
   if (args.lastRequestAtMs == null) return true;
-  return args.nowMs - args.lastRequestAtMs >= REROUTE_MIN_INTERVAL_MS;
+  return args.nowMs - args.lastRequestAtMs >= rerouteIntervalMs(args.failures ?? 0, args.lastFailure ?? null);
 }
