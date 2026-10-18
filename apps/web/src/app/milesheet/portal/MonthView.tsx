@@ -258,6 +258,13 @@ export function MonthView() {
             )}
           </div>
 
+          {isCurrentMonth && (
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.8125rem", margin: "0 0 1rem" }}>
+              {monthLabel(month).split(" ")[0]} is still running, so these figures will grow. You can approve it from 1{" "}
+              {monthLabel(shiftMonth(month, 1)).split(" ")[0]}. You can still query a driver now.
+            </p>
+          )}
+
           <div className="table-wrap">
             <table className="table">
               <thead>
@@ -337,7 +344,7 @@ export function MonthView() {
                       </td>
                       <td>
                         <div className="table__actions">
-                          {d.status !== "approved" || d.driftMiles !== null ? (
+                          {!isCurrentMonth && (d.status !== "approved" || d.driftMiles !== null) ? (
                             <button
                               type="button"
                               className="table__action-btn"

@@ -13,6 +13,8 @@ import { sendPushToUser } from "../../lib/push.js";
 import {
   MONTH_RE,
   currentLondonMonth,
+  isMonthFinished,
+  monthEndsLabel,
   computeTeamMonthSummary,
   loadTeamMonthExportData,
   generateTeamMonthCsv,
@@ -426,6 +428,13 @@ export async function teamRoutes(app: FastifyInstance) {
 
     if (status === "queried" && !note) {
       return reply.status(400).send({ error: "A note is required when querying a driver's month." });
+    }
+
+    // Approving snapshots the miles, so a month still running would leave
+    // its remaining trips out of payroll. Querying early is still allowed.
+    if (status === "approved" && !isMonthFinished(month)) {
+      const { name, reopens } = monthEndsLabel(month);
+      return reply.status(400).send({ error: `${name} hasn't finished yet. You can approve it from ${reopens}.` });
     }
 
     // Never trust a userId from the body - confirm it is an ACTIVE driver

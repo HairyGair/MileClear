@@ -72,6 +72,25 @@ export function previousMonth(month: string): string {
   return `${prevYear}-${String(prevMon).padStart(2, "0")}`;
 }
 
+/** True once `month` has ended in London. A month can only be approved
+ *  after it finishes: an approval snapshots the miles, so approving
+ *  mid-month leaves the rest of the month's trips out of payroll
+ *  (Denton approved October on 4 Oct 2026). "YYYY-MM" compares as text. */
+export function isMonthFinished(month: string, current: string = currentLondonMonth()): boolean {
+  return month < current;
+}
+
+/** "October 2026" -> the first day after it, as "1 November". */
+export function monthEndsLabel(month: string): { name: string; reopens: string } {
+  const match = MONTH_RE.exec(month);
+  if (!match) throw new Error(`Invalid month: ${month}`);
+  const year = Number(match[1]);
+  const mon = Number(match[2]);
+  const fmt = (y: number, m: number) =>
+    new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" });
+  return { name: fmt(year, mon), reopens: `1 ${fmt(mon === 12 ? year + 1 : year, mon === 12 ? 1 : mon + 1)}` };
+}
+
 /** [start, end) UTC instants bounding a UK-local month, plus the tax year that month falls in. */
 export function londonMonthBounds(month: string): { start: Date; end: Date; taxYear: string } {
   const match = MONTH_RE.exec(month);

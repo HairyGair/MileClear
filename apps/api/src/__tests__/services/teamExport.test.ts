@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { londonMonthBounds, taxYearSegmentsForMonth, previousMonth } from "../../services/teamExport.js";
+import {
+  londonMonthBounds,
+  taxYearSegmentsForMonth,
+  previousMonth,
+  isMonthFinished,
+  monthEndsLabel,
+} from "../../services/teamExport.js";
 
 // Two things here are easy to get wrong and silent when wrong, so they are
 // pinned rather than trusted:
@@ -94,5 +100,23 @@ describe("previousMonth", () => {
   it("steps back a month and across a year boundary", () => {
     expect(previousMonth("2026-07")).toBe("2026-06");
     expect(previousMonth("2026-01")).toBe("2025-12");
+  });
+});
+
+// Denton approved October on 4 Oct 2026, so the rest of October's trips
+// would have missed payroll. Approval waits until the month has ended.
+describe("isMonthFinished", () => {
+  it("only counts months before the current London month", () => {
+    expect(isMonthFinished("2026-09", "2026-10")).toBe(true);
+    expect(isMonthFinished("2026-10", "2026-10")).toBe(false);
+    expect(isMonthFinished("2026-11", "2026-10")).toBe(false);
+    expect(isMonthFinished("2025-12", "2026-01")).toBe(true);
+  });
+});
+
+describe("monthEndsLabel", () => {
+  it("names the month and the day approval opens", () => {
+    expect(monthEndsLabel("2026-10")).toEqual({ name: "October", reopens: "1 November" });
+    expect(monthEndsLabel("2026-12")).toEqual({ name: "December", reopens: "1 January" });
   });
 });
