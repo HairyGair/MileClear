@@ -4,9 +4,10 @@ import {
   resolveMileageRates,
   getTaxYear,
 } from "@mileclear/shared";
-import type { TeamApprovalStatus, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
+import type { TeamApprovalStatus, TeamDrivingDay, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
+import { DRIVING_TIMES_LABEL, formatSpan, loadTeamDrivingDays } from "./drivingTimes.js";
 
 // Milesheet Phase 2 (24 Aug 2026).
 //
@@ -381,12 +382,23 @@ export interface TeamExportRow {
   approvedByName: string;
 }
 
+/** One approved driver's daily driving times for the export. `told` false
+ *  means the driver has not been told yet: no days, and the file says so. */
+export interface TeamExportDriverDays {
+  driverName: string;
+  told: boolean;
+  days: TeamDrivingDay[];
+}
+
 export interface TeamExportData {
   orgName: string;
   month: string;
   rows: TeamExportRow[];
   totalMiles: number;
   totalAmountPence: number;
+  /** Daily driving times per approved driver, in the same order as rows.
+   *  Optional so an export without it renders exactly as before. */
+  drivingTimes?: TeamExportDriverDays[];
 }
 
 /**
@@ -405,6 +417,7 @@ export async function loadTeamMonthExportData(orgId: string, month: string): Pro
       amountPenceAtApproval: true,
       approvedAt: true,
       approvedByUserId: true,
+      userId: true,
       user: { select: { displayName: true, email: true } },
     },
     orderBy: { approvedAt: "asc" },
@@ -436,7 +449,20 @@ export async function loadTeamMonthExportData(orgId: string, month: string): Pro
   const totalMiles = Math.round(rows.reduce((s, r) => s + r.businessMiles, 0) * 10) / 10;
   const totalAmountPence = rows.reduce((s, r) => s + r.amountPence, 0);
 
-  return { orgName: org.name, month, rows, totalMiles, totalAmountPence };
+  // Driving times are live (the day's trips as they stand now), not part
+  // of the approval snapshot: they are a record of when, not of how much.
+  // loadTeamDrivingDays re-checks membership and the notice gate itself.
+  const dayData = approvals.length
+    ? await loadTeamDrivingDays(orgId, month, approvals.map((a) => a.userId))
+    : { month, drivers: [] };
+  const daysByUser = new Map(dayData.drivers.map((d) => [d.userId, d]));
+  const drivingTimes: TeamExportDriverDays[] = approvals.flatMap((a) => {
+    const d = daysByUser.get(a.userId);
+    if (!d) return [];
+    return [{ driverName: a.user.displayName ?? a.user.email, told: d.told, days: d.days }];
+  });
+
+  return { orgName: org.name, month, rows, totalMiles, totalAmountPence, drivingTimes };
 }
 
 export function buildTeamExportFilename(orgName: string, month: string): string {
@@ -484,7 +510,44 @@ export function generateTeamMonthCsv(data: TeamExportData): string {
       .join(",")
   );
   const total = ["TOTAL", data.totalMiles, "", formatPenceGbp(data.totalAmountPence), "", ""].map(escapeCsvField).join(",");
-  return [headers.join(","), ...rows, total].join("\r\n") + "\r\n";
+  // The first section above is unchanged, so an existing payroll import that
+  // reads the header, driver rows and TOTAL keeps working. Driving times
+  // follow after one blank line as a second section.
+  return [headers.join(","), ...rows, total, ...drivingTimesCsvLines(data.drivingTimes)].join("\r\n") + "\r\n";
+}
+
+/** "2026-10-01" -> "01/10/2026" (UK spreadsheets read this as a date). */
+function csvDate(date: string): string {
+  const [y, m, d] = date.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function drivingTimesCsvLines(drivers: TeamExportDriverDays[] | undefined): string[] {
+  if (!drivers || drivers.length === 0) return [];
+  const lines: string[] = ["", escapeCsvField(DRIVING_TIMES_LABEL)];
+  lines.push(["Driver", "Date", "First drive", "Last drive", "Span", "Trips", "Times from"].join(","));
+  for (const d of drivers) {
+    if (!d.told) continue;
+    for (const day of d.days) {
+      lines.push(
+        [
+          d.driverName,
+          csvDate(day.date),
+          day.startLocal,
+          day.endsNextDay ? `${day.endLocal} (next day)` : day.endLocal,
+          formatSpan(day.spanMinutes),
+          day.trips,
+          day.source === "shift" ? "Shift" : "Trips",
+        ]
+          .map(escapeCsvField)
+          .join(",")
+      );
+    }
+  }
+  for (const d of drivers) {
+    if (!d.told) lines.push(escapeCsvField(`Times appear once ${d.driverName} has been told`));
+  }
+  return lines;
 }
 
 // ── PDF (portrait A4 - consolidated monthly summary) ────────────────────
@@ -495,6 +558,18 @@ const WHITE = "#ffffff";
 const GREY_100 = "#f3f4f6";
 const GREY_200 = "#e5e7eb";
 const GREY_600 = "#4b5563";
+
+/** "2026-10-01" -> "Thu 1 Oct 2026". */
+function pdfDayLabel(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
 
 function collectPdfBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -605,8 +680,94 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
 
   doc.moveTo(startX, y).lineTo(startX + tableWidth, y).lineWidth(0.5).strokeColor(GREY_200).stroke();
 
+  // ── Daily driving times, one table per driver ─────────────────────────
+  const timed = data.drivingTimes ?? [];
+  if (timed.length > 0) {
+    const dayCols = [
+      { header: "Date", width: 120 },
+      { header: "First drive", width: 80 },
+      { header: "Last drive", width: 110 },
+      { header: "Span", width: 70 },
+      { header: "Trips", width: 50 },
+      { header: "Times from", width: 85 },
+    ];
+    const dayTableWidth = dayCols.reduce((s, c) => s + c.width, 0);
+    const bottom = pageHeight - 70;
+
+    const drawDayHeader = (atY: number): number => {
+      doc.rect(startX, atY - 2, dayTableWidth, rowHeight + 2).fill(NAVY);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(WHITE);
+      let x = startX;
+      for (const col of dayCols) {
+        doc.text(col.header, x + 4, atY + 2, { width: col.width - 8, lineBreak: false });
+        x += col.width;
+      }
+      return atY + rowHeight + 2;
+    };
+
+    y += 24;
+    if (y > bottom - 60) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(NAVY).text("Daily driving times", startX, y, { width: contentWidth });
+    y += 16;
+    doc.font("Helvetica").fontSize(8).fillColor(GREY_600).text(DRIVING_TIMES_LABEL, startX, y, { width: contentWidth });
+    y += 18;
+
+    for (const d of timed) {
+      // Keep a driver's heading with at least its table header and one row.
+      if (y > bottom - rowHeight * 3) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(NAVY).text(d.driverName, startX, y, { width: contentWidth, lineBreak: false });
+      y += 14;
+      if (!d.told) {
+        doc.font("Helvetica").fontSize(8).fillColor(GREY_600)
+          .text(`Times appear once ${d.driverName} has been told.`, startX, y, { width: contentWidth });
+        y += 20;
+        continue;
+      }
+      if (d.days.length === 0) {
+        doc.font("Helvetica").fontSize(8).fillColor(GREY_600)
+          .text(`No business drives in ${monthLabel(data.month)}.`, startX, y, { width: contentWidth });
+        y += 20;
+        continue;
+      }
+      y = drawDayHeader(y);
+      for (let i = 0; i < d.days.length; i++) {
+        if (y > bottom) {
+          doc.addPage();
+          y = drawDayHeader(margin);
+        }
+        const day = d.days[i];
+        if (i % 2 === 0) doc.rect(startX, y - 1, dayTableWidth, rowHeight).fill(GREY_100);
+        doc.font("Helvetica").fontSize(8).fillColor(NAVY);
+        const values = [
+          pdfDayLabel(day.date),
+          day.startLocal,
+          day.endsNextDay ? `${day.endLocal} (next day)` : day.endLocal,
+          formatSpan(day.spanMinutes),
+          String(day.trips),
+          day.source === "shift" ? "Shift" : "Trips",
+        ];
+        let x = startX;
+        for (let j = 0; j < dayCols.length; j++) {
+          doc.text(values[j], x + 4, y + 2, { width: dayCols[j].width - 8, lineBreak: false });
+          x += dayCols[j].width;
+        }
+        y += rowHeight;
+      }
+      y += 14;
+    }
+  }
+
   doc.font("Helvetica").fontSize(7).fillColor(GREY_600);
-  doc.text(`Generated ${formatDateUk(new Date())} - Milesheet`, margin, pageHeight - 40, { width: contentWidth });
+  // The footer sits inside the bottom margin, where PDFKit would otherwise
+  // start a new page just to hold it (a blank last page with one line).
+  doc.page.margins.bottom = 0;
+  doc.text(`Generated ${formatDateUk(new Date())} by Milesheet`, margin, pageHeight - 40, { width: contentWidth, lineBreak: false });
 
   doc.end();
   return bufferPromise;

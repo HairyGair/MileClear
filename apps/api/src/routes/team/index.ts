@@ -21,6 +21,7 @@ import {
   generateTeamMonthPdf,
   buildTeamExportFilename,
 } from "../../services/teamExport.js";
+import { loadTeamDrivingDays } from "../../services/drivingTimes.js";
 
 // Milesheet Phase 1 (23 Aug 2026, design-partner pilot).
 //
@@ -408,6 +409,27 @@ export async function teamRoutes(app: FastifyInstance) {
     const month = parsed.data.month ?? currentLondonMonth();
     const summary = await computeTeamMonthSummary(admin.orgId, month);
     return reply.send({ data: summary });
+  });
+
+  // ── Org admin: each driver's daily driving times for a month ───────────
+  // Oct 2026, for Rob Lyons (Maids Of Glory): first business drive to last
+  // business drive per UK day, or the driver's shift when they recorded
+  // one. Scoped to the caller's own org; no userId is read from the client.
+  // Drivers who have not been told yet come back with told:false and no
+  // days (services/drivingTimes.ts).
+  app.get("/month/days", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+
+    const parsed = z
+      .object({ month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format").optional() })
+      .safeParse(request.query);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+
+    const month = parsed.data.month ?? currentLondonMonth();
+    const data = await loadTeamDrivingDays(admin.orgId, month);
+    logEvent("team.driving_times_viewed", request.userId!, { orgId: admin.orgId, month });
+    return reply.send({ data });
   });
 
   // ── Org admin: approve or query a driver's month ────────────────────────
