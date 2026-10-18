@@ -1,12 +1,13 @@
 import { FastifyInstance } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
+import { hasPremiumAccess } from "../../middleware/premium.js";
 import { logEvent } from "../../services/appEvents.js";
 import { fetchNavRoute, navigationEnabledFor, parseHeading, parseLatLng } from "../../services/navigation.js";
 
 // In-app navigation (18 Oct 2026). docs/navigation-build-oct2026.md.
-// Hidden behind NAVIGATION_ENABLED + admins / NAVIGATION_USER_IDS until
-// locked-phone drives show trip recording is unaffected.
+// Who gets it: NAVIGATION_ROLLOUT off | list | pro (services/navigation.ts).
+// Pro only, as a labelled test, once our own drives show recording is unaffected.
 export async function navigationRoutes(app: FastifyInstance) {
   // GET /navigation/route?from=lat,lng&to=lat,lng[&heading=deg]
   // `heading` (the car's direction, 0-359) makes the route start the way the
@@ -16,7 +17,8 @@ export async function navigationRoutes(app: FastifyInstance) {
     { preHandler: [authMiddleware], config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const user = await prisma.user.findUnique({ where: { id: request.userId! }, select: { id: true, isAdmin: true } });
-      if (!user || !navigationEnabledFor(user)) {
+      const isPro = user ? await hasPremiumAccess(user.id).catch(() => false) : false;
+      if (!user || !navigationEnabledFor({ ...user, isPro })) {
         return reply.status(403).send({ error: "Navigation isn't switched on for your account yet.", code: "NAVIGATION_NOT_ENABLED" });
       }
       const q = request.query as { from?: string; to?: string; heading?: string };

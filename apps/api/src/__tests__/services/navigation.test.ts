@@ -104,14 +104,27 @@ describe("step helpers", () => {
 
 describe("who sees navigation", () => {
   it("is off unless switched on", () => {
-    expect(navigationEnabledFor({ id: "u1", isAdmin: true }, {})).toBe(false);
+    expect(navigationEnabledFor({ id: "u1", isAdmin: true, isPro: true }, {})).toBe(false);
+    expect(navigationEnabledFor({ id: "u1", isAdmin: true }, { NAVIGATION_ROLLOUT: "off", NAVIGATION_ENABLED: "1" })).toBe(false);
   });
 
-  it("then shows to admins and listed testers only", () => {
-    const env = { NAVIGATION_ENABLED: "1", NAVIGATION_USER_IDS: "u2, u3" };
+  it("in the testers stage shows to admins and listed drivers only, Pro or not", () => {
+    const env = { NAVIGATION_ROLLOUT: "list", NAVIGATION_USER_IDS: "u2, u3" };
     expect(navigationEnabledFor({ id: "u1", isAdmin: true }, env)).toBe(true);
     expect(navigationEnabledFor({ id: "u3", isAdmin: false }, env)).toBe(true);
-    expect(navigationEnabledFor({ id: "u9", isAdmin: false }, env)).toBe(false);
+    expect(navigationEnabledFor({ id: "u9", isAdmin: false, isPro: true }, env)).toBe(false);
+  });
+
+  it("keeps the first switch working as the testers stage", () => {
+    expect(navigationEnabledFor({ id: "u1", isAdmin: true }, { NAVIGATION_ENABLED: "1" })).toBe(true);
+    expect(navigationEnabledFor({ id: "u9", isAdmin: false, isPro: true }, { NAVIGATION_ENABLED: "1" })).toBe(false);
+  });
+
+  it("in the Pro stage shows to every Pro driver and no free driver", () => {
+    const env = { NAVIGATION_ROLLOUT: "pro" };
+    expect(navigationEnabledFor({ id: "u9", isAdmin: false, isPro: true }, env)).toBe(true);
+    expect(navigationEnabledFor({ id: "u8", isAdmin: false, isPro: false }, env)).toBe(false);
+    expect(navigationEnabledFor({ id: "u7", isAdmin: false }, env)).toBe(false);
   });
 });
 

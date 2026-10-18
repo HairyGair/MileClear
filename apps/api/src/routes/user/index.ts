@@ -13,6 +13,7 @@ import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { navigationEnabledFor } from "../../services/navigation.js";
+import { hasPremiumAccess } from "../../middleware/premium.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { deletedByLabel } from "../../services/tripArchive.js";
 import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
@@ -340,7 +341,11 @@ export async function userRoutes(app: FastifyInstance) {
 
     const profile = withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user)));
     // In-app navigation is hidden until switched on for this driver (18 Oct 2026).
-    return reply.send({ data: { ...profile, navigationEnabled: navigationEnabledFor({ id: user.id, isAdmin: user.isAdmin }) } });
+    // A navigation flag must never break the profile: if the Pro check
+    // fails, the driver simply doesn't see Directions this time.
+    const isPro = await hasPremiumAccess(user.id).catch(() => false);
+    const navigationEnabled = navigationEnabledFor({ id: user.id, isAdmin: user.isAdmin, isPro });
+    return reply.send({ data: { ...profile, navigationEnabled } });
   });
 
   // Update profile

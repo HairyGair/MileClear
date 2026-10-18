@@ -56,17 +56,31 @@ export interface GraphHopperPath {
   details?: { max_speed?: Array<[number, number, number | null]> };
 }
 
-/** Who sees navigation: switched on with NAVIGATION_ENABLED=1, and then only
- *  admins and the drivers listed in NAVIGATION_USER_IDS, until locked-phone
- *  drives show trip recording is unaffected. */
+/** Who sees navigation (18 Oct 2026, Anthony: Pro only, every Pro driver can
+ *  test it, labelled as a test).
+ *
+ *  NAVIGATION_ROLLOUT: "off" (nobody), "list" (admins + NAVIGATION_USER_IDS),
+ *  "pro" (admins + the list + every Pro driver). Unset falls back to the
+ *  first switch: NAVIGATION_ENABLED=1 means "list", otherwise "off". Pure;
+ *  the caller passes whether the driver is Pro (hasPremiumAccess). */
+export type NavigationRollout = "off" | "list" | "pro";
+
+export function navigationRollout(env: NodeJS.ProcessEnv = process.env): NavigationRollout {
+  const r = env.NAVIGATION_ROLLOUT;
+  if (r === "off" || r === "list" || r === "pro") return r;
+  return env.NAVIGATION_ENABLED === "1" ? "list" : "off";
+}
+
 export function navigationEnabledFor(
-  user: { id: string; isAdmin: boolean },
+  user: { id: string; isAdmin: boolean; isPro?: boolean },
   env: NodeJS.ProcessEnv = process.env
 ): boolean {
-  if (env.NAVIGATION_ENABLED !== "1") return false;
+  const rollout = navigationRollout(env);
+  if (rollout === "off") return false;
   if (user.isAdmin) return true;
   const ids = (env.NAVIGATION_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  return ids.includes(user.id);
+  if (ids.includes(user.id)) return true;
+  return rollout === "pro" && user.isPro === true;
 }
 
 /** A compass heading 0-359 from the query, or null (absent or nonsense). */
