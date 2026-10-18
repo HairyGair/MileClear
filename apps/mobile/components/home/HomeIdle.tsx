@@ -40,6 +40,7 @@ import { LastTripCard } from "./LastTripCard";
 import { ModePill } from "./ModePill";
 import { OdometerCard } from "./OdometerCard";
 import { TripButtons } from "./TripButtons";
+import { DirectionsHomeRows } from "../directions/DirectionsEntry";
 import { useHomeData } from "./useHomeData";
 import { useHomeOdometer } from "./useHomeOdometer";
 import { useLastTrip } from "./useHomeSignals";
@@ -462,6 +463,7 @@ export function HomeIdle(p: Props) {
 
         <FadeInStagger index={stagger++} delayPer={40}>
           <View style={heroShown ? s.afterHero : s.afterStatus}>
+            <DirectionsHomeRows placement="resume" />
             <TripButtons
               showShift={showShift}
               starting={p.starting}
@@ -474,6 +476,7 @@ export function HomeIdle(p: Props) {
                 p.onStartShift();
               }}
             />
+            <DirectionsHomeRows placement="where" />
           </View>
         </FadeInStagger>
 

@@ -13,6 +13,7 @@
 // actually closed (lib/tracking/endTrip.ts).
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { RecordingDirectionsButton } from "../components/directions/DirectionsEntry";
 import {
   View,
   Text,
@@ -403,6 +404,7 @@ export default function ActiveRecordingScreen() {
             an accidental tap from road vibration could fire End trip in a
             heartbeat — holding the button for 1.5s while a fill ring
             advances is much harder to do by mistake. */}
+        <RecordingDirectionsButton />
         <HoldToConfirm
           label="Hold to end trip"
           holdingLabel="Keep holding…"

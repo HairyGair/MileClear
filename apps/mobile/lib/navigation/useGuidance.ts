@@ -1,20 +1,26 @@
-// The navigation screen's state: plan a route, preview it, guide along it.
-// The thinking is in navigator.ts (pure); this wires it to the recorder's
-// fixes (fixBus.ts), the route API, the voice and the keep-awake.
+// The Directions screen's state: find where the car is, get a route, guide
+// along it (docs/navigation-1.4.0/DESIGN.md section 2). The thinking is in
+// navigator.ts and rules.ts (pure); this wires it to the fixes (fixBus.ts and
+// the foreground bridge), the route API, the voice, keep-awake, the phone's
+// own store and the counts-only events.
 //
 // Nothing here touches trip recording: no shift, no Start Trip, no engine
-// call, no classification. Ending guidance (End or arriving) only stops the
-// prompts and lets the screen sleep again.
+// call, no classification, no write to the recorder's state. Ending
+// directions (End, arriving, leaving the screen) only stops the prompts and
+// lets the screen sleep.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
-import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import type { NavigationRoute } from "@mileclear/shared";
-import { fetchNavigationRoute, NavigationError, toNavigationError } from "../api/navigation";
+import { fetchNavigationRoute, NavigationError, toNavigationError, type NavigationErrorKind } from "../api/navigation";
+import { distanceMeters } from "./geo";
 import { latestFix, subscribeToFixes } from "./fixBus";
+import { useFixBridge } from "./fixBridge";
 import {
   gpsStale,
   replaceRoute,
+  repeatInstruction,
+  smoothedSpeed,
   startNavigation,
   stepNavigation,
   viewOf,
@@ -22,239 +28,475 @@ import {
   type NavigatorState,
   type NavView,
 } from "./navigator";
-import { shouldReroute } from "./offRoute";
-import { hush, say } from "./voice";
+import { shouldReroute, type RerouteFailure } from "./offRoute";
+import { HALF_MILE_M } from "./announcer";
+import { REROUTE_FAILED_PHRASE } from "./phrases";
+import { inGreatBritain, thinLine } from "./rules";
+import { loadOptional } from "./optionalNative";
+import { getVoice } from "./voice";
+import * as store from "./store";
+import { trackDirections } from "./telemetry";
 
-const KEEP_AWAKE_TAG = "mileclear-navigation";
-/** A recorder fix younger than this is good enough to route from. */
+const KEEP_AWAKE_TAG = "mileclear-directions";
+/** A fix younger than this is good enough to route from. */
 const ORIGIN_FIX_MAX_AGE_MS = 30_000;
+/** Wait this long for a fix before asking the phone once. */
+const LOCATE_WAIT_MS = 10_000;
+/** Under this, "You're already there." */
+const ALREADY_THERE_M = 161;
+const STILL_WAITING_MS = 30_000;
+const PARKED_GRACE_MS = 120_000;
+const STOPPED_MPS = 3 * 0.44704;
 
-export type GuidancePhase = "pick" | "routing" | "preview" | "guiding" | "arrived";
+type KeepAwake = { activateKeepAwakeAsync: (t?: string) => Promise<void>; deactivateKeepAwake: (t?: string) => Promise<void> | void };
+function keepAwake(): KeepAwake | null {
+  return loadOptional(() => require("expo-keep-awake") as KeepAwake);
+}
+
+export type GuidancePhase = "pick" | "locating" | "routing" | "preview" | "guiding" | "arrived";
+export type { PreviewError } from "./useGuidanceTypes";
+import type { PreviewError } from "./useGuidanceTypes";
+export type GpsState = "ok" | "waiting" | "still_waiting" | "start_driving";
+export type RerouteStatus = { kind: "idle" } | { kind: "searching" } | { kind: "failed"; reason: RerouteFailure };
 
 export interface Destination {
   lat: number;
   lng: number;
   label: string | null;
+  /** Saved place name, said on arrival ("You have arrived at Home"). */
+  name?: string | null;
 }
 
-async function currentPosition(): Promise<{ lat: number; lng: number; headingDeg: number | null } | null> {
-  const fix = latestFix(ORIGIN_FIX_MAX_AGE_MS);
-  if (fix) return { lat: fix.lat, lng: fix.lng, headingDeg: fix.headingDeg };
-  // One reading for the start of the route. A one-off position request, as
-  // the place pickers already make; it is not a listener and does not touch
-  // the trip recorder's engine.
-  try {
-    const perm = await Location.getForegroundPermissionsAsync();
-    if (perm.status !== "granted") return null;
-    const p = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-    const h = p.coords.heading;
-    return { lat: p.coords.latitude, lng: p.coords.longitude, headingDeg: h != null && h >= 0 ? h : null };
-  } catch {
-    return null;
-  }
+function newSessionId(): string {
+  return `dir_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function useGuidance() {
+function failureOf(kind: NavigationErrorKind): RerouteFailure {
+  if (kind === "OFFLINE") return "OFFLINE";
+  if (kind === "NO_ROUTE") return "NO_ROUTE";
+  if (kind === "ROUTING_UNAVAILABLE" || kind === "TOO_MANY_REQUESTS") return "ROUTING_UNAVAILABLE";
+  return "OTHER";
+}
+
+export function useGuidance(opts: { focused: boolean }) {
   const [phase, setPhase] = useState<GuidancePhase>("pick");
   const [destination, setDestination] = useState<Destination | null>(null);
   const [route, setRoute] = useState<NavigationRoute | null>(null);
   const [view, setView] = useState<NavView | null>(null);
-  const [error, setError] = useState<NavigationError | null>(null);
-  const [muted, setMuted] = useState(false);
-  const [waitingForGps, setWaitingForGps] = useState(false);
-  const [rerouting, setRerouting] = useState(false);
+  const [previewError, setPreviewError] = useState<PreviewError | null>(null);
+  const [alreadyThere, setAlreadyThere] = useState(false);
+  const [muted, setMutedState] = useState(false);
+  const [gps, setGps] = useState<GpsState>("ok");
+  const [reroute, setReroute] = useState<RerouteStatus>({ kind: "idle" });
+  const [stuck, setStuck] = useState(false);
   const [lastFix, setLastFix] = useState<NavFix | null>(null);
+  const [movingMps, setMovingMps] = useState<number | null>(null);
+  const [arrivedAtMs, setArrivedAtMs] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [crashed, setCrashed] = useState(false);
 
   const nav = useRef<NavigatorState | null>(null);
   const phaseRef = useRef<GuidancePhase>("pick");
   const mutedRef = useRef(false);
-  const lastFixAt = useRef<number | null>(null);
-  const reroute = useRef<{ inFlight: boolean; lastAt: number | null }>({ inFlight: false, lastAt: null });
+  const lastUsableAt = useRef<number | null>(null);
+  const startedAt = useRef<number | null>(null);
+  const speeds = useRef<Array<{ atMs: number; v: number }>>([]);
+  const rr = useRef({ inFlight: false, lastAt: null as number | null, failures: 0, lastFailure: null as RerouteFailure | null, saidFailure: false });
+  const counts = useRef({ reroutes: 0, rerouteFailures: 0, gpsWaits: 0, prompts: 0, bridge: 0, native: 0, task: 0 });
+  const lastSavedStep = useRef(-1);
+  const autoStart = useRef(false);
   const mounted = useRef(true);
+  const voice = getVoice();
 
   phaseRef.current = phase;
   mutedRef.current = muted;
 
-  const speakAll = useCallback((lines: string[]) => {
-    if (mutedRef.current) return;
-    for (const l of lines) say(l);
-  }, []);
+  useFixBridge(opts.focused && phase !== "arrived");
 
-  const stopGuiding = useCallback(() => {
-    hush();
+  // Mute is remembered on the phone.
+  useEffect(() => {
+    store.getMuted().then((m) => {
+      if (!mounted.current) return;
+      setMutedState(m);
+      voice.setMuted(m);
+    });
+  }, [voice]);
+
+  const speak = useCallback(
+    (text: string | null, urgent: boolean) => {
+      if (!text || mutedRef.current) return;
+      counts.current.prompts++;
+      void voice.say({ text, urgent });
+    },
+    [voice]
+  );
+
+  const releaseAwake = useCallback(() => {
     try {
-      deactivateKeepAwake(KEEP_AWAKE_TAG);
+      void keepAwake()?.deactivateKeepAwake(KEEP_AWAKE_TAG);
     } catch {
       // best effort
     }
+  }, []);
+
+  const finishCounts = useCallback(
+    (type: "directions.ended" | "directions.arrived") => {
+      const c = counts.current;
+      trackDirections(type, {
+        minutes: startedAt.current ? (Date.now() - startedAt.current) / 60000 : 0,
+        reroutes: c.reroutes,
+        reroute_failures: c.rerouteFailures,
+        gps_waits: c.gpsWaits,
+        prompts: c.prompts,
+        fixes_native: c.native,
+        fixes_task: c.task,
+        fixes_bridge: c.bridge,
+        muted: mutedRef.current,
+      });
+    },
+    []
+  );
+
+  const persist = useCallback((state: NavigatorState, force = false) => {
+    if (!force && state.stepIndex === lastSavedStep.current) return;
+    lastSavedStep.current = state.stepIndex;
+    const d = state.destination;
+    void store.saveSession({
+      destination: { lat: d.lat, lng: d.lng, label: state.destinationName },
+      startedAtMs: startedAt.current ?? Date.now(),
+      updatedAtMs: Date.now(),
+      remaining: thinLine(state.prepared.route.geometry, state.segIndex),
+    });
   }, []);
 
   const requestReroute = useCallback(
     async (fix: NavFix) => {
       const state = nav.current;
       if (!state) return;
-      reroute.current = { inFlight: true, lastAt: Date.now() };
-      setRerouting(true);
+      rr.current.inFlight = true;
+      rr.current.lastAt = Date.now();
+      setReroute({ kind: "searching" });
       try {
-        const next = await fetchNavigationRoute({
-          from: fix,
-          to: state.destination,
-          headingDeg: state.courseDeg,
-        });
+        const next = await fetchNavigationRoute({ from: fix, to: state.destination, headingDeg: state.courseDeg });
         if (!mounted.current || phaseRef.current !== "guiding" || !nav.current) return;
+        // Back on the old line before the answer came: carry on with it.
+        if (!nav.current.offRoute.offRoute) {
+          setReroute({ kind: "idle" });
+          return;
+        }
         nav.current = replaceRoute(nav.current, next);
+        rr.current = { ...rr.current, failures: 0, lastFailure: null, saidFailure: false };
+        counts.current.reroutes++;
+        trackDirections("directions.rerouted", { profile_car_nav: next.profile === "car_nav" });
         setRoute(next);
         setView(viewOf(nav.current));
-        setRerouting(false);
+        setReroute({ kind: "idle" });
+        setStuck(false);
+        persist(nav.current, true);
       } catch (err) {
         const e = toNavigationError(err, null);
-        if (e.kind === "NAVIGATION_NOT_ENABLED" && mounted.current) {
-          // Switched off mid-drive: stop guiding, say why. Recording carries on.
-          stopGuiding();
-          setError(e);
-          setPhase("pick");
+        if (!mounted.current) return;
+        if (e.kind === "NAVIGATION_NOT_ENABLED") {
+          // Switched off mid-drive (DESIGN 2.12): finish on the line we have.
+          setReroute({ kind: "failed", reason: "OTHER" });
+        } else {
+          const reason = failureOf(e.kind);
+          rr.current.failures++;
+          rr.current.lastFailure = reason;
+          counts.current.rerouteFailures++;
+          trackDirections("directions.reroute_failed", { code: e.kind });
+          setReroute({ kind: "failed", reason });
+          if (!rr.current.saidFailure) {
+            rr.current.saidFailure = true;
+            speak(REROUTE_FAILED_PHRASE, false);
+          }
+          const stopped = (smoothedSpeed(speeds.current) ?? 0) < STOPPED_MPS;
+          if (rr.current.failures >= 3 && stopped) setStuck(true);
         }
-        // Otherwise keep the old line and try again after the throttle.
       } finally {
-        reroute.current = { ...reroute.current, inFlight: false };
+        rr.current.inFlight = false;
       }
     },
-    [stopGuiding]
+    [persist, speak]
   );
 
-  const stopGuidingAfterArrival = useCallback(() => {
-    // Let "You have arrived" finish before the screen may sleep; no hush.
-    try {
-      deactivateKeepAwake(KEEP_AWAKE_TAG);
-    } catch {
-      // best effort
-    }
+  const onArrived = useCallback(() => {
+    releaseAwake();
+    void store.clearSession();
+    setArrivedAtMs(Date.now());
     setPhase("arrived");
-  }, []);
+    phaseRef.current = "arrived";
+    finishCounts("directions.arrived");
+  }, [releaseAwake, finishCounts]);
 
   const onFix = useCallback(
     (fix: NavFix) => {
-      lastFixAt.current = Date.now();
-      setLastFix(fix);
-      setWaitingForGps(false);
-      if (phaseRef.current !== "guiding" || !nav.current) return;
-      const step = stepNavigation(nav.current, fix);
-      nav.current = step.state;
-      setView(step.view);
-      speakAll(step.speak);
-      if (step.view.arrived) {
-        stopGuidingAfterArrival();
-        return;
+      if (fix.source === "native" || fix.source === "task" || fix.source === "bridge") counts.current[fix.source]++;
+      const usable = fix.accuracyM == null || fix.accuracyM <= 50;
+      if (usable) {
+        lastUsableAt.current = Date.now();
+        setGps("ok");
       }
-      if (!step.view.offRoute) setRerouting(false);
-      if (
-        step.wantReroute &&
-        shouldReroute({
-          offRoute: true,
-          nowMs: Date.now(),
-          lastRequestAtMs: reroute.current.lastAt,
-          inFlight: reroute.current.inFlight,
-        })
-      ) {
-        void requestReroute(fix);
-      } else if (step.wantReroute) {
-        setRerouting(true);
+      setLastFix(fix);
+      if (fix.speedMps != null) {
+        speeds.current = [...speeds.current, { atMs: fix.atMs, v: fix.speedMps }].filter((s) => fix.atMs - s.atMs <= 5000);
+        setMovingMps(smoothedSpeed(speeds.current));
+      }
+      if (phaseRef.current !== "guiding" || !nav.current) return;
+      try {
+        const step = stepNavigation(nav.current, fix);
+        nav.current = step.state;
+        setView(step.view);
+        if (step.say) speak(step.say.text, step.say.urgent);
+        if (step.view.arrived) {
+          onArrived();
+          return;
+        }
+        persist(step.state);
+        if (!step.view.offRoute) {
+          setReroute((r) => (r.kind === "idle" ? r : { kind: "idle" }));
+          return;
+        }
+        if (
+          step.wantReroute &&
+          shouldReroute({
+            offRoute: true,
+            nowMs: Date.now(),
+            lastRequestAtMs: rr.current.lastAt,
+            inFlight: rr.current.inFlight,
+            failures: rr.current.failures,
+            lastFailure: rr.current.lastFailure,
+          })
+        ) {
+          void requestReroute(fix);
+        } else if (rr.current.lastAt == null) {
+          setReroute({ kind: "searching" });
+        }
+      } catch {
+        // A bug in guidance: the fallback screen, never a red screen. The
+        // recorder is untouched either way.
+        trackDirections("directions.crashed", {});
+        setCrashed(true);
       }
     },
-    [requestReroute, speakAll, stopGuidingAfterArrival]
+    [onArrived, persist, requestReroute, speak]
   );
 
   const onFixRef = useRef(onFix);
   onFixRef.current = onFix;
 
-  // Listen for the recorder's fixes for as long as the screen is open, so a
-  // recent one is to hand as the start of the route.
   useEffect(() => {
     mounted.current = true;
     const off = subscribeToFixes((f) => onFixRef.current(f));
     return () => {
       mounted.current = false;
       off();
-      hush();
-      try {
-        deactivateKeepAwake(KEEP_AWAKE_TAG);
-      } catch {
-        // best effort
-      }
+      voice.hush();
+      releaseAwake();
     };
-  }, []);
+  }, [voice, releaseAwake]);
 
-  // "Waiting for GPS" when the fixes stop while guiding.
+  // A call or Siri ended: say the instruction again if it is close.
+  useEffect(() => {
+    const navVoice = loadOptional(() => require("../../modules/nav-voice") as { addInterruptionListener: (cb: (b: boolean) => void) => () => void });
+    if (!navVoice) return;
+    return navVoice.addInterruptionListener((began) => {
+      if (began || phaseRef.current !== "guiding" || !nav.current) return;
+      speak(repeatInstruction(nav.current, HALF_MILE_M), false);
+    });
+  }, [speak]);
+
+  // "Waiting for GPS" (DESIGN 2.6).
   useEffect(() => {
     if (phase !== "guiding") {
-      setWaitingForGps(false);
+      setGps("ok");
       return;
     }
-    const tick = () => setWaitingForGps(gpsStale(lastFixAt.current, Date.now()));
+    let wasWaiting = false;
+    const tick = () => {
+      const now = Date.now();
+      const last = lastUsableAt.current;
+      const since = startedAt.current ?? now;
+      let next: GpsState = "ok";
+      if (last == null || last < since) {
+        next = now - since < PARKED_GRACE_MS ? "start_driving" : "waiting";
+      } else if (gpsStale(last, now)) {
+        next = now - last > STILL_WAITING_MS ? "still_waiting" : "waiting";
+      }
+      if (next === "waiting" && !wasWaiting) counts.current.gpsWaits++;
+      wasWaiting = next === "waiting" || next === "still_waiting";
+      setGps(next);
+    };
     tick();
-    const id = setInterval(tick, 2000);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [phase]);
 
-  const planTo = useCallback(async (dest: Destination) => {
-    setDestination(dest);
-    setError(null);
-    setPhase("routing");
-    const from = await currentPosition();
-    if (!mounted.current) return;
-    if (!from) {
-      setError(new NavigationError("UNKNOWN", "We can't tell where you are yet. Check location is on and try again."));
-      setPhase("pick");
-      return;
+  /** Where the car is: a recent fix, a new one within 10 s, else one reading. */
+  const locate = useCallback(async (): Promise<NavFix | null | "denied"> => {
+    const recent = latestFix(ORIGIN_FIX_MAX_AGE_MS);
+    if (recent) return recent;
+    try {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status !== "granted") return "denied";
+    } catch {
+      return "denied";
+    }
+    const deadline = Date.now() + LOCATE_WAIT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 500));
+      if (!mounted.current) return null;
+      const f = latestFix(ORIGIN_FIX_MAX_AGE_MS);
+      if (f) return f;
     }
     try {
-      const r = await fetchNavigationRoute({ from, to: dest, headingDeg: from.headingDeg });
-      if (!mounted.current) return;
-      setRoute(r);
-      setPhase("preview");
-    } catch (err) {
-      if (!mounted.current) return;
-      setError(toNavigationError(err, null));
-      setPhase("pick");
+      const p = await Location.getLastKnownPositionAsync({ maxAge: 60_000 });
+      if (p) {
+        return {
+          lat: p.coords.latitude,
+          lng: p.coords.longitude,
+          speedMps: p.coords.speed ?? null,
+          accuracyM: p.coords.accuracy ?? null,
+          headingDeg: p.coords.heading != null && p.coords.heading >= 0 ? p.coords.heading : null,
+          atMs: p.timestamp,
+        };
+      }
+    } catch {
+      // fall through
     }
+    return null;
   }, []);
+
+  const planTo = useCallback(
+    async (dest: Destination, o: { autoStart?: boolean } = {}) => {
+      autoStart.current = !!o.autoStart;
+      setDestination(dest);
+      setPreviewError(null);
+      setAlreadyThere(false);
+      setRoute(null);
+      setPhase("preview");
+      if (!inGreatBritain(dest)) {
+        setPreviewError("OUTSIDE_GB");
+        return;
+      }
+      setPhase("locating");
+      const from = await locate();
+      if (!mounted.current) return;
+      if (from === "denied" || from == null) {
+        setPreviewError(from === "denied" ? "NO_PERMISSION" : "NO_FIX");
+        setPhase("preview");
+        return;
+      }
+      if (distanceMeters(from, dest) < ALREADY_THERE_M) {
+        setAlreadyThere(true);
+        setPhase("preview");
+        return;
+      }
+      setPhase("routing");
+      trackDirections("directions.route_requested", {});
+      const moving = (from.speedMps ?? 0) > 5 * 0.44704;
+      try {
+        const r = await fetchNavigationRoute({ from, to: dest, headingDeg: moving ? from.headingDeg : null });
+        if (!mounted.current) return;
+        setRoute(r);
+        setPhase("preview");
+        if (r.distanceMeters < ALREADY_THERE_M) setAlreadyThere(true);
+      } catch (err) {
+        if (!mounted.current) return;
+        const e = toNavigationError(err, null);
+        trackDirections("directions.route_failed", { code: e.kind });
+        setPreviewError(e.kind);
+        setPhase("preview");
+      }
+    },
+    [locate]
+  );
 
   const start = useCallback(() => {
     if (!route || !destination) return;
-    nav.current = startNavigation(route, { lat: destination.lat, lng: destination.lng });
-    reroute.current = { inFlight: false, lastAt: null };
+    const id = newSessionId();
+    setSessionId(id);
+    nav.current = startNavigation(route, { lat: destination.lat, lng: destination.lng }, { name: destination.name ?? null });
+    rr.current = { inFlight: false, lastAt: null, failures: 0, lastFailure: null, saidFailure: false };
+    counts.current = { reroutes: 0, rerouteFailures: 0, gpsWaits: 0, prompts: 0, bridge: 0, native: 0, task: 0 };
+    startedAt.current = Date.now();
+    lastSavedStep.current = -1;
     setView(viewOf(nav.current));
-    setRerouting(false);
+    setReroute({ kind: "idle" });
+    setStuck(false);
+    setCrashed(false);
     setPhase("guiding");
     phaseRef.current = "guiding";
-    activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
-    // Use the newest fix straight away so the first prompt does not wait.
+    try {
+      void keepAwake()?.activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+    } catch {
+      // best effort
+    }
+    if (destination.label) {
+      void store.rememberDestination({ lat: destination.lat, lng: destination.lng, label: destination.label, atMs: Date.now() });
+    }
+    persist(nav.current, true);
+    trackDirections("directions.started", {
+      miles: route.distanceMeters / 1609.344,
+      steps: route.steps.length,
+      profile_car_nav: route.profile === "car_nav",
+    });
     const recent = latestFix(5_000);
     if (recent) onFixRef.current(recent);
-    else lastFixAt.current = null;
-  }, [route, destination]);
+  }, [route, destination, persist]);
+
+  // A resumed session starts by itself once its fresh route is in.
+  useEffect(() => {
+    if (phase === "preview" && route && autoStart.current && !previewError) {
+      autoStart.current = false;
+      trackDirections("directions.resumed", {});
+      start();
+    }
+  }, [phase, route, previewError, start]);
 
   const end = useCallback(() => {
-    stopGuiding();
+    if (phaseRef.current === "guiding") finishCounts("directions.ended");
+    voice.hush();
+    releaseAwake();
+    void store.clearSession();
     nav.current = null;
     setView(null);
-    setRoute(null);
-    setDestination(null);
-    setRerouting(false);
+    setReroute({ kind: "idle" });
+    setStuck(false);
     setPhase("pick");
-  }, [stopGuiding]);
+    phaseRef.current = "pick";
+  }, [voice, releaseAwake, finishCounts]);
 
   const back = useCallback(() => {
     setRoute(null);
-    setError(null);
+    setPreviewError(null);
+    setAlreadyThere(false);
     setPhase("pick");
   }, []);
 
   const toggleMute = useCallback(() => {
-    setMuted((m) => {
-      if (!m) hush();
-      return !m;
-    });
+    const m = !mutedRef.current;
+    mutedRef.current = m;
+    setMutedState(m);
+    voice.setMuted(m);
+    void store.setMutedPref(m);
+    trackDirections("directions.mute_toggled", { muted: m });
+    // Voice back on: the current instruction once, if a turn is close.
+    if (!m && nav.current && phaseRef.current === "guiding") speak(repeatInstruction(nav.current, HALF_MILE_M), false);
+  }, [voice, speak]);
+
+  /** Banner tap: hear it again (muted means muted: nothing). */
+  const repeat = useCallback(() => {
+    if (!nav.current || mutedRef.current) return false;
+    const text = repeatInstruction(nav.current);
+    if (text) void voice.say({ text, urgent: true });
+    return !!text;
+  }, [voice]);
+
+  const keepTrying = useCallback(() => {
+    setStuck(false);
+    rr.current.failures = 0;
+    rr.current.lastAt = null;
   }, []);
 
   return {
@@ -262,16 +504,27 @@ export function useGuidance() {
     destination,
     route,
     view,
-    error,
+    previewError,
+    alreadyThere,
     muted,
-    waitingForGps,
-    rerouting,
+    gps,
+    reroute,
+    stuck,
     lastFix,
+    movingMps,
+    arrivedAtMs,
+    sessionId,
+    crashed,
+    voiceAvailable: voice.available,
     planTo,
     start,
     end,
     back,
     toggleMute,
-    clearError: () => setError(null),
+    repeat,
+    keepTrying,
+    clearError: () => setPreviewError(null),
   };
 }
+
+export { NavigationError };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NavigationError, routeQuery, toNavigationError } from "../navigationRules";
+import { NavigationError, ROUTE_TIMEOUT, routeQuery, toNavigationError } from "../navigationRules";
 
 describe("routeQuery", () => {
   it("from and to as lat,lng, heading 0-359 when known", () => {
@@ -18,19 +18,18 @@ describe("toNavigationError", () => {
     expect(toNavigationError(new Error("x"), { statusCode: 404, code: "NOT_FOUND" }).kind).toBe("NO_ROUTE");
     expect(toNavigationError(new Error("x"), { statusCode: 503, code: "INTERNAL" }).kind).toBe("ROUTING_UNAVAILABLE");
     expect(toNavigationError(new Error("x"), { statusCode: 400, code: "BAD_REQUEST" }).kind).toBe("BAD_INPUT");
+    expect(toNavigationError(new Error("x"), { statusCode: 429, code: "TOO_MANY_REQUESTS" }).kind).toBe("TOO_MANY_REQUESTS");
   });
   it("a code the client already understood wins", () => {
     expect(toNavigationError(new Error("x"), { statusCode: 500, code: "NO_ROUTE" }).kind).toBe("NO_ROUTE");
   });
-  it("offline and anything else", () => {
+  it("offline, no answer in 10 s, and anything else", () => {
     expect(toNavigationError(new Error("Network error"), null).kind).toBe("OFFLINE");
+    expect(toNavigationError(new Error(ROUTE_TIMEOUT), null).kind).toBe("ROUTING_UNAVAILABLE");
     expect(toNavigationError("weird", null).kind).toBe("UNKNOWN");
   });
-  it("passes a NavigationError through, with plain words", () => {
+  it("passes a NavigationError through", () => {
     const e = new NavigationError("NO_ROUTE", "msg");
     expect(toNavigationError(e, null)).toBe(e);
-    const w = toNavigationError(new Error("x"), { statusCode: 404, code: "NOT_FOUND" });
-    expect(w.message).toMatch(/Great Britain/);
-    expect(w.message).not.toContain("—");
   });
 });

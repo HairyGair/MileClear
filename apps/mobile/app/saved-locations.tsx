@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { SavedPlaceDirectionsButton } from "../components/directions/DirectionsEntry";
 import {
   View,
   Text,
@@ -98,6 +99,7 @@ function LocationCard({
             { backgroundColor: item.geofenceEnabled ? GREEN : "#374151" },
           ]}
         />
+        <SavedPlaceDirectionsButton name={item.name} lat={item.latitude} lng={item.longitude} />
         <TouchableOpacity
           onPress={onDelete}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
