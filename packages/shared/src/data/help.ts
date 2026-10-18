@@ -119,6 +119,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["home", "dashboard", "shortcut", "shortcuts", "hide", "status", "line"],
   },
   {
+    id: "home-first-trips",
+    area: "getting_started",
+    q: "What is \"Your first 3 trips\" on Home?",
+    a: "In your first two weeks, once you have 3 trips and haven't sorted any yet, your last trip on Home shows how many miles they add up to. In Work mode (not for a company car) it also says what they could be worth as a mileage claim if they were for work, worked out at the approved rate for a car (or your employer's rate, if you've set one). It's an \"up to\" figure: only trips you mark Business count. Tap Business or Personal on the trip and the line goes away for good. It also goes after 14 days.",
+    appOnly: true,
+    keywords: ["first trips", "first 3 trips", "you can claim", "up to", "new", "worth", "home"],
+  },
+  {
     id: "work-personal-mode",
     area: "getting_started",
     q: "What's the difference between Work and Personal mode?",

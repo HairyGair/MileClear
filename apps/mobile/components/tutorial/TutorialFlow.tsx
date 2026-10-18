@@ -713,11 +713,8 @@ export function TutorialFlow({ source }: { source: TourSource }) {
         bgRefreshOff: phone.bgRefreshOff,
         notifications: phone.notifications,
         startTripOnly: startTripOnly || (phone.automaticOff && phone.tier !== "always"),
-        // The first run no longer asks for notifications: Home does, once a
-        // trip is saved (lib/home/notifAsk.ts). A replay still offers it.
-        deferNotifications: firstRun,
       });
-      const msgs = recordingMessages(phone, { notifAskPending: firstRun });
+      const msgs = recordingMessages(phone);
       const line = selectStatusLine({
         recording: null,
         blocker: msgs.blocker,

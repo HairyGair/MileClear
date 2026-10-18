@@ -1,9 +1,13 @@
-// When Home asks for notifications (18 Oct 2026). It used to be the first-run
-// tour's check screen, before the driver had recorded anything; 59 of 210
-// drivers who stopped never gave us a push token. Now the ask waits until a
-// trip is saved, explains itself first, and only "Allow" fires the system
-// prompt. "Not now" comes back once, a few trips later, and that is all.
-// Granted or denied: nothing (Settings is the route back).
+// Home's second chance at notifications (18 Oct 2026). The first ask stays in
+// the first-run tour's check screen and Home's setup checklist, before any
+// trip: the push token is what lets the server's recording watchdog finish a
+// stuck recording or wake a silent engine, so new drivers need it from drive
+// one. But 59 of 210 drivers who stopped never gave us a token. So a driver
+// whose phone has still never been asked once a trip is saved gets a short
+// explanation; only "Allow" fires the system prompt. "Not now" comes back
+// once, a few trips later, and that is all. If the phone already has an
+// answer (allowed or denied), this never shows; Settings is the route back.
+// It replaces the bare Alert trip-form used to show after a save.
 //
 // Pure and unit-tested. The memory lives in tracking_state on the phone.
 
@@ -50,19 +54,6 @@ export function shouldShowNotifAsk(i: {
   if (i.memory.asks === 0) return true;
   if (i.memory.asks >= NOTIF_MAX_ASKS) return false;
   return i.trips >= i.memory.atTrips + NOTIF_REASK_AFTER_TRIPS;
-}
-
-/**
- * The Home setup checklist leaves notifications out while this ask is still to
- * come, so a new driver is not told "Finish setting up" over a permission we
- * have decided to ask for later. Once both asks are spent it comes back as
- * before (a snoozable row, never a pop-up).
- */
-export function notifAskPending(permission: NotifPermission | null, memory: NotifAskMemory | null): boolean {
-  if (permission !== "undetermined") return false;
-  // Unread memory: assume the ask is still to come rather than flash a row.
-  if (!memory) return true;
-  return memory.asks < NOTIF_MAX_ASKS;
 }
 
 /** The sheet's words. */

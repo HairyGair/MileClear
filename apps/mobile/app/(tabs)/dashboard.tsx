@@ -677,17 +677,9 @@ export default function DashboardScreen() {
     }
   }, [notifRequesting]);
 
-  // Home's own notification ask, once a trip is saved (lib/home/notifAsk.ts).
-  // Until it has had its turn, an undetermined permission stays out of the
-  // setup checklist below.
   const rereadNotifPermission = useCallback(() => {
     getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
   }, []);
-  const notifAsk = useNotificationAsk({
-    permission: notifPermission,
-    enabled: !loading && !activeShift,
-    onChanged: rereadNotifPermission,
-  });
 
   // A driver with zero trips and some location permission has one job, so the
   // referral ask stands aside for them. (Their "Your first trip" card is on
@@ -777,7 +769,6 @@ export default function DashboardScreen() {
         motionStatus,
         chaseUndeterminedMotion: Platform.OS === "android",
         notifPermission,
-        notifAskPending: notifAsk.pending,
         batteryApplicable: Platform.OS === "android",
         batteryIgnoring: batteryOptState?.ignoring ?? null,
         batteryDismissedAt: batteryNudgeDismissedAt,
@@ -791,7 +782,7 @@ export default function DashboardScreen() {
       }),
     [
       activeShift, loading, locationTier, bgRefreshOff, bgPermissionLost,
-      motionStatus, notifPermission, notifAsk.pending, batteryOptState, batteryNudgeDismissedAt,
+      motionStatus, notifPermission, batteryOptState, batteryNudgeDismissedAt,
       bgLocNudgeSilenced, motionNudgeSilenced, notifDeniedNudgeSilenced,
       notifPrimerSilenced, detectionOffSince, lowPowerMode,
     ]
@@ -899,6 +890,14 @@ export default function DashboardScreen() {
     },
     onSnoozeSetup: snoozeSetupChecklist,
     onRecoveredTap: dismissDqBanner,
+  });
+  // A second chance at notifications for a driver who skipped the tour's row:
+  // once a trip is saved, while the phone has still never been asked
+  // (lib/home/notifAsk.ts). Never over a red status line or during a shift.
+  const notifAsk = useNotificationAsk({
+    permission: notifPermission,
+    enabled: !loading && !activeShift && !home.status.red,
+    onChanged: rereadNotifPermission,
   });
   // "We recovered..." shows for one visit: leaving Home counts as seeing it.
   const recoveredShown = useRef(false);

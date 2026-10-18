@@ -62,7 +62,16 @@ function wholePounds(pence: number): string {
   return `£${String(Math.floor(pence / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 }
 
-/** What the trips would be worth as a mileage claim, in pence. */
+/**
+ * What the trips would be worth as a mileage claim, in pence.
+ *
+ * The email's rule also leaves out phantom trips and trips in a vehicle
+ * someone else pays for (claimableWhere), and could use 24p for a motorbike.
+ * This phone's SQLite has none of those (no phantom flag, no vehicles table,
+ * so no providedByOthers or vehicle type), so every trip counts and the rate
+ * is the car rate. "Up to" covers the difference; it can only overstate for a
+ * motorbike or someone else's van, and only in a driver's first 14 days.
+ */
 export function firstWeekClaimPence(miles: number, rates: FirstWeekInputs["rates"], now: number): number {
   return calculateMileageDeduction("car", Math.max(0, miles), {
     ...resolveMileageRates({

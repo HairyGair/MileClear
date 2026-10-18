@@ -77,9 +77,10 @@ describe("firstWeekClaimPence", () => {
 });
 
 describe("first_week in the ask order", () => {
-  it("comes before every other ask a new driver could get, and stands down when red", () => {
+  it("comes after Add your vehicle, before the rest, and stands down when red", () => {
     const eligible = { first_week: true, acquisition: true, vehicle: true, pro: true };
-    expect(selectAsk({ statusRed: false, quietToday: false, eligible })).toBe("first_week");
+    expect(selectAsk({ statusRed: false, quietToday: false, eligible })).toBe("vehicle");
+    expect(selectAsk({ statusRed: false, quietToday: false, eligible: { ...eligible, vehicle: false } })).toBe("first_week");
     expect(selectAsk({ statusRed: true, quietToday: false, eligible })).toBeNull();
   });
 });

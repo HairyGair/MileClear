@@ -153,17 +153,6 @@ describe("check rows", () => {
     expect(denied[3]).toMatchObject({ action: "Settings", fix: "settings" });
   });
 
-  it("leaves notifications for after the first trip on the first run", () => {
-    const rows = tourCheckRows({
-      ...ALL_GOOD, notifications: "undetermined", platform: "ios", startTripOnly: false, deferNotifications: true,
-    });
-    expect(rows.find((r) => r.id === "notifications")).toBeUndefined();
-    const denied = tourCheckRows({
-      ...ALL_GOOD, notifications: "denied", platform: "ios", startTripOnly: false, deferNotifications: true,
-    });
-    expect(denied.find((r) => r.id === "notifications")).toMatchObject({ action: "Settings" });
-  });
-
   it("leaves out motion when the phone can't say", () => {
     const rows = tourCheckRows({ ...ALL_GOOD, motion: "unavailable", platform: "ios", startTripOnly: false });
     expect(rows.find((r) => r.id === "motion")).toBeUndefined();

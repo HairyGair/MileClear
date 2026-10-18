@@ -24,13 +24,14 @@ export const ASK_ORDER: readonly AskId[] = [
   // First: someone (the driver's accountant) is waiting on an answer, often
   // with a deadline. Outranks every other ask, Pro included.
   "practice",
+  // Add your vehicle first: it sets the rate the first-week figure uses.
+  "vehicle",
   // A new driver's first trips and what they could claim, with the sort on
-  // the Last trip card. Above everything else a new driver could be asked:
-  // 60% of drivers who stopped did so in week one, and a third of them never
-  // sorted a trip (18 Oct 2026). Drawn on the Last trip card, not the ask row.
+  // the Last trip card. Above the rest: 60% of drivers who stopped did so in
+  // week one, and a third of them never sorted a trip (18 Oct 2026). Drawn on
+  // the Last trip card, not the ask row.
   "first_week",
   "acquisition",
-  "vehicle",
   "odometer",
   "employer",
   "shift",

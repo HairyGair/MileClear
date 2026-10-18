@@ -1,4 +1,5 @@
-// Home's notification ask, once a trip is saved (lib/home/notifAsk.ts). A short
+// Home's second-chance notification ask, once a trip is saved and the phone
+// has still never been asked (lib/home/notifAsk.ts). A short
 // explanation first; only "Allow" fires the system prompt, and the push token
 // goes to the server straight away so the first nudge can reach this phone.
 // Through the prompt gate, like every other pop-up on Home.
@@ -16,7 +17,6 @@ import {
   LEGACY_NOTIF_ASKED_KEY,
   NOTIF_ASK_KEY,
   notifAskCopy,
-  notifAskPending,
   parseNotifAskMemory,
   shouldShowNotifAsk,
   type NotifAskMemory,
@@ -48,17 +48,13 @@ async function readState(): Promise<{ memory: NotifAskMemory; trips: number } | 
 
 interface Args {
   permission: NotifPermission;
-  /** Idle Home, first load done, no shift running. */
+  /** Idle Home, first load done, no shift running, status line not red. */
   enabled: boolean;
   /** Permission may have changed: re-read it. */
   onChanged: () => void;
 }
 
-export function useNotificationAsk({ permission, enabled, onChanged }: Args): {
-  /** The ask is still to come: keep notifications out of the setup checklist. */
-  pending: boolean;
-  sheet: ReactElement;
-} {
+export function useNotificationAsk({ permission, enabled, onChanged }: Args): { sheet: ReactElement } {
   const [memory, setMemory] = useState<NotifAskMemory | null>(null);
   const [trips, setTrips] = useState<number | null>(null);
   const [visible, setVisible] = useState(false);
@@ -164,7 +160,7 @@ export function useNotificationAsk({ permission, enabled, onChanged }: Args): {
     </AppModal>
   );
 
-  return { pending: notifAskPending(permission, memory), sheet };
+  return { sheet };
 }
 
 const s = StyleSheet.create({

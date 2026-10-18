@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   NOTIF_REASK_AFTER_TRIPS,
   notifAskCopy,
-  notifAskPending,
   parseNotifAskMemory,
   shouldShowNotifAsk,
 } from "../notifAsk";
@@ -44,16 +43,6 @@ describe("parseNotifAskMemory", () => {
   it("treats nothing, or junk, as never asked", () => {
     expect(parseNotifAskMemory(null, false)).toEqual(never);
     expect(parseNotifAskMemory("nope", false)).toEqual(never);
-  });
-});
-
-describe("notifAskPending", () => {
-  it("holds the setup row back only while the ask is still to come", () => {
-    expect(notifAskPending("undetermined", never)).toBe(true);
-    expect(notifAskPending("undetermined", { asks: 1, atTrips: 1 })).toBe(true);
-    expect(notifAskPending("undetermined", { asks: 2, atTrips: 6 })).toBe(false);
-    expect(notifAskPending("denied", never)).toBe(false);
-    expect(notifAskPending("granted", never)).toBe(false);
   });
 });
 
