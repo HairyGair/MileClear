@@ -49,6 +49,7 @@ export interface GraphHopperInstruction {
   street_name?: string;
   street_ref?: string;
   street_destination?: string;
+  street_destination_ref?: string;
   distance: number;
   time: number;
   interval: [number, number];
@@ -159,6 +160,12 @@ export function stepText(type: NavStepType, modifier: NavModifier | undefined, s
   }
 }
 
+/** First road number in an OSM ref list ("A1231;A182" -> "A1231"). */
+export function firstRef(raw: string | undefined): string | null {
+  const first = raw?.split(/[;,]/)[0]?.trim();
+  return first ? first : null;
+}
+
 /** OSM destination signs, minus the "Non-motorway traffic" sign text. */
 export function cleanTowards(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -185,7 +192,12 @@ export function toNavRoute(path: GraphHopperPath, opts: { dataDate: string; prof
     // GraphHopper's first instruction is "Continue" from the start point.
     if (i === 0 && type === "continue") type = "depart";
     const streetName = ins.street_name && ins.street_name.trim() ? ins.street_name.trim() : null;
-    const roadRef = ins.street_ref && ins.street_ref.trim() ? ins.street_ref.trim() : null;
+    // On a slip road GraphHopper's street_ref is still the motorway's number
+    // (the road being left); the exit road's number is the first part of
+    // street_destination_ref ("A1231"), so a keep step prefers that.
+    const exitRef = firstRef(ins.street_destination_ref);
+    const ownRef = ins.street_ref && ins.street_ref.trim() ? ins.street_ref.trim() : null;
+    const roadRef = Math.abs(ins.sign) === 7 && exitRef ? exitRef : ownRef;
     const towards = cleanTowards(ins.street_destination);
     // Name first ("Gallowgate"); a road with only a number reads "the A1".
     const label = streetName ?? (roadRef ? `the ${roadRef}` : null);

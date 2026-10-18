@@ -155,6 +155,25 @@ describe("parseHeading", () => {
   });
 });
 
+describe("exit roads", () => {
+  it("names the road a slip leads to, not the motorway being left", () => {
+    const route = toNavRoute(
+      {
+        distance: 500, time: 30000,
+        points: { coordinates: [[-1.5, 54.9], [-1.49, 54.9], [-1.48, 54.9]] },
+        instructions: [
+          { sign: 0, distance: 200, time: 10000, interval: [0, 1], street_name: "", street_ref: "A1" },
+          { sign: -7, distance: 300, time: 20000, interval: [1, 2], street_name: "", street_ref: "A1", street_destination: "Sunderland, Washington, Non-motorway traffic", street_destination_ref: "A1231;A182" },
+          { sign: 4, distance: 0, time: 0, interval: [2, 2] },
+        ],
+      },
+      { dataDate: "2026-10-17", profile: "car_nav" }
+    );
+    expect(route.steps[1]).toMatchObject({ roadRef: "A1231", towards: "Sunderland, Washington", text: "Keep left onto the A1231" });
+    expect(route.steps[0].roadRef).toBe("A1");
+  });
+});
+
 describe("cleanTowards", () => {
   it("drops the non-motorway sign text and empty parts", () => {
     expect(cleanTowards("Non-motorway traffic")).toBeNull();
