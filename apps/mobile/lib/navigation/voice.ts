@@ -1,64 +1,172 @@
-// Spoken prompts (expo-speech: AVSpeechSynthesizer on iOS, TextToSpeech on
-// Android), British English.
+// Spoken directions: expo-speech says the words in British English; the
+// nav-voice module (modules/nav-voice) wraps each prompt in an audio session
+// that ducks music, pauses podcasts, ignores the silent switch (iOS) and
+// takes transient may-duck focus (Android), then releases it.
 //
-// Ducking music: on iOS each utterance uses useApplicationAudioSession:
-// false. Apple's docs for AVSpeechSynthesizer.usesApplicationAudioSession:
-// "If false, the system creates a separate audio session to automatically
-// manage speech, interruptions, and mixing and ducking the speech with other
-// audio sources." So music or a podcast dips while a prompt is spoken and
-// comes back after, and we never hold the app's own audio session (which
-// would keep other audio ducked, or stop it, for the whole drive).
+// One prompt at a time (voiceGate.ts): a "now" prompt cuts in, anything else
+// that arrives while speaking is dropped, never queued. No prompt on a call.
 //
-// Locked screen: speaking from the background needs the `audio`
-// UIBackgroundModes entry (app.json). The app is already kept running in the
-// background by the location engine while driving; the audio mode is what
-// lets it start sound there. Both need a new native build; on a binary
-// without expo-speech this module is a silent no-op, never a crash.
-//
-// Android: expo-speech does not ask for audio focus, so music is not ducked
-// there in v1: the prompt plays over it.
+// Both native pieces load lazily (optionalNative.ts): on a binary without
+// them every call here is a silent no-op, never a crash. createVoice() takes
+// them as arguments so tests can run with them missing.
 
-import { Platform } from "react-native";
+import { gate, type GateState } from "./voiceGate";
+import { loadOptional } from "./optionalNative";
 
-type SpeechModule = {
+export interface SpeechLike {
   speak: (text: string, options?: Record<string, unknown>) => void;
   stop: () => Promise<void>;
-};
+  getAvailableVoicesAsync?: () => Promise<Array<{ identifier: string; language: string; quality?: string }>>;
+}
 
-let speech: SpeechModule | null | undefined;
+export interface NavVoiceLike {
+  isNavVoiceAvailable: () => boolean;
+  isCallActive: () => boolean;
+  beginPrompt: () => Promise<boolean>;
+  endPrompt: () => Promise<void>;
+}
 
-function load(): SpeechModule | null {
-  if (speech !== undefined) return speech;
-  try {
-    // Lazy: requireNativeModule throws at import on a binary without it.
-    speech = require("expo-speech") as SpeechModule;
-  } catch {
-    speech = null;
+/** A prompt that never reports done is released after this. */
+const STUCK_MS = 10_000;
+
+export interface Voice {
+  /** Both native pieces are present. */
+  available: boolean;
+  say: (prompt: { text: string; urgent: boolean }) => Promise<boolean>;
+  hush: () => void;
+  setMuted: (m: boolean) => void;
+  /** iPhone: an Enhanced en-GB voice when installed; Android: false when the
+   *  phone has no UK English voice at all (the screen says so once). */
+  hasUkVoice: () => Promise<boolean>;
+}
+
+export function createVoice(deps: {
+  speech: SpeechLike | null;
+  nav: NavVoiceLike | null;
+  now?: () => number;
+  setTimer?: (fn: () => void, ms: number) => unknown;
+  clearTimer?: (t: unknown) => void;
+}): Voice {
+  const now = deps.now ?? (() => Date.now());
+  const setTimer = deps.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
+  const clearTimer = deps.clearTimer ?? ((t) => clearTimeout(t as ReturnType<typeof setTimeout>));
+  const speech = deps.speech;
+  const nav = deps.nav && deps.nav.isNavVoiceAvailable() ? deps.nav : null;
+  const state: GateState = { speaking: false, lastStartAtMs: null };
+  let muted = false;
+  let token = 0;
+  let stuck: unknown = null;
+  let voiceId: string | null | undefined;
+
+  async function pickVoice(): Promise<string | null> {
+    if (voiceId !== undefined) return voiceId;
+    voiceId = null;
+    try {
+      const voices = (await speech?.getAvailableVoicesAsync?.()) ?? [];
+      const gb = voices.filter((v) => v.language?.toLowerCase().replace("_", "-") === "en-gb");
+      const best = gb.find((v) => v.quality === "Enhanced") ?? null;
+      voiceId = best?.identifier ?? null;
+    } catch {
+      voiceId = null;
+    }
+    return voiceId;
   }
-  return speech;
-}
 
-export function voiceAvailable(): boolean {
-  return load() !== null;
-}
-
-/** Say a prompt. Queued behind anything still being said. Never throws. */
-export function say(text: string): void {
-  const s = load();
-  if (!s || !text) return;
-  try {
-    s.speak(text, {
-      language: "en-GB",
-      ...(Platform.OS === "ios" ? { useApplicationAudioSession: false } : {}),
-    });
-  } catch {
-    // a missed prompt, never a crash
+  function finish(t: number) {
+    if (t !== token) return; // a newer prompt took over
+    state.speaking = false;
+    if (stuck) clearTimer(stuck);
+    stuck = null;
+    void nav?.endPrompt();
   }
+
+  async function say(prompt: { text: string; urgent: boolean }): Promise<boolean> {
+    if (!speech || !prompt.text) return false;
+    const inCall = (() => {
+      try {
+        return nav?.isCallActive() ?? false;
+      } catch {
+        return false;
+      }
+    })();
+    const decision = gate(state, prompt, { muted, inCall, nowMs: now() });
+    if (decision === "drop") return false;
+    const t = ++token;
+    state.speaking = true;
+    state.lastStartAtMs = now();
+    try {
+      if (decision === "interrupt") await speech.stop().catch(() => {});
+      else if (nav && !(await nav.beginPrompt())) {
+        // A call, or the session would not start: say nothing.
+        if (t === token) state.speaking = false;
+        return false;
+      }
+      if (t !== token) return false;
+      const voice = await pickVoice();
+      speech.speak(prompt.text, {
+        language: "en-GB",
+        rate: 1.0,
+        pitch: 1.0,
+        ...(voice ? { voice } : {}),
+        onDone: () => finish(t),
+        onStopped: () => finish(t),
+        onError: () => finish(t),
+      });
+      if (stuck) clearTimer(stuck);
+      stuck = setTimer(() => finish(t), STUCK_MS);
+      return true;
+    } catch {
+      finish(t);
+      return false;
+    }
+  }
+
+  function hush() {
+    token++;
+    state.speaking = false;
+    if (stuck) clearTimer(stuck);
+    stuck = null;
+    speech?.stop().catch(() => {});
+    void nav?.endPrompt();
+  }
+
+  return {
+    available: !!speech && !!nav,
+    say,
+    hush,
+    setMuted: (m) => {
+      muted = m;
+      if (m) hush();
+    },
+    hasUkVoice: async () => {
+      try {
+        const voices = (await speech?.getAvailableVoicesAsync?.()) ?? [];
+        return voices.some((v) => v.language?.toLowerCase().replace("_", "-") === "en-gb");
+      } catch {
+        return true;
+      }
+    },
+  };
 }
 
-/** Stop anything being said (mute, End, leaving the screen). */
-export function hush(): void {
-  const s = load();
-  if (!s) return;
-  s.stop().catch(() => {});
+let shared: Voice | null = null;
+
+/** The app's voice, built on first use with whatever this binary has. */
+export function getVoice(): Voice {
+  if (shared) return shared;
+  shared = createVoice({
+    speech: loadOptional(() => require("expo-speech") as SpeechLike),
+    nav: loadOptional(() => require("../../modules/nav-voice") as NavVoiceLike),
+  });
+  return shared;
+}
+
+/** Whether this binary has the native voice module (part of the entry gate). */
+export function navVoicePresent(): boolean {
+  const nav = loadOptional(() => require("../../modules/nav-voice") as NavVoiceLike);
+  try {
+    return !!nav && nav.isNavVoiceAvailable();
+  } catch {
+    return false;
+  }
 }
