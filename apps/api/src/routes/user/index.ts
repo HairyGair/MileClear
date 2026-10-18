@@ -12,6 +12,7 @@ import { recordPlatformSeen, platformFromOsVersion } from "../../services/signup
 import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
+import { navigationEnabledFor } from "../../services/navigation.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { deletedByLabel } from "../../services/tripArchive.js";
 import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
@@ -337,7 +338,9 @@ export async function userRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "User not found" });
     }
 
-    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))) });
+    const profile = withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user)));
+    // In-app navigation is hidden until switched on for this driver (18 Oct 2026).
+    return reply.send({ data: { ...profile, navigationEnabled: navigationEnabledFor({ id: user.id, isAdmin: user.isAdmin }) } });
   });
 
   // Update profile

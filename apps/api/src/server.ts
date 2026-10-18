@@ -62,6 +62,7 @@ import { certificateRoutes } from "./routes/certificates/index.js";
 import { pickupWaitRoutes } from "./routes/pickupWaits/index.js";
 import { unsubscribeRoutes } from "./routes/unsubscribe/index.js";
 import { stopReasonRoutes } from "./routes/stopReason/index.js";
+import { navigationRoutes } from "./routes/navigation/index.js";
 import { hmrcRoutes } from "./routes/hmrc/index.js";
 import { invoiceRoutes } from "./routes/invoices/index.js";
 import { clientRoutes } from "./routes/clients/index.js";
@@ -305,6 +306,7 @@ await app.register(certificateRoutes, { prefix: "/certificates" });
 await app.register(pickupWaitRoutes, { prefix: "/pickup-waits" });
 await app.register(unsubscribeRoutes, { prefix: "/unsubscribe" });
 await app.register(stopReasonRoutes, { prefix: "/why-stopped" });
+await app.register(navigationRoutes, { prefix: "/navigation" });
 await app.register(hmrcRoutes, { prefix: "/hmrc" });
 // Health check
 // Uptime monitors poll this every few seconds — don't let it fill the PM2 logs
