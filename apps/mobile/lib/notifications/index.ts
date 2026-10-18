@@ -163,9 +163,14 @@ export type NotificationPermissionState = "granted" | "denied" | "undetermined";
  */
 export async function getNotificationPermissionStatus(): Promise<NotificationPermissionState> {
   try {
-    const { status } = await Notifications.getPermissionsAsync();
+    const { status, canAskAgain } = await Notifications.getPermissionsAsync();
     if (status === "granted") return "granted";
-    if (status === "denied") return "denied";
+    // Android reports "denied" while the system prompt can still be shown
+    // (never asked on Android 13+, or refused only once). Treat that as still
+    // askable so Home, Settings and the after-trip ask offer Allow, not a trip
+    // to Settings. 18 Oct 2026: no Android driver in a month of sign-ups read
+    // "undetermined", so the after-trip ask could never have reached Android.
+    if (status === "denied") return canAskAgain === false ? "denied" : "undetermined";
     return "undetermined";
   } catch {
     return "undetermined";
