@@ -206,5 +206,7 @@ describe("cleanTowards", () => {
     expect(cleanTowards("Non-motorway traffic")).toBeNull();
     expect(cleanTowards("Sunderland; Washington")).toBe("Sunderland, Washington");
     expect(cleanTowards(undefined)).toBeNull();
+    expect(cleanTowards("The SOUTH; Durham")).toBe("the South, Durham");
+    expect(cleanTowards("Newcastle (A167)")).toBe("Newcastle (A167)");
   });
 });

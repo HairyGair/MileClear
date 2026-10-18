@@ -198,7 +198,9 @@ export function cleanTowards(raw: string | undefined): string | null {
   const parts = raw
     .split(/[,;]/)
     .map((p) => p.trim())
-    .filter((p) => p && !/non-motorway traffic/i.test(p));
+    .filter((p) => p && !/non-motorway traffic/i.test(p))
+    // UK signs write "The SOUTH", "The NORTH": spoken and shown as "the South".
+    .map((p) => p.replace(/\b[A-Z]{3,}\b/g, (w) => (/^[AMB]\d/.test(w) ? w : w[0] + w.slice(1).toLowerCase())).replace(/^The /, "the "));
   return parts.length ? parts.join(", ") : null;
 }
 
