@@ -17,6 +17,7 @@ import {
 import { bearingDeg, bearingDiff, distanceMeters, type LatLng } from "./geo";
 import { assessOffRoute, initialOffRouteState, USELESS_ACCURACY_M, type OffRouteState } from "./offRoute";
 import { arrivedPhrase } from "./phrases";
+import { spokenRoad } from "./streetSpeech";
 import {
   distanceToStep,
   prepareRoute,
@@ -74,9 +75,10 @@ export interface NavigatorState {
   speeds: Array<{ atMs: number; v: number }>;
   courseDeg: number | null;
   arrived: boolean;
-  /** The route starts with a U-turn (the car faces the wrong way): it is the
+  /** The route starts with a U-turn (the car faces the wrong way), as step 0
+   *  or as step 1 within 60 m of the start (a reroute): its index. It is the
    *  first thing said and shown until the car is heading along the line. */
-  uturnFirst: boolean;
+  uturnAt: number | null;
 }
 
 export interface NavView {
@@ -123,8 +125,34 @@ export function startNavigation(
     speeds: [],
     courseDeg: null,
     arrived: false,
-    uturnFirst: route.steps[0]?.type === "uturn",
+    uturnAt: uturnAtStart(route, prepared),
   };
+}
+
+/** A U-turn the car has to make before anything else, if there is one. */
+export const UTURN_START_M = 60;
+function uturnAtStart(route: NavigationRoute, r: PreparedRoute): number | null {
+  if (route.steps[0]?.type === "uturn") return 0;
+  if (route.steps[1]?.type === "uturn" && (r.stepAlong[1] ?? Infinity) <= UTURN_START_M) return 1;
+  return null;
+}
+
+/**
+ * The next step that is really a manoeuvre after `stepIndex`: a "continue"
+ * onto the road the car is already on is not one (the voice skips it, so the
+ * banner does too, and the real turn after it is announced on time).
+ */
+export function nextManoeuvreIndex(steps: NavigationStep[], stepIndex: number): number {
+  let i = stepIndex + 1;
+  while (i < steps.length - 1) {
+    const s = steps[i];
+    if (s.type !== "continue") break;
+    const to = spokenRoad(s);
+    const from = steps[i - 1] ? spokenRoad(steps[i - 1]) : null;
+    if (to && to !== from) break;
+    i++;
+  }
+  return i;
 }
 
 /** A new route after a reroute. Keeps the destination and recent motion;
@@ -162,10 +190,12 @@ function courseOf(fix: NavFix, last: NavFix | null, speed: number | null, prev: 
 }
 
 function thenStep(r: PreparedRoute, stepIndex: number, speed: number | null): NavigationStep | null {
-  const after = r.route.steps[stepIndex + 2];
+  const target = nextManoeuvreIndex(r.route.steps, stepIndex);
+  const afterIndex = nextManoeuvreIndex(r.route.steps, target);
+  const after = r.route.steps[afterIndex];
   if (!after || after.type === "arrive") return null;
-  const a = r.stepAlong[stepIndex + 1];
-  const b = r.stepAlong[stepIndex + 2];
+  const a = r.stepAlong[target];
+  const b = r.stepAlong[afterIndex];
   if (a == null || b == null) return null;
   const gap = b - a;
   const s = Math.max(1, speed ?? 0);
@@ -174,7 +204,8 @@ function thenStep(r: PreparedRoute, stepIndex: number, speed: number | null): Na
 
 export function viewOf(state: NavigatorState, extra?: Partial<NavView>): NavView {
   const r = state.prepared;
-  const next = state.uturnFirst ? r.route.steps[0] : (r.route.steps[state.stepIndex + 1] ?? null);
+  const target = nextManoeuvreIndex(r.route.steps, state.stepIndex);
+  const next = state.uturnAt != null ? r.route.steps[state.uturnAt] : (r.route.steps[target] ?? null);
   const speed = smoothedSpeed(state.speeds);
   return {
     position: null,
@@ -184,7 +215,7 @@ export function viewOf(state: NavigatorState, extra?: Partial<NavView>): NavView
     segIndex: state.segIndex,
     next,
     then: thenStep(r, state.stepIndex, speed),
-    distanceToNext: state.uturnFirst ? 0 : distanceToStep(r, state.stepIndex + 1, state.along),
+    distanceToNext: state.uturnAt != null ? 0 : distanceToStep(r, target, state.along),
     remainingMeters: Math.max(0, r.total - state.along),
     remainingSeconds: remainingSeconds(r, state.stepIndex, state.along),
     // Not while off the line: the limit belongs to a road the car is not on.
@@ -288,7 +319,7 @@ export function stepNavigation(state: NavigatorState, fix: NavFix, opts: StepOpt
   const lastStep = r.route.steps.length - 1;
   // Close to the destination counts only once no manoeuvre is left before
   // the end: a turn just short of it must still be given.
-  const noManoeuvreLeft = stepIndex + 1 >= lastStep;
+  const noManoeuvreLeft = nextManoeuvreIndex(r.route.steps, stepIndex) >= lastStep;
   const atDestination =
     nearEnd &&
     noManoeuvreLeft &&
@@ -308,22 +339,22 @@ export function stepNavigation(state: NavigatorState, fix: NavFix, opts: StepOpt
   // A route that starts with a U-turn: say and show that first, until the
   // car is going the line's way (moving, within 30 m, heading within 60
   // degrees of it) or has gone 50 m along.
-  if (next.uturnFirst) {
-    const turned =
-      along > 50 ||
-      (snap.distance < 30 && (v ?? 0) > 2 && travelCourse != null && bearingDiff(travelCourse, snap.bearing) < 60);
-    if (turned) next = { ...next, uturnFirst: false };
+  if (next.uturnAt != null) {
+    const uturnAlong = r.stepAlong[next.uturnAt] ?? 0;
+    const aligned = snap.distance < 30 && (v ?? 0) > 2 && travelCourse != null && bearingDiff(travelCourse, snap.bearing) < 60;
+    const turned = along > uturnAlong + 50 || (aligned && along >= uturnAlong);
+    if (turned) next = { ...next, stepIndex: Math.max(next.stepIndex, next.uturnAt), uturnAt: null };
   }
 
   const steps = r.route.steps;
-  if (next.uturnFirst) {
+  if (next.uturnAt != null) {
     const a = announce(state.announcer, {
       stepIndex: -1,
-      next: steps[0],
+      next: steps[next.uturnAt],
       distanceToNext: 0,
       current: null,
       stepLength: 0,
-      after: steps[1] ?? null,
+      after: steps[next.uturnAt + 1] ?? null,
       gapAfter: null,
       speedMps: speed,
       arriveName: state.destinationName,
@@ -333,19 +364,24 @@ export function stepNavigation(state: NavigatorState, fix: NavFix, opts: StepOpt
     return { state: next, view: viewOf(next, { position: snap.point, distanceFromRoute: snap.distance }), say: said, wantReroute: false, usable: true };
   }
 
-  const nextStep = steps[stepIndex + 1] ?? null;
-  const after = steps[stepIndex + 2] ?? null;
-  const distanceToNext = distanceToStep(r, stepIndex + 1, along);
+  // Prompts are for the next real manoeuvre (same-road "continue" steps are
+  // skipped), keyed by its index so passing a skipped step changes nothing.
+  const cur = next.stepIndex;
+  const target = nextManoeuvreIndex(steps, cur);
+  const afterIndex = nextManoeuvreIndex(steps, target);
+  const nextStep = steps[target] ?? null;
+  const after = steps[afterIndex] ?? null;
+  const distanceToNext = distanceToStep(r, target, along);
   const gapAfter =
-    after && r.stepAlong[stepIndex + 2] != null && r.stepAlong[stepIndex + 1] != null
-      ? r.stepAlong[stepIndex + 2] - r.stepAlong[stepIndex + 1]
+    after && r.stepAlong[afterIndex] != null && r.stepAlong[target] != null
+      ? r.stepAlong[afterIndex] - r.stepAlong[target]
       : null;
-  const stepLength = (r.stepAlong[stepIndex + 1] ?? r.total) - (r.stepAlong[stepIndex] ?? 0);
+  const stepLength = (r.stepAlong[target] ?? r.total) - (r.stepAlong[cur] ?? 0);
   const a = announce(state.announcer, {
-    stepIndex,
+    stepIndex: target - 1,
     next: nextStep,
     distanceToNext,
-    current: steps[stepIndex] ?? null,
+    current: steps[target - 1] ?? null,
     stepLength,
     after,
     gapAfter,
@@ -371,8 +407,8 @@ export function repeatInstruction(state: NavigatorState, maxMetres = Infinity): 
   const r = state.prepared;
   return currentInstruction(
     {
-      next: r.route.steps[state.stepIndex + 1] ?? null,
-      distanceToNext: distanceToStep(r, state.stepIndex + 1, state.along),
+      next: r.route.steps[nextManoeuvreIndex(r.route.steps, state.stepIndex)] ?? null,
+      distanceToNext: distanceToStep(r, nextManoeuvreIndex(r.route.steps, state.stepIndex), state.along),
       arriveName: state.destinationName,
     },
     maxMetres

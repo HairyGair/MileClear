@@ -89,8 +89,19 @@ export function displayDistance(metres: number, speedMps?: number | null): strin
 
 /** " onto the A1 towards Sunderland": the road (name, else number), and
  *  where the signs point on a keep or a roundabout exit. */
+/** A roundabout or interchange's own name ("Holystone Interchange"), which
+ *  GraphHopper can give as the exit road: never said or shown as "onto ...". */
+const JUNCTION_NAME = /\b(roundabout|interchange|circus|gyratory|junction|circle)\b/i;
+
+function exitRoad(step: NavigationStep): { streetName: string | null; roadRef?: string | null } {
+  if (step.type === "roundabout" && step.streetName && JUNCTION_NAME.test(step.streetName)) {
+    return { streetName: null, roadRef: step.roadRef };
+  }
+  return step;
+}
+
 function onto(step: NavigationStep): string {
-  const road = spokenRoad(step);
+  const road = spokenRoad(exitRoad(step));
   const towards = step.type === "keep" || step.type === "roundabout" ? towardsWords(step.towards) : null;
   return `${road ? ` onto ${road}` : ""}${towards ? ` towards ${towards}` : ""}`;
 }
@@ -263,7 +274,7 @@ export function bannerAction(step: NavigationStep): string {
  *  keep or a roundabout exit; or null. */
 export function bannerStreet(step: NavigationStep, arriveName?: string | null): string | null {
   if (step.type === "arrive") return arriveName ?? null;
-  const road = displayRoad(step);
+  const road = displayRoad(exitRoad(step));
   const towards = step.type === "keep" || step.type === "roundabout" ? towardsWords(step.towards) : null;
   if (road && towards) return `${road} towards ${towards}`;
   return road ?? (towards ? `Towards ${towards}` : null);

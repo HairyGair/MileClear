@@ -155,3 +155,80 @@ describe("whole drives", () => {
     expect(off.view.speedLimitMph).toBeNull();
   });
 });
+
+// Re-test round, 19 Oct 2026.
+describe("re-test fixes", () => {
+  // Jesmond Dene Road, left onto Jesmond Road, keep left 7 m later, then left
+  // onto Newton Road 300 m on.
+  const jesmond = buildRoute(READING, [
+    { step: { type: "depart", streetName: "Jesmond Dene Road" }, pieces: [{ bearing: 0, metres: 500 }] },
+    { step: { type: "turn", modifier: "left", streetName: "Jesmond Road" }, pieces: [{ bearing: 270, metres: 7 }] },
+    { step: { type: "keep", modifier: "left", streetName: "Jesmond Road" }, pieces: [{ bearing: 260, metres: 300 }] },
+    { step: { type: "turn", modifier: "left", streetName: "Newton Road" }, pieces: [{ bearing: 170, metres: 400 }] },
+  ]);
+  const line = routeLine(jesmond);
+
+  it("a turn after two steps passed in one fix is still announced", () => {
+    for (const speed of [8, 11, 13.4, 15]) {
+      for (const seed of [1, 2, 3, 4, 5]) {
+        const fixes = drive(line, { speedMps: speed, intervalS: 2, jitterM: 5, seed, heading: true });
+        const { said } = replay(jesmond, fixes);
+        expect(said.some((t) => t.startsWith("Turn left now onto Newton Road")), `${speed} m/s seed ${seed}: ${said.join(" | ")}`).toBe(true);
+      }
+    }
+  });
+
+  it("the merge carry-over only moves to the very next step", () => {
+    let st: AnnouncerState = { ...initialAnnouncerState(), fresh: null, stepIndex: 0, chained: "merged" };
+    const r = announce(st, { stepIndex: 2, next: right, distanceToNext: 30, current: null, stepLength: 300, after: null, gapAfter: null, speedMps: 10 });
+    expect(r.say?.text).toBe("Turn right now onto Park Lane");
+    st = { ...initialAnnouncerState(), fresh: null, stepIndex: 0, chained: "merged" };
+    expect(announce(st, { stepIndex: 1, next: right, distanceToNext: 30, current: null, stepLength: 300, after: null, gapAfter: null, speedMps: 10 }).say).toBeNull();
+  });
+
+  it("a roundabout exit never says the junction's own name", () => {
+    const named = step({ type: "roundabout", exit: 2, streetName: "Holystone Interchange", roadRef: "A191" });
+    const said = approach(named, 600, 13);
+    expect(said.at(-1)!.text).toBe("Now take the second exit onto the A one nine one");
+    const bare = step({ type: "roundabout", exit: 2, streetName: "Silverlink Roundabout" });
+    expect(approach(bare, 600, 13).at(-1)!.text).toBe("Now take the second exit");
+  });
+
+  it("the banner skips a same-name continue and shows the real turn after it", () => {
+    const route = buildRoute(READING, [
+      { step: { type: "depart", streetName: "Front Street" }, pieces: [{ bearing: 0, metres: 300 }] },
+      { step: { type: "continue", streetName: "Front Street" }, pieces: [{ bearing: 0, metres: 300 }] },
+      { step: { type: "turn", modifier: "right", streetName: "Park Lane" }, pieces: [{ bearing: 90, metres: 300 }] },
+    ]);
+    let s = startNavigation(route);
+    const fixes = drive(routeLine(route), { speedMps: 13, untilM: 100, heading: true });
+    let last = stepNavigation(s, fixes[0]);
+    for (const f of fixes) {
+      last = stepNavigation(s, f);
+      s = last.state;
+    }
+    expect(last.view.next?.type).toBe("turn");
+    expect(last.view.distanceToNext).toBeGreaterThan(450);
+    const run = replay(route, drive(routeLine(route), { speedMps: 13, heading: true }));
+    expect(run.said.filter((t) => /carry straight on/i.test(t))).toEqual([]);
+    expect(run.said).toContain("In 250 yards, turn right onto Park Lane");
+  });
+
+  it("a reroute whose step 1 is a U-turn near the start turns around first", () => {
+    const route = buildRoute(READING, [
+      { step: { type: "depart", streetName: "Kings Road" }, pieces: [{ bearing: 90, metres: 40 }] },
+      { step: { type: "uturn", streetName: "Kings Road" }, pieces: [{ bearing: 270, metres: 400 }] },
+      { step: { type: "turn", modifier: "left", streetName: "Queens Road" }, pieces: [{ bearing: 180, metres: 400 }] },
+    ]);
+    const first = stepNavigation(startNavigation(route, undefined, { fresh: "reroute" }), {
+      lat: READING.lat,
+      lng: READING.lng,
+      speedMps: 0,
+      accuracyM: 5,
+      headingDeg: 90,
+      atMs: 1000,
+    });
+    expect(first.say?.text).toBe("Turn around when it is safe");
+    expect(first.view.next?.type).toBe("uturn");
+  });
+});

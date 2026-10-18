@@ -186,7 +186,11 @@ export function announce(prev: AnnouncerState, ctx: AnnounceContext): { state: A
   let state = prev;
   const newStep = ctx.stepIndex !== prev.stepIndex;
   if (newStep) {
-    const rank = prev.chained === "merged" ? RANK.now : prev.chained === "near" ? RANK.near : -1;
+    // "Already said with then" carries over only to the very next manoeuvre.
+    // When one fix passes two steps at once it must not land on a later turn
+    // (Jesmond Road, 19 Oct: "Turn left onto Newton Road" was never said).
+    const carry = ctx.stepIndex === prev.stepIndex + 1 ? prev.chained : null;
+    const rank = carry === "merged" ? RANK.now : carry === "near" ? RANK.near : -1;
     state = { stepIndex: ctx.stepIndex, rank, chained: null, fresh: prev.fresh };
   }
   const next = ctx.next;
