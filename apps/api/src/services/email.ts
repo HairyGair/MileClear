@@ -3179,7 +3179,7 @@ ${bulletList([
     "How many business drives you made that day.",
     "If you recorded a shift on a day with business drives, the day runs from whichever started first to whichever finished last.",
   ])}
-${para("These are driving times, not hours worked: time spent at a job between drives isn't counted, and neither is anything before your first drive or after your last. Your manager sees them labelled that way.")}
+${para("These are driving times, not hours worked: they run from your first drive to your last, so anything before your first drive or after your last isn't included. Your manager sees them labelled that way.")}
 ${para("Your personal trips are never shown to your manager, and nothing changes in the app for you.")}
 ${para("If you have any questions, just reply to this email.", 8)}
 ${SIGN_OFF}`;
