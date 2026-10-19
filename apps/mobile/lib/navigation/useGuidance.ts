@@ -38,6 +38,8 @@ import * as store from "./store";
 import { trackDirections } from "./telemetry";
 
 const KEEP_AWAKE_TAG = "mileclear-directions";
+/** After arriving, the audio is handed back once "You have arrived" is done. */
+const ARRIVAL_AUDIO_END_MS = 6_000;
 /** A fix younger than this is good enough to route from. */
 const ORIGIN_FIX_MAX_AGE_MS = 30_000;
 /** Wait this long for a fix before asking the phone once. */
@@ -108,6 +110,14 @@ export function useGuidance(opts: { focused: boolean }) {
   const lastSavedStep = useRef(-1);
   const autoStart = useRef(false);
   const mounted = useRef(true);
+  /** The delayed end of the audio after "You have arrived": cancelled when
+   *  guidance starts again or the screen goes, so it can never end a new
+   *  session's audio. */
+  const arrivalEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearArrivalEnd = useCallback(() => {
+    if (arrivalEndTimer.current) clearTimeout(arrivalEndTimer.current);
+    arrivalEndTimer.current = null;
+  }, []);
   /** Foreground only: with the phone locked or the app in the background,
    *  only the navigator and the voice run; no map or view state updates
    *  (R1: nothing that keeps the app busier than recording needs). */
@@ -234,7 +244,11 @@ export function useGuidance(opts: { focused: boolean }) {
   const onArrived = useCallback(() => {
     releaseAwake();
     // Let "You have arrived" finish before the audio category goes back.
-    setTimeout(() => voice.endGuidance({ hush: false }), 6_000);
+    clearArrivalEnd();
+    arrivalEndTimer.current = setTimeout(() => {
+      arrivalEndTimer.current = null;
+      voice.endGuidance({ hush: false });
+    }, ARRIVAL_AUDIO_END_MS);
     void store.clearSession();
     setArrivedAtMs(Date.now());
     setDriven({
@@ -244,7 +258,7 @@ export function useGuidance(opts: { focused: boolean }) {
     setPhase("arrived");
     phaseRef.current = "arrived";
     finishCounts("directions.arrived");
-  }, [releaseAwake, finishCounts, voice]);
+  }, [releaseAwake, finishCounts, voice, clearArrivalEnd]);
 
   /** Commit a prompt only if it will be heard now; muted or on a call it
    *  counts as said (never owed later), busy it is tried on the next fix. */
@@ -321,10 +335,11 @@ export function useGuidance(opts: { focused: boolean }) {
     return () => {
       mounted.current = false;
       off();
+      clearArrivalEnd();
       voice.endGuidance();
       releaseAwake();
     };
-  }, [voice, releaseAwake]);
+  }, [voice, releaseAwake, clearArrivalEnd]);
 
   // Back in the foreground: show where things are now, in one update.
   useEffect(() => {
@@ -471,6 +486,7 @@ export function useGuidance(opts: { focused: boolean }) {
     setCrashed(false);
     setPhase("guiding");
     phaseRef.current = "guiding";
+    clearArrivalEnd();
     voice.startGuidance();
     try {
       void keepAwake()?.activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
@@ -488,7 +504,7 @@ export function useGuidance(opts: { focused: boolean }) {
     });
     const recent = latestFix(5_000);
     if (recent) onFixRef.current(recent);
-  }, [route, destination, persist, voice]);
+  }, [route, destination, persist, voice, clearArrivalEnd]);
 
   // A resumed session starts by itself once its fresh route is in.
   useEffect(() => {

@@ -22,7 +22,7 @@ import { safeBack } from "../lib/nav";
 import { useGuidance, type Destination } from "../lib/navigation/useGuidance";
 import { useRecordingChip } from "../lib/navigation/recordingStatus";
 import { useDirectionsAvailable } from "../lib/navigation/useDirectionsAvailable";
-import { ALTITUDE_FOR, calmFigures, isNight, nextZoom, shouldCloseAfterArrival, zoomNearManoeuvre, type CalmFigures, type ZoomState } from "../lib/navigation/rules";
+import { ALTITUDE_FOR, calmFigures, isNight, nextZoom, screenGate, shouldCloseAfterArrival, zoomNearManoeuvre, type CalmFigures, type ZoomState } from "../lib/navigation/rules";
 import { distanceMeters } from "../lib/navigation/geo";
 import { durationWords, milesShort } from "../lib/navigation/phrases";
 import { GOOGLE_NIGHT_STYLE } from "../lib/navigation/mapStyle";
@@ -102,7 +102,12 @@ export default function DirectionsScreen() {
   }, [router]);
 
   // Opened from a saved place or the resume row: straight to the preview.
+  // Only once Directions are known to be available (a deep link on an old
+  // binary, or before the profile has loaded, must not start anything).
+  const opened = useRef(false);
   useEffect(() => {
+    if (!available || opened.current) return;
+    opened.current = true;
     trackDirections("directions.opened", { from_place: !!params.lat, resume: params.resume === "1" });
     const lat = Number(params.lat);
     const lng = Number(params.lng);
@@ -113,7 +118,7 @@ export default function DirectionsScreen() {
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [available]);
 
   // One clock for the time-based rules on this screen.
   useEffect(() => {
@@ -271,8 +276,19 @@ export default function DirectionsScreen() {
     }
   }, [overviewAt, fullLine]);
 
-  // Not switched on (old link, or the flag went off): never mid-guidance.
-  if (user && !available && !guiding && g.phase !== "arrived") {
+  // Not switched on (old link, old binary, or the flag went off): never
+  // mid-guidance. Before the profile has loaded nothing is shown either, so
+  // the picker (and its saved-place lookups) never starts on a binary that
+  // cannot run Directions.
+  const gate = screenGate({ userLoaded: !!user, available, phase: g.phase });
+  if (gate === "loading") {
+    return (
+      <View style={s.page}>
+        <Stack.Screen options={{ headerShown: false }} />
+      </View>
+    );
+  }
+  if (gate === "unavailable") {
     return (
       <View style={[s.page, s.centred, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />

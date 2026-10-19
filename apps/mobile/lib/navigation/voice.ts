@@ -133,13 +133,31 @@ export function createVoice(deps: {
     }
   }
 
-  function hush() {
+  /**
+   * Stop what is being said, THEN release the audio session. In that order:
+   * releasing while the synthesizer is still stopping fails ("busy") on iOS,
+   * which could leave other apps' audio stopped. Mute, End and arrival all
+   * end through here.
+   */
+  async function silence(): Promise<void> {
     token++;
     state.speaking = false;
     if (stuck) clearTimer(stuck);
     stuck = null;
-    speech?.stop().catch(() => {});
-    void nav?.endPrompt();
+    try {
+      await speech?.stop();
+    } catch {
+      // stopped anyway
+    }
+    try {
+      await nav?.endPrompt();
+    } catch {
+      // the native side retries; nothing more to do here
+    }
+  }
+
+  function hush() {
+    void silence();
   }
 
   function inCallNow(): boolean {
@@ -162,8 +180,16 @@ export function createVoice(deps: {
     },
     startGuidance: () => void nav?.startGuidance?.().catch(() => {}),
     endGuidance: (o = {}) => {
-      if (o.hush !== false) hush();
-      void nav?.endGuidance?.().catch(() => {});
+      // Speech stopped and the session released first, then the category
+      // goes back (the native side waits until deactivation succeeds).
+      void (async () => {
+        if (o.hush !== false) await silence();
+        try {
+          await nav?.endGuidance?.();
+        } catch {
+          // best effort
+        }
+      })();
     },
     hush,
     setMuted: (m) => {

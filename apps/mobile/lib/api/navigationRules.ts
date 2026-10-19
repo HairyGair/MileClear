@@ -38,14 +38,34 @@ function coord(p: LatLngInput): string {
   return `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
 }
 
-export function routeQuery(args: { from: LatLngInput; to: LatLngInput; headingDeg?: number | null }): string {
-  const parts = [`from=${encodeURIComponent(coord(args.from))}`, `to=${encodeURIComponent(coord(args.to))}`];
+/**
+ * The POST /navigation/route body. Places and positions go in the body, never
+ * in a URL that Apache or our logs record (19 Oct 2026).
+ */
+export function routeBody(args: { from: LatLngInput; to: LatLngInput; headingDeg?: number | null }): {
+  from: string;
+  to: string;
+  heading?: number;
+} {
+  const body: { from: string; to: string; heading?: number } = { from: coord(args.from), to: coord(args.to) };
   const h = args.headingDeg;
-  if (h != null && Number.isFinite(h)) {
-    const deg = ((Math.round(h) % 360) + 360) % 360;
-    parts.push(`heading=${deg}`);
-  }
-  return parts.join("&");
+  if (h != null && Number.isFinite(h)) body.heading = ((Math.round(h) % 360) + 360) % 360;
+  return body;
+}
+
+/** The POST /navigation/search body. */
+export function searchBody(q: string, near: LatLngInput | null): { q: string; near?: string } {
+  return near ? { q, near: `${near.lat.toFixed(5)},${near.lng.toFixed(5)}` } : { q };
+}
+
+/**
+ * An older server without the POST forms answers Fastify's own 404
+ * ("Not Found") or 405. That is "not available yet", not "no route": we do
+ * not retry with GET, so a place never goes into a URL.
+ */
+export function isMissingEndpoint(api: { statusCode: number; message?: string }): boolean {
+  if (api.statusCode === 405) return true;
+  return api.statusCode === 404 && /^not found$/i.test((api.message ?? "").trim());
 }
 
 const CODES: readonly NavigationErrorCode[] = ["NAVIGATION_NOT_ENABLED", "NO_ROUTE", "ROUTING_UNAVAILABLE", "BAD_INPUT"];
@@ -58,12 +78,13 @@ const CODES: readonly NavigationErrorCode[] = ["NAVIGATION_NOT_ENABLED", "NO_ROU
  */
 export function toNavigationError(
   err: unknown,
-  api: { statusCode: number; code: string } | null
+  api: { statusCode: number; code: string; message?: string } | null
 ): NavigationError {
   if (err instanceof NavigationError) return err;
   let kind: NavigationErrorKind = "UNKNOWN";
   if (api) {
     if ((CODES as readonly string[]).includes(api.code)) kind = api.code as NavigationErrorCode;
+    else if (isMissingEndpoint(api)) kind = "ROUTING_UNAVAILABLE";
     else if (api.statusCode === 403) kind = "NAVIGATION_NOT_ENABLED";
     else if (api.statusCode === 404) kind = "NO_ROUTE";
     else if (api.statusCode === 400) kind = "BAD_INPUT";

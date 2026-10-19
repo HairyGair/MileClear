@@ -83,6 +83,24 @@ export function pathMeters(prev: { lat: number; lng: number; atMs: number; accur
   return d;
 }
 
+// ── What the Directions screen may show (final review, 19 Oct 2026) ──────
+
+/**
+ * "loading" until the profile is in (show nothing: no picker, no lookups);
+ * "unavailable" when this driver or binary cannot run Directions; "open"
+ * otherwise. Guidance or arrival already under way always stays open (the
+ * flag going off mid-drive finishes the current route).
+ */
+export function screenGate(args: {
+  userLoaded: boolean;
+  available: boolean;
+  phase: string;
+}): "loading" | "unavailable" | "open" {
+  if (args.phase === "guiding" || args.phase === "arrived") return "open";
+  if (!args.userLoaded) return "loading";
+  return args.available ? "open" : "unavailable";
+}
+
 // ── Coverage (DESIGN 2.8: checked on the phone before asking) ────────────
 
 /** Great Britain only: not Northern Ireland, the Isle of Man, the Channel
