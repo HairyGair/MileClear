@@ -72,15 +72,30 @@ describe("End while a prompt is speaking hands the audio back (MAJOR)", () => {
 
   it("the native end only restores the category after deactivating succeeds, retrying while busy", () => {
     const swift = readFileSync(join(root, "modules", "nav-voice", "ios", "NavVoiceModule.swift"), "utf8");
-    const restore = swift.slice(swift.indexOf("private func restore"));
+    const restore = swift.slice(swift.indexOf("private func attemptRestore"));
     // setCategory back is inside the success branch of the deactivate callback.
     const ok = restore.indexOf("if ok {");
     const set = restore.indexOf("setCategory(category, mode: mode, options: options)");
     expect(ok).toBeGreaterThan(0);
     expect(set).toBeGreaterThan(ok);
     expect(swift).toMatch(/asyncAfter\(deadline: \.now\(\) \+ 0\.3\)/);
-    expect(swift).toMatch(/deactivate\(attempts: 10\)/);
+    expect(swift).toMatch(/attemptRestore\(attempts: 10\)/);
     expect(swift).toContain("restorePending");
+  });
+
+  it("a stale retry stops once a newer prompt began; a failed End is retried later", () => {
+    const swift = readFileSync(join(root, "modules", "nav-voice", "ios", "NavVoiceModule.swift"), "utf8");
+    const begin = swift.slice(swift.indexOf('AsyncFunction("beginPrompt")'));
+    expect(begin.slice(0, begin.indexOf("}.runOnQueue"))).toContain("self.promptGeneration += 1");
+    const deact = swift.slice(swift.indexOf("private func deactivate(attempts: Int, prompt: Int"));
+    expect(deact).toMatch(/guard prompt == promptGeneration else \{\s*done\(false\)/);
+    // The weak-self path still finishes (resolves the JS promise).
+    expect(deact).toMatch(/guard let self = self else \{\s*done\(false\)/);
+    // One last try 2 s later, then on the next foreground; a new guidance clears it.
+    expect(swift).toMatch(/asyncAfter\(deadline: \.now\(\) \+ 2\.0\)/);
+    expect(swift).toContain("UIApplication.didBecomeActiveNotification");
+    const prepare = swift.slice(swift.indexOf("private func prepare"));
+    expect(prepare.slice(0, prepare.indexOf("do {"))).toContain("removeForegroundObserver()");
     // No more fire-and-forget deactivation followed by a category switch.
     expect(swift).not.toMatch(/try\? session\.setActive\(false[^\n]*\n\s*if let \(category/);
   });
