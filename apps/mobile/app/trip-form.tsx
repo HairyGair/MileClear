@@ -145,6 +145,7 @@ import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } fro
 import { WhenCard } from "../components/addTrip/WhenCard";
 import type { ClockValue } from "../components/addTrip/TimeRow";
 import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
+import { editedDistanceToSend, isTypedTotalForEdit } from "../lib/trips/editDistanceRule";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -1453,6 +1454,11 @@ export default function TripFormScreen() {
   // only move EARLIER (Mus, 17 Sep 2026: the phone slept for the first hour
   // of Weymouth to Exeter, and 57 miles showed against 14 minutes).
   const [editingIsManual, setEditingIsManual] = useState(false);
+  // A past shift's typed total (Lucian, 19 Oct 2026): its miles are the
+  // driver's figure for the whole shift, never a route between its ends.
+  const [editingIsTypedTotal, setEditingIsTypedTotal] = useState(false);
+  // The trip's miles as loaded, so a typed correction is sent only when it differs.
+  const loadedDistanceRef = useRef<number | null>(null);
   // The start time as loaded, so Save can tell whether it actually changed,
   // and the latest a recorded trip's start may be.
   const loadedStartedAtRef = useRef<number | null>(null);
@@ -1509,6 +1515,7 @@ export default function TripFormScreen() {
       cleanAirZones?: CazTripAssessment | null;
       diversion?: TripDiversion | null;
       isManualEntry?: boolean;
+      isTypedTotal?: boolean | null;
       coordinates?: unknown[];
       matchedCoordinates?: { lat: number; lng: number }[] | null;
     }) => {
@@ -1530,6 +1537,8 @@ export default function TripFormScreen() {
         endLng: t.endLng ?? null,
       };
       setDistanceMiles(t.distanceMiles);
+      loadedDistanceRef.current = t.distanceMiles;
+      setEditingIsTypedTotal(isTypedTotalForEdit(t));
       setStartedAt(new Date(t.startedAt));
       loadedStartedAtRef.current = new Date(t.startedAt).getTime();
       // Both the server payload and the local-SQLite fallback carry this.
@@ -1724,6 +1733,8 @@ export default function TripFormScreen() {
     if (mode === "driving" || mode === "arrived") return;
     // Flipping between the summary and the edit form must never re-route.
     if (mode === "viewing") return;
+    // A typed shift total keeps the miles the driver typed, wherever its pins go.
+    if (editingIsTypedTotal) return;
     // When opening a saved trip, the loaded distance came from the original
     // GPS breadcrumb trail and is more accurate than a point-to-point road
     // route. Only recalc if the user has actually changed start or end coords.
@@ -1767,7 +1778,7 @@ export default function TripFormScreen() {
       })
       .finally(() => { if (!cancelled) setCalculatingRoute(false); });
     return () => { cancelled = true; };
-  }, [startLat, startLng, endLat, endLng, mode]);
+  }, [startLat, startLng, endLat, endLng, mode, editingIsTypedTotal]);
 
   // Manual entry: once the route is known, an end time the driver has not
   // set follows the start by the routed drive time rather than the old
@@ -2943,6 +2954,16 @@ export default function TripFormScreen() {
           vehicleId: vehicleId ?? null,
           odometerStart: odometerStart.trim() ? parseFloat(odometerStart) : null,
           odometerEnd: odometerEnd.trim() ? parseFloat(odometerEnd) : null,
+          // Miles the driver typed with "Enter distance manually" (a 48
+          // typed as 84). Never sent before, so the correction was dropped.
+          ...(() => {
+            const typed = editedDistanceToSend({
+              typing: manualDistanceMode,
+              distanceMiles,
+              loadedMiles: loadedDistanceRef.current,
+            });
+            return typed !== undefined ? { distanceMiles: typed } : {};
+          })(),
         });
         // Clear "Classify Trip" CTA from any running Live Activity
         if (classification !== "unclassified") {
@@ -3333,7 +3354,7 @@ export default function TripFormScreen() {
     }
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
-    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual,
+    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, manualDistanceMode,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,

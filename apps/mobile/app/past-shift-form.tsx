@@ -48,7 +48,7 @@ import { createPastShift } from "../lib/api/shifts";
 import { isApiError } from "../lib/api/index";
 import { isOnline } from "../lib/network";
 import { hydrateShifts, hydrateTrips, hydrateEarnings } from "../lib/sync/hydrate";
-import { findTripAround, type KnownTrip } from "../lib/trips/overlapLookup";
+import { findTripAround, knownTripsBetween, type KnownTrip } from "../lib/trips/overlapLookup";
 import { describeKnownTrip } from "../lib/trips/overlapText";
 import { clockTime } from "../lib/trips/manualTimeRule";
 import {
@@ -71,7 +71,9 @@ import {
   homeFrom,
   missingForTotals,
   pastShiftSavedText,
+  totalsOverlapWarning,
   totalsSummary,
+  tripsInsideShift,
   withFinish,
   withHome,
   withStart,
@@ -106,7 +108,7 @@ export default function PastShiftFormScreen() {
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<PastShiftMode>("trips");
   const [totals, setTotals] = useState<DraftTotals>(() => emptyTotals(null));
-  const [totalsOverlap, setTotalsOverlap] = useState<KnownTrip | null>(null);
+  const [totalsOverlap, setTotalsOverlap] = useState<{ trips: number; miles: number } | null>(null);
 
   const shiftStartRef = useRef<Date | null>(null);
   const savedRef = useRef(false);
@@ -247,17 +249,14 @@ export default function PastShiftFormScreen() {
     }
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const hit = await findTripAround(shiftStart, shiftEnd).catch(() => null);
+      const known = await knownTripsBetween(shiftStart, shiftEnd).catch(() => null);
       if (cancelled) return;
-      setTotalsOverlap(hit);
-      if (hit && !warnedRef.current.has(hit.id)) {
-        warnedRef.current.add(hit.id);
-        trackPastShift("past_shift.overlap_warned", {
-          fromTotals: true,
-          existingTripId: hit.id,
-          existingIsManual: hit.isManualEntry,
-          existingSource: hit.source,
-        });
+      const found = known ? tripsInsideShift(known.trips, shiftStart, shiftEnd) : null;
+      setTotalsOverlap(found && found.trips > 0 ? found : null);
+      const key = `totals:${shiftKey}`;
+      if (found && found.trips > 0 && !warnedRef.current.has(key)) {
+        warnedRef.current.add(key);
+        trackPastShift("past_shift.overlap_warned", { fromTotals: true, count: found.trips, miles: found.miles });
       }
     }, 400);
     return () => {
@@ -304,7 +303,12 @@ export default function PastShiftFormScreen() {
         const miles = res.trips.reduce((sum, t) => sum + (t.distanceMiles ?? 0), 0);
         Alert.alert(
           "Shift added",
-          pastShiftSavedText({ tripCount: res.trips.length, miles, fromTotals: "totals" in body }),
+          pastShiftSavedText({
+            tripCount: res.trips.length,
+            miles,
+            fromTotals: "totals" in body,
+            overlappingTrips: res.overlapping?.trips ?? 0,
+          }),
           [{ text: "OK", onPress: () => router.back() }]
         );
       } catch (err) {
@@ -366,17 +370,17 @@ export default function PastShiftFormScreen() {
         }
         Alert.alert(
           "You may already have trips in this shift",
-          "MileClear already has a trip during these hours. A total covers every mile of the shift, so saving both could count the same miles twice.",
+          totalsOverlapWarning(totalsOverlap) ?? "",
           [
             {
               text: "Go back",
               style: "cancel",
-              onPress: () => trackPastShift("past_shift.overlap_answered", { answer: "go_back", count: 1, fromTotals: true }),
+              onPress: () => trackPastShift("past_shift.overlap_answered", { answer: "go_back", count: totalsOverlap.trips, fromTotals: true }),
             },
             {
               text: "Save anyway",
               onPress: () => {
-                trackPastShift("past_shift.overlap_answered", { answer: "save_anyway", count: 1, fromTotals: true });
+                trackPastShift("past_shift.overlap_answered", { answer: "save_anyway", count: totalsOverlap.trips, fromTotals: true });
                 send(built.body);
               },
             },
@@ -532,11 +536,7 @@ export default function PastShiftFormScreen() {
             {totalsOverlap && (
               <View style={styles.overlapBox}>
                 <Ionicons name="alert-circle-outline" size={16} color={colors.amber} />
-                <Text style={styles.overlapText}>
-                  You already have a trip during this shift: {describeKnownTrip(totalsOverlap).route},{" "}
-                  {describeKnownTrip(totalsOverlap).times}, {describeKnownTrip(totalsOverlap).miles}. A total covers
-                  every mile, so check you're not counting it twice.
-                </Text>
+                <Text style={styles.overlapText}>{totalsOverlapWarning(totalsOverlap)}</Text>
               </View>
             )}
 

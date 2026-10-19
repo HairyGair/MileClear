@@ -7,7 +7,9 @@ import {
   parseDrops,
   parseTotalMiles,
   pastShiftSavedText,
+  totalsOverlapWarning,
   totalsSummary,
+  tripsInsideShift,
   withFinish,
   withHome,
   withStart,
@@ -65,6 +67,13 @@ describe("parsing what was typed", () => {
     expect(parseTotalMiles("")).toBeNull();
     expect(parseTotalMiles("about 80")).toBeNull();
     expect(parseTotalMiles("-3")).toBeNull();
+  });
+
+  it("reads a comma before three digits as thousands, any other comma as a decimal point", () => {
+    expect(parseTotalMiles("1,000")).toBe(1000);
+    expect(parseTotalMiles("1,000.5")).toBe(1000.5);
+    expect(parseTotalMiles("84,5")).toBe(84.5);
+    expect(parseTotalMiles("84,50")).toBe(84.5);
   });
 
   it("reads drops, which are optional", () => {
@@ -157,5 +166,42 @@ describe("words", () => {
     expect(pastShiftSavedText({ tripCount: 1, miles: 84, fromTotals: true })).toBe("1 shift, 84.0 mi from your totals, saved as Business.");
     expect(pastShiftSavedText({ tripCount: 3, miles: 12.25, fromTotals: false })).toBe("3 trips, 12.3 mi, saved as Business.");
     expect(pastShiftSavedText({ tripCount: 1, miles: 4, fromTotals: false })).toBe("1 trip, 4 mi, saved as Business.");
+  });
+});
+
+describe("trips already in the shift's hours", () => {
+  const iso = (h: number, m = 0) => at(h, m).toISOString();
+  it("counts trips whose time sits inside the shift, with their miles", () => {
+    const found = tripsInsideShift(
+      [
+        { startedAt: iso(10, 15), endedAt: iso(10, 40), distanceMiles: 6.2 },
+        { startedAt: iso(12), endedAt: null, distanceMiles: 0.5 },
+        { startedAt: iso(17, 30), endedAt: iso(17, 55), distanceMiles: 15.7 },
+        { startedAt: iso(9, 50), endedAt: iso(10, 10), distanceMiles: 3 }, // starts before
+        { startedAt: iso(17, 50), endedAt: iso(18, 20), distanceMiles: 4 }, // ends after
+      ],
+      at(10),
+      at(18)
+    );
+    expect(found).toEqual({ trips: 3, miles: 22.4 });
+  });
+
+  it("warns in plain words, and says nothing with none", () => {
+    expect(totalsOverlapWarning({ trips: 3, miles: 22.4 })).toBe(
+      "MileClear already has 3 trips (22.4 mi) in these hours. Saving the total as well could count those miles twice."
+    );
+    expect(totalsOverlapWarning({ trips: 1, miles: 4 })).toBe(
+      "MileClear already has 1 trip (4 mi) in these hours. Saving the total as well could count those miles twice."
+    );
+    expect(totalsOverlapWarning({ trips: 0, miles: 0 })).toBeNull();
+  });
+
+  it("points to Trips after saving when there were trips to join", () => {
+    expect(pastShiftSavedText({ tripCount: 1, miles: 84, fromTotals: true, overlappingTrips: 3 })).toBe(
+      "1 shift, 84.0 mi from your totals, saved as Business. Check Trips to join them into the total."
+    );
+    expect(pastShiftSavedText({ tripCount: 1, miles: 84, fromTotals: true, overlappingTrips: 0 })).toBe(
+      "1 shift, 84.0 mi from your totals, saved as Business."
+    );
   });
 });

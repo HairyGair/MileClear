@@ -44,6 +44,8 @@ export interface PastShiftResult {
   earning: Earning | null;
   scorecard: ShiftScorecard | null;
   duplicate?: boolean;
+  /** A total only: trips already saved in its hours, marked as possible doubles of it. */
+  overlapping?: { trips: number; miles: number };
 }
 
 export function createPastShift(body: PastShiftBody | PastShiftTotalsBody, idempotencyKey: string) {

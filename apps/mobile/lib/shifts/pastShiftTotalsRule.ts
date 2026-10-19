@@ -76,7 +76,10 @@ export function withFinish(t: DraftTotals, to: TotalsPlace | null): DraftTotals 
 
 /** "84", "84.5", "84,5", "84 mi" -> miles. Null for anything else or nothing. */
 export function parseTotalMiles(text: string): number | null {
-  const cleaned = text.trim().replace(/\s*(mi|miles)$/i, "").replace(",", ".");
+  const bare = text.trim().replace(/\s*(mi|miles)$/i, "");
+  // A comma before exactly three digits groups thousands ("1,000" is 1000,
+  // "1,000.5" is 1000.5); any other comma is a decimal point ("84,5").
+  const cleaned = /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(bare) ? bare.replace(/,/g, "") : bare.replace(",", ".");
   if (!/^\d+(\.\d+)?$/.test(cleaned) && !/^\.\d+$/.test(cleaned)) return null;
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
@@ -205,7 +208,49 @@ function oneDecimalMiles(miles: number): string {
 }
 
 /** The confirmation once the server has saved the shift. */
-export function pastShiftSavedText(args: { tripCount: number; miles: number; fromTotals: boolean }): string {
-  if (args.fromTotals) return `1 shift, ${oneDecimalMiles(args.miles)} from your totals, saved as Business.`;
+export function pastShiftSavedText(args: {
+  tripCount: number;
+  miles: number;
+  fromTotals: boolean;
+  /** Trips the server found already saved in the total's hours (its 201 `overlapping`). */
+  overlappingTrips?: number;
+}): string {
+  if (args.fromTotals) {
+    const join = (args.overlappingTrips ?? 0) > 0 ? " Check Trips to join them into the total." : "";
+    return `1 shift, ${oneDecimalMiles(args.miles)} from your totals, saved as Business.${join}`;
+  }
   return `${args.tripCount} ${args.tripCount === 1 ? "trip" : "trips"}, ${formatMiles(args.miles)}, saved as Business.`;
+}
+
+/**
+ * The trips MileClear already has whose time sits inside the shift: the same
+ * rule the server uses to mark them as possible doubles of the total. A trip
+ * with no end is judged by its start.
+ */
+export function tripsInsideShift(
+  trips: Array<{ startedAt: string | Date; endedAt: string | Date | null; distanceMiles: number }>,
+  shiftStart: Date,
+  shiftEnd: Date
+): { trips: number; miles: number } {
+  const s = shiftStart.getTime();
+  const e = shiftEnd.getTime();
+  let count = 0;
+  let miles = 0;
+  for (const t of trips) {
+    const ts = new Date(t.startedAt).getTime();
+    const te = t.endedAt ? new Date(t.endedAt).getTime() : ts;
+    if (!Number.isFinite(ts) || !Number.isFinite(te)) continue;
+    if (ts >= s && te <= e) {
+      count += 1;
+      miles += Number.isFinite(t.distanceMiles) ? t.distanceMiles : 0;
+    }
+  }
+  return { trips: count, miles: Math.round(miles * 100) / 100 };
+}
+
+/** The warning before saving a total over hours that already hold trips. */
+export function totalsOverlapWarning(found: { trips: number; miles: number }): string | null {
+  if (found.trips <= 0) return null;
+  const what = `${found.trips} ${found.trips === 1 ? "trip" : "trips"} (${formatMiles(found.miles)})`;
+  return `MileClear already has ${what} in these hours. Saving the total as well could count those miles twice.`;
 }
