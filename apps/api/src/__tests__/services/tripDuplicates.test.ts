@@ -5,7 +5,7 @@
  * the shorter one AND start and end within 0.5 mi of each other.
  */
 import { describe, it, expect } from "vitest";
-import { findDuplicateCandidate, type DuplicateCheckTrip } from "../../services/tripDuplicates.js";
+import { findDuplicateCandidate, typedTotalCovering, type DuplicateCheckTrip } from "../../services/tripDuplicates.js";
 
 // Leeds city centre to Headingley, about 2.5 miles.
 const HOME = { lat: 53.7997, lng: -1.5492 };
@@ -170,5 +170,44 @@ describe("findDuplicateCandidate", () => {
     const partial = t("partial", 8, 28);
     const full = t("full", 0, 20);
     expect(findDuplicateCandidate(t("manual", 0, 20), [partial, full])?.id).toBe("full");
+  });
+});
+
+describe("a past shift's typed total (Lucian, 19 Oct 2026)", () => {
+  // 09:00 to 17:00, home to home, 84 miles typed.
+  const total = t("total", 0, 480, {
+    isManualEntry: true,
+    endLat: HOME.lat,
+    endLng: HOME.lng,
+    gpsQuality: { distanceSource: "typed_total", drops: 32 },
+  });
+  const far = { startLat: 54.2, startLng: -1.2, endLat: 54.25, endLng: -1.1 };
+
+  it("a trip inside its hours doubles it, however far its ends are", () => {
+    const recording = t("rec", 120, 140, far);
+    expect(typedTotalCovering(recording, [total])?.id).toBe("total");
+    expect(findDuplicateCandidate(recording, [total])?.id).toBe("total");
+    // A hand-added one too, which two manual trips would otherwise never be.
+    expect(findDuplicateCandidate(t("hand", 120, 140, { ...far, isManualEntry: true }), [total])?.id).toBe("total");
+  });
+
+  it("the total wins over an ordinary double", () => {
+    const recording = t("rec", 120, 140);
+    const twin = t("twin", 121, 139);
+    expect(findDuplicateCandidate(recording, [twin, total])?.id).toBe("total");
+  });
+
+  it("a trip outside or running past its hours is not marked against it", () => {
+    expect(findDuplicateCandidate(t("after", 490, 510, far), [total])).toBeNull();
+    expect(findDuplicateCandidate(t("across", 470, 500, far), [total])).toBeNull();
+  });
+
+  it("a trip with no end is judged by its start", () => {
+    expect(typedTotalCovering(t("open", 200, null, far), [total])?.id).toBe("total");
+  });
+
+  it("a total is never marked against another total", () => {
+    const other = t("other", 60, 120, { gpsQuality: { distanceSource: "typed_total" } });
+    expect(typedTotalCovering(other, [total])).toBeNull();
   });
 });

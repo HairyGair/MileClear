@@ -12,6 +12,8 @@ import {
   pastShiftTotalsProblem,
   pastShiftTotalMilesProblem,
   pastShiftDropsProblem,
+  isSameTypedTotal,
+  tripJobCount,
 } from "./pastShift";
 
 const at = (hm: string, day = "2026-10-03") => new Date(`${day}T${hm}:00Z`);
@@ -232,5 +234,26 @@ describe("just the totals", () => {
     expect(isTypedTotalTrip(null)).toBe(false);
     expect(isTypedTotalTrip("typed_total")).toBe(false);
     expect(isTypedTotalTrip([{ distanceSource: "typed_total" }])).toBe(false);
+  });
+});
+
+describe("isSameTypedTotal", () => {
+  const saved = { distanceMiles: 84, platformTag: "deliveroo", gpsQuality: { distanceSource: "typed_total", drops: 32 } };
+  it("matches only the same miles, drops and app", () => {
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, drops: 32, platformTag: "deliveroo" })).toBe(true);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84.5, drops: 32, platformTag: "deliveroo" })).toBe(false);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, drops: 30, platformTag: "deliveroo" })).toBe(false);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, platformTag: "deliveroo" })).toBe(false);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, drops: 32, platformTag: null })).toBe(false);
+    expect(isSameTypedTotal({ ...saved, gpsQuality: null }, { distanceMiles: 84, drops: 32, platformTag: "deliveroo" })).toBe(false);
+  });
+});
+
+describe("tripJobCount", () => {
+  it("is a total's drops, else 1", () => {
+    expect(tripJobCount({ distanceSource: "typed_total", drops: 32 })).toBe(32);
+    expect(tripJobCount({ distanceSource: "typed_total", drops: null })).toBe(1);
+    expect(tripJobCount({ distanceSource: "match" })).toBe(1);
+    expect(tripJobCount(null)).toBe(1);
   });
 });

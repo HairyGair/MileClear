@@ -466,6 +466,18 @@ describe("PATCH /trips/:id moving a recorded trip's end pin", () => {
     });
     expect(res.statusCode).toBe(200);
     expect(db.trip.distanceMiles).toBe(86.5);
+    expect(db.trip.gpsQuality).toMatchObject({ distanceSource: "typed_total", drops: 32 });
+  });
+
+  it("keeps the typed-total mark whatever gpsQuality a client sends", async () => {
+    seed(TYPED_TOTAL, []);
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+      payload: { distanceMiles: 48, gpsQuality: { distanceSource: "haversine", drops: 1 } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(db.trip.distanceMiles).toBe(48);
+    expect(db.trip.gpsQuality).toMatchObject({ distanceSource: "typed_total", drops: 32 });
   });
 
   it("Recalculate distance leaves a typed shift total alone", async () => {

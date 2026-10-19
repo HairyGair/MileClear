@@ -147,8 +147,9 @@ export async function getBusinessInsights(userId: string): Promise<BusinessInsig
     tripCount: r.trips,
     totalMiles: r.businessMiles,
     earningsPerMilePence: r.earningsPerMilePence ?? 0,
-    earningsPerTripPence: r.trips > 0 ? Math.round(r.earningsPence / r.trips) : 0,
-    avgTripMiles: r.trips > 0 ? Math.round((r.businessMiles / r.trips) * 10) / 10 : 0,
+    // Per job: a past shift's typed total counts its drops (tripJobCount).
+    earningsPerTripPence: r.jobs > 0 ? Math.round(r.earningsPence / r.jobs) : 0,
+    avgTripMiles: r.jobs > 0 ? Math.round((r.businessMiles / r.jobs) * 10) / 10 : 0,
   }));
   const bestPlatform = league.length > 0 && league[0].earningsPerMilePence != null ? league[0].platform : null;
 

@@ -23,6 +23,7 @@ vi.mock("../../lib/prisma.js", () => ({
       findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     earning: { create: vi.fn(), findFirst: vi.fn().mockResolvedValue(null) },
     vehicle: {
@@ -514,13 +515,13 @@ describe("POST /shifts/past with just the totals", () => {
     expect(json.trips[0].distanceMiles).toBe(84);
   });
 
-  it("never looks up a route, draws a route line or marks a possible double for the total", async () => {
+  it("never looks up a route, draws a route line or marks the total itself as a possible double", async () => {
     // A recording inside the shift that would match on time and place.
     vi.mocked(prisma.trip.findMany).mockResolvedValue([
       {
         id: "ffffffff-ffff-ffff-ffff-ffffffffffff",
         startedAt: new Date("2026-10-03T10:00:00.000Z"), endedAt: new Date("2026-10-03T10:20:00.000Z"),
-        startLat: 53.8, startLng: -1.55, endLat: 53.81, endLng: -1.56, isManualEntry: false,
+        startLat: 53.8, startLng: -1.55, endLat: 53.81, endLng: -1.56, isManualEntry: false, distanceMiles: 3,
       },
     ] as never);
     const res = await post(totalsBody());
@@ -632,7 +633,10 @@ describe("POST /shifts/past with just the totals", () => {
       startedAt: new Date(SHIFT_START), endedAt: new Date(SHIFT_END),
     };
     const savedTotal = (miles: number) => [
-      { id: "t1", startedAt: new Date(SHIFT_START), startLat: HOME.lat, startLng: HOME.lng, distanceMiles: miles },
+      {
+        id: "t1", startedAt: new Date(SHIFT_START), startLat: HOME.lat, startLng: HOME.lng, distanceMiles: miles,
+        platformTag: "deliveroo", gpsQuality: { distanceSource: "typed_total", drops: 32 },
+      },
     ];
 
     it("answers the same total sent again with what was saved", async () => {
@@ -663,5 +667,93 @@ describe("POST /shifts/past with just the totals", () => {
     expect(tripData()[1].distanceMiles).toBe(4.2);
     const created = vi.mocked(logEvent).mock.calls.find((c) => c[0] === "trip.created");
     expect(created?.[2]).toMatchObject({ source: "past_shift" });
+  });
+});
+
+describe("POST /shifts/past with totals: trips already in those hours", () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>;
+
+  beforeEach(async () => {
+    resetMocks();
+    app = await createTestApp();
+  });
+
+  const HOME = { lat: 53.8, lng: -1.55 };
+  const payload = (totals: Record<string, unknown> = {}) => ({
+    startedAt: SHIFT_START,
+    endedAt: SHIFT_END,
+    totals: {
+      startLat: HOME.lat, startLng: HOME.lng, endLat: HOME.lat, endLng: HOME.lng,
+      distanceMiles: 84, drops: 32, platformTag: "deliveroo",
+      ...totals,
+    },
+  });
+  const trip = (id: string, start: string, end: string | null, miles: number, extra: Record<string, unknown> = {}) => ({
+    id, startedAt: new Date(start), endedAt: end ? new Date(end) : null,
+    startLat: 54.2, startLng: -1.2, endLat: 54.25, endLng: -1.1,
+    isManualEntry: false, gpsQuality: null, distanceMiles: miles, ...extra,
+  });
+
+  it("marks every trip inside the shift as a possible double of the total, and says how many", async () => {
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([
+      trip("t1", "2026-10-03T09:30:00.000Z", "2026-10-03T09:50:00.000Z", 6.2),
+      trip("t2", "2026-10-03T11:00:00.000Z", "2026-10-03T11:30:00.000Z", 15.7, { classification: "personal" }),
+      trip("t3", "2026-10-03T12:00:00.000Z", null, 0.5),
+      trip("out", "2026-10-03T12:50:00.000Z", "2026-10-03T13:10:00.000Z", 9), // runs past the end
+      trip("tot", "2026-10-03T10:00:00.000Z", "2026-10-03T11:00:00.000Z", 40, { gpsQuality: { distanceSource: "typed_total" } }),
+    ] as never);
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: payload(), headers: auth });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().overlapping).toEqual({ trips: 3, miles: 22.4 });
+
+    const mark = vi.mocked(prisma.trip.updateMany).mock.calls[0][0] as { where: Record<string, unknown>; data: Record<string, unknown> };
+    expect(mark.where).toEqual({ userId: USER_ID, id: { in: ["t1", "t2", "t3"] } });
+    expect(mark.data).toEqual({ possibleDuplicateOfId: "aaaaaaaa-aaaa-aaaa-aaaa-000000000001" });
+    // Only trips in no shift, from the shift's hours.
+    const where = vi.mocked(prisma.trip.findMany).mock.calls.at(-1)![0]!.where as Record<string, unknown>;
+    expect(where).toMatchObject({ userId: USER_ID, shiftId: null, isPhantomTrip: false });
+  });
+
+  it("reports none when the hours are clear", async () => {
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: payload(), headers: auth });
+    expect(res.json().overlapping).toEqual({ trips: 0, miles: 0 });
+    expect(prisma.trip.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("trip by trip carries no overlapping figure", async () => {
+    const res = await app.inject({ method: "POST", url: "/shifts/past", payload: body(), headers: auth });
+    expect(res.json()).not.toHaveProperty("overlapping");
+  });
+
+  describe("the same hours saved before as a total", () => {
+    const SAVED_SHIFT = {
+      id: SHIFT_ID, userId: USER_ID, status: "completed", vehicle: null,
+      startedAt: new Date(SHIFT_START), endedAt: new Date(SHIFT_END),
+    };
+    const saved = (extra: Record<string, unknown> = {}) => [{
+      id: "t1", startedAt: new Date(SHIFT_START), startLat: HOME.lat, startLng: HOME.lng,
+      distanceMiles: 84, platformTag: "deliveroo", gpsQuality: { distanceSource: "typed_total", drops: 32 }, ...extra,
+    }];
+
+    it.each([
+      ["drops", { drops: 30 }],
+      ["app", { platformTag: "uber" }],
+      ["no drops", { drops: undefined }],
+    ])("refuses a total with different %s, in words that say so", async (_label, change) => {
+      vi.mocked(prisma.shift.findMany).mockResolvedValue([SAVED_SHIFT] as never);
+      vi.mocked(prisma.trip.findMany).mockResolvedValue(saved() as never);
+      const res = await app.inject({ method: "POST", url: "/shifts/past", payload: payload(change), headers: auth });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toMatch(/^You already saved a shift from \d\d:\d\d to \d\d:\d\d on Sat 3 Oct with different totals\. To change them, edit that shift's trip in Trips\.$/);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("answers the same total, drops and app included, with what was saved", async () => {
+      vi.mocked(prisma.shift.findMany).mockResolvedValue([SAVED_SHIFT] as never);
+      vi.mocked(prisma.trip.findMany).mockResolvedValue(saved() as never);
+      const res = await app.inject({ method: "POST", url: "/shifts/past", payload: payload(), headers: auth });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().duplicate).toBe(true);
+    });
   });
 });

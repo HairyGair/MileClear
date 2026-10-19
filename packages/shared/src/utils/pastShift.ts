@@ -211,3 +211,29 @@ export function pastShiftTotalsProblem(args: {
   if (times) return times;
   return pastShiftTotalMilesProblem(args.distanceMiles) ?? pastShiftDropsProblem(args.drops);
 }
+
+/**
+ * Is `incoming` the typed total already saved as `saved`, sent again? Its
+ * miles, drops and app must all match; the shift's times and start pin are
+ * checked by isSamePastShift. Anything different is a different save.
+ */
+export function isSameTypedTotal(
+  saved: { distanceMiles: number; platformTag?: string | null; gpsQuality?: unknown },
+  incoming: { distanceMiles: number; drops?: number | null; platformTag?: string | null }
+): boolean {
+  if (!isTypedTotalTrip(saved.gpsQuality)) return false;
+  if (Math.abs(saved.distanceMiles - incoming.distanceMiles) >= 0.005) return false;
+  const savedDrops = (saved.gpsQuality as Record<string, unknown>).drops;
+  if ((typeof savedDrops === "number" ? savedDrops : null) !== (incoming.drops ?? null)) return false;
+  return (saved.platformTag ?? null) === (incoming.platformTag ?? null);
+}
+
+/**
+ * How many jobs a trip stands for in per-trip figures: a typed total's drops
+ * when the driver gave them, else 1. A total is still one trip for badges.
+ */
+export function tripJobCount(gpsQuality: unknown): number {
+  if (!isTypedTotalTrip(gpsQuality)) return 1;
+  const drops = (gpsQuality as Record<string, unknown>).drops;
+  return typeof drops === "number" && Number.isInteger(drops) && drops >= 1 ? drops : 1;
+}

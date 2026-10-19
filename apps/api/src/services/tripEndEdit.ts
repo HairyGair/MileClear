@@ -19,7 +19,7 @@
 //
 // The pure decision lives here so it can be unit-tested without a database.
 
-import { haversineDistance } from "@mileclear/shared";
+import { haversineDistance, TYPED_TOTAL_DISTANCE_SOURCE } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { resolveRouteDistance } from "./routing.js";
 import { START_EDIT_MAX_MILES, START_EDIT_MIN_MILES } from "./tripStartEdit.js";
@@ -192,11 +192,23 @@ export interface EndExtension {
 /** gpsQuality keys only the server writes. Stripped from anything a client sends. */
 export const SERVER_OWNED_GPS_QUALITY_KEYS = ["endExtension", "appendOutlierCut"] as const;
 
-/** A client's gpsQuality with the server-owned keys taken out. */
+/** gpsQuality values only the server writes, by key. The key itself stays
+ *  the client's (the phone sends distanceSource "match", "haversine" or
+ *  "start_end_route"); only these values are taken out. A typed shift total
+ *  is made by POST /shifts/past alone, and every recalculation steps aside
+ *  for it, so a client must not be able to claim one. */
+export const SERVER_OWNED_GPS_QUALITY_VALUES: Record<string, readonly unknown[]> = {
+  distanceSource: [TYPED_TOTAL_DISTANCE_SOURCE],
+};
+
+/** A client's gpsQuality with the server-owned keys and values taken out. */
 export function stripServerOwnedGpsQuality<T extends Record<string, unknown> | undefined>(gq: T): T {
   if (!gq) return gq;
   const out: Record<string, unknown> = { ...gq };
   for (const k of SERVER_OWNED_GPS_QUALITY_KEYS) delete out[k];
+  for (const [k, values] of Object.entries(SERVER_OWNED_GPS_QUALITY_VALUES)) {
+    if (values.includes(out[k])) delete out[k];
+  }
   return out as T;
 }
 

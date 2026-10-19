@@ -1519,9 +1519,16 @@ export async function tripRoutes(app: FastifyInstance) {
       });
       // gpsQuality is consumed above and never read by the list screens;
       // dropping it keeps the page body lean.
+      // isTypedTotal tells the app a trip is a past shift's typed total, so
+      // its edit screen never shows routed miles for it. Older apps ignore it.
       const { gpsQuality, ...rest } = trip;
-      void gpsQuality;
-      return { ...rest, confidence, suggestion: suggestions.get(trip.id) ?? null, diversion: diversions.get(trip.id) ?? null };
+      return {
+        ...rest,
+        isTypedTotal: isTypedTotalTrip(gpsQuality),
+        confidence,
+        suggestion: suggestions.get(trip.id) ?? null,
+        diversion: diversions.get(trip.id) ?? null,
+      };
     });
 
     return reply.send({
@@ -2670,6 +2677,49 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(404).send({ error: "One or more trips not found" });
     }
 
+    // A past shift's typed total (Lucian, 19 Oct 2026) already counts every
+    // mile of its shift, so joining a trip into it means that trip was a
+    // double. The total is kept exactly as it is: its miles, its places and
+    // times, its shift, its note and typed-total mark, still a trip added by
+    // hand. The other trips go, archived first as below. No breadcrumbs are
+    // copied in: they would make a typed figure look recorded.
+    const totals = trips.filter((t) => isTypedTotalTrip(t.gpsQuality));
+    if (totals.length > 1) {
+      return reply.status(400).send({ error: "Two shift totals can't be joined. Edit or delete one of them instead." });
+    }
+    if (totals.length === 1) {
+      const total = totals[0];
+      const others = trips.filter((t) => t.id !== total.id);
+      for (const t of others) {
+        await archiveTripBeforeDelete(t.id, userId, "user").catch(() => null);
+      }
+      const kept = await prisma.$transaction(async (tx) => {
+        await tx.trip.deleteMany({ where: { id: { in: others.map((t) => t.id) }, userId } });
+        return tx.trip.update({
+          where: { id: total.id },
+          data: {
+            // A total is shift work: it keeps its own classification. A
+            // platform or note sent with the join is taken, else the total's.
+            platformTag: platformTag ?? total.platformTag,
+            ...(businessPurpose !== undefined ? { businessPurpose } : {}),
+            ...(category !== undefined ? { category } : {}),
+            notes: notes ?? total.notes,
+            joinedCount: joinedCountOf(trips),
+            possibleDuplicateOfId: null,
+          },
+          include: { vehicle: true, shift: true },
+        });
+      });
+      const years = new Set(trips.map((t) => getTaxYear(t.startedAt)));
+      for (const y of years) upsertMileageSummary(userId, y).catch(() => {});
+      logEvent("trip.merged_into_total", userId, {
+        totalTripId: total.id,
+        removedTripIds: others.map((t) => t.id),
+        removedMiles: Math.round(others.reduce((s, t) => s + t.distanceMiles, 0) * 100) / 100,
+      });
+      return reply.status(201).send({ data: kept });
+    }
+
     // The first trip's start; the end of whichever trip ends LAST, and a
     // distance that never drops a typed leg or the longer copy of the same
     // drive (services/tripMergeRule.ts, Shah Rouf 3 Oct 2026).
@@ -2992,7 +3042,16 @@ export async function tripRoutes(app: FastifyInstance) {
     const diversion = (await loadDiversionsForTrips([trip.id])).get(trip.id) ?? null;
 
     return reply.send({
-      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion, cleanAirZones, diversion },
+      data: {
+        ...trip,
+        isTypedTotal: isTypedTotalTrip(trip.gpsQuality),
+        insights,
+        matchedCoordinates,
+        confidence,
+        mergeSuggestion,
+        cleanAirZones,
+        diversion,
+      },
     });
   });
 
@@ -3608,6 +3667,11 @@ export async function tripRoutes(app: FastifyInstance) {
         ...(incomingGpsQuality ?? {}),
       };
       if (endExtensionChange) nextGpsQuality.endExtension = endExtensionChange.set;
+      // A typed shift total stays one, whatever the client sent.
+      if (isTypedTotalTrip(existingGpsQuality)) {
+        nextGpsQuality.distanceSource = existingGpsQuality.distanceSource;
+        nextGpsQuality.drops = existingGpsQuality.drops ?? null;
+      }
     }
 
     const tripUpdateData = {

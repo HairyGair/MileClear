@@ -16,6 +16,7 @@ import {
   pastShiftMilesProblem,
   pastShiftTotalsProblem,
   typedTotalNote,
+  isSameTypedTotal,
   clampedTripEnd,
   isSamePastShift,
   resolveRecordedBy,
@@ -28,7 +29,7 @@ import { logEvent } from "../../services/appEvents.js";
 import { withKeyLock } from "../../lib/keyedLock.js";
 import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
-import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
+import { findDuplicateCandidate, typedTotalCovering } from "../../services/tripDuplicates.js";
 import {
   resolveManualTripPlaces,
   hasValidCoords,
@@ -269,9 +270,9 @@ export async function shiftRoutes(app: FastifyInstance) {
             },
             { trips: inputTrips, earning: body.earning ?? null }
           ) &&
-          // A total is its miles: the same hours with different miles is a
-          // different save, refused below like any other overlap.
-          (!totals || Math.abs(savedTrips[0].distanceMiles - totals.distanceMiles) < 0.005);
+          // A total is its figures: the same hours with different miles,
+          // drops or app is a different save, refused below.
+          (!totals || isSameTypedTotal(savedTrips[0], totals));
         if (repeat) {
           logEvent("shift.past_add_repeated", userId, { shiftId: same.id, tripCount: savedTrips.length });
           return reply.send({ data: same, trips: savedTrips, earning: savedEarning, scorecard: null, duplicate: true });
@@ -283,7 +284,11 @@ export async function shiftRoutes(app: FastifyInstance) {
         existingActive: clash.status === "active",
         sameTimes: Boolean(same),
       });
-      return reply.status(409).send({ error: shiftClashMessage(clash), existingShiftId: clash.id });
+      const error =
+        same && totals
+          ? `You already saved a shift from ${ukTime(same.startedAt)} to ${ukTime(same.endedAt!)} on ${ukDay(same.startedAt)} with different totals. To change them, edit that shift's trip in Trips.`
+          : shiftClashMessage(clash);
+      return reply.status(409).send({ error, existingShiftId: clash.id });
     }
 
     // Pins and miles first: they can call out to geocoders and routers,
@@ -402,6 +407,12 @@ export async function shiftRoutes(app: FastifyInstance) {
     const trips = saved.trips;
     const newIds = new Set(trips.map((t) => t.id));
 
+    // Trips already saved inside a total's hours count those miles a second
+    // time. Each is marked as a possible double of the total, so the Trips
+    // tab offers Join (which keeps the total, POST /trips/merge), and the
+    // driver is told how many there were. Nothing is removed here.
+    const insideTotal = totals ? await markTripsInsideTotal(userId, trips[0], request.log) : null;
+
     for (let i = 0; i < trips.length; i++) {
       const trip = trips[i];
       const p = places[i];
@@ -507,7 +518,13 @@ export async function shiftRoutes(app: FastifyInstance) {
       daysBack: Math.floor((Date.now() - shift.startedAt.getTime()) / (24 * 60 * 60 * 1000)),
     });
 
-    return reply.status(201).send({ data: shift, trips, earning, scorecard });
+    return reply.status(201).send({
+      data: shift,
+      trips,
+      earning,
+      scorecard,
+      ...(insideTotal ? { overlapping: insideTotal } : {}),
+    });
   };
   // One at a time per driver, so a double tap cannot pass the repeat check
   // above twice (lib/keyedLock.ts).
@@ -804,6 +821,47 @@ function ukTime(d: Date): string {
 }
 function ukDay(d: Date): string {
   return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" });
+}
+
+/**
+ * Mark every trip of the driver's whose time sits inside a new typed total
+ * (and that is not in a shift, and not a total itself) as a possible double
+ * of it. Returns how many there were and their miles, for the app to say.
+ * Best-effort: a failure leaves the total saved and reports none.
+ */
+export async function markTripsInsideTotal(
+  userId: string,
+  total: { id: string; startedAt: Date; endedAt: Date | null; startLat: number; startLng: number; endLat: number | null; endLng: number | null; isManualEntry: boolean; gpsQuality: unknown },
+  log: { warn: (obj: unknown, msg: string) => void }
+): Promise<{ trips: number; miles: number }> {
+  if (!total.endedAt) return { trips: 0, miles: 0 };
+  try {
+    const candidates = await prisma.trip.findMany({
+      where: {
+        userId,
+        id: { not: total.id },
+        isPhantomTrip: false,
+        shiftId: null,
+        startedAt: { gte: total.startedAt, lte: total.endedAt },
+      },
+      select: {
+        id: true, startedAt: true, endedAt: true, startLat: true, startLng: true,
+        endLat: true, endLng: true, isManualEntry: true, gpsQuality: true, distanceMiles: true,
+      },
+    });
+    const inside = candidates.filter((c) => typedTotalCovering(c, [total]) != null);
+    if (inside.length === 0) return { trips: 0, miles: 0 };
+    await prisma.trip.updateMany({
+      where: { userId, id: { in: inside.map((c) => c.id) } },
+      data: { possibleDuplicateOfId: total.id },
+    });
+    const miles = Math.round(inside.reduce((sum, c) => sum + c.distanceMiles, 0) * 100) / 100;
+    logEvent("shift.past_totals_overlap_marked", userId, { totalTripId: total.id, trips: inside.length, miles });
+    return { trips: inside.length, miles };
+  } catch (err) {
+    log.warn({ err, tripId: total.id }, "marking trips inside a typed total failed");
+    return { trips: 0, miles: 0 };
+  }
 }
 
 /** Why a past shift was refused for overlapping one already saved. */

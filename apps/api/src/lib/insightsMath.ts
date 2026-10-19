@@ -2,6 +2,7 @@
 // one source"). Pure functions; the services load rows and call these.
 // docs/insights-oct2026/NUMBERS.md says which endpoint field the app shows.
 
+import { tripJobCount } from "@mileclear/shared";
 import { isClaimableTrip } from "./claimableTrips.js";
 import { periodClaimPence, type DatedRatedTrip, type RateUser } from "./mileageRates.js";
 import { WEEKDAY_NAMES, dateOnlyParts, ukParts } from "./ukTime.js";
@@ -140,6 +141,9 @@ export interface PlatformLeagueRow {
   platform: string;
   earningsPence: number;
   trips: number;
+  /** Jobs on those trips: a past shift's typed total counts its drops
+   *  (tripJobCount), every other trip 1. For per-job figures. */
+  jobs: number;
   businessMiles: number;
   /** Time on that platform's trips (start to end), hours, 1 dp. Shifts
    *  carry no platform, so this is driving time, not logged-in time. */
@@ -160,13 +164,13 @@ export function normalisePlatform(p: string | null | undefined): string {
  *  Untagged trips and earnings with no platform are left out. */
 export function rankPlatforms(
   earnings: { platform: string; amountPence: number }[],
-  trips: { platformTag: string | null; distanceMiles: number; startedAt: Date; endedAt?: Date | null }[],
+  trips: { platformTag: string | null; distanceMiles: number; startedAt: Date; endedAt?: Date | null; gpsQuality?: unknown }[],
 ): PlatformLeagueRow[] {
-  const rows = new Map<string, { earningsPence: number; trips: number; miles: number; seconds: number }>();
+  const rows = new Map<string, { earningsPence: number; trips: number; jobs: number; miles: number; seconds: number }>();
   const row = (key: string) => {
     let r = rows.get(key);
     if (!r) {
-      r = { earningsPence: 0, trips: 0, miles: 0, seconds: 0 };
+      r = { earningsPence: 0, trips: 0, jobs: 0, miles: 0, seconds: 0 };
       rows.set(key, r);
     }
     return r;
@@ -181,6 +185,7 @@ export function rankPlatforms(
     if (!key) continue;
     const r = row(key);
     r.trips += 1;
+    r.jobs += tripJobCount(t.gpsQuality);
     r.miles += t.distanceMiles;
     if (t.endedAt) r.seconds += Math.max(0, (t.endedAt.getTime() - t.startedAt.getTime()) / 1000);
   }
@@ -192,6 +197,7 @@ export function rankPlatforms(
       platform,
       earningsPence: r.earningsPence,
       trips: r.trips,
+      jobs: r.jobs,
       businessMiles: round1(r.miles),
       drivingHours: round1(hours),
       earningsPerMilePence: r.miles >= 0.1 && r.earningsPence > 0 ? Math.round(r.earningsPence / r.miles) : null,

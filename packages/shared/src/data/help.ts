@@ -221,7 +221,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "past-shift-totals",
     area: "recording_trips",
     q: "Can I add a past shift with just the total miles?",
-    a: "Yes. In More > Shifts > Add a past shift, choose Just the totals instead of Every trip. Type the shift's total miles, how many drops you did if you know, and where the shift started and finished (your saved Home is filled in for you). It saves as one Business trip across the shift, with exactly the miles you typed. A single total is a thinner record than trip by trip, so keep the platform's own shift history, for example from Deliveroo or Uber, as back-up. Shifts are free.",
+    a: "Yes. In More > Shifts > Add a past shift, choose Just the totals instead of Every trip. Type the shift's total miles, how many drops you did if you know, and where the shift started and finished (your saved Home is filled in for you). It saves as one Business trip across the shift, with exactly the miles you typed, and counts as one trip for badges. A single total is a thinner record than trip by trip, so keep the platform's own shift history, for example from Deliveroo or Uber, as back-up. Shifts are free.",
     goTo: "/past-shift-form",
     appOnly: true,
     keywords: ["total miles", "just the totals", "totals", "bulk", "drops", "drop count", "number of trips", "trip count", "tedious", "thousands of trips", "mileage total", "deliveroo"],

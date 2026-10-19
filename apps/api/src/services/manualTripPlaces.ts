@@ -6,7 +6,7 @@
 // routes/trips/index.ts so both routes run the same code.
 
 import { Prisma } from "@prisma/client";
-import { haversineDistance } from "@mileclear/shared";
+import { haversineDistance, PAST_SHIFT_MAX_MS } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { logEvent } from "./appEvents.js";
 import { resolveRouteDistance, routedDurationUsable } from "./routing.js";
@@ -153,7 +153,9 @@ export async function loadDuplicateNeighbours(
       id: { not: trip.id },
       isPhantomTrip: false,
       startedAt: {
-        gte: new Date(trip.startedAt.getTime() - dayMs),
+        // Back far enough to hold a past shift's typed total that started
+        // the longest shift before (PAST_SHIFT_MAX_MS, 25 hours).
+        gte: new Date(trip.startedAt.getTime() - Math.max(dayMs, PAST_SHIFT_MAX_MS)),
         lte: new Date(trip.startedAt.getTime() + dayMs),
       },
     },
@@ -166,6 +168,7 @@ export async function loadDuplicateNeighbours(
       endLat: true,
       endLng: true,
       isManualEntry: true,
+      gpsQuality: true,
     },
   });
 }

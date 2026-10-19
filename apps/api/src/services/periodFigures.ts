@@ -28,6 +28,9 @@ const tripSelect = {
   startedAt: true,
   endedAt: true,
   isPhantomTrip: true,
+  // Tells a past shift's typed total (isTypedTotalTrip), left out of
+  // "longest single trip".
+  gpsQuality: true,
   vehicle: { select: { vehicleType: true, providedByOthers: true } },
 } as const;
 

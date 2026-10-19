@@ -247,6 +247,11 @@ describe("the end-edit note's safety checks", () => {
     expect(stripServerOwnedGpsQuality({ a: 1, endExtension: note, appendOutlierCut: {} })).toEqual({ a: 1 });
     expect(stripServerOwnedGpsQuality(undefined)).toBeUndefined();
   });
+
+  it("never lets a client claim a typed shift total, but keeps the phone's own distance sources", () => {
+    expect(stripServerOwnedGpsQuality({ a: 1, distanceSource: "typed_total", drops: 3 })).toEqual({ a: 1, drops: 3 });
+    expect(stripServerOwnedGpsQuality({ distanceSource: "match" })).toEqual({ distanceSource: "match" });
+  });
 });
 
 describe("inferLegacyExtension - an end edited before the note existed", () => {
