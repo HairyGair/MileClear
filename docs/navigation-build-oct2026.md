@@ -15,7 +15,10 @@ Why our own: nothing per trip (GraphHopper is ours), one GPS source by design (t
 2. **API: `GET /navigation/route`** (contract below), in `apps/api/src/routes/navigation/`, using `GRAPHHOPPER_URL` and profile `GRAPHHOPPER_NAV_PROFILE` (default `car_nav`, falling back to `car` if the server does not know it). `/user/profile` gains `navigationEnabled`.
 3. **App: the navigator** (`apps/mobile/lib/navigation/` + `app/navigate.tsx`).
 
-## Contract: GET /navigation/route
+## Contract: POST /navigation/route (GET still accepted)
+
+**The app sends POST with a JSON body** (`{ from, to, heading? }`, `{ q, near? }` for search) so places and positions never appear in a URL that Apache or our logs record (19 Oct 2026). The GET forms still work for older callers, and our logs drop everything after the `?` of any /navigation/ URL.
+
 
 Auth required. Enabled only when `NAVIGATION_ENABLED=1` and the user is an admin or listed in `NAVIGATION_USER_IDS` (comma-separated); otherwise 403 `{ error, code: "NAVIGATION_NOT_ENABLED" }`. Rate limit 30 a minute per user.
 
@@ -54,7 +57,7 @@ Errors: 400 `{ code: "BAD_INPUT" }`; 404 `{ code: "NO_ROUTE" }` (GraphHopper fou
 
 GraphHopper `sign` mapping: -3 sharp_left, -2 left, -1 slight_left, 0 continue, 1 slight_right, 2 right, 3 sharp_right, 4 arrive, 5 via (treat as continue), 6 roundabout (use `exit_number`), -7 keep left, 7 keep right, -8/8/-98 uturn. `max_speed` detail is km/h: convert to mph and round to the nearest 5 (UK limits).
 
-## Contract: GET /navigation/search (added 19 Oct 2026)
+## Contract: POST /navigation/search (added 19 Oct 2026; GET still accepted)
 
 Same auth and switch as /navigation/route. Query: `q` (2-120 characters), `near=lat,lng` (optional, to rank nearby places first). Our own Photon (UK OpenStreetMap, localhost:2322 via `PHOTON_URL`).
 

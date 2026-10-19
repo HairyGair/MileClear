@@ -201,3 +201,15 @@ describe("redactNinoInText / redactNinosDeep", () => {
     expect(input.path).toBe("/x/AB123456C");
   });
 });
+
+describe("redactUrlSecrets: Directions never logs places (19 Oct 2026)", () => {
+  it("drops the whole query of a navigation URL", () => {
+    expect(redactUrlSecrets("/navigation/search?q=14%20Grey%20Street&near=54.97,-1.61")).toBe("/navigation/search?<redacted>");
+    expect(redactUrlSecrets("/navigation/route?from=54.97,-1.61&to=54.90,-1.38&heading=90")).toBe("/navigation/route?<redacted>");
+  });
+
+  it("leaves other URLs' queries alone", () => {
+    expect(redactUrlSecrets("/trips?page=2&pageSize=20")).toBe("/trips?page=2&pageSize=20");
+    expect(redactUrlSecrets("/navigation/route")).toBe("/navigation/route");
+  });
+});

@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyRequest } from "fastify";
 import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { hasPremiumAccess } from "../../middleware/premium.js";
@@ -8,20 +8,37 @@ import { fetchNavRoute, navigationEnabledFor, parseHeading, parseLatLng, searchP
 // In-app navigation (18 Oct 2026). docs/navigation-build-oct2026.md.
 // Who gets it: NAVIGATION_ROLLOUT off | list | pro (services/navigation.ts).
 // Pro only, as a labelled test, once our own drives show recording is unaffected.
+/** The fields from a POST body (what the app sends, so places never sit in a
+ *  URL that Apache or our logs record) or, for older callers, the query. */
+function navInput<T extends Record<string, string | undefined>>(request: FastifyRequest): T {
+  const body = request.body && typeof request.body === "object" ? (request.body as Record<string, unknown>) : null;
+  const src = body ?? (request.query as Record<string, unknown>) ?? {};
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(src)) {
+    if (typeof v === "string") out[k] = v;
+    else if (typeof v === "number" && Number.isFinite(v)) out[k] = String(v);
+  }
+  return out as T;
+}
+
 export async function navigationRoutes(app: FastifyInstance) {
-  // GET /navigation/route?from=lat,lng&to=lat,lng[&heading=deg]
+  // POST /navigation/route { from: "lat,lng", to: "lat,lng", heading? } (the app)
+  // GET /navigation/route?from=lat,lng&to=lat,lng[&heading=deg] (older callers;
+  // the query is never logged: lib/redactUrl.ts)
   // `heading` (the car's direction, 0-359) makes the route start the way the
   // car is already travelling; the app sends it on reroutes and when moving.
-  app.get(
-    "/route",
-    { preHandler: [authMiddleware], config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
-    async (request, reply) => {
+  app.route({
+    method: ["GET", "POST"],
+    url: "/route",
+    preHandler: [authMiddleware],
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+    handler: async (request, reply) => {
       const user = await prisma.user.findUnique({ where: { id: request.userId! }, select: { id: true, isAdmin: true } });
       const isPro = user ? await hasPremiumAccess(user.id).catch(() => false) : false;
       if (!user || !navigationEnabledFor({ ...user, isPro })) {
         return reply.status(403).send({ error: "Navigation isn't switched on for your account yet.", code: "NAVIGATION_NOT_ENABLED" });
       }
-      const q = request.query as { from?: string; to?: string; heading?: string };
+      const q = navInput<{ from?: string; to?: string; heading?: string }>(request);
       const from = parseLatLng(q.from);
       const to = parseLatLng(q.to);
       if (!from || !to) {
@@ -44,22 +61,25 @@ export async function navigationRoutes(app: FastifyInstance) {
         profile: result.route.profile,
       });
       return reply.send({ data: result.route });
-    }
-  );
+    },
+  });
 
-  // GET /navigation/search?q=...&near=lat,lng
+  // POST /navigation/search { q, near?: "lat,lng" } (the app); GET with the
+  // same query for older callers (never logged)
   // Destination search for the Directions picker, from our own Photon (UK
   // OpenStreetMap). 503 tells the app to use its existing search instead.
-  app.get(
-    "/search",
-    { preHandler: [authMiddleware], config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
-    async (request, reply) => {
+  app.route({
+    method: ["GET", "POST"],
+    url: "/search",
+    preHandler: [authMiddleware],
+    config: { rateLimit: { max: 60, timeWindow: "1 minute" } },
+    handler: async (request, reply) => {
       const user = await prisma.user.findUnique({ where: { id: request.userId! }, select: { id: true, isAdmin: true } });
       const isPro = user ? await hasPremiumAccess(user.id).catch(() => false) : false;
       if (!user || !navigationEnabledFor({ ...user, isPro })) {
         return reply.status(403).send({ error: "Navigation isn't switched on for your account yet.", code: "NAVIGATION_NOT_ENABLED" });
       }
-      const q = request.query as { q?: string; near?: string };
+      const q = navInput<{ q?: string; near?: string }>(request);
       const text = (q.q ?? "").trim();
       if (text.length < 2 || text.length > 120) {
         return reply.status(400).send({ error: "Search for at least 2 characters.", code: "BAD_INPUT" });
@@ -71,6 +91,6 @@ export async function navigationRoutes(app: FastifyInstance) {
         return reply.status(503).send({ error: "Search isn't available right now.", code: "SEARCH_UNAVAILABLE" });
       }
       return reply.send({ data: { places: result.places, source: "photon" } });
-    }
-  );
+    },
+  });
 }

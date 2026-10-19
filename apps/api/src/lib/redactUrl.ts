@@ -15,6 +15,10 @@
 export function redactUrlSecrets(url: string): string {
   return redactNinoInPath(
     url
+      // Directions: a search query can be a home address and from/to/near are
+      // positions, so nothing after the ? of a /navigation/ URL is ever logged
+      // (19 Oct 2026). The app sends these in a POST body; this covers GET.
+      .replace(/^(\/navigation\/[^?#]*)\?.*$/i, "$1?<redacted>")
       .replace(/\/[0-9a-f]{32,}/gi, "/<redacted>")
       // And in a query value (practice invites: /practice-links/lookup?invite=...).
       .replace(/=[0-9a-f]{32,}(?=&|$)/gi, "=<redacted>")
