@@ -145,7 +145,7 @@ import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } fro
 import { WhenCard } from "../components/addTrip/WhenCard";
 import type { ClockValue } from "../components/addTrip/TimeRow";
 import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
-import { editedDistanceToSend, isTypedTotalForEdit } from "../lib/trips/editDistanceRule";
+import { editedDistanceToSend, isTypedTotalForEdit, parseTypedMiles } from "../lib/trips/editDistanceRule";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -3963,7 +3963,8 @@ export default function TripFormScreen() {
           setDistanceTyped(true);
           const n = parseMilesInput(cleaned);
           if (n != null) {
-            setDistanceMiles(n);
+            // The figure as typed, to 2 places: what an edit sends (editDistanceRule).
+            setDistanceMiles(Math.round((parseTypedMiles(cleaned) ?? n) * 100) / 100);
             setRouteSource(null);
             setRoutedDurationSecs(null);
           } else if (cleaned === "") {
@@ -5083,6 +5084,10 @@ export default function TripFormScreen() {
                 setStartLng(lng);
                 setStartAddress(addr);
                 if (isEditing) setStartMoved(true);
+                // A new place is a new road route: typed miles were for the old one.
+                setManualDistanceMode(false);
+                setManualDistanceText("");
+                setDistanceTyped(false);
               }}
               onClear={() => {
                 setStartLat(null);
@@ -5101,6 +5106,10 @@ export default function TripFormScreen() {
                 setEndLat(lat);
                 setEndLng(lng);
                 setEndAddress(addr);
+                // A new place is a new road route: typed miles were for the old one.
+                setManualDistanceMode(false);
+                setManualDistanceText("");
+                setDistanceTyped(false);
               }}
               onClear={() => {
                 setEndLat(null);

@@ -14,6 +14,7 @@
 import { formatMiles, pastShiftTotalsProblem } from "@mileclear/shared";
 import type { ShiftWindowPlan } from "./pastShiftRule";
 import { parseAmountPence } from "./pastShiftRule";
+import { parseTypedMilesText } from "../trips/typedMiles";
 
 export type PastShiftMode = "trips" | "totals";
 
@@ -74,16 +75,8 @@ export function withFinish(t: DraftTotals, to: TotalsPlace | null): DraftTotals 
   return { ...t, to, toPicked: true };
 }
 
-/** "84", "84.5", "84,5", "84 mi" -> miles. Null for anything else or nothing. */
-export function parseTotalMiles(text: string): number | null {
-  const bare = text.trim().replace(/\s*(mi|miles)$/i, "");
-  // A comma before exactly three digits groups thousands ("1,000" is 1000,
-  // "1,000.5" is 1000.5); any other comma is a decimal point ("84,5").
-  const cleaned = /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(bare) ? bare.replace(/,/g, "") : bare.replace(",", ".");
-  if (!/^\d+(\.\d+)?$/.test(cleaned) && !/^\.\d+$/.test(cleaned)) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
+/** "84", "84.5", "84,5", "1,000", "84 mi" -> miles. Null for anything else or nothing. */
+export const parseTotalMiles = parseTypedMilesText;
 
 /** "32" -> 32; empty -> null (drops are optional); anything else -> NaN. */
 export function parseDrops(text: string): number | null {

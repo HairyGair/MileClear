@@ -22,6 +22,12 @@ describe("editedDistanceToSend", () => {
     expect(editedDistanceToSend({ typed: true, text: "48,25", loadedMiles: 84 })).toBe(48.25);
   });
 
+  it("reads a comma before three digits as thousands, like the totals form", () => {
+    expect(editedDistanceToSend({ typed: true, text: "1,000", loadedMiles: 84 })).toBe(1000);
+    expect(editedDistanceToSend({ typed: true, text: "1,000.5", loadedMiles: 84 })).toBe(1000.5);
+    expect(editedDistanceToSend({ typed: true, text: "84,5", loadedMiles: 30 })).toBe(84.5);
+  });
+
   it("sends nothing for a routed figure: a pin moved with the box open, nothing typed", () => {
     // The route put 15.2 on screen; the box still holds the prefill.
     expect(editedDistanceToSend({ typed: false, text: "30", loadedMiles: 30 })).toBeUndefined();

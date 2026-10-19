@@ -14,6 +14,8 @@
 //
 // Pure: no React, no database.
 
+import { parseTypedMilesText } from "./typedMiles";
+
 /** The end of the note POST /shifts/past writes on a typed total. */
 const TYPED_TOTAL_NOTE = /total entered by you$/i;
 
@@ -22,12 +24,10 @@ export function isTypedTotalForEdit(t: { isTypedTotal?: boolean | null; notes?: 
   return TYPED_TOTAL_NOTE.test((t.notes ?? "").trim());
 }
 
-/** "48", "48.25", "48,25", "48 mi" -> miles; null for anything else. */
+/** "48", "48.25", "48,25", "1,000", "48 mi" -> miles above 0; null for anything else. */
 export function parseTypedMiles(text: string): number | null {
-  const cleaned = text.trim().replace(/\s*(mi|miles?)$/i, "").replace(",", ".");
-  if (!/^\d+(\.\d+)?$/.test(cleaned) && !/^\.\d+$/.test(cleaned)) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  const n = parseTypedMilesText(text);
+  return n != null && n > 0 ? n : null;
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
