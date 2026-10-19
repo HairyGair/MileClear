@@ -115,6 +115,22 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Newest trip first: an option in Settings to show each day's latest trip at the top",
       "A trip can no longer be saved with no route, no end and no miles",
       "Pro is described as what it is: sorting by work hours. Sorting by place and regular journeys is free",
+      // Reached every phone by OTA on 15, 16, 17 and 19 Oct 2026 (Directions
+      // also rides in the 19 Oct update but stays hidden until 1.4.0, so it
+      // is not listed).
+      "Your car's running odometer reading shows on Home",
+      "Android: a drive is no longer saved twice, and new driving after a saved stretch is kept",
+      "Add a whole past shift in one go, with its trips and earnings",
+      "More than one car? Download the trip report or trips CSV for just one of them",
+      "You drive for now offers \"Self-employed or gig work\" and \"Self-employed and an employer\", so it's clearer which to pick",
+      "Start Shift stays on Home for work drivers who use shifts",
+      "Linking a bank now finishes even when your bank's own app approves it",
+      "Earnings badges count paid invoices, and if you invoice there's an Invoices shortcut on Home",
+      "A recorded trip lists the roadworks it drove through",
+      "Fuel prices: pick Unleaded, Super unleaded, Diesel or Premium diesel, and sort nearby stations by nearest or cheapest",
+      "New drivers see their first trips and what they could claim on Home in their first two weeks",
+      "Didn't turn on notifications at the start? You're asked once more after your first trip",
+      "Android: the app no longer says notifications are refused when you can still turn them on",
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
