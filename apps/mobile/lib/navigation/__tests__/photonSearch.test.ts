@@ -95,6 +95,21 @@ describe("silent fallback to the existing search", () => {
     vi.useRealTimers();
   });
 
+  it("the fallback (Google Places, paid) keeps its 3-character minimum", async () => {
+    const fb = fallback();
+    const provider = photonFirstProvider({
+      fetchPlaces: async () => {
+        throw new SearchFailure("unavailable");
+      },
+      fallback: fb.p,
+      lookupPostcode: async () => null,
+    });
+    expect(await provider.search("sa", NEAR)).toEqual([]);
+    expect(fb.calls).toEqual([]);
+    expect((await provider.search("sag", NEAR)).length).toBe(1);
+    expect(fb.calls).toEqual(["sag"]);
+  });
+
   it("bad input: no results, no fallback", async () => {
     const fb = fallback();
     const provider = photonFirstProvider({

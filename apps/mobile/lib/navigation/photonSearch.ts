@@ -35,6 +35,8 @@ export class SearchFailure extends Error {
 
 export const SEARCH_TIMEOUT_MS = 3_000;
 export const SEARCH_MIN_CHARS = 2;
+/** The existing (Google Places) search's minimum, kept when it stands in. */
+export const FALLBACK_MIN_CHARS = 3;
 
 export function photonFirstProvider(deps: {
   /** GET /navigation/search; rejects with SearchFailure (or anything). */
@@ -95,7 +97,10 @@ export function photonFirstProvider(deps: {
         // A newer search replaced this one: say nothing, change nothing.
         if (inFlight !== ctrl) throw new SearchFailure("aborted");
         if (err instanceof SearchFailure && err.kind === "bad_input") return [];
-        // Down, unreachable, slow or not switched on: the existing search.
+        // Down, unreachable, slow or not switched on: the existing search,
+        // but only from its own 3-character minimum (it is Google Places,
+        // paid per lookup), so an outage never adds lookups.
+        if (q.length < FALLBACK_MIN_CHARS) return [];
         return deps.fallback.search(q, near);
       } finally {
         if (inFlight === ctrl) inFlight = null;
