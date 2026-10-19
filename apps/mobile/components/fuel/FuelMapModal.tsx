@@ -59,9 +59,9 @@ interface FuelMapModalProps {
   visible: boolean;
   onClose: () => void;
   stations: FuelStation[];
-  nationalAvgPetrol: number | null;
-  nationalAvgDiesel: number | null;
-  /** Which price the pins show; the driver's fuel. Defaults to unleaded. */
+  /** What prices are coloured against (lib/fuel/stationList priceBenchmark). */
+  benchmark: number | null;
+  /** Which price the pins and panel show; the grade picked on the fuel tab. */
   fuel?: MapFuel;
   userLat: number | null;
   userLng: number | null;
@@ -71,13 +71,11 @@ export default function FuelMapModal({
   visible,
   onClose,
   stations,
-  nationalAvgPetrol,
-  nationalAvgDiesel,
+  benchmark,
   fuel = UNLEADED,
   userLat,
   userLng,
 }: FuelMapModalProps) {
-  const pinAvg = fuel.key === "B7" ? nationalAvgDiesel : nationalAvgPetrol;
   const insets = useSafeAreaInsets();
   const mapRef = useRef<any>(null);
   const [selected, setSelected] = useState<FuelStation | null>(null);
@@ -145,7 +143,7 @@ export default function FuelMapModal({
         >
           {stations.map((s, i) => {
             const price = s.prices[fuel.key];
-            const color = price != null ? getPriceColor(price, pinAvg) : AMBER;
+            const color = price != null ? getPriceColor(price, benchmark) : AMBER;
             return (
               <MarkerNative
                 key={`${s.siteId}-${i}`}
@@ -199,39 +197,21 @@ export default function FuelMapModal({
                     {selected.address || selected.postcode}
                   </Text>
                   <View style={styles.panelPrices}>
-                    {selected.prices.E10 != null && (
+                    {selected.prices[fuel.key] != null && (
                       <View style={styles.panelPriceItem}>
-                        <Text style={styles.panelFuelLabel}>Unleaded</Text>
+                        <Text style={styles.panelFuelLabel}>{fuel.label}</Text>
                         <Text
                           style={[
                             styles.panelPrice,
                             {
                               color: getPriceColor(
-                                selected.prices.E10,
-                                nationalAvgPetrol
+                                selected.prices[fuel.key] as number,
+                                benchmark
                               ),
                             },
                           ]}
                         >
-                          {formatPpl(selected.prices.E10)}
-                        </Text>
-                      </View>
-                    )}
-                    {selected.prices.B7 != null && (
-                      <View style={styles.panelPriceItem}>
-                        <Text style={styles.panelFuelLabel}>Diesel</Text>
-                        <Text
-                          style={[
-                            styles.panelPrice,
-                            {
-                              color: getPriceColor(
-                                selected.prices.B7,
-                                nationalAvgDiesel
-                              ),
-                            },
-                          ]}
-                        >
-                          {formatPpl(selected.prices.B7)}
+                          {formatPpl(selected.prices[fuel.key] as number)}
                         </Text>
                       </View>
                     )}

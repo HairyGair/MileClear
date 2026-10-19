@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from "react-native";
 import { getCurrentLocation } from "../../lib/location/geocoding";
 import { fetchNearbyPrices } from "../../lib/api/fuel";
 import { fetchVehicles } from "../../lib/api/vehicles";
-import { mapFuelFor, UNLEADED, type MapFuel } from "../../lib/fuel/mapFuel";
+import { ALL_FUELS, mapFuelFor, UNLEADED, type MapFuel } from "../../lib/fuel/mapFuel";
+import { priceBenchmark, stationsFor, type StationSort } from "../../lib/fuel/stationList";
+import { loadFuelListPrefs, saveFuelListPrefs } from "../../lib/fuel/listPrefs";
 import { openDirections } from "../../lib/location/directions";
 import FuelMapModal from "./FuelMapModal";
 import type { FuelStation, NationalAveragePrices } from "@mileclear/shared";
@@ -43,15 +46,14 @@ function getPriceColor(pricePence: number, nationalAvg: number | null): string {
 
 function StationCard({
   station,
-  nationalAvgPetrol,
-  nationalAvgDiesel,
+  fuel,
+  benchmark,
 }: {
   station: FuelStation;
-  nationalAvgPetrol: number | null;
-  nationalAvgDiesel: number | null;
+  fuel: MapFuel;
+  benchmark: number | null;
 }) {
-  const unleadedPrice = station.prices.E10;
-  const dieselPrice = station.prices.B7;
+  const price = station.prices[fuel.key];
 
   return (
     <View style={styles.stationCard}>
@@ -66,29 +68,11 @@ function StationCard({
       </View>
       <View style={styles.stationBody}>
         <View style={styles.pricesRow}>
-          {unleadedPrice != null && (
+          {price != null && (
             <View style={styles.priceChip}>
-              <Text style={styles.fuelLabel}>Unleaded</Text>
-              <Text
-                style={[
-                  styles.fuelPrice,
-                  { color: getPriceColor(unleadedPrice, nationalAvgPetrol) },
-                ]}
-              >
-                {formatPpl(unleadedPrice)}
-              </Text>
-            </View>
-          )}
-          {dieselPrice != null && (
-            <View style={styles.priceChip}>
-              <Text style={styles.fuelLabel}>Diesel</Text>
-              <Text
-                style={[
-                  styles.fuelPrice,
-                  { color: getPriceColor(dieselPrice, nationalAvgDiesel) },
-                ]}
-              >
-                {formatPpl(dieselPrice)}
+              <Text style={styles.fuelLabel}>{fuel.label}</Text>
+              <Text style={[styles.fuelPrice, { color: getPriceColor(price, benchmark) }]}>
+                {formatPpl(price)}
               </Text>
             </View>
           )}
@@ -138,14 +122,48 @@ export default function NearbyPrices() {
   const [userLat, setUserLat] = useState<number | null>(null);
   const [userLng, setUserLng] = useState<number | null>(null);
   const [mapModalVisible, setMapModalVisible] = useState(false);
-  // Pins follow the driver's fuel: a diesel driver sees diesel prices.
-  const [mapFuel, setMapFuel] = useState<MapFuel>(UNLEADED);
+  // The grade the list and map show: the one the driver last picked, else
+  // their vehicle's fuel (a diesel driver sees diesel prices).
+  const [fuel, setFuel] = useState<MapFuel>(UNLEADED);
+  const [sort, setSort] = useState<StationSort>("nearest");
+  const [fuelPicked, setFuelPicked] = useState(false);
 
   useEffect(() => {
-    fetchVehicles()
-      .then((res) => setMapFuel(mapFuelFor(res.data)))
-      .catch(() => {});
+    let cancelled = false;
+    loadFuelListPrefs().then((prefs) => {
+      if (cancelled) return;
+      setSort(prefs.sort);
+      if (prefs.fuel) {
+        setFuel(prefs.fuel);
+        setFuelPicked(true);
+        return;
+      }
+      fetchVehicles()
+        .then((res) => {
+          if (!cancelled) setFuel(mapFuelFor(res.data));
+        })
+        .catch(() => {});
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  const chooseFuel = (f: MapFuel) => {
+    setFuel(f);
+    setFuelPicked(true);
+    saveFuelListPrefs({ fuel: f, sort });
+  };
+  const chooseSort = (next: StationSort) => {
+    setSort(next);
+    saveFuelListPrefs({ fuel: fuelPicked ? fuel : null, sort: next });
+  };
+
+  const shown = useMemo(() => stationsFor(stations, fuel, sort), [stations, fuel, sort]);
+  const benchmark = useMemo(
+    () => priceBenchmark(fuel, nationalAvg, stations),
+    [fuel, nationalAvg, stations]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -257,31 +275,78 @@ export default function NearbyPrices() {
 
       {nationalAvg && <NationalAverageBanner data={nationalAvg} />}
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.fuelChips}
+        style={styles.fuelChipsScroll}
+      >
+        {ALL_FUELS.map((f) => {
+          const active = f.key === fuel.key;
+          return (
+            <TouchableOpacity
+              key={f.key}
+              style={[styles.fuelChipBtn, active && styles.fuelChipBtnActive]}
+              onPress={() => chooseFuel(f)}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${f.label} prices`}
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.fuelChipText, active && styles.fuelChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {viewMode === "list" && shown.length > 1 && (
+        <View style={styles.sortRow}>
+          <Text style={styles.sortLabel}>Sort by</Text>
+          <View style={styles.toggle}>
+            {(["nearest", "cheapest"] as const).map((k) => (
+              <TouchableOpacity
+                key={k}
+                style={[styles.toggleBtn, sort === k && styles.toggleBtnActive]}
+                onPress={() => chooseSort(k)}
+                accessibilityRole="tab"
+                accessibilityLabel={k === "nearest" ? "Sort by nearest" : "Sort by cheapest"}
+                accessibilityState={{ selected: sort === k }}
+              >
+                <Text style={[styles.toggleText, sort === k && styles.toggleTextActive]}>
+                  {k === "nearest" ? "Nearest" : "Cheapest"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+
       {viewMode === "list" ? (
-        stations.length === 0 ? (
+        shown.length === 0 ? (
           <View style={styles.messageBox}>
             <Text style={styles.messageText}>
-              No fuel stations found nearby
+              {stations.length === 0
+                ? "No fuel stations found nearby"
+                : `No nearby stations list a ${fuel.label.toLowerCase()} price`}
             </Text>
           </View>
         ) : (
-          stations.map((s, i) => (
+          shown.map((s, i) => (
             <StationCard
               key={`${s.siteId}-${i}`}
               station={s}
-              nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
-              nationalAvgDiesel={nationalAvg?.dieselPencePerLitre ?? null}
+              fuel={fuel}
+              benchmark={benchmark}
             />
           ))
         )
       ) : (
         <View style={styles.mapContainer}>
           <InlineMapView
-            stations={stations}
-            fuel={mapFuel}
-            nationalAvg={
-              (mapFuel.key === "B7" ? nationalAvg?.dieselPencePerLitre : nationalAvg?.petrolPencePerLitre) ?? null
-            }
+            stations={shown}
+            fuel={fuel}
+            nationalAvg={benchmark}
             userLat={userLat}
             userLng={userLng}
           />
@@ -300,10 +365,9 @@ export default function NearbyPrices() {
       <FuelMapModal
         visible={mapModalVisible}
         onClose={() => setMapModalVisible(false)}
-        stations={stations}
-        nationalAvgPetrol={nationalAvg?.petrolPencePerLitre ?? null}
-        nationalAvgDiesel={nationalAvg?.dieselPencePerLitre ?? null}
-        fuel={mapFuel}
+        stations={shown}
+        benchmark={benchmark}
+        fuel={fuel}
         userLat={userLat}
         userLng={userLng}
       />
@@ -431,6 +495,43 @@ const styles = StyleSheet.create({
   toggleTextActive: {
     color: BG,
   },
+  // Fuel grade chips + sort
+  fuelChipsScroll: {
+    marginBottom: 10,
+    flexGrow: 0,
+  },
+  fuelChips: {
+    gap: 6,
+  },
+  fuelChipBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  fuelChipBtnActive: {
+    backgroundColor: AMBER,
+  },
+  fuelChipText: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: TEXT_2,
+  },
+  fuelChipTextActive: {
+    color: BG,
+  },
+  sortRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  sortLabel: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: TEXT_3,
+  },
   // National average banner
   avgBanner: {
     backgroundColor: CARD_BG,
@@ -502,7 +603,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   priceChip: {
-    alignItems: "center",
+    alignItems: "flex-start",
   },
   fuelLabel: {
     fontSize: 10,
