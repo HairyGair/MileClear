@@ -34,6 +34,9 @@ prisma/*.db
 /android/
 /apps/mobile/android/
 ios/
+# Local Expo modules keep their native code in git (ios/ above is for the
+# generated app project). nav-voice (1.4.0) is the first one tracked.
+!apps/mobile/modules/nav-voice/ios/
 
 # Expo
 web-build/

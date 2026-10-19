@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["NavVoiceModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.navvoice.NavVoiceModule"]
+  }
+}

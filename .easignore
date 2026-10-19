@@ -36,6 +36,9 @@ prisma/*.db
 *.orig.*
 android/
 ios/
+# Local Expo module native code must reach the build (1.4.0 Directions).
+!apps/mobile/modules/nav-voice/ios/
+!apps/mobile/modules/nav-voice/android/
 
 # Expo
 web-build/

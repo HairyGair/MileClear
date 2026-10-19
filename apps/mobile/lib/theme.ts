@@ -151,6 +151,23 @@ export const fontSizes = {
  *   body       1.6  — readable copy scales most freely
  *   none       1.0  — never scale (badges, micro-icons text)
  */
+// Directions (1.4.0, docs/navigation-1.4.0/DESIGN.md 6.1 and graphics/GRAPHICS.md 2).
+export const nav = {
+  routeLine: "#f5a623",
+  routeWidth: 7,
+  routeCasing: "#030712",
+  routeCasingWidth: 10,
+  previewRouteWidth: 6,
+  staleRoute: "rgba(100,116,139,0.6)",
+  glyphTile: "#1a2335",
+  glyphSize: 72,
+  bannerDistance: 40,
+  bannerLine: 20,
+  speedRing: "#c8102e",
+  speedSign: 56,
+  control: 56,
+} as const;
+
 export const fontScaleCap = {
   display: 1.3,
   heading: 1.4,

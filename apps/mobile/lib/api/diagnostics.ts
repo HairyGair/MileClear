@@ -24,6 +24,9 @@ import { recordBatterySample, getBatterySeriesForDump } from "../tracking/batter
 import { getBatteryOptimisationState } from "../tracking/batteryOptimisation";
 import { getNativeEngineDiagnostics, readEnginePower } from "../tracking/nativeLocation";
 import { getLiveActivityState } from "../liveActivity/presence";
+import { isCarAudioAvailable } from "../../modules/car-audio";
+import { isVisitMonitorAvailable } from "../../modules/visit-monitor";
+import { isNavVoiceAvailable } from "../../modules/nav-voice";
 import { summariseDetectionEvents } from "./activitySummaryRule";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "unknown";
@@ -206,6 +209,14 @@ function screenDetails(): { modelName: string | null; screenWidth: number; scree
   };
 }
 
+function safeBool(f: () => boolean): boolean {
+  try {
+    return f() === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function uploadDiagnosticDump(): Promise<void> {
   // Recording-drop events that could not be sent at the time (offline at the
   // kerb, or the app closed mid-send) go now, once per app start. Detached:
@@ -370,6 +381,11 @@ export async function uploadDiagnosticDump(): Promise<void> {
           enginePower,
           liveActivity,
           syncQueue,
+          // Which local native modules this binary has (guarded loaders, so
+          // false on a build without them). Proves what each build shipped.
+          carAudioAvailable: safeBool(isCarAudioAvailable),
+          visitMonitorAvailable: safeBool(isVisitMonitorAvailable),
+          navVoiceAvailable: safeBool(isNavVoiceAvailable),
           // True native-binary identity + which OTA is running on top of it,
           // so the reported appVersion/buildNumber (OTA label) can be
           // reconciled against the real binary. See getUpdatesInfo().

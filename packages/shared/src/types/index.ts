@@ -50,6 +50,10 @@ export interface User {
   premiumExpiresAt: string | null;
   premiumSource?: "subscription" | "referral" | "team" | "none";
   referralProUntil?: string | null;
+  /** In-app turn-by-turn navigation (Oct 2026 trial). True only for drivers
+   *  the server has switched it on for (admins and a tester list). Optional:
+   *  older API responses lack it, which means off. */
+  navigationEnabled?: boolean;
   createdAt: string;
 }
 
@@ -2623,3 +2627,84 @@ export interface RunningCostSummary {
     fillUpSpendPence: number;
   };
 }
+
+// ── In-app navigation (Oct 2026, docs/navigation-build-oct2026.md) ──
+// GET /navigation/route. Routing is our own GraphHopper (OpenStreetMap, Great
+// Britain). No live traffic: durationSeconds is free-flow.
+
+export type NavigationStepType =
+  | "depart"
+  | "continue"
+  | "turn"
+  | "keep"
+  | "roundabout"
+  | "uturn"
+  | "arrive";
+
+export type NavigationStepModifier =
+  | "left"
+  | "right"
+  | "slight_left"
+  | "slight_right"
+  | "sharp_left"
+  | "sharp_right"
+  | "straight";
+
+export interface NavigationStep {
+  type: NavigationStepType;
+  modifier?: NavigationStepModifier;
+  /** Roundabouts: which exit, 1-based. */
+  exit?: number;
+  streetName: string | null;
+  /** Road number from OpenStreetMap ("A1", "A189"). Many major roads have no
+   *  name, only this. Optional: routes from before 19 Oct 2026 lack it. */
+  roadRef?: string | null;
+  /** Signposted destinations ("Sunderland, Washington"). */
+  towards?: string | null;
+  /** On a uturn step that turns round through a side street ("Strawberry
+   *  Place"): said "Turn round using Strawberry Place". Null for a plain
+   *  U-turn on one road. */
+  via?: string | null;
+  /** Plain UK English, e.g. "Turn right onto Queen Victoria Road". */
+  text: string;
+  /** Length of this step, from its manoeuvre to the next. */
+  distanceMeters: number;
+  durationSeconds: number;
+  /** Index into geometry where this step's manoeuvre happens. */
+  startIndex: number;
+  endIndex: number;
+}
+
+export interface NavigationSpeedLimit {
+  startIndex: number;
+  endIndex: number;
+  /** UK limit, rounded to the nearest 5. Null when OpenStreetMap has none. */
+  mph: number | null;
+}
+
+export interface NavigationRoute {
+  /** uuid, for logging. */
+  routeId: string;
+  distanceMeters: number;
+  /** No live traffic. */
+  durationSeconds: number;
+  /** [lat, lng] in order. */
+  geometry: Array<[number, number]>;
+  steps: NavigationStep[];
+  speedLimitsMph: NavigationSpeedLimit[];
+  /** OpenStreetMap data date, "YYYY-MM-DD". */
+  dataDate: string;
+  engine: "graphhopper";
+  /** "car_nav", or "car" (no turn restrictions), for diagnostics. */
+  profile: string;
+}
+
+export interface NavigationRouteResponse {
+  data: NavigationRoute;
+}
+
+export type NavigationErrorCode =
+  | "NAVIGATION_NOT_ENABLED"
+  | "NO_ROUTE"
+  | "ROUTING_UNAVAILABLE"
+  | "BAD_INPUT";

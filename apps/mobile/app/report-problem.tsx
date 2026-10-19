@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { submitProblemReport } from "../lib/api/support";
 import { uploadDiagnosticDump } from "../lib/api/diagnostics";
@@ -18,6 +18,7 @@ import { showSupportAlert } from "../lib/support";
 import { toUploads, type PickedScreenshot } from "../lib/supportScreenshots";
 import { ScreenshotPicker } from "../components/SupportScreenshots";
 import { colors, fonts } from "../lib/theme";
+import { directionsReportPrefix } from "../lib/navigation/rules";
 
 const AMBER = colors.amber;
 const BG = colors.bg;
@@ -36,6 +37,8 @@ const DUMP_WAIT_MS = 8000;
  */
 export default function ReportProblemScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ topic?: string; ref?: string }>();
+  const aboutDirections = params.topic === "directions";
   const [body, setBody] = useState("");
   const [shots, setShots] = useState<PickedScreenshot[]>([]);
   const [sending, setSending] = useState(false);
@@ -52,7 +55,8 @@ export default function ReportProblemScreen() {
         uploadDiagnosticDump().catch(() => {}),
         new Promise((resolve) => setTimeout(resolve, DUMP_WAIT_MS)),
       ]);
-      const res = await submitProblemReport({ body: body.trim(), screenshots: toUploads(shots) });
+      const text = aboutDirections ? `${directionsReportPrefix(params.ref)}\n\n${body.trim()}` : body.trim();
+      const res = await submitProblemReport({ body: text, screenshots: toUploads(shots) });
       router.replace(`/support-thread?key=${encodeURIComponent(res.data.threadKey)}` as never);
     } catch (e: unknown) {
       showSupportAlert("Couldn't send your report", e instanceof Error && e.message ? e.message : "Try again in a moment.");
@@ -74,12 +78,19 @@ export default function ReportProblemScreen() {
           </Text>
         </View>
 
+        {aboutDirections && (
+          <Text style={s.hint}>About Directions (test). We only see where you were going if you write it here.</Text>
+        )}
         <Text style={s.label}>What happened?</Text>
         <TextInput
           style={s.input}
           value={body}
           onChangeText={setBody}
-          placeholder="For example: my drive to work this morning around 8am didn't record."
+          placeholder={
+            aboutDirections
+              ? "For example: it said turn left but the road was closed, or the voice stopped."
+              : "For example: my drive to work this morning around 8am didn't record."
+          }
           placeholderTextColor={TEXT_3}
           maxLength={4000}
           multiline

@@ -81,6 +81,7 @@ import {
 } from "./enginePowerRule";
 import { shouldStopNativeEngine } from "./nativeStopRule";
 import { readDetectionSwitch } from "./detectionOffRule";
+import { offerFix as offerNavigationFix } from "../navigation/fixBus";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -1468,6 +1469,20 @@ async function stopIfSwitchedOff(source: string): Promise<void> {
 }
 
 export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
+  // In-app navigation reads the recorder's fixes from here (lib/navigation/
+  // fixBus.ts). It cannot have a listener of its own: startNativeLocationEngine
+  // calls removeAllListeners(), so a second onLocation would be dropped
+  // silently, and navigation must never start, stop or reconfigure the engine.
+  // First, before anything that returns early, so guidance keeps its fixes
+  // whatever the recorder decides. With no navigation screen open this is one
+  // Set size check; listeners run on a later tick, and offerFix never throws,
+  // so nothing here can delay, change or break recording. The extra try/catch
+  // is belt and braces.
+  try {
+    offerNavigationFix(loc);
+  } catch {
+    // never into the recorder
+  }
   try {
     // Same pause decision as the motion handler, because a fix can arrive
     // without a motionchange ever firing (46% of Android phones have never
