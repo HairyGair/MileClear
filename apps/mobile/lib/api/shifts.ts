@@ -1,6 +1,7 @@
 import { apiRequest } from "./index";
 import type { Earning, Shift, ShiftScorecard, Trip, Vehicle } from "@mileclear/shared";
 import type { PastShiftBody } from "../shifts/pastShiftRule";
+import type { PastShiftTotalsBody } from "../shifts/pastShiftTotalsRule";
 
 export interface ShiftWithVehicle extends Shift {
   vehicle: Vehicle | null;
@@ -45,7 +46,7 @@ export interface PastShiftResult {
   duplicate?: boolean;
 }
 
-export function createPastShift(body: PastShiftBody, idempotencyKey: string) {
+export function createPastShift(body: PastShiftBody | PastShiftTotalsBody, idempotencyKey: string) {
   return apiRequest<PastShiftResult>("/shifts/past", {
     method: "POST",
     headers: { "Idempotency-Key": idempotencyKey },

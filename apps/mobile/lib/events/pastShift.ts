@@ -7,6 +7,7 @@ import { apiRequest } from "../api/index";
 export type PastShiftEvent =
   | "past_shift.opened"
   | "past_shift.next_trip_tapped"
+  | "past_shift.mode_changed"
   | "past_shift.overlap_warned"
   | "past_shift.overlap_answered"
   | "past_shift.offline_blocked"

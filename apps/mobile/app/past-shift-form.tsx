@@ -16,6 +16,11 @@
 // When a sent save gets no answer, the driver is asked to check More > Shifts
 // first; sending it again unchanged is safe (the key is made from the
 // request, so the server answers with the first save).
+//
+// "Just the totals" (Lucian, Deliveroo, 19 Oct 2026): instead of every trip,
+// the shift's total miles, how many drops, and where it started and finished,
+// saved as one Business trip across the shift with exactly the typed miles
+// (lib/shifts/pastShiftTotalsRule). "Every trip" stays the default.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -60,6 +65,22 @@ import {
   type DraftTrip,
   type PastShiftBody,
 } from "../lib/shifts/pastShiftRule";
+import {
+  buildPastShiftTotalsBody,
+  emptyTotals,
+  homeFrom,
+  missingForTotals,
+  pastShiftSavedText,
+  totalsSummary,
+  withFinish,
+  withHome,
+  withStart,
+  type DraftTotals,
+  type PastShiftMode,
+  type PastShiftTotalsBody,
+  type SavedPlaceForHome,
+} from "../lib/shifts/pastShiftTotalsRule";
+import { getDatabase } from "../lib/db";
 import { trackPastShift } from "../lib/events/pastShift";
 import { colors, fonts, spacing, radii } from "../lib/theme";
 import { haptic } from "../lib/haptics";
@@ -83,6 +104,9 @@ export default function PastShiftFormScreen() {
   const [earningPlatformTouched, setEarningPlatformTouched] = useState(false);
   const [overlaps, setOverlaps] = useState<Record<string, KnownTrip | null>>({});
   const [saving, setSaving] = useState(false);
+  const [mode, setMode] = useState<PastShiftMode>("trips");
+  const [totals, setTotals] = useState<DraftTotals>(() => emptyTotals(null));
+  const [totalsOverlap, setTotalsOverlap] = useState<KnownTrip | null>(null);
 
   const shiftStartRef = useRef<Date | null>(null);
   const savedRef = useRef(false);
@@ -103,6 +127,33 @@ export default function PastShiftFormScreen() {
         if (primary) setVehicleId(primary.id);
       })
       .catch(() => {});
+  }, []);
+
+  // The driver's saved Home, read from the phone, starts the totals' start
+  // and finish. Without one they pick the places themselves.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const db = await getDatabase();
+        const rows = await db.getAllAsync<SavedPlaceForHome>(
+          "SELECT name, latitude, longitude, location_type FROM saved_locations WHERE location_type = 'home'"
+        );
+        if (!cancelled) setTotals((t) => withHome(t, homeFrom(rows)));
+      } catch {
+        // No Home to offer: the places start empty.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const changeMode = useCallback((next: PastShiftMode) => {
+    setMode((prev) => {
+      if (prev !== next) trackPastShift("past_shift.mode_changed", { mode: next });
+      return next;
+    });
   }, []);
 
   const updateTrip = useCallback((key: string, patch: Partial<DraftTrip>) => {
@@ -143,8 +194,12 @@ export default function PastShiftFormScreen() {
     }
   }, [trips, updateTrip]);
 
-  // Earnings start on the app most trips were for, until the driver picks.
-  const usualPlatform = useMemo(() => mostUsedPlatform(trips), [trips]);
+  // Earnings start on the app most trips were for (or the totals' app),
+  // until the driver picks.
+  const usualPlatform = useMemo(
+    () => (mode === "totals" ? totals.platformTag : mostUsedPlatform(trips)),
+    [mode, totals.platformTag, trips]
+  );
   useEffect(() => {
     if (!earningPlatformTouched) setEarningPlatform(usualPlatform);
   }, [usualPlatform, earningPlatformTouched]);
@@ -182,6 +237,37 @@ export default function PastShiftFormScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timesKey]);
 
+  // A total covers the whole shift, so any trip MileClear already has in
+  // those hours would count the same miles twice.
+  const shiftKey = `${shiftStart?.getTime() ?? ""}-${shiftEnd?.getTime() ?? ""}`;
+  useEffect(() => {
+    if (mode !== "totals" || !shiftStart || !shiftEnd || shiftEnd <= shiftStart) {
+      setTotalsOverlap(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const hit = await findTripAround(shiftStart, shiftEnd).catch(() => null);
+      if (cancelled) return;
+      setTotalsOverlap(hit);
+      if (hit && !warnedRef.current.has(hit.id)) {
+        warnedRef.current.add(hit.id);
+        trackPastShift("past_shift.overlap_warned", {
+          fromTotals: true,
+          existingTripId: hit.id,
+          existingIsManual: hit.isManualEntry,
+          existingSource: hit.source,
+        });
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // shiftKey stands for the shift's times.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, shiftKey]);
+
   const addNextTrip = useCallback(() => {
     setTrips((prev) => [...prev, chainedTrip(prev[prev.length - 1] ?? null, shiftStart, nextKey(), Date.now())]);
     trackPastShift("past_shift.next_trip_tapped", { tripCount: trips.length + 1 });
@@ -194,11 +280,14 @@ export default function PastShiftFormScreen() {
   // Several cars and none primary: the server would save no car, so the
   // driver picks one rather than the screen guessing.
   const carNeeded = vehicles.length > 1 && !vehicleId;
-  const hint = missingForPastShift({ shiftStart, shiftEnd, trips, carNeeded });
+  const hint =
+    mode === "totals"
+      ? missingForTotals({ shiftStart, shiftEnd, totals, carNeeded })
+      : missingForPastShift({ shiftStart, shiftEnd, trips, carNeeded });
   const totalMiles = trips.reduce((sum, t) => sum + (t.miles ?? 0), 0);
 
   const send = useCallback(
-    async (body: PastShiftBody) => {
+    async (body: PastShiftBody | PastShiftTotalsBody) => {
       setSaving(true);
       try {
         // The key comes from the request itself: sent again unchanged, the
@@ -215,7 +304,7 @@ export default function PastShiftFormScreen() {
         const miles = res.trips.reduce((sum, t) => sum + (t.distanceMiles ?? 0), 0);
         Alert.alert(
           "Shift added",
-          `${res.trips.length} ${res.trips.length === 1 ? "trip" : "trips"}, ${formatMiles(miles)}, saved as Business.`,
+          pastShiftSavedText({ tripCount: res.trips.length, miles, fromTotals: "totals" in body }),
           [{ text: "OK", onPress: () => router.back() }]
         );
       } catch (err) {
@@ -242,22 +331,59 @@ export default function PastShiftFormScreen() {
       Alert.alert("No connection", PAST_SHIFT_OFFLINE_MESSAGE);
       return;
     }
-    const built = buildPastShiftBody({
-      shiftStart,
-      shiftEnd,
-      vehicleId,
-      trips,
-      earningText,
-      earningPlatform,
-      now: Date.now(),
-      carNeeded,
-    });
+    const built =
+      mode === "totals"
+        ? buildPastShiftTotalsBody({
+            shiftStart,
+            shiftEnd,
+            vehicleId,
+            totals,
+            earningText,
+            earningPlatform,
+            now: Date.now(),
+            carNeeded,
+          })
+        : buildPastShiftBody({
+            shiftStart,
+            shiftEnd,
+            vehicleId,
+            trips,
+            earningText,
+            earningPlatform,
+            now: Date.now(),
+            carNeeded,
+          });
     if ("problem" in built) {
       Alert.alert("Check the shift", built.problem);
       return;
     }
 
     const go = () => {
+      if (mode === "totals") {
+        if (!totalsOverlap) {
+          send(built.body);
+          return;
+        }
+        Alert.alert(
+          "You may already have trips in this shift",
+          "MileClear already has a trip during these hours. A total covers every mile of the shift, so saving both could count the same miles twice.",
+          [
+            {
+              text: "Go back",
+              style: "cancel",
+              onPress: () => trackPastShift("past_shift.overlap_answered", { answer: "go_back", count: 1, fromTotals: true }),
+            },
+            {
+              text: "Save anyway",
+              onPress: () => {
+                trackPastShift("past_shift.overlap_answered", { answer: "save_anyway", count: 1, fromTotals: true });
+                send(built.body);
+              },
+            },
+          ]
+        );
+        return;
+      }
       const clashing = trips
         .map((t, i) => ({ n: i + 1, hit: overlaps[t.key] }))
         .filter((c): c is { n: number; hit: KnownTrip } => !!c.hit);
@@ -294,7 +420,7 @@ export default function PastShiftFormScreen() {
       return;
     }
     go();
-  }, [shiftStart, shiftEnd, vehicleId, trips, earningText, earningPlatform, overlaps, send, carNeeded]);
+  }, [shiftStart, shiftEnd, vehicleId, trips, earningText, earningPlatform, overlaps, send, carNeeded, mode, totals, totalsOverlap]);
 
   const now = new Date();
 
@@ -303,7 +429,7 @@ export default function PastShiftFormScreen() {
       <Stack.Screen options={{ title: "Add a past shift" }} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.intro}>
-          Add a shift you worked earlier, with all its trips, in one go. Trips in a shift are saved as Business.
+          Add a shift you worked earlier in one go, trip by trip or just its totals. Trips in a shift are saved as Business.
         </Text>
 
         <Text style={styles.section}>The shift</Text>
@@ -337,7 +463,101 @@ export default function PastShiftFormScreen() {
         )}
 
         <Text style={styles.section}>Trips</Text>
-        {trips.map((t, i) => {
+        <View style={styles.modeRow} accessibilityRole="radiogroup">
+          {(
+            [
+              { value: "trips", label: "Every trip" },
+              { value: "totals", label: "Just the totals" },
+            ] as const
+          ).map((m) => (
+            <TouchableOpacity
+              key={m.value}
+              style={[styles.modeOption, mode === m.value && styles.modeOptionActive]}
+              onPress={() => changeMode(m.value)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: mode === m.value }}
+            >
+              <Text style={[styles.modeText, mode === m.value && styles.modeTextActive]}>{m.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {mode === "totals" && (
+          <View style={styles.tripCard}>
+            <Text style={styles.totalsIntro}>
+              Type the shift's total miles instead of each trip. It's saved as one trip across the shift, with exactly
+              the miles you type. A total is a thinner record than trip by trip, so keep the shift history from
+              Deliveroo, Uber or whichever app you worked for as back-up.
+            </Text>
+
+            <Text style={styles.label}>Total miles</Text>
+            <TextInput
+              style={styles.input}
+              value={totals.milesText}
+              onChangeText={(milesText) => setTotals((t) => ({ ...t, milesText }))}
+              placeholder="For example 84.5"
+              placeholderTextColor={colors.text3}
+              keyboardType="decimal-pad"
+              accessibilityLabel="Total miles for the shift"
+            />
+
+            <Text style={styles.label}>Drops or trips (optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={totals.dropsText}
+              onChangeText={(dropsText) => setTotals((t) => ({ ...t, dropsText }))}
+              placeholder="For example 32"
+              placeholderTextColor={colors.text3}
+              keyboardType="number-pad"
+              accessibilityLabel="Number of drops or trips in the shift"
+            />
+
+            <LocationPickerField
+              label="Started at"
+              lat={totals.from?.lat ?? null}
+              lng={totals.from?.lng ?? null}
+              address={totals.from?.address ?? null}
+              onLocationChange={(lat, lng, address) => setTotals((t) => withStart(t, { lat, lng, address: address ?? null }))}
+              onClear={() => setTotals((t) => withStart(t, null))}
+            />
+            <LocationPickerField
+              label="Finished at"
+              lat={totals.to?.lat ?? null}
+              lng={totals.to?.lng ?? null}
+              address={totals.to?.address ?? null}
+              onLocationChange={(lat, lng, address) => setTotals((t) => withFinish(t, { lat, lng, address: address ?? null }))}
+              onClear={() => setTotals((t) => withFinish(t, null))}
+            />
+
+            {totalsOverlap && (
+              <View style={styles.overlapBox}>
+                <Ionicons name="alert-circle-outline" size={16} color={colors.amber} />
+                <Text style={styles.overlapText}>
+                  You already have a trip during this shift: {describeKnownTrip(totalsOverlap).route},{" "}
+                  {describeKnownTrip(totalsOverlap).times}, {describeKnownTrip(totalsOverlap).miles}. A total covers
+                  every mile, so check you're not counting it twice.
+                </Text>
+              </View>
+            )}
+
+            <Text style={styles.label}>App (optional)</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              {GIG_PLATFORMS.map((p) => (
+                <TouchableOpacity
+                  key={p.value}
+                  style={[styles.chip, totals.platformTag === p.value && styles.chipActive]}
+                  onPress={() => setTotals((t) => ({ ...t, platformTag: t.platformTag === p.value ? null : p.value }))}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: totals.platformTag === p.value }}
+                >
+                  <Text style={[styles.chipText, totals.platformTag === p.value && styles.chipTextActive]}>{p.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {mode === "trips" && trips.map((t, i) => {
           const arrival = arrivalFor(t, Date.now());
           const hit = overlaps[t.key];
           const words = hit ? describeKnownTrip(hit) : null;
@@ -424,10 +644,12 @@ export default function PastShiftFormScreen() {
           );
         })}
 
-        <TouchableOpacity style={styles.addTrip} onPress={addNextTrip} accessibilityRole="button">
-          <Ionicons name="add-circle-outline" size={18} color={colors.amber} />
-          <Text style={styles.addTripText}>Add the next trip</Text>
-        </TouchableOpacity>
+        {mode === "trips" && (
+          <TouchableOpacity style={styles.addTrip} onPress={addNextTrip} accessibilityRole="button">
+            <Ionicons name="add-circle-outline" size={18} color={colors.amber} />
+            <Text style={styles.addTripText}>Add the next trip</Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={styles.section}>Earnings (optional)</Text>
         <View style={styles.amountRow}>
@@ -463,6 +685,8 @@ export default function PastShiftFormScreen() {
 
         {hint ? (
           <Text style={styles.hint}>{hint}</Text>
+        ) : mode === "totals" ? (
+          <Text style={styles.hint}>{totalsSummary(totals) ?? ""}</Text>
         ) : (
           <Text style={styles.hint}>
             {trips.length} {trips.length === 1 ? "trip" : "trips"}, {formatMiles(totalMiles)}
@@ -541,6 +765,38 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: colors.bg,
+  },
+  modeRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.surfaceBorder,
+    padding: 3,
+    marginTop: spacing.sm,
+  },
+  modeOption: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: radii.sm,
+  },
+  modeOptionActive: {
+    backgroundColor: colors.amber,
+  },
+  modeText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.text2,
+  },
+  modeTextActive: {
+    color: colors.bg,
+  },
+  totalsIntro: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.text2,
+    lineHeight: 19,
   },
   tripCard: {
     backgroundColor: colors.surface,
