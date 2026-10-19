@@ -16,6 +16,9 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Location from "expo-location";
+import { reverseGeocode } from "../../lib/location/geocoding";
+import { shortAddress } from "../../lib/navigation/rules";
 import { colors, fonts, fontScaleCap, nav, radii, spacing } from "../../lib/theme";
 import { MapPickerModal } from "../MapPickerModal";
 import { loadPickerPlaceSource } from "../../lib/location/pickerPlacesStore";
@@ -51,7 +54,7 @@ function milesAway(here: LatLng | null, p: LatLng): string | null {
 }
 
 export function DestinationPicker({
-  here,
+  here: hereProp,
   movingMps,
   onPick,
   onClose,
@@ -75,6 +78,27 @@ export function DestinationPicker({
   const [passenger, setPassenger] = useState(false);
   const [typingWhenLocked, setTypingWhenLocked] = useState(false);
   const seq = useRef(0);
+  // Distances need a position: the screen's latest fix, else the phone's
+  // last known one (a one-off read, not a listener).
+  const [knownHere, setKnownHere] = useState<LatLng | null>(null);
+  const here = hereProp ?? knownHere;
+  useEffect(() => {
+    if (hereProp) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const perm = await Location.getForegroundPermissionsAsync();
+        if (perm.status !== "granted") return;
+        const p = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60_000 });
+        if (p && !cancelled) setKnownHere({ lat: p.coords.latitude, lng: p.coords.longitude });
+      } catch {
+        // no distances, that's all
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hereProp]);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Moving lock, from the same fixes guidance uses.
@@ -119,6 +143,26 @@ export function DestinationPicker({
   useEffect(() => () => {
     if (debounce.current) clearTimeout(debounce.current);
   }, []);
+
+  // Saved places keep no address on the phone: look up a short one for each
+  // (the geocoder caches them), one at a time, at most 12.
+  const savedKeys = saved.map((r) => r.key).join("|");
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      for (const r of saved.slice(0, 12)) {
+        if (cancelled || r.subtitle) continue;
+        const full = await reverseGeocode(r.lat, r.lng).catch(() => null);
+        const short = shortAddress(full, r.title);
+        if (cancelled || !short) continue;
+        setSaved((rows) => rows.map((x) => (x.key === r.key ? { ...x, subtitle: short } : x)));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedKeys]);
 
   const searchLocked = lock.locked && !passenger && !typingWhenLocked;
 

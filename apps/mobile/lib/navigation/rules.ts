@@ -26,6 +26,63 @@ export function rerouteOrigin(p: LatLng, courseDeg: number | null, speedMps: num
 
 const MPH = 0.44704;
 
+// ── GPS state while guiding (DESIGN 2.6) ──────────────────────────────────
+
+export type GpsState = "ok" | "waiting" | "still_waiting" | "start_driving" | "gone";
+
+export const GPS_WAIT_MS = 5_000;
+export const STILL_WAITING_MS = 30_000;
+export const PARKED_GRACE_MS = 120_000;
+/** No usable fix this long and not moving: offer "End directions" plainly
+ *  (a parked Start Trip after a missed arrival sat on "Still waiting"). */
+export const GPS_GONE_MS = 120_000;
+
+export function gpsStateFor(args: {
+  nowMs: number;
+  lastUsableAtMs: number | null;
+  startedAtMs: number;
+  lastSpeedMps: number | null;
+}): GpsState {
+  const { nowMs, lastUsableAtMs: last, startedAtMs: since } = args;
+  const still = (args.lastSpeedMps ?? 0) < 3 * MPH;
+  if (last == null || last < since) {
+    if (nowMs - since < PARKED_GRACE_MS) return "start_driving";
+    return still && nowMs - since >= GPS_GONE_MS ? "gone" : "waiting";
+  }
+  const quiet = nowMs - last;
+  if (quiet <= GPS_WAIT_MS) return "ok";
+  if (still && quiet >= GPS_GONE_MS) return "gone";
+  return quiet > STILL_WAITING_MS ? "still_waiting" : "waiting";
+}
+
+// ── A short address under a saved place's name (DESIGN 2.1) ──────────────
+
+/** "14 Grange Road, Sunderland" from a geocoder's long form; null when it
+ *  says nothing the name does not. */
+export function shortAddress(full: string | null | undefined, name: string): string | null {
+  if (!full) return null;
+  const parts = full
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p && !/^(united kingdom|uk|england|scotland|wales)$/i.test(p));
+  const short = parts.slice(0, 2).join(", ");
+  if (!short || short.toLowerCase() === name.trim().toLowerCase()) return null;
+  return short;
+}
+
+// ── Distance actually driven, for the arrival summary ─────────────────────
+
+/** Metres to add for a fix after `prev`: usable fixes only, and no jumps
+ *  (a gap's straight line or a GPS spike is not driving). */
+export function pathMeters(prev: { lat: number; lng: number; atMs: number; accuracyM: number | null } | null, fix: { lat: number; lng: number; atMs: number; accuracyM: number | null }): number {
+  if (!prev) return 0;
+  if ((fix.accuracyM ?? 0) > 50 || (prev.accuracyM ?? 0) > 50) return 0;
+  const d = distanceMeters(prev, fix);
+  const dt = (fix.atMs - prev.atMs) / 1000;
+  if (dt <= 0 || d / dt > 60) return 0;
+  return d;
+}
+
 // ── Coverage (DESIGN 2.8: checked on the phone before asking) ────────────
 
 /** Great Britain only: not Northern Ireland, the Isle of Man, the Channel

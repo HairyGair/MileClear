@@ -18,7 +18,6 @@ import { distanceMeters } from "./geo";
 import { latestFix, subscribeToFixes } from "./fixBus";
 import { useFixBridge } from "./fixBridge";
 import {
-  gpsStale,
   replaceRoute,
   repeatInstruction,
   smoothedSpeed,
@@ -32,7 +31,7 @@ import {
 import { shouldReroute, type RerouteFailure } from "./offRoute";
 import { HALF_MILE_M } from "./announcer";
 import { REROUTE_FAILED_PHRASE } from "./phrases";
-import { inGreatBritain, rerouteOrigin, thinLine } from "./rules";
+import { gpsStateFor, inGreatBritain, pathMeters, rerouteOrigin, thinLine, type GpsState } from "./rules";
 import { loadOptional } from "./optionalNative";
 import { getVoice } from "./voice";
 import * as store from "./store";
@@ -45,8 +44,6 @@ const ORIGIN_FIX_MAX_AGE_MS = 30_000;
 const LOCATE_WAIT_MS = 10_000;
 /** Under this, "You're already there." */
 const ALREADY_THERE_M = 161;
-const STILL_WAITING_MS = 30_000;
-const PARKED_GRACE_MS = 120_000;
 const STOPPED_MPS = 3 * 0.44704;
 
 type KeepAwake = { activateKeepAwakeAsync: (t?: string) => Promise<void>; deactivateKeepAwake: (t?: string) => Promise<void> | void };
@@ -57,7 +54,7 @@ function keepAwake(): KeepAwake | null {
 export type GuidancePhase = "pick" | "locating" | "routing" | "preview" | "guiding" | "arrived";
 export type { PreviewError } from "./useGuidanceTypes";
 import type { PreviewError } from "./useGuidanceTypes";
-export type GpsState = "ok" | "waiting" | "still_waiting" | "start_driving";
+export type { GpsState } from "./rules";
 export type RerouteStatus = { kind: "idle" } | { kind: "searching" } | { kind: "failed"; reason: RerouteFailure };
 
 export interface Destination {
@@ -93,6 +90,10 @@ export function useGuidance(opts: { focused: boolean }) {
   const [lastFix, setLastFix] = useState<NavFix | null>(null);
   const [movingMps, setMovingMps] = useState<number | null>(null);
   const [arrivedAtMs, setArrivedAtMs] = useState<number | null>(null);
+  /** What was really driven while guided: shown on arrival, never the plan. */
+  const [driven, setDriven] = useState<{ meters: number; seconds: number } | null>(null);
+  const drivenM = useRef(0);
+  const pathPrev = useRef<NavFix | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [crashed, setCrashed] = useState(false);
 
@@ -132,6 +133,9 @@ export function useGuidance(opts: { focused: boolean }) {
     (text: string | null, urgent: boolean) => {
       if (!text || mutedRef.current) return;
       counts.current.prompts++;
+      // Debug builds only, for testers capturing voice lines: the words,
+      // never a position. Metro strips this from release bundles.
+      if (__DEV__) console.log(`[directions] say${urgent ? " (now)" : ""}: ${text}`);
       void voice.say({ text, urgent });
     },
     [voice]
@@ -233,6 +237,10 @@ export function useGuidance(opts: { focused: boolean }) {
     setTimeout(() => voice.endGuidance({ hush: false }), 6_000);
     void store.clearSession();
     setArrivedAtMs(Date.now());
+    setDriven({
+      meters: drivenM.current,
+      seconds: startedAt.current ? (Date.now() - startedAt.current) / 1000 : 0,
+    });
     setPhase("arrived");
     phaseRef.current = "arrived";
     finishCounts("directions.arrived");
@@ -262,6 +270,10 @@ export function useGuidance(opts: { focused: boolean }) {
       }
       if (phaseRef.current !== "guiding" || !nav.current) return;
       try {
+        if (usable) {
+          drivenM.current += pathMeters(pathPrev.current, fix);
+          pathPrev.current = fix;
+        }
         const step = stepNavigation(nav.current, fix, { canSay });
         nav.current = step.state;
         if (ui) setView(step.view);
@@ -346,14 +358,12 @@ export function useGuidance(opts: { focused: boolean }) {
     const tick = () => {
       if (!appActive.current) return;
       const now = Date.now();
-      const last = lastUsableAt.current;
-      const since = startedAt.current ?? now;
-      let next: GpsState = "ok";
-      if (last == null || last < since) {
-        next = now - since < PARKED_GRACE_MS ? "start_driving" : "waiting";
-      } else if (gpsStale(last, now)) {
-        next = now - last > STILL_WAITING_MS ? "still_waiting" : "waiting";
-      }
+      const next = gpsStateFor({
+        nowMs: now,
+        lastUsableAtMs: lastUsableAt.current,
+        startedAtMs: startedAt.current ?? now,
+        lastSpeedMps: smoothedSpeed(speeds.current),
+      });
       if (next === "waiting" && !wasWaiting) counts.current.gpsWaits++;
       wasWaiting = next === "waiting" || next === "still_waiting";
       setGps(next);
@@ -451,6 +461,9 @@ export function useGuidance(opts: { focused: boolean }) {
     rr.current = { inFlight: false, lastAt: null, failures: 0, lastFailure: null, saidFailure: false };
     counts.current = { reroutes: 0, rerouteFailures: 0, gpsWaits: 0, prompts: 0, bridge: 0, native: 0, task: 0 };
     startedAt.current = Date.now();
+    drivenM.current = 0;
+    pathPrev.current = null;
+    setDriven(null);
     lastSavedStep.current = -1;
     setView(viewOf(nav.current));
     setReroute({ kind: "idle" });
@@ -545,6 +558,7 @@ export function useGuidance(opts: { focused: boolean }) {
     lastFix,
     movingMps,
     arrivedAtMs,
+    driven,
     sessionId,
     crashed,
     voiceAvailable: voice.available,

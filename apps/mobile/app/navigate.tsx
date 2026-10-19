@@ -8,7 +8,7 @@
 // splits or sorts a trip, and nothing writes the recorder's state.
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppState, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View } from "react-native";
+import { AppState, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View, useWindowDimensions } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -71,6 +71,8 @@ class GuidanceBoundary extends Component<{ fallback: ReactNode; children: ReactN
 export default function DirectionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: screenH } = useWindowDimensions();
+  const [sheetH, setSheetH] = useState(320);
   const focused = useIsFocused();
   const reduceMotion = useReducedMotion();
   const { user } = useUser();
@@ -90,7 +92,6 @@ export default function DirectionsScreen() {
   const [now, setNow] = useState(Date.now());
   const zoom = useRef<ZoomState | null>(null);
   const figures = useRef<CalmFigures | null>(null);
-  const trip = useRef<{ startedAt: number; meters: number } | null>(null);
 
   const guiding = g.phase === "guiding";
   const chip = useRecordingChip(guiding);
@@ -144,10 +145,6 @@ export default function DirectionsScreen() {
     })();
   }, [g.phase, g.route]);
 
-  useEffect(() => {
-    if (guiding && !trip.current && g.route) trip.current = { startedAt: Date.now(), meters: g.route.distanceMeters };
-    if (g.phase === "pick") trip.current = null;
-  }, [guiding, g.phase, g.route]);
 
   // Android back while guiding opens the End sheet (DESIGN 2.16).
   useEffect(() => {
@@ -225,13 +222,17 @@ export default function DirectionsScreen() {
     if (g.phase !== "preview" || fullLine.length < 2 || !mapRef.current) return;
     const t = setTimeout(() => {
       try {
-        mapRef.current?.fitToCoordinates(fullLine, { edgePadding: { top: 80, right: 48, bottom: 360, left: 48 }, animated: true });
+        // The whole route above the sheet (DESIGN 2.2: bottom = sheet height + 24).
+        mapRef.current?.fitToCoordinates(fullLine, {
+          edgePadding: { top: 80 + insets.top, right: 48, bottom: sheetH + 24, left: 48 },
+          animated: true,
+        });
       } catch {
         // best effort
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [g.phase, fullLine]);
+  }, [g.phase, fullLine, sheetH, insets.top]);
 
   const following =
     guiding &&
@@ -304,9 +305,14 @@ export default function DirectionsScreen() {
   const live = view ? { remainingSeconds: view.remainingSeconds, remainingMeters: view.remainingMeters } : null;
   if (live) figures.current = calmFigures(figures.current, live, now);
   const fig = figures.current;
-  const arrivedSummary = trip.current
-    ? `${milesShort(trip.current.meters)} in ${durationWords((now - trip.current.startedAt) / 1000)}`
-    : null;
+  // What was really driven while guided, never the planned route.
+  const arrivedSummary =
+    g.driven && g.driven.meters >= 50
+      ? `${milesShort(g.driven.meters)} in ${durationWords(g.driven.seconds)}`
+      : null;
+  // Following: the car about 70% down the map (DESIGN 2.3), more road ahead.
+  const barPad = 110 + insets.bottom;
+  const followTopPad = following ? Math.round(0.4 * screenH + barPad) : 0;
   const stoppedFallback = <StoppedSheet bottomInset={insets.bottom} onOpenMaps={openMaps} onEnd={g.end} />;
 
   return (
@@ -326,7 +332,7 @@ export default function DirectionsScreen() {
           userInterfaceStyle={night ? "dark" : "light"}
           customMapStyle={Platform.OS === "android" && night ? GOOGLE_NIGHT_STYLE : undefined}
           // Keeps Apple's "Legal" and Google's logo above the bottom bar.
-          mapPadding={{ top: 0, right: 0, bottom: guiding ? 110 + insets.bottom : 0, left: 0 }}
+          mapPadding={{ top: followTopPad, right: 0, bottom: guiding ? barPad : 0, left: 0 }}
           onPanDrag={() => {
             if (guiding) setFollowPausedAt(Date.now());
           }}
@@ -403,6 +409,7 @@ export default function DirectionsScreen() {
           onOpenMaps={openMaps}
           onClose={close}
           onReport={report}
+          onHeight={setSheetH}
         />
       )}
 
@@ -419,7 +426,14 @@ export default function DirectionsScreen() {
               arriveName={g.destination?.name ?? null}
               onPress={bannerTap}
             />
-            <StatusStrips gps={g.gps} chip={chip} />
+            <StatusStrips
+              gps={g.gps}
+              chip={chip}
+              onEnd={() => {
+                g.end();
+                close();
+              }}
+            />
           </View>
           <View style={[hud.controlsRow, { bottom: 110 + insets.bottom + 12 }]} pointerEvents="box-none">
             <SpeedSign mph={view?.speedLimitMph ?? null} />

@@ -63,6 +63,8 @@ export function PreviewSheet(props: {
   onOpenMaps: () => void;
   onClose: () => void;
   onReport: () => void;
+  /** The sheet's height, so the map can fit the route above it. */
+  onHeight?: (h: number) => void;
 }) {
   const [about, setAbout] = useState(false);
   const [retryReady, setRetryReady] = useState(true);
@@ -143,7 +145,10 @@ export function PreviewSheet(props: {
   }
 
   return (
-    <View style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
+    <View
+      style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg }]}
+      onLayout={(e) => props.onHeight?.(Math.round(e.nativeEvent.layout.height))}
+    >
       {props.destinationLabel && (
         <Text style={s.dest} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
           {props.destinationLabel}

@@ -37,7 +37,7 @@ export function Banner(props: {
   const { next, reroute } = props;
   const searching = reroute.kind === "searching";
   const failed = reroute.kind === "failed";
-  const gpsLost = props.gps === "waiting" || props.gps === "still_waiting";
+  const gpsLost = props.gps === "waiting" || props.gps === "still_waiting" || props.gps === "gone";
 
   let tile: ReactNode;
   let distance: string;
@@ -107,7 +107,24 @@ export function Banner(props: {
   );
 }
 
-export function StatusStrips({ gps, chip }: { gps: GpsState; chip: RecordingChip }) {
+export function StatusStrips({ gps, chip, onEnd }: { gps: GpsState; chip: RecordingChip; onEnd: () => void }) {
+  if (gps === "gone") {
+    // Two minutes with no GPS and not moving (parked, or the phone has lost
+    // its fix for good): say so plainly and offer the way out.
+    return (
+      <View style={s.strips}>
+        <View style={[s.strip, s.goneStrip]} accessibilityRole="alert">
+          <View style={s.goneTop}>
+            <Ionicons name="warning-outline" size={18} color={colors.amber} />
+            <Text style={s.stripText}>No GPS for 2 minutes. Directions can't follow you.</Text>
+          </View>
+          <TouchableOpacity style={s.goneEnd} onPress={onEnd} accessibilityRole="button" accessibilityLabel="End directions">
+            <Text style={s.goneEndText}>End directions</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
   const gpsText =
     gps === "waiting"
       ? "Waiting for GPS"
@@ -135,7 +152,9 @@ export function StatusStrips({ gps, chip }: { gps: GpsState; chip: RecordingChip
 }
 
 export function SpeedSign({ mph }: { mph: number | null }) {
-  if (mph == null) return null;
+  // Keep the space when there is no limit, so the controls row (space-between)
+  // does not move Mute across to the left over the map's Legal label.
+  if (mph == null) return <View style={s.speedPlaceholder} accessible={false} />;
   return (
     <View style={s.speed} accessibilityLabel={`Speed limit ${mph} miles per hour`}>
       <Text style={s.speedText} maxFontSizeMultiplier={fontScaleCap.none}>
@@ -270,6 +289,18 @@ const s = StyleSheet.create({
     gap: spacing.sm,
   },
   stripText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.text1 },
+  goneStrip: { flexDirection: "column", alignItems: "stretch", gap: spacing.sm, paddingVertical: spacing.md },
+  goneTop: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  goneEnd: {
+    minHeight: nav.control,
+    borderRadius: radii.md,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  goneEndText: { fontFamily: fonts.bold, fontSize: 16, color: colors.red },
   chip: {
     height: 32,
     borderRadius: 16,
@@ -292,6 +323,7 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   speedText: { fontFamily: fonts.bold, fontSize: 20, color: "#000000" },
+  speedPlaceholder: { width: nav.speedSign, height: nav.speedSign },
   round: {
     width: nav.control,
     height: nav.control,
