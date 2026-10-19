@@ -21,7 +21,7 @@ import {
   OVERLAP_LOOKBACK_MS,
   TRIPS_AROUND_MAX_DAYS,
 } from "@mileclear/shared";
-import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges } from "@mileclear/shared";
+import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges, isTypedTotalTrip } from "@mileclear/shared";
 import type { CazVehicleClass } from "@mileclear/shared";
 
 // Map our vehicleType to the CAZ engine's class (car / van / motorcycle).
@@ -42,7 +42,7 @@ import {
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
-import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
+import { findDuplicateCandidate, typedTotalCovering } from "../../services/tripDuplicates.js";
 import { findRecordedCopy } from "../../services/recordedDuplicateGuard.js";
 import { planOverlapTrim, type OverlapFix } from "../../services/recordedOverlap.js";
 import { loadOverlapCandidates, findTrimmedUpload, overlapTrimMode } from "../../services/recordedOverlapGuard.js";
@@ -1519,9 +1519,16 @@ export async function tripRoutes(app: FastifyInstance) {
       });
       // gpsQuality is consumed above and never read by the list screens;
       // dropping it keeps the page body lean.
+      // isTypedTotal tells the app a trip is a past shift's typed total, so
+      // its edit screen never shows routed miles for it. Older apps ignore it.
       const { gpsQuality, ...rest } = trip;
-      void gpsQuality;
-      return { ...rest, confidence, suggestion: suggestions.get(trip.id) ?? null, diversion: diversions.get(trip.id) ?? null };
+      return {
+        ...rest,
+        isTypedTotal: isTypedTotalTrip(gpsQuality),
+        confidence,
+        suggestion: suggestions.get(trip.id) ?? null,
+        diversion: diversions.get(trip.id) ?? null,
+      };
     });
 
     return reply.send({
@@ -2420,6 +2427,8 @@ export async function tripRoutes(app: FastifyInstance) {
         isManualEntry: true,
         recordedBy: true,
         createdAt: true,
+        // A past shift's totals warning leaves Personal trips out.
+        classification: true,
       },
     });
     const trips = overlappingTrips(rows, from, to).sort(
@@ -2668,6 +2677,54 @@ export async function tripRoutes(app: FastifyInstance) {
 
     if (trips.length !== tripIds.length) {
       return reply.status(404).send({ error: "One or more trips not found" });
+    }
+
+    // A past shift's typed total (Lucian, 19 Oct 2026) already counts every
+    // mile of its shift, so joining a trip into it means that trip was a
+    // double. The total is kept exactly as it is: its miles, its places and
+    // times, its shift, its note and typed-total mark, still a trip added by
+    // hand. The other trips go, archived first as below. No breadcrumbs are
+    // copied in: they would make a typed figure look recorded.
+    const totals = trips.filter((t) => isTypedTotalTrip(t.gpsQuality));
+    if (totals.length > 1) {
+      return reply.status(400).send({ error: "Two shift totals can't be joined. Edit or delete one of them instead." });
+    }
+    if (totals.length === 1) {
+      const total = totals[0];
+      const others = trips.filter((t) => t.id !== total.id);
+      // Only a trip inside the shift's hours is already in the total. A drive
+      // home after the shift is not: removing it would lose real miles.
+      if (others.some((t) => typedTotalCovering(t, [total]) == null)) {
+        return reply.status(400).send({ error: "Only trips inside the shift's hours can be joined into its total." });
+      }
+      for (const t of others) {
+        await archiveTripBeforeDelete(t.id, userId, "user").catch(() => null);
+      }
+      const kept = await prisma.$transaction(async (tx) => {
+        await tx.trip.deleteMany({ where: { id: { in: others.map((t) => t.id) }, userId } });
+        return tx.trip.update({
+          where: { id: total.id },
+          data: {
+            // A total is shift work: it keeps its own classification. A
+            // platform or note sent with the join is taken, else the total's.
+            platformTag: platformTag ?? total.platformTag,
+            ...(businessPurpose !== undefined ? { businessPurpose } : {}),
+            ...(category !== undefined ? { category } : {}),
+            notes: notes ?? total.notes,
+            joinedCount: joinedCountOf(trips),
+            possibleDuplicateOfId: null,
+          },
+          include: { vehicle: true, shift: true },
+        });
+      });
+      const years = new Set(trips.map((t) => getTaxYear(t.startedAt)));
+      for (const y of years) upsertMileageSummary(userId, y).catch(() => {});
+      logEvent("trip.merged_into_total", userId, {
+        totalTripId: total.id,
+        removedTripIds: others.map((t) => t.id),
+        removedMiles: Math.round(others.reduce((s, t) => s + t.distanceMiles, 0) * 100) / 100,
+      });
+      return reply.status(201).send({ data: kept });
     }
 
     // The first trip's start; the end of whichever trip ends LAST, and a
@@ -2992,7 +3049,16 @@ export async function tripRoutes(app: FastifyInstance) {
     const diversion = (await loadDiversionsForTrips([trip.id])).get(trip.id) ?? null;
 
     return reply.send({
-      data: { ...trip, insights, matchedCoordinates, confidence, mergeSuggestion, cleanAirZones, diversion },
+      data: {
+        ...trip,
+        isTypedTotal: isTypedTotalTrip(trip.gpsQuality),
+        insights,
+        matchedCoordinates,
+        confidence,
+        mergeSuggestion,
+        cleanAirZones,
+        diversion,
+      },
     });
   });
 
@@ -3051,6 +3117,9 @@ export async function tripRoutes(app: FastifyInstance) {
     const candidates: typeof trips = [];
     for (const t of trips) {
       if (t.endLat == null || t.endLng == null) continue;
+      // A past shift's typed total: its miles are the driver's own figure for
+      // the whole shift, and a route between its two ends is not the drive.
+      if (isTypedTotalTrip(t.gpsQuality)) continue;
       const durationSecs = t.endedAt
         ? Math.round((t.endedAt.getTime() - t.startedAt.getTime()) / 1000)
         : null;
@@ -3193,6 +3262,14 @@ export async function tripRoutes(app: FastifyInstance) {
     });
     if (!trip) {
       return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    // A past shift's typed total keeps the driver's own miles: a route
+    // between where the shift started and finished is not the shift.
+    if (isTypedTotalTrip(trip.gpsQuality)) {
+      return reply.send({
+        data: { changed: false, oldMiles: trip.distanceMiles, newMiles: trip.distanceMiles, source: null },
+      });
     }
 
     const oldMiles = trip.distanceMiles;
@@ -3483,7 +3560,10 @@ export async function tripRoutes(app: FastifyInstance) {
     // whether the stretch could not be priced or the pin only shifted a few
     // metres: replacing its recorded miles with a route between its two ends
     // is the thing being avoided.
-    if (distanceMiles === undefined && !recordedEndMoved) {
+    // A past shift's typed total keeps its miles when a place on it moves:
+    // they are the driver's figure for the whole shift, not a route between
+    // its ends (often the same place). The driver can still type new miles.
+    if (distanceMiles === undefined && !recordedEndMoved && !isTypedTotalTrip(existing.gpsQuality)) {
       const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
       const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
       const startMovedOnManual = startEdit?.rerouteEndToEnd === true;
@@ -3594,6 +3674,11 @@ export async function tripRoutes(app: FastifyInstance) {
         ...(incomingGpsQuality ?? {}),
       };
       if (endExtensionChange) nextGpsQuality.endExtension = endExtensionChange.set;
+      // A typed shift total stays one, whatever the client sent.
+      if (isTypedTotalTrip(existingGpsQuality)) {
+        nextGpsQuality.distanceSource = existingGpsQuality.distanceSource;
+        nextGpsQuality.drops = existingGpsQuality.drops ?? null;
+      }
     }
 
     const tripUpdateData = {
@@ -3851,7 +3936,9 @@ export async function tripRoutes(app: FastifyInstance) {
       });
     }
 
-    if (endMoved) {
+    // No route line for a typed shift total: a road route between its ends
+    // is not where the shift went.
+    if (endMoved && !isTypedTotalTrip(existing.gpsQuality)) {
       attachManualRoutePolyline({
         tripId: id,
         startLat: existing.startLat,

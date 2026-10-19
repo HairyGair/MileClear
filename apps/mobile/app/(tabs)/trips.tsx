@@ -24,6 +24,7 @@ import { PracticeSortLine } from "../../components/practice/PracticeSortLine";
 import { ClassifyControl } from "../../components/home/ClassifyControl";
 import { fetchOdometerDays, type OdometerDay } from "../../lib/api/odometer";
 import { dayLineA11y, dayLineText, loadedRange, selectDayLines } from "../../lib/odometer/logic";
+import { joinPreview } from "../../lib/trips/joinTotalRule";
 import { fetchTrips, fetchTripSummary, fetchProjectLabels, fetchUnclassifiedCount, fetchMissedJourneys, fetchClassificationSuggestion, mergeTrips, undoClassification, clearDuplicateFlag, TripWithVehicle, ClassificationSuggestion, type TripSummary } from "../../lib/api/trips";
 import { describeError } from "../../lib/api/apiError";
 import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
@@ -971,11 +972,22 @@ export default function TripsScreen() {
         .filter((t) => selectedIds.has(t.id))
         .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
-      await mergeTrips({
-        tripIds: selectedTrips.map((t) => t.id),
-        classification: mergeClassification,
-        platformTag: (mergePlatform as PlatformTag) || null,
-      });
+      // Joining into a past shift's typed total keeps the total as it is
+      // (Business, its own app), so nothing chosen here would apply.
+      const preview = joinPreview(selectedTrips);
+      if (preview.kind === "refused") {
+        Alert.alert("Can't join these trips", preview.problem);
+        return;
+      }
+      await mergeTrips(
+        preview.kind === "into_total"
+          ? { tripIds: selectedTrips.map((t) => t.id), classification: "business", platformTag: null }
+          : {
+              tripIds: selectedTrips.map((t) => t.id),
+              classification: mergeClassification,
+              platformTag: (mergePlatform as PlatformTag) || null,
+            }
+      );
 
       setMergeModalVisible(false);
       exitMergeMode();
@@ -2065,7 +2077,8 @@ export default function TripsScreen() {
                   .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
                 const first = selected[0];
                 const last = selected[selected.length - 1];
-                const totalMiles = selected.reduce((sum, t) => sum + t.distanceMiles, 0);
+                const preview = joinPreview(selected);
+                const totalMiles = preview.kind === "refused" ? null : preview.miles;
                 if (!first || !last) return null;
                 const fromName =
                   tripEndLabel(first.startAddress, first.startLat, first.startLng, savedPlaces) ||
@@ -2084,7 +2097,13 @@ export default function TripsScreen() {
                       <Text style={styles.mergePreviewText} numberOfLines={1}>{toName}</Text>
                     </View>
                     <View style={styles.mergePreviewStats}>
-                      <Text style={styles.mergePreviewStat}>{totalMiles.toFixed(1)} mi in all</Text>
+                      <Text style={styles.mergePreviewStat}>
+                        {preview.kind === "into_total"
+                          ? `${(totalMiles ?? 0).toFixed(1)} mi, the shift's total`
+                          : totalMiles != null
+                            ? `${totalMiles.toFixed(1)} mi in all`
+                            : ""}
+                      </Text>
                       <Text style={styles.mergePreviewStat}>
                         {formatTime(first.startedAt)} to {last.endedAt ? formatTime(last.endedAt) : "still going"}
                       </Text>
@@ -2093,66 +2112,86 @@ export default function TripsScreen() {
                 );
               })()}
 
-              <Text style={styles.mergeLabel} accessibilityRole="header">Business or personal?</Text>
-              <View style={styles.mergeClassRow}>
-                {(["business", "personal"] as const).map((cls) => (
-                  <TouchableOpacity
-                    key={cls}
-                    style={[
-                      styles.mergeClassBtn,
-                      mergeClassification === cls && (cls === "business" ? styles.mergeClassBtnBusiness : styles.mergeClassBtnPersonal),
-                    ]}
-                    onPress={() => setMergeClassification(cls)}
-                    activeOpacity={0.7}
-                    accessibilityRole="button"
-                    accessibilityLabel={cls === "business" ? "Business" : "Personal"}
-                    accessibilityState={{ selected: mergeClassification === cls }}
-                  >
-                    <Ionicons
-                      name={cls === "business" ? "briefcase" : "person"}
-                      size={16}
-                      color={mergeClassification === cls ? (cls === "business" ? BG : TEXT_1) : TEXT_2}
-                    />
-                    <Text style={[
-                      styles.mergeClassBtnText,
-                      mergeClassification === cls && (cls === "business" ? styles.mergeClassBtnTextActive : styles.mergeClassBtnTextPersonal),
-                    ]}>
-                      {cls === "business" ? "Business" : "Personal"}
+              {(() => {
+                const preview = joinPreview(trips.filter((t) => selectedIds.has(t.id)));
+                if (preview.kind === "into_total") {
+                  return (
+                    <Text style={styles.mergeLabel}>
+                      Joined into the shift's total. It keeps the miles you typed and stays Business, and the other
+                      trips are removed.
                     </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                  );
+                }
+                if (preview.kind === "refused") {
+                  return <Text style={styles.mergeLabel}>{preview.problem}</Text>;
+                }
+                return null;
+              })()}
 
-              {mergeClassification === "business" && (
+              {joinPreview(trips.filter((t) => selectedIds.has(t.id))).kind === "plain" && (
                 <>
-                  <Text style={styles.mergeLabel}>Which app (optional)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mergePlatformScroll}>
+                <Text style={styles.mergeLabel} accessibilityRole="header">Business or personal?</Text>
+                <View style={styles.mergeClassRow}>
+                  {(["business", "personal"] as const).map((cls) => (
                     <TouchableOpacity
-                      style={[styles.mergePlatformChip, !mergePlatform && styles.mergePlatformChipActive]}
-                      onPress={() => setMergePlatform(null)}
+                      key={cls}
+                      style={[
+                        styles.mergeClassBtn,
+                        mergeClassification === cls && (cls === "business" ? styles.mergeClassBtnBusiness : styles.mergeClassBtnPersonal),
+                      ]}
+                      onPress={() => setMergeClassification(cls)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel="No app"
-                      accessibilityState={{ selected: !mergePlatform }}
+                      accessibilityLabel={cls === "business" ? "Business" : "Personal"}
+                      accessibilityState={{ selected: mergeClassification === cls }}
                     >
-                      <Text style={[styles.mergePlatformText, !mergePlatform && styles.mergePlatformTextActive]}>None</Text>
+                      <Ionicons
+                        name={cls === "business" ? "briefcase" : "person"}
+                        size={16}
+                        color={mergeClassification === cls ? (cls === "business" ? BG : TEXT_1) : TEXT_2}
+                      />
+                      <Text style={[
+                        styles.mergeClassBtnText,
+                        mergeClassification === cls && (cls === "business" ? styles.mergeClassBtnTextActive : styles.mergeClassBtnTextPersonal),
+                      ]}>
+                        {cls === "business" ? "Business" : "Personal"}
+                      </Text>
                     </TouchableOpacity>
-                    {GIG_PLATFORMS.map((p) => (
+                  ))}
+                </View>
+
+                {mergeClassification === "business" && (
+                  <>
+                    <Text style={styles.mergeLabel}>Which app (optional)</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.mergePlatformScroll}>
                       <TouchableOpacity
-                        key={p.value}
-                        style={[styles.mergePlatformChip, mergePlatform === p.value && styles.mergePlatformChipActive]}
-                        onPress={() => setMergePlatform(p.value)}
+                        style={[styles.mergePlatformChip, !mergePlatform && styles.mergePlatformChipActive]}
+                        onPress={() => setMergePlatform(null)}
                         activeOpacity={0.7}
                         accessibilityRole="button"
-                        accessibilityLabel={p.label}
-                        accessibilityState={{ selected: mergePlatform === p.value }}
+                        accessibilityLabel="No app"
+                        accessibilityState={{ selected: !mergePlatform }}
                       >
-                        <Text style={[styles.mergePlatformText, mergePlatform === p.value && styles.mergePlatformTextActive]}>
-                          {p.label}
-                        </Text>
+                        <Text style={[styles.mergePlatformText, !mergePlatform && styles.mergePlatformTextActive]}>None</Text>
                       </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                      {GIG_PLATFORMS.map((p) => (
+                        <TouchableOpacity
+                          key={p.value}
+                          style={[styles.mergePlatformChip, mergePlatform === p.value && styles.mergePlatformChipActive]}
+                          onPress={() => setMergePlatform(p.value)}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel={p.label}
+                          accessibilityState={{ selected: mergePlatform === p.value }}
+                        >
+                          <Text style={[styles.mergePlatformText, mergePlatform === p.value && styles.mergePlatformTextActive]}>
+                            {p.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
                 </>
               )}
 

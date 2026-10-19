@@ -1,3 +1,4 @@
+import { isTypedTotalTrip } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { periodClaimPence } from "../lib/mileageRates.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
@@ -121,12 +122,9 @@ async function getPersonalRecords(
     LIMIT 1
   `;
 
-  // Longest single trip
-  const longestTrip = await prisma.trip.findFirst({
-    where: { userId, isPhantomTrip: false },
-    orderBy: { distanceMiles: "desc" },
-    select: { distanceMiles: true, startedAt: true },
-  });
+  // Longest single trip. A past shift's typed total is a whole shift's
+  // miles, not one trip, so it never holds the record.
+  const longestTrip = await longestRealTrip(userId);
 
   const { longest: longestStreakDays } = computeStreak(days.datesDesc);
 
@@ -626,7 +624,7 @@ export async function getPeriodRecap(
   let longestTripId: string | null = null;
   const milesByDay: Record<string, number> = {};
   for (const trip of trips) {
-    if (trip.distanceMiles > longestTripMiles) {
+    if (trip.distanceMiles > longestTripMiles && !isTypedTotalTrip(trip.gpsQuality)) {
       longestTripMiles = trip.distanceMiles;
       longestTripDate = trip.startedAt.toISOString();
       longestTripId = trip.id;
@@ -704,4 +702,25 @@ export async function getPeriodRecap(
         }
       : {}),
   };
+}
+
+/**
+ * The driver's longest trip that is not a past shift's typed total. Read in
+ * pages, longest first, so a run of totals at the top never hides the record.
+ */
+export async function longestRealTrip(userId: string): Promise<{ distanceMiles: number; startedAt: Date } | null> {
+  const PAGE = 50;
+  for (let skip = 0; ; skip += PAGE) {
+    const rows = await prisma.trip.findMany({
+      where: { userId, isPhantomTrip: false },
+      // id breaks ties so paging by skip never repeats or misses a row.
+      orderBy: [{ distanceMiles: "desc" }, { id: "asc" }],
+      select: { distanceMiles: true, startedAt: true, gpsQuality: true },
+      skip,
+      take: PAGE,
+    });
+    const real = rows.find((r) => !isTypedTotalTrip(r.gpsQuality));
+    if (real) return { distanceMiles: real.distanceMiles, startedAt: real.startedAt };
+    if (rows.length < PAGE) return null;
+  }
 }

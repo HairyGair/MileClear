@@ -7,6 +7,13 @@ import {
   isSamePastShift,
   PAST_SHIFT_MAX_TRIPS,
   PAST_SHIFT_CLOCK_SLACK_MS,
+  isTypedTotalTrip,
+  typedTotalNote,
+  pastShiftTotalsProblem,
+  pastShiftTotalMilesProblem,
+  pastShiftDropsProblem,
+  isSameTypedTotal,
+  tripJobCount,
 } from "./pastShift";
 
 const at = (hm: string, day = "2026-10-03") => new Date(`${day}T${hm}:00Z`);
@@ -178,5 +185,75 @@ describe("isSamePastShift", () => {
     expect(isSamePastShift({ trips, earning }, { trips, earning: { ...earning, amountPence: 4000 } })).toBe(false);
     expect(isSamePastShift({ trips, earning: null }, { trips, earning })).toBe(false);
     expect(isSamePastShift({ trips, earning }, { trips, earning: null })).toBe(false);
+  });
+});
+
+describe("just the totals", () => {
+  const totals = (miles: number | null, drops?: number | null, start = "09:00", end = "17:00") =>
+    pastShiftTotalsProblem({ startedAt: at(start), endedAt: at(end), distanceMiles: miles, drops, now: NOW });
+
+  it("accepts miles with or without drops", () => {
+    expect(totals(84)).toBeNull();
+    expect(totals(84, 32)).toBeNull();
+    expect(totals(0.4, 1)).toBeNull();
+    expect(totals(1000, 500)).toBeNull();
+  });
+
+  it("wants miles above 0 and no more than 1,000", () => {
+    expect(totals(null)).toBe("Add the total miles for the shift.");
+    expect(totals(0)).toBe("Add the total miles for the shift.");
+    expect(totals(-3)).toBe("Add the total miles for the shift.");
+    expect(totals(1000.1)).toBe("That's over 1,000 miles for one shift. Check the total miles.");
+    expect(pastShiftTotalMilesProblem(Number.NaN)).toBe("Add the total miles for the shift.");
+  });
+
+  it("wants drops as a whole number from 1 to 500", () => {
+    const msg = "The number of drops must be a whole number from 1 to 500.";
+    expect(totals(84, 0)).toBe(msg);
+    expect(totals(84, 501)).toBe(msg);
+    expect(totals(84, 2.5)).toBe(msg);
+    expect(pastShiftDropsProblem(null)).toBeNull();
+    expect(pastShiftDropsProblem(undefined)).toBeNull();
+  });
+
+  it("checks the shift's times by the same rules as trip by trip", () => {
+    expect(totals(84, 32, "17:00", "09:00")).toBe("The shift has to end after it starts.");
+    expect(totals(84, 32, "09:00", "23:30")).toBe("The shift can't end later than now.");
+  });
+
+  it("writes the drops note", () => {
+    expect(typedTotalNote(32)).toBe("32 drops, total entered by you");
+    expect(typedTotalNote(1)).toBe("1 drop, total entered by you");
+    expect(typedTotalNote(null)).toBe("Shift total entered by you");
+    expect(typedTotalNote(undefined)).toBe("Shift total entered by you");
+  });
+
+  it("knows a typed-total trip from its gpsQuality", () => {
+    expect(isTypedTotalTrip({ distanceSource: "typed_total", drops: 32 })).toBe(true);
+    expect(isTypedTotalTrip({ distanceSource: "match" })).toBe(false);
+    expect(isTypedTotalTrip(null)).toBe(false);
+    expect(isTypedTotalTrip("typed_total")).toBe(false);
+    expect(isTypedTotalTrip([{ distanceSource: "typed_total" }])).toBe(false);
+  });
+});
+
+describe("isSameTypedTotal", () => {
+  const saved = { distanceMiles: 84, platformTag: "deliveroo", gpsQuality: { distanceSource: "typed_total", drops: 32 } };
+  it("matches only the same miles, drops and app", () => {
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, drops: 32, platformTag: "deliveroo" })).toBe(true);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84.5, drops: 32, platformTag: "deliveroo" })).toBe(false);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, drops: 30, platformTag: "deliveroo" })).toBe(false);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, platformTag: "deliveroo" })).toBe(false);
+    expect(isSameTypedTotal(saved, { distanceMiles: 84, drops: 32, platformTag: null })).toBe(false);
+    expect(isSameTypedTotal({ ...saved, gpsQuality: null }, { distanceMiles: 84, drops: 32, platformTag: "deliveroo" })).toBe(false);
+  });
+});
+
+describe("tripJobCount", () => {
+  it("is a total's drops, else 1", () => {
+    expect(tripJobCount({ distanceSource: "typed_total", drops: 32 })).toBe(32);
+    expect(tripJobCount({ distanceSource: "typed_total", drops: null })).toBe(1);
+    expect(tripJobCount({ distanceSource: "match" })).toBe(1);
+    expect(tripJobCount(null)).toBe(1);
   });
 });

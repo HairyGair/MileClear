@@ -394,3 +394,18 @@ describe("Weekly P&L basis (Tax tab, 10 Oct 2026)", () => {
     expect(t.returnMileagePence).toBe(50 * 55 + 50 * 25);
   });
 });
+
+describe("rankPlatforms - a past shift's typed total", () => {
+  it("counts the total's drops as jobs, and one trip", () => {
+    const at = new Date("2026-10-17T10:00:00Z");
+    const league = rankPlatforms(
+      [{ platform: "deliveroo", amountPence: 9600 }],
+      [
+        { platformTag: "deliveroo", distanceMiles: 84, startedAt: at, gpsQuality: { distanceSource: "typed_total", drops: 32 } },
+        { platformTag: "deliveroo", distanceMiles: 4, startedAt: at, gpsQuality: null },
+        { platformTag: "deliveroo", distanceMiles: 2, startedAt: at, gpsQuality: { distanceSource: "typed_total" } },
+      ],
+    );
+    expect(league[0]).toMatchObject({ platform: "deliveroo", trips: 3, jobs: 34 });
+  });
+});

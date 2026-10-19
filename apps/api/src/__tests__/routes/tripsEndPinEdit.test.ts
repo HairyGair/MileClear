@@ -433,6 +433,62 @@ describe("PATCH /trips/:id moving a recorded trip's end pin", () => {
     expect(prisma.tripCoordinate.create).not.toHaveBeenCalled();
     expect(logEvent).not.toHaveBeenCalledWith("trip.end_edited", USER_ID, expect.anything());
   });
+
+  // A past shift saved from its totals (Lucian, 19 Oct 2026): 84 miles typed
+  // for the whole shift, home to home. Its miles are the driver's own figure.
+  const TYPED_TOTAL = {
+    ...MANUAL_TRIP,
+    distanceMiles: 84,
+    endLat: MANUAL_TRIP.startLat,
+    endLng: MANUAL_TRIP.startLng,
+    gpsQuality: { distanceSource: "typed_total", drops: 32 },
+  };
+
+  it("keeps a typed shift total's miles when its finish is moved", async () => {
+    seed(TYPED_TOTAL, []);
+    vi.mocked(resolveRouteDistance).mockResolvedValue({ ...HOME_STRETCH, distanceMiles: 3.9 });
+
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: MOVE_END_HOME,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(resolveRouteDistance).not.toHaveBeenCalled();
+    expect(firstUpdateData()).not.toHaveProperty("distanceMiles");
+    expect(db.trip.distanceMiles).toBe(84);
+    expect(db.trip.endLat).toBe(HOME.lat);
+  });
+
+  it("still takes miles the driver types on a typed shift total", async () => {
+    seed(TYPED_TOTAL, []);
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: { distanceMiles: 86.5 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(db.trip.distanceMiles).toBe(86.5);
+    expect(db.trip.gpsQuality).toMatchObject({ distanceSource: "typed_total", drops: 32 });
+  });
+
+  it("keeps the typed-total mark whatever gpsQuality a client sends", async () => {
+    seed(TYPED_TOTAL, []);
+    const res = await app.inject({
+      method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth,
+      payload: { distanceMiles: 48, gpsQuality: { distanceSource: "haversine", drops: 1 } },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(db.trip.distanceMiles).toBe(48);
+    expect(db.trip.gpsQuality).toMatchObject({ distanceSource: "typed_total", drops: 32 });
+  });
+
+  it("Recalculate distance leaves a typed shift total alone", async () => {
+    seed(TYPED_TOTAL, []);
+    vi.mocked(resolveRouteDistance).mockResolvedValue({ ...HOME_STRETCH, distanceMiles: 120 });
+    const res = await app.inject({ method: "POST", url: `/trips/${TRIP_ID}/recalc`, headers: auth });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toEqual({ changed: false, oldMiles: 84, newMiles: 84, source: null });
+    expect(resolveRouteDistance).not.toHaveBeenCalled();
+    expect(prisma.trip.update).not.toHaveBeenCalled();
+  });
 });
 
 // ── Edits one after another, against the stored trip ─────────────────────

@@ -60,6 +60,9 @@ export async function fetchServerRouteDistance(args: {
 
 export interface TripWithVehicle extends Trip {
   vehicle: Vehicle | null;
+  /** A past shift's typed total (Oct 2026): one trip across a shift with the
+   *  driver's own miles. Absent from older servers. */
+  isTypedTotal?: boolean;
   /** Per-trip confidence — included on every list response since
    *  10 May 2026 so the trips screen can render quality dots without
    *  drilling into each row. Older builds simply ignore the new field. */
@@ -667,6 +670,8 @@ export interface TripAround {
   isManualEntry: boolean;
   recordedBy: string | null;
   createdAt: string;
+  /** Absent from servers before Oct 2026. */
+  classification?: string;
 }
 
 /** The driver's trips that overlap [from, to] (at most 42 days). Throws on a

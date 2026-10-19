@@ -434,3 +434,22 @@ describe("provedDriving - either speed measure rescues a trip", () => {
       .toBe(false);
   });
 });
+
+describe("looksLikePhantomTrip - a past shift's typed total", () => {
+  // Lucian, 19 Oct 2026: a whole shift saved as one trip, home to home, with
+  // the miles he typed. No coordinates, start == finish, and on a short
+  // shift an average no car holds. None of that is evidence of a fake drive.
+  const total = {
+    distanceMiles: 84,
+    startedAt: "2026-10-18T10:00:00.000Z",
+    endedAt: "2026-10-18T18:00:00.000Z",
+    isManualEntry: true,
+    coordinateCount: 0,
+  };
+
+  it("never flags it, whatever its shape", () => {
+    expect(looksLikePhantomTrip(total)).toBe(false);
+    expect(looksLikePhantomTrip({ ...total, endedAt: "2026-10-18T10:30:00.000Z" })).toBe(false); // 168 mph average
+    expect(looksLikePhantomTrip({ ...total, distanceMiles: 0.4, maxSpeedMph: 0 })).toBe(false);
+  });
+});

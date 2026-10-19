@@ -60,6 +60,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Where do I see my old shifts?", area: "recording_trips", id: "shifts", expect: [/more/i, /shifts/i] },
   { q: "How do I add a past shift with all its trips in one go?", area: "recording_trips", id: "past-shift", expect: [/add a past shift/i, /more/i, /shifts/i] },
   { q: "Can I log an earlier work session instead of adding each trip?", area: "recording_trips", id: "past-shift", expect: [/add a past shift/i, /free/i] },
+  { q: "Can I just enter the total miles and number of drops for an old Deliveroo shift?", area: "recording_trips", id: "past-shift-totals", expect: [/just the totals/i, /add a past shift/i, /back-up/i] },
   { q: "How do I time how long I wait at a restaurant?", area: "recording_trips", id: "pickup-wait", expect: [/wait at pickup/i] },
   { q: "I'm on holiday, how can I stop it recording for a week?", area: "recording_trips", id: "pause-recording", expect: [/pause/i, /for a week/i] },
   { q: "How do I resume recording after a pause?", area: "recording_trips", id: "pause-recording", expect: [/resume/i] },
