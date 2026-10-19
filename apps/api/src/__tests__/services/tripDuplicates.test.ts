@@ -206,6 +206,22 @@ describe("a past shift's typed total (Lucian, 19 Oct 2026)", () => {
     expect(typedTotalCovering(t("open", 200, null, far), [total])?.id).toBe("total");
   });
 
+  it("a Personal trip inside its hours is left unmarked", () => {
+    const personal = t("pers", 120, 140, { ...far, classification: "personal" });
+    expect(findDuplicateCandidate(personal, [total])).toBeNull();
+    expect(findDuplicateCandidate(t("biz", 120, 140, { ...far, classification: "business" }), [total])?.id).toBe("total");
+  });
+
+  it("a trip only partly inside a total is never pointed at it, even sharing its ends", () => {
+    // Home to home like the total, starting inside and running past its end:
+    // the ordinary rule would match it, but Join would refuse the pair.
+    const homeRun = t("run", 440, 500, { endLat: HOME.lat, endLng: HOME.lng });
+    expect(findDuplicateCandidate(homeRun, [total])).toBeNull();
+    // An ordinary twin alongside is still found.
+    const twin = t("twin", 441, 499, { endLat: HOME.lat, endLng: HOME.lng });
+    expect(findDuplicateCandidate(homeRun, [total, twin])?.id).toBe("twin");
+  });
+
   it("a total is never marked against another total", () => {
     const other = t("other", 60, 120, { gpsQuality: { distanceSource: "typed_total" } });
     expect(typedTotalCovering(other, [total])).toBeNull();

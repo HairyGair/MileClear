@@ -26,6 +26,8 @@ export interface DuplicateCheckTrip {
   isManualEntry: boolean;
   /** Only read to tell a past shift's typed total (isTypedTotalTrip). */
   gpsQuality?: unknown;
+  /** A Personal trip is never marked against a typed total. */
+  classification?: string | null;
 }
 
 /** Share of the shorter trip's duration the two must overlap by. */
@@ -135,7 +137,9 @@ export function findDuplicateCandidate(
 ): DuplicateCheckTrip | null {
   // Inside a past shift's typed total, the total is what this trip doubles,
   // wherever its ends are: the total already counts every mile of the shift.
-  const total = typedTotalCovering(newTrip, existing);
+  // A Personal trip is never marked against a total, as when a total is
+  // saved (markTripsInsideTotal): the driver's own trips stay theirs.
+  const total = newTrip.classification === "personal" ? null : typedTotalCovering(newTrip, existing);
   if (total) return total;
   let best: DuplicateCheckTrip | null = null;
   let bestShare = 0;
@@ -147,7 +151,12 @@ export function findDuplicateCandidate(
       bestShare = share;
     }
   };
-  for (const candidate of existing) consider(candidate, candidate);
+  // A total is only ever matched through typedTotalCovering above: a trip
+  // that only partly overlaps it must not be pointed at a total that Join
+  // would then refuse.
+  for (const candidate of existing) {
+    if (!isTypedTotalTrip(candidate.gpsQuality)) consider(candidate, candidate);
+  }
   if (newTrip.isManualEntry) {
     const byId = new Map(existing.map((t) => [t.id, t]));
     for (const pair of joinedRecordedPairs(existing.filter((t) => t.id !== newTrip.id))) {
@@ -162,7 +171,8 @@ export function findDuplicateCandidate(
  * newTrip, or null. A total is one trip across the whole shift with the
  * driver's own miles, so any trip whose time sits inside it, however far
  * apart its ends, counts those miles a second time. A trip with no end is
- * judged by its start. Never a total for another total.
+ * judged by its start. Never a total for another total. (Join uses this
+ * too, so a Personal trip the driver chooses to join still can.)
  */
 export function typedTotalCovering(
   newTrip: DuplicateCheckTrip,
