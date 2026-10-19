@@ -218,6 +218,25 @@ describe("POST /trips/merge with a typed total", () => {
     });
   });
 
+  it("refuses a drive outside the shift's hours (the drive home after it), removing nothing", async () => {
+    const driveHome = {
+      ...RECORDING,
+      startedAt: new Date("2026-10-17T18:20:00.000Z"),
+      endedAt: new Date("2026-10-17T18:50:00.000Z"),
+      distanceMiles: 12,
+    };
+    vi.mocked(prisma.trip.findMany).mockResolvedValue([TOTAL, driveHome] as never);
+    const res = await app.inject({
+      method: "POST", url: "/trips/merge", headers: auth,
+      payload: { tripIds: [TOTAL_ID, RECORDING_ID], classification: "business" },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe("Only trips inside the shift's hours can be joined into its total.");
+    expect(archiveTripBeforeDelete).not.toHaveBeenCalled();
+    expect(prisma.trip.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.trip.update).not.toHaveBeenCalled();
+  });
+
   it("refuses to join two totals", async () => {
     vi.mocked(prisma.trip.findMany).mockResolvedValue([TOTAL, { ...TOTAL, id: RECORDING_ID }] as never);
     const res = await app.inject({

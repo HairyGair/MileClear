@@ -17,6 +17,7 @@ import {
   pastShiftTotalsProblem,
   typedTotalNote,
   isSameTypedTotal,
+  isTypedTotalTrip,
   clampedTripEnd,
   isSamePastShift,
   resolveRecordedBy,
@@ -255,6 +256,8 @@ export async function shiftRoutes(app: FastifyInstance) {
           s.startedAt.getTime() === body.startedAt.getTime() &&
           s.endedAt?.getTime() === body.endedAt.getTime()
       );
+      // The shift saved over the same hours was itself a typed total.
+      let sameWasTotal = false;
       if (same) {
         const [savedTrips, savedEarning] = await Promise.all([
           prisma.trip.findMany({ where: { userId, shiftId: same.id }, orderBy: { startedAt: "asc" } }),
@@ -273,6 +276,7 @@ export async function shiftRoutes(app: FastifyInstance) {
           // A total is its figures: the same hours with different miles,
           // drops or app is a different save, refused below.
           (!totals || isSameTypedTotal(savedTrips[0], totals));
+        sameWasTotal = savedTrips.length === 1 && isTypedTotalTrip(savedTrips[0].gpsQuality);
         if (repeat) {
           logEvent("shift.past_add_repeated", userId, { shiftId: same.id, tripCount: savedTrips.length });
           return reply.send({ data: same, trips: savedTrips, earning: savedEarning, scorecard: null, duplicate: true });
@@ -285,7 +289,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         sameTimes: Boolean(same),
       });
       const error =
-        same && totals
+        same && totals && sameWasTotal
           ? `You already saved a shift from ${ukTime(same.startedAt)} to ${ukTime(same.endedAt!)} on ${ukDay(same.startedAt)} with different totals. To change them, edit that shift's trip in Trips.`
           : shiftClashMessage(clash);
       return reply.status(409).send({ error, existingShiftId: clash.id });
@@ -825,7 +829,7 @@ function ukDay(d: Date): string {
 
 /**
  * Mark every trip of the driver's whose time sits inside a new typed total
- * (and that is not in a shift, and not a total itself) as a possible double
+ * (and that is not in a shift, not Personal, and not a total itself) as a possible double
  * of it. Returns how many there were and their miles, for the app to say.
  * Best-effort: a failure leaves the total saved and reports none.
  */
@@ -842,6 +846,9 @@ export async function markTripsInsideTotal(
         id: { not: total.id },
         isPhantomTrip: false,
         shiftId: null,
+        // A Personal trip is the driver's own: marking it would take it out
+        // of figures it belongs in, under a filter that may not show the mark.
+        classification: { not: "personal" },
         startedAt: { gte: total.startedAt, lte: total.endedAt },
       },
       select: {

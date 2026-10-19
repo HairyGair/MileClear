@@ -697,7 +697,7 @@ describe("POST /shifts/past with totals: trips already in those hours", () => {
   it("marks every trip inside the shift as a possible double of the total, and says how many", async () => {
     vi.mocked(prisma.trip.findMany).mockResolvedValue([
       trip("t1", "2026-10-03T09:30:00.000Z", "2026-10-03T09:50:00.000Z", 6.2),
-      trip("t2", "2026-10-03T11:00:00.000Z", "2026-10-03T11:30:00.000Z", 15.7, { classification: "personal" }),
+      trip("t2", "2026-10-03T11:00:00.000Z", "2026-10-03T11:30:00.000Z", 15.7, { classification: "unclassified" }),
       trip("t3", "2026-10-03T12:00:00.000Z", null, 0.5),
       trip("out", "2026-10-03T12:50:00.000Z", "2026-10-03T13:10:00.000Z", 9), // runs past the end
       trip("tot", "2026-10-03T10:00:00.000Z", "2026-10-03T11:00:00.000Z", 40, { gpsQuality: { distanceSource: "typed_total" } }),
@@ -711,7 +711,8 @@ describe("POST /shifts/past with totals: trips already in those hours", () => {
     expect(mark.data).toEqual({ possibleDuplicateOfId: "aaaaaaaa-aaaa-aaaa-aaaa-000000000001" });
     // Only trips in no shift, from the shift's hours.
     const where = vi.mocked(prisma.trip.findMany).mock.calls.at(-1)![0]!.where as Record<string, unknown>;
-    expect(where).toMatchObject({ userId: USER_ID, shiftId: null, isPhantomTrip: false });
+    // Personal trips are left unmarked.
+    expect(where).toMatchObject({ userId: USER_ID, shiftId: null, isPhantomTrip: false, classification: { not: "personal" } });
   });
 
   it("reports none when the hours are clear", async () => {
@@ -746,6 +747,17 @@ describe("POST /shifts/past with totals: trips already in those hours", () => {
       expect(res.statusCode).toBe(409);
       expect(res.json().error).toMatch(/^You already saved a shift from \d\d:\d\d to \d\d:\d\d on Sat 3 Oct with different totals\. To change them, edit that shift's trip in Trips\.$/);
       expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it("keeps the usual wording when the shift over those hours was saved trip by trip", async () => {
+      vi.mocked(prisma.shift.findMany).mockResolvedValue([SAVED_SHIFT] as never);
+      vi.mocked(prisma.trip.findMany).mockResolvedValue([
+        { id: "t1", startedAt: new Date(SHIFT_START), startLat: HOME.lat, startLng: HOME.lng, distanceMiles: 4, platformTag: null, gpsQuality: null },
+        { id: "t2", startedAt: new Date("2026-10-03T10:00:00.000Z"), startLat: HOME.lat, startLng: HOME.lng, distanceMiles: 5, platformTag: null, gpsQuality: null },
+      ] as never);
+      const res = await app.inject({ method: "POST", url: "/shifts/past", payload: payload(), headers: auth });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toMatch(/^You already have a shift from .* Change this shift's times so they don't overlap it\.$/);
     });
 
     it("answers the same total, drops and app included, with what was saved", async () => {

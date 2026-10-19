@@ -32,7 +32,12 @@ describe("longestRealTrip", () => {
       .mockResolvedValueOnce(Array.from({ length: 50 }, () => total(90)) as never)
       .mockResolvedValueOnce([total(80), drive(12)] as never);
     expect((await longestRealTrip("u1"))?.distanceMiles).toBe(12);
-    expect(vi.mocked(prisma.trip.findMany).mock.calls[1][0]).toMatchObject({ skip: 50, take: 50 });
+    // id breaks ties, so paging is stable.
+    expect(vi.mocked(prisma.trip.findMany).mock.calls[1][0]).toMatchObject({
+      skip: 50,
+      take: 50,
+      orderBy: [{ distanceMiles: "desc" }, { id: "asc" }],
+    });
   });
 
   it("is null with only totals", async () => {

@@ -713,7 +713,8 @@ export async function longestRealTrip(userId: string): Promise<{ distanceMiles: 
   for (let skip = 0; ; skip += PAGE) {
     const rows = await prisma.trip.findMany({
       where: { userId, isPhantomTrip: false },
-      orderBy: { distanceMiles: "desc" },
+      // id breaks ties so paging by skip never repeats or misses a row.
+      orderBy: [{ distanceMiles: "desc" }, { id: "asc" }],
       select: { distanceMiles: true, startedAt: true, gpsQuality: true },
       skip,
       take: PAGE,

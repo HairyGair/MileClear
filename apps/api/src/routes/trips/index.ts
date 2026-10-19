@@ -42,7 +42,7 @@ import {
 import { checkAndAwardAchievements } from "../../services/gamification.js";
 import { sendMilestonePush, sendAchievementPush } from "../../jobs/notifications.js";
 import { logEvent } from "../../services/appEvents.js";
-import { findDuplicateCandidate } from "../../services/tripDuplicates.js";
+import { findDuplicateCandidate, typedTotalCovering } from "../../services/tripDuplicates.js";
 import { findRecordedCopy } from "../../services/recordedDuplicateGuard.js";
 import { planOverlapTrim, type OverlapFix } from "../../services/recordedOverlap.js";
 import { loadOverlapCandidates, findTrimmedUpload, overlapTrimMode } from "../../services/recordedOverlapGuard.js";
@@ -2427,6 +2427,8 @@ export async function tripRoutes(app: FastifyInstance) {
         isManualEntry: true,
         recordedBy: true,
         createdAt: true,
+        // A past shift's totals warning leaves Personal trips out.
+        classification: true,
       },
     });
     const trips = overlappingTrips(rows, from, to).sort(
@@ -2690,6 +2692,11 @@ export async function tripRoutes(app: FastifyInstance) {
     if (totals.length === 1) {
       const total = totals[0];
       const others = trips.filter((t) => t.id !== total.id);
+      // Only a trip inside the shift's hours is already in the total. A drive
+      // home after the shift is not: removing it would lose real miles.
+      if (others.some((t) => typedTotalCovering(t, [total]) == null)) {
+        return reply.status(400).send({ error: "Only trips inside the shift's hours can be joined into its total." });
+      }
       for (const t of others) {
         await archiveTripBeforeDelete(t.id, userId, "user").catch(() => null);
       }
