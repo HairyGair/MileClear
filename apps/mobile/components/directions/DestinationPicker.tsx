@@ -26,6 +26,9 @@ import { distanceMeters, METRES_PER_MILE, type LatLng } from "../../lib/navigati
 import { getRecentDestinations } from "../../lib/navigation/store";
 import { initialMovingLock, updateMovingLock, type MovingLock } from "../../lib/navigation/rules";
 import { existingSearchProvider, type PlaceResult } from "../../lib/navigation/placeSearch";
+import { photonFirstProvider, SearchFailure, SEARCH_MIN_CHARS } from "../../lib/navigation/photonSearch";
+import { fetchNavigationSearch } from "../../lib/api/navigation";
+import { lookupPostcode } from "../../lib/location/postcodes";
 import type { Destination } from "../../lib/navigation/useGuidance";
 import { TestBadge } from "./TestBadge";
 
@@ -66,7 +69,20 @@ export function DestinationPicker({
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const provider = useMemo(() => existingSearchProvider(), []);
+  // Our own search first, the app's existing search as the silent fallback.
+  const provider = useMemo(
+    () =>
+      photonFirstProvider({
+        fetchPlaces: fetchNavigationSearch,
+        fallback: existingSearchProvider(),
+        lookupPostcode: async (q) => {
+          const pc = await lookupPostcode(q);
+          return pc ? { id: `pc:${pc.postcode}`, title: pc.postcode, subtitle: pc.adminDistrict || null, lat: pc.lat, lng: pc.lng } : null;
+        },
+      }),
+    []
+  );
+  useEffect(() => () => provider.cancel(), [provider]);
   const [saved, setSaved] = useState<Row[]>([]);
   const [recent, setRecent] = useState<Row[]>([]);
   const [query, setQuery] = useState("");
@@ -171,7 +187,8 @@ export function DestinationPicker({
     setSearchError(null);
     if (lock.locked) setTypingWhenLocked(true); // never yank the field mid-typing
     if (debounce.current) clearTimeout(debounce.current);
-    if (t.trim().length < 3) {
+    if (t.trim().length < SEARCH_MIN_CHARS) {
+      provider.cancel();
       setResults([]);
       setSearching(false);
       return;
@@ -184,7 +201,9 @@ export function DestinationPicker({
         if (n !== seq.current) return;
         setResults(r);
         setSearchError(r.length === 0 ? "none" : null);
-      } catch {
+      } catch (err) {
+        // A newer keystroke replaced this search: nothing to show for it.
+        if (err instanceof SearchFailure && err.kind === "aborted") return;
         if (n === seq.current) setSearchError("offline");
       } finally {
         if (n === seq.current) setSearching(false);
@@ -232,7 +251,7 @@ export function DestinationPicker({
   };
 
   const empty = saved.length === 0 && recent.length === 0 && query.trim().length === 0;
-  const showingResults = !searchLocked && query.trim().length >= 3;
+  const showingResults = !searchLocked && query.trim().length >= SEARCH_MIN_CHARS;
 
   return (
     <View style={[s.page, { paddingTop: insets.top + spacing.sm }]}>

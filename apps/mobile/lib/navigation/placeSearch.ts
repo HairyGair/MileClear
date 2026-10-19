@@ -1,7 +1,7 @@
-// Destination search behind a small interface (PLAN F5 / DESIGN Q1): today
-// the app's existing search (Google Places autocomplete, then the server
-// geocoder); swapping to a self-hosted Photon later means one new provider,
-// not a new screen. A UK postcode is looked up first (postcodes.io).
+// Destination search behind a small interface (PLAN F5 / DESIGN Q1). Our own
+// Photon search comes first (photonSearch.ts); this is the app's existing
+// search (Google Places autocomplete, then the server geocoder), used when
+// ours is unavailable. A UK postcode is looked up first (postcodes.io).
 
 import {
   forwardGeocodeMultiple,
@@ -27,9 +27,8 @@ export interface PlaceSearchProvider {
 }
 
 /** A full UK postcode ("SR1 3AB", "sr13ab"). */
-export function looksLikePostcode(q: string): boolean {
-  return /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i.test(q.trim());
-}
+import { looksLikePostcode } from "./photonSearch";
+export { looksLikePostcode };
 
 /** The app's existing search, as the place pickers use it. */
 export function existingSearchProvider(): PlaceSearchProvider {
