@@ -10,8 +10,12 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
   PAST_SHIFT_MAX_TRIPS,
+  PAST_SHIFT_MAX_DROPS,
+  TYPED_TOTAL_DISTANCE_SOURCE,
   pastShiftProblem,
   pastShiftMilesProblem,
+  pastShiftTotalsProblem,
+  typedTotalNote,
   clampedTripEnd,
   isSamePastShift,
   resolveRecordedBy,
@@ -63,18 +67,51 @@ const pastShiftTripSchema = z.object({
   platformTag: z.enum(PLATFORM_TAGS).optional(),
 });
 
-const pastShiftSchema = z.object({
-  startedAt: z.coerce.date(),
-  endedAt: z.coerce.date(),
-  vehicleId: z.string().uuid().optional(),
-  trips: z.array(pastShiftTripSchema).min(1, "Add at least one trip.").max(PAST_SHIFT_MAX_TRIPS),
-  earning: z
-    .object({
-      platform: z.enum(PLATFORM_TAGS),
-      amountPence: z.number().int().positive("Amount must be positive").max(10_000_000),
-    })
-    .optional(),
+// "Just the totals" (Lucian, 19 Oct 2026): the shift's typed total miles,
+// how many drops, and where it started and finished, instead of each trip.
+// Saved as one Business trip spanning the shift with exactly these miles.
+const pastShiftTotalsSchema = z.object({
+  startLat: z.number().min(-90).max(90),
+  startLng: z.number().min(-180).max(180),
+  endLat: z.number().min(-90).max(90),
+  endLng: z.number().min(-180).max(180),
+  startAddress: z.string().max(500).optional(),
+  endAddress: z.string().max(500).optional(),
+  distanceMiles: z.number({
+    required_error: "Add the total miles for the shift.",
+    invalid_type_error: "Add the total miles for the shift.",
+  }),
+  drops: z.number({ invalid_type_error: dropsMessage() }).optional(),
+  platformTag: z.enum(PLATFORM_TAGS).optional(),
 });
+
+function dropsMessage(): string {
+  return `The number of drops must be a whole number from 1 to ${PAST_SHIFT_MAX_DROPS}.`;
+}
+
+// Today's app sends `trips`; an app with "Just the totals" sends `totals`
+// instead. Exactly one of the two.
+const pastShiftSchema = z
+  .object({
+    startedAt: z.coerce.date(),
+    endedAt: z.coerce.date(),
+    vehicleId: z.string().uuid().optional(),
+    trips: z.array(pastShiftTripSchema).min(1, "Add at least one trip.").max(PAST_SHIFT_MAX_TRIPS).optional(),
+    totals: pastShiftTotalsSchema.optional(),
+    earning: z
+      .object({
+        platform: z.enum(PLATFORM_TAGS),
+        amountPence: z.number().int().positive("Amount must be positive").max(10_000_000),
+      })
+      .optional(),
+  })
+  .superRefine((b, ctx) => {
+    if (b.trips && b.totals) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Send the trips or the totals, not both.", path: ["totals"] });
+    } else if (!b.trips && !b.totals) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Add at least one trip.", path: ["trips"] });
+    }
+  });
 
 export async function shiftRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
@@ -143,12 +180,44 @@ export async function shiftRoutes(app: FastifyInstance) {
     const userId = request.userId!;
     const body = parsed.data;
 
-    const problem = pastShiftProblem({
-      startedAt: body.startedAt,
-      endedAt: body.endedAt,
-      trips: body.trips,
-      now: Date.now(),
-    });
+    // Just the totals: one trip from where the shift started to where it
+    // finished, across the whole shift, with the typed miles. From here on
+    // it goes through the same steps as a shift entered trip by trip, except
+    // where marked: its miles are never looked up, checked against a route
+    // or a straight line, or replaced (start and finish are often the same
+    // place, so either would read 0).
+    const totals = body.totals ?? null;
+    const inputTrips: Array<z.infer<typeof pastShiftTripSchema>> = totals
+      ? [
+          {
+            startLat: totals.startLat,
+            startLng: totals.startLng,
+            endLat: totals.endLat,
+            endLng: totals.endLng,
+            startAddress: totals.startAddress,
+            endAddress: totals.endAddress,
+            distanceMiles: totals.distanceMiles,
+            startedAt: body.startedAt,
+            endedAt: body.endedAt,
+            platformTag: totals.platformTag,
+          },
+        ]
+      : body.trips!;
+
+    const problem = totals
+      ? pastShiftTotalsProblem({
+          startedAt: body.startedAt,
+          endedAt: body.endedAt,
+          distanceMiles: totals.distanceMiles,
+          drops: totals.drops ?? null,
+          now: Date.now(),
+        })
+      : pastShiftProblem({
+          startedAt: body.startedAt,
+          endedAt: body.endedAt,
+          trips: inputTrips,
+          now: Date.now(),
+        });
     if (problem) {
       return reply.status(400).send({ error: problem });
     }
@@ -192,13 +261,17 @@ export async function shiftRoutes(app: FastifyInstance) {
             where: { userId, source: "manual", periodStart: same.startedAt, periodEnd: same.endedAt! },
           }),
         ]);
-        const repeat = isSamePastShift(
-          {
-            trips: savedTrips,
-            earning: savedEarning ? { platform: savedEarning.platform, amountPence: savedEarning.amountPence } : null,
-          },
-          { trips: body.trips, earning: body.earning ?? null }
-        );
+        const repeat =
+          isSamePastShift(
+            {
+              trips: savedTrips,
+              earning: savedEarning ? { platform: savedEarning.platform, amountPence: savedEarning.amountPence } : null,
+            },
+            { trips: inputTrips, earning: body.earning ?? null }
+          ) &&
+          // A total is its miles: the same hours with different miles is a
+          // different save, refused below like any other overlap.
+          (!totals || Math.abs(savedTrips[0].distanceMiles - totals.distanceMiles) < 0.005);
         if (repeat) {
           logEvent("shift.past_add_repeated", userId, { shiftId: same.id, tripCount: savedTrips.length });
           return reply.send({ data: same, trips: savedTrips, earning: savedEarning, scorecard: null, duplicate: true });
@@ -215,23 +288,24 @@ export async function shiftRoutes(app: FastifyInstance) {
 
     // Pins and miles first: they can call out to geocoders and routers,
     // which must never run inside the transaction.
+    // A total's miles are given, so this only looks up a pin from its address.
     const places: Array<Awaited<ReturnType<typeof resolveManualTripPlaces>>> = [];
-    for (const t of body.trips) {
-      places.push(
-        await resolveManualTripPlaces({
-          userId,
-          startLat: t.startLat,
-          startLng: t.startLng,
-          endLat: t.endLat,
-          endLng: t.endLng,
-          startAddress: t.startAddress,
-          endAddress: t.endAddress,
-          distanceMiles: t.distanceMiles,
-        })
-      );
+    for (const t of inputTrips) {
+      const p = await resolveManualTripPlaces({
+        userId,
+        startLat: t.startLat,
+        startLng: t.startLng,
+        endLat: t.endLat,
+        endLng: t.endLng,
+        startAddress: t.startAddress,
+        endAddress: t.endAddress,
+        distanceMiles: t.distanceMiles,
+      });
+      places.push(totals ? { ...p, distanceMiles: totals.distanceMiles } : p);
     }
-    // Checked again here: miles the server worked out count too.
-    const milesProblem = pastShiftMilesProblem(places.map((p) => p.distanceMiles));
+    // Checked again here: miles the server worked out count too. A total
+    // was checked against its own cap above, with its own words.
+    const milesProblem = totals ? null : pastShiftMilesProblem(places.map((p) => p.distanceMiles));
     if (milesProblem) {
       return reply.status(400).send({ error: milesProblem });
     }
@@ -240,8 +314,8 @@ export async function shiftRoutes(app: FastifyInstance) {
     // the shift and before now. Left empty, the route-line hook would fill it
     // later with no regard for the shift's end.
     const tripEnds: Date[] = [];
-    for (let i = 0; i < body.trips.length; i++) {
-      const t = body.trips[i];
+    for (let i = 0; i < inputTrips.length; i++) {
+      const t = inputTrips[i];
       if (t.endedAt) {
         tripEnds.push(t.endedAt);
         continue;
@@ -273,8 +347,8 @@ export async function shiftRoutes(app: FastifyInstance) {
         include: { vehicle: true },
       });
       const trips = [];
-      for (let i = 0; i < body.trips.length; i++) {
-        const t = body.trips[i];
+      for (let i = 0; i < inputTrips.length; i++) {
+        const t = inputTrips[i];
         const p = places[i];
         trips.push(
           await tx.trip.create({
@@ -296,6 +370,15 @@ export async function shiftRoutes(app: FastifyInstance) {
               classification: "business",
               platformTag: t.platformTag ?? null,
               recordedBy: resolveRecordedBy(null, true),
+              // A typed total says so twice: in words for the driver, and in
+              // gpsQuality where every reroute and recalculation path checks
+              // (isTypedTotalTrip) and steps aside.
+              ...(totals
+                ? {
+                    notes: typedTotalNote(totals.drops ?? null),
+                    gpsQuality: { distanceSource: TYPED_TOTAL_DISTANCE_SOURCE, drops: totals.drops ?? null },
+                  }
+                : {}),
             },
           })
         );
@@ -324,8 +407,10 @@ export async function shiftRoutes(app: FastifyInstance) {
       const p = places[i];
 
       // Route line for the map (and an end time from the route when none
-      // was given), exactly as for one typed trip. Fire-and-forget.
-      if (p.endLat != null && p.endLng != null && hasValidCoords(p.startLat, p.startLng) && hasValidCoords(p.endLat, p.endLng)) {
+      // was given), exactly as for one typed trip. Fire-and-forget. Not for
+      // a total: a road route from start to finish is not where the shift
+      // went, and home to home it would be no line at all.
+      if (!totals && p.endLat != null && p.endLng != null && hasValidCoords(p.startLat, p.startLng) && hasValidCoords(p.endLat, p.endLng)) {
         attachManualRoutePolyline({
           tripId: trip.id,
           startLat: p.startLat,
@@ -338,8 +423,12 @@ export async function shiftRoutes(app: FastifyInstance) {
 
       // Possible double-count against trips already saved (POST /trips does
       // the same). The shift's own trips are left out: they follow on from
-      // each other and are never the same journey.
-      if (trip.endedAt) {
+      // each other and are never the same journey. Not for a total either:
+      // it spans the whole shift, so every trip in those hours would match
+      // on time, and Join would fold the typed total into a recording and
+      // lose its mark. The app warns about trips in those hours before
+      // saving instead.
+      if (!totals && trip.endedAt) {
         try {
           const neighbours = (await loadDuplicateNeighbours(userId, trip)).filter((n) => !newIds.has(n.id));
           const duplicateOf = findDuplicateCandidate(trip, neighbours);
@@ -366,8 +455,8 @@ export async function shiftRoutes(app: FastifyInstance) {
         startLng: p.startLng,
         endLat: p.endLat,
         endLng: p.endLng,
-        hasStart: Boolean(body.trips[i].startAddress),
-        hasEnd: Boolean(body.trips[i].endAddress),
+        hasStart: Boolean(inputTrips[i].startAddress),
+        hasEnd: Boolean(inputTrips[i].endAddress),
       }).catch(() => {});
 
       logEvent("trip.created", userId, {
@@ -376,7 +465,7 @@ export async function shiftRoutes(app: FastifyInstance) {
         isManualEntry: true,
         platformTag: trip.platformTag,
         autoClassified: false,
-        source: "past_shift",
+        source: totals ? "past_shift_totals" : "past_shift",
       });
     }
 
@@ -413,6 +502,8 @@ export async function shiftRoutes(app: FastifyInstance) {
       totalMiles,
       durationSeconds: Math.round((shift.endedAt!.getTime() - shift.startedAt.getTime()) / 1000),
       hasEarning: Boolean(earning),
+      fromTotals: Boolean(totals),
+      ...(totals ? { drops: totals.drops ?? null } : {}),
       daysBack: Math.floor((Date.now() - shift.startedAt.getTime()) / (24 * 60 * 60 * 1000)),
     });
 

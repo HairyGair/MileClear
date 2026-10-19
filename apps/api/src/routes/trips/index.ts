@@ -21,7 +21,7 @@ import {
   OVERLAP_LOOKBACK_MS,
   TRIPS_AROUND_MAX_DAYS,
 } from "@mileclear/shared";
-import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges } from "@mileclear/shared";
+import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges, isTypedTotalTrip } from "@mileclear/shared";
 import type { CazVehicleClass } from "@mileclear/shared";
 
 // Map our vehicleType to the CAZ engine's class (car / van / motorcycle).
@@ -3051,6 +3051,9 @@ export async function tripRoutes(app: FastifyInstance) {
     const candidates: typeof trips = [];
     for (const t of trips) {
       if (t.endLat == null || t.endLng == null) continue;
+      // A past shift's typed total: its miles are the driver's own figure for
+      // the whole shift, and a route between its two ends is not the drive.
+      if (isTypedTotalTrip(t.gpsQuality)) continue;
       const durationSecs = t.endedAt
         ? Math.round((t.endedAt.getTime() - t.startedAt.getTime()) / 1000)
         : null;
@@ -3193,6 +3196,14 @@ export async function tripRoutes(app: FastifyInstance) {
     });
     if (!trip) {
       return reply.status(404).send({ error: "Trip not found" });
+    }
+
+    // A past shift's typed total keeps the driver's own miles: a route
+    // between where the shift started and finished is not the shift.
+    if (isTypedTotalTrip(trip.gpsQuality)) {
+      return reply.send({
+        data: { changed: false, oldMiles: trip.distanceMiles, newMiles: trip.distanceMiles, source: null },
+      });
     }
 
     const oldMiles = trip.distanceMiles;
@@ -3483,7 +3494,10 @@ export async function tripRoutes(app: FastifyInstance) {
     // whether the stretch could not be priced or the pin only shifted a few
     // metres: replacing its recorded miles with a route between its two ends
     // is the thing being avoided.
-    if (distanceMiles === undefined && !recordedEndMoved) {
+    // A past shift's typed total keeps its miles when a place on it moves:
+    // they are the driver's figure for the whole shift, not a route between
+    // its ends (often the same place). The driver can still type new miles.
+    if (distanceMiles === undefined && !recordedEndMoved && !isTypedTotalTrip(existing.gpsQuality)) {
       const endLatChanged = updates.endLat !== undefined && updates.endLat !== existing.endLat;
       const endLngChanged = updates.endLng !== undefined && updates.endLng !== existing.endLng;
       const startMovedOnManual = startEdit?.rerouteEndToEnd === true;
@@ -3851,7 +3865,9 @@ export async function tripRoutes(app: FastifyInstance) {
       });
     }
 
-    if (endMoved) {
+    // No route line for a typed shift total: a road route between its ends
+    // is not where the shift went.
+    if (endMoved && !isTypedTotalTrip(existing.gpsQuality)) {
       attachManualRoutePolyline({
         tripId: id,
         startLat: existing.startLat,

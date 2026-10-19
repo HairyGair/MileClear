@@ -21,7 +21,7 @@ import {
 } from "../../services/email.js";
 import { logEvent } from "../../services/appEvents.js";
 import { sendPushNotification, sendPushNotifications } from "../../lib/push.js";
-import { getTaxYear } from "@mileclear/shared";
+import { getTaxYear, isTypedTotalTrip } from "@mileclear/shared";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { advanceLastTripAt } from "../../services/userActivity.js";
 import {
@@ -5492,6 +5492,7 @@ export async function adminRoutes(app: FastifyInstance) {
         startedAt: true,
         startAddress: true,
         endAddress: true,
+        gpsQuality: true,
       },
       orderBy: { startedAt: "desc" },
       take: limit,
@@ -5516,6 +5517,12 @@ export async function adminRoutes(app: FastifyInstance) {
     for (const t of trips) {
       scanned += 1;
       if (t.endLat == null || t.endLng == null) continue;
+      // A past shift's typed total: the driver's figure for the whole shift,
+      // never a route between its ends.
+      if (isTypedTotalTrip(t.gpsQuality)) {
+        skippedAlreadyCorrect += 1;
+        continue;
+      }
 
       const route = await resolveRouteDistance({
         startLat: t.startLat,

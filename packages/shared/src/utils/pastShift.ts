@@ -140,3 +140,74 @@ export function isSamePastShift(saved: PastShiftContent, incoming: PastShiftCont
   if (!saved.earning || !incoming.earning) return !saved.earning && !incoming.earning;
   return saved.earning.platform === incoming.earning.platform && saved.earning.amountPence === incoming.earning.amountPence;
 }
+
+// ── Just the totals ─────────────────────────────────────────────────────────
+//
+// Lucian (Deliveroo, 19 Oct 2026): typing every drop of a past shift is
+// tedious, and the platform does not always show where a drop was. A past
+// shift can instead be saved from its totals: the miles the driver worked
+// out, how many drops, and where the shift started and finished. It is saved
+// as ONE Business trip spanning the shift, carrying the typed miles exactly.
+// Nothing may recompute them: start and finish are often the same place
+// (home to home), so any route or straight line between them would read 0.
+
+/** The most drops one shift of totals can carry. */
+export const PAST_SHIFT_MAX_DROPS = 500;
+
+/** gpsQuality.distanceSource on a trip saved from a shift's totals. */
+export const TYPED_TOTAL_DISTANCE_SOURCE = "typed_total";
+
+/**
+ * Is this trip a shift's typed total? Read from the trip's gpsQuality JSON,
+ * so it takes the loose blob the server stores. Every path that reroutes,
+ * recalculates or raises a typed trip's miles must step aside for it.
+ */
+export function isTypedTotalTrip(gpsQuality: unknown): boolean {
+  if (!gpsQuality || typeof gpsQuality !== "object" || Array.isArray(gpsQuality)) return false;
+  return (gpsQuality as Record<string, unknown>).distanceSource === TYPED_TOTAL_DISTANCE_SOURCE;
+}
+
+/** "32 drops, total entered by you", the note on a typed-total trip. */
+export function typedTotalNote(drops: number | null | undefined): string {
+  if (drops == null || !Number.isFinite(drops) || drops < 1) return "Shift total entered by you";
+  const n = Math.round(drops);
+  return `${n} ${n === 1 ? "drop" : "drops"}, total entered by you`;
+}
+
+/** Why a shift's typed total miles can't be saved, or null. */
+export function pastShiftTotalMilesProblem(miles: number | null | undefined): string | null {
+  if (miles == null || !Number.isFinite(miles) || miles <= 0) return "Add the total miles for the shift.";
+  if (miles > PAST_SHIFT_MAX_MILES) return "That's over 1,000 miles for one shift. Check the total miles.";
+  return null;
+}
+
+/** Why a typed number of drops can't be saved, or null. Leaving it out is fine. */
+export function pastShiftDropsProblem(drops: number | null | undefined): string | null {
+  if (drops == null) return null;
+  if (!Number.isInteger(drops) || drops < 1 || drops > PAST_SHIFT_MAX_DROPS) {
+    return `The number of drops must be a whole number from 1 to ${PAST_SHIFT_MAX_DROPS}.`;
+  }
+  return null;
+}
+
+/**
+ * The first thing wrong with a shift saved from its totals, or null. The
+ * shift's times follow the same rules as a shift entered trip by trip; the
+ * one trip it becomes spans the whole shift.
+ */
+export function pastShiftTotalsProblem(args: {
+  startedAt: Date;
+  endedAt: Date;
+  distanceMiles: number | null | undefined;
+  drops?: number | null;
+  now: number;
+}): string | null {
+  const times = pastShiftProblem({
+    startedAt: args.startedAt,
+    endedAt: args.endedAt,
+    trips: [{ startedAt: args.startedAt, endedAt: args.endedAt, distanceMiles: 0 }],
+    now: args.now,
+  });
+  if (times) return times;
+  return pastShiftTotalMilesProblem(args.distanceMiles) ?? pastShiftDropsProblem(args.drops);
+}

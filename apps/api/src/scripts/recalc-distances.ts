@@ -9,7 +9,7 @@
  */
 
 import { prisma } from "../lib/prisma.js";
-import { fetchRouteDistance, getTaxYear } from "@mileclear/shared";
+import { fetchRouteDistance, getTaxYear, isTypedTotalTrip } from "@mileclear/shared";
 import { upsertMileageSummary } from "../services/mileage.js";
 
 const OSRM_DELAY = 200;
@@ -36,6 +36,7 @@ async function main() {
       distanceMiles: true,
       userId: true,
       startedAt: true,
+      gpsQuality: true,
     },
     orderBy: { startedAt: "desc" },
   });
@@ -47,6 +48,12 @@ async function main() {
   let failed = 0;
 
   for (const trip of trips) {
+    // A past shift's typed total is the driver's figure for the whole shift.
+    if (isTypedTotalTrip(trip.gpsQuality)) {
+      console.log(`  SKIP ${trip.id}: typed shift total`);
+      skipped++;
+      continue;
+    }
     const hasValidStart = isValidCoord(trip.startLat, trip.startLng);
     const hasValidEnd =
       trip.endLat != null && trip.endLng != null &&
