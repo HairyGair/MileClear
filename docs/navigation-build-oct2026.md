@@ -54,6 +54,12 @@ Errors: 400 `{ code: "BAD_INPUT" }`; 404 `{ code: "NO_ROUTE" }` (GraphHopper fou
 
 GraphHopper `sign` mapping: -3 sharp_left, -2 left, -1 slight_left, 0 continue, 1 slight_right, 2 right, 3 sharp_right, 4 arrive, 5 via (treat as continue), 6 roundabout (use `exit_number`), -7 keep left, 7 keep right, -8/8/-98 uturn. `max_speed` detail is km/h: convert to mph and round to the nearest 5 (UK limits).
 
+## Contract: GET /navigation/search (added 19 Oct 2026)
+
+Same auth and switch as /navigation/route. Query: `q` (2-120 characters), `near=lat,lng` (optional, to rank nearby places first). Our own Photon (UK OpenStreetMap, localhost:2322 via `PHOTON_URL`).
+
+200: `{ data: { places: Array<{ name: string; address: string; lat: number; lng: number; kind: string }>, source: "photon" } }` (up to 8, duplicates removed). `address` is a short second line ("1 Trinity Square, Gateshead, NE8 1AG"). 400 `BAD_INPUT`; 503 `SEARCH_UNAVAILABLE` means the app should use its existing search instead. The search text is never logged.
+
 ## App navigator (v1)
 - **Core logic, pure and unit-tested** (`lib/navigation/`): snap a fix to the route (search forward from the last index), distance along the route, current and next step, distance to the next manoeuvre, announcement schedule, off-route detection (more than about 50 m from the route for 3 fixes in a row, allowing for GPS accuracy; or more than 150 m once), reroute throttling (at most every 10 s), arrival (within about 30 m of the destination, or past the final step).
 - **Voice:** UK phrasing in yards and miles ("In half a mile, turn right onto Park Lane", "In 300 yards, at the roundabout, take the 2nd exit", "Turn right now"). Announce at about 1 mile on fast roads, half a mile, about 300 yards and at the turn, scaled by speed. `expo-speech` plus the iOS `audio` background mode and an audio session that ducks music (native: needs one App Store build).

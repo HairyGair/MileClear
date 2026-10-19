@@ -9,6 +9,7 @@ import {
   parseHeading,
   cleanTowards,
   uturnVia,
+  toNavPlace,
   type GraphHopperPath,
 } from "../../services/navigation.js";
 
@@ -208,5 +209,29 @@ describe("cleanTowards", () => {
     expect(cleanTowards(undefined)).toBeNull();
     expect(cleanTowards("The SOUTH; Durham")).toBe("the South, Durham");
     expect(cleanTowards("Newcastle (A167)")).toBe("Newcastle (A167)");
+  });
+});
+
+describe("toNavPlace (Photon search rows)", () => {
+  const f = (properties: Record<string, string>, coordinates: [number, number] = [-1.6216, 54.9756]) => ({ geometry: { coordinates }, properties });
+
+  it("gives a place a short address line, [lng, lat] flipped", () => {
+    expect(toNavPlace(f({ name: "Tesco Extra", housenumber: "1", street: "Trinity Square", city: "Gateshead", postcode: "NE8 1AG", osm_key: "shop", osm_value: "supermarket" }))).toEqual({
+      name: "Tesco Extra",
+      address: "1 Trinity Square, Gateshead, NE8 1AG",
+      lat: 54.9756,
+      lng: -1.6216,
+      kind: "shop=supermarket",
+    });
+  });
+
+  it("names a postcode by itself and a plain address by its street", () => {
+    expect(toNavPlace(f({ postcode: "NE1 4ST", city: "Newcastle upon Tyne", osm_key: "place", osm_value: "postcode" }))).toMatchObject({ name: "NE1 4ST", address: "Newcastle upon Tyne" });
+    expect(toNavPlace(f({ housenumber: "14", street: "Grey Street", city: "Newcastle upon Tyne", postcode: "NE1 6AE" }))).toMatchObject({ name: "14 Grey Street", address: "Newcastle upon Tyne, NE1 6AE" });
+  });
+
+  it("drops rows with no position or nothing to call them", () => {
+    expect(toNavPlace({ properties: { name: "x" } })).toBeNull();
+    expect(toNavPlace(f({ osm_key: "x" }))).toBeNull();
   });
 });

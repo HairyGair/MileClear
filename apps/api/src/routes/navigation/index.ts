@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { hasPremiumAccess } from "../../middleware/premium.js";
 import { logEvent } from "../../services/appEvents.js";
-import { fetchNavRoute, navigationEnabledFor, parseHeading, parseLatLng } from "../../services/navigation.js";
+import { fetchNavRoute, navigationEnabledFor, parseHeading, parseLatLng, searchPlaces } from "../../services/navigation.js";
 
 // In-app navigation (18 Oct 2026). docs/navigation-build-oct2026.md.
 // Who gets it: NAVIGATION_ROLLOUT off | list | pro (services/navigation.ts).
@@ -44,6 +44,33 @@ export async function navigationRoutes(app: FastifyInstance) {
         profile: result.route.profile,
       });
       return reply.send({ data: result.route });
+    }
+  );
+
+  // GET /navigation/search?q=...&near=lat,lng
+  // Destination search for the Directions picker, from our own Photon (UK
+  // OpenStreetMap). 503 tells the app to use its existing search instead.
+  app.get(
+    "/search",
+    { preHandler: [authMiddleware], config: { rateLimit: { max: 60, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const user = await prisma.user.findUnique({ where: { id: request.userId! }, select: { id: true, isAdmin: true } });
+      const isPro = user ? await hasPremiumAccess(user.id).catch(() => false) : false;
+      if (!user || !navigationEnabledFor({ ...user, isPro })) {
+        return reply.status(403).send({ error: "Navigation isn't switched on for your account yet.", code: "NAVIGATION_NOT_ENABLED" });
+      }
+      const q = request.query as { q?: string; near?: string };
+      const text = (q.q ?? "").trim();
+      if (text.length < 2 || text.length > 120) {
+        return reply.status(400).send({ error: "Search for at least 2 characters.", code: "BAD_INPUT" });
+      }
+      const result = await searchPlaces(text, parseLatLng(q.near));
+      if (!result.ok) {
+        // Never the search text itself: it can be a home address.
+        logEvent("navigation.search_failed", user.id, { detail: result.detail.slice(0, 120) });
+        return reply.status(503).send({ error: "Search isn't available right now.", code: "SEARCH_UNAVAILABLE" });
+      }
+      return reply.send({ data: { places: result.places, source: "photon" } });
     }
   );
 }

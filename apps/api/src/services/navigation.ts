@@ -316,3 +316,71 @@ export async function fetchNavRoute(
   }
   return { ok: false, code: "ROUTING_UNAVAILABLE" };
 }
+
+// ── Destination search (Photon, 19 Oct 2026) ─────────────────────────
+// Our own OpenStreetMap geocoder for the Directions picker (Anthony: Photon,
+// unless it doesn't work), so Google Places results are never shown on the
+// iPhone's Apple map. UK only (gb import). The app falls back to its
+// existing search when this returns an error.
+
+export interface NavPlace {
+  name: string;
+  /** Short address for the second line: "14 Grey Street, Newcastle upon Tyne, NE1 6AE". */
+  address: string;
+  lat: number;
+  lng: number;
+  kind: string; // osm key=value, e.g. "shop=supermarket", "place=postcode"
+}
+
+interface PhotonFeature {
+  geometry?: { coordinates?: [number, number] };
+  properties?: Record<string, string | undefined>;
+}
+
+/** One Photon feature to a picker row. Pure. */
+export function toNavPlace(f: PhotonFeature): NavPlace | null {
+  const c = f.geometry?.coordinates;
+  const p = f.properties ?? {};
+  if (!c || !Number.isFinite(c[0]) || !Number.isFinite(c[1])) return null;
+  const town = p.city ?? p.town ?? p.village ?? p.district ?? p.county;
+  const streetLine = [p.housenumber, p.street].filter(Boolean).join(" ");
+  const name = p.name ?? (streetLine || p.postcode || town);
+  if (!name) return null;
+  const parts = [streetLine && streetLine !== name ? streetLine : null, town !== name ? town : null, p.postcode !== name ? p.postcode : null]
+    .filter((x): x is string => !!x);
+  return { name, address: parts.join(", "), lat: c[1], lng: c[0], kind: `${p.osm_key ?? "?"}=${p.osm_value ?? "?"}` };
+}
+
+export type NavSearchResult = { ok: true; places: NavPlace[] } | { ok: false; detail: string };
+
+export async function searchPlaces(
+  q: string,
+  near: [number, number] | null,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<NavSearchResult> {
+  const base = env.PHOTON_URL?.replace(/\/$/, "");
+  if (!base) return { ok: false, detail: "PHOTON_URL not set" };
+  const params = new URLSearchParams({ q, limit: "8", lang: "en" });
+  if (near) {
+    params.set("lat", String(near[0]));
+    params.set("lon", String(near[1]));
+  }
+  try {
+    const res = await fetch(`${base}/api?${params}`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return { ok: false, detail: `HTTP ${res.status}` };
+    const body = (await res.json()) as { features?: PhotonFeature[] };
+    const seen = new Set<string>();
+    const places: NavPlace[] = [];
+    for (const f of body.features ?? []) {
+      const p = toNavPlace(f);
+      if (!p) continue;
+      const key = `${p.name}|${p.address}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      places.push(p);
+    }
+    return { ok: true, places };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
+}
