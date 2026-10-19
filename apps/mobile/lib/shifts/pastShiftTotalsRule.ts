@@ -99,6 +99,8 @@ export function missingForTotals(args: {
   if (!args.shiftEnd) return "Add when the shift ended";
   if (args.carNeeded) return "Pick which car you drove";
   if (!args.totals.milesText.trim()) return "Add the total miles";
+  const miles = parseTotalMiles(args.totals.milesText);
+  if (miles != null && miles <= 0) return "Total miles must be more than 0";
   if (!args.totals.from) return "Add where the shift started";
   if (!args.totals.to) return "Add where the shift finished";
   return null;
@@ -192,7 +194,7 @@ export function totalsSummary(t: DraftTotals): string | null {
   if (miles == null) return null;
   const drops = parseDrops(t.dropsText);
   const dropWords = drops != null && Number.isInteger(drops) && drops > 0 ? `, ${drops} ${drops === 1 ? "drop" : "drops"}` : "";
-  return `${formatMiles(miles)}${dropWords}`;
+  return `${oneDecimalMiles(miles)}${dropWords}`;
 }
 
 /** Miles to one decimal place, always: "84.0 mi". The driver typed this figure, so it reads back as typed. */

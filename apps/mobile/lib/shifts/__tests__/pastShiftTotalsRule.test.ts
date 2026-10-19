@@ -92,6 +92,7 @@ describe("missingForTotals", () => {
     expect(missingForTotals({ shiftStart: at(10), shiftEnd: null, totals: filled })).toBe("Add when the shift ended");
     expect(missingForTotals({ shiftStart: at(10), shiftEnd: at(18), totals: filled, carNeeded: true })).toBe("Pick which car you drove");
     expect(missingForTotals({ shiftStart: at(10), shiftEnd: at(18), totals: { ...filled, milesText: "" } })).toBe("Add the total miles");
+    expect(missingForTotals({ shiftStart: at(10), shiftEnd: at(18), totals: { ...filled, milesText: "0" } })).toBe("Total miles must be more than 0");
     expect(missingForTotals({ shiftStart: at(10), shiftEnd: at(18), totals: { ...filled, from: null } })).toBe("Add where the shift started");
     expect(missingForTotals({ shiftStart: at(10), shiftEnd: at(18), totals: { ...filled, to: null } })).toBe("Add where the shift finished");
     expect(missingForTotals({ shiftStart: at(10), shiftEnd: at(18), totals: filled })).toBeNull();
@@ -137,7 +138,7 @@ describe("buildPastShiftTotalsBody", () => {
   });
 
   it("refuses what the server would refuse, in the same words", () => {
-    expect(build({ milesText: "0" })).toEqual({ problem: "Add the total miles for the shift." });
+    expect(build({ milesText: "0" })).toEqual({ problem: "Total miles must be more than 0" });
     expect(build({ milesText: "1200" })).toEqual({ problem: "That's over 1,000 miles for one shift. Check the total miles." });
     expect(build({ milesText: "lots" })).toEqual({ problem: "Check the total miles, for example 84.5." });
     expect(build({ dropsText: "0" })).toEqual({ problem: "The number of drops must be a whole number from 1 to 500." });
@@ -157,8 +158,8 @@ describe("buildPastShiftTotalsBody", () => {
 describe("words", () => {
   it("sums up the totals before saving", () => {
     expect(totalsSummary({ ...emptyTotals(HOME), milesText: "84.5", dropsText: "32" })).toBe("84.5 mi, 32 drops");
-    expect(totalsSummary({ ...emptyTotals(HOME), milesText: "12", dropsText: "1" })).toBe("12 mi, 1 drop");
-    expect(totalsSummary({ ...emptyTotals(HOME), milesText: "12", dropsText: "" })).toBe("12 mi");
+    expect(totalsSummary({ ...emptyTotals(HOME), milesText: "12", dropsText: "1" })).toBe("12.0 mi, 1 drop");
+    expect(totalsSummary({ ...emptyTotals(HOME), milesText: "12", dropsText: "" })).toBe("12.0 mi");
     expect(totalsSummary({ ...emptyTotals(HOME), milesText: "" })).toBeNull();
   });
 

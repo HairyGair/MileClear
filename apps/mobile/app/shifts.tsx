@@ -352,12 +352,12 @@ export default function ShiftsScreen() {
               activeOpacity={0.7}
               accessibilityRole="button"
               accessibilityLabel="Add a past shift"
-              accessibilityHint="Add a shift you worked earlier, with all its trips"
+              accessibilityHint="Add a shift you worked earlier, trip by trip or just the totals"
             >
               <Ionicons name="add-circle-outline" size={20} color={colors.amber} />
               <View style={styles.addPastBody}>
                 <Text style={styles.addPastTitle}>Add a past shift</Text>
-                <Text style={styles.addPastSub}>A shift you worked earlier, with all its trips</Text>
+                <Text style={styles.addPastSub}>A shift you worked earlier, trip by trip or just the totals</Text>
               </View>
               <Ionicons name="chevron-forward" size={16} color={colors.text3} />
             </TouchableOpacity>
