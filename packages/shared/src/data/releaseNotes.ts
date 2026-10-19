@@ -1028,6 +1028,51 @@ export function blogUrlForRelease(version: string): string {
 // email, which goes to the whole fleet and is overwhelmingly iPhone users.
 export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Build 8 (runtime 1.3.13-build8), cut 11 Oct 2026, Play closed testing.
+    // Every change below also reached the Play public build 6 by OTA between
+    // 28 Sep and 19 Oct, so the first line says so. Items already in the
+    // build 6 list and iPhone-only items are left out. Directions rides the
+    // 19 Oct update but stays hidden until 1.4.0, so it is not listed.
+    version: "1.3.13",
+    build: "8",
+    date: "October 2026",
+    label: "In Testing",
+    items: [
+      "Everything below has also reached the Google Play version of MileClear by update, so you don't need the test build to get it",
+      "Trips: \"To sort\" lists new trips, each led by its route, like \"Home to Work\", and each day shows its miles",
+      "Swipe a trip right to mark it Business, with Undo",
+      "Labels show where a trip came from, and Trips tells you when we may have missed a drive",
+      "Adding a past trip takes a few taps, and warns you before you save a trip that overlaps one you already have",
+      "Add a whole past shift in one go, with its trips and earnings",
+      "A drive is no longer saved twice, and new driving after a saved stretch is kept",
+      "Start Trip finishes by itself once you've been parked for 15 minutes with the app closed",
+      "A drive you finish just before tapping Start Trip is saved, and Not driving stops recording straight away",
+      "A flight is no longer saved as a drive, and very long recordings save",
+      "Trips save and upload more reliably, including on Wi-Fi that asks you to sign in, and a trip that can't upload stays on your phone with a Try again button",
+      "Fuel prices: pick Unleaded, Super unleaded, Diesel or Premium diesel, and sort nearby stations by nearest or cheapest",
+      "Cheapest fuel near you, with an optional morning alert when a station is at least 3p a litre under the local average",
+      "Your car's running odometer reading shows on Home",
+      "More than one car? Download the trip report or trips CSV for just one of them",
+      "Electric cars: what a mile costs charged at home against a public rapid charger, and Chargers near you in More",
+      "Drivers near you: an anonymous comparison of your weekly miles and mileage claim with drivers in your area",
+      "Road alerts (trial): a heads-up before you set off when a road you drive regularly is closed, and a recorded trip lists the roadworks it drove through",
+      "Ready for 31 January: a checklist for your 2025-26 Self Assessment return, and the walkthrough shows the right SA103S boxes",
+      "Pay Scottish income tax? Tax estimates can now use the Scottish bands",
+      "You drive for now offers \"Self-employed or gig work\" and \"Self-employed and an employer\", so it's clearer which to pick",
+      "Start Shift stays on Home for work drivers who use shifts",
+      "Earnings badges count paid invoices, and if you invoice there's an Invoices shortcut on Home",
+      "Linking a bank now finishes even when your bank's own app approves it",
+      "More is grouped and easier to scan, with a live fact on each row, like your MOT date or the cheapest fuel near you",
+      "Help: checked answers with search, under More > Help and how-tos",
+      "A new sign-in screen",
+      "New drivers get a short setup that checks recording works, and see their first trips and what they could claim on Home in their first two weeks",
+      "Didn't turn on notifications at the start? You're asked once more after your first trip",
+      "The app no longer says notifications are refused when you can still turn them on",
+      "Newest trip first: an option in Settings to show each day's latest trip at the top",
+      "Saved places: name a suggested place yourself",
+    ],
+  },
+  {
     version: "1.3.11",
     build: "6",
     date: "September 2026",
