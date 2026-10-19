@@ -176,7 +176,14 @@ Battery: locked phone, 60-minute drive: navigation adds no more than 3 percentag
 11. Battery / heat with the screen on. Measure, keep-awake only while guiding, dim map at night.
 12. Expectations (no traffic). Say it in the preview and help.
 
-## 7. Open questions for Anthony
+## 7. Anthony's decisions (18 Oct 2026)
+- **Q1 Pro only.** Directions is a Pro feature. Server: NAVIGATION_ROLLOUT=off | list | pro (e66e70d1). Free drivers don't see it during the test phase.
+- **Q2 Photon: yes, unless it doesn't work** (Google Places stays as the fallback).
+- **Q3 Stay on Pixelish.** Navigation runs as its own GraphHopper instance (pm2 `graphhopper-nav`, 8991, about 2.3 GB) apart from the trip-distance/map-matching instance (8989); monthly rebuilds at night. Revisit only if James or load says so.
+- **Q4 CarPlay: not yet.** Get it working properly first.
+- **Q5 Every Pro driver can test it, clearly told it's a test phase:** a "Test" badge on Directions, a one-time note ("Directions is new and still being tested. Follow road signs, and tell us anything that goes wrong."), and a "Report a problem with Directions" link. Our own safety checks (reviews, simulator drives, Anthony's paired drives) still come before Pro drivers get it.
+
+## 7a. Original open questions
 - Q1 Free for everyone or Pro-only? (Recommend free in 1.4.0: our cost is a fixed VPS; revisit after a month of usage.)
 - Q2 Navigation search: self-host Photon (about 2 extra days) or accept Places? (Recommend Photon.)
 - Q3 A small VPS for navigation (about GBP 7 to 10 a month)?
