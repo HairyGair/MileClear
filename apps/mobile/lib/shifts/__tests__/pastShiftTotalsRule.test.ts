@@ -186,6 +186,19 @@ describe("trips already in the shift's hours", () => {
     expect(found).toEqual({ trips: 3, miles: 22.4 });
   });
 
+  it("leaves Personal trips out, as the server leaves them unmarked", () => {
+    const found = tripsInsideShift(
+      [
+        { startedAt: iso(10, 15), endedAt: iso(10, 40), distanceMiles: 6.2, classification: "business" },
+        { startedAt: iso(11), endedAt: iso(11, 30), distanceMiles: 9, classification: "personal" },
+        { startedAt: iso(12), endedAt: iso(12, 30), distanceMiles: 3, classification: "unclassified" },
+      ],
+      at(10),
+      at(18)
+    );
+    expect(found).toEqual({ trips: 2, miles: 9.2 });
+  });
+
   it("warns in plain words, and says nothing with none", () => {
     expect(totalsOverlapWarning({ trips: 3, miles: 22.4 })).toBe(
       "MileClear already has 3 trips (22.4 mi) in these hours. Saving the total as well could count those miles twice."

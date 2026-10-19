@@ -9,7 +9,8 @@
 //
 // Miles typed with "Enter distance manually" while editing were never sent,
 // so a correction (48 typed as 84) was silently dropped. They are now sent
-// whenever the driver typed a figure that differs from the trip's.
+// whenever the driver typed a figure that differs from the trip's, and only
+// then: never a routed figure.
 //
 // Pure: no React, no database.
 
@@ -21,16 +22,35 @@ export function isTypedTotalForEdit(t: { isTypedTotal?: boolean | null; notes?: 
   return TYPED_TOTAL_NOTE.test((t.notes ?? "").trim());
 }
 
-/** The miles to send with an edit, or undefined to leave the trip's alone. */
+/** "48", "48.25", "48,25", "48 mi" -> miles; null for anything else. */
+export function parseTypedMiles(text: string): number | null {
+  const cleaned = text.trim().replace(/\s*(mi|miles?)$/i, "").replace(",", ".");
+  if (!/^\d+(\.\d+)?$/.test(cleaned) && !/^\.\d+$/.test(cleaned)) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * The miles to send with an edit, or undefined to leave the trip's alone.
+ * Only what the driver typed counts, read from the box itself: a figure the
+ * route lookup put on screen (a pin moved while the box was open) is never
+ * sent, so it can't replace a recording's trail miles. A figure that is the
+ * trip's own to one decimal place (the box opens prefilled with it) sends
+ * nothing either.
+ */
 export function editedDistanceToSend(args: {
-  /** The driver opened "Enter distance manually". */
-  typing: boolean;
-  distanceMiles: number | null;
+  /** The driver typed in a miles box. */
+  typed: boolean;
+  /** What the box holds. */
+  text: string;
   /** The trip's miles when the edit screen loaded it. */
   loadedMiles: number | null;
 }): number | undefined {
-  const { typing, distanceMiles, loadedMiles } = args;
-  if (!typing || distanceMiles == null || !Number.isFinite(distanceMiles) || distanceMiles <= 0) return undefined;
-  if (loadedMiles != null && Math.abs(distanceMiles - loadedMiles) < 0.005) return undefined;
-  return Math.round(distanceMiles * 100) / 100;
+  if (!args.typed) return undefined;
+  const n = parseTypedMiles(args.text);
+  if (n == null) return undefined;
+  if (args.loadedMiles != null && round1(n) === round1(args.loadedMiles)) return undefined;
+  return Math.round(n * 100) / 100;
 }

@@ -225,10 +225,12 @@ export function pastShiftSavedText(args: {
 /**
  * The trips MileClear already has whose time sits inside the shift: the same
  * rule the server uses to mark them as possible doubles of the total. A trip
- * with no end is judged by its start.
+ * with no end is judged by its start. Personal trips are left out, as the
+ * server leaves them unmarked; a trip whose classification isn't known
+ * (the phone's own list may not say) counts.
  */
 export function tripsInsideShift(
-  trips: Array<{ startedAt: string | Date; endedAt: string | Date | null; distanceMiles: number }>,
+  trips: Array<{ startedAt: string | Date; endedAt: string | Date | null; distanceMiles: number; classification?: string | null }>,
   shiftStart: Date,
   shiftEnd: Date
 ): { trips: number; miles: number } {
@@ -240,6 +242,7 @@ export function tripsInsideShift(
     const ts = new Date(t.startedAt).getTime();
     const te = t.endedAt ? new Date(t.endedAt).getTime() : ts;
     if (!Number.isFinite(ts) || !Number.isFinite(te)) continue;
+    if (t.classification === "personal") continue;
     if (ts >= s && te <= e) {
       count += 1;
       miles += Number.isFinite(t.distanceMiles) ? t.distanceMiles : 0;

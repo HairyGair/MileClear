@@ -16,15 +16,26 @@ describe("isTypedTotalForEdit", () => {
 });
 
 describe("editedDistanceToSend", () => {
-  it("sends a typed correction", () => {
-    expect(editedDistanceToSend({ typing: true, distanceMiles: 48, loadedMiles: 84 })).toBe(48);
-    expect(editedDistanceToSend({ typing: true, distanceMiles: 12.345, loadedMiles: null })).toBe(12.35);
+  it("sends a typed correction, to 2 decimal places", () => {
+    expect(editedDistanceToSend({ typed: true, text: "48", loadedMiles: 84 })).toBe(48);
+    expect(editedDistanceToSend({ typed: true, text: "12.345", loadedMiles: null })).toBe(12.35);
+    expect(editedDistanceToSend({ typed: true, text: "48,25", loadedMiles: 84 })).toBe(48.25);
   });
 
-  it("sends nothing when the driver did not type, or typed the same", () => {
-    expect(editedDistanceToSend({ typing: false, distanceMiles: 48, loadedMiles: 84 })).toBeUndefined();
-    expect(editedDistanceToSend({ typing: true, distanceMiles: 84, loadedMiles: 84 })).toBeUndefined();
-    expect(editedDistanceToSend({ typing: true, distanceMiles: null, loadedMiles: 84 })).toBeUndefined();
-    expect(editedDistanceToSend({ typing: true, distanceMiles: 0, loadedMiles: 84 })).toBeUndefined();
+  it("sends nothing for a routed figure: a pin moved with the box open, nothing typed", () => {
+    // The route put 15.2 on screen; the box still holds the prefill.
+    expect(editedDistanceToSend({ typed: false, text: "30", loadedMiles: 30 })).toBeUndefined();
+    expect(editedDistanceToSend({ typed: false, text: "", loadedMiles: 30 })).toBeUndefined();
+  });
+
+  it("sends nothing for the prefill left as it was, or the same figure typed again", () => {
+    expect(editedDistanceToSend({ typed: true, text: "30.456", loadedMiles: 30.456 })).toBeUndefined();
+    expect(editedDistanceToSend({ typed: true, text: "30.5", loadedMiles: 30.456 })).toBeUndefined();
+  });
+
+  it("sends nothing for a box that isn't a number", () => {
+    expect(editedDistanceToSend({ typed: true, text: "", loadedMiles: 84 })).toBeUndefined();
+    expect(editedDistanceToSend({ typed: true, text: "0", loadedMiles: 84 })).toBeUndefined();
+    expect(editedDistanceToSend({ typed: true, text: "lots", loadedMiles: 84 })).toBeUndefined();
   });
 });

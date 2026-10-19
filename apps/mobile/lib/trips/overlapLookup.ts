@@ -23,6 +23,8 @@ export interface KnownTrip {
   recordedBy: string | null;
   /** When the server saved it, for "saved later". Null from the phone. */
   createdAt: string | null;
+  /** Business / personal / unclassified, when known. */
+  classification?: string | null;
   source: "phone" | "server";
 }
 
@@ -34,6 +36,7 @@ interface LocalRow {
   end_address: string | null;
   distance_miles: number | null;
   is_manual_entry: number | null;
+  classification: string | null;
 }
 
 /** The phone's trips that start in [from, to). */
@@ -41,7 +44,7 @@ export async function phoneTripsBetween(from: Date, to: Date): Promise<KnownTrip
   try {
     const db = await getDatabase();
     const rows = await db.getAllAsync<LocalRow>(
-      `SELECT id, started_at, ended_at, start_address, end_address, distance_miles, is_manual_entry
+      `SELECT id, started_at, ended_at, start_address, end_address, distance_miles, is_manual_entry, classification
        FROM trips WHERE started_at >= ? AND started_at < ? ORDER BY started_at ASC`,
       [from.toISOString(), to.toISOString()]
     );
@@ -53,6 +56,7 @@ export async function phoneTripsBetween(from: Date, to: Date): Promise<KnownTrip
       endAddress: r.end_address,
       distanceMiles: r.distance_miles ?? 0,
       isManualEntry: r.is_manual_entry === 1,
+      classification: r.classification ?? null,
       recordedBy: null,
       createdAt: null,
       source: "phone" as const,

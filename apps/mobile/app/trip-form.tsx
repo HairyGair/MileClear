@@ -920,6 +920,9 @@ export default function TripFormScreen() {
   // Manual distance entry — fixes the dead-end where "enter distance manually"
   // was shown with no field to actually enter it (audit point 1).
   const [manualDistanceMode, setManualDistanceMode] = useState(false);
+  // The driver typed in a miles box (either one). Only a typed figure is ever
+  // sent as the trip's miles on an edit; a routed one never is.
+  const [distanceTyped, setDistanceTyped] = useState(false);
   const [manualDistanceText, setManualDistanceText] = useState("");
   const [notes, setNotes] = useState("");
   const [projectLabel, setProjectLabel] = useState("");
@@ -1539,6 +1542,7 @@ export default function TripFormScreen() {
       setDistanceMiles(t.distanceMiles);
       loadedDistanceRef.current = t.distanceMiles;
       setEditingIsTypedTotal(isTypedTotalForEdit(t));
+      setDistanceTyped(false);
       setStartedAt(new Date(t.startedAt));
       loadedStartedAtRef.current = new Date(t.startedAt).getTime();
       // Both the server payload and the local-SQLite fallback carry this.
@@ -1735,6 +1739,9 @@ export default function TripFormScreen() {
     if (mode === "viewing") return;
     // A typed shift total keeps the miles the driver typed, wherever its pins go.
     if (editingIsTypedTotal) return;
+    // Miles being typed, or typed: a route must not replace them under the
+    // driver's eyes (the box and the figure would disagree).
+    if (manualDistanceMode || distanceTyped) return;
     // When opening a saved trip, the loaded distance came from the original
     // GPS breadcrumb trail and is more accurate than a point-to-point road
     // route. Only recalc if the user has actually changed start or end coords.
@@ -1778,7 +1785,7 @@ export default function TripFormScreen() {
       })
       .finally(() => { if (!cancelled) setCalculatingRoute(false); });
     return () => { cancelled = true; };
-  }, [startLat, startLng, endLat, endLng, mode, editingIsTypedTotal]);
+  }, [startLat, startLng, endLat, endLng, mode, editingIsTypedTotal, manualDistanceMode, distanceTyped]);
 
   // Manual entry: once the route is known, an end time the driver has not
   // set follows the start by the routed drive time rather than the old
@@ -2958,8 +2965,8 @@ export default function TripFormScreen() {
           // typed as 84). Never sent before, so the correction was dropped.
           ...(() => {
             const typed = editedDistanceToSend({
-              typing: manualDistanceMode,
-              distanceMiles,
+              typed: distanceTyped,
+              text: manualDistanceText,
               loadedMiles: loadedDistanceRef.current,
             });
             return typed !== undefined ? { distanceMiles: typed } : {};
@@ -3354,7 +3361,7 @@ export default function TripFormScreen() {
     }
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
-    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, manualDistanceMode,
+    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, distanceTyped, manualDistanceText,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
@@ -3623,6 +3630,7 @@ export default function TripFormScreen() {
         setOdometerEnd(snap.odometerEnd);
         setStartMoved(snap.startMoved);
         setManualDistanceMode(false);
+        setDistanceTyped(false);
       }
       editSnapshotRef.current = null;
       setMode("viewing");
@@ -3892,6 +3900,7 @@ export default function TripFormScreen() {
           // A new end is a new road route: typed miles were for the old one.
           setManualDistanceMode(false);
           setManualDistanceText("");
+          setDistanceTyped(false);
         }}
         onSwap={() => {
           if (!fromValue || !toValue) return;
@@ -3951,6 +3960,7 @@ export default function TripFormScreen() {
         onMilesText={(t) => {
           const cleaned = t.replace(/[^0-9.,]/g, "");
           setManualDistanceText(cleaned);
+          setDistanceTyped(true);
           const n = parseMilesInput(cleaned);
           if (n != null) {
             setDistanceMiles(n);
@@ -3976,6 +3986,7 @@ export default function TripFormScreen() {
                 setRoutedDurationSecs(r.secs);
                 setManualDistanceMode(false);
                 setManualDistanceText("");
+                setDistanceTyped(false);
               }
             : null
         }
@@ -4067,9 +4078,12 @@ export default function TripFormScreen() {
               onChangeText={(t) => {
                 const cleaned = t.replace(/[^0-9.]/g, "");
                 setManualDistanceText(cleaned);
+                // Typing here counts as typed, including in the field shown
+                // by itself when the route could not be worked out.
+                setDistanceTyped(true);
                 const n = parseFloat(cleaned);
                 if (Number.isFinite(n) && n > 0) {
-                  setDistanceMiles(Math.round(n * 10) / 10);
+                  setDistanceMiles(Math.round(n * 100) / 100);
                   setRouteSource(null);
                 } else if (cleaned === "") {
                   setDistanceMiles(null);
