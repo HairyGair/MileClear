@@ -89,9 +89,18 @@ export function checkChosenStart(chosen: Date, bounds: StartBounds): ChosenStart
 /**
  * The trip's times for a set-off: the route's length after it, but never past
  * the window's close (the next trip had already started by then).
+ *
+ * Never before the window opens either. Flooring 17:16:51 to 17:16 put the
+ * new trip 51 seconds inside the trip that ended at 17:16:51, and every gap
+ * offer added at its window's start warned "You already have a trip at that
+ * time" (213 of 256 warnings in 30 days were this; Mike French, 21 Oct 2026).
+ * So the start rounds UP to the window's first whole minute, or sits on the
+ * window's exact start when the window is too short for that.
  */
 export function tripTimesFor(start: Date, travelMs: number, window: OfferWindow): { startedAt: Date; endedAt: Date } {
-  const s = floorMinute(start.getTime());
+  const opens = window.departedAt.getTime();
+  const firstMinute = ceilMinute(opens) + MINUTE_MS <= window.arrivedAt.getTime() ? ceilMinute(opens) : opens;
+  const s = Math.max(floorMinute(start.getTime()), firstMinute);
   const end = Math.min(s + Math.max(MINUTE_MS, travelMs), window.arrivedAt.getTime());
   return { startedAt: new Date(s), endedAt: new Date(Math.max(end, s + MINUTE_MS)) };
 }

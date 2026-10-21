@@ -97,6 +97,20 @@ describe("tripTimesFor", () => {
     const t = tripTimesFor(local(28, 12, 0), 0, elisa);
     expect(t.endedAt.getTime() - t.startedAt.getTime()).toBe(MIN);
   });
+  // Mike French, 21 Oct 2026: the trip before ended 17:16:51; flooring the
+  // start to 17:16 overlapped it and the offer warned "You already have a trip".
+  it("never starts before the window opens", () => {
+    const mike = { departedAt: local(20, 17, 16, 51), arrivedAt: local(20, 17, 32) };
+    const t = tripTimesFor(mike.departedAt, 14 * MIN, mike);
+    expect(t.startedAt).toEqual(local(20, 17, 17));
+    expect(t.endedAt).toEqual(local(20, 17, 31));
+    expect(t.startedAt.getTime()).toBeGreaterThanOrEqual(mike.departedAt.getTime());
+  });
+  it("sits on the exact opening when the window has no whole minute to spare", () => {
+    const tight = { departedAt: local(20, 17, 16, 51), arrivedAt: local(20, 17, 17, 30) };
+    const t = tripTimesFor(tight.departedAt, MIN, tight);
+    expect(t.startedAt).toEqual(tight.departedAt);
+  });
 });
 
 describe("words", () => {
