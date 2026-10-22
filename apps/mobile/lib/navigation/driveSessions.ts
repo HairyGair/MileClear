@@ -135,6 +135,15 @@ function isPair(p: unknown): p is [number, number] {
   return Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
 }
 
+/** One stored route (navigation_drive_routes). */
+export interface DriveRouteRow {
+  seq: unknown;
+  route_id: unknown;
+  from_ms: unknown;
+  to_ms: unknown;
+  geometry: unknown;
+}
+
 /** A stored session, checked field by field. Anything malformed is null, so
  *  a bad row can never reach the recorder's rules. */
 export function parseDriveSession(row: {
@@ -146,9 +155,8 @@ export function parseDriveSession(row: {
   mode: unknown;
   passenger: unknown;
   destination: unknown;
-  routes: unknown;
   truncated?: unknown;
-}): DriveSession | null {
+}, routeRows: ReadonlyArray<DriveRouteRow>): DriveSession | null {
   try {
     const startedAtMs = Number(row.started_at);
     const updatedAtMs = Number(row.updated_at);
@@ -160,17 +168,14 @@ export function parseDriveSession(row: {
     const d = JSON.parse(String(row.destination)) as Record<string, unknown>;
     if (!d || !Number.isFinite(d.lat) || !Number.isFinite(d.lng)) return null;
     const str = (v: unknown) => (typeof v === "string" ? v : null);
-    const rawRoutes = JSON.parse(String(row.routes)) as unknown;
-    if (!Array.isArray(rawRoutes)) return null;
     const routes: DriveRoute[] = [];
-    for (const r of rawRoutes.slice(0, DRIVE_MAX_ROUTES)) {
-      if (!r || typeof r !== "object") return null;
-      const o = r as Record<string, unknown>;
-      const fromMs = Number(o.fromMs);
-      const toMs = o.toMs == null ? null : Number(o.toMs);
+    for (const r of [...routeRows].sort((a, b) => Number(a.seq) - Number(b.seq)).slice(0, DRIVE_MAX_ROUTES)) {
+      const fromMs = Number(r.from_ms);
+      const toMs = r.to_ms == null ? null : Number(r.to_ms);
       if (!Number.isFinite(fromMs) || (toMs != null && !Number.isFinite(toMs))) return null;
-      if (!Array.isArray(o.geometry) || !o.geometry.every(isPair)) return null;
-      routes.push({ routeId: String(o.routeId ?? ""), fromMs, toMs, geometry: o.geometry as Array<[number, number]> });
+      const geometry = JSON.parse(String(r.geometry)) as unknown;
+      if (!Array.isArray(geometry) || !geometry.every(isPair)) return null;
+      routes.push({ routeId: String(r.route_id ?? ""), fromMs, toMs, geometry: geometry as Array<[number, number]> });
     }
     return {
       sessionId: row.session_id,

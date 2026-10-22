@@ -184,7 +184,7 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
     const d = drive.current;
     if (!d) return;
     drive.current = null;
-    void store.saveDriveSession(withEnd(d, Date.now(), reason));
+    void store.endDriveSession(withEnd(d, Date.now(), reason));
   }, []);
 
   const releaseAwake = useCallback(() => {
@@ -247,8 +247,9 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
         counts.current.reroutes++;
         trackDirections("directions.rerouted", { profile_car_nav: next.profile === "car_nav" });
         if (drive.current) {
-          drive.current = withRoute(drive.current, next, Date.now());
-          void store.saveDriveSession(drive.current);
+          const prev = drive.current;
+          drive.current = withRoute(prev, next, Date.now());
+          void store.saveDriveReroute(prev, drive.current);
         }
         setRoute(next);
         setView(viewOf(nav.current));
@@ -574,7 +575,7 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
           });
     if (drive.current) {
       void store.pruneDriveSessions(nowMs);
-      void store.saveDriveSession(drive.current);
+      void store.startDriveSession(drive.current);
     }
     // Tell the recorder (it only logs in this build).
     const passenger = destination.passenger === true;
