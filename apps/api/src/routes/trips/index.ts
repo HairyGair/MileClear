@@ -83,6 +83,7 @@ import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, typ
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import { runLateStartAroundNewTrip } from "../../services/lateStart.js";
+import { capDirectionsGpsQuality, directionsEventFields } from "../../services/directionsRecording.js";
 import { runDiversionHook, loadDiversionsForTrips } from "../../services/diversions.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
 import {
@@ -153,8 +154,9 @@ const createTripSchema = z.object({
   // Client-computed GPS quality summary. Free-form so we can iterate the
   // shape without a schema migration; admin queries look for known keys.
   // Keys only the server writes (the end-edit note, stale-fix cuts) are
-  // dropped: a client must never be able to plant them.
-  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality),
+  // dropped: a client must never be able to plant them. The phone's
+  // Directions note (gpsQuality.directions) is its own and is held to size.
+  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality).transform(capDirectionsGpsQuality),
   // Optional odometer readings (miles) corroborating the distance.
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
@@ -237,7 +239,7 @@ const updateTripSchema = z.object({
   // Merge-patched into the stored blob, never replacing it: the device only
   // ever knows the keys it is setting (driverKeptGoing, today). Server-owned
   // keys are dropped, as on create.
-  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality),
+  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality).transform(capDirectionsGpsQuality),
 });
 
 /** The PATCH brings breadcrumbs to append (a phone merge). */
@@ -1390,6 +1392,9 @@ export async function tripRoutes(app: FastifyInstance) {
         // be measured from events alone.
         placePairReason: placePair?.reason ?? null,
         placePairMatchCount: placePair?.matchCount ?? null,
+        // Directions (PLAN-recording.md): what the phone did or, in log mode,
+        // would have done. Counts only; absent for every other trip.
+        ...directionsEventFields(tripData.gpsQuality),
       });
     }
 

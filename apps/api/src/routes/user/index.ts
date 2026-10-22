@@ -13,6 +13,7 @@ import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { navigationEnabledFor } from "../../services/navigation.js";
+import { directionsRecordingFor } from "../../services/directionsRecording.js";
 import { hasPremiumAccess } from "../../middleware/premium.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { deletedByLabel } from "../../services/tripArchive.js";
@@ -345,7 +346,10 @@ export async function userRoutes(app: FastifyInstance) {
     // fails, the driver simply doesn't see Directions this time.
     const isPro = await hasPremiumAccess(user.id).catch(() => false);
     const navigationEnabled = navigationEnabledFor({ id: user.id, isAdmin: user.isAdmin, isPro });
-    return reply.send({ data: { ...profile, navigationEnabled } });
+    // Whether a Directions drive may open, fill or name a recording
+    // (DIRECTIONS_RECORDING off | log | on). Always "off" without Directions.
+    const directionsRecording = directionsRecordingFor(navigationEnabled);
+    return reply.send({ data: { ...profile, navigationEnabled, directionsRecording } });
   });
 
   // Update profile
