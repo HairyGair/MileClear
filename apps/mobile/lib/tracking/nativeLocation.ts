@@ -1990,9 +1990,10 @@ export async function handleNativeHeartbeat(opts: { minRetryMs?: number } = {}):
 
     // Directions, LOG ONLY (directionsFinalize.ts): would a live guidance
     // session, with the last fix on its route at 15 mph+, have held this
-    // finalize? A log line at most; the finalize below runs regardless. No
-    // session row: one failed or empty read. Never throws, gives up in 1.5 s.
-    await noteHeartbeatWouldHold(
+    // finalize? A log line at most. Fire and forget, never awaited: nothing
+    // may yield between the in-flight check above and the finalize below,
+    // or another finalize could start in the gap. Never throws.
+    void noteHeartbeatWouldHold(
       {
         idleMs,
         nowMs: Date.now(),
@@ -2009,7 +2010,10 @@ export async function handleNativeHeartbeat(opts: { minRetryMs?: number } = {}):
     logDetectionEvent("native_heartbeat_finalize", { idleMs }).catch(() => {});
     await finalizeAutoTrip();
     try {
-      await BGGeo?.destroyLocations();
+      // Another finalize (the stationary event, a foot stop) may have started
+      // while this one ran or returned early: never wipe the engine's store
+      // under it before it has read the route (as openNativeRecordingNow does).
+      if (!isFinalizeInFlight()) await BGGeo?.destroyLocations();
     } catch {}
     // Hold the wake lock through a short keep-alive window (released by a later
     // heartbeat once it expires) so a quick next hop is caught warm.
