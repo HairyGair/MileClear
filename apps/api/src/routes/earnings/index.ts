@@ -542,10 +542,34 @@ export async function earningRoutes(app: FastifyInstance) {
       error: tlError ? String(tlError).slice(0, 100) : null,
     });
 
+    // Was a bank linked through this same state? The bank's pages can land
+    // here more than once for one link: Safari reopens the tab hours later
+    // and reloads the old address, or the bank's app sends its own
+    // "access_denied" seconds after the browser already finished. Each of
+    // those used to say "Nothing was linked" about a bank that was. Both
+    // drivers who linked a bank between 17 and 21 Oct saw it, and one asked
+    // Apple for a refund the next morning (Ben Turner, 22 Oct 2026).
+    // Keyed on the connected event, not the connection row, because a sync
+    // also moves the row's updatedAt.
+    const linkedThrough = async (payload: { userId: string; issuedAt: number }) =>
+      !!(await prisma.appEvent
+        .findFirst({
+          where: {
+            userId: payload.userId,
+            type: "earnings.open_banking_connected",
+            createdAt: { gte: new Date(payload.issuedAt) },
+          },
+          select: { id: true },
+        })
+        .catch(() => null));
+
     if (tlError || !code || typeof code !== "string") {
       // Use the state up anyway, so the address of a cancelled attempt
       // can't be finished later with someone else's code.
       consumeOpenBankingState(state);
+      if (signed && (await linkedThrough(signed))) {
+        return send("connected", signed.returnTo, await accountLabel(signed.userId));
+      }
       return send("cancelled", signed?.returnTo ?? null);
     }
 
@@ -554,7 +578,12 @@ export async function earningRoutes(app: FastifyInstance) {
       const userId = check.payload?.userId ?? null;
       logEvent("earnings.open_banking_state_invalid", userId, { reason: check.reason });
       const returnTo = check.payload?.returnTo ?? null;
-      if (check.reason === "expired") return send("expired", returnTo);
+      if (check.reason === "expired") {
+        if (check.payload && (await linkedThrough(check.payload))) {
+          return send("connected", returnTo, await accountLabel(check.payload.userId));
+        }
+        return send("expired", returnTo);
+      }
       if (check.reason === "replayed" && check.payload) {
         // Most often the driver reloaded the page after it worked. Say so
         // if a bank was saved for them since this state was issued.
@@ -568,7 +597,7 @@ export async function earningRoutes(app: FastifyInstance) {
             select: { id: true },
           })
           .catch(() => null);
-        if (linked) {
+        if (linked || (await linkedThrough(check.payload))) {
           return send("connected", returnTo, await accountLabel(check.payload.userId));
         }
         return send("replayed", returnTo);

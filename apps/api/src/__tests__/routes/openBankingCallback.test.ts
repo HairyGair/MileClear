@@ -12,7 +12,7 @@ vi.mock("../../lib/prisma.js", () => ({
   prisma: {
     plaidConnection: { findFirst: vi.fn() },
     user: { findUnique: vi.fn() },
-    appEvent: { count: vi.fn() },
+    appEvent: { count: vi.fn(), findFirst: vi.fn() },
   },
 }));
 vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
@@ -88,6 +88,7 @@ beforeEach(async () => {
   vi.mocked(prisma.plaidConnection.findFirst).mockResolvedValue(null as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: "anna.driver@icloud.com" } as never);
   vi.mocked(prisma.appEvent.count).mockResolvedValue(0 as never);
+  vi.mocked(prisma.appEvent.findFirst).mockResolvedValue(null as never);
 });
 
 const GOOD_LINK =
@@ -181,6 +182,38 @@ describe("GET /open-banking/callback", () => {
     expect(events("earnings.open_banking_state_invalid")).toEqual([
       ["earnings.open_banking_state_invalid", USER, { reason: "expired" }],
     ]);
+  });
+
+  // Ben Turner, 21 Oct 2026: Safari reloaded the callback page 83 minutes
+  // after his Monzo link worked, and the page said "Nothing was linked".
+  it("an expired reload after it worked says the bank is linked", async () => {
+    const issuedAt = Date.now() - STATE_TTL_MS - 60 * 60 * 1000;
+    const state = issueOpenBankingState(USER, "app", issuedAt);
+    vi.mocked(prisma.appEvent.findFirst).mockResolvedValue({ id: "ev-1" } as never);
+    const res = await callback(q(state));
+    expect(res.body).toContain('data-outcome="connected"');
+    expect(vi.mocked(exchangeCode)).not.toHaveBeenCalled();
+    expect(vi.mocked(prisma.appEvent.findFirst).mock.calls[0][0]).toMatchObject({
+      where: { userId: USER, type: "earnings.open_banking_connected", createdAt: { gte: new Date(issuedAt) } },
+    });
+    // Still logged as expired, so the count stays honest.
+    expect(events("earnings.open_banking_state_invalid")[0][2]).toEqual({ reason: "expired" });
+  });
+
+  // 22 Oct 2026: Monzo's app sent access_denied ~40 s after the browser
+  // had already linked the bank with the same state.
+  it("a late access_denied for a state that already linked says linked", async () => {
+    const state = issueOpenBankingState(USER, "app");
+    await callback(q(state));
+    vi.mocked(prisma.appEvent.findFirst).mockResolvedValue({ id: "ev-1" } as never);
+    const res = await callback(`error=access_denied&state=${encodeURIComponent(state)}`);
+    expect(res.body).toContain('data-outcome="connected"');
+  });
+
+  it("a real cancel with nothing linked still says not linked", async () => {
+    const state = issueOpenBankingState(USER, "app");
+    const res = await callback(`error=access_denied&state=${encodeURIComponent(state)}`);
+    expect(res.body).toContain('data-outcome="cancelled"');
   });
 
   it("refuses a tampered state naming another driver, unattributed", async () => {
