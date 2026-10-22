@@ -94,7 +94,8 @@ import { ApiError } from "../../api/apiError";
 const crumbs = [{ lat: 51.5, lng: -0.1, speed: 10, accuracy: 5, recordedAt: "2026-10-22T09:59:00.000Z" }];
 const offline = () => new Error("Network request failed");
 const refused = () => new ApiError({ code: "BAD_REQUEST", message: "nope", statusCode: 400, retryable: false });
-const runSql = () => h.db.runAsync.mock.calls.map((c) => [String(c[0]), c[1]]);
+const runSql = (): Array<[string, unknown[] | undefined]> =>
+  h.db.runAsync.mock.calls.map((c) => [String(c[0]), c[1] as unknown[] | undefined]);
 
 beforeEach(() => {
   h.queue.length = 0;
