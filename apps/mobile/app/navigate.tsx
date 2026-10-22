@@ -77,7 +77,7 @@ export default function DirectionsScreen() {
   const reduceMotion = useReducedMotion();
   const { user } = useUser();
   const params = useLocalSearchParams<{ lat?: string; lng?: string; label?: string; name?: string; resume?: string }>();
-  const g = useGuidance({ focused });
+  const g = useGuidance({ focused, directionsRecording: user?.directionsRecording });
   const available = useDirectionsAvailable();
   const mapRef = useRef<any>(null);
 

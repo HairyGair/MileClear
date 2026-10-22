@@ -36,6 +36,7 @@ import { loadOptional } from "./optionalNative";
 import { getVoice } from "./voice";
 import * as store from "./store";
 import { trackDirections } from "./telemetry";
+import { directionsModeOf, newDriveSession, withEnd, withRoute, type DriveEndReason, type DriveSession } from "./driveSessions";
 
 const KEEP_AWAKE_TAG = "mileclear-directions";
 /** After arriving, the audio is handed back once "You have arrived" is done. */
@@ -65,6 +66,11 @@ export interface Destination {
   label: string | null;
   /** Saved place name, said on arrival ("You have arrived at Home"). */
   name?: string | null;
+  /** The saved place picked, if it was one (id and home/work/depot/custom). */
+  savedLocationId?: string | null;
+  savedType?: string | null;
+  /** "I'm a passenger" was tapped in the picker. */
+  passenger?: boolean;
 }
 
 function newSessionId(): string {
@@ -78,7 +84,7 @@ function failureOf(kind: NavigationErrorKind): RerouteFailure {
   return "OTHER";
 }
 
-export function useGuidance(opts: { focused: boolean }) {
+export function useGuidance(opts: { focused: boolean; directionsRecording?: unknown }) {
   const [phase, setPhase] = useState<GuidancePhase>("pick");
   const [destination, setDestination] = useState<Destination | null>(null);
   const [route, setRoute] = useState<NavigationRoute | null>(null);
@@ -124,6 +130,11 @@ export function useGuidance(opts: { focused: boolean }) {
   const appActive = useRef(AppState.currentState === "active");
   const latestFixRef = useRef<NavFix | null>(null);
   const voice = getVoice();
+  /** This guidance session's row in navigation_drives (PLAN-recording.md),
+   *  for the recorder to read later. Null when DIRECTIONS_RECORDING is off. */
+  const drive = useRef<DriveSession | null>(null);
+  const recordingMode = useRef(directionsModeOf(opts.directionsRecording));
+  recordingMode.current = directionsModeOf(opts.directionsRecording);
 
   phaseRef.current = phase;
   mutedRef.current = muted;
@@ -150,6 +161,14 @@ export function useGuidance(opts: { focused: boolean }) {
     },
     [voice]
   );
+
+  /** Close this session's row (arrived, End, or the screen went). */
+  const endDrive = useCallback((reason: DriveEndReason) => {
+    const d = drive.current;
+    if (!d) return;
+    drive.current = null;
+    void store.saveDriveSession(withEnd(d, Date.now(), reason));
+  }, []);
 
   const releaseAwake = useCallback(() => {
     try {
@@ -187,6 +206,7 @@ export function useGuidance(opts: { focused: boolean }) {
       updatedAtMs: Date.now(),
       remaining: thinLine(state.prepared.route.geometry, state.segIndex),
     });
+    if (drive.current) void store.touchDriveSession(drive.current.sessionId, Date.now());
   }, []);
 
   const requestReroute = useCallback(
@@ -209,6 +229,10 @@ export function useGuidance(opts: { focused: boolean }) {
         rr.current = { ...rr.current, failures: 0, lastFailure: null, saidFailure: false };
         counts.current.reroutes++;
         trackDirections("directions.rerouted", { profile_car_nav: next.profile === "car_nav" });
+        if (drive.current) {
+          drive.current = withRoute(drive.current, next, Date.now());
+          void store.saveDriveSession(drive.current);
+        }
         setRoute(next);
         setView(viewOf(nav.current));
         setReroute({ kind: "idle" });
@@ -250,6 +274,7 @@ export function useGuidance(opts: { focused: boolean }) {
       voice.endGuidance({ hush: false });
     }, ARRIVAL_AUDIO_END_MS);
     void store.clearSession();
+    endDrive("arrived");
     setArrivedAtMs(Date.now());
     setDriven({
       meters: drivenM.current,
@@ -258,7 +283,7 @@ export function useGuidance(opts: { focused: boolean }) {
     setPhase("arrived");
     phaseRef.current = "arrived";
     finishCounts("directions.arrived");
-  }, [releaseAwake, finishCounts, voice, clearArrivalEnd]);
+  }, [releaseAwake, finishCounts, voice, clearArrivalEnd, endDrive]);
 
   /** Commit a prompt only if it will be heard now; muted or on a call it
    *  counts as said (never owed later), busy it is tried on the next fix. */
@@ -335,11 +360,12 @@ export function useGuidance(opts: { focused: boolean }) {
     return () => {
       mounted.current = false;
       off();
+      if (phaseRef.current === "guiding") endDrive("left");
       clearArrivalEnd();
       voice.endGuidance();
       releaseAwake();
     };
-  }, [voice, releaseAwake, clearArrivalEnd]);
+  }, [voice, releaseAwake, clearArrivalEnd, endDrive]);
 
   // Back in the foreground: show where things are now, in one update.
   useEffect(() => {
@@ -470,6 +496,7 @@ export function useGuidance(opts: { focused: boolean }) {
 
   const start = useCallback(() => {
     if (!route || !destination) return;
+    endDrive("ended");
     const id = newSessionId();
     setSessionId(id);
     nav.current = startNavigation(route, { lat: destination.lat, lng: destination.lng }, { name: destination.name ?? null });
@@ -496,6 +523,32 @@ export function useGuidance(opts: { focused: boolean }) {
     if (destination.label) {
       void store.rememberDestination({ lat: destination.lat, lng: destination.lng, label: destination.label, atMs: Date.now() });
     }
+    // The session's row for the recorder, when the server has the Directions
+    // recording switch on (log or on). Older sessions go after three days.
+    const mode = recordingMode.current;
+    const nowMs = Date.now();
+    drive.current =
+      mode === "off"
+        ? null
+        : newDriveSession({
+            sessionId: id,
+            mode,
+            passenger: destination.passenger === true,
+            atMs: nowMs,
+            destination: {
+              lat: destination.lat,
+              lng: destination.lng,
+              label: destination.label,
+              name: destination.name ?? null,
+              savedLocationId: destination.savedLocationId ?? null,
+              savedType: destination.savedType ?? null,
+            },
+            route: { routeId: route.routeId, geometry: route.geometry },
+          });
+    if (drive.current) {
+      void store.pruneDriveSessions(nowMs);
+      void store.saveDriveSession(drive.current);
+    }
     persist(nav.current, true);
     trackDirections("directions.started", {
       miles: route.distanceMeters / 1609.344,
@@ -504,7 +557,7 @@ export function useGuidance(opts: { focused: boolean }) {
     });
     const recent = latestFix(5_000);
     if (recent) onFixRef.current(recent);
-  }, [route, destination, persist, voice, clearArrivalEnd]);
+  }, [route, destination, persist, voice, clearArrivalEnd, endDrive]);
 
   // A resumed session starts by itself once its fresh route is in.
   useEffect(() => {
@@ -517,6 +570,7 @@ export function useGuidance(opts: { focused: boolean }) {
 
   const end = useCallback(() => {
     if (phaseRef.current === "guiding") finishCounts("directions.ended");
+    endDrive("ended");
     voice.endGuidance();
     releaseAwake();
     void store.clearSession();
@@ -526,7 +580,7 @@ export function useGuidance(opts: { focused: boolean }) {
     setStuck(false);
     setPhase("pick");
     phaseRef.current = "pick";
-  }, [voice, releaseAwake, finishCounts]);
+  }, [voice, releaseAwake, finishCounts, endDrive]);
 
   const back = useCallback(() => {
     setRoute(null);
