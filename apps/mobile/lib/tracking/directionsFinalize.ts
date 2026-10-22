@@ -5,7 +5,7 @@
 // calls noteDirectionsAfterSave without waiting for it. That reads the
 // guidance sessions overlapping the saved trip (driveLog.ts, read-only), runs
 // the fill and naming rules on the trip's real fixes, logs what they would
-// do, and sends a small note as a follow-up update (gpsQuality.directions,
+// do, and sends a small note in one direct update (gpsQuality.directions,
 // merged on the server). Nothing it does can reach the trip's segmentation,
 // coordinates, distance, start, end or addresses: it is given copies of the
 // fixes after the save, and the only write is that note.
@@ -211,17 +211,19 @@ export async function directionsLogForTrip(args: NoteArgs, deps: DirectionsDeps)
 
 type UpdateTrip = (id: string, data: { gpsQuality: Record<string, unknown> }) => Promise<unknown>;
 
-const syncUpdate: UpdateTrip = async (id, data) => {
-  const { syncUpdateTrip } = await import("../sync/actions");
-  return syncUpdateTrip(id, data);
+/** The note goes straight to the API: no sync queue row and no local write,
+ *  so it can never settle, replace or hold up the trip's own queued work. */
+const directUpdate: UpdateTrip = async (id, data) => {
+  const { updateTrip } = await import("../api/trips");
+  return updateTrip(id, data);
 };
 
 /**
  * Finalize's call, AFTER the trip is saved, never awaited. Works out the note
- * (directionsLogForTrip) and puts it on the saved trip with a follow-up
- * update. A trip whose create is still queued (offline, or a duplicate the
- * phone skipped) has no server id yet: its note is dropped and that is
- * logged. Never throws.
+ * (directionsLogForTrip) and puts it on the saved trip with one direct,
+ * best-effort update. A trip whose create is still queued (offline, or a
+ * duplicate the phone skipped) has no server id yet, and a failed update is
+ * not retried: either way the note is dropped and that is logged. Never throws.
  */
 export async function noteDirectionsAfterSave(
   args: NoteArgs & { tripId: string | null; log: DirectionsLog },
@@ -236,7 +238,7 @@ export async function noteDirectionsAfterSave(
       args.log("finalize_directions_note_dropped", { sessionId: note.sessionId, mode: "log", reason: "not_saved_to_server" });
       return;
     }
-    await (deps.update ?? syncUpdate)(args.tripId, { gpsQuality: { directions: note as unknown as Record<string, unknown> } });
+    await (deps.update ?? directUpdate)(args.tripId, { gpsQuality: { directions: note as unknown as Record<string, unknown> } });
   } catch (err) {
     try {
       args.log("finalize_directions_note_dropped", {

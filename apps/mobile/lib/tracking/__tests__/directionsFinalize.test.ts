@@ -19,6 +19,12 @@ vi.mock("../../db", () => ({
   })),
 }));
 
+const api = vi.hoisted(() => ({ updateTrip: vi.fn(async () => ({ data: {} })) }));
+vi.mock("../../api/trips", () => api);
+vi.mock("../../sync/actions", () => {
+  throw new Error("the Directions note must never go through the sync queue");
+});
+
 import {
   directionsLogForTrip,
   noteDirectionsAfterSave,
@@ -177,6 +183,25 @@ describe("log mode with a session: a follow-up update carrying only gpsQuality.d
     const text = JSON.stringify(note);
     for (const leak of ["Sunderland", "Depot", "loc1", "54.9", '"lat"', '"lng"']) expect(text).not.toContain(leak);
     expect(text.length).toBeLessThan(2000);
+  });
+
+  it("the note goes by one direct API update, never the sync queue (no queue row, no local write)", async () => {
+    api.updateTrip.mockClear();
+    const a = args();
+    await noteDirectionsAfterSave(a, { read: async () => [session()], readMode: LOG });
+    expect(api.updateTrip).toHaveBeenCalledTimes(1);
+    const [id, data] = api.updateTrip.mock.calls[0] as unknown as [string, { gpsQuality: Record<string, unknown> }];
+    expect(id).toBe("trip_1");
+    expect(Object.keys(data.gpsQuality)).toEqual(["directions"]);
+    const src = readFileSync(join(__dirname, "..", "directionsFinalize.ts"), "utf8");
+    expect(src).not.toMatch(/sync\/|syncUpdateTrip|enqueueSync/);
+  });
+
+  it("a failed direct update is dropped and logged, never retried", async () => {
+    api.updateTrip.mockRejectedValueOnce(new Error("Network request failed"));
+    const a = args();
+    await noteDirectionsAfterSave(a, { read: async () => [session()], readMode: LOG });
+    expect(a.log).toHaveBeenLastCalledWith("finalize_directions_note_dropped", expect.objectContaining({ reason: "error" }));
   });
 
   it("a create still queued (no server id): the note is dropped and that is logged", async () => {
