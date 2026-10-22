@@ -3973,6 +3973,11 @@ export async function tripRoutes(app: FastifyInstance) {
     checkAndAwardAchievements(userId).catch(() => {});
 
     logEvent("trip.updated", userId, { classification: updates.classification });
+    // The phone's Directions note arrives as a follow-up update once the trip
+    // is saved (PLAN-recording.md). Counts only, as on trip.created.
+    if (incomingGpsQuality && "directions" in incomingGpsQuality) {
+      logEvent("trip.directions_noted", userId, { tripId: id, ...directionsEventFields(incomingGpsQuality) });
+    }
 
     return reply.send({ data: trip });
   });
