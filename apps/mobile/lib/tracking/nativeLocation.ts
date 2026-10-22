@@ -83,6 +83,7 @@ import { shouldStopNativeEngine } from "./nativeStopRule";
 import { readDetectionSwitch } from "./detectionOffRule";
 import { offerFix as offerNavigationFix } from "../navigation/fixBus";
 import { directionsArmFix, directionsFixOf, hasWouldArm } from "./directionsArm";
+import { noteHeartbeatWouldHold } from "./directionsFinalize";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -1986,6 +1987,22 @@ export async function handleNativeHeartbeat(opts: { minRetryMs?: number } = {}):
         [String(Date.now())]
       );
     }
+
+    // Directions, LOG ONLY (directionsFinalize.ts): would a live guidance
+    // session, with the last fix on its route at 15 mph+, have held this
+    // finalize? A log line at most; the finalize below runs regardless. No
+    // session row: one failed or empty read. Never throws, gives up in 1.5 s.
+    await noteHeartbeatWouldHold(
+      {
+        idleMs,
+        nowMs: Date.now(),
+        lastFix: () =>
+          db.getFirstAsync<{ lat: number; lng: number; speed: number | null; accuracy: number | null; recorded_at: string }>(
+            "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+          ),
+      },
+      { log: (event, data) => void logDetectionEvent(event, data).catch(() => {}) }
+    );
 
     const BGGeo = loadNativeModule();
     // finalizeAutoTrip reconciles the native store itself (12 Jun 2026).

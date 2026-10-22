@@ -156,7 +156,9 @@ export interface CreateTripData {
   // Per-trip GPS quality summary computed at finalize time. Stored on the
   // server as a JSON column for admin analysis - see TripQuality in shared.
   // Merge-patched on the server: send only the keys being set.
-  gpsQuality?: Partial<import("@mileclear/shared").TripQuality>;
+  // `directions`: the phone's own note of a Directions drive
+  // (lib/tracking/directionsFinalize.ts), absent on every other trip.
+  gpsQuality?: Partial<import("@mileclear/shared").TripQuality> & { directions?: Record<string, unknown> };
   odometerStart?: number | null;
   odometerEnd?: number | null;
   /** How the phone recorded it, for the Trips tab's labels. A fact only:

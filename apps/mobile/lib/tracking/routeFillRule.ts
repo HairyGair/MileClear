@@ -174,6 +174,21 @@ const tolerance = (accuracy: number) => Math.min(FILL_ON_ROUTE_MAX_M, Math.max(F
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Metres from the route being followed at the fix's time, or null when no
+ *  route was being followed then (or the session is off or a passenger's). */
+export function metresOffRouteAt(s: DriveSession, fix: { lat: number; lng: number; atMs: number }): number | null {
+  if (s.mode === "off" || s.passenger) return null;
+  const r = routeActiveAt(s, fix.atMs);
+  if (!r || r.geometry.length < 2) return null;
+  const p = nearest(prepare(r), fix);
+  return p ? p.off : null;
+}
+
+/** Whether a fix with this accuracy counts as on the route at `off` metres. */
+export function onRouteWithin(off: number | null, accuracy: number | null): boolean {
+  return off != null && accuracy != null && off <= tolerance(accuracy);
+}
+
 // ── The rule ──────────────────────────────────────────────────────────────
 
 type GapVerdict = { ok: true; gap: PlannedGap } | { ok: false; reason: FillRejection };

@@ -43,6 +43,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 // live bindings are resolved by the time anything runs.
 import { ensureAnchorGeofenceArmed } from "../geofencing";
 import { signalTripStart, type CreateTripData } from "../api/trips";
+import { directionsLogForTrip, withDirectionsNote, type DirectionsNote } from "./directionsFinalize";
 import { decideAutoTripLiveActivity } from "../liveActivity/autoTripRule";
 import { getStepsBetween } from "./stepCount";
 
@@ -2130,10 +2131,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Substantial-leg coords held back to be finalized as their own trips (the
   // multi-stop-journey case below). Re-buffered after the buffer is cleared.
   let deferredCoords: BufferedCoordinate[] = [];
+  // The journey-end split used below, kept for the Directions log only.
+  let directionsSplitMs: number | null = null;
   if (rawCoords.length >= 2) {
     // Split into contiguous segments separated by gaps longer than the user's
     // journey boundary (default 30 min, i.e. the previous fixed behaviour).
     const { splitMs } = journeyBoundaryMs(await getJourneyEndMinutes());
+    directionsSplitMs = splitMs;
     const segments: BufferedCoordinate[][] = [[rawCoords[0]]];
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
@@ -3240,8 +3244,25 @@ async function _finalizeAutoTripInner(): Promise<void> {
       }).catch(() => {});
     }
 
+    // Directions, LOG ONLY (PLAN-recording.md, directionsFinalize.ts): what
+    // the followed route would fill and name. Logged, and noted on the trip
+    // as gpsQuality.directions; the fixes, distance, start, end and addresses
+    // above are not given to it and do not change. No guidance session (every
+    // phone that has not used Directions with the switch on): null, nothing
+    // logged, and the body below is the very same object. Never throws, gives
+    // up after 1.5 s, and any failure is the old path.
+    let directionsNote: DirectionsNote | null = null;
+    try {
+      directionsNote = await directionsLogForTrip(
+        { coords: filteredCoords, rawCoords, splitMs: directionsSplitMs, endAddressKnown: !!endAddress },
+        { log: (event, data) => void logDetectionEvent(event, data).catch(() => {}) }
+      );
+    } catch {
+      directionsNote = null;
+    }
+
     const { syncCreateTrip } = await import("../sync/actions");
-    const createBody: CreateTripData = {
+    const createBody: CreateTripData = withDirectionsNote<CreateTripData>({
       startLat: first.lat,
       startLng: first.lng,
       endLat: last.lat,
@@ -3263,7 +3284,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       })),
       gpsQuality: tripQuality,
       recordedBy: "automatic",
-    };
+    }, directionsNote);
     pendingCreateBody = createBody;
     const tripResult = await syncCreateTrip(createBody);
     // Saved: a later 4xx in this block must not queue the same drive again.
