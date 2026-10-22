@@ -137,6 +137,34 @@ describe("POST /trips records how the trip was recorded", () => {
     expect(res.statusCode).toBe(201);
     expect(createdData().gpsQuality).toEqual({ driverKeptGoing: true });
   });
+
+  it("keeps the phone's Directions note and counts it on trip.created, places left out", async () => {
+    const { logEvent } = await import("../../services/appEvents.js");
+    const directions = {
+      sessionId: "dir_x1",
+      mode: "log",
+      destination: { lat: 53.48, lng: -2.24, label: "Depot, Manchester", name: "Depot", savedLocationId: null, savedType: null },
+      wouldFill: { miles: 4.2, gapCount: 1, gaps: [{ fromMs: 1, toMs: 2, miles: 4.2, points: 68 }] },
+      wouldName: { use: false, source: null, metresBucket: "300+" },
+    };
+    const res = await app.inject({
+      method: "POST", url: "/trips", headers: auth,
+      payload: manualPayload({ gpsQuality: { drops: 0, directions } }),
+    });
+    expect(res.statusCode).toBe(201);
+    expect(createdData().gpsQuality).toEqual({ drops: 0, directions });
+    const created = vi.mocked(logEvent).mock.calls.find((c) => c[0] === "trip.created")!;
+    const meta = created[2] as Record<string, unknown>;
+    expect(meta).toMatchObject({ directionsMode: "log", directionsWouldFillMiles: 4.2, directionsWouldFillGaps: 1, directionsWouldName: false });
+    expect(JSON.stringify(meta)).not.toContain("Depot");
+  });
+
+  it("a trip without a note logs trip.created exactly as before", async () => {
+    const { logEvent } = await import("../../services/appEvents.js");
+    await app.inject({ method: "POST", url: "/trips", headers: auth, payload: manualPayload() });
+    const meta = vi.mocked(logEvent).mock.calls.find((c) => c[0] === "trip.created")![2] as Record<string, unknown>;
+    expect(Object.keys(meta).some((k) => k.startsWith("directions"))).toBe(false);
+  });
 });
 
 describe("POST /trips/merge records how many trips were joined", () => {

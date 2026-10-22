@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { fetchProfile } from "../api/user";
+import { rememberDirectionsRecording } from "../navigation/store";
 import { fetchTeamMe, type TeamMembership } from "../api/team";
 import { useAuth } from "../auth/context";
 import type { User } from "@mileclear/shared";
@@ -39,6 +40,10 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await fetchProfile();
       setUser(res.data);
+      // The Directions recording switch, kept on the phone for the trip
+      // recorder (it never asks the network). Off also deletes any stored
+      // guidance sessions. Never throws.
+      void rememberDirectionsRecording(res.data.directionsRecording);
       // Never let a team lookup failure blank the profile: company mode is a
       // presentation detail, the profile is not.
       try {

@@ -40,6 +40,8 @@ interface Row {
   lat: number;
   lng: number;
   name: string | null;
+  /** The saved place's id, for saved rows only. */
+  savedLocationId: string | null;
 }
 
 const ICONS: Record<Row["kind"], keyof typeof Ionicons.glyphMap> = {
@@ -135,18 +137,19 @@ export function DestinationPicker({
           src.places.saved.map((p) => {
             const t = src.types[p.key.replace(/^saved:/, "")];
             const kind: Row["kind"] = t === "home" || t === "work" || t === "depot" ? t : "custom";
-            return { key: p.key, kind, title: p.label, subtitle: null, lat: p.lat, lng: p.lng, name: p.label };
+            const savedLocationId = p.key.replace(/^saved:/, "");
+            return { key: p.key, kind, title: p.label, subtitle: null, lat: p.lat, lng: p.lng, name: p.label, savedLocationId };
           })
         );
         const rows: Row[] = [];
         const near = (a: LatLng, b: LatLng) => distanceMeters(a, b) < 75;
         for (const d of dests) {
-          rows.push({ key: `dir:${d.atMs}`, kind: "recent", title: d.label, subtitle: null, lat: d.lat, lng: d.lng, name: null });
+          rows.push({ key: `dir:${d.atMs}`, kind: "recent", title: d.label, subtitle: null, lat: d.lat, lng: d.lng, name: null, savedLocationId: null });
         }
         for (const p of src.places.recent) {
           if (rows.length >= 8) break;
           if (rows.some((r) => near(r, p)) || src.places.saved.some((s) => near(s, p))) continue;
-          rows.push({ key: p.key, kind: "recent", title: p.label, subtitle: null, lat: p.lat, lng: p.lng, name: null });
+          rows.push({ key: p.key, kind: "recent", title: p.label, subtitle: null, lat: p.lat, lng: p.lng, name: null, savedLocationId: null });
         }
         setRecent(rows.slice(0, 8));
       })
@@ -215,7 +218,7 @@ export function DestinationPicker({
     setSearching(true);
     try {
       const p = await provider.resolve(r);
-      if (p) onPick({ lat: p.lat, lng: p.lng, label: r.subtitle ? `${r.title}, ${r.subtitle}` : r.title, name: null });
+      if (p) onPick({ lat: p.lat, lng: p.lng, label: r.subtitle ? `${r.title}, ${r.subtitle}` : r.title, name: null, passenger });
       else setSearchError("offline");
     } catch {
       setSearchError("offline");
@@ -230,7 +233,17 @@ export function DestinationPicker({
       <TouchableOpacity
         key={r.key}
         style={s.row}
-        onPress={() => onPick({ lat: r.lat, lng: r.lng, label: r.title, name: r.name })}
+        onPress={() =>
+          onPick({
+            lat: r.lat,
+            lng: r.lng,
+            label: r.title,
+            name: r.name,
+            savedLocationId: r.savedLocationId,
+            savedType: r.savedLocationId ? r.kind : null,
+            passenger,
+          })
+        }
         accessibilityRole="button"
         accessibilityLabel={`${r.title}${r.subtitle ? `, ${r.subtitle}` : ""}${away ? `, ${away} away` : ""}`}
       >
@@ -367,7 +380,7 @@ export function DestinationPicker({
         onCancel={() => setShowMap(false)}
         onConfirm={(lat, lng, address) => {
           setShowMap(false);
-          onPick({ lat, lng, label: address ?? "Dropped pin", name: null });
+          onPick({ lat, lng, label: address ?? "Dropped pin", name: null, passenger });
         }}
       />
     </View>

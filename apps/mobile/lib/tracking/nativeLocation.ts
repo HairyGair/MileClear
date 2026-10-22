@@ -82,6 +82,8 @@ import {
 import { shouldStopNativeEngine } from "./nativeStopRule";
 import { readDetectionSwitch } from "./detectionOffRule";
 import { offerFix as offerNavigationFix } from "../navigation/fixBus";
+import { directionsArmFix, directionsFixOf, hasWouldArm } from "./directionsArm";
+import { noteHeartbeatWouldHold } from "./directionsFinalize";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -1612,6 +1614,20 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       return;
     }
 
+    // Directions, LOG ONLY (PLAN-recording.md, directionsArm.ts): would a
+    // guidance session started on a parked phone have opened a recording on
+    // this fix? Nothing is read or written and nothing below changes: with no
+    // armed session in this process (every phone, unless guidance has just
+    // started with DIRECTIONS_RECORDING on) it is one null test.
+    if (hasWouldArm()) {
+      try {
+        const line = directionsArmFix(directionsFixOf(loc, Date.now()), Date.now(), "recorder");
+        if (line) logDetectionEvent(line.event, line.data).catch(() => {});
+      } catch {
+        // never into the recorder
+      }
+    }
+
     // Short-journey backstop: a single confident driving-speed fix force-starts
     // a recording so we don't wait on CoreMotion's slow "automotive" verdict.
     const speed = loc.coords.speed;
@@ -1972,12 +1988,32 @@ export async function handleNativeHeartbeat(opts: { minRetryMs?: number } = {}):
       );
     }
 
+    // Directions, LOG ONLY (directionsFinalize.ts): would a live guidance
+    // session, with the last fix on its route at 15 mph+, have held this
+    // finalize? A log line at most. Fire and forget, never awaited: nothing
+    // may yield between the in-flight check above and the finalize below,
+    // or another finalize could start in the gap. Never throws.
+    void noteHeartbeatWouldHold(
+      {
+        idleMs,
+        nowMs: Date.now(),
+        lastFix: () =>
+          db.getFirstAsync<{ lat: number; lng: number; speed: number | null; accuracy: number | null; recorded_at: string }>(
+            "SELECT lat, lng, speed, accuracy, recorded_at FROM detection_coordinates ORDER BY recorded_at DESC LIMIT 1"
+          ),
+      },
+      { log: (event, data) => void logDetectionEvent(event, data).catch(() => {}) }
+    );
+
     const BGGeo = loadNativeModule();
     // finalizeAutoTrip reconciles the native store itself (12 Jun 2026).
     logDetectionEvent("native_heartbeat_finalize", { idleMs }).catch(() => {});
     await finalizeAutoTrip();
     try {
-      await BGGeo?.destroyLocations();
+      // Another finalize (the stationary event, a foot stop) may have started
+      // while this one ran or returned early: never wipe the engine's store
+      // under it before it has read the route (as openNativeRecordingNow does).
+      if (!isFinalizeInFlight()) await BGGeo?.destroyLocations();
     } catch {}
     // Hold the wake lock through a short keep-alive window (released by a later
     // heartbeat once it expires) so a quick next hop is caught warm.

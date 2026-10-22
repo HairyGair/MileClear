@@ -43,6 +43,7 @@ import { getNotificationPreferences } from "../notifications/preferences";
 // live bindings are resolved by the time anything runs.
 import { ensureAnchorGeofenceArmed } from "../geofencing";
 import { signalTripStart, type CreateTripData } from "../api/trips";
+import { noteDirectionsAfterSave } from "./directionsFinalize";
 import { decideAutoTripLiveActivity } from "../liveActivity/autoTripRule";
 import { getStepsBetween } from "./stepCount";
 
@@ -2130,10 +2131,13 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // Substantial-leg coords held back to be finalized as their own trips (the
   // multi-stop-journey case below). Re-buffered after the buffer is cleared.
   let deferredCoords: BufferedCoordinate[] = [];
+  // The journey-end split used below, kept for the Directions log only.
+  let directionsSplitMs: number | null = null;
   if (rawCoords.length >= 2) {
     // Split into contiguous segments separated by gaps longer than the user's
     // journey boundary (default 30 min, i.e. the previous fixed behaviour).
     const { splitMs } = journeyBoundaryMs(await getJourneyEndMinutes());
+    directionsSplitMs = splitMs;
     const segments: BufferedCoordinate[][] = [[rawCoords[0]]];
     for (let i = 1; i < rawCoords.length; i++) {
       const prev = new Date(rawCoords[i - 1].recorded_at).getTime();
@@ -3271,6 +3275,21 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // Saved (a local trip row plus the server copy or a queued create): the
     // fixes are remembered so a refill cannot save them again.
     await rememberSaved(tripResult?.data?.id ? `trip:${tripResult.data.id}` : `start:${wireStartedAt}`);
+
+    // Directions, LOG ONLY (PLAN-recording.md, directionsFinalize.ts). The
+    // trip is saved above exactly as it would be without Directions; only
+    // now, and never awaited, is the followed route asked what it would have
+    // filled and named. Logged, and noted on the saved trip by a follow-up
+    // update (gpsQuality.directions). No guidance session, or the switch off:
+    // nothing at all. A create still queued (offline) gets no note.
+    void noteDirectionsAfterSave({
+      tripId: tripResult?.data?.id ?? null,
+      coords: filteredCoords,
+      rawCoords,
+      splitMs: directionsSplitMs,
+      endAddressKnown: !!endAddress,
+      log: (event, data) => void logDetectionEvent(event, data).catch(() => {}),
+    });
 
     // Store classification source on the local trip row
     const savedTripId = tripResult?.data?.id;

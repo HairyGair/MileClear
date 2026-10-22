@@ -661,6 +661,27 @@ describe("PATCH /trips/:id editing a recorded trip's end more than once", () => 
     expect(db.trip.distanceMiles).toBe(4.22);
   });
 
+  it("a Directions note sent with other gpsQuality keys takes the general path: merged and counted", async () => {
+    seed({ gpsQuality: { appendOutlierCut: { removedMiles: 1, fromMiles: 2, toMiles: 1 } } });
+    const before = { ...db.trip };
+    const directions = {
+      sessionId: "dir_1",
+      mode: "log",
+      destination: { savedPlace: true, savedType: "depot", hasName: true },
+      wouldFill: { miles: 4.2, gapCount: 1, gaps: [{ fromMs: 1, toMs: 2, miles: 4.2, crowMiles: 4, points: 68 }] },
+      wouldName: { use: true, source: "saved", reason: null, metresBucket: "0-50" },
+    };
+    await patch({ gpsQuality: { directions, driverKeptGoing: true } });
+    expect(db.trip.gpsQuality).toEqual({ appendOutlierCut: { removedMiles: 1, fromMiles: 2, toMiles: 1 }, driverKeptGoing: true, directions });
+    expect(db.trip.distanceMiles).toBe(before.distanceMiles);
+    expect(db.trip.endLat).toBe(before.endLat);
+    expect(logEvent).toHaveBeenCalledWith(
+      "trip.directions_noted",
+      USER_ID,
+      expect.objectContaining({ directionsMode: "log", directionsWouldFillMiles: 4.2, directionsWouldName: true })
+    );
+  });
+
   it("ignores a note left behind by a visit split and prices from the end leg one now has", async () => {
     // Leg one of a split: 0.9 mi, ending at the lights, but still carrying a
     // note for a 20.82 mile stretch whose stand-in point went to the last leg.

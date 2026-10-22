@@ -272,7 +272,7 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
     const TAIL_ID = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
     vi.mocked(findSplitFamily).mockResolvedValue({ familyIds: [TRIP_ID, TAIL_ID], tailId: TAIL_ID });
     vi.mocked(appendToSplitTail).mockResolvedValue({
-      tailId: TAIL_ID, appended: 3, duplicates: 0, beforeTail: 0, addedMiles: 2.1,
+      tailId: TAIL_ID, appended: 3, extended: 3, duplicates: 0, beforeTail: 0, addedMiles: 2.1,
     });
 
     const res = await app.inject({

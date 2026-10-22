@@ -54,6 +54,11 @@ export interface User {
    *  the server has switched it on for (admins and a tester list). Optional:
    *  older API responses lack it, which means off. */
   navigationEnabled?: boolean;
+  /** Whether a Directions drive may open, fill or name a recording
+   *  (DIRECTIONS_RECORDING, PLAN-recording.md). "off" without Directions.
+   *  Optional: older API responses lack it, which means off. The 1.4.x app
+   *  that first reads it treats "on" exactly like "log". */
+  directionsRecording?: "off" | "log" | "on";
   createdAt: string;
 }
 

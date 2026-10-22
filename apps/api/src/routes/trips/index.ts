@@ -83,6 +83,7 @@ import { matchTripRoute, decodePolyline, isMatchPlausible, trimEdgePhantoms, typ
 import { computeTripConfidence } from "../../services/tripConfidence.js";
 import { reconcileWakeLagStart } from "../../services/wakeLagStart.js";
 import { runLateStartAroundNewTrip } from "../../services/lateStart.js";
+import { capDirectionsGpsQuality, directionsEventFields } from "../../services/directionsRecording.js";
 import { runDiversionHook, loadDiversionsForTrips } from "../../services/diversions.js";
 import { planTripStartEdit } from "../../services/tripStartEdit.js";
 import {
@@ -153,8 +154,9 @@ const createTripSchema = z.object({
   // Client-computed GPS quality summary. Free-form so we can iterate the
   // shape without a schema migration; admin queries look for known keys.
   // Keys only the server writes (the end-edit note, stale-fix cuts) are
-  // dropped: a client must never be able to plant them.
-  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality),
+  // dropped: a client must never be able to plant them. The phone's
+  // Directions note (gpsQuality.directions) is its own and is held to size.
+  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality).transform(capDirectionsGpsQuality),
   // Optional odometer readings (miles) corroborating the distance.
   odometerStart: z.number().min(0).max(2_000_000).nullable().optional(),
   odometerEnd: z.number().min(0).max(2_000_000).nullable().optional(),
@@ -237,8 +239,18 @@ const updateTripSchema = z.object({
   // Merge-patched into the stored blob, never replacing it: the device only
   // ever knows the keys it is setting (driverKeptGoing, today). Server-owned
   // keys are dropped, as on create.
-  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality),
+  gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality).transform(capDirectionsGpsQuality),
 });
+
+/** A PATCH body that is only { gpsQuality: { directions } }: the phone's
+ *  Directions note, written on its own (see PATCH /trips/:id). */
+function isDirectionsNoteOnly(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const keys = Object.keys(body);
+  if (keys.length !== 1 || keys[0] !== "gpsQuality") return false;
+  const gq = (body as { gpsQuality: unknown }).gpsQuality;
+  return !!gq && typeof gq === "object" && !Array.isArray(gq) && Object.keys(gq).length === 1 && "directions" in gq;
+}
 
 /** The PATCH brings breadcrumbs to append (a phone merge). */
 function hasAppendCoordinatesEarly(updates: { coordinates?: unknown[] }): boolean {
@@ -1390,6 +1402,9 @@ export async function tripRoutes(app: FastifyInstance) {
         // be measured from events alone.
         placePairReason: placePair?.reason ?? null,
         placePairMatchCount: placePair?.matchCount ?? null,
+        // Directions (PLAN-recording.md): what the phone did or, in log mode,
+        // would have done. Counts only; absent for every other trip.
+        ...directionsEventFields(tripData.gpsQuality),
       });
     }
 
@@ -3390,6 +3405,33 @@ export async function tripRoutes(app: FastifyInstance) {
     const userId = request.userId!;
     const updates = parsed.data;
 
+    // The phone's Directions note on its own (PLAN-recording.md): one key set
+    // inside gpsQuality, atomically in the database, and nothing else. The
+    // general path below rewrites the whole gpsQuality from an earlier read,
+    // so a note landing beside an append could drop that append's
+    // appendOutlierCut (Katy, 14 Oct); and a note is not an edit, so no
+    // mileage summary, achievements or trip.updated.
+    if (isDirectionsNoteOnly(request.body)) {
+      const note = updates.gpsQuality?.directions;
+      if (note === undefined) return reply.send({ data: { id, directionsNoted: false } });
+      const changed = await prisma.$executeRaw`
+        UPDATE trips
+        SET gpsQuality = JSON_SET(
+          IF(gpsQuality IS NULL OR JSON_TYPE(gpsQuality) <> 'OBJECT', JSON_OBJECT(), gpsQuality),
+          '$.directions', CAST(${JSON.stringify(note)} AS JSON)
+        )
+        WHERE id = ${id} AND userId = ${userId}
+          AND (gpsQuality IS NULL OR JSON_TYPE(gpsQuality) IN ('OBJECT', 'NULL'))
+      `;
+      if (changed === 0) {
+        const found = await prisma.trip.findFirst({ where: { id, userId }, select: { id: true } });
+        if (!found) return reply.status(404).send({ error: "Trip not found" });
+        return reply.send({ data: { id, directionsNoted: false } });
+      }
+      logEvent("trip.directions_noted", userId, { tripId: id, ...directionsEventFields(updates.gpsQuality) });
+      return reply.send({ data: { id, directionsNoted: true } });
+    }
+
     const existing = await prisma.trip.findFirst({
       where: { id, userId },
     });
@@ -3416,11 +3458,14 @@ export async function tripRoutes(app: FastifyInstance) {
           tailId: moved.tailId,
           received: updates.coordinates!.length,
           appended: moved.appended,
+          extended: moved.extended,
           duplicatesSkipped: moved.duplicates,
           beforeTail: moved.beforeTail,
           addedMiles: moved.addedMiles,
         });
-        if (moved.appended > 0) {
+        // Only an extension changes miles or gives the visit splitter new
+        // driving; a late replay of older breadcrumbs is kept for the record.
+        if (moved.extended > 0) {
           upsertMileageSummary(userId, getTaxYear(existing.startedAt)).catch(() => {});
           if (visitAutoSplitEnabled()) {
             autoSplitVisitWelds({ userId, tripId: moved.tailId }).catch(() => {});
@@ -3968,6 +4013,11 @@ export async function tripRoutes(app: FastifyInstance) {
     checkAndAwardAchievements(userId).catch(() => {});
 
     logEvent("trip.updated", userId, { classification: updates.classification });
+    // The phone's Directions note arrives as a follow-up update once the trip
+    // is saved (PLAN-recording.md). Counts only, as on trip.created.
+    if (incomingGpsQuality && "directions" in incomingGpsQuality) {
+      logEvent("trip.directions_noted", userId, { tripId: id, ...directionsEventFields(incomingGpsQuality) });
+    }
 
     return reply.send({ data: trip });
   });

@@ -197,6 +197,9 @@ export interface UpdateTripData {
   // Breadcrumbs for a segment merged into this trip. The API appends them and
   // skips any timestamp it already holds, so this is safe to replay.
   coordinates?: CoordinateInput[];
+  // Merge-patched into the stored gpsQuality on the server: only the keys
+  // being set (driverKeptGoing; the Directions note, gpsQuality.directions).
+  gpsQuality?: Record<string, unknown>;
 }
 
 export interface ListTripsParams {

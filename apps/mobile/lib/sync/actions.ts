@@ -140,6 +140,55 @@ export async function syncCreateTrip(data: CreateTripData, options?: { queueOnly
   }
 }
 
+/**
+ * Breadcrumbs an earlier, unsent update was carrying (a phone merge that
+ * failed offline). A successful update marks every pending update for the
+ * trip as sent, and until 22 Oct 2026 that silently lost those breadcrumbs.
+ * Now every other unsent update row for the trip (pending or failed, earlier
+ * or one still in flight; identified by id, in rowid order, never by
+ * created_at) that carries coordinates is cut down to { id, coordinates } and
+ * kept pending, so the queue sends the breadcrumbs alone. The server appends
+ * them and skips any it already holds, so the replay is harmless. Every
+ * other field still goes with the blanket mark, exactly as before.
+ * Trips only; the full per-field version is its own change. Returns the
+ * rows kept, never throws (on an error nothing is kept: today's behaviour).
+ */
+async function keepUnsentBreadcrumbs(
+  db: Awaited<ReturnType<typeof getDatabase>>,
+  tripId: string,
+  queueId: string | undefined,
+  now: string
+): Promise<string[]> {
+  if (!queueId) return [];
+  try {
+    const rows = await db.getAllAsync<{ id: string; payload: string | null }>(
+      `SELECT id, payload FROM sync_queue
+       WHERE entity_type = 'trip' AND entity_id = ? AND action = 'update' AND status IN ('pending', 'failed')
+         AND id != ?
+       ORDER BY rowid`,
+      [tripId, queueId]
+    );
+    const kept: string[] = [];
+    for (const r of rows ?? []) {
+      let body: { coordinates?: unknown } | null = null;
+      try {
+        body = r.payload ? JSON.parse(r.payload) : null;
+      } catch {
+        continue;
+      }
+      if (!body || !Array.isArray(body.coordinates) || body.coordinates.length === 0) continue;
+      await db.runAsync(
+        "UPDATE sync_queue SET payload = ?, status = 'pending', updated_at = ? WHERE id = ?",
+        [JSON.stringify({ id: tripId, coordinates: body.coordinates }), now, r.id]
+      );
+      kept.push(r.id);
+    }
+    return kept;
+  } catch {
+    return [];
+  }
+}
+
 export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   const db = await getDatabase();
 
@@ -224,7 +273,7 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
     ...(classificationAutoAccepted !== undefined && { classificationAutoAccepted }),
   };
 
-  await enqueueSync("trip", id, "update", { id, ...apiPayload } as unknown as Record<string, unknown>);
+  const queueId = await enqueueSync("trip", id, "update", { id, ...apiPayload } as unknown as Record<string, unknown>);
 
   // If the trip has not synced to the server yet (its create is still in the
   // queue), don't attempt the PATCH now - the local UUID would 404 on the
@@ -240,9 +289,12 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
 
   try {
     const result = await apiUpdateTrip(id, apiPayload);
+    const now = new Date().toISOString();
+    const keep = await keepUnsentBreadcrumbs(db, id, queueId, now);
     await db.runAsync(
-      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'trip' AND action = 'update' AND status = 'pending'",
-      [new Date().toISOString(), id]
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'trip' AND action = 'update' AND status = 'pending'" +
+        (keep.length > 0 ? ` AND id NOT IN (${keep.map(() => "?").join(", ")})` : ""),
+      [now, id, ...keep]
     );
     // Mark feedback as sent so we don't re-submit on subsequent classification changes
     if (classificationAutoAccepted !== undefined) {
