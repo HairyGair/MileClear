@@ -82,6 +82,7 @@ import {
 import { shouldStopNativeEngine } from "./nativeStopRule";
 import { readDetectionSwitch } from "./detectionOffRule";
 import { offerFix as offerNavigationFix } from "../navigation/fixBus";
+import { directionsArmFix, directionsFixOf, hasWouldArm } from "./directionsArm";
 
 /** Fixes of the open recording from the last FOOT_STOP_MS plus a margin,
  *  newest first, with the motion label the engine attached to each. */
@@ -1610,6 +1611,20 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
         pushAutoTripLiveActivityProgress().catch(() => {});
       }
       return;
+    }
+
+    // Directions, LOG ONLY (PLAN-recording.md, directionsArm.ts): would a
+    // guidance session started on a parked phone have opened a recording on
+    // this fix? Nothing is read or written and nothing below changes: with no
+    // armed session in this process (every phone, unless guidance has just
+    // started with DIRECTIONS_RECORDING on) it is one null test.
+    if (hasWouldArm()) {
+      try {
+        const line = directionsArmFix(directionsFixOf(loc, Date.now()), Date.now(), "recorder");
+        if (line) logDetectionEvent(line.event, line.data).catch(() => {});
+      } catch {
+        // never into the recorder
+      }
     }
 
     // Short-journey backstop: a single confident driving-speed fix force-starts

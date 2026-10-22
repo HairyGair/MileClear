@@ -153,6 +153,7 @@ import {
 import { setupNotificationChannels, scheduleWeeklyMileageSummary, scheduleTaxYearDeadlineReminder, checkUnclassifiedTripsNudge, checkStreakAtRisk, checkLongRunningShift } from "../lib/notifications/scheduler";
 import { registerPushToken } from "../lib/api/notifications";
 import { startDriveDetection, finalizeStaleAutoRecordings, registerBackgroundFinalize, bootNativeEngineOnLaunch } from "../lib/tracking/detection";
+import { registerDirectionsDrive } from "../lib/tracking/directionsDrive";
 import { registerGeofences, shadeExpiredUnconfirmedTrips, setDepartureAnchor } from "../lib/geofencing/index";
 import { getDatabase } from "../lib/db/index";
 import {
@@ -189,6 +190,11 @@ const HEADER_TITLE_STYLE = { fontFamily: "PlusJakartaSans_300Light", color: "#f0
 // 2026). Internally gated on onboarding + permissions; never prompts; never
 // throws.
 void bootNativeEngineOnLaunch();
+
+// Directions tell the recorder when guidance starts and ends
+// (lib/navigation/guidanceIntent.ts); this is the one listener. It only logs
+// in this build. Synchronous and cannot throw: it stores a function.
+registerDirectionsDrive();
 
 // Load the persisted Android licence verdict before React renders. Without
 // this, every cold launch optimistically shows "ClearTrack is on" until the

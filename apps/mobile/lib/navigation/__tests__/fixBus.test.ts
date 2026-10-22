@@ -221,6 +221,78 @@ describe("Directions never reach into trip recording", () => {
     expect(task.slice(0, hook).lastIndexOf("try {")).toBeGreaterThan(-1);
   });
 
+  // ── PLAN-recording.md section 2: the guidance -> recorder bridge ─────────
+
+  it("guidanceIntent exports only its API", () => {
+    const src = code(join(MOBILE, "lib", "navigation", "guidanceIntent.ts"));
+    const values = [...src.matchAll(/^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+(\w+)/gm)].map((m) => m[1]);
+    expect(values.sort()).toEqual(["announceGuidance", "setGuidanceHandler"]);
+    expect(src).not.toMatch(/^export\s+(\*|\{)/m);
+  });
+
+  it("only lib/tracking/directionsDrive.ts registers a guidance handler", () => {
+    const everywhere = [
+      ...filesIn(join(MOBILE, "lib")),
+      ...filesIn(join(MOBILE, "app")),
+      ...filesIn(join(MOBILE, "components")),
+    ];
+    const callers = everywhere
+      .filter((f) => /\bsetGuidanceHandler\s*\(/.test(code(f)))
+      .map((f) => f.slice(MOBILE.length + 1))
+      .filter((f) => f !== "lib/navigation/guidanceIntent.ts");
+    expect(callers).toEqual(["lib/tracking/directionsDrive.ts"]);
+  });
+
+  const DIRECTIONS_DRIVE_FORBIDDEN = [
+    "changePace",
+    "setConfig",
+    "startNativeLocationEngine",
+    "applyEnginePower",
+    "startQuickTripTracking",
+    "finalizeAutoTrip",
+    "cancelAutoRecording",
+    "stopNativeLocationEngine",
+    "sleepNativeEngine",
+    "openNativeRecording",
+    "serialOpenNative",
+    "forceStartRecording",
+    "BGGeo",
+  ];
+
+  for (const name of ["directionsDrive.ts", "directionsArm.ts"]) {
+    it(`lib/tracking/${name} names no engine, open, end or finalize call, and writes nothing (log only)`, () => {
+      const src = code(join(MOBILE, "lib", "tracking", name));
+      for (const n of DIRECTIONS_DRIVE_FORBIDDEN) expect(src).not.toContain(n);
+      expect(src).not.toMatch(/\b(INSERT|UPDATE|DELETE|REPLACE)\b/i);
+      expect(src).not.toMatch(/runAsync|execAsync/);
+    });
+  }
+
+  it("this build adds no 'directions' reason to the recorder's opener", () => {
+    const src = code(join(MOBILE, "lib", "tracking", "nativeLocation.ts"));
+    expect(src).not.toMatch(/reason:\s*"directions"/);
+    expect(src).not.toMatch(/"motion"\s*\|\s*"speed"\s*\|\s*"directions"/);
+    expect(src).not.toContain("openRecordingForDirections");
+  });
+
+  it("the would-arm check sits in the not-recording branch, after every refusal, before the speed start, and is wrapped", () => {
+    const src = code(join(MOBILE, "lib", "tracking", "nativeLocation.ts"));
+    const body = src.slice(src.indexOf("export async function handleNativeLocation"), src.indexOf("export async function handleNativeMotionChange"));
+    const check = body.indexOf("directionsArmFix(");
+    expect(check).toBeGreaterThan(0);
+    for (const before of ["resolvePauseOnWake", "isDriveDetectionEnabled", "readEnginePower", "applyKerbsideDecision", "auto_recording_active", 'recording?.value === "1"']) {
+      expect(body.indexOf(before)).toBeGreaterThan(-1);
+      expect(body.indexOf(before)).toBeLessThan(check);
+    }
+    expect(check).toBeLessThan(body.indexOf("decideSpeedStart("));
+    // Guarded by the in-memory test, wrapped, and its only effect is a log line.
+    const block = body.slice(body.lastIndexOf("if (hasWouldArm())", check), body.indexOf("decideSpeedStart("));
+    expect(block).toContain("try {");
+    expect(block).not.toMatch(/\breturn\b/);
+    expect(block).not.toMatch(/await\s/);
+    expect(src.match(/directionsArmFix\(/g)?.length).toBe(1);
+  });
+
   it("the only location API Directions use is the foreground watch and one-off reads", () => {
     const all = NAV_FILES.map(code).join("\n");
     const calls = [...all.matchAll(/Location\.(\w+)\(/g)].map((m) => m[1]);

@@ -36,7 +36,8 @@ import { loadOptional } from "./optionalNative";
 import { getVoice } from "./voice";
 import * as store from "./store";
 import { trackDirections } from "./telemetry";
-import { directionsModeOf, newDriveSession, withEnd, withRoute, type DriveEndReason, type DriveSession } from "./driveSessions";
+import { directionsModeOf, newDriveSession, withEnd, withRoute, type DirectionsRecordingMode, type DriveEndReason, type DriveSession } from "./driveSessions";
+import { announceGuidance, type GuidanceIntentFix } from "./guidanceIntent";
 
 const KEEP_AWAKE_TAG = "mileclear-directions";
 /** After arriving, the audio is handed back once "You have arrived" is done. */
@@ -48,6 +49,14 @@ const LOCATE_WAIT_MS = 10_000;
 /** Under this, "You're already there." */
 const ALREADY_THERE_M = 161;
 const STOPPED_MPS = 3 * 0.44704;
+/** Guidance's own fixes go to the recorder's arm at most this often... */
+const MOVING_ANNOUNCE_EVERY_MS = 5_000;
+/** ...and only this long after starting (an arm lasts 15 minutes). */
+const MOVING_ANNOUNCE_FOR_MS = 15 * 60_000;
+
+function intentFix(f: NavFix | null): GuidanceIntentFix | null {
+  return f ? { lat: f.lat, lng: f.lng, speedMps: f.speedMps, accuracyM: f.accuracyM, atMs: f.atMs } : null;
+}
 
 type KeepAwake = { activateKeepAwakeAsync: (t?: string) => Promise<void>; deactivateKeepAwake: (t?: string) => Promise<void> | void };
 function keepAwake(): KeepAwake | null {
@@ -135,6 +144,8 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
   const drive = useRef<DriveSession | null>(null);
   const recordingMode = useRef(directionsModeOf(opts.directionsRecording));
   recordingMode.current = directionsModeOf(opts.directionsRecording);
+  /** What the recorder was told when this session started (guidanceIntent). */
+  const told = useRef<{ sessionId: string; mode: DirectionsRecordingMode; passenger: boolean; atMs: number; lastMovingAt: number } | null>(null);
 
   phaseRef.current = phase;
   mutedRef.current = muted;
@@ -162,8 +173,14 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
     [voice]
   );
 
-  /** Close this session's row (arrived, End, or the screen went). */
+  /** Close this session's row (arrived, End, or the screen went) and tell
+   *  the recorder guidance has ended. */
   const endDrive = useCallback((reason: DriveEndReason) => {
+    const t = told.current;
+    told.current = null;
+    if (t) {
+      void announceGuidance({ kind: "ended", sessionId: t.sessionId, mode: t.mode, passenger: t.passenger, fix: null, atMs: Date.now(), reason });
+    }
     const d = drive.current;
     if (!d) return;
     drive.current = null;
@@ -308,6 +325,16 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
         if (ui) setMovingMps(smoothedSpeed(speeds.current));
       }
       if (phaseRef.current !== "guiding" || !nav.current) return;
+      // The foreground bridge's fixes never reach the recorder, so pass the
+      // early ones on for its arm (lib/tracking/directionsDrive.ts decides).
+      const t = told.current;
+      if (fix.source === "bridge" && t && t.mode !== "off") {
+        const nowMs = Date.now();
+        if (nowMs - t.atMs <= MOVING_ANNOUNCE_FOR_MS && nowMs - t.lastMovingAt >= MOVING_ANNOUNCE_EVERY_MS) {
+          t.lastMovingAt = nowMs;
+          void announceGuidance({ kind: "moving", sessionId: t.sessionId, mode: t.mode, passenger: t.passenger, fix: intentFix(fix), atMs: nowMs });
+        }
+      }
       try {
         if (usable) {
           drivenM.current += pathMeters(pathPrev.current, fix);
@@ -549,6 +576,10 @@ export function useGuidance(opts: { focused: boolean; directionsRecording?: unkn
       void store.pruneDriveSessions(nowMs);
       void store.saveDriveSession(drive.current);
     }
+    // Tell the recorder (it only logs in this build).
+    const passenger = destination.passenger === true;
+    told.current = { sessionId: id, mode, passenger, atMs: nowMs, lastMovingAt: 0 };
+    void announceGuidance({ kind: "started", sessionId: id, mode, passenger, fix: intentFix(latestFix(30_000)), atMs: nowMs });
     persist(nav.current, true);
     trackDirections("directions.started", {
       miles: route.distanceMeters / 1609.344,
