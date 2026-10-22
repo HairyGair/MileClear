@@ -128,6 +128,10 @@ model User {
    *  victim had no way to disable them). Null = all categories on.
    *  Keys mirror mobile NotificationPreferences + fuelAlert. */
   pushPrefs               Json?
+  /** Apps that pay a week behind (string[] of GIG_PLATFORMS values). Their
+   *  bank payouts are dated to the 7 days before they landed, so "this week"
+   *  shows the week the work was done (Ben Turner, 22 Oct 2026). Null = none. */
+  payoutsInArrears        Json?
 
   dashboardMode        String    @default("both") @db.VarChar(20)
   // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =

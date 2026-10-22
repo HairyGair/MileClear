@@ -18,6 +18,7 @@ import { prisma } from "../../lib/prisma.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { EXPENSE_CATEGORIES, GIG_PLATFORMS } from "@mileclear/shared";
+import { arrearsPlatformsFor, isBankDated, payoutPeriod } from "../../services/payoutWeek.js";
 import { logEvent } from "../../services/appEvents.js";
 import { trainMerchantMapping, refreshPendingSuggestions } from "../../services/merchantCategoriser.js";
 import { markInvoicePaid } from "../../services/invoices.js";
@@ -155,15 +156,20 @@ export async function inboxRoutes(app: FastifyInstance) {
       // it instead of counting the money twice.
       const already = await prisma.earning.findFirst({
         where: { userId, externalId: txn.externalId },
-        select: { id: true },
+        select: { id: true, periodStart: true, periodEnd: true },
       });
+      const arrears = await arrearsPlatformsFor(userId);
       if (already) {
-        // The driver's choice wins over what the sync guessed.
+        // The driver's choice wins over what the sync guessed, and the dates
+        // follow the app picked, unless the driver changed them by hand.
         await prisma.earning.update({
           where: { id: already.id },
           data: {
             platform: parsed.data.platform,
             ...(parsed.data.amountPenceOverride ? { amountPence: parsed.data.amountPenceOverride } : {}),
+            ...(isBankDated(already, txn.transactionDate)
+              ? payoutPeriod(txn.transactionDate, arrears.has(parsed.data.platform))
+              : {}),
           },
         });
         await prisma.bankTransaction.update({
@@ -184,8 +190,7 @@ export async function inboxRoutes(app: FastifyInstance) {
           userId,
           platform: parsed.data.platform,
           amountPence: usePence,
-          periodStart: txn.transactionDate,
-          periodEnd: txn.transactionDate,
+          ...payoutPeriod(txn.transactionDate, arrears.has(parsed.data.platform)),
           source: "open_banking",
           // Suffix to avoid collision with the auto-import unique-key path
           // (a CREDIT can only be auto-promoted OR manually accepted, not

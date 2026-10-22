@@ -9,6 +9,7 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { encrypt, decrypt, isEncrypted } from "../lib/encryption.js";
 import { MERCHANT_PLATFORM_MAP, GIG_PLATFORMS } from "@mileclear/shared";
+import { parseArrears, payoutPeriod } from "./payoutWeek.js";
 import { resolveMerchantSuggestion, AUTO_IMPORT_MIN_CONFIDENCE, isAutoImportKey } from "./merchantCategoriser.js";
 
 import { reconcileInvoicePayments } from "./invoiceReconcile.js";
@@ -479,8 +480,9 @@ export async function syncTransactions(
   // reconciler below, not become a platform earning by itself).
   const owner = await prisma.user.findUnique({
     where: { id: userId },
-    select: { fullName: true, displayName: true },
+    select: { fullName: true, displayName: true, payoutsInArrears: true },
   });
+  const inArrears = new Set(parseArrears(owner?.payoutsInArrears));
   const ownNameWords = `${owner?.fullName ?? ""} ${owner?.displayName ?? ""}`.split(/\s+/).filter(Boolean);
   const hasOpenInvoices =
     (await prisma.invoice
@@ -587,8 +589,7 @@ export async function syncTransactions(
               userId,
               platform,
               amountPence: Math.abs(signedAmountPence),
-              periodStart: new Date(txnDate),
-              periodEnd: new Date(txnDate),
+              ...payoutPeriod(new Date(txnDate), inArrears.has(platform)),
               source: "open_banking",
               externalId,
               notes: connection.institutionName

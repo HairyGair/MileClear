@@ -98,6 +98,24 @@ export function fetchBankConnections() {
   );
 }
 
+export interface PayoutArrears {
+  platform: string;
+  inArrears: boolean;
+}
+
+/** Apps the driver has had bank payouts from, and which pay a week behind. */
+export function fetchPayoutArrears() {
+  return apiRequest<{ data: { platforms: PayoutArrears[] } }>("/earnings/open-banking/arrears");
+}
+
+/** Marks an app as paying a week behind; `moved` = payouts already recorded that moved. */
+export function setPayoutArrears(platform: string, inArrears: boolean) {
+  return apiRequest<{ data: { platform: string; inArrears: boolean; moved: number } }>(
+    "/earnings/open-banking/arrears",
+    { method: "PATCH", body: JSON.stringify({ platform, inArrears }) }
+  );
+}
+
 export function syncBankConnection(
   connectionId: string,
   fromDate?: string,

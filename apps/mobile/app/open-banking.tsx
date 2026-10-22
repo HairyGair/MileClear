@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -15,8 +16,11 @@ import {
   fetchBankConnections,
   syncBankConnection,
   disconnectBankConnection,
+  fetchPayoutArrears,
+  setPayoutArrears,
+  type PayoutArrears,
 } from "../lib/api/earnings";
-import type { PlaidConnection } from "@mileclear/shared";
+import { GIG_PLATFORMS, type PlaidConnection } from "@mileclear/shared";
 import { Button } from "../components/Button";
 import { BetaBanner } from "../components/BetaBanner";
 import { useUser } from "../lib/user/context";
@@ -47,6 +51,67 @@ const STATUS_COLORS: Record<string, string> = {
   disconnected: TEXT_3,
   error: RED,
 };
+
+const PLATFORM_LABELS: Record<string, string> = Object.fromEntries(
+  GIG_PLATFORMS.map((p) => [p.value, p.label])
+);
+
+/** Apps that pay last week's work into the bank this week (Ben Turner, 22 Oct 2026). */
+function PaidWeekBehind() {
+  const [rows, setRows] = useState<PayoutArrears[]>([]);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    fetchPayoutArrears()
+      .then((r) => setRows(r.data.platforms))
+      .catch(() => undefined);
+  }, []);
+  useFocusEffect(load);
+
+  const toggle = async (row: PayoutArrears, inArrears: boolean) => {
+    setSaving(row.platform);
+    try {
+      const res = await setPayoutArrears(row.platform, inArrears);
+      setRows((all) => all.map((r) => (r.platform === row.platform ? { ...r, inArrears } : r)));
+      const n = res.data.moved;
+      if (n > 0) {
+        Alert.alert("Done", `Moved ${n} ${PLATFORM_LABELS[row.platform] ?? row.platform} payout${n === 1 ? "" : "s"}.`);
+      }
+    } catch (err: any) {
+      Alert.alert("Couldn't save", err.message || "Try again in a moment.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (rows.length === 0) return null;
+  return (
+    <View style={styles.arrears}>
+      <Text style={styles.arrearsTitle}>Apps that pay a week behind</Text>
+      <View style={styles.card}>
+        {rows.map((row, i) => (
+          <View key={row.platform} style={[styles.arrearsRow, i > 0 && styles.arrearsRowDivider]}>
+            <Text style={styles.arrearsLabel}>{PLATFORM_LABELS[row.platform] ?? row.platform}</Text>
+            <Switch
+              value={row.inArrears}
+              onValueChange={(v) => void toggle(row, v)}
+              disabled={saving !== null}
+              trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+              thumbColor={row.inArrears ? AMBER : TEXT_2}
+              accessibilityLabel={`${PLATFORM_LABELS[row.platform] ?? row.platform} pays a week behind`}
+            />
+          </View>
+        ))}
+      </View>
+      <Text style={styles.arrearsHint}>
+        Turn on for an app that pays you for last week's work. Its payouts then
+        count in the week before they reached your bank, so this week shows
+        what you earned this week. They never move back into an earlier tax
+        quarter, as HMRC counts money when you got it.
+      </Text>
+    </View>
+  );
+}
 
 export default function OpenBankingScreen() {
   const router = useRouter();
@@ -280,6 +345,7 @@ export default function OpenBankingScreen() {
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            {connections.length > 0 && <PaidWeekBehind />}
             <Button
               title="Connect Bank"
               icon="add-circle-outline"
@@ -294,6 +360,37 @@ export default function OpenBankingScreen() {
 }
 
 const styles = StyleSheet.create({
+  arrears: {
+    marginBottom: 16,
+  },
+  arrearsTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.text1,
+    marginBottom: 8,
+  },
+  arrearsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+  arrearsRowDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.surfaceBorder,
+  },
+  arrearsLabel: {
+    fontFamily: fonts.regular,
+    fontSize: 15,
+    color: colors.text1,
+  },
+  arrearsHint: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: TEXT_3,
+    marginTop: 8,
+  },
   container: {
     flex: 1,
     backgroundColor: BG,

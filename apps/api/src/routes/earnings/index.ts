@@ -38,6 +38,7 @@ import {
   MAX_PAGE_SIZE,
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
+import { ARREARS_PLATFORMS, arrearsPlatformsFor, parseArrears, redateBankEarnings } from "../../services/payoutWeek.js";
 import { checkAchievementsSoon } from "../../services/achievementCheck.js";
 
 const createEarningSchema = z.object({
@@ -205,7 +206,9 @@ export async function earningRoutes(app: FastifyInstance) {
     const where: Record<string, unknown> = { userId };
     if (platform) where.platform = platform;
     if (from) where.periodStart = { ...(where.periodStart as object), gte: from };
-    if (to) where.periodEnd = { ...(where.periodEnd as object), lte: to };
+    // Both ends on the start date, so an earning spanning the edge (a
+    // week-behind bank payout, 27 Oct to 2 Nov) is in one range, not neither.
+    if (to) where.periodStart = { ...(where.periodStart as object), lte: to };
 
     const [data, total, sumResult] = await Promise.all([
       prisma.earning.findMany({
@@ -442,6 +445,62 @@ export async function earningRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const connections = await getConnections(request.userId!);
       return reply.send({ data: connections });
+    }
+  );
+
+  // Apps that pay a week behind (premium only). Lists the apps the driver
+  // has had bank payouts from, and which of them are marked. Changing one
+  // moves that app's bank payouts already recorded (services/payoutWeek.ts).
+  app.get(
+    "/open-banking/arrears",
+    { preHandler: premiumMiddleware },
+    async (request, reply) => {
+      const userId = request.userId!;
+      const [marked, paid] = await Promise.all([
+        arrearsPlatformsFor(userId),
+        prisma.earning.groupBy({ by: ["platform"], where: { userId, source: "open_banking" } }),
+      ]);
+      const seen = new Set(paid.map((p) => p.platform));
+      return reply.send({
+        data: {
+          platforms: ARREARS_PLATFORMS.filter((p) => seen.has(p) || marked.has(p)).map((p) => ({
+            platform: p,
+            inArrears: marked.has(p),
+          })),
+        },
+      });
+    }
+  );
+
+  app.patch(
+    "/open-banking/arrears",
+    { preHandler: premiumMiddleware },
+    async (request, reply) => {
+      const parsed = z
+        .object({ platform: z.enum(ARREARS_PLATFORMS as [string, ...string[]]), inArrears: z.boolean() })
+        .safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      const userId = request.userId!;
+      const { platform, inArrears } = parsed.data;
+      // Row lock: the web and the app changing two apps at once must not
+      // lose one of them while its payouts have already moved.
+      const moved = await prisma.$transaction(async (tx) => {
+        const [row] = await tx.$queryRaw<{ payoutsInArrears: unknown }[]>`
+          SELECT payoutsInArrears FROM users WHERE id = ${userId} FOR UPDATE`;
+        const raw = typeof row?.payoutsInArrears === "string" ? JSON.parse(row.payoutsInArrears) : row?.payoutsInArrears;
+        const marked = new Set(parseArrears(raw));
+        if (inArrears) marked.add(platform);
+        else marked.delete(platform);
+        await tx.user.update({
+          where: { id: userId },
+          data: { payoutsInArrears: ARREARS_PLATFORMS.filter((p) => marked.has(p)) },
+        });
+        return redateBankEarnings(userId, platform, inArrears, tx);
+      });
+      logEvent("earnings.payouts_in_arrears_set", userId, { platform, inArrears, moved });
+      return reply.send({ data: { platform, inArrears, moved } });
     }
   );
 

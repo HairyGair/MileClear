@@ -98,6 +98,16 @@ describe("syncTransactions", () => {
     expect(r.imported).toBe(1);
   });
 
+  it("dates a payout from an app that pays a week behind to the week before", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ fullName: "Ben Turner", displayName: "benturner10", payoutsInArrears: ["deliveroo"] } as never);
+    bank([txn("t1", "Roofoods Limited"), txn("t2", "Uber BV")]);
+    await syncTransactions(USER, "conn-1");
+    const data = vi.mocked(prisma.earning.create).mock.calls.map((c: any) => c[0].data);
+    const days = (d: any) => [d.periodStart.toISOString().slice(0, 10), d.periodEnd.toISOString().slice(0, 10)];
+    expect(days(data.find((d: any) => d.platform === "deliveroo"))).toEqual(["2026-10-13", "2026-10-19"]);
+    expect(days(data.find((d: any) => d.platform === "uber"))).toEqual(["2026-10-20", "2026-10-20"]);
+  });
+
   it("records a payout the driver has sorted to the same app twice", async () => {
     bank([txn("t1", "3079503240826")]);
     vi.mocked(prisma.merchantMapping.findUnique).mockResolvedValue(mapping("just_eat", 2) as never);

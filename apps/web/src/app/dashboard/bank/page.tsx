@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { formatDay } from "@/lib/dashboard/dates";
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Skeleton, StatusChip, useData, useToast } from "@/components/dashboard/kit";
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SettingsGroup, Skeleton, StatusChip, ToggleRow, useData, useToast } from "@/components/dashboard/kit";
+import { platformLabel } from "@/components/dashboard/money/format";
 import { ProPage, SelfEmployedOnly } from "@/components/dashboard/money/Company";
 import s from "@/components/dashboard/money/money.module.css";
 
@@ -13,6 +14,50 @@ interface Connection {
   lastSynced: string | null;
   status: string;
   createdAt: string;
+}
+
+interface Arrears {
+  platform: string;
+  inArrears: boolean;
+}
+
+/** Apps that pay last week's work into the bank this week (Ben Turner, 22 Oct 2026). */
+function PaidWeekBehind() {
+  const toast = useToast();
+  const { data, reload } = useData<Arrears[]>("bank-arrears", () => api.get<{ data: { platforms: Arrears[] } }>("/earnings/open-banking/arrears").then((r) => r.data.platforms));
+  const [saving, setSaving] = useState<string | null>(null);
+
+  async function toggle(a: Arrears, inArrears: boolean) {
+    setSaving(a.platform);
+    try {
+      const res = await api.patch<{ data: { moved: number } }>("/earnings/open-banking/arrears", { platform: a.platform, inArrears });
+      const n = res.data.moved;
+      toast.show(n === 0 ? "Saved" : `Moved ${n} ${platformLabel(a.platform)} payout${n === 1 ? "" : "s"}`);
+      reload();
+    } catch (e) {
+      toast.show(e instanceof Error ? e.message : "Couldn't save. Try again.", "error");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (!data || data.length === 0) return null;
+  return (
+    <SettingsGroup
+      title="Apps that pay a week behind"
+      footer="Turn on for an app that pays you for last week's work. Its payouts then count in the week before they reached your bank, so this week shows what you earned this week. They never move back into an earlier tax quarter, as HMRC counts money when you got it."
+    >
+      {data.map((a) => (
+        <ToggleRow
+          key={a.platform}
+          label={platformLabel(a.platform)}
+          checked={a.inArrears}
+          disabled={saving !== null}
+          onChange={(v) => void toggle(a, v)}
+        />
+      ))}
+    </SettingsGroup>
+  );
 }
 
 function Banks() {
@@ -120,6 +165,7 @@ function Banks() {
               </div>
             </Card>
           ))}
+          <PaidWeekBehind />
         </div>
       )}
       <ConfirmDialog
