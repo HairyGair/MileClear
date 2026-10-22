@@ -15,19 +15,35 @@ import { DRIVE_KEEP_MS, directionsModeOf, type DriveSession } from "./driveSessi
 
 let ready: Promise<void> | null = null;
 
+/** The first internal build kept every route in a `routes` column of
+ *  navigation_drives. That table holds only log data: if it is the old shape,
+ *  it goes (with any routes rows) and is made again below. */
+async function dropOldDriveTable(d: Awaited<ReturnType<typeof getDatabase>>): Promise<void> {
+  try {
+    const cols = await d.getAllAsync<{ name: string }>("PRAGMA table_info(navigation_drives)");
+    if ((cols ?? []).some((c) => c.name === "routes")) {
+      await d.execAsync("DROP TABLE IF EXISTS navigation_drive_routes; DROP TABLE IF EXISTS navigation_drives;");
+    }
+  } catch {
+    // unreadable: the CREATE below decides
+  }
+}
+
 async function db() {
   const d = await getDatabase();
   if (!ready) {
-    ready = d
-      .execAsync(
-        "CREATE TABLE IF NOT EXISTS navigation_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);" +
-          "CREATE TABLE IF NOT EXISTS navigation_drives (" +
-          "session_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, " +
-          "ended_at INTEGER, end_reason TEXT, mode TEXT NOT NULL, passenger INTEGER NOT NULL DEFAULT 0, " +
-          "truncated INTEGER NOT NULL DEFAULT 0, destination TEXT NOT NULL);" +
-          "CREATE TABLE IF NOT EXISTS navigation_drive_routes (" +
-          "session_id TEXT NOT NULL, seq INTEGER NOT NULL, route_id TEXT NOT NULL, from_ms INTEGER NOT NULL, " +
-          "to_ms INTEGER, geometry TEXT NOT NULL, PRIMARY KEY (session_id, seq))"
+    ready = dropOldDriveTable(d)
+      .then(() =>
+        d.execAsync(
+          "CREATE TABLE IF NOT EXISTS navigation_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);" +
+            "CREATE TABLE IF NOT EXISTS navigation_drives (" +
+            "session_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, " +
+            "ended_at INTEGER, end_reason TEXT, mode TEXT NOT NULL, passenger INTEGER NOT NULL DEFAULT 0, " +
+            "truncated INTEGER NOT NULL DEFAULT 0, destination TEXT NOT NULL);" +
+            "CREATE TABLE IF NOT EXISTS navigation_drive_routes (" +
+            "session_id TEXT NOT NULL, seq INTEGER NOT NULL, route_id TEXT NOT NULL, from_ms INTEGER NOT NULL, " +
+            "to_ms INTEGER, geometry TEXT NOT NULL, PRIMARY KEY (session_id, seq))"
+        )
       )
       .catch((e) => {
         ready = null;
@@ -160,6 +176,8 @@ export async function pruneDriveSessions(nowMs: number): Promise<void> {
       [cutoff]
     );
     await d.runAsync("DELETE FROM navigation_drives WHERE started_at < ?", [cutoff]);
+    // Routes whose session is gone (a write that half failed).
+    await d.runAsync("DELETE FROM navigation_drive_routes WHERE session_id NOT IN (SELECT session_id FROM navigation_drives)");
   } catch {
     // best effort
   }

@@ -248,8 +248,34 @@ describe("store writes", () => {
     fakeDb.execAsync.mockResolvedValue(undefined);
     fakeDb.runAsync.mockResolvedValue(undefined);
     await pruneDriveSessions(T0);
-    expect(sqls().filter((q) => q.startsWith("DELETE"))).toHaveLength(2);
-    for (const c of fakeDb.runAsync.mock.calls) expect(c[1]).toEqual([T0 - DRIVE_KEEP_MS]);
+    const dels = fakeDb.runAsync.mock.calls.filter((c) => String(c[0]).startsWith("DELETE"));
+    expect(dels).toHaveLength(3);
+    expect(dels[0][1]).toEqual([T0 - DRIVE_KEEP_MS]);
+    expect(dels[1][1]).toEqual([T0 - DRIVE_KEEP_MS]);
+    // And routes left without a session.
+    expect(String(dels[2][0])).toBe("DELETE FROM navigation_drive_routes WHERE session_id NOT IN (SELECT session_id FROM navigation_drives)");
+  });
+
+  it("an old-shape navigation_drives (a routes column, first internal build) is dropped and made again", async () => {
+    vi.resetModules();
+    const fresh = await import("../store");
+    fakeDb.getAllAsync.mockResolvedValueOnce([{ name: "session_id" }, { name: "routes" }]);
+    fakeDb.execAsync.mockResolvedValue(undefined);
+    fakeDb.runAsync.mockResolvedValue(undefined);
+    await fresh.touchDriveSession("dir_1", T0);
+    const execs = fakeDb.execAsync.mock.calls.map((c) => String(c[0]));
+    expect(execs[0]).toBe("DROP TABLE IF EXISTS navigation_drive_routes; DROP TABLE IF EXISTS navigation_drives;");
+    expect(execs[1]).toContain("CREATE TABLE IF NOT EXISTS navigation_drives");
+  });
+
+  it("the current shape is left alone", async () => {
+    vi.resetModules();
+    const fresh = await import("../store");
+    fakeDb.getAllAsync.mockResolvedValueOnce([{ name: "session_id" }, { name: "destination" }]);
+    fakeDb.execAsync.mockResolvedValue(undefined);
+    fakeDb.runAsync.mockResolvedValue(undefined);
+    await fresh.touchDriveSession("dir_1", T0);
+    expect(fakeDb.execAsync.mock.calls.map((c) => String(c[0])).some((q) => q.includes("DROP"))).toBe(false);
   });
 
   it("the switch off deletes every stored session and never creates a table", async () => {
