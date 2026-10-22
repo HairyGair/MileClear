@@ -50,67 +50,6 @@ import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/sa
  *   clears it). The queue engine parks a 4xx create as permanently_failed
  *   with the local row and payload KEPT, and the Uploads screen can retry it.
  */
-// ─── The queue row an immediate update owns ──────────────────────────────
-//
-// Every update writes its own queue row (enqueueSync) and then tries the API
-// at once. Until 22 Oct 2026 a success marked EVERY pending update for that
-// row as sent, and a refusal deleted every pending one: a coordinate merge
-// that failed offline, followed by a classification tap that got through,
-// lost the merge without a trace. Now a success settles only its own row,
-// and an older unsent update loses only the fields this one has just set
-// (those are no longer its to send: sending them later would undo the newer
-// value). Appended breadcrumbs and gpsQuality (merged on the server key by
-// key) are never taken off an older update. An older update left with
-// nothing to send is marked sent, exactly as before.
-
-type Db = Awaited<ReturnType<typeof getDatabase>>;
-
-/** Fields an older queued update keeps whatever a newer one sets. */
-const NEVER_SUPERSEDED = new Set(["id", "coordinates", "gpsQuality"]);
-
-async function settleSentUpdate(
-  db: Db,
-  entityType: string,
-  entityId: string,
-  queueId: string,
-  sent: Record<string, unknown>
-): Promise<void> {
-  const now = new Date().toISOString();
-  await db.runAsync("UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE id = ? AND status = 'pending'", [now, queueId]);
-  const replaced = Object.keys(sent).filter((k) => !NEVER_SUPERSEDED.has(k) && sent[k] !== undefined);
-  if (replaced.length === 0) return;
-  try {
-    const older = await db.getAllAsync<{ id: string; payload: string | null }>(
-      `SELECT id, payload FROM sync_queue
-       WHERE entity_type = ? AND entity_id = ? AND action = 'update' AND status IN ('pending', 'failed') AND id != ?
-         AND created_at < (SELECT created_at FROM sync_queue WHERE id = ?)`,
-      [entityType, entityId, queueId, queueId]
-    );
-    for (const row of older ?? []) {
-      let body: Record<string, unknown>;
-      try {
-        body = row.payload ? (JSON.parse(row.payload) as Record<string, unknown>) : {};
-      } catch {
-        continue; // unreadable: left exactly as it was
-      }
-      if (!body || typeof body !== "object") continue;
-      for (const k of replaced) delete body[k];
-      if (Object.keys(body).every((k) => k === "id")) {
-        await db.runAsync("UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE id = ?", [now, row.id]);
-      } else {
-        await db.runAsync("UPDATE sync_queue SET payload = ?, updated_at = ? WHERE id = ?", [JSON.stringify(body), now, row.id]);
-      }
-    }
-  } catch {
-    // Best effort: an older update left whole is retried as it was queued.
-  }
-}
-
-/** A refused update: only its own queue row goes. */
-async function dropOwnUpdate(db: Db, queueId: string): Promise<void> {
-  await db.runAsync("DELETE FROM sync_queue WHERE id = ? AND status = 'pending'", [queueId]);
-}
-
 export async function syncCreateTrip(data: CreateTripData, options?: { queueOnly?: boolean }) {
   const db = await getDatabase();
 
@@ -285,7 +224,7 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
     ...(classificationAutoAccepted !== undefined && { classificationAutoAccepted }),
   };
 
-  const queueId = await enqueueSync("trip", id, "update", { id, ...apiPayload } as unknown as Record<string, unknown>);
+  await enqueueSync("trip", id, "update", { id, ...apiPayload } as unknown as Record<string, unknown>);
 
   // If the trip has not synced to the server yet (its create is still in the
   // queue), don't attempt the PATCH now - the local UUID would 404 on the
@@ -301,7 +240,10 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
 
   try {
     const result = await apiUpdateTrip(id, apiPayload);
-    await settleSentUpdate(db, "trip", id, queueId, apiPayload as Record<string, unknown>);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'trip' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
     // Mark feedback as sent so we don't re-submit on subsequent classification changes
     if (classificationAutoAccepted !== undefined) {
       await db.runAsync(
@@ -417,15 +359,21 @@ export async function syncUpdateEarning(id: string, data: UpdateEarningData) {
     await db.runAsync(`UPDATE earnings SET ${setClauses.join(", ")} WHERE id = ?`, values);
   }
 
-  const queueId = await enqueueSync("earning", id, "update", { id, ...data } as unknown as Record<string, unknown>);
+  await enqueueSync("earning", id, "update", { id, ...data } as unknown as Record<string, unknown>);
 
   try {
     const result = await apiUpdateEarning(id, data);
-    await settleSentUpdate(db, "earning", id, queueId, data as unknown as Record<string, unknown>);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'earning' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
     return result;
   } catch (err) {
     if (isNetworkError(err)) return null;
-    await dropOwnUpdate(db, queueId);
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'earning' AND action = 'update' AND status = 'pending'",
+      [id]
+    );
     throw err;
   }
 }
@@ -517,15 +465,21 @@ export async function syncUpdateFuelLog(id: string, data: UpdateFuelLogData) {
     await db.runAsync(`UPDATE fuel_logs SET ${setClauses.join(", ")} WHERE id = ?`, values);
   }
 
-  const queueId = await enqueueSync("fuel_log", id, "update", { id, ...data } as unknown as Record<string, unknown>);
+  await enqueueSync("fuel_log", id, "update", { id, ...data } as unknown as Record<string, unknown>);
 
   try {
     const result = await apiUpdateFuelLog(id, data);
-    await settleSentUpdate(db, "fuel_log", id, queueId, data as unknown as Record<string, unknown>);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'fuel_log' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
     return result;
   } catch (err) {
     if (isNetworkError(err)) return null;
-    await dropOwnUpdate(db, queueId);
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'fuel_log' AND action = 'update' AND status = 'pending'",
+      [id]
+    );
     throw err;
   }
 }
@@ -617,11 +571,14 @@ export async function syncEndShift(id: string) {
     [now, id]
   );
 
-  const queueId = await enqueueSync("shift", id, "update", { status: "completed" } as Record<string, unknown>);
+  await enqueueSync("shift", id, "update", { status: "completed" } as Record<string, unknown>);
 
   try {
     const result = await apiEndShift(id);
-    await settleSentUpdate(db, "shift", id, queueId, { status: "completed" });
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'shift' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
     return result;
   } catch (err) {
     if (isNetworkError(err) || isLocalSystemError(err) || isServerUnavailable(err)) {
@@ -635,7 +592,10 @@ export async function syncEndShift(id: string) {
       "UPDATE shifts SET status = 'active', ended_at = NULL WHERE id = ?",
       [id]
     );
-    await dropOwnUpdate(db, queueId);
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'shift' AND action = 'update' AND status = 'pending'",
+      [id]
+    );
     throw err;
   }
 }
@@ -708,15 +668,21 @@ export async function syncUpdateSavedLocation(id: string, data: UpdateSavedLocat
   values.push(id);
   await db.runAsync(`UPDATE saved_locations SET ${setClauses.join(", ")} WHERE id = ?`, values);
 
-  const queueId = await enqueueSync("saved_location", id, "update", { id, ...data } as unknown as Record<string, unknown>);
+  await enqueueSync("saved_location", id, "update", { id, ...data } as unknown as Record<string, unknown>);
 
   try {
     const result = await apiUpdateSavedLocation(id, data);
-    await settleSentUpdate(db, "saved_location", id, queueId, data as unknown as Record<string, unknown>);
+    await db.runAsync(
+      "UPDATE sync_queue SET status = 'synced', updated_at = ? WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'update' AND status = 'pending'",
+      [new Date().toISOString(), id]
+    );
     return result;
   } catch (err) {
     if (isNetworkError(err)) return null;
-    await dropOwnUpdate(db, queueId);
+    await db.runAsync(
+      "DELETE FROM sync_queue WHERE entity_id = ? AND entity_type = 'saved_location' AND action = 'update' AND status = 'pending'",
+      [id]
+    );
     throw err;
   }
 }
