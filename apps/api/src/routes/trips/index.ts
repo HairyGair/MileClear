@@ -242,6 +242,16 @@ const updateTripSchema = z.object({
   gpsQuality: z.record(z.unknown()).optional().transform(stripServerOwnedGpsQuality).transform(capDirectionsGpsQuality),
 });
 
+/** A PATCH body that is only { gpsQuality: { directions } }: the phone's
+ *  Directions note, written on its own (see PATCH /trips/:id). */
+function isDirectionsNoteOnly(body: unknown): boolean {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const keys = Object.keys(body);
+  if (keys.length !== 1 || keys[0] !== "gpsQuality") return false;
+  const gq = (body as { gpsQuality: unknown }).gpsQuality;
+  return !!gq && typeof gq === "object" && !Array.isArray(gq) && Object.keys(gq).length === 1 && "directions" in gq;
+}
+
 /** The PATCH brings breadcrumbs to append (a phone merge). */
 function hasAppendCoordinatesEarly(updates: { coordinates?: unknown[] }): boolean {
   return (updates.coordinates?.length ?? 0) > 0;
@@ -3394,6 +3404,33 @@ export async function tripRoutes(app: FastifyInstance) {
 
     const userId = request.userId!;
     const updates = parsed.data;
+
+    // The phone's Directions note on its own (PLAN-recording.md): one key set
+    // inside gpsQuality, atomically in the database, and nothing else. The
+    // general path below rewrites the whole gpsQuality from an earlier read,
+    // so a note landing beside an append could drop that append's
+    // appendOutlierCut (Katy, 14 Oct); and a note is not an edit, so no
+    // mileage summary, achievements or trip.updated.
+    if (isDirectionsNoteOnly(request.body)) {
+      const note = updates.gpsQuality?.directions;
+      if (note === undefined) return reply.send({ data: { id, directionsNoted: false } });
+      const changed = await prisma.$executeRaw`
+        UPDATE trips
+        SET gpsQuality = JSON_SET(
+          IF(gpsQuality IS NULL OR JSON_TYPE(gpsQuality) <> 'OBJECT', JSON_OBJECT(), gpsQuality),
+          '$.directions', CAST(${JSON.stringify(note)} AS JSON)
+        )
+        WHERE id = ${id} AND userId = ${userId}
+          AND (gpsQuality IS NULL OR JSON_TYPE(gpsQuality) IN ('OBJECT', 'NULL'))
+      `;
+      if (changed === 0) {
+        const found = await prisma.trip.findFirst({ where: { id, userId }, select: { id: true } });
+        if (!found) return reply.status(404).send({ error: "Trip not found" });
+        return reply.send({ data: { id, directionsNoted: false } });
+      }
+      logEvent("trip.directions_noted", userId, { tripId: id, ...directionsEventFields(updates.gpsQuality) });
+      return reply.send({ data: { id, directionsNoted: true } });
+    }
 
     const existing = await prisma.trip.findFirst({
       where: { id, userId },

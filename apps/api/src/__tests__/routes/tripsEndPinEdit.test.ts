@@ -661,8 +661,8 @@ describe("PATCH /trips/:id editing a recorded trip's end more than once", () => 
     expect(db.trip.distanceMiles).toBe(4.22);
   });
 
-  it("merges the phone's Directions note sent after the save, counts it, and changes nothing else", async () => {
-    seed({ gpsQuality: { driverKeptGoing: true } });
+  it("a Directions note sent with other gpsQuality keys takes the general path: merged and counted", async () => {
+    seed({ gpsQuality: { appendOutlierCut: { removedMiles: 1, fromMiles: 2, toMiles: 1 } } });
     const before = { ...db.trip };
     const directions = {
       sessionId: "dir_1",
@@ -671,8 +671,8 @@ describe("PATCH /trips/:id editing a recorded trip's end more than once", () => 
       wouldFill: { miles: 4.2, gapCount: 1, gaps: [{ fromMs: 1, toMs: 2, miles: 4.2, crowMiles: 4, points: 68 }] },
       wouldName: { use: true, source: "saved", reason: null, metresBucket: "0-50" },
     };
-    await patch({ gpsQuality: { directions } });
-    expect(db.trip.gpsQuality).toEqual({ driverKeptGoing: true, directions });
+    await patch({ gpsQuality: { directions, driverKeptGoing: true } });
+    expect(db.trip.gpsQuality).toEqual({ appendOutlierCut: { removedMiles: 1, fromMiles: 2, toMiles: 1 }, driverKeptGoing: true, directions });
     expect(db.trip.distanceMiles).toBe(before.distanceMiles);
     expect(db.trip.endLat).toBe(before.endLat);
     expect(logEvent).toHaveBeenCalledWith(
