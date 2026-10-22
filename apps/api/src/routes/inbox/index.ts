@@ -19,7 +19,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { premiumMiddleware } from "../../middleware/premium.js";
 import { EXPENSE_CATEGORIES, GIG_PLATFORMS } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
-import { trainMerchantMapping } from "../../services/merchantCategoriser.js";
+import { trainMerchantMapping, refreshPendingSuggestions } from "../../services/merchantCategoriser.js";
 import { markInvoicePaid } from "../../services/invoices.js";
 
 const expenseCategoryValues = EXPENSE_CATEGORIES.map((c) => c.value) as [
@@ -150,6 +150,35 @@ export async function inboxRoutes(app: FastifyInstance) {
     const usePence = parsed.data.amountPenceOverride ?? absPence;
 
     if (parsed.data.kind === "earning") {
+      // The sync may already have recorded this payout as an earning (two
+      // syncs racing, or an earning from before the inbox existed). Link to
+      // it instead of counting the money twice.
+      const already = await prisma.earning.findFirst({
+        where: { userId, externalId: txn.externalId },
+        select: { id: true },
+      });
+      if (already) {
+        // The driver's choice wins over what the sync guessed.
+        await prisma.earning.update({
+          where: { id: already.id },
+          data: {
+            platform: parsed.data.platform,
+            ...(parsed.data.amountPenceOverride ? { amountPence: parsed.data.amountPenceOverride } : {}),
+          },
+        });
+        await prisma.bankTransaction.update({
+          where: { id: txn.id },
+          data: { status: "accepted", resolvedEarningId: already.id, reviewedAt: new Date() },
+        });
+        await trainMerchantMapping({
+          userId,
+          merchant: txn.merchant,
+          kind: "earning",
+          category: parsed.data.platform,
+        }).catch(() => undefined);
+        logEvent("inbox.accepted_earning_already_recorded", userId, { bankTransactionId: txn.id });
+        return reply.send({ data: { ok: true, earningId: already.id, alreadyRecorded: true } });
+      }
       const earning = await prisma.earning.create({
         data: {
           userId,
@@ -182,11 +211,20 @@ export async function inboxRoutes(app: FastifyInstance) {
         kind: "earning",
         category: parsed.data.platform,
       }).catch(() => undefined);
+      // The same payout's other weeks still waiting get this app as their
+      // suggestion, one tap each.
+      const alsoSuggested = await refreshPendingSuggestions({
+        userId,
+        merchant: txn.merchant,
+        kind: "earning",
+        excludeId: txn.id,
+      }).catch(() => 0);
       logEvent("inbox.accepted_earning", userId, {
         bankTransactionId: txn.id,
         platform: parsed.data.platform,
+        alsoSuggested,
       });
-      return reply.send({ data: { ok: true, earningId: earning.id } });
+      return reply.send({ data: { ok: true, earningId: earning.id, alsoSuggested } });
     }
 
     // kind === "expense"
@@ -226,11 +264,18 @@ export async function inboxRoutes(app: FastifyInstance) {
       kind: "expense",
       category: parsed.data.category,
     }).catch(() => undefined);
+    const alsoSuggested = await refreshPendingSuggestions({
+      userId,
+      merchant: txn.merchant,
+      kind: "expense",
+      excludeId: txn.id,
+    }).catch(() => 0);
     logEvent("inbox.accepted_expense", userId, {
       bankTransactionId: txn.id,
       category: parsed.data.category,
+      alsoSuggested,
     });
-    return reply.send({ data: { ok: true, expenseId: expense.id } });
+    return reply.send({ data: { ok: true, expenseId: expense.id, alsoSuggested } });
   });
 
   // ── POST /inbox/:id/ignore — dismiss without resolving ────────────

@@ -8,9 +8,16 @@ import {
 } from "../lib/truelayer.js";
 import { prisma } from "../lib/prisma.js";
 import { encrypt, decrypt, isEncrypted } from "../lib/encryption.js";
-import { MERCHANT_PLATFORM_MAP } from "@mileclear/shared";
-import { resolveMerchantSuggestion } from "./merchantCategoriser.js";
+import { MERCHANT_PLATFORM_MAP, GIG_PLATFORMS } from "@mileclear/shared";
+import { resolveMerchantSuggestion, AUTO_IMPORT_MIN_CONFIDENCE, isAutoImportKey } from "./merchantCategoriser.js";
+
 import { reconcileInvoicePayments } from "./invoiceReconcile.js";
+
+/** Apps a learned payout may be recorded as without asking. "Other" and
+ *  "Freelance" are too broad to record by themselves. */
+const AUTO_IMPORT_PLATFORMS: ReadonlySet<string> = new Set(
+  GIG_PLATFORMS.map((p) => p.value as string).filter((v) => v !== "other" && v !== "freelance")
+);
 
 // ── Encryption of bank tokens at rest ─────────────────────────────────
 //
@@ -466,6 +473,20 @@ export async function syncTransactions(
   // known gig-platform payout is never an invoice payment).
   const newPendingCreditIds: string[] = [];
 
+  // For deciding whether a learned payout may be recorded without a tap:
+  // the driver's own name (transfers between their own accounts), and
+  // whether they have unpaid invoices (an invoice payment must reach the
+  // reconciler below, not become a platform earning by itself).
+  const owner = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { fullName: true, displayName: true },
+  });
+  const ownNameWords = `${owner?.fullName ?? ""} ${owner?.displayName ?? ""}`.split(/\s+/).filter(Boolean);
+  const hasOpenInvoices =
+    (await prisma.invoice
+      .count({ where: { userId, paidAt: null, status: { in: ["sent", "overdue"] } } })
+      .catch(() => 1)) > 0;
+
   // Fetch transactions for each account
   for (const account of accounts) {
     const txnUrl = `${TRUELAYER_API_BASE}/data/v1/accounts/${account.account_id}/transactions?from=${startDate}&to=${endDate}`;
@@ -491,11 +512,23 @@ export async function syncTransactions(
       const externalId = String(txn.transaction_id || "");
       if (!externalId) continue;
 
+      // Seen on an earlier sync: leave its row as it is. A sync reaches back
+      // 90 days, so without this a payout already waiting in the inbox could
+      // be recorded as an earning when the rules below learn to recognise
+      // it, and still sit in the inbox to be accepted a second time.
+      const seen = await prisma.bankTransaction.findUnique({
+        where: { userId_externalId: { userId, externalId } },
+        select: { id: true },
+      });
+      if (seen) {
+        skipped++;
+        continue;
+      }
+
       // Resolve suggestion via the Phase 2 categoriser:
       //   1. User's learned MerchantMapping (highest confidence)
       //   2. Phase 1 seed rules (platform matcher / expense categoriser)
       //   3. Low-confidence fallback ("other") - user reviews
-      const platform = isCredit ? matchMerchantToPlatform(merchantName) : null;
       const suggestedKind: "earning" | "expense" =
         isCredit ? "earning" : "expense";
       const learned = await resolveMerchantSuggestion({
@@ -505,6 +538,43 @@ export async function syncTransactions(
       });
       const suggestedCategory = learned.category;
       const suggestedConfidence = learned.confidence;
+      // A known platform's name, or a payout the driver has sorted to the
+      // same app at least twice (22 Oct 2026: Ben Turner's Just Eat and
+      // Amazon Flex payouts arrive as bare reference numbers).
+      // Learned ones only under the current key, only when the key names a
+      // payer, and never for a driver with unpaid invoices.
+      const learnedPlatform =
+        learned.source === "user" &&
+        learned.keyKind === "current" &&
+        learned.confidence >= AUTO_IMPORT_MIN_CONFIDENCE &&
+        AUTO_IMPORT_PLATFORMS.has(learned.category) &&
+        !hasOpenInvoices &&
+        isAutoImportKey(learned.matchedKey ?? "", ownNameWords)
+          ? learned.category
+          : null;
+      let platform = isCredit ? matchMerchantToPlatform(merchantName) ?? learnedPlatform : null;
+
+      // Already recorded another way? Then it waits in the inbox for the
+      // driver to look at, rather than counting twice. Same amount, and
+      // either dated the same day (the same payout under a new transaction
+      // id after a relink) or a typed-in or CSV period that ended up to 10
+      // days before it was paid (a week's Deliveroo, 13-19 Oct, paid 22 Oct).
+      if (platform) {
+        const day = new Date(txnDate).getTime();
+        const DAY_MS = 24 * 60 * 60 * 1000;
+        const sameMoney = await prisma.earning.findFirst({
+          where: {
+            userId,
+            amountPence: Math.abs(signedAmountPence),
+            OR: [
+              { periodStart: { gte: new Date(day - DAY_MS), lte: new Date(day + DAY_MS) } },
+              { periodEnd: { gte: new Date(day - 10 * DAY_MS), lte: new Date(day + DAY_MS) } },
+            ],
+          },
+          select: { id: true },
+        });
+        if (sameMoney) platform = null;
+      }
 
       // Auto-promote known-platform CREDITs to Earning rows. Preserves the
       // pre-inbox behaviour TrueLayer users already rely on.

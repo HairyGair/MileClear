@@ -399,6 +399,10 @@ export const PLATFORM_TAGS = [
 export const MERCHANT_PLATFORM_MAP: Record<string, string> = {
   "amazon logistics": "amazon_flex",
   "amazon flex": "amazon_flex",
+  // Deliveroo's company name, which some banks show instead of the app's
+  // (Ben Turner, Monzo, 22 Oct 2026). Not "Amazon UK Services": that
+  // company also pays warehouse wages, which are not Flex income.
+  roofoods: "deliveroo",
   "uber eats": "uber",
   "just eat": "just_eat",
   justeat: "just_eat",
