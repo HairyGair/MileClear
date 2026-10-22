@@ -3458,11 +3458,14 @@ export async function tripRoutes(app: FastifyInstance) {
           tailId: moved.tailId,
           received: updates.coordinates!.length,
           appended: moved.appended,
+          extended: moved.extended,
           duplicatesSkipped: moved.duplicates,
           beforeTail: moved.beforeTail,
           addedMiles: moved.addedMiles,
         });
-        if (moved.appended > 0) {
+        // Only an extension changes miles or gives the visit splitter new
+        // driving; a late replay of older breadcrumbs is kept for the record.
+        if (moved.extended > 0) {
           upsertMileageSummary(userId, getTaxYear(existing.startedAt)).catch(() => {});
           if (visitAutoSplitEnabled()) {
             autoSplitVisitWelds({ userId, tripId: moved.tailId }).catch(() => {});

@@ -74,7 +74,14 @@ export interface TailAppendPlan {
   duplicates: number;
   /** Older than the tail's first breadcrumb, so they belong to no leg's end. */
   beforeTail: number;
-  /** Miles from the tail's last breadcrumb through the fresh ones. */
+  /** The fresh breadcrumbs after the tail's newest stored one: the only ones
+   *  that extend it (move its end, add miles). Oldest first. */
+  extend: IncomingCoordinate[];
+  /** Fresh breadcrumbs at or before the tail's newest stored one: a late
+   *  replay of older driving (a merge that failed offline and was sent after
+   *  a newer one). Inserted for the record; they add no miles and move nothing. */
+  backfill: number;
+  /** Miles from the tail's last breadcrumb through the extending ones only. */
   addedMiles: number;
 }
 
@@ -87,7 +94,9 @@ export function planTailAppend(args: {
   incoming: IncomingCoordinate[];
   familyTimes: Set<number>;
   tailStartedAt: Date;
-  tailLast: { lat: number; lng: number } | null;
+  /** The tail's newest stored breadcrumb. Without its time every fresh
+   *  breadcrumb counts as extending (the behaviour before 22 Oct 2026). */
+  tailLast: { lat: number; lng: number; recordedAt?: Date } | null;
 }): TailAppendPlan {
   const { incoming, familyTimes, tailStartedAt, tailLast } = args;
   const seen = new Set(familyTimes);
@@ -108,14 +117,21 @@ export function planTailAppend(args: {
     fresh.push(c);
   }
   fresh.sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+  // Split at the tail's newest stored breadcrumb. Measuring from it back
+  // through older fixes drew a straight line backwards and counted again a
+  // stretch a newer merge had already added.
+  const lastAt = tailLast?.recordedAt?.getTime();
+  const extend = lastAt == null ? fresh : fresh.filter((c) => c.recordedAt.getTime() > lastAt);
   const addedMiles =
-    fresh.length > 0 ? trailDistanceMiles([...(tailLast ? [tailLast] : []), ...fresh]) : 0;
-  return { fresh, duplicates, beforeTail, addedMiles };
+    extend.length > 0 ? trailDistanceMiles([...(tailLast ? [tailLast] : []), ...extend]) : 0;
+  return { fresh, extend, backfill: fresh.length - extend.length, duplicates, beforeTail, addedMiles };
 }
 
 export interface TailAppendResult {
   tailId: string;
   appended: number;
+  /** Of those, how many extended the tail (the rest were a late replay). */
+  extended: number;
   duplicates: number;
   beforeTail: number;
   addedMiles: number;
@@ -146,7 +162,7 @@ export async function appendToSplitTail(args: {
     const tailLast = await tx.tripCoordinate.findFirst({
       where: { tripId: tail.id },
       orderBy: { recordedAt: "desc" },
-      select: { lat: true, lng: true },
+      select: { lat: true, lng: true, recordedAt: true },
     });
 
     const plan = planTailAppend({
@@ -167,7 +183,16 @@ export async function appendToSplitTail(args: {
           recordedAt: c.recordedAt,
         })),
       });
-      const last = plan.fresh[plan.fresh.length - 1];
+    }
+    if (plan.fresh.length > 0 && plan.extend.length === 0) {
+      // Only older driving replayed late: the breadcrumbs are kept, and the
+      // tail's miles, end, end address, end note and end time stay as they are.
+      await tx.trip.update({
+        where: { id: tail.id },
+        data: { coordinateCount: { increment: plan.fresh.length } },
+      });
+    } else if (plan.extend.length > 0) {
+      const last = plan.extend[plan.extend.length - 1];
       const withoutEndNote = gpsQualityRetiringEndNote(tail.gpsQuality);
       const endedAt =
         tail.endedAt && tail.endedAt.getTime() > last.recordedAt.getTime() ? tail.endedAt : last.recordedAt;
@@ -193,6 +218,7 @@ export async function appendToSplitTail(args: {
     return {
       tailId: tail.id,
       appended: plan.fresh.length,
+      extended: plan.extend.length,
       duplicates: plan.duplicates,
       beforeTail: plan.beforeTail,
       addedMiles: plan.addedMiles,
