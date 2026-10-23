@@ -44,7 +44,17 @@ describe("GET /tax/regime-summary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     p.vehicle.findMany.mockResolvedValue([
-      { id: "v1", make: "Toyota", model: "Aqua", fuelType: "hybrid", vehicleType: "car", providedByOthers: false, isPrimary: true },
+      {
+        id: "v1",
+        make: "Toyota",
+        model: "Aqua",
+        fuelType: "hybrid",
+        vehicleType: "car",
+        providedByOthers: false,
+        isPrimary: true,
+        nzHybridKind: "petrol",
+        nzRecordBasis: "records",
+      },
     ]);
     p.trip.groupBy.mockResolvedValue([
       { vehicleId: "v1", classification: "business", _sum: { distanceMiles: 62.137119 } },
@@ -95,6 +105,9 @@ describe("GET /tax/regime-summary", () => {
     expect(p.trip.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({ by: ["vehicleId", "classification"], _sum: { distanceMiles: true } })
     );
+    // Each vehicle's New Zealand answers are read for the claim.
+    expect(p.vehicle.findMany.mock.calls[0][0].select).toMatchObject({ nzRecordBasis: true, nzHybridKind: true });
+    expect(d.vehicles[0].claim.recordBasis).toBe("records");
   });
 
   it("an admin set to NZ gets it with the switch off", async () => {
