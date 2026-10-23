@@ -18,7 +18,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useFocusEffect } from "expo-router";
+import { Stack, router, useFocusEffect } from "expo-router";
 import { safeBack } from "../lib/nav";
 import { formatMiles, formatPence, getTaxYear } from "@mileclear/shared";
 import { fetchProjectTotals, type ProjectTotalsResponse } from "../lib/api/trips";
@@ -149,25 +149,53 @@ export default function ProjectTotalsScreen() {
         ) : (
           <>
             <View style={styles.card}>
-              {data.projects.map((p, i) => (
-                <View
-                  key={p.label ?? "__none__"}
-                  style={[styles.row, i > 0 && styles.rowDivider]}
-                  accessible
-                  accessibilityLabel={`${p.label ?? "No project"}: ${formatMiles(p.miles)}, ${plural(p.trips, "trip")}, ${formatPence(p.valuePence)}`}
-                >
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={[styles.rowLabel, p.label === null && styles.rowLabelMuted]} numberOfLines={2}>
-                      {p.label ?? "No project"}
-                    </Text>
-                    <Text style={styles.rowSub}>{plural(p.trips, "trip")}</Text>
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={styles.rowMiles}>{formatMiles(p.miles)}</Text>
-                    <Text style={styles.rowValue}>{formatPence(p.valuePence)}</Text>
-                  </View>
-                </View>
-              ))}
+              {data.projects.map((p, i) => {
+                const summary = `${p.label ?? "No project"}: ${formatMiles(p.miles)}, ${plural(p.trips, "trip")}, ${formatPence(p.valuePence)}`;
+                const body = (
+                  <>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={[styles.rowLabel, p.label === null && styles.rowLabelMuted]} numberOfLines={2}>
+                        {p.label ?? "No project"}
+                      </Text>
+                      <Text style={styles.rowSub}>{plural(p.trips, "trip")}</Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={styles.rowMiles}>{formatMiles(p.miles)}</Text>
+                      <Text style={styles.rowValue}>{formatPence(p.valuePence)}</Text>
+                    </View>
+                  </>
+                );
+                // A client's row opens the Trips tab filtered to that client
+                // (23 Oct 2026). "No project" stays a plain row.
+                if (p.label === null) {
+                  return (
+                    <View
+                      key="__none__"
+                      style={[styles.row, i > 0 && styles.rowDivider]}
+                      accessible
+                      accessibilityLabel={summary}
+                    >
+                      {body}
+                    </View>
+                  );
+                }
+                const label = p.label;
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    style={[styles.row, i > 0 && styles.rowDivider]}
+                    onPress={() =>
+                      router.navigate(`/(tabs)/trips?client=${encodeURIComponent(label)}` as never)
+                    }
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${summary}. Opens these trips.`}
+                  >
+                    {body}
+                    <Ionicons name="chevron-forward" size={16} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <View style={[styles.card, styles.totalCard]}>
@@ -184,7 +212,7 @@ export default function ProjectTotalsScreen() {
             </View>
 
             <Text style={styles.footnote}>
-              The first 10,000 business miles in a tax year are paid at the higher rate, so each trip is valued in date order. Your Pro trip report and CSV include the project too.
+              The first 10,000 business miles in a tax year are paid at the higher rate, so each trip is valued in date order. Tap a project to see its trips. With Pro you can download the trip report and CSV for one client in Tax, Downloads.
             </Text>
           </>
         )}

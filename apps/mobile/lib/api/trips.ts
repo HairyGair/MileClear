@@ -208,6 +208,10 @@ export interface ListTripsParams {
   shiftId?: string;
   vehicleId?: string;
   q?: string;
+  /** One Project / client, matched however it was typed. Servers before 23 Oct 2026 ignore it. */
+  projectLabel?: string;
+  /** "true": trips with no Project / client. */
+  noProjectLabel?: "true";
   from?: string;
   to?: string;
   page?: number;
@@ -228,6 +232,9 @@ export function fetchTrips(params?: ListTripsParams) {
 export interface TripSummaryParams {
   classification?: TripClassification;
   platformTag?: PlatformTag;
+  /** Same client filter as ListTripsParams, so the stats card agrees with the list. */
+  projectLabel?: string;
+  noProjectLabel?: "true";
   from?: string;
   to?: string;
 }
