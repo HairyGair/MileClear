@@ -23,7 +23,8 @@ import {
   useToast,
   useUnclassifiedCount,
 } from "@/components/dashboard/kit";
-import { formatDay, formatMiles } from "@/lib/dashboard";
+import { formatDay } from "@/lib/dashboard";
+import { useDistanceUnit } from "@/lib/dashboard/distanceUnit";
 import { TripRow } from "@/components/dashboard/trips/TripRow";
 import { TripsReviewStrip } from "@/components/dashboard/trips/TripsReviewStrip";
 import { ReportMissingDialog } from "@/components/dashboard/trips/ReportMissingDialog";
@@ -70,6 +71,7 @@ export default function TripsPage() {
 
 function TripsInner() {
   const router = useRouter();
+  const dist = useDistanceUnit();
   const sp = useSearchParams() ?? NO_PARAMS;
   const toast = useToast();
   const me = useMe();
@@ -352,12 +354,12 @@ function TripsInner() {
             <p className="mc-tripsummary__value mc-num">{summary.data.totalTrips.toLocaleString("en-GB")}</p>
           </div>
           <div>
-            <p className="mc-tripsummary__label">Miles</p>
-            <p className="mc-tripsummary__value mc-num">{formatMiles(summary.data.totalMiles)}</p>
+            <p className="mc-tripsummary__label">{dist.Label}</p>
+            <p className="mc-tripsummary__value mc-num">{dist.fmt(summary.data.totalMiles)}</p>
           </div>
           <div>
-            <p className="mc-tripsummary__label">Business miles</p>
-            <p className="mc-tripsummary__value mc-num">{formatMiles(summary.data.businessMiles)}</p>
+            <p className="mc-tripsummary__label">Business {dist.unit === "km" ? "km" : "miles"}</p>
+            <p className="mc-tripsummary__value mc-num">{dist.fmt(summary.data.businessMiles)}</p>
           </div>
         </Card>
       )}
@@ -400,7 +402,7 @@ function TripsInner() {
               <section key={g.key} className="mc-day" aria-label={formatDay(dayKeyToDate(g.key))}>
                 <div className="mc-day__head">
                   <h2 className="mc-day__title">{formatDay(dayKeyToDate(g.key))}</h2>
-                  <span className="mc-day__miles mc-num">{formatMiles(g.miles)}</span>
+                  <span className="mc-day__miles mc-num">{dist.fmt(g.miles)}</span>
                 </div>
                 {line && (
                   <Link

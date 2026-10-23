@@ -26,7 +26,8 @@ import {
   useUnclassifiedCount,
   type MenuItem,
 } from "../kit";
-import { formatDay, formatMiles, formatPence, formatRange, planHref } from "../../../lib/dashboard";
+import { formatDay, formatPence, formatRange, planHref } from "../../../lib/dashboard";
+import { useDistanceUnit } from "../../../lib/dashboard/distanceUnit";
 import { useMediaQuery } from "../../../lib/dashboard/useMediaQuery";
 import { isoToLocalYmd } from "./lib/days";
 import { CLASSIFICATION_WORD, type CazCharge, type Classification, type TripDetailData } from "./lib/types";
@@ -64,6 +65,7 @@ function durationText(startIso: string, endIso: string | null): string {
 
 export function TripDetail({ id }: { id: string }) {
   const router = useRouter();
+  const { fmt: formatDistance } = useDistanceUnit();
   const toast = useToast();
   const me = useMe();
   const unclassified = useUnclassifiedCount();
@@ -216,14 +218,14 @@ export function TripDetail({ id }: { id: string }) {
                 formatDay(t.startedAt),
                 t.endedAt ? formatRange(t.startedAt, t.endedAt) : null,
                 durationText(t.startedAt, t.endedAt) || null,
-                formatMiles(t.distanceMiles),
+                formatDistance(t.distanceMiles),
               ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
             {t.diversion && (
               <p className="mc-tripview__facts">
-                Ran about {formatMiles(t.diversion.extraMiles)} longer than usual
+                Ran about {formatDistance(t.diversion.extraMiles)} longer than usual
                 {t.diversion.streetName ? ` because of roadworks on ${t.diversion.streetName}` : " because of roadworks"}.
               </p>
             )}
@@ -371,12 +373,12 @@ export function TripDetail({ id }: { id: string }) {
       <ConfirmDialog
         open={confirm === "recalc"}
         title="Recalculate distance?"
-        body={`Work out the distance again from the route? Your current figure is ${formatMiles(t.distanceMiles)}.`}
+        body={`Work out the distance again from the route? Your current figure is ${formatDistance(t.distanceMiles)}.`}
         confirmLabel="Recalculate"
         onClose={() => setConfirm(null)}
         onConfirm={async () => {
           const res = await api.post<{ data: { changed: boolean; newMiles: number } }>(`/trips/${t.id}/recalc`);
-          toast.show(res.data.changed ? `Distance is now ${formatMiles(res.data.newMiles)}` : "Already accurate");
+          toast.show(res.data.changed ? `Distance is now ${formatDistance(res.data.newMiles)}` : "Already accurate");
           trip.reload();
         }}
       />
