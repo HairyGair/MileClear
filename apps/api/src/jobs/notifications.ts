@@ -13,6 +13,7 @@ import { runReconciliationJob } from "./reconciliation.js";
 import { runGeofenceRadiusRecommendJob } from "./geofenceRadiusRecommend.js";
 import { runHmrcKeepAliveJob } from "./hmrcKeepAlive.js";
 import { getPeriodRecap } from "../services/gamification.js";
+import { jobCountry } from "../lib/countrySetting.js";
 import {
   formatMiles,
   formatPence,
@@ -333,7 +334,7 @@ async function runWeeklyRecapJob(): Promise<void> {
         if (recap.totalTrips === 0) continue; // Skip users with no trips last week
 
         // An HMRC deduction means nothing outside the UK (23 Oct 2026).
-        const body = recap.deductionPence > 0 && isUk(user.country)
+        const body = recap.deductionPence > 0 && isUk(jobCountry(user.country))
           ? `${recap.totalTrips} trips, ${formatMiles(recap.totalMiles)} driven, ${formatPence(recap.deductionPence)} tax deduction earned`
           : `${recap.totalTrips} trips, ${formatMiles(recap.totalMiles)} driven last week`;
 
@@ -395,7 +396,7 @@ async function runMonthlyRecapJob(): Promise<void> {
         if (recap.totalTrips === 0) continue;
 
         const monthName = lastMonth.toLocaleDateString("en-GB", { month: "long" });
-        const body = recap.deductionPence > 0 && isUk(user.country)
+        const body = recap.deductionPence > 0 && isUk(jobCountry(user.country))
           ? `${formatMiles(recap.totalMiles)} driven across ${recap.totalTrips} trips. ${formatPence(recap.deductionPence)} in tax deductions!`
           : `${formatMiles(recap.totalMiles)} driven across ${recap.totalTrips} trips in ${monthName}`;
 
@@ -606,7 +607,7 @@ export async function sendMilestonePush(userId: string): Promise<void> {
     await sendPushToUser(
       userId,
       `${formatted} miles tracked`,
-      isUk(prefUser?.country)
+      isUk(jobCountry(prefUser?.country))
         ? `Total distance: ${formatMiles(totalMiles)}. Tap to see what it's worth at HMRC rates.`
         : `Total distance: ${formatMiles(totalMiles)}.`,
       { type: "milestone", action: "open_achievements", milestone }
@@ -666,7 +667,7 @@ export async function sendShiftSummaryPush(
 
     const tripWord = stats.tripsCompleted === 1 ? "trip" : "trips";
     let body = `${stats.tripsCompleted} ${tripWord}, ${formatMiles(stats.totalMiles)} in ${duration}`;
-    if (stats.deductionPence > 0 && isUk(prefUser?.country)) {
+    if (stats.deductionPence > 0 && isUk(jobCountry(prefUser?.country))) {
       body += `. ${formatPence(stats.deductionPence)} added to this year's deduction.`;
     }
 

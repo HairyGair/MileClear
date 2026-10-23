@@ -890,14 +890,6 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["kilometres", "kilometers", "km", "metric", "units", "miles or km", "distance unit"],
   },
   {
-    id: "outside-uk",
-    area: "account_and_app",
-    q: "Can I use MileClear outside the UK?",
-    a: "Yes. Recording, your trips, Business or Personal, shifts, earnings, expenses, fuel logs, badges and the trip report and trips CSV work in any country, and you can show distances in kilometres (More > Settings > Distances). Set where you drive in More > Settings > Country. The tax figures and UK features are for UK drivers for now, so outside the UK MileClear hides them: HMRC mileage claims, Self Assessment, Making Tax Digital, DVLA and MOT, UK fuel prices, roadworks, Clean Air Zones and the UK bank connection.",
-    goTo: "/settings/country",
-    keywords: ["abroad", "outside the uk", "country", "ireland", "australia", "new zealand", "canada", "usa", "overseas", "international", "another country"],
-  },
-  {
     id: "delete-account",
     area: "account_and_app",
     q: "How do I delete my account?",
@@ -1061,6 +1053,21 @@ export const HELP_ENTRIES: HelpEntry[] = [
 export function getHelpEntry(id: string): HelpEntry | undefined {
   return HELP_ENTRIES.find((e) => e.id === id);
 }
+
+/**
+ * "Can I use MileClear outside the UK?" (23 Oct 2026). Held back while the
+ * Country setting is off (COUNTRY_SETTING on the server): it points at
+ * Settings > Country, which drivers can't see yet. Move it into HELP_ENTRIES
+ * (account_and_app, after "kilometres") when the setting goes on for everyone.
+ */
+export const OUTSIDE_UK_HELP_ENTRY: HelpEntry = {
+  id: "outside-uk",
+  area: "account_and_app",
+  q: "Can I use MileClear outside the UK?",
+  a: "Yes. Recording, your trips, Business or Personal, shifts, earnings, expenses, fuel logs, badges and the trip report and trips CSV work in any country, and you can show distances in kilometres (More > Settings > Distances). Set where you drive in More > Settings > Country. The tax figures and UK features are for UK drivers for now, so outside the UK MileClear hides them: HMRC mileage claims, Self Assessment, Making Tax Digital, DVLA and MOT, UK fuel prices, roadworks, Clean Air Zones and the UK bank connection.",
+  goTo: "/settings/country",
+  keywords: ["abroad", "outside the uk", "country", "ireland", "australia", "new zealand", "canada", "usa", "overseas", "international", "another country"],
+};
 
 /** The answer text for a phone platform ("ios" or "android"). */
 export function helpAnswerFor(entry: HelpEntry, platform: "ios" | "android"): string {

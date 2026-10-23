@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { CountryList } from "../../components/country/CountryList";
 import { useCountry } from "../../lib/country/country";
+import { useUser } from "../../lib/user/context";
 import { pickCountry } from "../../lib/country/pick";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
 
@@ -10,6 +11,7 @@ import { colors, fonts, fontScaleCap } from "../../lib/theme";
 export default function CountrySettings() {
   const router = useRouter();
   const country = useCountry();
+  const { user } = useUser();
   const onPick = useCallback(
     async (code: string) => {
       await pickCountry(code);
@@ -17,6 +19,17 @@ export default function CountrySettings() {
     },
     [router]
   );
+
+  // Behind the server's switch, off by default: a stray link changes nothing.
+  if (user?.countrySettingEnabled !== true) {
+    return (
+      <View style={styles.root}>
+        <Text style={[styles.note, { marginHorizontal: 16 }]} maxFontSizeMultiplier={fontScaleCap.body}>
+          MileClear is set up for the UK.
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>

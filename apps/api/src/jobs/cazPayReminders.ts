@@ -28,7 +28,7 @@ import { logEvent } from "../services/appEvents.js";
 import { isProUser } from "../services/proEntitlement.js";
 import { chargeableVehicles, listCazCharges } from "../services/cazCharges.js";
 import { cazDeadlineIsTomorrow, formatPence, ukDate, ukDateParts, ukDayOf, type CazChargeItem } from "@mileclear/shared";
-import { UK_ONLY_USER } from "../lib/ukOnly.js";
+import { ukOnlyUser } from "../lib/ukOnly.js";
 
 export const CAZ_PAY_PUSH_EVENT = "notification.caz_pay";
 export const CAZ_PAY_ACTION = "open_ticket_defender";
@@ -73,7 +73,7 @@ export async function runCazPayRemindersJob(now: Date = new Date()): Promise<voi
   const vehicles = chargeableVehicles(
     await prisma.vehicle.findMany({
       // Clean Air Zones are UK only (23 Oct 2026).
-      where: { user: { pushToken: { not: null }, ...UK_ONLY_USER } },
+      where: { user: { pushToken: { not: null }, ...ukOnlyUser() } },
       select: { id: true, userId: true, euroStatus: true, fuelType: true, firstRegistration: true, vehicleType: true },
     })
   );

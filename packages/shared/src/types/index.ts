@@ -48,6 +48,10 @@ export interface User {
    *  Decides the UK-only features (featuresFor). Older servers omit it:
    *  treat missing as GB. */
   country?: string;
+  /** The Country setting is switched on for this driver (GET /user/profile;
+   *  off unless COUNTRY_SETTING=on on the server, admins always). Missing or
+   *  false: hide Settings > Country and "Where do you drive?", treat as GB. */
+  countrySettingEnabled?: boolean;
   /** The country of the sign-up location (GET /user/profile only), so the
    *  app can ask "Where do you drive?" once. Null when unknown. */
   signupCountry?: string | null;

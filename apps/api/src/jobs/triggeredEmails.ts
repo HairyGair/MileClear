@@ -40,7 +40,7 @@ import {
 import { getPeriodRecap } from "../services/gamification.js";
 import { calculateMileageDeduction, resolveMileageRates, getTaxYear } from "@mileclear/shared";
 import { claimableWhere } from "../lib/claimableTrips.js";
-import { UK_ONLY_USER } from "../lib/ukOnly.js";
+import { ukOnlyUser } from "../lib/ukOnly.js";
 
 const ENABLED = () => process.env.TRIGGERED_EMAILS_ENABLED === "1";
 const RETENTION_ENABLED = () => process.env.RETENTION_EMAILS_ENABLED === "1";
@@ -275,7 +275,7 @@ async function activeCandidates(extra: Record<string, unknown> = {}): Promise<Ca
     where: {
       emailVerified: true,
       marketingEmailsEnabled: true,
-      ...UK_ONLY_USER,
+      ...ukOnlyUser(),
       lastTripAt: { gte: new Date(Date.now() - ACTIVE_WINDOW_MS) },
       ...extra,
     },
@@ -445,7 +445,7 @@ async function yearEndTargets(): Promise<Array<{ user: Candidate; taxYear: strin
   });
   if (summaries.length === 0) return out;
   const users = await prisma.user.findMany({
-    where: { id: { in: summaries.map((s) => s.userId) }, emailVerified: true, marketingEmailsEnabled: true, ...UK_ONLY_USER },
+    where: { id: { in: summaries.map((s) => s.userId) }, emailVerified: true, marketingEmailsEnabled: true, ...ukOnlyUser() },
     select: CANDIDATE_SELECT,
   });
   const byId = new Map(users.map((u) => [u.id, u]));
@@ -504,7 +504,7 @@ async function saDeadlineTargets(t: ReturnType<typeof ukNow>): Promise<Array<{ u
   });
   if (summaries.length === 0) return out;
   const users = await prisma.user.findMany({
-    where: { id: { in: summaries.map((s) => s.userId) }, emailVerified: true, marketingEmailsEnabled: true, ...UK_ONLY_USER },
+    where: { id: { in: summaries.map((s) => s.userId) }, emailVerified: true, marketingEmailsEnabled: true, ...ukOnlyUser() },
     select: CANDIDATE_SELECT,
   });
   const byId = new Map(users.map((u) => [u.id, u]));
@@ -554,7 +554,7 @@ async function weekOneTargets(now = new Date()): Promise<WeekOneTarget[]> {
     where: {
       emailVerified: true,
       marketingEmailsEnabled: true,
-      ...UK_ONLY_USER,
+      ...ukOnlyUser(),
       createdAt: { gte: new Date(now.getTime() - WEEK_ONE_MAX_AGE_MS), lte: new Date(now.getTime() - WEEK_ONE_MIN_AGE_MS) },
       lastTripAt: { not: null },
     },
@@ -632,7 +632,7 @@ async function goneQuietTargets(now = new Date()): Promise<GoneQuietTarget[]> {
     where: {
       emailVerified: true,
       marketingEmailsEnabled: true,
-      ...UK_ONLY_USER,
+      ...ukOnlyUser(),
       createdAt: { lte: new Date(now.getTime() - 14 * DAY_MS) },
       lastTripAt: {
         gte: new Date(now.getTime() - GONE_QUIET_MAX_SILENCE_MS),
@@ -726,7 +726,7 @@ async function winBackTargets(now = new Date()): Promise<WinBackTarget[]> {
     where: {
       emailVerified: true,
       marketingEmailsEnabled: true,
-      ...UK_ONLY_USER,
+      ...ukOnlyUser(),
       OR: [
         // Never recorded: joined 14 days to 6 months ago.
         { lastTripAt: null, createdAt: { gte: oldest, lte: new Date(now.getTime() - WIN_BACK_NEVER_MIN_AGE_MS) } },

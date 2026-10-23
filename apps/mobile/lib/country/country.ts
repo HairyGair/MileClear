@@ -114,6 +114,18 @@ export async function adoptServerCountry(serverRaw: unknown): Promise<void> {
   }
 }
 
+/**
+ * The server has the Country setting off for this driver (no
+ * countrySettingEnabled, or an older server): they are the UK, and nothing
+ * is sent. Never throws.
+ */
+export async function countrySettingOff(): Promise<void> {
+  await loadCountry();
+  if (state.country === NO_COUNTRY.country && !state.pending) return;
+  set(NO_COUNTRY);
+  await save(NO_COUNTRY);
+}
+
 /** A real sign-out: the next driver on this phone starts as the UK. */
 export async function clearCountry(): Promise<void> {
   await loadCountry();

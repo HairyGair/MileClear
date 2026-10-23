@@ -304,12 +304,15 @@ export default function SettingsPage() {
           hint={distanceUnit === "km" ? "Kilometres (tax figures stay in miles)" : "Miles"}
           onPress={pickDistanceUnit}
         />
-        <SettingsRow
-          icon="globe-outline"
-          label="Country"
-          hint={countryName(country)}
-          onPress={go("/settings/country")}
-        />
+        {/* Behind the server's switch (countrySettingEnabled), off by default. */}
+        {user?.countrySettingEnabled === true && (
+          <SettingsRow
+            icon="globe-outline"
+            label="Country"
+            hint={countryName(country)}
+            onPress={go("/settings/country")}
+          />
+        )}
         <ToggleRow
           icon="lock-closed-outline"
           label="App lock"

@@ -3,6 +3,7 @@
 import { countryName } from "@mileclear/shared";
 import { PageHeader, SettingsGroup, SettingsRow, useMe } from "@/components/dashboard/kit";
 import { useCountryFeatures } from "@/lib/dashboard/country";
+import { useAuth } from "@/lib/auth-context";
 import styles from "@/components/dashboard/settings/settings.module.css";
 
 // The Settings hub: the app's settings screen, row for row, minus app lock
@@ -10,6 +11,9 @@ import styles from "@/components/dashboard/settings/settings.module.css";
 export default function SettingsPage() {
   const { isPro, premiumSource, team, seesCompanyDriverApp } = useMe();
   const { ukTax, country } = useCountryFeatures();
+  // Behind the server's switch (countrySettingEnabled), off by default.
+  const { user } = useAuth();
+  const countrySettingEnabled = user?.countrySettingEnabled === true;
   const planHint = !isPro ? "Free" : premiumSource === "team" && team ? `Pro through ${team.orgName}` : "Pro";
 
   return (
@@ -23,7 +27,9 @@ export default function SettingsPage() {
 
         <SettingsGroup title="Preferences">
           <SettingsRow icon="eye-outline" label="What you see" hint="Work, Personal or both" href="/dashboard/settings/preferences" />
-          <SettingsRow icon="flag-outline" label="Country" hint={`${countryName(country)}. Change it in the app, in Settings.`} />
+          {countrySettingEnabled && (
+            <SettingsRow icon="flag-outline" label="Country" hint={`${countryName(country)}. Change it in the app, in Settings.`} />
+          )}
         </SettingsGroup>
 
         <SettingsGroup title="Tracking and places">

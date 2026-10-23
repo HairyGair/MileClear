@@ -27,7 +27,8 @@ export function useCountryAsk({ enabled }: { enabled: boolean }): { sheet: React
   const tried = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !user || tried.current) return;
+    // Behind the server's switch (countrySettingEnabled), off by default.
+    if (!enabled || !user || user.countrySettingEnabled !== true || tried.current) return;
     tried.current = true;
     (async () => {
       await loadCountry();

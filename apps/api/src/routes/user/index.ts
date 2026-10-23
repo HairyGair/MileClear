@@ -14,6 +14,7 @@ import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { navigationEnabledFor } from "../../services/navigation.js";
 import { directionsRecordingFor } from "../../services/directionsRecording.js";
+import { countrySettingEnabledFor, effectiveCountry } from "../../lib/countrySetting.js";
 import { hasPremiumAccess } from "../../middleware/premium.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { deletedByLabel } from "../../services/tripArchive.js";
@@ -365,7 +366,19 @@ export async function userRoutes(app: FastifyInstance) {
     // Whether a Directions drive may open, fill or name a recording
     // (DIRECTIONS_RECORDING off | log | on). Always "off" without Directions.
     const directionsRecording = directionsRecordingFor(navigationEnabled);
-    return reply.send({ data: { ...profile, navigationEnabled, directionsRecording, signupCountry } });
+    // The Country setting (23 Oct 2026) is OFF unless COUNTRY_SETTING=on (admins
+    // always): off, the phone hides it and the driver is GB everywhere.
+    const countrySettingEnabled = countrySettingEnabledFor(user);
+    return reply.send({
+      data: {
+        ...profile,
+        country: effectiveCountry(user),
+        countrySettingEnabled,
+        navigationEnabled,
+        directionsRecording,
+        signupCountry: countrySettingEnabled ? signupCountry : null,
+      },
+    });
   });
 
   // Update profile
@@ -469,7 +482,8 @@ export async function userRoutes(app: FastifyInstance) {
       updateData.distanceUnit = parsed.data.distanceUnit;
     }
 
-    if (parsed.data.country !== undefined) {
+    // Ignored while the Country setting is off for this driver (lib/countrySetting).
+    if (parsed.data.country !== undefined && countrySettingEnabledFor({ isAdmin: request.isAdmin })) {
       updateData.country = parsed.data.country;
     }
 
@@ -603,7 +617,12 @@ export async function userRoutes(app: FastifyInstance) {
       logEvent("user.email_change_requested", userId, {});
     }
 
-    return reply.send({ data: withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))) });
+    return reply.send({
+      data: {
+        ...withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user))),
+        country: effectiveCountry({ isAdmin: request.isAdmin, country: user.country }),
+      },
+    });
   });
 
   // GET /user/weekly-progress

@@ -42,7 +42,7 @@ import { sendMtdQuarterlyReminderEmail } from "../services/email.js";
 import { HMRC_SUBMISSION_EVENT } from "../services/hmrc/audit.js";
 import { MTD_OBLIGATIONS_SEEN_EVENT } from "../services/hmrc/obligations.js";
 import { ukDateParts, type UkDateParts } from "@mileclear/shared";
-import { UK_ONLY_USER } from "../lib/ukOnly.js";
+import { ukOnlyUser } from "../lib/ukOnly.js";
 
 export const MTD_REMINDER_EVENT = "notification.mtd_deadline";
 export const MTD_REMINDER_ACTION = "open_mtd";
@@ -226,7 +226,7 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
       businessId: { not: null },
       nino: { not: null },
       // HMRC: UK drivers only (23 Oct 2026).
-      user: UK_ONLY_USER,
+      user: ukOnlyUser(),
     },
     select: {
       userId: true,

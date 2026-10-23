@@ -14,6 +14,7 @@
  */
 
 import { prisma } from "../lib/prisma.js";
+import { effectiveCountry } from "../lib/countrySetting.js";
 import { countryName, getTaxYear, isUk } from "@mileclear/shared";
 import { ASSISTANT_TOOLS, londonDayKey, londonMidnight, dayLabel, runAssistantTool } from "./assistantTools.js";
 
@@ -277,8 +278,9 @@ export async function runAssistant(opts: {
   // The driver's country: a missing row or a failed read is the UK, as before.
   let country: string | null = null;
   try {
-    const who = await prisma.user.findUnique({ where: { id: opts.userId }, select: { country: true } });
-    country = who?.country ?? null;
+    const who = await prisma.user.findUnique({ where: { id: opts.userId }, select: { country: true, isAdmin: true } });
+    // GB while the Country setting is off for this driver (lib/countrySetting).
+    country = who ? effectiveCountry(who) : null;
   } catch {
     // UK, as before
   }

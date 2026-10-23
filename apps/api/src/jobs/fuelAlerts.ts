@@ -42,7 +42,7 @@ import {
   inFuelAlertWindow,
   type FuelDecision,
 } from "../services/cheapestFuelRule.js";
-import { UK_ONLY_USER } from "../lib/ukOnly.js";
+import { ukOnlyUser } from "../lib/ukOnly.js";
 
 const BATCH_SIZE = 50;
 
@@ -66,7 +66,7 @@ async function optedInUserIds(key: "cheapestFuelDaily" | "evWeeklySummary"): Pro
       pushToken: { not: null },
       pushPrefs: { path: `$.${key}`, equals: true },
       // UK fuel prices and home tariffs: UK drivers only (23 Oct 2026).
-      ...UK_ONLY_USER,
+      ...ukOnlyUser(),
     },
     select: { id: true, pushPrefs: true },
   });
