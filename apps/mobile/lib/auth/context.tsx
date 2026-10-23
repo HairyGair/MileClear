@@ -32,6 +32,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/**
+ * A real sign-out (Log out, or an expired session) puts the Miles /
+ * Kilometres choice back to miles for the next driver on this phone. Not
+ * the signed-out effect below: that also runs on the 10s keychain-stall
+ * fallback, which would throw away a km choice still waiting to upload.
+ */
+function forgetDistanceUnit(): void {
+  import("../units/distanceUnit")
+    .then((m) => m.clearDistanceUnit())
+    .catch(() => {});
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -65,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     onSessionExpired(() => {
       if (sessionExpired) return;
       sessionExpired = true;
+      forgetDistanceUnit();
       setIsAuthenticated(false);
       Alert.alert(
         "Session Expired",
@@ -81,10 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isLoading || isAuthenticated) return;
     import("../home/odometerCache")
       .then((m) => m.clearHomeOdometerCache())
-      .catch(() => {});
-    // ...and the Miles / Kilometres choice goes back to miles.
-    import("../units/distanceUnit")
-      .then((m) => m.clearDistanceUnit())
       .catch(() => {});
   }, [isLoading, isAuthenticated]);
 
@@ -136,6 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Silently ignore — the token will simply expire on the server
     }
     await authLogout();
+    forgetDistanceUnit();
     setIsAuthenticated(false);
   }, []);
 
