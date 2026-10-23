@@ -43,6 +43,7 @@ import {
   ukDateParts,
   type UkDateParts,
 } from "@mileclear/shared";
+import { UK_ONLY_USER } from "../lib/ukOnly.js";
 
 export const SA_COUNTDOWN_PUSH_EVENT = "notification.sa_countdown";
 export const SA_COUNTDOWN_OPENED_EVENT = "notification.sa_countdown_opened";
@@ -204,6 +205,8 @@ export async function planSaCountdownPushes(stage: SaCountdownStageId, now: Date
       pushToken: { not: null },
       dashboardMode: { in: ["work", "both"] },
       workType: { notIn: ["employee", "company"] },
+      // Self Assessment: UK drivers only (23 Oct 2026).
+      ...UK_ONLY_USER,
     },
     select: { id: true, pushToken: true, pushPrefs: true, dashboardMode: true, workType: true, fullName: true },
   });

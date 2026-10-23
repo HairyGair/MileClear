@@ -51,6 +51,7 @@ import { budgetSnapshot, pruneTileCache } from "../services/tomtomTraffic.js";
 import { purgeEndedStreetWorks } from "../services/streetManager.js";
 import { extraRoadSourcesEnabled } from "../services/roadSources.js";
 import { localDayBounds } from "./eveningDigest.js";
+import { UK_ONLY_USER } from "../lib/ukOnly.js";
 
 const BATCH_SIZE = 50;
 /** Tiles must be at least this fresh for a push decision. */
@@ -85,7 +86,8 @@ export async function runRoadAlertsJob(now: Date = new Date()): Promise<RoadAler
   }
 
   const users = await prisma.user.findMany({
-    where: { pushToken: { not: null }, pushPrefs: { path: "$.roadAlerts", equals: true } },
+    // UK road data only (23 Oct 2026).
+    where: { pushToken: { not: null }, pushPrefs: { path: "$.roadAlerts", equals: true }, ...UK_ONLY_USER },
     select: {
       id: true,
       pushToken: true,

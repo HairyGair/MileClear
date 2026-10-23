@@ -65,6 +65,7 @@ import {
 import { loadCorridor, loadDismissedIds } from "../services/roadAlerts.js";
 import { isStreetManagerEnabled } from "../services/streetManager.js";
 import { localDayBounds } from "./eveningDigest.js";
+import { UK_ONLY_USER } from "../lib/ukOnly.js";
 
 const BATCH_SIZE = 50;
 const DAY_MS = 86400000;
@@ -149,7 +150,8 @@ export async function planRoadReopened(now: Date, opts: ReopenedPlanOptions): Pr
   }
 
   const users = await prisma.user.findMany({
-    where: { pushToken: { not: null }, pushPrefs: { path: "$.roadAlerts", equals: true } },
+    // UK road data only (23 Oct 2026).
+    where: { pushToken: { not: null }, pushPrefs: { path: "$.roadAlerts", equals: true }, ...UK_ONLY_USER },
     select: { id: true, pushToken: true, pushPrefs: true, autoRecordingActive: true, recordingStartedAt: true },
   });
   const optedIn = users.filter((u) => u.pushToken && pushPrefOptedIn(u.pushPrefs, "roadAlerts"));

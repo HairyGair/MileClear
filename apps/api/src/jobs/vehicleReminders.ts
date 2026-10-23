@@ -4,6 +4,7 @@ import { isPushQuietHours } from "../services/pushQuietHoursRule.js";
 import { fetchDvlaVehicleInfo, DvlaError } from "../services/dvla.js";
 import { logEvent } from "../services/appEvents.js";
 import { suggestPlateCorrection, displayPlate } from "../services/plateSuggestion.js";
+import { UK_ONLY_USER } from "../lib/ukOnly.js";
 
 // Days before expiry at which we start sending reminders.
 const REMINDER_LEAD_DAYS = 14;
@@ -64,6 +65,8 @@ export async function runVehicleRemindersJob(): Promise<void> {
     where: {
       isPrimary: true,
       registrationPlate: { not: null },
+      // DVLA MOT and tax dates: UK drivers only (23 Oct 2026).
+      user: UK_ONLY_USER,
     },
     select: {
       id: true,

@@ -35,6 +35,7 @@ import { logEvent } from "../services/appEvents.js";
 import { loadTaxPlan } from "../services/taxPlanner.js";
 import { shiftTaxYear, taxYearOfDay } from "../services/taxPlannerMath.js";
 import { formatPence, parseTaxYear, ukDateParts, type TaxPlannerPayment, type UkDateParts } from "@mileclear/shared";
+import { UK_ONLY_USER } from "../lib/ukOnly.js";
 
 export const TAX_PAYMENT_PUSH_EVENT = "notification.tax_payment";
 export const TAX_PAYMENT_ACTION = "open_tax_planner";
@@ -182,6 +183,8 @@ export async function planTaxPaymentPushes(stage: TaxPaymentStage, now: Date = n
       pushToken: { not: null },
       dashboardMode: { in: ["work", "both"] },
       workType: { notIn: ["employee", "company"] },
+      // HMRC payments on account: UK drivers only (23 Oct 2026).
+      ...UK_ONLY_USER,
     },
     select: { id: true, pushToken: true, pushPrefs: true, dashboardMode: true, workType: true, taxPlanner: true },
   });
