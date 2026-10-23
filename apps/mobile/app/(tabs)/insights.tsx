@@ -31,6 +31,7 @@ import {
 } from "../../hooks/useInsightsData";
 import { useInsightsCelebration } from "../../hooks/useInsightsCelebration";
 import { useMode } from "../../lib/mode/context";
+import { useCountryFeatures } from "../../lib/country/country";
 import { useUser } from "../../lib/user/context";
 import { isOnline } from "../../lib/network";
 import { useReducedMotion } from "../../lib/accessibility";
@@ -49,6 +50,8 @@ import { clearInsightsValue, getInsightsValue, setInsightsValue, WEEKLY_GOAL_KEY
 export default function InsightsScreen() {
   const router = useRouter();
   const { isWork, isPersonal } = useMode();
+  // No HMRC claim figure outside the UK (23 Oct 2026).
+  const { ukTax } = useCountryFeatures();
   const { user, seesCompanyDriverApp: companyApp } = useUser();
   const { showPaywall } = usePaywall();
   const reducedMotion = useReducedMotion();
@@ -221,7 +224,7 @@ export default function InsightsScreen() {
       isPro={isPro}
       avatarId={user?.avatarId}
       region={stats?.region}
-      noClaim={companyApp}
+      noClaim={companyApp || !ukTax}
       dialProgress={dialProgress}
       dialLabel={dialLabel}
       celebration={celebration}
