@@ -17,6 +17,7 @@ import {
 import { prisma } from "../lib/prisma.js";
 import { defaultVehicleIdForUser } from "./vehicleDefaults.js";
 
+/** One trip, or (from the database) the summed miles of a vehicle + classification group. */
 export interface SummaryTrip {
   distanceMiles: number;
   classification: string;
@@ -54,12 +55,19 @@ export function buildRegimeSummary(args: {
 
   // Group in miles (stored), convert once per group so rounding doesn't add up.
   const groups = new Map<string | null, { business: number; total: number }>();
+  let unclassifiedMiles = 0;
   for (const t of trips) {
+    // Trips with no vehicle (and any whose vehicle id isn't the driver's) go
+    // on the default vehicle, like the UK summary. Limitation: a deleted
+    // vehicle's trips (the FK nulls vehicleId) land on today's default
+    // vehicle, so its fuel type and 14,000 km tier are used for them. The UK
+    // summary has the same behaviour; kept so the two agree.
     let vid = t.vehicleId && byId.has(t.vehicleId) ? t.vehicleId : null;
     if (vid == null && defaultVehicleId && byId.has(defaultVehicleId)) vid = defaultVehicleId;
     const g = groups.get(vid) ?? { business: 0, total: 0 };
     g.total += t.distanceMiles;
     if (t.classification === "business") g.business += t.distanceMiles;
+    if (t.classification === "unclassified") unclassifiedMiles += t.distanceMiles;
     groups.set(vid, g);
   }
 
@@ -128,6 +136,7 @@ export function buildRegimeSummary(args: {
     totalAmountMinor,
     businessDistance: round1(business),
     totalDistance: round1(total),
+    unclassifiedDistance: round1(toBasis(unclassifiedMiles, regime)),
     ratesYear,
     provisional,
     someWithoutFigure,
@@ -138,10 +147,13 @@ export function buildRegimeSummary(args: {
 /** Loads the driver's trips and vehicles for the tax year and builds the summary. */
 export async function loadRegimeSummary(userId: string, regime: TaxRegime, taxYear: string): Promise<RegimeSummary> {
   const { start, end } = regime.taxYearRange(taxYear);
-  const [trips, vehicles, defaultVehicleId] = await Promise.all([
-    prisma.trip.findMany({
+  // One summed row per vehicle and classification, not every trip: a full-time
+  // driver can have thousands in a tax year.
+  const [grouped, vehicles, defaultVehicleId] = await Promise.all([
+    prisma.trip.groupBy({
+      by: ["vehicleId", "classification"],
       where: { userId, isPhantomTrip: false, startedAt: { gte: start, lte: end } },
-      select: { distanceMiles: true, classification: true, vehicleId: true },
+      _sum: { distanceMiles: true },
     }),
     prisma.vehicle.findMany({
       where: { userId },
@@ -156,5 +168,10 @@ export async function loadRegimeSummary(userId: string, regime: TaxRegime, taxYe
     }),
     defaultVehicleIdForUser(userId),
   ]);
+  const trips: SummaryTrip[] = grouped.map((g) => ({
+    vehicleId: g.vehicleId,
+    classification: g.classification,
+    distanceMiles: g._sum.distanceMiles ?? 0,
+  }));
   return buildRegimeSummary({ regime, taxYear, trips, vehicles, defaultVehicleId });
 }

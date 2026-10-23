@@ -123,6 +123,8 @@ export interface RegimeSummary {
   totalAmountMinor: number;
   businessDistance: number;
   totalDistance: number;
+  /** Trips not yet marked Business or Personal (counted in totalDistance). */
+  unclassifiedDistance: number;
   /** Published rates used (the year itself, or the latest when provisional). */
   ratesYear: string | null;
   provisional: boolean;

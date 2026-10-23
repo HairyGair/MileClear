@@ -40,6 +40,8 @@ describe("buildRegimeSummary (New Zealand)", () => {
     expect(s.provisional).toBe(false);
     expect(s.someWithoutFigure).toBe(false);
     expect(s.start).toBe("2025-03-31T11:00:00.000Z");
+    // Unsorted km count toward total travel and are reported on their own.
+    expect(s.unclassifiedDistance).toBeCloseTo(1_000, 1);
   });
 
   it("the current year uses the latest published rates, marked provisional", () => {

@@ -11,7 +11,7 @@ import { makeAccessToken } from "../helpers/tokens.js";
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
-    trip: { findMany: vi.fn() },
+    trip: { groupBy: vi.fn() },
     vehicle: { findMany: vi.fn() },
   },
 }));
@@ -23,7 +23,7 @@ import { prisma } from "../../lib/prisma.js";
 const USER_ID = "00000000-0000-0000-0000-0000000000a1";
 const p = prisma as unknown as {
   user: { findUnique: ReturnType<typeof vi.fn> };
-  trip: { findMany: ReturnType<typeof vi.fn> };
+  trip: { groupBy: ReturnType<typeof vi.fn> };
   vehicle: { findMany: ReturnType<typeof vi.fn> };
 };
 
@@ -46,7 +46,10 @@ describe("GET /tax/regime-summary", () => {
     p.vehicle.findMany.mockResolvedValue([
       { id: "v1", make: "Toyota", model: "Aqua", fuelType: "hybrid", vehicleType: "car", providedByOthers: false, isPrimary: true },
     ]);
-    p.trip.findMany.mockResolvedValue([{ distanceMiles: 62.137119, classification: "business", vehicleId: "v1" }]);
+    p.trip.groupBy.mockResolvedValue([
+      { vehicleId: "v1", classification: "business", _sum: { distanceMiles: 62.137119 } },
+      { vehicleId: "v1", classification: "unclassified", _sum: { distanceMiles: 6.2137119 } },
+    ]);
   });
   afterEach(() => {
     if (saved === undefined) delete process.env.COUNTRY_SETTING;
@@ -59,7 +62,7 @@ describe("GET /tax/regime-summary", () => {
     const res = await get("/tax/regime-summary");
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ data: null });
-    expect(p.trip.findMany).not.toHaveBeenCalled();
+    expect(p.trip.groupBy).not.toHaveBeenCalled();
   });
 
   it("is null for an NZ driver while the switch is off (treated as GB)", async () => {
@@ -84,9 +87,14 @@ describe("GET /tax/regime-summary", () => {
     const d = res.json().data;
     expect(d.regime).toBe("nz-ird");
     expect(d.currency).toBe("NZD");
-    // 100 km in a petrol hybrid at 90c
+    // 100 km in a petrol hybrid at 90c, from one summed row per vehicle and classification
     expect(d.totalAmountMinor).toBe(9000);
     expect(d.vehicles[0].claim.tiers[0].rateMinor).toBe(90);
+    expect(d.unclassifiedDistance).toBe(10);
+    expect(d.totalDistance).toBe(110);
+    expect(p.trip.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ["vehicleId", "classification"], _sum: { distanceMiles: true } })
+    );
   });
 
   it("an admin set to NZ gets it with the switch off", async () => {
