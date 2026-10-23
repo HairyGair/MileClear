@@ -1,5 +1,5 @@
 // URL <-> filter state for the Trips list. Pure so it can be unit tested.
-import { PRESET_LABELS, presetRange, type PeriodPreset } from "../../../../lib/dashboard/periods";
+import { PRESET_LABELS, presetRange, taxYearRange, type PeriodPreset } from "../../../../lib/dashboard/periods";
 import { endOfLocalDayIso, startOfLocalDayIso } from "./days";
 
 export type TripsView = "all" | "inbox" | "business" | "personal";
@@ -50,9 +50,13 @@ export function clientLabel(f: TripFilters): string {
   return f.client === NO_CLIENT ? "No client" : f.client;
 }
 
-/** The Trips URL for one client, or for trips with no client (null). */
-export function clientTripsHref(label: string | null): string {
-  return `/dashboard/trips${pageUrlParams("all", { ...EMPTY_FILTERS, client: label ?? NO_CLIENT }, 1)}`;
+/**
+ * The Trips URL for a Miles by project row: the trips it counts, so one
+ * client (or no client, for null), Business, in that tax year.
+ */
+export function clientTripsHref(label: string | null, taxYear: string): string {
+  const { from, to } = taxYearRange(taxYear);
+  return `/dashboard/trips${pageUrlParams("business", { ...EMPTY_FILTERS, client: label ?? NO_CLIENT, from, to }, 1)}`;
 }
 
 const PRESETS: PeriodPreset[] = ["thisWeek", "thisMonth", "lastMonth", "thisTaxYear", "lastTaxYear"];

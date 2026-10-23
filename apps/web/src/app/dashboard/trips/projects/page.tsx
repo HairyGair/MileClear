@@ -62,8 +62,9 @@ export default function Page() {
               columns={columns}
               rows={rows}
               rowKey={(r) => r.label ?? "__none"}
-              // A row opens Trips filtered to that client (23 Oct 2026); "No project" to trips with none.
-              onRowClick={(r) => router.push(clientTripsHref(r.label))}
+              // A row opens the trips it counts (23 Oct 2026): that client's, or for
+              // "No project" those with none, Business only, in this tax year.
+              onRowClick={(r) => router.push(clientTripsHref(r.label, taxYear))}
               loading={totals.loading && !totals.data}
               empty={
                 <EmptyState

@@ -140,6 +140,16 @@ test.describe("list", () => {
     await expect(page.getByRole("button", { name: "Remove filter No client" })).toBeVisible();
   });
 
+  test("a client in the URL typed differently still lights its chip", async ({ page }) => {
+    await open(page, newState({ projectLabels: ["NHS Trust"], trips: [trip({ projectLabel: "NHS Trust" })] }), "/dashboard/trips?client=nhs%20trust");
+    await expect(page.getByTestId("trip-row")).toHaveCount(1);
+    await page.getByRole("button", { name: "Filters (1)" }).click();
+    const group = page.getByRole("dialog", { name: "Filters" }).getByRole("group", { name: "Client" });
+    await expect(group.getByRole("button", { name: "NHS Trust" })).toHaveAttribute("aria-pressed", "true");
+    // No second chip for the same client.
+    await expect(group.getByRole("button")).toHaveCount(2);
+  });
+
   test("no Client row in Filters until a trip has a client", async ({ page }) => {
     await open(page, newState({ projectLabels: [], trips: [trip()] }));
     await page.getByRole("button", { name: "Filters" }).click();

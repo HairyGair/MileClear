@@ -13,6 +13,7 @@ import {
   parseView,
   rangeLabel,
 } from "../src/components/dashboard/trips/lib/filters";
+import { exportClientOptions } from "../src/lib/dashboard/exportClients";
 import { odometerWarning, validateTrip } from "../src/components/dashboard/trips/lib/form";
 import { odometerLineFor } from "../src/components/dashboard/trips/lib/odometerLine";
 import { findStops, speedSeries } from "../src/components/dashboard/trips/lib/stops";
@@ -106,8 +107,22 @@ test.describe("filters", () => {
     expect(pageUrlParams("all", none, 1)).toBe("?noclient=1");
 
     expect(parseFilters((k) => ({ client: "x".repeat(150) } as Record<string, string>)[k] ?? null).client).toHaveLength(100);
-    expect(clientTripsHref("Acme refit")).toBe("/dashboard/trips?client=Acme+refit");
-    expect(clientTripsHref(null)).toBe("/dashboard/trips?noclient=1");
+    // A Miles by project row opens the trips it counts: Business, that tax year.
+    expect(clientTripsHref("Acme refit", "2026-27")).toBe(
+      "/dashboard/trips?view=business&client=Acme+refit&from=2026-04-06&to=2027-04-05"
+    );
+    expect(clientTripsHref(null, "2025-26")).toBe("/dashboard/trips?view=business&noclient=1&from=2025-04-06&to=2026-04-05");
+  });
+  test("download client choices: a chosen client that leaves the list stays chosen", () => {
+    const all = { projectLabel: undefined, label: "All clients" };
+    const row = (l: string) => ({ projectLabel: l, label: l });
+    expect(exportClientOptions(null, "")).toBeNull();
+    expect(exportClientOptions([all, row("NHS"), row("Acme")], "NHS")?.map((c) => c.label)).toEqual(["All clients", "NHS", "Acme"]);
+    expect(exportClientOptions([all, row("Acme")], "NHS")?.map((c) => c.label)).toEqual(["All clients", "Acme", "NHS"]);
+    expect(exportClientOptions(null, "NHS")).toEqual([
+      { projectLabel: undefined, label: "All clients" },
+      { projectLabel: "NHS", label: "NHS" },
+    ]);
   });
   test("range labels name the presets", () => {
     const now = new Date(2026, 9, 9);

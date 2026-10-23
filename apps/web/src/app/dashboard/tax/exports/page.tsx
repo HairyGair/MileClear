@@ -10,6 +10,7 @@ import {
 } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { taxYearRange } from "@/lib/dashboard/periods";
+import { exportClientOptions } from "@/lib/dashboard/exportClients";
 import {
   Button,
   Card,
@@ -127,8 +128,9 @@ function Exports() {
   const { data: projectLabels } = useData<string[]>("exports-project-labels", () =>
     api.get<{ data: { labels: string[] } }>("/trips/project-labels").then((r) => r.data.labels ?? [])
   );
-  const clientChoices = exportProjectChoices(projectLabels ?? []);
-  const client = clientChoices?.find((c) => c.projectLabel === tripClient)?.projectLabel;
+  // A chosen client that leaves the list stays chosen and on screen (exportClientOptions).
+  const clientChoices = exportClientOptions(exportProjectChoices(projectLabels ?? []), tripClient);
+  const client = tripClient || undefined;
   const clientParam = client ? `&projectLabel=${encodeURIComponent(client)}` : "";
   const clientSlug = client ? `${exportProjectSlug(client)}-` : "";
 

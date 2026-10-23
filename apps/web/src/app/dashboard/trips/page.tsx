@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { SavedLocation } from "@mileclear/shared";
+import { projectLabelKey, type SavedLocation } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import {
   Button,
@@ -483,14 +483,21 @@ function FiltersDialog({
     if (open) setDraft(initial);
   }, [open, initial]);
   // A client from the URL that isn't in the list yet still gets its chip.
+  // Compared by projectLabelKey, as the server matches: ?client=nhs lights "NHS".
   const clientOptions = useMemo(() => {
     const names = [...clients];
-    if (initial.client && initial.client !== NO_CLIENT && !names.some((c) => c.toLowerCase() === initial.client.toLowerCase())) {
-      names.unshift(initial.client);
-    }
+    const wanted = initial.client !== NO_CLIENT ? projectLabelKey(initial.client) : "";
+    if (wanted && !names.some((c) => projectLabelKey(c) === wanted)) names.unshift(initial.client);
     return [{ value: NO_CLIENT, label: "No client" }, ...names.map((c) => ({ value: c, label: c }))];
   }, [clients, initial.client]);
   const showClient = clients.length > 0 || !!initial.client;
+  const draftKey = draft.client === NO_CLIENT ? "" : projectLabelKey(draft.client);
+  const selectedClient =
+    draft.client === NO_CLIENT
+      ? NO_CLIENT
+      : draftKey
+        ? (clientOptions.find((o) => o.value !== NO_CLIENT && projectLabelKey(o.value) === draftKey)?.value ?? draft.client)
+        : "";
 
   return (
     <Dialog
@@ -516,7 +523,7 @@ function FiltersDialog({
               single
               ariaLabel="Client"
               options={clientOptions}
-              value={draft.client ? [draft.client] : []}
+              value={selectedClient ? [selectedClient] : []}
               onChange={(v) => setDraft((d) => ({ ...d, client: v[0] ?? "" }))}
             />
           </div>
