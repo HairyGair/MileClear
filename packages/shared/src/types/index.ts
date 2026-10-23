@@ -48,6 +48,9 @@ export interface User {
    *  Decides the UK-only features (featuresFor). Older servers omit it:
    *  treat missing as GB. */
   country?: string;
+  /** The country of the sign-up location (GET /user/profile only), so the
+   *  app can ask "Where do you drive?" once. Null when unknown. */
+  signupCountry?: string | null;
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;
   emailVerified: boolean;

@@ -8,6 +8,7 @@
 
 export type PromptId =
   | "location_primer"
+  | "country"
   | "whats_new"
   | "work_explainer"
   | "notifications"
@@ -18,6 +19,10 @@ export type PromptId =
 // 1. location_primer: without Always location (or any location) automatic
 //    trips do not record at all. Trip capture is priority 1, and every day
 //    it waits is a day of lost mileage.
+// 1b. country: "Where do you drive?" for a new account whose phone or
+//    sign-up is outside the UK (23 Oct 2026). It decides which features show
+//    (HMRC tax figures, UK fuel prices...), so it comes before anything that
+//    talks about them. UK phones never ask.
 // 2. whats_new: the one-time sheet for existing drivers after the first-run
 //    tour shipped (lib/tutorial). Only shown to drivers with Always, so it
 //    never competes with the location ask; above the work explainer so a
@@ -31,6 +36,7 @@ export type PromptId =
 // 6. rating: asks for something for us, not the driver. Always last.
 export const PROMPT_PRIORITY: readonly PromptId[] = [
   "location_primer",
+  "country",
   "whats_new",
   "work_explainer",
   "notifications",

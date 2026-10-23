@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import { fetchProfile } from "../api/user";
 import { rememberDirectionsRecording } from "../navigation/store";
 import { adoptServerDistanceUnit } from "../units/distanceUnit";
+import { adoptServerCountry } from "../country/country";
 import { fetchTeamMe, type TeamMembership } from "../api/team";
 import { useAuth } from "../auth/context";
 import type { User } from "@mileclear/shared";
@@ -48,6 +49,8 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       // Miles or kilometres: cached on the phone, and a choice made offline
       // is sent again here. Never throws.
       void adoptServerDistanceUnit(res.data.distanceUnit);
+      // Where they drive (decides the UK-only features), the same way.
+      void adoptServerCountry(res.data.country);
       // Never let a team lookup failure blank the profile: company mode is a
       // presentation detail, the profile is not.
       try {

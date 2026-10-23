@@ -96,6 +96,12 @@ const deleteAccountSchema = z.object({
   password: z.string(),
 });
 
+/** "Leeds, ENG, GB" -> "GB"; null when there is no country code. */
+export function signupCountryOf(raw: string | null | undefined): string | null {
+  const last = (raw ?? "").split(",").map((p) => p.trim()).filter(Boolean).at(-1);
+  return last && /^[A-Z]{2}$/.test(last) ? last : null;
+}
+
 const USER_SELECT = {
   id: true,
   email: true,
@@ -337,14 +343,18 @@ export async function userRoutes(app: FastifyInstance) {
 
   // Get current user profile
   app.get("/profile", async (request, reply) => {
-    const user = await prisma.user.findUnique({
+    const found = await prisma.user.findUnique({
       where: { id: request.userId! },
-      select: USER_SELECT,
+      select: { ...USER_SELECT, signupLocation: true },
     });
 
-    if (!user) {
+    if (!found) {
       return reply.status(404).send({ error: "User not found" });
     }
+    // Only the country of the sign-up location goes to the phone: it asks
+    // "Where do you drive?" once when that isn't the UK (23 Oct 2026).
+    const { signupLocation, ...user } = found;
+    const signupCountry = signupCountryOf(signupLocation);
 
     const profile = withNextInvoiceNumber(withDecryptedBankDetails(await withEffectivePremium(user)));
     // In-app navigation is hidden until switched on for this driver (18 Oct 2026).
@@ -355,7 +365,7 @@ export async function userRoutes(app: FastifyInstance) {
     // Whether a Directions drive may open, fill or name a recording
     // (DIRECTIONS_RECORDING off | log | on). Always "off" without Directions.
     const directionsRecording = directionsRecordingFor(navigationEnabled);
-    return reply.send({ data: { ...profile, navigationEnabled, directionsRecording } });
+    return reply.send({ data: { ...profile, navigationEnabled, directionsRecording, signupCountry } });
   });
 
   // Update profile

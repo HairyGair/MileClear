@@ -868,6 +868,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/work-tax" options={{ headerShown: true, title: "Your tax details" }} />
         <Stack.Screen name="settings/data" options={{ headerShown: true, title: "Your data" }} />
         <Stack.Screen name="settings/home" options={{ headerShown: true, title: "Home screen" }} />
+        <Stack.Screen name="settings/country" options={{ headerShown: true, title: "Country" }} />
         <Stack.Screen name="settings/community" options={{ headerShown: true, title: "Community" }} />
         <Stack.Screen name="invoice-details" options={{ headerShown: true, title: "Invoice details" }} />
         {/* Old settings routes, each a redirect, so old links never hit a missing screen. */}

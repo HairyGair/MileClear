@@ -34,13 +34,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
  * A real sign-out (Log out, or an expired session) puts the Miles /
- * Kilometres choice back to miles for the next driver on this phone. Not
+ * Kilometres choice back to miles, and the country back to the UK, for the
+ * next driver on this phone. Not
  * the signed-out effect below: that also runs on the 10s keychain-stall
  * fallback, which would throw away a km choice still waiting to upload.
  */
 function forgetDistanceUnit(): void {
   import("../units/distanceUnit")
     .then((m) => m.clearDistanceUnit())
+    .catch(() => {});
+  // The country too (23 Oct 2026): the next driver starts as the UK.
+  import("../country/country")
+    .then((m) => m.clearCountry())
     .catch(() => {});
 }
 

@@ -3,7 +3,7 @@ import { Alert, Linking, Platform, Text, TouchableOpacity, View, StyleSheet } fr
 import Constants from "expo-constants";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { getTaxYear, driveForOf, driveForSummary, type DriveFor } from "@mileclear/shared";
+import { getTaxYear, driveForOf, driveForSummary, countryName, type DriveFor } from "@mileclear/shared";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
 import { SettingsGroup } from "../../components/settings/SettingsGroup";
 import { SettingsRow } from "../../components/settings/SettingsRow";
@@ -26,6 +26,7 @@ import { DOOR_ROW_LABELS } from "../../lib/home/doorPrefs";
 import { getNewestTripFirst, setNewestTripFirst } from "../../lib/trips/orderPref";
 import { useMode } from "../../lib/mode/context";
 import { chooseDistanceUnit, useDistanceUnit } from "../../lib/units/distanceUnit";
+import { useCountry } from "../../lib/country/country";
 import type { CheckRow, CheckTap } from "../../lib/settings/checks";
 import {
   carSummary,
@@ -156,6 +157,7 @@ export default function SettingsPage() {
     [lock, setupHint]
   );
   const { unit: distanceUnit } = useDistanceUnit();
+  const country = useCountry();
   const pickDistanceUnit = useCallback(() => {
     Alert.alert(
       "Show distances in",
@@ -301,6 +303,12 @@ export default function SettingsPage() {
           label="Distances"
           hint={distanceUnit === "km" ? "Kilometres (tax figures stay in miles)" : "Miles"}
           onPress={pickDistanceUnit}
+        />
+        <SettingsRow
+          icon="globe-outline"
+          label="Country"
+          hint={countryName(country)}
+          onPress={go("/settings/country")}
         />
         <ToggleRow
           icon="lock-closed-outline"
