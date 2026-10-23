@@ -30,15 +30,22 @@ vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
 
 import { tripRoutes } from "../../routes/trips/index.js";
 import { prisma } from "../../lib/prisma.js";
+import {
+  isLabelCollisionCount,
+  labelCollisionCount,
+  labelQueryRaw,
+  type LabelMockOptions,
+  type SpellingRow,
+} from "../helpers/projectLabels.js";
 
 const USER_ID = "00000000-0000-0000-0000-0000000000d3";
 const auth = { authorization: `Bearer ${makeAccessToken(USER_ID)}` };
 
-/** Label rows as the groupBy for spellings returns them. */
-const LABELS = [
-  { projectLabel: "NHS Trust", _count: { _all: 3 } },
-  { projectLabel: "NHS  Trust", _count: { _all: 1 } },
-  { projectLabel: "Private practice", _count: { _all: 2 } },
+/** Stored spellings, byte for byte, as the spellings query returns them. */
+const LABELS: SpellingRow[] = [
+  { label: "NHS Trust", trips: 3 },
+  { label: "NHS  Trust", trips: 1 },
+  { label: "Private practice", trips: 2 },
 ];
 
 async function createTestApp() {
@@ -47,11 +54,18 @@ async function createTestApp() {
   return app;
 }
 
-/** The where of the list's findMany (the count must use the same one). */
+/** The where of the list's findMany (the list's count must use the same one). */
 function listWhere(): Record<string, unknown> {
   const where = vi.mocked(prisma.trip.findMany).mock.calls[0][0]!.where as Record<string, unknown>;
-  expect(vi.mocked(prisma.trip.count).mock.calls[0][0]!.where).toEqual(where);
+  const listCount = vi.mocked(prisma.trip.count).mock.calls.find((c) => !isLabelCollisionCount(c[0] as never));
+  expect(listCount![0]!.where).toEqual(where);
   return where;
+}
+
+function useLabels(rows: SpellingRow[], opts: LabelMockOptions = {}) {
+  vi.mocked(prisma.$queryRaw).mockImplementation(labelQueryRaw(USER_ID, rows, opts) as never);
+  vi.mocked(prisma.trip.count).mockImplementation((async (args: { where?: Record<string, unknown> }) =>
+    isLabelCollisionCount(args) ? labelCollisionCount(args, rows, opts) : 0) as never);
 }
 
 /** The where of the summary's classification groupBy (the second groupBy call). */
@@ -66,9 +80,8 @@ describe("trips: client filter", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.mocked(prisma.trip.findMany).mockResolvedValue([] as never);
-    vi.mocked(prisma.trip.count).mockResolvedValue(0 as never);
-    vi.mocked(prisma.trip.groupBy).mockImplementation((async (args: { by: string[]; where: { userId: string } }) =>
-      args.by[0] === "projectLabel" && args.where.userId === USER_ID ? LABELS : []) as never);
+    vi.mocked(prisma.trip.groupBy).mockResolvedValue([] as never);
+    useLabels(LABELS);
     app = await createTestApp();
   });
 
@@ -78,8 +91,22 @@ describe("trips: client filter", () => {
     const where = listWhere();
     expect(where).toMatchObject({ userId: USER_ID, isPhantomTrip: false });
     expect(where.AND).toEqual([{ projectLabel: { in: ["NHS Trust", "NHS  Trust"] } }]);
-    const lookup = vi.mocked(prisma.trip.groupBy).mock.calls[0][0] as { where: Record<string, unknown> };
-    expect(lookup.where).toMatchObject({ userId: USER_ID });
+    // The spellings lookup is for this driver only.
+    expect(vi.mocked(prisma.$queryRaw).mock.calls[0].slice(1)).toContain(USER_ID);
+  });
+
+  it("accent-only spellings are separate clients, and the list stays exact for each", async () => {
+    useLabels(
+      [{ label: "Cafe", trips: 2 }, { label: "Café", trips: 3 }],
+      // The database's accent-blind `in` for one also matches the other's trips.
+      { accentTwins: 3, ids: ["t-cafe-1", "t-cafe-2"] }
+    );
+    const res = await app.inject({ method: "GET", url: "/trips?projectLabel=Cafe", headers: auth });
+    expect(res.statusCode).toBe(200);
+    // Not "nothing" (the old groupBy folded the two), and not both clients' trips.
+    expect(listWhere().AND).toEqual([{ id: { in: ["t-cafe-1", "t-cafe-2"] } }]);
+    const idsQuery = vi.mocked(prisma.$queryRaw).mock.calls.find((c) => String((c[0] as string[]).join("?")).includes("SELECT id"))!;
+    expect(idsQuery.slice(1)).toContain(USER_ID);
   });
 
   it("a client none of the driver's trips has lists nothing, not an error", async () => {
@@ -93,7 +120,7 @@ describe("trips: client filter", () => {
     const res = await app.inject({ method: "GET", url: "/trips?noProjectLabel=true", headers: auth });
     expect(res.statusCode).toBe(200);
     expect(listWhere().AND).toEqual([{ OR: [{ projectLabel: null }, { projectLabel: "" }] }]);
-    expect(prisma.trip.groupBy).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("refuses one client and no client together, and a blank or overlong label", async () => {
@@ -117,7 +144,7 @@ describe("trips: client filter", () => {
   it("without a client filter the list is unchanged", async () => {
     await app.inject({ method: "GET", url: "/trips?classification=business", headers: auth });
     expect(listWhere().AND).toBeUndefined();
-    expect(prisma.trip.groupBy).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 
   it("the summary takes the same client filter, so the stats card agrees with the list", async () => {

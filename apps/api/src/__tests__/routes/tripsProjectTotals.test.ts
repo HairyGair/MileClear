@@ -29,6 +29,7 @@ vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
 
 import { tripRoutes } from "../../routes/trips/index.js";
 import { prisma } from "../../lib/prisma.js";
+import { labelQueryRaw } from "../helpers/projectLabels.js";
 
 const USER_ID = "00000000-0000-0000-0000-000000000077";
 const auth = { authorization: `Bearer ${makeAccessToken(USER_ID)}` };
@@ -56,6 +57,7 @@ describe("GET /trips/project-totals", () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue(null as any);
     vi.mocked(prisma.vehicle.findMany).mockResolvedValue([] as any);
     vi.mocked(prisma.trip.groupBy).mockResolvedValue([] as any);
+    vi.mocked(prisma.$queryRaw).mockResolvedValue([] as any);
     app = await createTestApp();
   });
 
@@ -71,10 +73,10 @@ describe("GET /trips/project-totals", () => {
       row("2026-05-02", 10, "Project A "),
       row("2026-05-03", 5, null),
     ] as any);
-    vi.mocked(prisma.trip.groupBy).mockResolvedValue([
-      { projectLabel: "Project A", _max: { startedAt: new Date("2026-05-01T09:00:00Z") } },
-      { projectLabel: "Project B", _max: { startedAt: new Date("2026-03-01T09:00:00Z") } },
-    ] as any);
+    vi.mocked(prisma.$queryRaw).mockImplementation(labelQueryRaw(USER_ID, [
+      { label: "Project A", trips: 2, lastAt: new Date("2026-05-01T09:00:00Z") },
+      { label: "Project B", trips: 1, lastAt: new Date("2026-03-01T09:00:00Z") },
+    ]) as any);
 
     const res = await app.inject({ method: "GET", url: "/trips/project-totals?taxYear=2026-27", headers: auth });
     expect(res.statusCode).toBe(200);
@@ -92,8 +94,8 @@ describe("GET /trips/project-totals", () => {
     expect(where.classification).toBe("business");
     expect(where.isPhantomTrip).toBe(false);
     expect(where.startedAt.gte).toEqual(new Date(2026, 3, 6));
-    const groupWhere = vi.mocked(prisma.trip.groupBy).mock.calls[0][0]!.where as Record<string, any>;
-    expect(groupWhere.userId).toBe(USER_ID);
+    // The labels lookup is for this driver only.
+    expect(vi.mocked(prisma.$queryRaw).mock.calls[0].slice(1)).toContain(USER_ID);
   });
 
   it("uses the 2025-26 rates for that year and the employer rate when set", async () => {
@@ -133,15 +135,15 @@ describe("GET /trips/project-totals", () => {
   });
 
   it("GET /trips/project-labels returns just the labels, scoped to the driver", async () => {
-    vi.mocked(prisma.trip.groupBy).mockResolvedValue([
-      { projectLabel: "Old", _max: { startedAt: new Date("2025-01-01T09:00:00Z") } },
-      { projectLabel: "New", _max: { startedAt: new Date("2026-09-01T09:00:00Z") } },
-    ] as any);
+    vi.mocked(prisma.$queryRaw).mockImplementation(labelQueryRaw(USER_ID, [
+      { label: "Old", trips: 1, lastAt: new Date("2025-01-01T09:00:00Z") },
+      { label: "New", trips: 1, lastAt: new Date("2026-09-01T09:00:00Z") },
+    ]) as any);
     const res = await app.inject({ method: "GET", url: "/trips/project-labels", headers: auth });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ data: { labels: ["New", "Old"] } });
     expect(prisma.trip.findMany).not.toHaveBeenCalled();
-    const groupWhere = vi.mocked(prisma.trip.groupBy).mock.calls[0][0]!.where as Record<string, any>;
-    expect(groupWhere.userId).toBe(USER_ID);
+    // The labels lookup is for this driver only.
+    expect(vi.mocked(prisma.$queryRaw).mock.calls[0].slice(1)).toContain(USER_ID);
   });
 });

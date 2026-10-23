@@ -22,7 +22,6 @@ import {
   exportProjectSlug,
   exportVehicleSlug,
   parseTaxYear,
-  projectLabelMatches,
   PROJECT_LABEL_MAX_LENGTH,
 } from "@mileclear/shared";
 import {
@@ -150,7 +149,7 @@ async function countExportableData(
     to?: Date;
     classification?: string;
     vehicle?: Pick<ExportVehicle, "id" | "includesUnassigned">;
-    project?: Pick<ProjectLabelMatch, "key" | "spellings">;
+    project?: Pick<ProjectLabelMatch, "where">;
   },
   includeEarnings: boolean
 ): Promise<{ trips: number; earnings: number }> {
@@ -175,15 +174,10 @@ async function countExportableData(
     ...(opts.vehicle ? exportVehicleTripWhere(opts.vehicle) : {}),
     ...(opts.project ? projectLabelTripWhere(opts.project) : {}),
   };
-  const project = opts.project;
   const [trips, earnings] = await Promise.all([
-    // One client: the database compares labels without accents, so each
-    // label is checked by key too, exactly as fetchExportTrips keeps rows.
-    project
-      ? prisma.trip
-          .findMany({ where, select: { projectLabel: true } })
-          .then((rows) => rows.filter((r) => projectLabelMatches(r.projectLabel, project.key)).length)
-      : prisma.trip.count({ where }),
+    // One client: resolveProjectLabel's where is byte-exact, the same trips
+    // fetchExportTrips keeps by projectLabelKey.
+    prisma.trip.count({ where }),
     includeEarnings
       ? prisma.earning.count({
           where: { userId, periodStart: { gte: start, lte: end } },

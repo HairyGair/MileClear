@@ -14,6 +14,7 @@ vi.mock("../../lib/prisma.js", () => ({
     earning: { count: vi.fn() },
     vehicle: { findFirst: vi.fn() },
     user: { findUnique: vi.fn() },
+    $queryRaw: vi.fn(),
   },
 }));
 vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
@@ -32,17 +33,23 @@ vi.mock("../../middleware/premium.js", () => ({
 import { exportRoutes } from "../../routes/exports/index.js";
 import { prisma } from "../../lib/prisma.js";
 import { generateSelfAssessmentPdf, generateTripsCsv, generateTripsPdf } from "../../services/export.js";
+import {
+  isLabelCollisionCount,
+  labelCollisionCount,
+  labelQueryRaw,
+  type LabelMockOptions,
+  type SpellingRow,
+} from "../helpers/projectLabels.js";
 
 const USER_ID = "00000000-0000-0000-0000-0000000000d2";
 const auth = { authorization: `Bearer ${makeAccessToken(USER_ID)}` };
 const SECOND = { id: "vb", make: "Ford", model: "Fiesta", registrationPlate: null };
 
-// Labels as stored: two spellings of NHS Trust (the database groups case
-// variants together, but not extra inner spaces), and one other client.
-const LABELS = [
-  { projectLabel: "NHS Trust", _count: { _all: 5 } },
-  { projectLabel: "NHS  Trust", _count: { _all: 1 } },
-  { projectLabel: "Private practice", _count: { _all: 2 } },
+// Spellings as stored, byte for byte: two of NHS Trust and one other client.
+const LABELS: SpellingRow[] = [
+  { label: "NHS Trust", trips: 5 },
+  { label: "NHS  Trust", trips: 1 },
+  { label: "Private practice", trips: 2 },
 ];
 
 async function createTestApp() {
@@ -51,19 +58,26 @@ async function createTestApp() {
   return app;
 }
 
+/** Label lookups answer from `rows`; the export's own empty check answers `exportTrips`. */
+function useLabels(rows: SpellingRow[], exportTrips: number, opts: LabelMockOptions = {}) {
+  vi.mocked(prisma.$queryRaw).mockImplementation(labelQueryRaw(USER_ID, rows, opts) as never);
+  vi.mocked(prisma.trip.count).mockImplementation((async (args: { where?: Record<string, unknown> }) =>
+    isLabelCollisionCount(args) ? labelCollisionCount(args, rows, opts) : exportTrips) as never);
+}
+
+/** The where of the export's empty check. */
+function exportCountWhere(): Record<string, unknown> {
+  const call = vi.mocked(prisma.trip.count).mock.calls.find((c) => !isLabelCollisionCount(c[0] as never));
+  return call![0]!.where as Record<string, unknown>;
+}
+
 describe("exports: one client", () => {
   let app: Awaited<ReturnType<typeof createTestApp>>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.mocked(prisma.trip.count).mockResolvedValue(3 as never);
     vi.mocked(prisma.earning.count).mockResolvedValue(0 as never);
-    vi.mocked(prisma.trip.groupBy).mockImplementation((async (args: { where: { userId: string } }) =>
-      args.where.userId === USER_ID ? LABELS : []) as never);
-    vi.mocked(prisma.trip.findMany).mockResolvedValue([
-      { projectLabel: "NHS Trust" },
-      { projectLabel: "nhs trust" },
-    ] as never);
+    useLabels(LABELS, 3);
     vi.mocked(prisma.vehicle.findFirst).mockImplementation((async (args: { where: { id?: string; userId: string } }) => {
       if (args.where.userId !== USER_ID) return null;
       if (args.where.id === undefined) return { id: "va" }; // export fallback
@@ -89,7 +103,7 @@ describe("exports: one client", () => {
         expect(res.statusCode, q).toBe(400);
         expect(res.json().error).toBe("Invalid client");
       }
-      expect(prisma.trip.groupBy).not.toHaveBeenCalled();
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
       expect(generateTripsCsv).not.toHaveBeenCalled();
       expect(generateTripsPdf).not.toHaveBeenCalled();
     });
@@ -103,12 +117,10 @@ describe("exports: one client", () => {
     expect(project.label).toBe("NHS Trust"); // the most-used spelling
     expect(res.headers["content-disposition"]).toMatch(/filename="mileclear-trips-nhs-trust-2026-27-\d{8}\.csv"/);
     // The empty check asks for every stored spelling of that client, and only the driver's.
-    const where = vi.mocked(prisma.trip.findMany).mock.calls[0][0]!.where as Record<string, unknown>;
-    expect(where).toMatchObject({ userId: USER_ID, projectLabel: { in: ["NHS Trust", "NHS  Trust"] } });
+    expect(exportCountWhere()).toMatchObject({ userId: USER_ID, projectLabel: { in: ["NHS Trust", "NHS  Trust"] } });
   });
 
   it("pdf: one client in one car, both in the file name and passed through", async () => {
-    vi.mocked(prisma.trip.findMany).mockResolvedValue([{ projectLabel: "Private practice" }] as never);
     const res = await app.inject({
       method: "GET",
       url: "/exports/pdf?taxYear=2026-27&projectLabel=Private%20practice&vehicleId=vb",
@@ -119,27 +131,34 @@ describe("exports: one client", () => {
     expect(opts.project?.label).toBe("Private practice");
     expect(opts.vehicle?.id).toBe("vb");
     expect(res.headers["content-disposition"]).toMatch(/filename="mileclear-trips-private-practice-ford-fiesta-2026-27-\d{8}\.pdf"/);
-    expect(vi.mocked(prisma.trip.findMany).mock.calls[0][0]!.where).toMatchObject({ vehicleId: "vb" });
+    expect(exportCountWhere()).toMatchObject({ vehicleId: "vb", projectLabel: { in: ["Private practice"] } });
   });
 
   it("says so when that client has no trips in the period", async () => {
-    vi.mocked(prisma.trip.findMany).mockResolvedValue([] as never);
+    useLabels(LABELS, 0);
     const res = await app.inject({ method: "GET", url: "/exports/pdf?taxYear=2026-27&projectLabel=NHS%20Trust", headers: auth });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toContain("no trips for that client in the 2026-27 tax year");
     expect(generateTripsPdf).not.toHaveBeenCalled();
   });
 
-  it("counts by key, so a label the database only matches without accents doesn't count", async () => {
-    vi.mocked(prisma.trip.groupBy).mockResolvedValue([{ projectLabel: "Cafe", _count: { _all: 1 } }] as never);
-    vi.mocked(prisma.trip.findMany).mockResolvedValue([{ projectLabel: "Café" }] as never);
+  it("accent-only spellings are two clients: each one exports, counted byte-exact", async () => {
+    useLabels([{ label: "Cafe", trips: 1 }, { label: "Café", trips: 2 }], 1, { accentTwins: 2, ids: ["t1"] });
     const res = await app.inject({ method: "GET", url: "/exports/csv?taxYear=2026-27&projectLabel=Cafe", headers: auth });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toContain("for that client");
+    // Not a 404: the old groupBy folded the two spellings into one row.
+    expect(res.statusCode).toBe(200);
+    expect(vi.mocked(generateTripsCsv).mock.calls[0][1].project?.label).toBe("Cafe");
+    expect(exportCountWhere()).toMatchObject({ id: { in: ["t1"] } });
+
+    vi.clearAllMocks();
+    useLabels([{ label: "Cafe", trips: 1 }, { label: "Café", trips: 2 }], 2, { accentTwins: 1, ids: ["t2", "t3"] });
+    const accented = await app.inject({ method: "GET", url: "/exports/csv?taxYear=2026-27&projectLabel=Caf%C3%A9", headers: auth });
+    expect(accented.statusCode).toBe(200);
+    expect(vi.mocked(generateTripsCsv).mock.calls[0][1].project?.label).toBe("Café");
   });
 
   it("names both when one client in one car has no trips", async () => {
-    vi.mocked(prisma.trip.findMany).mockResolvedValue([] as never);
+    useLabels(LABELS, 0);
     const res = await app.inject({
       method: "GET",
       url: "/exports/csv?taxYear=2026-27&projectLabel=NHS%20Trust&vehicleId=vb",
@@ -151,7 +170,7 @@ describe("exports: one client", () => {
   it("without a projectLabel nothing changes: every client, the usual file name", async () => {
     const res = await app.inject({ method: "GET", url: "/exports/csv?taxYear=2026-27", headers: auth });
     expect(res.statusCode).toBe(200);
-    expect(prisma.trip.groupBy).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(vi.mocked(generateTripsCsv).mock.calls[0][1].project).toBeUndefined();
     expect(res.headers["content-disposition"]).toMatch(/filename="mileclear-trips-2026-27-\d{8}\.csv"/);
   });
@@ -163,7 +182,7 @@ describe("exports: one client", () => {
       headers: auth,
     });
     expect(res.statusCode).toBe(200);
-    expect(prisma.trip.groupBy).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
     expect(generateSelfAssessmentPdf).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(vi.mocked(generateSelfAssessmentPdf).mock.calls[0])).not.toContain("NHS");
   });

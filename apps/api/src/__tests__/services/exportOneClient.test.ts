@@ -17,7 +17,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
-    trip: { findMany: vi.fn(), groupBy: vi.fn() },
+    trip: { findMany: vi.fn(), groupBy: vi.fn(), count: vi.fn() },
+    $queryRaw: vi.fn(),
     vehicle: { findFirst: vi.fn() },
     earning: { findMany: vi.fn() },
     user: { findUnique: vi.fn() },
@@ -41,10 +42,12 @@ import {
   reportProjectRows,
 } from "../../services/export.js";
 import {
+  loadProjectLabels,
   noProjectLabelTripWhere,
   projectLabelTripWhere,
   resolveProjectLabel,
 } from "../../services/projectTotals.js";
+import { labelCollisionCount, labelQueryRaw, type LabelMockOptions, type SpellingRow } from "../helpers/projectLabels.js";
 
 const USER = "00000000-0000-0000-0000-0000000000d1";
 const CAR = { id: "va", make: "Nissan", model: "Qashqai", vehicleType: "car", registrationPlate: "AB12 CDE", isPrimary: true };
@@ -85,27 +88,61 @@ beforeEach(() => {
 });
 
 describe("resolveProjectLabel", () => {
-  beforeEach(() => {
-    vi.mocked(prisma.trip.groupBy).mockResolvedValue([
-      { projectLabel: "NHS  Trust", _count: { _all: 1 } },
-      { projectLabel: "NHS Trust", _count: { _all: 4 } },
-      { projectLabel: "Private practice", _count: { _all: 2 } },
-    ] as never);
-  });
+  const SPELLINGS: SpellingRow[] = [
+    { label: "NHS  Trust", trips: 1 },
+    { label: "NHS Trust", trips: 4 },
+    { label: "Private practice", trips: 2 },
+  ];
+  function useLabels(rows: SpellingRow[], opts: LabelMockOptions = {}) {
+    vi.mocked(prisma.$queryRaw).mockImplementation(labelQueryRaw(USER, rows, opts) as never);
+    vi.mocked(prisma.trip.count).mockImplementation((async (args: { where?: Record<string, unknown> }) =>
+      labelCollisionCount(args, rows, opts)) as never);
+  }
+  beforeEach(() => useLabels(SPELLINGS));
 
   it("finds every stored spelling of the client and names it by the most used", async () => {
     const match = await resolveProjectLabel(USER, "  nhs trust");
-    expect(match).toEqual({ key: "nhs trust", label: "NHS Trust", spellings: ["NHS  Trust", "NHS Trust"] });
-    expect(vi.mocked(prisma.trip.groupBy).mock.calls[0][0]).toMatchObject({ where: { userId: USER } });
+    expect(match).toEqual({
+      key: "nhs trust",
+      label: "NHS Trust",
+      spellings: ["NHS  Trust", "NHS Trust"],
+      where: { projectLabel: { in: ["NHS  Trust", "NHS Trust"] } },
+    });
+    expect(vi.mocked(prisma.$queryRaw).mock.calls[0].slice(1)).toContain(USER);
+    expect(vi.mocked(prisma.trip.count).mock.calls[0][0]).toMatchObject({ where: { userId: USER } });
   });
 
   it("is null for a client none of the driver's trips has, or a blank label", async () => {
     expect(await resolveProjectLabel(USER, "Acme")).toBeNull();
     expect(await resolveProjectLabel(USER, "   ")).toBeNull();
+    expect(await resolveProjectLabel("someone-else", "NHS Trust")).toBeNull();
   });
 
-  it("the filters are a list of spellings, and no client covers blank labels", () => {
-    expect(projectLabelTripWhere({ spellings: ["NHS Trust"] })).toEqual({ projectLabel: { in: ["NHS Trust"] } });
+  it("keeps accent-only spellings apart, and goes byte-exact when the database would mix them", async () => {
+    useLabels([{ label: "Cafe", trips: 2 }, { label: "Café", trips: 3 }], { accentTwins: 3, ids: ["a", "b"] });
+    const plain = await resolveProjectLabel(USER, "cafe");
+    expect(plain?.label).toBe("Cafe");
+    expect(plain?.where).toEqual({ id: { in: ["a", "b"] } });
+    const accented = await resolveProjectLabel(USER, "CAFÉ");
+    expect(accented?.label).toBe("Café");
+  });
+
+  it("loadProjectLabels lists accent-only spellings as two clients, beyond 30", async () => {
+    const many: SpellingRow[] = [
+      { label: "Cafe", trips: 1 },
+      { label: "Café", trips: 1 },
+      ...Array.from({ length: 40 }, (_, i) => ({ label: `Client ${i}`, trips: 1 })),
+    ];
+    useLabels(many);
+    const labels = await loadProjectLabels(USER);
+    expect(labels).toContain("Cafe");
+    expect(labels).toContain("Café");
+    expect(labels).toHaveLength(42);
+  });
+
+  it("the filters: the match's own where, and no client covers blank labels", () => {
+    const where = { projectLabel: { in: ["NHS Trust"] } };
+    expect(projectLabelTripWhere({ where })).toBe(where);
     expect(noProjectLabelTripWhere()).toEqual({ OR: [{ projectLabel: null }, { projectLabel: "" }] });
   });
 });
