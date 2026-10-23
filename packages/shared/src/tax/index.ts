@@ -11,6 +11,7 @@ export * from "./regime.js";
 export * from "./uk.js";
 export * from "./nz.js";
 export * from "./claimView.js";
+export * from "./logbook.js";
 export { zonedParts, zonedMidnight } from "./zonedTime.js";
 
 const BY_COUNTRY: Record<string, TaxRegime> = {
