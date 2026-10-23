@@ -41,6 +41,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
 import { useDistanceUnit } from "../lib/units/distanceUnit";
+import { typedTripMiles } from "../lib/trips/typedDistance";
 import { reportMissingTrip, fetchServerRouteDistance, type CreateTripData } from "../lib/api/trips";
 import { apiRequest } from "../lib/api/index";
 import { getDatabase } from "../lib/db/index";
@@ -52,7 +53,6 @@ import {
   isTooRecent,
   describeReportNote,
   endTimeFor,
-  parseMilesInput,
   pauseIntervals,
   pauseNotice,
   placeLabel,
@@ -591,9 +591,9 @@ export function MissingTripReporter({
   };
 
   const addWithTypedMiles = async () => {
-    const typed = parseMilesInput(milesText);
-    if (typed === null) return;
-    const miles = Math.round(dist.toMiles(typed) * 100) / 100;
+    // In the driver's unit, capped at 1,000 miles after converting.
+    const miles = typedTripMiles(milesText, dist.unit);
+    if (miles === null) return;
     Keyboard.dismiss();
     setAdding(true);
     try {
@@ -673,7 +673,7 @@ export function MissingTripReporter({
 
   const tooRecent = isTooRecent(departAt, Date.now());
   const canSend = canSendReport({ hasFrom: from !== null, hasTo: to !== null, departAt, extra: note, now: Date.now() });
-  const typedMiles = parseMilesInput(milesText);
+  const typedMiles = typedTripMiles(milesText, dist.unit);
 
   return (
     <>

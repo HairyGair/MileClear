@@ -131,7 +131,7 @@ import {
   type SavedTripFacts,
 } from "../lib/trips/pastTripRule";
 import { findTripAround, knownTripsBetween, lastTripEndedAt, type KnownTrip } from "../lib/trips/overlapLookup";
-import { parseMilesInput } from "../lib/trips/missingReportRule";
+import { typedDistanceProblem, typedDistanceRejected, typedTripMiles } from "../lib/trips/typedDistance";
 import { shortDay } from "../lib/tracking/pauseRule";
 import { FromToCard } from "../components/addTrip/FromToCard";
 import { WorkedOutLine } from "../components/addTrip/WorkedOutLine";
@@ -145,7 +145,7 @@ import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } fro
 import { WhenCard } from "../components/addTrip/WhenCard";
 import type { ClockValue } from "../components/addTrip/TimeRow";
 import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
-import { editedDistanceToSend, isTypedTotalForEdit, parseTypedMiles } from "../lib/trips/editDistanceRule";
+import { editedDistanceToSend, isTypedTotalForEdit } from "../lib/trips/editDistanceRule";
 import { useDistanceUnit } from "../lib/units/distanceUnit";
 
 // Enable LayoutAnimation on Android
@@ -2755,7 +2755,17 @@ export default function TripFormScreen() {
     }
   }, [dist]);
 
+  // The driver typed a distance that can't be saved. Save refuses it.
+  const distanceRejected = typedDistanceRejected({ typed: distanceTyped, text: manualDistanceText, unit: dist.unit });
+
   const handleSave = useCallback(async (skipGuards = false) => {
+    // A typed distance that can't be saved (0, junk, over 1,000 miles) is
+    // refused outright, so an earlier figure from the same box never saves
+    // in its place.
+    if (distanceRejected) {
+      Alert.alert("Check the distance", typedDistanceProblem(dist.unit));
+      return;
+    }
     if (startLat == null || startLng == null) {
       Alert.alert("Missing location", "Set a start location.");
       return;
@@ -2871,7 +2881,7 @@ export default function TripFormScreen() {
         if (Math.abs(odoMiles - distanceMiles) > tolerance) {
           Alert.alert(
             "Odometer doesn't match the distance",
-            `Your odometer shows ${odoMiles.toFixed(1)} miles but the trip distance is ${distanceMiles.toFixed(1)}. Check the readings, or save anyway?`,
+            `Your odometer shows ${dist.fmt(odoMiles, { fixed: true, style: "word" })} but the trip distance is ${dist.fmt(distanceMiles, { fixed: true, style: "word" })}. Check the readings, or save anyway?`,
             [
               { text: "Check", style: "cancel" },
               { text: "Save anyway", onPress: () => handleSave(true) },
@@ -3368,7 +3378,7 @@ export default function TripFormScreen() {
     }
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
-    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, distanceTyped, manualDistanceText, dist.unit,
+    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, distanceTyped, manualDistanceText, dist, distanceRejected,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
@@ -3964,22 +3974,18 @@ export default function TripFormScreen() {
         online={online}
         typing={manualDistanceMode}
         milesText={manualDistanceText}
+        rejectedText={distanceRejected ? typedDistanceProblem(dist.unit) : null}
         onMilesText={(t) => {
           const cleaned = t.replace(/[^0-9.,]/g, "");
           setManualDistanceText(cleaned);
           setDistanceTyped(true);
-          const n = parseMilesInput(cleaned);
-          if (n != null) {
-            // The figure as typed, to 2 places: what an edit sends (editDistanceRule).
-            // Typed in the driver's unit, kept in miles.
-            setDistanceMiles(Math.round(dist.toMiles(parseTypedMiles(cleaned) ?? n) * 100) / 100);
-            setRouteSource(null);
-            setRoutedDurationSecs(null);
-          } else if (cleaned === "") {
-            setDistanceMiles(null);
-            setRouteSource(null);
-            setRoutedDurationSecs(null);
-          }
+          // Typed in the driver's unit, kept in miles to 2 places (what an
+          // edit sends, editDistanceRule). Capped after converting. A figure
+          // that can't be saved clears the distance rather than leave the
+          // last good one behind it.
+          setDistanceMiles(typedTripMiles(cleaned, dist.unit));
+          setRouteSource(null);
+          setRoutedDurationSecs(null);
         }}
         onStartTyping={() => {
           setManualDistanceMode(true);
@@ -4090,14 +4096,11 @@ export default function TripFormScreen() {
                 // Typing here counts as typed, including in the field shown
                 // by itself when the route could not be worked out.
                 setDistanceTyped(true);
-                const n = parseFloat(cleaned);
-                if (Number.isFinite(n) && n > 0) {
-                  // Typed in the driver's unit, kept in miles.
-                  setDistanceMiles(Math.round(dist.toMiles(n) * 100) / 100);
-                  setRouteSource(null);
-                } else if (cleaned === "") {
-                  setDistanceMiles(null);
-                }
+                // Typed in the driver's unit, kept in miles, capped after
+                // converting. A figure that can't be saved clears the
+                // distance; Save then says what's wrong.
+                setDistanceMiles(typedTripMiles(cleaned, dist.unit));
+                setRouteSource(null);
               }}
               keyboardType="decimal-pad"
               placeholder="0.0"
@@ -4106,6 +4109,9 @@ export default function TripFormScreen() {
             />
             <Text style={styles.manualDistanceUnit}>{dist.label("word")}</Text>
           </View>
+        )}
+        {manualDistanceMode && distanceRejected && (
+          <Text style={[styles.distanceHint, { color: "#f59e0b" }]}>{typedDistanceProblem(dist.unit)}</Text>
         )}
         {!manualDistanceMode && !(routeUnavailable && distanceMiles == null) && (
           <TouchableOpacity

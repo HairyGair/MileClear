@@ -30,6 +30,8 @@ interface Props {
   milesText: string;
   onMilesText: (text: string) => void;
   onStartTyping: () => void;
+  /** The typed figure can't be saved: the line saying why, or null. */
+  rejectedText?: string | null;
   /** Back to the road distance, when there is one. */
   onUseRoad?: (() => void) | null;
   roadMiles?: number | null;
@@ -108,7 +110,9 @@ export function WorkedOutLine(p: Props) {
     );
   }
 
-  const why = !p.online
+  const why = p.rejectedText
+    ? p.rejectedText
+    : !p.online
     ? "No signal, so we couldn't work out the road distance"
     : noRoute
       ? "We couldn't work out the road distance"

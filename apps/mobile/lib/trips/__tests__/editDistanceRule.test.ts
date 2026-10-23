@@ -24,7 +24,8 @@ describe("editedDistanceToSend", () => {
 
   it("reads a comma before three digits as thousands, like the totals form", () => {
     expect(editedDistanceToSend({ typed: true, text: "1,000", loadedMiles: 84 })).toBe(1000);
-    expect(editedDistanceToSend({ typed: true, text: "1,000.5", loadedMiles: 84 })).toBe(1000.5);
+    // Read as 1000.5, which is over the 1,000-mile cap, so nothing is sent.
+    expect(editedDistanceToSend({ typed: true, text: "1,000.5", loadedMiles: 84 })).toBeUndefined();
     expect(editedDistanceToSend({ typed: true, text: "84,5", loadedMiles: 30 })).toBe(84.5);
   });
 
@@ -49,6 +50,11 @@ describe("editedDistanceToSend", () => {
     // 16.09344 km is 10 miles.
     expect(editedDistanceToSend({ typed: true, text: "16.09344", loadedMiles: 84, unit: "km" })).toBe(10);
     expect(editedDistanceToSend({ typed: true, text: "100", loadedMiles: null, unit: "km" })).toBe(62.14);
+  });
+
+  it("caps after converting, like the boxes", () => {
+    expect(editedDistanceToSend({ typed: true, text: "1200", loadedMiles: 10 })).toBeUndefined();
+    expect(editedDistanceToSend({ typed: true, text: "1200", loadedMiles: 10, unit: "km" })).toBe(745.65);
   });
 
   it("sends nothing for a km box left on the trip's own km", () => {

@@ -16,6 +16,7 @@
 
 import { distanceIn, distanceToMiles, type DistanceUnit } from "@mileclear/shared";
 import { parseTypedMilesText } from "./typedMiles";
+import { MAX_TYPED_TRIP_MILES } from "./typedDistance";
 
 /** The end of the note POST /shifts/past writes on a typed total. */
 const TYPED_TOTAL_NOTE = /total entered by you$/i;
@@ -57,5 +58,9 @@ export function editedDistanceToSend(args: {
   const unit = args.unit ?? "miles";
   // Compared in the box's unit: a km box opens prefilled with the trip's km.
   if (args.loadedMiles != null && round1(n) === round1(distanceIn(args.loadedMiles, unit))) return undefined;
-  return Math.round(distanceToMiles(n, unit) * 100) / 100;
+  const miles = distanceToMiles(n, unit);
+  // Same cap as the boxes (typedDistance), after converting. The screen
+  // refuses to save such a figure; this never sends one either.
+  if (miles > MAX_TYPED_TRIP_MILES) return undefined;
+  return Math.round(miles * 100) / 100;
 }
