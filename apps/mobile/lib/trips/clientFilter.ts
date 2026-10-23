@@ -12,7 +12,7 @@
  *
  * Pure: no React, no database.
  */
-import { projectLabelKey } from "@mileclear/shared";
+import { getTaxYear, parseTaxYear, projectLabelKey } from "@mileclear/shared";
 
 /** "all": no client filter. "none": trips with no client. Else one label. */
 export type ClientFilter = { kind: "all" } | { kind: "none" } | { kind: "label"; label: string };
@@ -70,31 +70,76 @@ export function clientFilterChoices(labels: readonly string[], current: ClientFi
   ];
 }
 
-/** One sync_queue row for a trip, oldest first (rowid order). */
-export interface QueuedTripPayload {
+/**
+ * The Trips tab link for a row on Miles by project. The row counts one tax
+ * year's Business trips for that client, so the link opens exactly that:
+ * the client (or No client for "No project"), Business, and the tax year.
+ */
+export function projectTripsHref(label: string | null, taxYear: string): string {
+  const client = label === null ? "noClient=1" : `client=${encodeURIComponent(label)}`;
+  return `/(tabs)/trips?${client}&filter=business&taxYear=${encodeURIComponent(taxYear)}`;
+}
+
+/**
+ * The Trips tab's date range for a tax year from a link: This tax year or
+ * Last tax year when it is one of those (the same bounds, nicer label), else
+ * a Choose dates range from 6 April to 5 April. Null for a malformed year.
+ */
+export function taxYearDateRange(
+  taxYear: string,
+  now: Date = new Date()
+): { range: "taxYear" } | { range: "lastTaxYear" } | { range: "custom"; from: Date; to: Date } | null {
+  let bounds: { start: Date; end: Date };
+  try {
+    bounds = parseTaxYear(taxYear);
+  } catch {
+    return null;
+  }
+  const current = getTaxYear(now);
+  if (taxYear === current) return { range: "taxYear" };
+  const start = parseInt(current.slice(0, 4), 10) - 1;
+  if (taxYear === `${start}-${String(start + 1).slice(2)}`) return { range: "lastTaxYear" };
+  const to = new Date(bounds.end);
+  to.setHours(0, 0, 0, 0);
+  return { range: "custom", from: bounds.start, to };
+}
+
+/**
+ * The queued trip uploads that carry a projectLabel key, oldest first, with
+ * just that value: SQLite reads it out of the JSON, so a payload full of
+ * breadcrumbs is never parsed in JavaScript. label_type is json_type's answer
+ * ('text' for a label, 'null' when the upload clears it); payloads that are
+ * not valid JSON, or have no projectLabel key, are left out. CASE keeps
+ * json_type off malformed payloads (it would raise an error on them).
+ */
+export const QUEUED_PROJECT_LABELS_SQL = `
+  SELECT entity_id, label_type, label FROM (
+    SELECT rowid AS rid, entity_id,
+      CASE WHEN json_valid(payload) THEN json_type(payload, '$.projectLabel') END AS label_type,
+      CASE WHEN json_valid(payload) THEN json_extract(payload, '$.projectLabel') END AS label
+    FROM sync_queue
+    WHERE entity_type = 'trip' AND action IN ('create', 'update') AND status != 'synced'
+      AND payload IS NOT NULL
+  )
+  WHERE label_type IS NOT NULL
+  ORDER BY rid ASC`;
+
+/** One row of QUEUED_PROJECT_LABELS_SQL. */
+export interface QueuedTripLabel {
   entity_id: string;
-  payload: string | null;
+  label_type: string;
+  label: unknown;
 }
 
 /**
  * Each queued trip's Project / client as it will reach the server: the
- * newest payload that carries a projectLabel key wins (null = cleared).
- * Trips with no such payload are absent from the map. Rows must be in
- * queue order, oldest first; unreadable payloads are skipped.
+ * newest upload that carries a projectLabel wins (null = cleared). Trips with
+ * none are absent from the map. Rows must be in queue order, oldest first.
  */
-export function pendingProjectLabels(rows: readonly QueuedTripPayload[]): Map<string, string | null> {
+export function pendingProjectLabels(rows: readonly QueuedTripLabel[]): Map<string, string | null> {
   const out = new Map<string, string | null>();
   for (const r of rows) {
-    if (!r.payload) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(r.payload);
-    } catch {
-      continue;
-    }
-    if (!parsed || typeof parsed !== "object" || !("projectLabel" in parsed)) continue;
-    const label = (parsed as { projectLabel?: unknown }).projectLabel;
-    out.set(r.entity_id, typeof label === "string" ? label : null);
+    out.set(r.entity_id, r.label_type === "text" && typeof r.label === "string" ? r.label : null);
   }
   return out;
 }

@@ -2,7 +2,7 @@
 // Converts snake_case SQLite rows to camelCase API-compatible shapes
 
 import { getDatabase } from "./index";
-import { pendingProjectLabels, type QueuedTripPayload } from "../trips/clientFilter";
+import { pendingProjectLabels, QUEUED_PROJECT_LABELS_SQL, type QueuedTripLabel } from "../trips/clientFilter";
 
 // ─── Trips ──────────────────────────────────────────────────────────────────
 
@@ -92,11 +92,7 @@ export async function getLocalUnsyncedTrips(opts?: { classification?: string; pl
  */
 export async function getQueuedTripProjectLabels(): Promise<Map<string, string | null>> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<QueuedTripPayload>(
-    `SELECT entity_id, payload FROM sync_queue
-     WHERE entity_type = 'trip' AND action IN ('create', 'update') AND status != 'synced'
-     ORDER BY rowid ASC`
-  );
+  const rows = await db.getAllAsync<QueuedTripLabel>(QUEUED_PROJECT_LABELS_SQL);
   return pendingProjectLabels(rows);
 }
 

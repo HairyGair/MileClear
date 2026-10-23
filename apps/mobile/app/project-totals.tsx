@@ -24,6 +24,7 @@ import { formatMiles, formatPence, getTaxYear } from "@mileclear/shared";
 import { fetchProjectTotals, type ProjectTotalsResponse } from "../lib/api/trips";
 import { describeError } from "../lib/api/apiError";
 import { EmptyState } from "../components/EmptyState";
+import { projectTripsHref } from "../lib/trips/clientFilter";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -165,11 +166,11 @@ export default function ProjectTotalsScreen() {
                     </View>
                   </>
                 );
-                // A row opens the Trips tab filtered to that client (23 Oct
-                // 2026); "No project" to the trips with no client.
+                // A row opens the Trips tab on the trips it counts (23 Oct
+                // 2026): that client's Business trips in this tax year, or
+                // for "No project" the ones with no client.
                 const label = p.label;
-                const href =
-                  label === null ? "/(tabs)/trips?noClient=1" : `/(tabs)/trips?client=${encodeURIComponent(label)}`;
+                const href = projectTripsHref(label, taxYear);
                 return (
                   <TouchableOpacity
                     key={label ?? "__none__"}
