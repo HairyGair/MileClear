@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { fixRangeText } from "@/components/dashboard/tax/tax-utils";
 import { Button, Card, EmptyState, ErrorState, Icon, PageHeader, Skeleton, StatusChip, useData } from "@/components/dashboard/kit";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 const ACTION_HREF: Record<SaChecklistAction, string> = {
   unclassified_trips: "/dashboard/trips?view=inbox",
@@ -18,7 +19,7 @@ const ACTION_HREF: Record<SaChecklistAction, string> = {
   sa_pdf: "/dashboard/tax/self-assessment",
 };
 
-export default function ChecklistPage() {
+function ChecklistPage() {
   const { data, error, loading, reload } = useData<SaChecklist>("sa-checklist", () =>
     api.get<{ data: SaChecklist }>("/self-assessment/checklist").then((r) => r.data)
   );
@@ -98,3 +99,6 @@ export default function ChecklistPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("selfAssessment", ChecklistPage);

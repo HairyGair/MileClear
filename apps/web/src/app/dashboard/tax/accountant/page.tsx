@@ -32,6 +32,7 @@ import {
 } from "@/lib/practice";
 import "@/components/dashboard/tax/tax.css";
 import "@/app/practice/practice.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 // More > Your accountant, on the web (SPEC-UX 2.5). Sharing with an
 // accountant is free for every driver. The driver sees what the practice can
@@ -534,7 +535,7 @@ function OldLinks() {
   );
 }
 
-export default function AccountantPage() {
+function AccountantPage() {
   const { user } = useMe();
   const { data, error, loading, reload } = useDriverPractice();
   const links = data?.links ?? [];
@@ -569,3 +570,6 @@ export default function AccountantPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("ukTax", AccountantPage);

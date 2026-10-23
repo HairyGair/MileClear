@@ -1,7 +1,8 @@
 "use client";
 
 import { api } from "@/lib/api";
-import { PageHeader, SettingsGroup, SettingsRow, useData, useMe } from "@/components/dashboard/kit";
+import { EmptyState, PageHeader, SettingsGroup, SettingsRow, useData, useMe } from "@/components/dashboard/kit";
+import { useCountryFeatures } from "@/lib/dashboard/country";
 import { TaxReadinessCard } from "@/components/dashboard/tax/TaxReadinessCard";
 import "@/components/dashboard/tax/tax.css";
 
@@ -12,6 +13,7 @@ interface HmrcStatus {
 /** Tax hub: the readiness card, then links grouped by what the driver needs. */
 export default function TaxHubPage() {
   const { seesCompanyDriverApp, isGigDriver, isEmployee } = useMe();
+  const { ukTax } = useCountryFeatures();
   // 200 + connected shows the quarterly row. Any error (503 not configured, 404) hides it.
   const { data: hmrc } = useData<HmrcStatus | null>("hmrc-status", () =>
     api
@@ -19,6 +21,22 @@ export default function TaxHubPage() {
       .then((r) => r.data)
       .catch(() => null)
   );
+
+  // HMRC from top to bottom: outside the UK (23 Oct 2026) only the trip
+  // downloads apply, so point there instead.
+  if (!ukTax) {
+    return (
+      <>
+        <PageHeader title="Tax" />
+        <EmptyState
+          icon="download-outline"
+          title="Not available in your country yet"
+          body="Tax figures are for UK drivers for now. Your trip report and trips CSV are in Downloads."
+          action={{ label: "Go to Downloads", href: "/dashboard/tax/exports" }}
+        />
+      </>
+    );
+  }
 
   return (
     <>

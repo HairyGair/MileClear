@@ -7,6 +7,7 @@ import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Settin
 import { platformLabel } from "@/components/dashboard/money/format";
 import { ProPage, SelfEmployedOnly } from "@/components/dashboard/money/Company";
 import s from "@/components/dashboard/money/money.module.css";
+import { withCountryFeature } from "../../../components/dashboard/CountryGate";
 
 interface Connection {
   id: string;
@@ -186,7 +187,7 @@ function Banks() {
   );
 }
 
-export default function Page() {
+function Page() {
   return (
     <SelfEmployedOnly title="Link a bank">
       <ProPage title="Link a bank" reason="bank" teaser={<p>Payments from your bank turn into earnings for you to sort.</p>}>
@@ -195,3 +196,6 @@ export default function Page() {
     </SelfEmployedOnly>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("openBanking", Page);

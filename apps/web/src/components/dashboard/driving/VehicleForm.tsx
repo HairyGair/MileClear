@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
 import { api, isApiError } from "../../../lib/api";
+import { useCountryFeatures } from "../../../lib/dashboard/country";
 import { Button } from "../kit/Button";
 import { Card } from "../kit/Card";
 import { ConfirmDialog } from "../kit/Dialog";
@@ -82,6 +83,8 @@ export function VehicleForm({
   const [lookingUp, setLookingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lookupMsg, setLookupMsg] = useState<string | null>(null);
+  // The DVLA look-up and its MOT and tax checks are UK only (23 Oct 2026).
+  const { vehicleLookup } = useCountryFeatures();
   // The DVLA warning waits until the driver has pressed Look up.
   const [lookedUp, setLookedUp] = useState(false);
   const [proOpen, setProOpen] = useState(false);
@@ -202,14 +205,23 @@ export function VehicleForm({
         noValidate
       >
         <div className={styles.stack}>
-          <TextField label="Registration" value={f.plate} onChange={(v) => set("plate", v)} placeholder="e.g. AB12 CDE" required={false} hint="Used for MOT and tax reminders." />
-          <div className={styles.actionsRow}>
-            <Button variant="secondary" size="sm" loading={lookingUp} onClick={lookUp} disabled={f.plate.trim().length < 2}>
-              Look up
-            </Button>
-            {lookupMsg && <span className={styles.hint} role="status">{lookupMsg}</span>}
-          </div>
-          {editing && lookedUp && vehicle?.dvlaPlateProblem && !plateChanged && f.plate && (
+          <TextField
+            label="Registration"
+            value={f.plate}
+            onChange={(v) => set("plate", v)}
+            placeholder="e.g. AB12 CDE"
+            required={false}
+            hint={vehicleLookup ? "Used for MOT and tax reminders." : undefined}
+          />
+          {vehicleLookup && (
+            <div className={styles.actionsRow}>
+              <Button variant="secondary" size="sm" loading={lookingUp} onClick={lookUp} disabled={f.plate.trim().length < 2}>
+                Look up
+              </Button>
+              {lookupMsg && <span className={styles.hint} role="status">{lookupMsg}</span>}
+            </div>
+          )}
+          {vehicleLookup && editing && lookedUp && vehicle?.dvlaPlateProblem && !plateChanged && f.plate && (
             <div className={`${styles.notice} ${styles.noticeWarn}`} role="alert">
               {vehicle.dvlaPlateProblem === "not_found"
                 ? "The DVLA has no record of this plate, so we can't remind you about MOT and tax. Check it matches your logbook."

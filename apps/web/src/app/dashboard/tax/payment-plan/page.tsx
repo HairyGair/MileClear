@@ -20,6 +20,7 @@ import {
 import { longDate, messageOf } from "@/components/dashboard/tax/tax-utils";
 import { daysAwayLabel, nextPayment, partHint, partLabel, previousTaxYear, sourceLabel } from "./copy";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 function amountText(p: TaxPlannerPayment): string {
   if (p.amountPence == null) return "Not known yet";
@@ -120,7 +121,7 @@ function AnswersForm({ plan, onSaved }: { plan: TaxPlan; onSaved: () => void }) 
   );
 }
 
-export default function PaymentPlanPage() {
+function PaymentPlanPage() {
   const { isCompanyDriver, teamReady } = useMe();
   const { data: plan, error, loading, reload } = useData<TaxPlan>(isCompanyDriver || !teamReady ? null : "tax-planner", () =>
     api.get<{ data: TaxPlan }>("/tax-planner").then((r) => r.data)
@@ -289,3 +290,6 @@ export default function PaymentPlanPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("ukTax", PaymentPlanPage);

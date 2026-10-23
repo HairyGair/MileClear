@@ -3,6 +3,7 @@
 import { PageHeader, Card } from "@/components/dashboard/kit";
 import { GUIDE_DISCLAIMER, GUIDE_INTRO, GUIDE_SECTIONS } from "./content";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 function Rich({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
@@ -15,7 +16,7 @@ function Rich({ text }: { text: string }) {
   );
 }
 
-export default function FirstReturnPage() {
+function FirstReturnPage() {
   return (
     <>
       <PageHeader title="First Self Assessment?" back={{ href: "/dashboard/tax", label: "Tax" }}>
@@ -53,3 +54,6 @@ export default function FirstReturnPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("selfAssessment", FirstReturnPage);

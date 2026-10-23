@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { presetRange, recentTaxYears, taxYearRange } from "../src/lib/dashboard/periods";
 import { formatDay } from "../src/lib/dashboard/dates";
 import { proReasonTitle, planHref } from "../src/lib/dashboard/proReasons";
-import { activeNavKey } from "../src/components/dashboard/shell/nav";
+import { activeNavKey, navItems } from "../src/components/dashboard/shell/nav";
 
 // Pure logic, no browser needed.
 test("tax years run 6 April to 5 April and list the current plus 3 before", () => {
@@ -40,4 +40,12 @@ test("More is highlighted for pages reached from it", () => {
   expect(activeNavKey("/dashboard/tax", "personal")).toBe("more");
   expect(activeNavKey("/dashboard/insights", "personal")).toBe("slot3");
   expect(activeNavKey("/dashboard/vehicles", "work")).toBe("more");
+});
+
+test("Outside the UK there is no Tax slot: Insights in both modes (23 Oct 2026)", () => {
+  expect(navItems("work", false)[2].label).toBe("Insights");
+  expect(navItems("personal", false)[2].label).toBe("Insights");
+  expect(navItems("work")[2].label).toBe("Tax");
+  expect(activeNavKey("/dashboard/insights", "work", false)).toBe("slot3");
+  expect(activeNavKey("/dashboard/tax/exports", "work", false)).toBe("more");
 });

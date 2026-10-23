@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, Skeleton, StatusChip, useData, useToast } from "@/components/dashboard/kit";
 import { longDate, shortDateYear } from "@/components/dashboard/tax/tax-utils";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 interface HmrcStatus {
   connected: boolean;
@@ -24,7 +25,7 @@ interface Obligation {
   isOverdue: boolean;
 }
 
-export default function MtdPage() {
+function MtdPage() {
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
   const { data: status, error, loading, reload } = useData<HmrcStatus>("hmrc-status-page", () =>
@@ -138,3 +139,6 @@ export default function MtdPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("mtd", MtdPage);

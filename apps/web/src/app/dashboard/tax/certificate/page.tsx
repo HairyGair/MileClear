@@ -29,6 +29,7 @@ import {
 } from "@/components/dashboard/kit";
 import { downloadFile, longDate, messageOf, shortDateYear } from "@/components/dashboard/tax/tax-utils";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 interface VehicleLite {
   id: string;
@@ -275,7 +276,7 @@ function Certificates() {
   );
 }
 
-export default function CertificatePage() {
+function CertificatePage() {
   return (
     <>
       <PageHeader title="Mileage certificate" back={{ href: "/dashboard/tax", label: "Tax" }}>
@@ -291,3 +292,6 @@ export default function CertificatePage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("ukTax", CertificatePage);

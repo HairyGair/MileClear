@@ -6,6 +6,7 @@ import { useAuth } from "../../../lib/auth-context";
 import { resolveAvatarFile } from "../../../lib/avatars";
 import { useData } from "../../../lib/dashboard/useData";
 import { useMe } from "../../../lib/dashboard/useMe";
+import { useCountryFeatures } from "../../../lib/dashboard/country";
 import { Button } from "../../../components/dashboard/kit/Button";
 import { PageHeader } from "../../../components/dashboard/kit/PageHeader";
 import { SettingsGroup, SettingsRow } from "../../../components/dashboard/kit/Settings";
@@ -19,6 +20,8 @@ export default function MorePage() {
   const file = resolveAvatarFile(user?.avatarId);
   const proBadge = isPro ? undefined : "pro";
   const money = !seesCompanyDriverApp;
+  // UK-only rows hide outside the UK (23 Oct 2026); the trip downloads get their own row.
+  const f = useCountryFeatures();
 
   return (
     <>
@@ -38,32 +41,38 @@ export default function MorePage() {
       <div className="mc-more-grid">
         <div>
           <SettingsGroup title="Your driving">
-            <SettingsRow icon="car-outline" label="Your cars" hint="MOT and tax dates" href="/dashboard/vehicles" />
+            <SettingsRow icon="car-outline" label="Your cars" hint={f.vehicleLookup ? "MOT and tax dates" : "Your vehicles"} href="/dashboard/vehicles" />
             <SettingsRow icon="speedometer-outline" label="Odometer" hint="Start and end readings for each day" href="/dashboard/odometer" />
             <SettingsRow icon="time-outline" label="Shifts" hint="Your work sessions" href="/dashboard/shifts" />
             <SettingsRow icon="location-outline" label="Saved places" hint="Home, work and other places you go" href="/dashboard/places" />
-            <SettingsRow icon="water-outline" label="Fuel" hint="Fill-ups and prices near you" href="/dashboard/fuel" />
+            <SettingsRow icon="water-outline" label="Fuel" hint={f.fuelPrices ? "Fill-ups and prices near you" : "Your fill-ups"} href="/dashboard/fuel" />
             <SettingsRow icon="trophy-outline" label="Badges" hint="What you have earned" href="/dashboard/achievements" />
-            {mode === "work" ? (
+            {!f.ukTax ? (
+              <SettingsRow icon="download-outline" label="Downloads" hint="Your trip report and trips CSV" href="/dashboard/tax/exports" />
+            ) : mode === "work" ? (
               <SettingsRow icon="stats-chart-outline" label="Insights" hint="Your numbers and trends" href="/dashboard/insights" />
             ) : (
               <SettingsRow icon="calculator-outline" label="Tax" hint="Self Assessment and exports" href="/dashboard/tax" />
             )}
-            <SettingsRow icon="warning-outline" label="Road alerts" hint="Closures and delays on your usual roads" href="/dashboard/road-alerts" />
+            {f.roadAlerts && (
+              <SettingsRow icon="warning-outline" label="Road alerts" hint="Closures and delays on your usual roads" href="/dashboard/road-alerts" />
+            )}
           </SettingsGroup>
 
           <SettingsGroup title="Money">
             {money && <SettingsRow icon="cash-outline" label="Earnings" hint="What you were paid" href="/dashboard/earnings" />}
             <SettingsRow icon="receipt-outline" label="Expenses" hint="Parking, tolls and other costs" href="/dashboard/expenses" />
             {money && <SettingsRow icon="document-text-outline" label="Invoices" hint="Bill your clients" href="/dashboard/invoices" />}
-            {money && <SettingsRow icon="card-outline" label="Link your bank" hint="Bring in your earnings automatically" href="/dashboard/bank" badge={proBadge} />}
-            {money && <SettingsRow icon="file-tray-full-outline" label="Bank payments" hint="Payments waiting to be sorted" href="/dashboard/bank/inbox" badge={proBadge} />}
+            {money && f.openBanking && <SettingsRow icon="card-outline" label="Link your bank" hint="Bring in your earnings automatically" href="/dashboard/bank" badge={proBadge} />}
+            {money && f.openBanking && <SettingsRow icon="file-tray-full-outline" label="Bank payments" hint="Payments waiting to be sorted" href="/dashboard/bank/inbox" badge={proBadge} />}
           </SettingsGroup>
         </div>
 
         <div>
           <SettingsGroup title="Tools">
-            <SettingsRow icon="shield-checkmark-outline" label="Ticket defender" hint="Check a fine against your trips" href="/dashboard/ticket-defender" badge={proBadge} />
+            {f.cleanAirZones && (
+              <SettingsRow icon="shield-checkmark-outline" label="Ticket defender" hint="Check a fine against your trips" href="/dashboard/ticket-defender" badge={proBadge} />
+            )}
             {emsee.data?.available === true && (
               <SettingsRow icon="chatbubble-ellipses-outline" label="Ask EmSee" hint="Ask about MileClear" href="/dashboard/emsee" badge={proBadge} />
             )}

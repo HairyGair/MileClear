@@ -19,6 +19,7 @@ import {
 } from "@/components/dashboard/kit";
 import { messageOf } from "@/components/dashboard/tax/tax-utils";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 const MATCH_WITHIN_PENCE = 2000;
 
@@ -108,7 +109,7 @@ function Form({ data, taxYear, onData }: { data: ReconciliationSummary; taxYear:
   );
 }
 
-export default function ReconciliationPage() {
+function ReconciliationPage() {
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
   const { data, error, loading, reload } = useData<ReconciliationSummary>(`hmrc-recon-${taxYear}`, () =>
     api.get<{ data: ReconciliationSummary }>(`/hmrc-reconciliation?taxYear=${taxYear}`).then((r) => r.data)
@@ -192,3 +193,6 @@ export default function ReconciliationPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("ukTax", ReconciliationPage);

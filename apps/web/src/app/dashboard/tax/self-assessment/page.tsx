@@ -20,6 +20,7 @@ import {
 } from "@/components/dashboard/kit";
 import { downloadFile, messageOf, todayStamp } from "@/components/dashboard/tax/tax-utils";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 // The shape of GET /self-assessment/summary (apps/api/src/routes/selfAssessment).
 interface SaSummary {
@@ -121,7 +122,7 @@ function BoxRow({ box, s }: { box: Sa103Box; s: SaSummary }) {
   );
 }
 
-export default function SelfAssessmentPage() {
+function SelfAssessmentPage() {
   const { isPro, refresh: refreshMe } = useMe();
   const [answering, setAnswering] = useState(false);
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
@@ -313,3 +314,6 @@ export default function SelfAssessmentPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("selfAssessment", SelfAssessmentPage);

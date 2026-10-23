@@ -8,6 +8,7 @@ import { Button, Card, Dialog, EmptyState, ErrorState, PageHeader, SelectField, 
 import { ProPage, SelfEmployedOnly } from "@/components/dashboard/money/Company";
 import { dayLabel } from "@/components/dashboard/money/format";
 import s from "@/components/dashboard/money/money.module.css";
+import { withCountryFeature } from "@/components/dashboard/CountryGate";
 
 interface BankTransaction {
   id: string;
@@ -177,7 +178,7 @@ function Inbox() {
   );
 }
 
-export default function Page() {
+function Page() {
   const back = { href: "/dashboard/bank", label: "Link a bank" };
   return (
     <SelfEmployedOnly title="Bank inbox" back={back}>
@@ -187,3 +188,6 @@ export default function Page() {
     </SelfEmployedOnly>
   );
 }
+
+// UK banks only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("openBanking", Page);

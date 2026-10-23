@@ -1,6 +1,7 @@
 "use client";
 
 import { useMe } from "../../lib/dashboard/useMe";
+import { useCountryFeatures } from "../../lib/dashboard/country";
 import { greeting } from "../../lib/dashboard/format";
 import { Button } from "../../components/dashboard/kit/Button";
 import { PageHeader } from "../../components/dashboard/kit/PageHeader";
@@ -38,6 +39,9 @@ import { DrivingPatternsCard } from "../../components/dashboard/insights/Driving
 // and render nothing when they have nothing to show.
 export default function HomePage() {
   const { user, mode } = useMe();
+  // UK-only cards hide outside the UK (23 Oct 2026): no HMRC claim hero, tax
+  // readiness, Self Assessment countdown, manager invite or road alerts.
+  const f = useCountryFeatures();
   const name = user?.displayName?.trim().split(/\s+/)[0];
   const title = name ? `${greeting()}, ${name}` : greeting();
 
@@ -46,17 +50,17 @@ export default function HomePage() {
       <PageHeader title={title} docTitle="Home" primary={<Button variant="primary" href="/dashboard/trips/new">Add a trip</Button>} />
       <DataQualityBanner />
       <SetupChecklist />
-      {mode === "work" && <NominateManagerCard />}
+      {mode === "work" && f.ukTax && <NominateManagerCard />}
       <ProNudge />
 
       {mode === "work" ? (
         <>
-          <HomeGrid hero={<WorkHeroCard mode="work" />}>
+          <HomeGrid hero={f.ukTax ? <WorkHeroCard mode="work" /> : <PersonalSummaryCard mode="personal" />}>
             <OdometerPromptCard mode="work" />
             <HomeOdometerCard mode="work" />
-            <RoadAlertsCard mode="work" />
-            <TaxReadinessCard mode="work" />
-            <SaCountdownCard mode="work" />
+            {f.roadAlerts && <RoadAlertsCard mode="work" />}
+            {f.ukTax && <TaxReadinessCard mode="work" />}
+            {f.selfAssessment && <SaCountdownCard mode="work" />}
             <JourneyMapCard mode="work" />
             <ShiftSuggestionCard mode="work" />
             <CommunityMonthCard mode="work" />
@@ -76,7 +80,7 @@ export default function HomePage() {
         <>
           <HomeGrid hero={<PersonalSummaryCard mode="personal" />}>
             <HomeOdometerCard mode="personal" />
-            <RoadAlertsCard mode="personal" />
+            {f.roadAlerts && <RoadAlertsCard mode="personal" />}
             <MilestoneCard mode="personal" />
             <MonthlyHistoryCard mode="personal" />
             <JourneyMapCard mode="personal" />

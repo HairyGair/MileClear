@@ -11,6 +11,7 @@ import { useToast } from "@/components/dashboard/kit/Toast";
 import { useData } from "@/lib/dashboard/useData";
 import { bodyLine, dismissBody, fetchRoadAlerts, whenText, whereText } from "@/components/dashboard/driving/roadAlerts";
 import styles from "@/components/dashboard/driving/driving.module.css";
+import { withCountryFeature } from "../../../components/dashboard/CountryGate";
 
 function AlertList({ title, items, onDismiss, busy }: { title: string; items: RoadAlertItem[]; onDismiss: (i: RoadAlertItem) => void; busy: string | null }) {
   if (items.length === 0) return null;
@@ -38,7 +39,7 @@ function AlertList({ title, items, onDismiss, busy }: { title: string; items: Ro
   );
 }
 
-export default function RoadAlertsPage() {
+function RoadAlertsPage() {
   const { show } = useToast();
   const { data, loading, reload } = useData("road-alerts", fetchRoadAlerts);
   const [busy, setBusy] = useState<string | null>(null);
@@ -84,3 +85,6 @@ export default function RoadAlertsPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("roadAlerts", RoadAlertsPage);

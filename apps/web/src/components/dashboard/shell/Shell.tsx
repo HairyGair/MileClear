@@ -11,6 +11,7 @@ import { Menu } from "../kit/Menu";
 import { Segmented } from "../kit/Controls";
 import { Skeleton } from "../kit/States";
 import { activeNavKey, navItems } from "./nav";
+import { useCountryFeatures } from "../../../lib/dashboard/country";
 import { usePageMeta } from "./pageMeta";
 import { TourProvider, useTour } from "../tour/TourProvider";
 import { papi } from "../../../lib/practice";
@@ -55,8 +56,9 @@ function Rail() {
   const pathname = usePathname() ?? "";
   const { mode, isAdmin } = useMe();
   const { count } = useUnclassifiedCount();
-  const items = navItems(mode);
-  const active = activeNavKey(pathname, mode);
+  const { ukTax } = useCountryFeatures();
+  const items = navItems(mode, ukTax);
+  const active = activeNavKey(pathname, mode, ukTax);
 
   return (
     <nav className="mc-rail" aria-label="Main">
@@ -102,8 +104,9 @@ function TabBar() {
   const pathname = usePathname() ?? "";
   const { mode } = useMe();
   const { count } = useUnclassifiedCount();
-  const items = navItems(mode);
-  const active = activeNavKey(pathname, mode);
+  const { ukTax } = useCountryFeatures();
+  const items = navItems(mode, ukTax);
+  const active = activeNavKey(pathname, mode, ukTax);
   return (
     <nav className="mc-tabbar" aria-label="Main">
       {items.map((it) => {

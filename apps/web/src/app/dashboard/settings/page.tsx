@@ -1,12 +1,15 @@
 "use client";
 
+import { countryName } from "@mileclear/shared";
 import { PageHeader, SettingsGroup, SettingsRow, useMe } from "@/components/dashboard/kit";
+import { useCountryFeatures } from "@/lib/dashboard/country";
 import styles from "@/components/dashboard/settings/settings.module.css";
 
 // The Settings hub: the app's settings screen, row for row, minus app lock
 // (that lives on the phone). The first two rows are the ones email links land on.
 export default function SettingsPage() {
   const { isPro, premiumSource, team, seesCompanyDriverApp } = useMe();
+  const { ukTax, country } = useCountryFeatures();
   const planHint = !isPro ? "Free" : premiumSource === "team" && team ? `Pro through ${team.orgName}` : "Pro";
 
   return (
@@ -20,6 +23,7 @@ export default function SettingsPage() {
 
         <SettingsGroup title="Preferences">
           <SettingsRow icon="eye-outline" label="What you see" hint="Work, Personal or both" href="/dashboard/settings/preferences" />
+          <SettingsRow icon="flag-outline" label="Country" hint={`${countryName(country)}. Change it in the app, in Settings.`} />
         </SettingsGroup>
 
         <SettingsGroup title="Tracking and places">
@@ -34,7 +38,7 @@ export default function SettingsPage() {
           {!seesCompanyDriverApp && (
             <SettingsRow icon="business-outline" label="Business profile" hint="Name, logo and bank details for invoices" href="/dashboard/settings/business-profile" />
           )}
-          <SettingsRow icon="people-outline" label="Your accountant" href="/dashboard/tax/accountant" />
+          {ukTax && <SettingsRow icon="people-outline" label="Your accountant" href="/dashboard/tax/accountant" />}
         </SettingsGroup>
 
         <SettingsGroup title="Notifications">
@@ -43,7 +47,7 @@ export default function SettingsPage() {
 
         <SettingsGroup title="Your data">
           <SettingsRow icon="shield-checkmark-outline" label="Your data" hint="Download or delete" href="/dashboard/settings/data" />
-          <SettingsRow icon="download-outline" label="Tax exports" href="/dashboard/tax/exports" />
+          <SettingsRow icon="download-outline" label={ukTax ? "Tax exports" : "Downloads"} href="/dashboard/tax/exports" />
         </SettingsGroup>
 
         <SettingsGroup title="Community">

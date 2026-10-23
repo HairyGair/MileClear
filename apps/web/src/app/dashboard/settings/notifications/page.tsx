@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useCountryFeatures } from "@/lib/dashboard/country";
 import {
   CardError,
   PageHeader,
@@ -77,6 +78,15 @@ type Stored = Record<string, unknown>;
 
 export default function NotificationsPage() {
   const { user, isPro, refresh } = useMe();
+  // UK-only alerts hide outside the UK (23 Oct 2026), as in the app.
+  const f = useCountryFeatures();
+  const UK_ONLY: Record<string, boolean> = {
+    taxDeadline: f.ukTax,
+    cheapestFuelDaily: f.fuelPrices,
+    cazPayReminder: f.cleanAirZones,
+    roadAlerts: f.roadAlerts,
+  };
+  const inCountry = (key: string) => UK_ONLY[key] !== false;
   const { show } = useToast();
   const [stored, setStored] = useState<Stored | null>(null);
   const [failed, setFailed] = useState(false);
@@ -158,7 +168,9 @@ export default function NotificationsPage() {
         ) : !stored ? (
           <Skeleton variant="row" count={6} />
         ) : (
-          GROUPS.map((g) => (
+          GROUPS.map((g) => ({ ...g, prefs: g.prefs.filter((p) => inCountry(p.key)) }))
+            .filter((g) => g.prefs.length > 0)
+            .map((g) => (
             <SettingsGroup key={g.title} title={g.title}>
               {g.prefs.map((p) => (
                 <ToggleRow

@@ -26,6 +26,7 @@ import {
 } from "@/components/dashboard/kit";
 import { longDate } from "@/components/dashboard/tax/tax-utils";
 import "@/components/dashboard/tax/tax.css";
+import { withCountryFeature } from "../../../../components/dashboard/CountryGate";
 
 const KIND: Record<MarKindResult["kind"], string> = { car_van: "Car or van", motorcycle: "Motorbike", cycle: "Bicycle" };
 
@@ -38,7 +39,7 @@ function claimBy(d: { year: number; month: number; day: number }): string {
  * claimable year and the employer rate. The relief itself is worked out by the
  * same shared function the app uses (calculateMileageAllowanceRelief).
  */
-export default function MileageReliefPage() {
+function MileageReliefPage() {
   const { isEmployee, user } = useMe();
   // The account's "pays Scottish income tax" answer; not answered shows both regions.
   const scottish = user?.scottishTaxpayer;
@@ -215,3 +216,6 @@ export default function MileageReliefPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("mileageRelief", MileageReliefPage);

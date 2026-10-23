@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useCountryFeatures } from "@/lib/dashboard/country";
 import type { ChargePoint, CheapestTodayResponse, FuelLogWithVehicle, FuelStation, NationalAveragePrices } from "@mileclear/shared";
 import { formatPence } from "@mileclear/shared";
 import { api } from "@/lib/api";
@@ -286,6 +287,8 @@ export default function FuelPage() {
     api.get<{ data: { totalMiles: number } }>(`/trips/summary?from=${encodeURIComponent(from)}`).catch(() => null)
   );
   const cheapest = useData("fuel-cheapest", () => api.get<CheapestTodayResponse>("/fuel/cheapest-today").catch(() => null));
+  // UK station prices only (23 Oct 2026); fuel logs work everywhere.
+  const { fuelPrices } = useCountryFeatures();
   const vehicles = useData("vehicles", fetchVehicles);
   const [editing, setEditing] = useState<FuelLogWithVehicle | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -318,7 +321,7 @@ export default function FuelPage() {
         primary={!empty ? <Button variant="primary" onClick={openAdd}>Log fill-up</Button> : undefined}
       />
       <div className={styles.stack}>
-        {cheapest.data?.data?.line && (
+        {fuelPrices && cheapest.data?.data?.line && (
           <Card tone="quiet">
             <p className={styles.bold}>Cheapest today</p>
             <p className={styles.muted}>{cheapest.data.data.line}</p>
@@ -366,7 +369,7 @@ export default function FuelPage() {
           </>
         )}
 
-        <PricesNearYou hasEv={hasEv} />
+        {fuelPrices && <PricesNearYou hasEv={hasEv} />}
       </div>
 
       <FuelLogDialog

@@ -18,6 +18,7 @@ import { useData } from "@/lib/dashboard/useData";
 import { formatDay, formatDayTime, formatRange } from "@/lib/dashboard/dates";
 import { downloadFile, fetchVehicles, fromInputs, toDateInput, toTimeInput, vehicleName } from "@/components/dashboard/driving/api";
 import styles from "@/components/dashboard/driving/driving.module.css";
+import { withCountryFeature } from "../../../components/dashboard/CountryGate";
 
 const POSTCODE = /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/;
 
@@ -285,7 +286,7 @@ function CazCharges() {
   );
 }
 
-export default function TicketDefenderPage() {
+function TicketDefenderPage() {
   return (
     <>
       <PageHeader title="Ticket defender" back={{ href: "/dashboard/more", label: "More" }} />
@@ -304,3 +305,6 @@ export default function TicketDefenderPage() {
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK this page says so instead.
+export default withCountryFeature("cleanAirZones", TicketDefenderPage);

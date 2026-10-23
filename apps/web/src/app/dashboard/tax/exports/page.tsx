@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useCountryFeatures } from "@/lib/dashboard/country";
 import {
   exportProjectChoices,
   exportProjectSlug,
@@ -108,7 +109,11 @@ function ExportRow({ row }: { row: RowDef }) {
 
 function Exports() {
   const { mode } = useMe();
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
+  // Outside the UK (23 Oct 2026) the UK tax year means nothing: dates only,
+  // and no Self Assessment summary or certificate.
+  const { ukTax } = useCountryFeatures();
+  const [periodChoice, setPeriodMode] = useState<PeriodMode>("year");
+  const periodMode: PeriodMode = ukTax ? periodChoice : "dates";
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
   const [range, setRange] = useState(() => taxYearRange(getTaxYear(new Date())));
   const [businessOnly, setBusinessOnly] = useState(mode === "work");
@@ -147,7 +152,7 @@ function Exports() {
   const datesInvalid = periodMode === "dates" && (!range.from || !range.to || range.from > range.to);
   const invalid = datesInvalid ? "Choose a start date that is before the end date." : undefined;
 
-  const rows: RowDef[] = [
+  const allRows: RowDef[] = [
     {
       key: "sa",
       title: "Self Assessment summary (PDF)",
@@ -192,12 +197,13 @@ function Exports() {
       href: "/dashboard/tax/certificate",
     },
   ];
+  const rows = ukTax ? allRows : allRows.filter((r) => r.key !== "sa" && r.key !== "cert");
 
   return (
     <div className="mc-tax-page">
       <Card title="Period">
         <div className="mc-tax-fields">
-          <Segmented<PeriodMode>
+          {ukTax && <Segmented<PeriodMode>
             ariaLabel="Choose a period type"
             options={[
               { value: "year", label: "Tax year" },
@@ -205,7 +211,7 @@ function Exports() {
             ]}
             value={periodMode}
             onChange={setPeriodMode}
-          />
+          />}
           {periodMode === "year" ? (
             <div className="mc-tax-picker">
               <TaxYearPicker value={taxYear} onChange={setTaxYear} />
@@ -256,21 +262,26 @@ function Exports() {
         ))}
       </Card>
 
-      <p className="mc-tax-text">Using Xero, QuickBooks or FreeAgent? Download the CSV and import it there.</p>
+      {ukTax && <p className="mc-tax-text">Using Xero, QuickBooks or FreeAgent? Download the CSV and import it there.</p>}
     </div>
   );
 }
 
 export default function TaxExportsPage() {
+  const { ukTax } = useCountryFeatures();
   return (
     <>
-      <PageHeader title="Tax exports" back={{ href: "/dashboard/tax", label: "Tax" }} />
+      {ukTax ? (
+        <PageHeader title="Tax exports" back={{ href: "/dashboard/tax", label: "Tax" }} />
+      ) : (
+        <PageHeader title="Downloads" back={{ href: "/dashboard/more", label: "More" }} />
+      )}
       <ProGate
         reason="exports"
         page
         teaser={
           <ul className="mc-tax-todo">
-            <li>Self Assessment summary (PDF)</li>
+            {ukTax && <li>Self Assessment summary (PDF)</li>}
             <li>Trip report (PDF)</li>
             <li>Trips (CSV)</li>
             <li>Odometer readings (CSV)</li>
