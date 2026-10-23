@@ -15,7 +15,16 @@
 
 import { prisma } from "../lib/prisma.js";
 import { effectiveCountry } from "../lib/countrySetting.js";
-import { countryName, getTaxYear, isUk } from "@mileclear/shared";
+import {
+  IRD_KM_RATES,
+  IRD_LATEST_RATES_YEAR,
+  IRD_VEHICLE_LABELS,
+  countryName,
+  formatRatePerKm,
+  getTaxYear,
+  isUk,
+  regimeFor,
+} from "@mileclear/shared";
 import { ASSISTANT_TOOLS, londonDayKey, londonMidnight, dayLabel, runAssistantTool } from "./assistantTools.js";
 
 // Haiku 5.5 from 9 Oct 2026: follows the "answer only from the tools" rules
@@ -245,7 +254,20 @@ export function historyToMessages(history: HistoryTurn[]): Message[] {
  */
 export function countryLine(country: string | null | undefined): string | null {
   if (isUk(country)) return null;
-  return `This driver drives in ${countryName(country)}, not the UK. UK tax rules do not apply to them: never quote HMRC, the 55p and 25p mileage rates, AMAP, Self Assessment, Making Tax Digital, the 6 April tax year or a mileage claim in pounds as if they applied. Give their trips, distances and business or personal split as recorded, and if they ask about tax, say MileClear's tax figures are for UK drivers for now and suggest they check their own country's tax office.`;
+  const noUk = `This driver drives in ${countryName(country)}, not the UK. UK tax rules do not apply to them: never quote HMRC, the 55p and 25p mileage rates, AMAP, Self Assessment, Making Tax Digital, the 6 April tax year or a mileage claim in pounds as if they applied. Give their trips, distances and business or personal split as recorded.`;
+  const regime = regimeFor(country);
+  if (regime?.id === "nz-ird") return `${noUk} ${nzRulesLine()}`;
+  return `${noUk} If they ask about tax, say MileClear's tax figures are for UK drivers for now and suggest they check their own country's tax office.`;
+}
+
+/** New Zealand: how MileClear works out the claim (IRD kilometre rates), from the shared rate table. */
+function nzRulesLine(): string {
+  const r = IRD_KM_RATES[IRD_LATEST_RATES_YEAR];
+  const money = (c: number) => formatRatePerKm(c, "NZD");
+  const rates = (Object.keys(r) as Array<keyof typeof r>)
+    .map((k) => `${IRD_VEHICLE_LABELS[k].toLowerCase()} ${money(r[k].tier1)} then ${money(r[k].tier2)}`)
+    .join(", ");
+  return `In New Zealand MileClear works out their claim at Inland Revenue (IRD) kilometre rates, shown in NZ dollars on Home and Insights. The tax year runs 1 April to 31 March. Tier 1 is for the business share of the first 14,000 km the vehicle travels in the tax year, personal driving included; Tier 2 is for the business share of the rest. IRD's ${IRD_LATEST_RATES_YEAR} rates per km (Tier 1 then Tier 2): ${rates}. IRD publishes each year's rates after the year ends, so the current year uses the latest published rates until then. IRD has no kilometre rate for plug-in hybrids, LPG or motorbikes, so MileClear shows no figure for those. For anything beyond these rates, suggest they check with IRD or their accountant.`;
 }
 
 export function plainAnswer(text: string): string {

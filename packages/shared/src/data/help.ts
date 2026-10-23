@@ -1064,9 +1064,24 @@ export const OUTSIDE_UK_HELP_ENTRY: HelpEntry = {
   id: "outside-uk",
   area: "account_and_app",
   q: "Can I use MileClear outside the UK?",
-  a: "Yes. Recording, your trips, Business or Personal, shifts, earnings, expenses, fuel logs, badges and the trip report and trips CSV work in any country, and you can show distances in kilometres (More > Settings > Distances). Set where you drive in More > Settings > Country. The tax figures and UK features are for UK drivers for now, so outside the UK MileClear hides them: HMRC mileage claims, Self Assessment, Making Tax Digital, DVLA and MOT, UK fuel prices, roadworks, Clean Air Zones and the UK bank connection.",
+  a: "Yes. Recording, your trips, Business or Personal, shifts, earnings, expenses, fuel logs, badges and the trip report and trips CSV work in any country, and you can show distances in kilometres (More > Settings > Distances). Set where you drive in More > Settings > Country. The tax figures and UK features are for UK drivers for now, so outside the UK MileClear hides them: HMRC mileage claims, Self Assessment, Making Tax Digital, DVLA and MOT, UK fuel prices, roadworks, Clean Air Zones and the UK bank connection. In New Zealand, MileClear works out your claim at IRD kilometre rates instead.",
   goTo: "/settings/country",
   keywords: ["abroad", "outside the uk", "country", "ireland", "australia", "new zealand", "canada", "usa", "overseas", "international", "another country"],
+};
+
+/**
+ * "How does MileClear work out my claim in New Zealand?" (23 Oct 2026). Held
+ * back with OUTSIDE_UK_HELP_ENTRY: only New Zealand drivers can see the claim,
+ * and only once the Country setting is on. The rates are IRD's 2025-26 ones
+ * (packages/shared/src/tax/nz.ts); update both together each year.
+ */
+export const NZ_CLAIM_HELP_ENTRY: HelpEntry = {
+  id: "nz-claim",
+  area: "account_and_app",
+  q: "How does MileClear work out my claim in New Zealand?",
+  a: "With Inland Revenue's (IRD) kilometre rates, in NZ dollars, for the tax year 1 April to 31 March. Mark trips as Business and the claim shows on Home and Insights in Work mode; tap it to see each vehicle's figures. Tier 1 is for the business share of the first 14,000 km a vehicle travels in the year, personal driving included, and Tier 2 is for the business share of the rest. IRD's 2025-26 rates per km are petrol $1.20 then 37c, diesel $1.30 then 38c, petrol hybrid 90c then 24c, and electric $1.22 then 23c. IRD sets each year's rates after it ends, so until then the current year uses the latest ones and MileClear says so. IRD has no kilometre rate for plug-in hybrids, LPG or motorbikes, so there's no figure for those. Set your car's fuel type in your vehicle, and check with IRD or your accountant before you file.",
+  goTo: "/(tabs)/insights",
+  keywords: ["new zealand", "nz", "ird", "inland revenue", "kilometre rates", "km rates", "tier 1", "tier 2", "14,000", "ir3", "claim"],
 };
 
 /** The answer text for a phone platform ("ios" or "android"). */

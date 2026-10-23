@@ -223,4 +223,20 @@ describe("EmSee and the driver's country (23 Oct 2026)", () => {
     expect(line).toContain("HMRC");
     expect(line).toContain("do not apply");
   });
+
+  it("describes IRD kilometre rates for New Zealand, from the rate table", () => {
+    const line = countryLine("NZ")!;
+    expect(line).toContain("IRD");
+    expect(line).toContain("14,000 km");
+    expect(line).toContain("1 April to 31 March");
+    expect(line).toContain("petrol $1.20 then 37c");
+    expect(line).not.toContain("check their own country's tax office");
+  });
+
+  it("other countries without rules are pointed at their own tax office", () => {
+    const line = countryLine("AU")!;
+    expect(line).toContain("Australia");
+    expect(line).toContain("check their own country's tax office");
+    expect(line).not.toContain("IRD");
+  });
 });

@@ -175,6 +175,21 @@ describe("NZ claim", () => {
   });
 });
 
+describe("NZ help answer", () => {
+  it("quotes the latest IRD rates held in the rate table, and is held back from the live list", async () => {
+    const { NZ_CLAIM_HELP_ENTRY, HELP_ENTRIES } = await import("../data/help.js");
+    const { IRD_LATEST_RATES_YEAR } = await import("./nz.js");
+    const r = IRD_KM_RATES[IRD_LATEST_RATES_YEAR];
+    expect(NZ_CLAIM_HELP_ENTRY.a).toContain(`${IRD_LATEST_RATES_YEAR} rates`);
+    for (const k of Object.keys(r) as Array<keyof typeof r>) {
+      expect(NZ_CLAIM_HELP_ENTRY.a).toContain(
+        `${formatRatePerKm(r[k].tier1, "NZD")} then ${formatRatePerKm(r[k].tier2, "NZD")}`
+      );
+    }
+    expect(HELP_ENTRIES.some((e) => e.id === NZ_CLAIM_HELP_ENTRY.id)).toBe(false);
+  });
+});
+
 describe("formatMoney", () => {
   it("GBP is formatPence", () => {
     expect(formatMoney(123456, "GBP")).toBe("£1,234.56");
