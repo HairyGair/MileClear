@@ -50,6 +50,8 @@ const updateProfileSchema = z.object({
   accountantContact: z.string().max(255).nullable().optional(),
   accountantAnnualFeePence: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
+  // Display only (23 Oct 2026): stored distances and tax figures stay miles.
+  distanceUnit: z.enum(["miles", "km"]).optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
   // Business profile for the invoice builder (Get Paid, Jul 2026). Bank
@@ -111,6 +113,7 @@ const USER_SELECT = {
   accountantContact: true,
   accountantAnnualFeePence: true,
   dashboardMode: true,
+  distanceUnit: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
   tradingName: true,
@@ -447,6 +450,10 @@ export async function userRoutes(app: FastifyInstance) {
     // Dashboard mode can always be updated
     if (dashboardMode !== undefined) {
       updateData.dashboardMode = dashboardMode;
+    }
+
+    if (parsed.data.distanceUnit !== undefined) {
+      updateData.distanceUnit = parsed.data.distanceUnit;
     }
 
     // Weekly earnings goal

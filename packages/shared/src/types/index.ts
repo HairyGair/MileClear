@@ -3,6 +3,8 @@ import type { MileageReliefData } from "../utils/mileageRelief.js";
 // "company" (a company car) was added 10 Oct 2026 for the "You drive for"
 // question. Same VarChar(20) column, so no migration.
 export type WorkType = "gig" | "employee" | "both" | "company";
+/** Distances shown in the app (23 Oct 2026). Display only. */
+export type DistanceUnit = "miles" | "km";
 
 export interface User {
   id: string;
@@ -39,6 +41,9 @@ export interface User {
   accountantContact?: string | null;
   accountantAnnualFeePence?: number | null;
   dashboardMode: "both" | "work" | "personal";
+  /** Distances shown in the app. Display only: stored distances, tax
+   *  figures and downloads are always miles. Older servers omit it. */
+  distanceUnit?: DistanceUnit;
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;
   emailVerified: boolean;

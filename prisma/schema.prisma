@@ -134,6 +134,10 @@ model User {
   payoutsInArrears        Json?
 
   dashboardMode        String    @default("both") @db.VarChar(20)
+  /** Distances shown in the app: "miles" | "km" (Simon, 23 Oct 2026).
+   *  Display only: every stored distance stays in miles, and tax figures
+   *  and downloads stay in miles because HMRC rates are per mile. */
+  distanceUnit         String    @default("miles") @db.VarChar(8)
   // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =
   // use the UK default. Octopus can suggest a current rate; user can override.
   electricityPencePerKwh Float?
