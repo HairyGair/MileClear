@@ -45,7 +45,7 @@ test("a first day whose 90 days aren't over yet can't be downloaded", async ({ p
   await page.goto("/dashboard/tax/exports");
   const card = page.locator(".mc-card", { hasText: "90-day logbook (IRD)" });
   await card.getByLabel("First day").fill("2099-01-01");
-  await expect(card).toContainText("can't end after today");
+  await expect(card).toContainText("has to end by yesterday");
   await expect(card.getByRole("button", { name: "Download: Logbook (PDF)" })).toBeDisabled();
 });
 

@@ -6,7 +6,7 @@ import { DateTimePickerField } from "../DateTimePickerField";
 import { PickerSheet } from "../trip/PickerSheet";
 import { downloadAndShareExport } from "../../lib/api/exports";
 import { fetchVehicles } from "../../lib/api/vehicles";
-import { dateForNzDay, nzDayOf, nzLogbookEnd, nzLogbookFilename, nzLogbookPath } from "../../lib/country/nzLogbook";
+import { calendarDayOf, dateForCalendarDay, nzLogbookEnd, nzLogbookFilename, nzLogbookPath } from "../../lib/country/nzLogbook";
 import { colors, fonts } from "../../lib/theme";
 
 type Vehicle = ExportVehicleLike & { isPrimary?: boolean };
@@ -49,7 +49,7 @@ export function NzLogbookSection({ isPremium, showPaywall, busy, onBusyChange }:
   const vehicle = useMemo(() => vehicles.find((v) => v.id === vehicleId), [vehicles, vehicleId]);
   const to = nzLogbookEnd(from);
   // The 90 days have to be over: the last possible first day is 90 days before yesterday's end.
-  const latestFrom = useMemo(() => dateForNzDay(defaultLogbookPeriod().from), []);
+  const latestFrom = useMemo(() => dateForCalendarDay(defaultLogbookPeriod().from), []);
 
   const download = useCallback(
     async (format: "pdf" | "csv") => {
@@ -105,8 +105,8 @@ export function NzLogbookSection({ isPremium, showPaywall, busy, onBusyChange }:
       <DateTimePickerField
         label="First day"
         mode="date"
-        value={dateForNzDay(from)}
-        onChange={(d) => setFrom(nzDayOf(d))}
+        value={dateForCalendarDay(from)}
+        onChange={(d) => setFrom(calendarDayOf(d))}
         maximumDate={latestFrom}
       />
       <Text style={s.note}>

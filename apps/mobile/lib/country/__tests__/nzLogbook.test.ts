@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
-  dateForNzDay,
-  nzDayOf,
+  calendarDayOf,
+  dateForCalendarDay,
   nzLogbookEnd,
   nzLogbookFilename,
   nzLogbookPath,
   showsNzLogbook,
 } from "../nzLogbook";
+
+const savedTz = process.env.TZ;
+afterEach(() => {
+  if (savedTz === undefined) delete process.env.TZ;
+  else process.env.TZ = savedTz;
+});
 
 describe("NZ logbook download", () => {
   it("only New Zealand drivers see it", () => {
@@ -14,11 +20,23 @@ describe("NZ logbook download", () => {
     for (const c of ["GB", "JE", "AU", "IE", "", "XX"]) expect(showsNzLogbook(c)).toBe(false);
   });
 
-  it("days are New Zealand's, whatever the instant", () => {
-    // 11:30 UTC on 22 Oct is 00:30 on 23 Oct in Auckland.
-    expect(nzDayOf(new Date("2026-10-22T11:30:00Z"))).toBe("2026-10-23");
-    expect(nzDayOf(dateForNzDay("2026-06-01"))).toBe("2026-06-01");
-    expect(nzDayOf(dateForNzDay("2026-12-31"))).toBe("2026-12-31");
+  it("a UK phone during NZ daylight saving asks for the day it picked, not the next day in Auckland", () => {
+    process.env.TZ = "Europe/London";
+    // 23:30 on 5 Oct in London (BST) is already 11:30 on 6 Oct in Auckland (NZDT).
+    const picked = new Date(2026, 9, 5, 23, 30);
+    expect(picked.toISOString()).toBe("2026-10-05T22:30:00.000Z");
+    expect(calendarDayOf(picked)).toBe("2026-10-05");
+    // And the picker shows the same day it was given.
+    expect(calendarDayOf(dateForCalendarDay("2026-10-05"))).toBe("2026-10-05");
+    expect(dateForCalendarDay("2026-10-05").getDate()).toBe(5);
+  });
+
+  it("the same in New Zealand and on a phone far west of it", () => {
+    for (const tz of ["Pacific/Auckland", "America/Los_Angeles"]) {
+      process.env.TZ = tz;
+      expect(calendarDayOf(new Date(2026, 2, 31, 0, 5))).toBe("2026-03-31");
+      expect(calendarDayOf(dateForCalendarDay("2026-04-01"))).toBe("2026-04-01");
+    }
   });
 
   it("asks for exactly 90 days from the start", () => {
