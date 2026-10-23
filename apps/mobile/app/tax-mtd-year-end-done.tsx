@@ -18,8 +18,9 @@ import {
 } from "../components/taxReturn/TaxReturnParts";
 import { totalDueLine } from "../lib/tax/taxReturnCopy";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
-export default function TaxMtdYearEndDoneScreen() {
+function TaxMtdYearEndDoneScreen() {
   const p = useLocalSearchParams<{
     taxYear: string;
     calculationId: string;
@@ -109,3 +110,6 @@ export default function TaxMtdYearEndDoneScreen() {
     </ScrollView>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdYearEndDoneScreen);

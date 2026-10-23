@@ -18,6 +18,7 @@ import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
 import { MtdSignpost, GOVUK_PERSONAL_TAX_ACCOUNT } from "../components/MtdSignpost";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -33,7 +34,7 @@ type CalcState =
   | { status: "ready"; result: HmrcCalculationSummary }
   | { status: "error"; message: string };
 
-export default function TaxMtdSubmittedScreen() {
+function TaxMtdSubmittedScreen() {
   const { taxYear } = useLocalSearchParams<{ taxYear: string; periodId: string }>();
   const [calc, setCalc] = useState<CalcState>({ status: "triggering" });
 
@@ -354,3 +355,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdSubmittedScreen);

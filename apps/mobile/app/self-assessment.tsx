@@ -18,6 +18,7 @@ import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
 import { defaultReturnYear, recentTaxYears } from "../lib/tax/taxYears";
+import { withCountryFeature } from "../components/CountryGate";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -488,7 +489,7 @@ function StepSa103Guide({
 
 // ── Main screen ────────────────────────────────────────────────────────────
 
-export default function SelfAssessmentScreen() {
+function SelfAssessmentScreen() {
   const router = useRouter();
   const { showPaywall } = usePaywall();
   const taxYears = recentTaxYears(4);
@@ -1289,3 +1290,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("selfAssessment", SelfAssessmentScreen);

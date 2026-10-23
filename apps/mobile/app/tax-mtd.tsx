@@ -30,6 +30,7 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -94,7 +95,7 @@ const INITIAL_STATE: ScreenState = {
   error: null,
 };
 
-export default function TaxMtdScreen() {
+function TaxMtdScreen() {
   return (
     <View style={styles.root}>
       <Stack.Screen options={{ title: "Quarterly updates", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
@@ -852,3 +853,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdScreen);

@@ -38,6 +38,7 @@ import {
   sourceLabel,
 } from "../lib/taxPlanner/copy";
 import { colors, fonts, fontSizes } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const GOV_UK_POA_URL = "https://www.gov.uk/understand-self-assessment-bill/payments-on-account";
 
@@ -59,7 +60,7 @@ function amountText(p: TaxPlannerPayment): string {
   return formatPence(p.amountPence);
 }
 
-export default function TaxPlannerScreen() {
+function TaxPlannerScreen() {
   const router = useRouter();
   const [plan, setPlan] = useState<TaxPlan | null>(null);
   const [loading, setLoading] = useState(true);
@@ -640,3 +641,6 @@ const s = StyleSheet.create({
   link: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 10, alignSelf: "flex-start" },
   linkText: { color: colors.amber, fontFamily: fonts.semibold, fontSize: 13 },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("ukTax", TaxPlannerScreen);

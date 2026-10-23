@@ -2,6 +2,7 @@ import { ScrollView, View, Text, StyleSheet, TouchableOpacity, Linking, Image } 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { colors } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const RED = colors.red;
@@ -57,7 +58,7 @@ function ExternalLink({ url, label }: { url: string; label: string }) {
   );
 }
 
-export default function FirstTaxReturnScreen() {
+function FirstTaxReturnScreen() {
   const router = useRouter();
 
   return (
@@ -544,3 +545,6 @@ const s = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("selfAssessment", FirstTaxReturnScreen);

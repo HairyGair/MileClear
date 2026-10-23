@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { featuresFor } from "@mileclear/shared";
 import { moreGroups, type MoreDriver } from "../rows";
 
 const base: MoreDriver = {
@@ -110,5 +111,34 @@ describe("More rows by driver", () => {
     expect(rows({ assistant: false })).not.toContain("emsee");
     expect(rows({})).not.toContain("admin");
     expect(titles({ isAdmin: true }).at(-1)).toBe("Admin");
+  });
+});
+
+describe("More rows by country (23 Oct 2026)", () => {
+  it("is unchanged for the UK", () => {
+    for (const driveFor of ["gig", "employee", "both", "company", "personal"] as const) {
+      for (const isWork of [true, false]) {
+        expect(page({ driveFor, isWork, features: featuresFor("GB") })).toEqual(page({ driveFor, isWork }));
+      }
+    }
+  });
+
+  it("drops the UK-only rows and gives downloads a row outside the UK", () => {
+    for (const driveFor of ["gig", "employee", "both", "company", "personal"] as const) {
+      for (const isWork of [true, false]) {
+        const r = rows({ driveFor, isWork, features: featuresFor("NZ") });
+        for (const gone of ["road", "bank", "ticket", "manager", "drive_for_work", "records"]) {
+          expect(r as string[]).not.toContain(gone);
+        }
+        expect(r.filter((x) => x === "downloads")).toHaveLength(1);
+        expect(r).toContain("cars");
+        expect(r).toContain("settings");
+      }
+    }
+  });
+
+  it("puts downloads with the money rows when there are some", () => {
+    const g = page({ driveFor: "gig", features: featuresFor("AU") }).find((x) => x.title === "Your money")!;
+    expect(g.rows).toEqual(["earnings", "expenses", "invoices", "downloads"]);
   });
 });

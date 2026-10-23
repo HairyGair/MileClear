@@ -5,7 +5,7 @@
 // Order is the same for everyone: car, work, money (or records), progress,
 // tools, help and settings. A row only shows when it applies to the driver.
 
-import type { DriveFor } from "@mileclear/shared";
+import type { CountryFeatures, DriveFor } from "@mileclear/shared";
 
 export type MoreRowId =
   | "cars"
@@ -22,6 +22,7 @@ export type MoreRowId =
   | "invoices"
   | "bank"
   | "records"
+  | "downloads"
   | "drive_for_work"
   | "insights"
   | "badges"
@@ -55,6 +56,8 @@ export interface MoreDriver {
   /** The server offers EmSee. */
   assistant: boolean;
   isAdmin: boolean;
+  /** What the driver's country gets (featuresFor). Missing is the UK. */
+  features?: CountryFeatures;
 }
 
 /** "Just me" drivers who are not company drivers. */
@@ -63,6 +66,37 @@ function isJustMe(d: MoreDriver): boolean {
 }
 
 export function moreGroups(d: MoreDriver): MoreGroup[] {
+  const groups = ukGroups(d);
+  const f = d.features;
+  if (!f) return groups;
+  // Outside the UK (23 Oct 2026): drop the UK-only rows. The Tax tab is
+  // hidden there too, so the trip downloads get a row of their own.
+  const drop = new Set<MoreRowId>();
+  if (!f.roadAlerts) drop.add("road");
+  if (!f.openBanking) drop.add("bank");
+  if (!f.cleanAirZones) drop.add("ticket");
+  if (!f.ukTax) {
+    drop.add("manager");
+    drop.add("drive_for_work");
+    drop.add("records");
+    // No Tax tab, so Work mode has Insights in the tab bar.
+    drop.add("insights");
+  }
+  const out = groups
+    .map((g) => ({ ...g, rows: g.rows.filter((r) => !drop.has(r)) }))
+    .filter((g) => g.rows.length > 0);
+  if (!f.ukTax) {
+    const money = out.find((g) => g.title === "Your money");
+    if (money) money.rows.push("downloads");
+    else {
+      const at = out.findIndex((g) => g.title === "Your progress");
+      out.splice(at < 0 ? out.length : at, 0, { title: "Your records", rows: ["downloads"] });
+    }
+  }
+  return out;
+}
+
+function ukGroups(d: MoreDriver): MoreGroup[] {
   const groups: MoreGroup[] = [];
   const company = d.companyApp;
   const justMe = isJustMe(d);

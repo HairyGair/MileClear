@@ -26,6 +26,7 @@ import { BetaBanner } from "../components/BetaBanner";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -113,7 +114,7 @@ function PaidWeekBehind() {
   );
 }
 
-export default function OpenBankingScreen() {
+function OpenBankingScreen() {
   const router = useRouter();
   const { user } = useUser();
   const { showPaywall } = usePaywall();
@@ -545,3 +546,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("openBanking", OpenBankingScreen);

@@ -20,6 +20,7 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -38,7 +39,7 @@ function deriveTaxYear(periodStartIso: string): string {
   return getTaxYear(d);
 }
 
-export default function TaxMtdPreviewScreen() {
+function TaxMtdPreviewScreen() {
   const { from, to } = useLocalSearchParams<{ from: string; to: string }>();
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [preview, setPreview] = useState<PeriodSubmissionPayload | null>(null);
@@ -494,3 +495,6 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: "#000", fontFamily: fonts.semibold, fontSize: 16 },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdPreviewScreen);

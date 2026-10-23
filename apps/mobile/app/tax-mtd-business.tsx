@@ -18,6 +18,7 @@ import {
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -26,7 +27,7 @@ const TEXT_2 = colors.text2;
 const TEXT_3 = colors.text3;
 const BG = colors.bg;
 
-export default function TaxMtdBusinessScreen() {
+function TaxMtdBusinessScreen() {
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
   const [details, setDetails] = useState<HmrcBusinessDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -229,3 +230,6 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: "#000", fontFamily: fonts.semibold, fontSize: 16 },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdBusinessScreen);

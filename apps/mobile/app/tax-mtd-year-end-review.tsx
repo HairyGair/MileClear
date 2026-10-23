@@ -36,6 +36,7 @@ import {
 import { isApiError } from "../lib/api";
 import { formatPounds, totalDueLine, taxYearRangeLabel } from "../lib/tax/taxReturnCopy";
 import { colors } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const GOVUK_SIGN_IN = "https://www.gov.uk/personal-tax-account";
 
@@ -44,7 +45,7 @@ type CalcState =
   | { status: "ready"; calc: TaxReturnCalculation }
   | { status: "error"; message: string };
 
-export default function TaxMtdYearEndReviewScreen() {
+function TaxMtdYearEndReviewScreen() {
   return (
     <View style={s.screen}>
       <Stack.Screen options={{ title: "Check and submit", headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.text1 }} />
@@ -290,3 +291,6 @@ function CalcAndDeclaration({
     </>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdYearEndReviewScreen);

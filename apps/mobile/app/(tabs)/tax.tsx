@@ -36,6 +36,7 @@ import {
 import { useUser } from "../../lib/user/context";
 import { useMode } from "../../lib/mode/context";
 import { colors, fonts, heroCard, spacing } from "../../lib/theme";
+import { withCountryFeature } from "../../components/CountryGate";
 
 function staleTime(updatedAt: number): string {
   const d = new Date(updatedAt);
@@ -50,7 +51,7 @@ function SectionError() {
   );
 }
 
-export default function TaxScreen() {
+function TaxScreen() {
   const router = useRouter();
   const { user, isCompanyDriver, isLoading: userLoading } = useUser();
   const { isPersonal, setMode } = useMode();
@@ -285,3 +286,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("ukTax", TaxScreen);

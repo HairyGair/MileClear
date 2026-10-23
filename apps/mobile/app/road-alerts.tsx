@@ -27,6 +27,7 @@ import { TripMapWidget } from "../components/map/TripMapWidget";
 import { formatAlertDay, formatAlertTime, turnOnRoadAlerts } from "../lib/roadAlerts";
 import { weekAheadStartLine, weekAheadTitle, withoutWeekAhead } from "../lib/roadAlertsWeek";
 import { colors, fonts, radii } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 type Data = RoadAlertsResponse["data"];
 
@@ -95,7 +96,7 @@ function hideKeys(item: RoadAlertItem): string[] {
   return [item.id, ...(item.memberIds ?? [])];
 }
 
-export default function RoadAlertsScreen() {
+function RoadAlertsScreen() {
   const router = useRouter();
   const { section } = useLocalSearchParams<{ section?: string }>();
   const scrollRef = useRef<ScrollView>(null);
@@ -440,3 +441,6 @@ const styles = StyleSheet.create({
   attribution: { color: colors.text3, fontFamily: fonts.regular, fontSize: 11.5, lineHeight: 16 },
   link: { color: colors.amber, fontFamily: fonts.semibold, fontSize: 13, marginTop: 6 },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("roadAlerts", RoadAlertsScreen);

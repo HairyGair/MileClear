@@ -20,6 +20,7 @@ import { useMode } from "../../lib/mode/context";
 import { useAssistantAvailable } from "../../lib/api/assistant";
 import { useMoreStatus } from "../../components/settings/useSettingsChecks";
 import { useMoreFacts } from "../../components/more/useMoreFacts";
+import { useCountryFeatures } from "../../lib/country/country";
 import { moreGroups, PRO_ROWS, type MoreRowId } from "../../lib/more/rows";
 import {
   badgesLine,
@@ -58,6 +59,7 @@ export default function MoreScreen() {
   const { isWork } = useMode();
   const assistantAvailable = useAssistantAvailable();
   const more = useMoreStatus();
+  const country = useCountryFeatures();
 
   // A paying subscriber should not be advertised features they own, team
   // company drivers get Pro through their team, and the profile is null while
@@ -79,6 +81,7 @@ export default function MoreScreen() {
     bankLinked: true,
     assistant: assistantAvailable === true,
     isAdmin: !!user?.isAdmin,
+    features: country,
   });
   const want = useMemo(
     () => new Set<MoreRowId>(probeGroups.flatMap((g) => g.rows)),
@@ -100,6 +103,7 @@ export default function MoreScreen() {
     bankLinked: (facts.bank?.banks.length ?? 0) > 0,
     assistant: assistantAvailable === true,
     isAdmin: !!user?.isAdmin,
+    features: country,
   });
 
   const now = new Date();
@@ -108,7 +112,14 @@ export default function MoreScreen() {
     fuel: {
       icon: "water-outline",
       label: "Fuel",
-      line: { text: fuelLine({ lastFillUpAt: facts.lastFillUpAt, cheapestPence: facts.cheapestPence, electric }) },
+      line: {
+        text: fuelLine({
+          lastFillUpAt: facts.lastFillUpAt,
+          // UK station prices only mean something in the UK.
+          cheapestPence: country.fuelPrices ? facts.cheapestPence : null,
+          electric,
+        }),
+      },
       route: "/(tabs)/fuel",
     },
     odometer: { icon: "speedometer-outline", label: "Odometer", line: odometerLine(facts.cars), route: "/odometer-log" },
@@ -129,6 +140,7 @@ export default function MoreScreen() {
       pro: true,
     },
     records: { icon: "ribbon-outline", label: "Records", line: { text: "Mileage certificate and downloads" }, route: "/(tabs)/tax" },
+    downloads: { icon: "download-outline", label: "Downloads", line: { text: "Your trip log as a PDF or spreadsheet" }, route: "/exports" },
     drive_for_work: {
       icon: "briefcase-outline",
       label: "Drive for work?",

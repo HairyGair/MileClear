@@ -32,6 +32,7 @@ import { usePaywall } from "../components/paywall";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts } from "../lib/theme";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
+import { useCountryFeatures } from "../lib/country/country";
 import { defaultExportYear, recentTaxYears } from "../lib/tax/taxYears";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -60,7 +61,11 @@ export default function ExportsScreen() {
   const [isPremium, setIsPremium] = useState<boolean | null>(null);
   // Tax-year vs custom date-range mode for CSV/PDF (the server supports both;
   // self-assessment is always tax-year). Defaults to a sensible last-30-days.
-  const [rangeMode, setRangeMode] = useState<"taxYear" | "dateRange">("taxYear");
+  const [rangeModeChoice, setRangeMode] = useState<"taxYear" | "dateRange">("taxYear");
+  // Outside the UK (23 Oct 2026) the UK tax year (6 April) means nothing, so
+  // downloads are by date range only and the HMRC rows are hidden.
+  const country = useCountryFeatures();
+  const rangeMode = country.ukTax ? rangeModeChoice : "dateRange";
   const [fromDate, setFromDate] = useState<Date>(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
   const [toDate, setToDate] = useState<Date>(() => new Date());
   // Business trips only for the CSV and Trip Report (5 Oct 2026). Both used to
@@ -356,7 +361,7 @@ export default function ExportsScreen() {
         </Text>
 
         {/* Period mode toggle: tax year or a custom date range */}
-        <View style={styles.modeToggle}>
+        {country.ukTax && <View style={styles.modeToggle}>
           <TouchableOpacity
             style={[styles.modeBtn, rangeMode === "taxYear" && styles.modeBtnActive]}
             onPress={() => setRangeMode("taxYear")}
@@ -375,7 +380,7 @@ export default function ExportsScreen() {
           >
             <Text style={[styles.modeBtnText, rangeMode === "dateRange" && styles.modeBtnTextActive]}>Date range</Text>
           </TouchableOpacity>
-        </View>
+        </View>}
 
         {rangeMode === "taxYear" ? (
           <TouchableOpacity
@@ -393,13 +398,15 @@ export default function ExportsScreen() {
             <DateTimePickerField label="From" value={fromDate} onChange={setFromDate} maximumDate={toDate} />
             <DateTimePickerField label="To" value={toDate} onChange={setToDate} maximumDate={new Date()} />
             <Text style={styles.rangeNote}>
-              CSV and PDF reports cover this range. The Self Assessment report is always a full tax year.
+              {country.selfAssessment
+                ? "CSV and PDF reports cover this range. The Self Assessment report is always a full tax year."
+                : "CSV and PDF reports cover this range."}
             </Text>
           </View>
         )}
 
         {/* Self Assessment Wizard link */}
-        <TouchableOpacity
+        {country.selfAssessment && <TouchableOpacity
           style={styles.saWizardRow}
           onPress={() => router.push("/self-assessment")}
           activeOpacity={0.7}
@@ -416,10 +423,10 @@ export default function ExportsScreen() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         {/* Mileage certificate link */}
-        <TouchableOpacity
+        {country.ukTax && <TouchableOpacity
           style={styles.saWizardRow}
           onPress={() => router.push("/mileage-certificate")}
           activeOpacity={0.7}
@@ -436,7 +443,7 @@ export default function ExportsScreen() {
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} />
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         {/* Download rows */}
         <Text style={styles.sectionTitle}>Downloads</Text>
@@ -458,7 +465,7 @@ export default function ExportsScreen() {
           />
         </View>
 
-        <TouchableOpacity
+        {country.selfAssessment && <TouchableOpacity
           style={styles.row}
           onPress={() => handleDownload("self-assessment")}
           disabled={loadingKey !== null}
@@ -483,7 +490,7 @@ export default function ExportsScreen() {
           ) : (
             <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
           )}
-        </TouchableOpacity>
+        </TouchableOpacity>}
 
         <TouchableOpacity
           style={styles.row}
@@ -558,12 +565,12 @@ export default function ExportsScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Coming Soon rows */}
-        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
+        {/* Coming Soon rows (UK accounting, so UK only) */}
+        {country.ukTax && <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
           Accounting
-        </Text>
+        </Text>}
 
-        {["Xero", "FreeAgent"].map((name) => (
+        {(country.ukTax ? ["Xero", "FreeAgent"] : []).map((name) => (
           <View key={name} style={[styles.row, { opacity: 0.5 }]}>
             <View style={{ flex: 1 }}>
               <View style={styles.comingSoonRow}>

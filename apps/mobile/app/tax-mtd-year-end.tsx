@@ -40,12 +40,13 @@ import {
   heldAnnualLines,
 } from "../lib/tax/taxReturnCopy";
 import { colors } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const GOVUK_ADDITIONAL_INCOME = "https://www.gov.uk/check-additional-income-tax";
 
 type OtherIncome = "unanswered" | "no" | "yes";
 
-export default function TaxMtdYearEndScreen() {
+function TaxMtdYearEndScreen() {
   return (
     <View style={s.screen}>
       <Stack.Screen options={{ title: "End of year", headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.text1 }} />
@@ -341,3 +342,6 @@ function Choice({ selected, label, onPress }: { selected: boolean; label: string
     </TouchableOpacity>
   );
 }
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdYearEndScreen);

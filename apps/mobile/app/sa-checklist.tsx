@@ -27,6 +27,7 @@ import { usePaywall } from "../components/paywall";
 import { daysLabel, downloadSaPdf, routeForSaAction, wantsSaPreview } from "../lib/saCountdown";
 import { colors, fonts } from "../lib/theme";
 import { visibleChecklistItems } from "../lib/tax/checklistItems";
+import { withCountryFeature } from "../components/CountryGate";
 
 function statusIcon(item: SaChecklistItem): { name: keyof typeof Ionicons.glyphMap; color: string; label: string } {
   if (item.status === "done") return { name: "checkmark-circle", color: colors.green, label: "Done" };
@@ -38,7 +39,7 @@ function milesText(miles: number): string {
   return `${Math.round(miles).toLocaleString("en-GB")} mi`;
 }
 
-export default function SaChecklistScreen() {
+function SaChecklistScreen() {
   const router = useRouter();
   const { user } = useUser();
   const isPremium = useIsPremium();
@@ -355,3 +356,6 @@ const s = StyleSheet.create({
     marginTop: 16,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("selfAssessment", SaChecklistScreen);

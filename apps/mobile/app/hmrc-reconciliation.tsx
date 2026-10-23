@@ -21,6 +21,7 @@ import { colors, fonts } from "../lib/theme";
 import { useUser } from "../lib/user/context";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
 import { defaultReturnYear, recentTaxYears } from "../lib/tax/taxYears";
+import { withCountryFeature } from "../components/CountryGate";
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -51,7 +52,7 @@ function diffLabel(diffPence: number): string {
   return `${formatPence(abs)} more recorded by you`;
 }
 
-export default function HmrcReconciliationScreen() {
+function HmrcReconciliationScreen() {
   const router = useRouter();
   const { user, isCompanyDriver } = useUser();
   const overview = useTaxOverview();
@@ -492,3 +493,6 @@ const s = StyleSheet.create({
     flex: 1,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("ukTax", HmrcReconciliationScreen);

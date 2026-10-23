@@ -17,6 +17,7 @@ import { setHmrcNino } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -41,7 +42,7 @@ function formatForDisplay(raw: string): string {
   return parts.filter((p) => p.length > 0).join(" ");
 }
 
-export default function TaxMtdNinoScreen() {
+function TaxMtdNinoScreen() {
   const [nino, setNino] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -187,3 +188,6 @@ const styles = StyleSheet.create({
   buttonDisabled: { opacity: 0.5 },
   primaryButtonText: { color: "#000", fontFamily: fonts.semibold, fontSize: 16 },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdNinoScreen);

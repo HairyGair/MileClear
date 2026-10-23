@@ -22,6 +22,7 @@ import {
 } from "../lib/api/hmrc";
 import { describeMtdLoadError, isNothingSubmittedError } from "../lib/tax/mtdCopy";
 import { colors, fonts } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const AMBER = colors.amber;
 const CARD_BG = colors.surface;
@@ -40,7 +41,7 @@ function generateTaxYears(count: number): string[] {
   });
 }
 
-export default function TaxMtdHistoryScreen() {
+function TaxMtdHistoryScreen() {
   const taxYears = generateTaxYears(4);
   const [selectedYear, setSelectedYear] = useState<string>(taxYears[0]);
   const [periods, setPeriods] = useState<HmrcPeriodSummaryListItem[]>([]);
@@ -326,3 +327,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mtd", TaxMtdHistoryScreen);

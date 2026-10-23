@@ -11,6 +11,7 @@ import { useLocalSearchParams } from "expo-router";
 import { fetchMotHistory } from "../lib/api/vehicles";
 import type { MotHistoryResult, MotTestRecord } from "@mileclear/shared";
 import { colors } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -135,7 +136,7 @@ function TestRecord({
   );
 }
 
-export default function VehicleMotHistoryScreen() {
+function VehicleMotHistoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [history, setHistory] = useState<MotHistoryResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -418,3 +419,6 @@ const s = StyleSheet.create({
     lineHeight: 14,
   },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("vehicleLookup", VehicleMotHistoryScreen);

@@ -27,6 +27,7 @@ import { fetchMileageRelief } from "../lib/api/mileageRelief";
 import { useMarRelief } from "../lib/mileageRelief/useMarRelief";
 import { usePrompt } from "../components/prompt";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 /**
  * Mileage Allowance Relief for employees (free). Every rule and number is
@@ -79,7 +80,7 @@ function parsePence(raw: string): number | null {
   return n;
 }
 
-export default function MileageReliefScreen() {
+function MileageReliefScreen() {
   const { prompt } = usePrompt();
   const [data, setData] = useState<MileageReliefData | null>(null);
   const { prefs, updatePrefs, results, totalReliefPence, ready } = useMarRelief(data);
@@ -645,3 +646,6 @@ const s = StyleSheet.create({
   },
   secondaryBtnText: { fontSize: 14, fontFamily: fonts.semibold, color: colors.text1 },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("mileageRelief", MileageReliefScreen);

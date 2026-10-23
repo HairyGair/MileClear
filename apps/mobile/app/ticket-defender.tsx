@@ -53,6 +53,7 @@ import { LocationPickerField } from "../components/LocationPickerField";
 import { Button } from "../components/Button";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { withCountryFeature } from "../components/CountryGate";
 
 const BG = colors.bg;
 const CARD_BG = colors.surface;
@@ -90,7 +91,7 @@ function payLabel(c: CazChargeItem): string {
 
 // ── Screen ────────────────────────────────────────────────────────────────
 
-export default function TicketDefenderScreen() {
+function TicketDefenderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ at?: string }>();
   const { user } = useUser();
@@ -705,3 +706,6 @@ const styles = StyleSheet.create({
   linkRow: { flexDirection: "row", gap: 18, marginTop: 10 },
   link: { fontSize: 14, fontFamily: fonts.semibold, color: AMBER, textDecorationLine: "underline" },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("cleanAirZones", TicketDefenderScreen);

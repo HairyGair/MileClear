@@ -38,6 +38,7 @@ import { defaultExportYear } from "../lib/tax/taxYears";
 import { usePaywall } from "../components/paywall";
 import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts, fontScaleCap, radii, shared, spacing } from "../lib/theme";
+import { withCountryFeature } from "../components/CountryGate";
 
 /**
  * Mileage certificate (Pro). A PDF record of the miles recorded for a period,
@@ -70,7 +71,7 @@ function vehicleName(v: VehicleWithCaz): string {
   return `${v.make} ${v.model}${plate}`;
 }
 
-export default function MileageCertificateScreen() {
+function MileageCertificateScreen() {
   const { user } = useUser();
   const { showPaywall } = usePaywall();
   const isPremium = !!user?.isPremium;
@@ -538,3 +539,6 @@ const styles = StyleSheet.create({
   actionText: { fontFamily: fonts.semibold, fontSize: 13 },
   small: { color: colors.text3, fontFamily: fonts.regular, fontSize: 12, lineHeight: 17, marginTop: spacing.xxl },
 });
+
+// UK only (23 Oct 2026): outside the UK a link here shows a short note.
+export default withCountryFeature("ukTax", MileageCertificateScreen);

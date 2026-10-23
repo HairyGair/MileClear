@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { isWorkDriver, showsTaxTab } from "../../lib/tax/persona";
+import { useCountryFeatures } from "../../lib/country/country";
 import { fetchUnclassifiedCount } from "../../lib/api/trips";
 import { colors, fonts, tabBar } from "../../lib/theme";
 import { UpdateReadyBanner } from "../../components/UpdateReadyBanner";
@@ -84,7 +85,10 @@ export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { isWork } = useMode();
   const { user } = useUser();
-  const taxTab = showsTaxTab(isWork, isWorkDriver(user));
+  // The Tax tab is HMRC from top to bottom, so it is UK only (23 Oct 2026).
+  // Outside the UK, Work mode keeps Insights in the tab bar instead.
+  const { ukTax } = useCountryFeatures();
+  const taxTab = ukTax && showsTaxTab(isWork, isWorkDriver(user));
   const segments = useSegments();
   const [unclassified, setUnclassified] = useState(0);
   const mounted = useRef(true);
@@ -207,7 +211,7 @@ export default function TabLayout() {
         name="insights"
         options={{
           title: "Insights",
-          href: isWork ? null : undefined,
+          href: isWork && ukTax ? null : undefined,
           tabBarLabel: tabLabel("Insights"),
           tabBarIcon: tabIcon("stats-chart", "stats-chart-outline"),
           tabBarAccessibilityLabel: "Insights",
