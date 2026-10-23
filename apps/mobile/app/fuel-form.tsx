@@ -28,6 +28,7 @@ import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { useMoney } from "../lib/money/useMoney";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -40,6 +41,7 @@ const RED = colors.red;
 
 export default function FuelFormScreen() {
   const router = useRouter();
+  const money = useMoney();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
 
@@ -444,7 +446,7 @@ export default function FuelFormScreen() {
           Cost *{selectedStation && lastEditedRef.current === "litres" ? "  (estimated)" : ""}
         </Text>
         <View style={styles.amountRow}>
-          <Text style={styles.currencyPrefix} accessible={false}>£</Text>
+          <Text style={styles.currencyPrefix} accessible={false}>{money.symbol}</Text>
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={cost}

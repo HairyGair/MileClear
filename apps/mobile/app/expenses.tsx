@@ -15,7 +15,8 @@ import { fetchExpenses, deleteExpense } from "../lib/api/expenses";
 import { EmptyState } from "../components/EmptyState";
 import { Button } from "../components/Button";
 import type { Expense } from "@mileclear/shared";
-import { EXPENSE_CATEGORIES, formatPence } from "@mileclear/shared";
+import { EXPENSE_CATEGORIES } from "@mileclear/shared";
+import { useMoney } from "../lib/money/useMoney";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -70,6 +71,7 @@ function ExpenseCard({
 }) {
   const label = CATEGORY_LABEL[item.category] ?? item.category;
   const iconName = CATEGORY_ICON[item.category] ?? "receipt-outline";
+  const { format: formatPence } = useMoney();
 
   return (
     <TouchableOpacity
@@ -117,6 +119,8 @@ function ExpenseCard({
 
 export default function ExpensesScreen() {
   const router = useRouter();
+  // Amounts in the driver's currency (formatPence for the UK, as before).
+  const { format: formatPence } = useMoney();
   const [items, setItems] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

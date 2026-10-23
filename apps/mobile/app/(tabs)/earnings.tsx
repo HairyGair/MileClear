@@ -15,7 +15,8 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { fetchEarnings } from "../../lib/api/earnings";
 import { getLocalEarnings, getLocalUnsyncedEarnings } from "../../lib/db/queries";
-import { GIG_PLATFORMS, formatPence } from "@mileclear/shared";
+import { GIG_PLATFORMS } from "@mileclear/shared";
+import { useMoney } from "../../lib/money/useMoney";
 import type { Earning } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
@@ -50,6 +51,8 @@ export default function EarningsScreen() {
   const router = useRouter();
   // Bank connection (TrueLayer) is UK banks only (23 Oct 2026).
   const { openBanking } = useCountryFeatures();
+  // Amounts in the driver's currency (formatPence for the UK, as before).
+  const { format: formatPence } = useMoney();
   const { user } = useUser();
   const { showPaywall } = usePaywall();
   const [earnings, setEarnings] = useState<EarningItem[]>([]);

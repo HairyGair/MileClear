@@ -26,6 +26,7 @@ import { Button } from "../components/Button";
 import { isOcrAvailable } from "../lib/ocr";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { useMoney } from "../lib/money/useMoney";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { Ionicons } from "@expo/vector-icons";
@@ -39,6 +40,7 @@ const BG = colors.bg;
 
 export default function EarningFormScreen() {
   const router = useRouter();
+  const money = useMoney();
   const {
     id,
     prefillAmount,
@@ -257,7 +259,7 @@ export default function EarningFormScreen() {
         {/* Amount */}
         <Text style={styles.label}>Amount *</Text>
         <View style={styles.amountRow}>
-          <Text style={styles.currencyPrefix} accessible={false}>£</Text>
+          <Text style={styles.currencyPrefix} accessible={false}>{money.symbol}</Text>
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={amount}

@@ -27,6 +27,7 @@ import { DateTimePickerField } from "../components/DateTimePickerField";
 import { Button } from "../components/Button";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
+import { useMoney } from "../lib/money/useMoney";
 
 const AMBER = colors.amber;
 const BG = colors.bg;
@@ -41,6 +42,7 @@ type VehicleLite = { id: string; make: string; model: string };
 
 export default function ExpenseFormScreen() {
   const router = useRouter();
+  const money = useMoney();
   const {
     id,
     prefillAmount,
@@ -244,9 +246,9 @@ export default function ExpenseFormScreen() {
         ) : null}
 
         {/* Amount */}
-        <Text style={styles.fieldLabel}>Amount (GBP)</Text>
+        <Text style={styles.fieldLabel}>Amount ({money.currency})</Text>
         <View style={styles.amountRow}>
-          <Text style={styles.currencyPrefix}>£</Text>
+          <Text style={styles.currencyPrefix}>{money.symbol}</Text>
           <TextInput
             style={[styles.input, styles.amountInput]}
             value={amount}

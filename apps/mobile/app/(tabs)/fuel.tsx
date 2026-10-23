@@ -16,7 +16,8 @@ import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries
 import NearbyPrices from "../../components/fuel/NearbyPrices";
 import CheapestTodayCard from "../../components/fuel/CheapestTodayCard";
 import { useCountryFeatures } from "../../lib/country/country";
-import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
+import { FUEL_BRANDS } from "@mileclear/shared";
+import { useMoney } from "../../lib/money/useMoney";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
 import { EmptyState } from "../../components/EmptyState";
@@ -34,13 +35,15 @@ function formatDate(iso: string): string {
   });
 }
 
-function formatPpl(costPence: number, litres: number): string {
+function formatPpl(costPence: number, litres: number, currency = "GBP"): string {
   if (litres <= 0) return "—";
-  return (costPence / litres).toFixed(1) + "p/L";
+  return (costPence / litres).toFixed(1) + (currency === "GBP" ? "p/L" : "c/L");
 }
 
 export default function FuelScreen() {
   const router = useRouter();
+  // Amounts in the driver's currency (formatPence for the UK, as before).
+  const { format: formatPence, currency } = useMoney();
   const [logs, setLogs] = useState<FuelLogItem[]>([]);
   const { fuelPrices } = useCountryFeatures();
   const [stationFilter, setStationFilter] = useState<string | undefined>(undefined);
@@ -179,7 +182,7 @@ export default function FuelScreen() {
 
       <View style={styles.cardFooter}>
         <Text style={styles.detailText}>
-          {item.litres.toFixed(1)}L · {formatPpl(item.costPence, item.litres)}
+          {item.litres.toFixed(1)}L · {formatPpl(item.costPence, item.litres, currency)}
         </Text>
         <View style={styles.footerRight}>
           {item._isLocal && (
