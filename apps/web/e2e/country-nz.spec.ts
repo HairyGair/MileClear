@@ -21,6 +21,7 @@ const NZ_SUMMARY = {
   unclassifiedDistance: 120,
   ratesYear: "2025-26",
   provisional: true,
+  ratesExpected: "IRD publishes the 2026-27 rates after 31 March 2027.",
   someWithoutFigure: false,
   vehicles: [
     {
@@ -35,6 +36,7 @@ const NZ_SUMMARY = {
         currency: "NZD",
         ratesYear: "2025-26",
         provisional: true,
+        recordBasis: "records",
         tiers: [
           { label: "Tier 1", distance: 5_000, rateMinor: 120, amountMinor: 600_000 },
           { label: "Tier 2", distance: 0, rateMinor: 37, amountMinor: 0 },
@@ -44,7 +46,7 @@ const NZ_SUMMARY = {
   ],
 };
 
-async function openHome(page: Page, country: string) {
+async function openHome(page: Page, country: string, summary: unknown = NZ_SUMMARY) {
   const asked: string[] = [];
   await mockSession(page, { profile: profile({ country, countrySettingEnabled: true }) });
   await page.route(`${API}/tax/regime-summary*`, (route) => {
@@ -53,7 +55,7 @@ async function openHome(page: Page, country: string) {
       status: 200,
       contentType: "application/json",
       headers: { "access-control-allow-origin": "*" },
-      body: JSON.stringify({ data: NZ_SUMMARY }),
+      body: JSON.stringify({ data: summary }),
     });
   });
   await page.goto("/dashboard");
@@ -66,12 +68,48 @@ test("a New Zealand driver sees the claim at IRD kilometre rates in dollars", as
   await expect(card).toBeVisible();
   await expect(card).toContainText("$6,000.00");
   await expect(card).toContainText("5,000 km of business driving this tax year");
-  await expect(card).toContainText("Using 2025-26 rates, the 2026-27 rates aren't out yet.");
+  await expect(card).toContainText("Estimate at 2025-26 rates. IRD publishes the 2026-27 rates after 31 March 2027.");
+  await expect(card).toContainText("Worked out from your logbook or full records.");
   await expect(card).toContainText("120 km not yet marked Business or Personal.");
   await expect(card).not.toContainText("£");
   await expect(card).not.toContainText("HMRC");
   await card.getByText("How it's worked out").click();
   await expect(card).toContainText("Tier 1: 5,000 km at $1.20 = $6,000.00");
+  await expect(card).toContainText("can't be changed");
+  await expect(card).toContainText("partners in a partnership");
+});
+
+test("not answered about a logbook: the 25% figure, and Yes saves it on the vehicle", async ({ page }) => {
+  const limited = structuredClone(NZ_SUMMARY);
+  limited.totalAmountMinor = 240_000;
+  limited.vehicles[0].claim = {
+    ...limited.vehicles[0].claim,
+    amountMinor: 240_000,
+    recordBasis: "unanswered",
+    amountWithRecordsMinor: 600_000,
+    tiers: [
+      { label: "Tier 1", distance: 2_000, rateMinor: 120, amountMinor: 240_000 },
+      { label: "Tier 2", distance: 0, rateMinor: 37, amountMinor: 0 },
+    ],
+  } as (typeof limited.vehicles)[0]["claim"];
+  const patches: unknown[] = [];
+  await openHome(page, "NZ", limited);
+  await page.route(`${API}/vehicles/v1`, (route) => {
+    if (route.request().method() === "PATCH") patches.push(route.request().postDataJSON());
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "access-control-allow-origin": "*" },
+      body: JSON.stringify({ data: { id: "v1" } }),
+    });
+  });
+  const card = page.locator(".mc-card", { hasText: "Your claim at IRD kilometre rates" });
+  await expect(card).toContainText("$2,400.00");
+  await expect(card).toContainText("Worked out at IRD's 25% limit");
+  const question = card.getByTestId("claim-question-nzRecordBasis");
+  await expect(question).toContainText("Do you keep a logbook (90 days or more) or full records of every trip for this car?");
+  await question.getByRole("button", { name: /^Yes/ }).click();
+  await expect.poll(() => patches).toEqual([{ nzRecordBasis: "records" }]);
 });
 
 test("a UK driver never asks for it", async ({ page }) => {

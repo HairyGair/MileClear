@@ -102,6 +102,12 @@ test.describe("add and edit", () => {
     const patch = callsTo(state, "PATCH", `/vehicles/${VEHICLE.id}`);
     expect(patch).toHaveLength(1);
     expect(patch[0][2]).toMatchObject({ estimatedMpg: 52.5, providedByOthers: true, registrationPlate: "AB12CDE" });
+    // UK drivers are never asked the New Zealand questions, and nothing new is sent.
+    expect(patch[0][2]).not.toHaveProperty("nzRecordBasis");
+    expect(patch[0][2]).not.toHaveProperty("nzHybridKind");
+    expect(patch[0][2]).not.toHaveProperty("odometerUnit");
+    await expect(page.getByLabel("Logbook or full records?")).toHaveCount(0);
+    await expect(page.getByLabel("Odometer reads in")).toHaveCount(0);
 
     await page.getByRole("button", { name: "Delete vehicle" }).click();
     const confirm = page.getByRole("dialog", { name: "Delete this vehicle?" });
@@ -152,5 +158,22 @@ test.describe("390px", () => {
     await expect(page.getByLabel("Make")).toBeVisible();
     await expect(page.getByTestId("odometer-figure")).toBeVisible();
     expect(await hasHorizontalScroll(page)).toBe(false);
+  });
+});
+
+test.describe("New Zealand vehicle answers", () => {
+  test("a hybrid asks what kind, the logbook question and the odometer unit, and saves them", async ({ page }) => {
+    await mockSession(page, { profile: profile({ country: "NZ", countrySettingEnabled: true }) });
+    const state = drivingState({ mot: null, vehicles: [{ ...VEHICLE, fuelType: "hybrid", registrationPlate: null }] });
+    await mockDriving(page, state);
+    await page.goto(`/dashboard/vehicles/${VEHICLE.id}`);
+    await expect(page.getByLabel("Make")).toHaveValue("Ford");
+    await page.getByLabel("What kind of hybrid?").selectOption("plugin");
+    await page.getByLabel("Logbook or full records?").selectOption("records");
+    await page.getByLabel("Odometer reads in").selectOption("km");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("Saved").first()).toBeVisible();
+    const patch = callsTo(state, "PATCH", `/vehicles/${VEHICLE.id}`);
+    expect(patch[0][2]).toMatchObject({ nzHybridKind: "plugin", nzRecordBasis: "records", odometerUnit: "km" });
   });
 });

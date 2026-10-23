@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FUEL_TYPES, VEHICLE_TYPES } from "@mileclear/shared";
+import { FUEL_TYPES, NZ_HYBRID_KIND_LABELS, NZ_HYBRID_KINDS, VEHICLE_TYPES, countryByCode, kmToMiles } from "@mileclear/shared";
 import { api, isApiError } from "../../../lib/api";
 import { useCountryFeatures } from "../../../lib/dashboard/country";
 import { Button } from "../kit/Button";
@@ -18,6 +18,17 @@ import styles from "./driving.module.css";
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const FUEL_OPTIONS = FUEL_TYPES.map((f) => ({ value: f, label: cap(f) }));
 const TYPE_OPTIONS = VEHICLE_TYPES.map((t) => ({ value: t, label: cap(t) }));
+// New Zealand (IRD kilometre rates): asked per vehicle, never shown in the UK.
+const HYBRID_OPTIONS = [{ value: "", label: "Choose one" }, ...NZ_HYBRID_KINDS.map((k) => ({ value: k, label: NZ_HYBRID_KIND_LABELS[k] }))];
+const RECORDS_OPTIONS = [
+  { value: "", label: "Choose one" },
+  { value: "records", label: "Yes, I keep one" },
+  { value: "none", label: "No" },
+];
+const ODOMETER_UNIT_OPTIONS = [
+  { value: "miles", label: "Miles" },
+  { value: "km", label: "km" },
+];
 
 function formatPlate(plate: string): string {
   return /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(plate) ? `${plate.slice(0, 4)} ${plate.slice(4)}` : plate;
@@ -37,6 +48,9 @@ interface FormState {
   euroStatus: string;
   firstRegistration: string;
   odometerNow: string;
+  nzRecordBasis: string;
+  nzHybridKind: string;
+  odometerUnit: string;
 }
 
 function fromVehicle(v: VehicleRow | null, isFirst: boolean): FormState {
@@ -54,6 +68,9 @@ function fromVehicle(v: VehicleRow | null, isFirst: boolean): FormState {
     euroStatus: v?.euroStatus ?? "",
     firstRegistration: v?.firstRegistration ?? "",
     odometerNow: "",
+    nzRecordBasis: v?.nzRecordBasis ?? "",
+    nzHybridKind: v?.nzHybridKind ?? "",
+    odometerUnit: v?.odometerUnit === "km" ? "km" : "miles",
   };
 }
 
@@ -84,7 +101,10 @@ export function VehicleForm({
   const [error, setError] = useState<string | null>(null);
   const [lookupMsg, setLookupMsg] = useState<string | null>(null);
   // The DVLA look-up and its MOT and tax checks are UK only (23 Oct 2026).
-  const { vehicleLookup } = useCountryFeatures();
+  const { vehicleLookup, country } = useCountryFeatures();
+  const isNz = country === "NZ";
+  const showOdometerUnit = isNz || !!countryByCode(country)?.usesKm;
+  const odoKm = showOdometerUnit && f.odometerUnit === "km";
   // The DVLA warning waits until the driver has pressed Look up.
   const [lookedUp, setLookedUp] = useState(false);
   const [proOpen, setProOpen] = useState(false);
@@ -129,7 +149,9 @@ export function VehicleForm({
       setError("Add the make and model.");
       return;
     }
-    const odo = !editing && f.odometerNow.trim() ? parseReadingInput(f.odometerNow) : null;
+    const typed = !editing && f.odometerNow.trim() ? parseReadingInput(f.odometerNow) : null;
+    // Readings are stored in miles; a km odometer's reading is converted.
+    const odo = typed && typed.kind === "ok" && odoKm ? { ...typed, miles: Math.round(kmToMiles(typed.miles) * 100) / 100 } : typed;
     if (odo && odo.kind === "invalid") {
       setError("That doesn't look like an odometer reading. Check it and try again.");
       return;
@@ -150,6 +172,12 @@ export function VehicleForm({
       isPrimary: f.isPrimary,
       providedByOthers: f.providedByOthers,
     };
+    // Only sent where they're asked, so a UK save is exactly what it was.
+    if (isNz) {
+      body.nzRecordBasis = f.nzRecordBasis || null;
+      body.nzHybridKind = f.fuelType === "hybrid" ? f.nzHybridKind || null : null;
+    }
+    if (showOdometerUnit) body.odometerUnit = f.odometerUnit;
     if (editing) {
       body.year = f.year ? parseInt(f.year, 10) : null;
       body.registrationPlate = plate || null;
@@ -247,7 +275,7 @@ export function VehicleForm({
             label="Odometer now (optional)"
             value={f.odometerNow}
             onChange={(v) => set("odometerNow", v)}
-            suffix="miles"
+            suffix={odoKm ? "km" : "miles"}
             hint="The number on your dashboard. We add your trips to it."
             error={f.odometerNow && parseReadingInput(f.odometerNow).kind === "invalid" ? `Use a number up to ${MAX_READING_MILES.toLocaleString("en-GB")}.` : undefined}
           />
@@ -256,6 +284,27 @@ export function VehicleForm({
           <SelectField label="Vehicle type" value={f.vehicleType} onChange={(v) => set("vehicleType", v)} options={TYPE_OPTIONS} />
           <SelectField label="Fuel" value={f.fuelType} onChange={(v) => set("fuelType", v)} options={FUEL_OPTIONS} />
         </div>
+        {isNz && f.fuelType === "hybrid" && (
+          <SelectField
+            label="What kind of hybrid?"
+            value={f.nzHybridKind}
+            onChange={(v) => set("nzHybridKind", v)}
+            options={HYBRID_OPTIONS}
+            hint="IRD only sets a kilometre rate for petrol hybrids. For the others, check with your accountant."
+          />
+        )}
+        {isNz && (
+          <SelectField
+            label="Logbook or full records?"
+            value={f.nzRecordBasis}
+            onChange={(v) => set("nzRecordBasis", v)}
+            options={RECORDS_OPTIONS}
+            hint="Do you keep a logbook (90 days or more) or full records of every trip for this vehicle? Without one, IRD limits the claim to 25%."
+          />
+        )}
+        {showOdometerUnit && (
+          <SelectField label="Odometer reads in" value={f.odometerUnit} onChange={(v) => set("odometerUnit", v)} options={ODOMETER_UNIT_OPTIONS} />
+        )}
         {electric ? (
           <NumberField label="Efficiency (miles per kWh)" value={f.milesPerKwh} onChange={(v) => set("milesPerKwh", v)} required={false} hint="For example 3.5." />
         ) : (
