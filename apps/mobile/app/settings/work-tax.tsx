@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useCountryFeatures } from "../../lib/country/country";
 import { Alert, TouchableOpacity, View, Text, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -292,8 +293,11 @@ export default function WorkTaxSettings() {
 
   // ── Render ────────────────────────────────────────────────────────
   const hasEmployer = driveFor === "employee" || driveFor === "both";
-  const selfEmployed = driveFor === "gig" || driveFor === "both";
-  const noTaxRows = driveFor === "company" || driveFor === "personal";
+  // Outside the UK (23 Oct 2026) every row below is HMRC tax, so only the
+  // "You drive for" answer shows.
+  const { ukTax } = useCountryFeatures();
+  const selfEmployed = ukTax && (driveFor === "gig" || driveFor === "both");
+  const noTaxRows = !ukTax || driveFor === "company" || driveFor === "personal";
 
   return (
     <SettingsScreen>
@@ -335,7 +339,9 @@ export default function WorkTaxSettings() {
 
       {noTaxRows ? (
         <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>
-          {driveFor === "personal"
+          {!ukTax
+            ? "Tax settings are for UK drivers for now. Recording, your trips and your downloads work as normal."
+            : driveFor === "personal"
             ? "Nothing else to set here. MileClear won't send tax or work reminders. Pick another answer any time to switch them back on."
             : "Nothing else to set here. Your employer provides the car, so there is no tax claim to work out and no tax reminders."}
         </Text>

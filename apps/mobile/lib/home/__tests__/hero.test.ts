@@ -27,6 +27,23 @@ function figure(h: ReturnType<typeof selectHero>) {
   return h;
 }
 
+describe("selectHero outside the UK (23 Oct 2026)", () => {
+  it("gives every persona the driving hero, never an HMRC claim", () => {
+    for (const persona of ["gig", "both", "employee", "company"] as const) {
+      const h = figure(selectHero(base({ persona, ukTax: false })));
+      expect(h.label).toBe("October");
+      expect(h.figure).toBe("205");
+      expect(h.claimPence).toBeNull();
+      expect(h.target).toBe("insights_month");
+      expect(h.figure).not.toContain("£");
+    }
+  });
+
+  it("is unchanged for the UK", () => {
+    expect(selectHero(base({ ukTax: true }))).toEqual(selectHero(base()));
+  });
+});
+
 describe("selectHero Work", () => {
   it("leads a gig driver with the claim and business miles this week", () => {
     const h = figure(selectHero(base()));

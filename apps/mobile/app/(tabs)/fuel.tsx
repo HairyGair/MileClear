@@ -15,6 +15,7 @@ import { Button } from "../../components/Button";
 import { getLocalFuelLogs, getLocalUnsyncedFuelLogs } from "../../lib/db/queries";
 import NearbyPrices from "../../components/fuel/NearbyPrices";
 import CheapestTodayCard from "../../components/fuel/CheapestTodayCard";
+import { useCountryFeatures } from "../../lib/country/country";
 import { FUEL_BRANDS, formatPence } from "@mileclear/shared";
 import type { FuelLogWithVehicle } from "@mileclear/shared";
 import { Skeleton } from "../../components/Skeleton";
@@ -41,6 +42,7 @@ function formatPpl(costPence: number, litres: number): string {
 export default function FuelScreen() {
   const router = useRouter();
   const [logs, setLogs] = useState<FuelLogItem[]>([]);
+  const { fuelPrices } = useCountryFeatures();
   const [stationFilter, setStationFilter] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -218,7 +220,7 @@ export default function FuelScreen() {
             {/* Cheapest near you today (or EV running costs): the same line
                 the opt-in morning push sends. Hidden when there is nothing
                 honest to say. */}
-            <CheapestTodayCard />
+            {fuelPrices && <CheapestTodayCard />}
 
             {/* Summary card */}
             <View style={styles.summaryCard}>
@@ -239,7 +241,8 @@ export default function FuelScreen() {
             </View>
 
             {/* Nearby community fuel prices */}
-            <NearbyPrices />
+            {/* UK station prices only (featuresFor(country).fuelPrices). */}
+            {fuelPrices && <NearbyPrices />}
 
             {/* Station brand filter chips */}
             <ScrollView

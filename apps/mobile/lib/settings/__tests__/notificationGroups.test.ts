@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { featuresFor } from "@mileclear/shared";
 import {
   NOTIFICATION_GROUPS,
   countNotifications,
@@ -55,5 +56,17 @@ describe("notification groups", () => {
     expect(visibleNotificationGroups(true, { companyCar: true }).map((g) => g.title)).not.toContain("Tax and money");
     expect(keys({ companyCar: false })).toContain("taxDeadline");
     expect(keys()).toContain("taxDeadline");
+  });
+
+  it("hides the UK-only switches outside the UK, and nothing for the UK (23 Oct 2026)", () => {
+    const keys = (country: string) =>
+      visibleNotificationGroups(true, { features: featuresFor(country) }).flatMap((g) => g.items.map((i) => i.key));
+    expect(keys("GB")).toHaveLength(15);
+    const nz = keys("NZ");
+    for (const k of ["taxDeadline", "cheapestFuelDaily", "cazPayReminder", "roadAlerts"] as const) {
+      expect(nz).not.toContain(k);
+    }
+    expect(nz).toHaveLength(11);
+    expect(nz).toContain("unclassifiedNudge");
   });
 });

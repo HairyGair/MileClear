@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useCountryFeatures } from "../../lib/country/country";
 import { Button } from "../../components/Button";
 import {
   View,
@@ -47,6 +48,8 @@ function formatDate(iso: string): string {
 
 export default function EarningsScreen() {
   const router = useRouter();
+  // Bank connection (TrueLayer) is UK banks only (23 Oct 2026).
+  const { openBanking } = useCountryFeatures();
   const { user } = useUser();
   const { showPaywall } = usePaywall();
   const [earnings, setEarnings] = useState<EarningItem[]>([]);
@@ -278,11 +281,11 @@ export default function EarningsScreen() {
                 highest payoff (zero manual entry, last 90 days imported).
                 CSV + manual stay secondary for users without supported
                 banks or who prefer hand-tracking. */}
-            <Button
+            {openBanking && <Button
               title="Connect Bank"
               icon="business-outline"
               onPress={() => router.push("/open-banking")}
-            />
+            />}
             <Button
               variant="secondary"
               title="Snap a statement"

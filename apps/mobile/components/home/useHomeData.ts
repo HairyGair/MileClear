@@ -27,6 +27,7 @@ import { useInvoiceDoor } from "./useInvoiceDoor";
 import { isEndOfWeek, type DoorTexts } from "../../lib/home/doors";
 import type { HeroRecapTotals } from "../../lib/home/hero";
 import type { HomePersona } from "../../lib/home/persona";
+import { useCountryFeatures } from "../../lib/country/country";
 
 const homeCache = createTtlCache();
 
@@ -59,6 +60,10 @@ function totals(r: PeriodRecap): HeroRecapTotals {
 export function useHomeData(a: Args): HomeData {
   const { mode, persona, stats, isPro, userId, refreshKey } = a;
   const { unit } = useDistanceUnit();
+  // Outside the UK (23 Oct 2026): no tax line, no UK fuel prices or road
+  // alerts, and the month recap feeds the hero for every persona.
+  const country = useCountryFeatures();
+  const wantsMonth = mode === "personal" || !country.ukTax;
   const totalTrips = stats?.totalTrips ?? 0;
   const [weekRecap, setWeekRecap] = useState<PeriodRecap | null>(null);
   const [lastWeekRecap, setLastWeekRecap] = useState<PeriodRecap | null>(null);
@@ -116,7 +121,7 @@ export function useHomeData(a: Args): HomeData {
     } else {
       setLastWeekRecap(null);
     }
-    if (mode === "personal") {
+    if (wantsMonth) {
       const month = getPeriodRange("month", 0, now);
       cachedRecap("monthly", dateParam(month.anchor), true)
         .then((r) => {
@@ -129,7 +134,7 @@ export function useHomeData(a: Args): HomeData {
     return () => {
       cancelled = true;
     };
-  }, [totalTrips, isPro, endOfWeek, mode, refreshKey, focusTick]);
+  }, [totalTrips, isPro, endOfWeek, mode, wantsMonth, refreshKey, focusTick]);
 
   // Badges.
   useEffect(() => {
@@ -156,7 +161,7 @@ export function useHomeData(a: Args): HomeData {
   }, [focusTick]);
 
   // Cheapest fuel, only when a Fuel row could show.
-  const wantsFuel = totalTrips > 0 && (mode === "personal" || hasFuelLogs);
+  const wantsFuel = country.fuelPrices && totalTrips > 0 && (mode === "personal" || hasFuelLogs);
   useEffect(() => {
     if (!wantsFuel) {
       setFuelData(null);
@@ -174,6 +179,10 @@ export function useHomeData(a: Args): HomeData {
 
   // Road alerts: the worst current one, else the next planned one.
   useEffect(() => {
+    if (!country.roadAlerts) {
+      setRoadText(null);
+      return;
+    }
     let cancelled = false;
     homeCache
       .get("road", () => fetchRoadAlerts(), forceOnce("road"))
@@ -187,7 +196,7 @@ export function useHomeData(a: Args): HomeData {
     return () => {
       cancelled = true;
     };
-  }, [refreshKey, focusTick, forceOnce]);
+  }, [country.roadAlerts, refreshKey, focusTick, forceOnce]);
 
   // Invoices: only for Work drivers who made one in the last 90 days.
   const invoiceDoor = useInvoiceDoor({ mode, persona, refreshKey });
@@ -196,13 +205,13 @@ export function useHomeData(a: Args): HomeData {
   const { data: overview, refresh: refreshOverview } = useTaxOverview();
   const { totalReliefPence } = useMarRelief(overview?.relief ?? null);
   useEffect(() => {
-    if (mode === "work") void refreshOverview();
-  }, [mode, refreshOverview, focusTick]);
+    if (mode === "work" && country.ukTax) void refreshOverview();
+  }, [mode, country.ukTax, refreshOverview, focusTick]);
 
   const texts = useMemo<DoorTexts>(() => {
     // Tax: January season for self-employed drivers, else today's one-line summary.
     let tax: DoorTexts["tax"] = null;
-    if (mode === "work") {
+    if (mode === "work" && country.ukTax) {
       const ret = overview?.return;
       if (isSelfEmployedPersona(persona) && ret && isSaCountdownSeason(new Date())) {
         const sa = saSeasonText({ attentionCount: ret.attentionCount, daysToDeadline: ret.daysToDeadline });
@@ -261,7 +270,7 @@ export function useHomeData(a: Args): HomeData {
       fuel: fuelDoorText(fuelData, unit),
     };
   }, [
-    mode, persona, overview, totalReliefPence, endOfWeek, lastWeekRecap, weekRecap, isPro,
+    mode, country.ukTax, persona, overview, totalReliefPence, endOfWeek, lastWeekRecap, weekRecap, isPro,
     totalTrips, stats, achievedTypes, roadText, fuelData, invoiceDoor.text, unit,
   ]);
 

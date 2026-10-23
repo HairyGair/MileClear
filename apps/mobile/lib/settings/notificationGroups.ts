@@ -3,7 +3,27 @@
 // fuel, Roads, Your progress, Summaries. One list drives the screen, the
 // "12 of 15 on" count and the free-driver teaser, so they cannot drift.
 
+import type { CountryFeatures } from "@mileclear/shared";
 import type { NotificationPreferences } from "../notifications/preferences";
+
+type GroupOpts = {
+  companyCar?: boolean;
+  /** What the driver's country gets (featuresFor). Missing is the UK. */
+  features?: CountryFeatures;
+};
+
+/** UK-only switches and the feature each needs (23 Oct 2026). */
+const UK_ONLY: Partial<Record<keyof NotificationPreferences, keyof CountryFeatures>> = {
+  taxDeadline: "ukTax",
+  cheapestFuelDaily: "fuelPrices",
+  cazPayReminder: "cleanAirZones",
+  roadAlerts: "roadAlerts",
+};
+
+function inCountry(key: keyof NotificationPreferences, f: CountryFeatures | undefined): boolean {
+  const need = UK_ONLY[key];
+  return !f || !need || f[need];
+}
 
 export interface NotificationItem {
   key: keyof NotificationPreferences;
@@ -68,14 +88,13 @@ export const NOTIFICATION_GROUPS: NotificationGroup[] = [
 ];
 
 /** Groups with only the rows this driver can use (free drivers lose the Pro rows). */
-export function visibleNotificationGroups(
-  isPremium: boolean,
-  opts: { companyCar?: boolean } = {}
-): NotificationGroup[] {
+export function visibleNotificationGroups(isPremium: boolean, opts: GroupOpts = {}): NotificationGroup[] {
   return NOTIFICATION_GROUPS.map((g) => ({
     title: g.title,
     // A company-car driver has no tax to file, so no tax reminders to switch.
-    items: g.items.filter((i) => (isPremium || !i.pro) && !(opts.companyCar && i.key === "taxDeadline")),
+    items: g.items.filter(
+      (i) => (isPremium || !i.pro) && !(opts.companyCar && i.key === "taxDeadline") && inCountry(i.key, opts.features)
+    ),
   })).filter((g) => g.items.length > 0);
 }
 
@@ -89,7 +108,7 @@ export function hiddenProCount(isPremium: boolean): number {
 export function countNotifications(
   prefs: NotificationPreferences,
   isPremium: boolean,
-  opts: { companyCar?: boolean } = {}
+  opts: GroupOpts = {}
 ): { on: number; total: number } {
   const items = visibleNotificationGroups(isPremium, opts).flatMap((g) => g.items);
   return { on: items.filter((i) => prefs[i.key]).length, total: items.length };

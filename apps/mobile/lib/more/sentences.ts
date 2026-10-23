@@ -79,13 +79,18 @@ export function mainCar<T extends CarFacts>(cars: T[] | null): T | null {
 }
 
 /** "Toyota Prius · MOT due 14 Mar", or the amber "Add your car". */
-export function carsLine(cars: CarFacts[] | null, now: Date, args: { companyCar?: boolean } = {}): Line {
-  if (!cars) return { text: "Your cars, MOT and tax dates" };
+export function carsLine(
+  cars: CarFacts[] | null,
+  now: Date,
+  args: { companyCar?: boolean; /** MOT dates are UK only; missing is true. */ mot?: boolean } = {}
+): Line {
+  const showMot = args.mot !== false;
+  if (!cars) return { text: showMot ? "Your cars, MOT and tax dates" : "Your cars" };
   if (cars.length === 0) return { text: "Add your car", tone: "add" };
   const car = mainCar(cars)!;
   const name = `${car.make} ${car.model}`.trim();
   const parts = [args.companyCar ? `Company car: ${name}` : name];
-  const mot = car.motExpiryDate ? new Date(car.motExpiryDate) : null;
+  const mot = showMot && car.motExpiryDate ? new Date(car.motExpiryDate) : null;
   if (mot && !Number.isNaN(mot.getTime())) {
     parts.push(mot.getTime() < now.getTime() ? `MOT ran out ${shortDate(mot)}` : `MOT due ${shortDate(mot)}`);
   } else if (cars.length > 1) {

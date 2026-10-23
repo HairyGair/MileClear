@@ -18,6 +18,7 @@ import {
 } from "../../lib/notifications";
 import { hiddenProCount, visibleNotificationGroups } from "../../lib/settings/notificationGroups";
 import { useUser } from "../../lib/user/context";
+import { useCountryFeatures } from "../../lib/country/country";
 import { PremiumTeaser } from "../../components/PremiumGate";
 
 const DEFAULTS: NotificationPreferences = DEFAULT_PREFERENCES;
@@ -29,6 +30,8 @@ const DEFAULTS: NotificationPreferences = DEFAULT_PREFERENCES;
  */
 export default function NotificationsSettings() {
   const { user } = useUser();
+  // UK-only alerts (tax deadlines, fuel prices, Clean Air Zones, roads) hide outside the UK.
+  const country = useCountryFeatures();
   const isPremium = user?.isPremium ?? false;
   const companyCar = user?.workType === "company";
   const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULTS);
@@ -102,7 +105,7 @@ export default function NotificationsSettings() {
         )}
       </SettingsGroup>
 
-      {visibleNotificationGroups(isPremium, { companyCar }).map((group) => (
+      {visibleNotificationGroups(isPremium, { companyCar, features: country }).map((group) => (
         <View key={group.title} style={blocked ? { opacity: 0.5 } : undefined}>
           <SettingsGroup title={group.title}>
             {group.items.map((item) => (

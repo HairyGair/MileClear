@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useCountryFeatures } from "../lib/country/country";
 import {
   View,
   Text,
@@ -64,6 +65,8 @@ export default function VehicleFormScreen() {
   const isEditing = !!id;
 
   const [registrationPlate, setRegistrationPlate] = useState("");
+  // The DVLA lookup and its MOT and tax checks are UK only (23 Oct 2026).
+  const { vehicleLookup } = useCountryFeatures();
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
   // Emissions data from the DVLA lookup, sent through on create so Clean Air
@@ -317,7 +320,7 @@ export default function VehicleFormScreen() {
             maxLength={10}
             accessibilityLabel="Registration plate"
           />
-          <Button
+          {vehicleLookup && <Button
             title="Look up"
             icon="search"
             size="sm"
@@ -326,14 +329,14 @@ export default function VehicleFormScreen() {
             loading={lookingUp}
             disabled={saving}
             style={{ paddingHorizontal: 20 }}
-          />
+          />}
         </View>
         {lookupDone && (
           <Text style={styles.lookupHint}>
             Details filled from DVLA. Please add the model and verify.
           </Text>
         )}
-        {plateProblem &&
+        {vehicleLookup && plateProblem &&
           registrationPlate.replace(/\s+/g, "").toUpperCase() === plateProblem.plate && (
             <View style={styles.plateWarning} accessibilityRole="alert">
               <Text style={styles.plateWarningText}>
@@ -559,7 +562,7 @@ export default function VehicleFormScreen() {
         ) : null}
 
         {/* MOT History — edit mode + has plate */}
-        {isEditing && registrationPlate.trim() && (
+        {vehicleLookup && isEditing && registrationPlate.trim() && (
           <Button
             variant="secondary"
             icon="document-text-outline"

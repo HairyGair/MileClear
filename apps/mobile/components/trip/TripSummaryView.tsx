@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { useCountryFeatures } from "../../lib/country/country";
 import {
   View,
   Text,
@@ -514,6 +515,8 @@ const NONE = "__none__";
  * this just draws it and calls back.
  */
 export function TripSummaryView(props: TripSummaryViewProps) {
+  // Ticket defender checks UK fines (23 Oct 2026).
+  const { cleanAirZones: ukFines } = useCountryFeatures();
   const [speedOpen, setSpeedOpen] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
   const animate = useAnimatedToggle();
@@ -876,7 +879,7 @@ export function TripSummaryView(props: TripSummaryViewProps) {
             onPress={() => setSheet("newTrip")}
           />
         )}
-        {!props.isManual && (
+        {!props.isManual && ukFines && (
           <Row
             first={placeOptions.length === 0 && newTripOptions.length === 0}
             icon="shield-checkmark-outline"

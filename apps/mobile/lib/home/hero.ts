@@ -46,6 +46,9 @@ export interface HeroInputs {
   /** Distances in Settings. Only the Personal hero (driving, not a claim)
    *  follows it: a claim and its business miles are always miles. */
   unit?: DistanceUnit;
+  /** False outside the UK (featuresFor(country).ukTax): no HMRC claim, no
+   *  6 April tax year, so every persona gets the driving hero. Missing is UK. */
+  ukTax?: boolean;
 }
 
 export type HeroModel =
@@ -138,7 +141,7 @@ export function selectHero(i: HeroInputs): HeroModel {
   // A new driver has no number yet, and "0.00" is not an honest headline.
   if (stats.totalTrips === 0) return { kind: "hidden" };
 
-  if (i.persona === "personal") {
+  if (i.persona === "personal" || i.ukTax === false) {
     const unit = i.unit ?? "miles";
     const m = i.month;
     if (!m) return { kind: "loading" };

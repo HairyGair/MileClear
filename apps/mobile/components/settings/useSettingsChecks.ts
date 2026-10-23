@@ -31,6 +31,7 @@ import {
   type NotificationPermission,
 } from "../../lib/settings/checks";
 import { countNotifications } from "../../lib/settings/notificationGroups";
+import { currentCountryFeatures } from "../../lib/country/country";
 import { moreStatus, type MoreStatus } from "../../lib/more/problem";
 
 export interface PhoneState {
@@ -202,7 +203,7 @@ export function useSettingsChecks(): SettingsChecks {
       lastTripCheck({ trip: last.trip, totalTrips: last.trip ? 1 : 0, loading: last.loading, now, unit }),
       notificationsCheck({
         permission: phone.notifications,
-        counts: prefs ? countNotifications(prefs, isPremium) : null,
+        counts: prefs ? countNotifications(prefs, isPremium, { features: currentCountryFeatures() }) : null,
       }),
       uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips, pendingCount }),
     ];

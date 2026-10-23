@@ -15,6 +15,7 @@
 
 import type { ReactNode } from "react";
 import TaxYearProgressCard from "./TaxYearProgressCard";
+import { useCountryFeatures } from "../../lib/country/country";
 import PlatformLeagueCard from "./PlatformLeagueCard";
 import WhenYouDriveCard from "./WhenYouDriveCard";
 import DriversNearYouCard from "./DriversNearYouCard";
@@ -51,10 +52,12 @@ interface WorkSectionProps extends WorkCardProps {
 /** Cards between the summary and the end of the screen, in Work order. */
 export function WorkSection(p: WorkSectionProps) {
   const card: WorkCardProps = { period: p.period, offset: p.offset, mode: p.mode, isPro: p.isPro, refreshToken: p.refreshToken };
+  // HMRC tax year and claim: UK only (23 Oct 2026).
+  const { ukTax } = useCountryFeatures();
   return (
     <>
       {/* The 10,000-mile line only matters for a mileage claim, which a company car has none of. */}
-      {!p.isCompanyDriver && <TaxYearProgressCard {...card} />}
+      {!p.isCompanyDriver && ukTax && <TaxYearProgressCard {...card} />}
       {!p.isCompanyDriver && <PlatformLeagueCard {...card} />}
       {p.comingUp}
       {p.showEarningsGoal && <WeeklyGoalCard />}

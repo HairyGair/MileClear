@@ -57,6 +57,7 @@ import {
 import { resolveShiftSuggestion } from "../../lib/api/shifts";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
+import { useCountryFeatures } from "../../lib/country/country";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { insightsCache } from "../../lib/insights/requestCache";
 import { stampInsightsLink } from "../../lib/insights/linkParams";
@@ -110,6 +111,7 @@ export function HomeIdle(p: Props) {
   const { showPaywall } = usePaywall();
   const { width, fontScale } = useWindowDimensions();
   const { unit } = useDistanceUnit();
+  const { ukTax } = useCountryFeatures();
 
   const isWork = mode === "work";
   const persona = homePersona({ isPersonal, isCompanyDriver, workType: user?.workType });
@@ -145,14 +147,15 @@ export function HomeIdle(p: Props) {
         week: data.week,
         month: data.month,
         unit,
+        ukTax,
       }),
-    [persona, p.stats, p.previousYear, data.week, data.month, unit]
+    [persona, p.stats, p.previousYear, data.week, data.month, unit, ukTax]
   );
   // Home only draws once the dashboard's first load has finished, so no stats
   // (or no month for Personal) means the request failed, usually no signal.
   // Leave the space empty rather than a skeleton that never resolves.
   const hero =
-    heroModel.kind === "loading" && (!p.stats || (persona === "personal" && data.monthFailed))
+    heroModel.kind === "loading" && (!p.stats || ((persona === "personal" || !ukTax) && data.monthFailed))
       ? ({ kind: "hidden" } as const)
       : heroModel;
 
@@ -251,18 +254,20 @@ export function HomeIdle(p: Props) {
   // Only while the Last trip card is offering the newest (unsorted) trip's
   // Business / Personal: the value line sits right above that choice.
   const firstWeekOnCard =
-    !!firstWeek && lastTripView.look === "full" && lastTripView.showChoice && lastTripView.choice === "unclassified";
+    ukTax && !!firstWeek && lastTripView.look === "full" && lastTripView.showChoice && lastTripView.choice === "unclassified";
   const [gradingShift, setGradingShift] = useState(false);
   const [acqOpen, setAcqOpen] = useState(false);
   const [odoOpen, setOdoOpen] = useState(false);
 
   const eligible: Partial<Record<AskId, boolean>> = {
     practice: !!practice.ask,
-    first_week: firstWeekOnCard && !!firstWeek?.isAsk,
+    // The first-week figure and the employer ask are HMRC mileage claims:
+    // UK only (23 Oct 2026).
+    first_week: ukTax && firstWeekOnCard && !!firstWeek?.isAsk,
     acquisition: acq.eligible,
     vehicle: !p.hasVehicle && !vehicleSnooze.snoozed,
     odometer: !!odo.vehicle,
-    employer: employer.eligible,
+    employer: ukTax && employer.eligible,
     shift: shiftEligibleDriver && !!shiftAsk.suggestion,
     saved_places: p.savedPlaces.eligible,
     pro: p.pro.eligible,

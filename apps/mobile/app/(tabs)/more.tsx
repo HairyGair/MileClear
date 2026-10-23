@@ -108,7 +108,7 @@ export default function MoreScreen() {
 
   const now = new Date();
   const rows: Record<MoreRowId, RowView> = {
-    cars: { icon: "car-outline", label: "Your cars", line: carsLine(facts.cars, now, { companyCar }), route: "/vehicles" },
+    cars: { icon: "car-outline", label: "Your cars", line: carsLine(facts.cars, now, { companyCar, mot: country.vehicleLookup }), route: "/vehicles" },
     fuel: {
       icon: "water-outline",
       label: "Fuel",
