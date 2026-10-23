@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { exportVehicleChoices, exportVehicleSlug, getTaxYear } from "@mileclear/shared";
+import {
+  exportProjectChoices,
+  exportProjectSlug,
+  exportVehicleChoices,
+  exportVehicleSlug,
+  getTaxYear,
+} from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { taxYearRange } from "@/lib/dashboard/periods";
 import {
@@ -115,6 +121,16 @@ function Exports() {
   const tripCar = carChoices ? vehicles?.find((v) => v.id === tripCarId) : undefined;
   const carParam = tripCar ? `&vehicleId=${encodeURIComponent(tripCar.id)}` : "";
   const carSlug = tripCar ? `${exportVehicleSlug(tripCar)}-` : "";
+  // The trip report and trips CSV for one Project / client: "" is every
+  // client (23 Oct 2026). Only offered once a trip has a client.
+  const [tripClient, setTripClient] = useState("");
+  const { data: projectLabels } = useData<string[]>("exports-project-labels", () =>
+    api.get<{ data: { labels: string[] } }>("/trips/project-labels").then((r) => r.data.labels ?? [])
+  );
+  const clientChoices = exportProjectChoices(projectLabels ?? []);
+  const client = clientChoices?.find((c) => c.projectLabel === tripClient)?.projectLabel;
+  const clientParam = client ? `&projectLabel=${encodeURIComponent(client)}` : "";
+  const clientSlug = client ? `${exportProjectSlug(client)}-` : "";
 
   // Dates: the trip exports take instants, so the last day runs to the end of that day.
   const period = periodMode === "year" ? `taxYear=${taxYear}` : `from=${range.from}&to=${range.to}`;
@@ -144,8 +160,8 @@ function Exports() {
       title: "Trip report (PDF)",
       hint: "Every trip in the period, with a mileage summary.",
       button: "Download",
-      path: `/exports/pdf?${tripPeriod}${biz}${carParam}`,
-      filename: `mileclear-trips-${carSlug}${label}-${stamp}.pdf`,
+      path: `/exports/pdf?${tripPeriod}${biz}${carParam}${clientParam}`,
+      filename: `mileclear-trips-${clientSlug}${carSlug}${label}-${stamp}.pdf`,
       disabledReason: invalid,
     },
     {
@@ -153,8 +169,8 @@ function Exports() {
       title: "Trips (CSV)",
       hint: "One row per trip, for a spreadsheet or your accountant.",
       button: "Download",
-      path: `/exports/csv?${tripPeriod}${biz}${carParam}`,
-      filename: `mileclear-trips-${carSlug}${label}-${stamp}.csv`,
+      path: `/exports/csv?${tripPeriod}${biz}${carParam}${clientParam}`,
+      filename: `mileclear-trips-${clientSlug}${carSlug}${label}-${stamp}.csv`,
       disabledReason: invalid,
     },
     {
@@ -201,6 +217,14 @@ function Exports() {
             value={businessOnly}
             onChange={setBusinessOnly}
           />
+          {clientChoices && (
+            <SelectField
+              label="Client for the trip report and trips CSV"
+              value={tripClient}
+              onChange={setTripClient}
+              options={clientChoices.map((c) => ({ value: c.projectLabel ?? "", label: c.label }))}
+            />
+          )}
           {carChoices && (
             <SelectField
               label="Vehicle for the trip report and trips CSV"
@@ -226,7 +250,7 @@ function Exports() {
       <Card padded={false}>
         {rows.map((r) => (
           // Remount when the period changes so an old error does not linger.
-          <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}-${tripCarId}`} row={r} />
+          <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}-${tripCarId}-${client ?? ""}`} row={r} />
         ))}
       </Card>
 
