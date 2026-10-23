@@ -10,6 +10,7 @@ import {
   parseTaxYear,
   calculateMileageDeduction,
   EXPENSE_CATEGORIES,
+  projectLabelMatches,
 } from "@mileclear/shared";
 import type {
   ExportTripRow,
@@ -38,6 +39,13 @@ interface FetchTripsOpts {
    * belongs to the user (resolveExportVehicle).
    */
   vehicleId?: string;
+  /**
+   * Only this client's trips (23 Oct 2026): the projectLabelKey of a Project /
+   * client label. Priced the same way as one car: every trip first, so each
+   * row keeps the price it has on the all-clients report and the 10,000-mile
+   * threshold is still the driver's whole year, not 10,000 per client.
+   */
+  projectKey?: string;
 }
 
 /**
@@ -215,10 +223,13 @@ export async function fetchExportTrips(
     };
   });
 
-  // One car: keep its rows only, after pricing every trip (see FetchTripsOpts).
+  // One car and/or one client: keep their rows only, after pricing every
+  // trip (see FetchTripsOpts).
   const fallbackId = primaryVehicle?.id ?? null;
   const keep = allTrips.map(
-    (t) => !opts.vehicleId || exportVehicleIdForTrip(t.vehicleId, fallbackId) === opts.vehicleId
+    (t) =>
+      (!opts.vehicleId || exportVehicleIdForTrip(t.vehicleId, fallbackId) === opts.vehicleId) &&
+      (opts.projectKey === undefined || projectLabelMatches(t.projectLabel, opts.projectKey))
   );
   const trips = allTrips.filter((_, i) => keep[i]);
   const rows = allRows.filter((_, i) => keep[i]);

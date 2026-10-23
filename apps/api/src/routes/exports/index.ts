@@ -18,12 +18,23 @@ import {
 } from "../../services/odometer.js";
 import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { prisma } from "../../lib/prisma.js";
-import { exportVehicleSlug, parseTaxYear } from "@mileclear/shared";
+import {
+  exportProjectSlug,
+  exportVehicleSlug,
+  parseTaxYear,
+  projectLabelMatches,
+  PROJECT_LABEL_MAX_LENGTH,
+} from "@mileclear/shared";
 import {
   exportVehicleTripWhere,
   resolveExportVehicle,
   type ExportVehicle,
 } from "../../services/export-data.js";
+import {
+  projectLabelTripWhere,
+  resolveProjectLabel,
+  type ProjectLabelMatch,
+} from "../../services/projectTotals.js";
 
 interface DateRangeQuery {
   taxYear?: string;
@@ -32,6 +43,8 @@ interface DateRangeQuery {
   classification?: "business" | "personal";
   /** One car only (CSV and Trip Report). Left out: every car. */
   vehicleId?: string;
+  /** One Project / client only (CSV and Trip Report). Left out: every client. */
+  projectLabel?: string;
 }
 
 /** One vehicleId string, or none. ?vehicleId=a&vehicleId=b arrives as an array. */
@@ -53,9 +66,39 @@ async function vehicleForQuery(
   return resolveExportVehicle(userId, parsed.data);
 }
 
-/** "trips" or "trips-nissan-qashqai-ab12cde", for the file name. */
-function tripsFileType(vehicle: ExportVehicle | undefined): string {
-  return vehicle ? `trips-${exportVehicleSlug(vehicle)}` : "trips";
+/** One Project / client label, or none. Repeated, empty or over 100 characters: invalid. */
+const projectLabelSchema = z.string().trim().min(1).max(PROJECT_LABEL_MAX_LENGTH);
+
+/**
+ * The client for a one-client CSV or Trip Report (23 Oct 2026), matched by
+ * projectLabelKey like Miles by project. undefined: every client. "invalid":
+ * not a single sensible label (400). null: none of this user's trips has
+ * that label (404).
+ */
+async function projectForQuery(
+  userId: string,
+  projectLabel: unknown
+): Promise<ProjectLabelMatch | undefined | null | "invalid"> {
+  if (projectLabel === undefined) return undefined;
+  const parsed = projectLabelSchema.safeParse(projectLabel);
+  if (!parsed.success) return "invalid";
+  return resolveProjectLabel(userId, parsed.data);
+}
+
+/**
+ * "trips", "trips-nissan-qashqai-ab12cde", "trips-nhs-trust" or
+ * "trips-nhs-trust-nissan-qashqai-ab12cde", for the file name.
+ */
+function tripsFileType(vehicle: ExportVehicle | undefined, project?: ProjectLabelMatch): string {
+  const parts = ["trips"];
+  if (project) parts.push(exportProjectSlug(project.label));
+  if (vehicle) parts.push(exportVehicleSlug(vehicle));
+  return parts.join("-");
+}
+
+/** "trips", "trips in that car", "trips for that client" or both, for emptyExportMessage. */
+function emptyTripsWhat(vehicle: ExportVehicle | undefined, project: ProjectLabelMatch | undefined): string {
+  return ["trips", project ? "for that client" : null, vehicle ? "in that car" : null].filter(Boolean).join(" ");
 }
 
 interface AccountingBody {
@@ -107,6 +150,7 @@ async function countExportableData(
     to?: Date;
     classification?: string;
     vehicle?: Pick<ExportVehicle, "id" | "includesUnassigned">;
+    project?: Pick<ProjectLabelMatch, "key" | "spellings">;
   },
   includeEarnings: boolean
 ): Promise<{ trips: number; earnings: number }> {
@@ -123,16 +167,23 @@ async function countExportableData(
 
   // Mirrors fetchExportTrips' filter exactly, phantoms included, or the count
   // and the document could disagree.
+  const where = {
+    userId,
+    isPhantomTrip: false,
+    startedAt: { gte: start, lte: end },
+    ...(opts.classification ? { classification: opts.classification } : {}),
+    ...(opts.vehicle ? exportVehicleTripWhere(opts.vehicle) : {}),
+    ...(opts.project ? projectLabelTripWhere(opts.project) : {}),
+  };
+  const project = opts.project;
   const [trips, earnings] = await Promise.all([
-    prisma.trip.count({
-      where: {
-        userId,
-        isPhantomTrip: false,
-        startedAt: { gte: start, lte: end },
-        ...(opts.classification ? { classification: opts.classification } : {}),
-        ...(opts.vehicle ? exportVehicleTripWhere(opts.vehicle) : {}),
-      },
-    }),
+    // One client: the database compares labels without accents, so each
+    // label is checked by key too, exactly as fetchExportTrips keeps rows.
+    project
+      ? prisma.trip
+          .findMany({ where, select: { projectLabel: true } })
+          .then((rows) => rows.filter((r) => projectLabelMatches(r.projectLabel, project.key)).length)
+      : prisma.trip.count({ where }),
     includeEarnings
       ? prisma.earning.count({
           where: { userId, periodStart: { gte: start, lte: end } },
@@ -158,17 +209,20 @@ export async function exportRoutes(app: FastifyInstance) {
     const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
     if (vehicle === "invalid") return reply.status(400).send({ error: "Invalid vehicle" });
     if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
+    const project = await projectForQuery(request.userId!, request.query.projectLabel);
+    if (project === "invalid") return reply.status(400).send({ error: "Invalid client" });
+    if (project === null) return reply.status(404).send({ error: "Client not found" });
 
-    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
+    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle, project }, false);
     if (trips === 0) {
-      logEvent("export.blocked_empty", request.userId!, { format: "csv", taxYear: opts.taxYear, oneCar: !!vehicle });
-      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, vehicle ? "trips in that car" : "trips") });
+      logEvent("export.blocked_empty", request.userId!, { format: "csv", taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project });
+      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, emptyTripsWhat(vehicle, project)) });
     }
 
-    const csv = await generateTripsCsv(request.userId!, { ...opts, vehicle });
-    const filename = buildFilename(tripsFileType(vehicle), opts.taxYear || "custom", "csv");
+    const csv = await generateTripsCsv(request.userId!, { ...opts, vehicle, project });
+    const filename = buildFilename(tripsFileType(vehicle, project), opts.taxYear || "custom", "csv");
 
-    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle });
+    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project });
 
     return reply
       .header("Content-Type", "text/csv")
@@ -243,17 +297,20 @@ export async function exportRoutes(app: FastifyInstance) {
     const vehicle = await vehicleForQuery(request.userId!, request.query.vehicleId);
     if (vehicle === "invalid") return reply.status(400).send({ error: "Invalid vehicle" });
     if (vehicle === null) return reply.status(404).send({ error: "Vehicle not found" });
+    const project = await projectForQuery(request.userId!, request.query.projectLabel);
+    if (project === "invalid") return reply.status(400).send({ error: "Invalid client" });
+    if (project === null) return reply.status(404).send({ error: "Client not found" });
 
-    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle }, false);
+    const { trips } = await countExportableData(request.userId!, { ...opts, vehicle, project }, false);
     if (trips === 0) {
-      logEvent("export.blocked_empty", request.userId!, { format: "pdf", taxYear: opts.taxYear, oneCar: !!vehicle });
-      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, vehicle ? "trips in that car" : "trips") });
+      logEvent("export.blocked_empty", request.userId!, { format: "pdf", taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project });
+      return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, emptyTripsWhat(vehicle, project)) });
     }
 
-    const pdf = await generateTripsPdf(request.userId!, { ...opts, vehicle });
-    const filename = buildFilename(tripsFileType(vehicle), opts.taxYear || "custom", "pdf");
+    const pdf = await generateTripsPdf(request.userId!, { ...opts, vehicle, project });
+    const filename = buildFilename(tripsFileType(vehicle, project), opts.taxYear || "custom", "pdf");
 
-    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle });
+    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project });
 
     return reply
       .header("Content-Type", "application/pdf")
