@@ -107,6 +107,13 @@ describe("logbook help answer", () => {
     expect(a).not.toMatch(/HMRC|miles|—/);
     expect(HELP_ENTRIES.some((e) => e.id === NZ_LOGBOOK_HELP_ENTRY.id)).toBe(false);
   });
+
+  it("the NZ claim answer points to the logbook, and both stay under 900 characters", async () => {
+    const { NZ_CLAIM_HELP_ENTRY, NZ_LOGBOOK_HELP_ENTRY } = await import("../data/help.js");
+    expect(NZ_CLAIM_HELP_ENTRY.a).toContain("90-day logbook in More > Downloads");
+    expect(NZ_CLAIM_HELP_ENTRY.a.length).toBeLessThan(900);
+    expect(NZ_LOGBOOK_HELP_ENTRY.a.length).toBeLessThan(900);
+  });
 });
 
 describe("logbook totals", () => {

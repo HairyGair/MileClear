@@ -6,7 +6,7 @@
 import { describe, it, expect } from "vitest";
 import { inflateSync } from "zlib";
 import { logbookRow, logbookTotals, type LogbookTripInput } from "@mileclear/shared";
-import { nzLogbookCsv, nzLogbookPdf, type NzLogbook } from "../../services/nzLogbook.js";
+import { logbookClaimLine, nzLogbookCsv, nzLogbookPdf, type NzLogbook } from "../../services/nzLogbook.js";
 
 function book(n: number): NzLogbook {
   const trips: LogbookTripInput[] = Array.from({ length: n }, (_, i) => ({
@@ -61,6 +61,43 @@ describe("NZ logbook PDF", () => {
 
   it("a short one is a single page", async () => {
     expect(pageCount(await nzLogbookPdf(book(5)))).toBe(1);
+  });
+});
+
+describe("NZ logbook claim line", () => {
+  const claim = (amountMinor: number, tiers: Array<{ label: string; distance: number }>) => ({
+    vehicleId: "v1",
+    name: "Toyota Aqua",
+    fuelType: "hybrid",
+    businessDistance: tiers.reduce((s, t) => s + t.distance, 0),
+    totalDistance: 900,
+    noClaimReason: null,
+    claim: {
+      amountMinor,
+      currency: "NZD",
+      ratesYear: "2025-26",
+      provisional: true,
+      tiers: tiers.map((t) => ({ ...t, rateMinor: 90, amountMinor: t.distance * 90 })),
+    },
+  });
+
+  it("shows a real figure with the tiers that have km, and says the rates are last year's", () => {
+    const line = logbookClaimLine({
+      taxYear: "2026-27",
+      claim: claim(4500, [
+        { label: "Tier 1", distance: 50 },
+        { label: "Tier 2", distance: 0 },
+      ]),
+    });
+    expect(line?.value).toBe("$45.00 (Tier 1 50.0 km), using 2025-26 rates");
+  });
+
+  it("no $0.00 for a vehicle with no business driving, and nothing without a figure", () => {
+    expect(logbookClaimLine({ taxYear: "2026-27", claim: claim(0, [{ label: "Tier 1", distance: 0 }]) })).toBeNull();
+    expect(
+      logbookClaimLine({ taxYear: "2026-27", claim: { ...claim(0, []), claim: null, noClaimReason: "fuel_unknown" } })
+    ).toBeNull();
+    expect(logbookClaimLine({ taxYear: "2026-27", claim: null })).toBeNull();
   });
 });
 

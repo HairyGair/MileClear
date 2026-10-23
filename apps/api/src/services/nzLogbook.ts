@@ -160,6 +160,24 @@ const GREY_200 = "#e5e7eb";
 const GREY_600 = "#4b5563";
 const TEXT = "#111827";
 
+/**
+ * The PDF's claim line, or null. Only a real figure: no "$0.00" for a vehicle
+ * with no business driving yet this tax year, and nothing when IRD has no rate
+ * for it (the claim card in the app says why). Tiers with no km are left out.
+ */
+export function logbookClaimLine(book: Pick<NzLogbook, "claim" | "taxYear">): { label: string; value: string } | null {
+  const c = book.claim?.claim;
+  if (!c || c.amountMinor <= 0) return null;
+  const tiers = c.tiers
+    .filter((tier) => tier.distance > 0)
+    .map((tier) => `${tier.label} ${km(tier.distance)} km`)
+    .join(", ");
+  return {
+    label: `Claim at IRD kilometre rates, ${book.taxYear} tax year so far`,
+    value: `${formatMoney(c.amountMinor, c.currency)}${tiers ? ` (${tiers})` : ""}${c.provisional ? `, using ${c.ratesYear} rates` : ""}`,
+  };
+}
+
 export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
   const margin = 40;
   const doc = new PDFDocument({ layout: "landscape", size: "A4", margin, bufferPages: true });
@@ -194,14 +212,8 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
   line("Business distance", `${km(t.businessKm)} km`);
   line("Business use", t.businessPercent === null ? "No driving in this period" : `${t.businessPercent.toFixed(1)}%`);
 
-  if (book.claim?.claim) {
-    const c = book.claim.claim;
-    const tiers = c.tiers.map((tier) => `${tier.label} ${km(tier.distance)} km`).join(", ");
-    line(
-      `Claim at IRD kilometre rates, ${book.taxYear} tax year so far`,
-      `${formatMoney(c.amountMinor, c.currency)} (${tiers})${c.provisional ? `, using ${c.ratesYear} rates` : ""}`
-    );
-  }
+  const claim = logbookClaimLine(book);
+  if (claim) line(claim.label, claim.value);
 
   doc.moveDown(0.4);
   const notes = [
