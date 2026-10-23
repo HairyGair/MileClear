@@ -450,6 +450,43 @@ test.describe("miles by project", () => {
     await expect(page.getByRole("row", { name: /Acme refit/ })).toContainText("120.5 mi");
     await expect(page.getByRole("row", { name: /Acme refit/ })).toContainText("£66.28");
     await expect(page.getByRole("row", { name: /No project/ })).toBeVisible();
+
+  });
+
+  test("a row opens the trips it counts: that client's Business trips this tax year, same figures", async ({ page }) => {
+    const state = newState({
+      trips: [
+        trip({ projectLabel: "Acme refit", distanceMiles: 100, startedAt: at(0, "08:00"), endedAt: at(0, "09:00") }),
+        trip({ projectLabel: "acme  refit", distanceMiles: 20.5, startedAt: at(1, "08:00"), endedAt: at(1, "09:00") }),
+        // Not counted by the row, so not opened either:
+        trip({ projectLabel: "Acme refit", classification: "personal", distanceMiles: 50, startedAt: at(1, "18:00"), endedAt: at(1, "19:00") }),
+        trip({ projectLabel: "Acme refit", distanceMiles: 70, startedAt: "2024-12-01T09:00:00.000Z", endedAt: "2024-12-01T10:00:00.000Z" }),
+        trip({ projectLabel: null, distanceMiles: 9, startedAt: at(2, "08:00"), endedAt: at(2, "09:00") }),
+      ],
+      projectTotals: {
+        taxYear: "2026-27",
+        projects: [
+          { label: "Acme refit", trips: 2, miles: 120.5, valuePence: 6628 },
+          { label: null, trips: 1, miles: 9, valuePence: 495 },
+        ],
+        totals: { trips: 3, miles: 129.5, valuePence: 7123 },
+        labels: ["Acme refit"],
+      },
+    });
+    await open(page, state, "/dashboard/trips/projects");
+    await page.getByRole("row", { name: /Acme refit/ }).click();
+    await expect(page).toHaveURL(/\/dashboard\/trips\?view=business&client=Acme\+refit&from=\d{4}-04-06&to=\d{4}-04-05$/);
+    await expect(page.getByRole("button", { name: "Remove filter Acme refit" })).toBeVisible();
+    await expect(page.getByTestId("trip-row")).toHaveCount(2);
+    const summary = page.getByTestId("trip-summary");
+    await expect(summary).toContainText("120.5 mi");
+    await expect(summary).toContainText("2");
+
+    await page.goBack();
+    await page.getByRole("row", { name: /No project/ }).click();
+    await expect(page).toHaveURL(/view=business&noclient=1&from=/);
+    await expect(page.getByTestId("trip-row")).toHaveCount(1);
+    await expect(page.getByTestId("trip-summary")).toContainText("9 mi");
   });
 
   test("no projects shows the empty state", async ({ page }) => {

@@ -283,6 +283,8 @@ export interface TaxMockOptions {
   summary?: unknown;
   hmrcStatus?: unknown | null;
   vehicles?: unknown[];
+  /** Project / client labels the driver has used (none by default). */
+  projectLabels?: string[];
   certs?: CertSummary[];
   /** Status and body for a download route, keyed by path prefix. */
   download?: Record<string, { status: number; body: string; contentType?: string }>;
@@ -397,6 +399,9 @@ export async function mockTax(page: Page, opts: TaxMockOptions = {}): Promise<Re
       case "GET /vehicles":
         record();
         return json({ data: opts.vehicles ?? [{ id: "v1", make: "Ford", model: "Fiesta" }] });
+      case "GET /trips/project-labels":
+        record();
+        return json({ data: { labels: opts.projectLabels ?? [] } });
       case "POST /certificates/preview":
         record();
         return json({ data: CERT_PREVIEW });

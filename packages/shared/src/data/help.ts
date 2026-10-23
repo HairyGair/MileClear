@@ -457,8 +457,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "projects",
     area: "managing_trips",
     q: "Can I label trips by client or project?",
-    a: "Yes, free. Add a project or client name when you edit a trip, earning or expense. Once you have some, the Filters button at the top of Trips shows \"Miles by project\" with your business miles per project.",
-    keywords: ["project", "client", "customer", "label", "per client"],
+    a: "Yes, free. Add a project or client name (Project / client) when you edit a trip, earning or expense. Once you have some, the Filters button at the top of Trips has Which client, to show just one client's trips (or No client, for trips still to label), and \"Miles by project\" with your business miles per project. Tap a project there to see its trips. The same filter is on the website's Trips page.",
+    keywords: ["project", "client", "customer", "label", "per client", "filter", "which client", "separate", "more than one business", "business type"],
   },
   {
     id: "odometer",
@@ -523,6 +523,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     a: "Yes, if you have more than one vehicle. In Tax > Downloads, tap Trip Report (PDF) or Trip Data (CSV) and choose the vehicle, or All vehicles. On the website, pick the vehicle above the downloads. Trips with no vehicle count towards your primary vehicle, or your oldest one if none is set as primary. The higher mileage rate covers your first 10,000 business miles a tax year across all your cars and vans, not 10,000 per car, so a one-vehicle report shows that vehicle's share of your claim. Claim the total from the All vehicles report.",
     goTo: "/exports",
     keywords: ["one car", "two cars", "each car", "per car", "vehicle", "second car", "separate report", "report"],
+  },
+  {
+    id: "exports-one-client",
+    area: "tax_and_claims",
+    q: "Can I get a report for just one client?",
+    a: "Yes, with Pro, once your trips have a Project / client. In Tax > Downloads, tap Trip Report (PDF) or Trip Data (CSV) and choose the client, or All clients; with more than one vehicle you then choose the vehicle too. On the website, pick the client above the downloads. The report names the client and counts trips by their Project / client, however you typed it. The higher mileage rate covers your first 10,000 business miles a tax year across all your work, not 10,000 per client, so a one-client report shows that client's share of your claim. The Self Assessment summary always covers all your work.",
+    goTo: "/exports",
+    keywords: ["one client", "each client", "per client", "client report", "customer", "charge", "bill", "invoice client", "more than one business", "separate", "report"],
   },
   {
     id: "accountant",

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { SavedLocation } from "@mileclear/shared";
+import { projectLabelKey, type SavedLocation } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import {
   Button,
@@ -32,7 +32,9 @@ import { dayKeyToDate, groupByDay } from "@/components/dashboard/trips/lib/days"
 import {
   EMPTY_FILTERS,
   PAGE_SIZE,
+  NO_CLIENT,
   activeFilterCount,
+  clientLabel,
   filterQuery,
   pageUrlParams,
   parseFilters,
@@ -89,7 +91,12 @@ function TripsInner() {
 
   const showFilterBits = view !== "inbox";
   const fcount = activeFilterCount(filters);
-  const queryKey = `${view}|${filters.platform}|${filters.from}|${filters.to}`;
+  const queryKey = `${view}|${filters.platform}|${filters.from}|${filters.to}|${filters.client}`;
+
+  // Project / client labels: the Client chips in Filters, shown once any trip has one.
+  const projectLabels = useData<string[]>("trips:project-labels", () =>
+    api.get<{ data: { labels: string[] } }>("/trips/project-labels").then((r) => r.data.labels ?? [])
+  );
 
   // Saved places name the ends of each trip.
   const placesData = useData<SavedLocation[]>("trips:places", () =>
@@ -305,6 +312,16 @@ function TripsInner() {
 
       {showFilterBits && fcount > 0 && (
         <div className="mc-activechips">
+          {filters.client && (
+            <button
+              type="button"
+              className="mc-activechip"
+              aria-label={`Remove filter ${clientLabel(filters)}`}
+              onClick={() => go(view, { ...filters, client: "" })}
+            >
+              {clientLabel(filters)} <Icon name="close" size={14} />
+            </button>
+          )}
           {filters.platform && (
             <button
               type="button"
@@ -433,6 +450,7 @@ function TripsInner() {
         open={filtersOpen}
         initial={filters}
         showPlatform={!me.seesCompanyDriverApp}
+        clients={projectLabels.data ?? []}
         onClose={() => setFiltersOpen(false)}
         onApply={(f) => {
           setFiltersOpen(false);
@@ -448,12 +466,15 @@ function FiltersDialog({
   open,
   initial,
   showPlatform,
+  clients,
   onClose,
   onApply,
 }: {
   open: boolean;
   initial: TripFilters;
   showPlatform: boolean;
+  /** The driver's Project / client labels; no Client row when empty. */
+  clients: string[];
   onClose: () => void;
   onApply: (f: TripFilters) => void;
 }) {
@@ -461,6 +482,22 @@ function FiltersDialog({
   useEffect(() => {
     if (open) setDraft(initial);
   }, [open, initial]);
+  // A client from the URL that isn't in the list yet still gets its chip.
+  // Compared by projectLabelKey, as the server matches: ?client=nhs lights "NHS".
+  const clientOptions = useMemo(() => {
+    const names = [...clients];
+    const wanted = initial.client !== NO_CLIENT ? projectLabelKey(initial.client) : "";
+    if (wanted && !names.some((c) => projectLabelKey(c) === wanted)) names.unshift(initial.client);
+    return [{ value: NO_CLIENT, label: "No client" }, ...names.map((c) => ({ value: c, label: c }))];
+  }, [clients, initial.client]);
+  const showClient = clients.length > 0 || !!initial.client;
+  const draftKey = draft.client === NO_CLIENT ? "" : projectLabelKey(draft.client);
+  const selectedClient =
+    draft.client === NO_CLIENT
+      ? NO_CLIENT
+      : draftKey
+        ? (clientOptions.find((o) => o.value !== NO_CLIENT && projectLabelKey(o.value) === draftKey)?.value ?? draft.client)
+        : "";
 
   return (
     <Dialog
@@ -479,6 +516,18 @@ function FiltersDialog({
       }
     >
       <div className="mc-filterpanel">
+        {showClient && (
+          <div>
+            <p className="mc-filterpanel__label">Client</p>
+            <FilterChips
+              single
+              ariaLabel="Client"
+              options={clientOptions}
+              value={selectedClient ? [selectedClient] : []}
+              onChange={(v) => setDraft((d) => ({ ...d, client: v[0] ?? "" }))}
+            />
+          </div>
+        )}
         {showPlatform && (
           <div>
             <p className="mc-filterpanel__label">Platform</p>

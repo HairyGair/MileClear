@@ -135,6 +135,50 @@ test.describe("Tax exports", () => {
     await expect(page.getByLabel("Vehicle for the trip report and trips CSV")).toHaveCount(0);
   });
 
+  test("Pro with tagged trips: the trip report and trips CSV can be for one client, All clients by default", async ({ page }) => {
+    await mockSession(page, { profile: profile({ isPremium: true }) });
+    const calls = await mockTax(page, {
+      download: DOWNLOADS,
+      projectLabels: ["NHS Trust", "Private practice"],
+      vehicles: [
+        { id: "v1", make: "Ford", model: "Fiesta" },
+        { id: "v2", make: "Nissan", model: "Qashqai" },
+      ],
+    });
+    await page.goto("/dashboard/tax/exports");
+    const client = page.getByLabel("Client for the trip report and trips CSV");
+    await expect(client).toHaveValue("");
+    await expect(client.locator("option").first()).toHaveText("All clients");
+
+    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trip report/ }).click()]);
+    expect(calls.find((c) => c.path === "/exports/pdf")?.search).not.toContain("projectLabel");
+
+    await client.selectOption({ label: "NHS Trust" });
+    const [pdf] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trip report/ }).click()]);
+    expect(calls.filter((c) => c.path === "/exports/pdf").at(-1)?.search).toContain("projectLabel=NHS%20Trust");
+    expect(pdf.suggestedFilename()).toMatch(/^mileclear-trips-nhs-trust-/);
+
+    // With one car too: both go, client first in the file name.
+    await page.getByLabel("Vehicle for the trip report and trips CSV").selectOption({ label: "Nissan Qashqai" });
+    const [csv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Trips \(CSV\)/ }).click()]);
+    const csvSearch = calls.find((c) => c.path === "/exports/csv")?.search ?? "";
+    expect(csvSearch).toContain("projectLabel=NHS%20Trust");
+    expect(csvSearch).toContain("vehicleId=v2");
+    expect(csv.suggestedFilename()).toMatch(/^mileclear-trips-nhs-trust-nissan-qashqai-/);
+
+    // The Self Assessment summary stays whole-business.
+    await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Self Assessment summary/ }).click()]);
+    expect(calls.find((c) => c.path === "/exports/self-assessment")?.search).not.toContain("projectLabel");
+  });
+
+  test("Pro with no tagged trips: no client choice", async ({ page }) => {
+    await mockSession(page, { profile: profile({ isPremium: true }) });
+    await mockTax(page, { download: DOWNLOADS });
+    await page.goto("/dashboard/tax/exports");
+    await expect(page.getByRole("button", { name: /Trip report/ })).toBeVisible();
+    await expect(page.getByLabel("Client for the trip report and trips CSV")).toHaveCount(0);
+  });
+
   test.describe("390px", () => {
     test.use({ viewport: { width: 390, height: 844 } });
     test("fits the phone", async ({ page }) => {

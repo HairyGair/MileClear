@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import crypto from "crypto";
 import { inflateSync, crc32 as zlibCrc32 } from "zlib";
 import {
+  exportProjectLabel,
   exportVehicleLabel,
   formatPence,
   formatInvoiceNumber,
@@ -33,6 +34,8 @@ interface ExportOpts {
   classification?: "business" | "personal";
   /** One vehicle only (already checked as the user's). */
   vehicle?: Pick<ExportVehicle, "id" | "make" | "model" | "registrationPlate" | "vehicleType">;
+  /** One Project / client only: its projectLabelKey and the name to print. */
+  project?: { key: string; label: string };
 }
 
 /**
@@ -52,6 +55,26 @@ export const ONE_MOTORBIKE_NOTE =
 
 export function oneVehicleNote(vehicleType: string | null | undefined): string {
   return vehicleType === "motorbike" ? ONE_MOTORBIKE_NOTE : ONE_CAR_ALLOWANCE_NOTE;
+}
+
+/**
+ * Printed on a one-client Trip Report (23 Oct 2026). Like one car: the
+ * 10,000 miles at the higher rate are the driver's whole tax year, not
+ * 10,000 per client, so each trip keeps its price from the full report and
+ * the total here is this client's share.
+ */
+export const ONE_CLIENT_ALLOWANCE_NOTE =
+  "The higher mileage rate covers your first 10,000 business miles in a tax year across all your clients, cars and vans, not 10,000 per client. " +
+  "Each trip here is priced as it is on your full report, so the deduction shown is this client's share of your claim. Claim the total from your full report (All clients).";
+
+/** One client in a motorbike: one flat rate, outside the cars' 10,000. */
+export const ONE_CLIENT_MOTORBIKE_NOTE =
+  "Motorbike business miles are claimed at one flat rate. " +
+  "Each trip here is priced as it is on your full report, so the deduction shown is this client's share of your claim. Claim the total from your full report (All clients).";
+
+/** vehicleType: the one vehicle the report is also narrowed to, if any. */
+export function oneClientNote(vehicleType: string | null | undefined): string {
+  return vehicleType === "motorbike" ? ONE_CLIENT_MOTORBIKE_NOTE : ONE_CLIENT_ALLOWANCE_NOTE;
 }
 
 // ── Brand colours ─────────────────────────────────────────────────
@@ -558,6 +581,17 @@ export function projectSummaryFromRows(
   return none ? [...rows, none] : rows;
 }
 
+/**
+ * The Trip Report's "Business miles by project" rows. None on a one-client
+ * report: it would be a single row repeating the boxes at the top.
+ */
+export function reportProjectRows(
+  trips: ExportTripRow[],
+  project: ExportOpts["project"]
+): ReturnType<typeof projectSummaryFromRows> {
+  return project ? [] : projectSummaryFromRows(trips);
+}
+
 export async function generateTripsCsv(
   userId: string,
   opts: ExportOpts
@@ -569,6 +603,7 @@ export async function generateTripsCsv(
     to: opts.to,
     classification: opts.classification,
     vehicleId: opts.vehicle?.id,
+    projectKey: opts.project?.key,
     withPostcodes: true,
     withOdometer: true,
   });
@@ -588,6 +623,7 @@ export async function generateTripsPdf(
     to: opts.to,
     classification: opts.classification,
     vehicleId: opts.vehicle?.id,
+    projectKey: opts.project?.key,
     withOdometer: true,
   });
 
@@ -607,10 +643,13 @@ export async function generateTripsPdf(
   const periodLabel = opts.taxYear
     ? `Tax Year ${opts.taxYear}`
     : `${opts.from!.toLocaleDateString("en-GB")} — ${opts.to!.toLocaleDateString("en-GB")}`;
-  // One vehicle: its name goes in every page heading, so two downloads can't be mixed up.
+  // One vehicle and/or one client: the name goes in every page heading, so
+  // two downloads can't be mixed up.
   const carLabel = opts.vehicle ? exportVehicleLabel(opts.vehicle) : null;
-  const label = carLabel ? `${carLabel} · ${periodLabel}` : periodLabel;
-  doc.info.Title = carLabel ? `Trip Report: ${carLabel}` : "Trip Report";
+  const clientLabel = opts.project ? exportProjectLabel(opts.project.label) : null;
+  const scope = [clientLabel, carLabel].filter(Boolean).join(" · ");
+  const label = scope ? `${scope} · ${periodLabel}` : periodLabel;
+  doc.info.Title = scope ? `Trip Report: ${scope}` : "Trip Report";
 
   const reportRef = generateReportRef(userId, opts.taxYear || "custom");
 
@@ -651,7 +690,7 @@ export async function generateTripsPdf(
     margin + (boxW + boxGap) * 3,
     boxY,
     boxW,
-    carLabel ? "Deduction (this vehicle)" : "HMRC Deduction",
+    clientLabel ? "Deduction (this client)" : carLabel ? "Deduction (this vehicle)" : "HMRC Deduction",
     formatPence(totalDeduction),
     true
   );
@@ -671,18 +710,28 @@ export async function generateTripsPdf(
 
   doc.y += 14;
 
-  if (carLabel) {
+  if (clientLabel || carLabel) {
+    const covers = clientLabel
+      ? carLabel
+        ? `This report covers one client: ${clientLabel}, in one vehicle: ${carLabel}`
+        : `This report covers one client: ${clientLabel}`
+      : `This report covers one vehicle: ${carLabel}`;
     doc
       .font("Helvetica-Bold")
       .fontSize(10)
       .fillColor(NAVY)
-      .text(`This report covers one vehicle: ${carLabel}`, margin, doc.y, { width: contentWidth });
+      .text(covers, margin, doc.y, { width: contentWidth });
     doc.moveDown(0.2);
     doc
       .font("Helvetica")
       .fontSize(8)
       .fillColor(GREY_600)
-      .text(oneVehicleNote(opts.vehicle?.vehicleType), margin, doc.y, { width: contentWidth, lineGap: 1 });
+      .text(
+        clientLabel ? oneClientNote(opts.vehicle?.vehicleType) : oneVehicleNote(opts.vehicle?.vehicleType),
+        margin,
+        doc.y,
+        { width: contentWidth, lineGap: 1 }
+      );
     doc.y += 10;
   }
 
@@ -811,7 +860,7 @@ export async function generateTripsPdf(
   }
 
   // ── Business miles by project (only when a trip has one) ──
-  const projectRows = projectSummaryFromRows(trips);
+  const projectRows = reportProjectRows(trips, opts.project);
   if (projectRows.length > 0) {
     const pCols = [
       { header: "Project / client", width: 260, align: "left" as const },

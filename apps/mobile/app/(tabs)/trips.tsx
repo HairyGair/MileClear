@@ -31,7 +31,17 @@ import { syncUpdateTrip, syncDeleteTrip } from "../../lib/sync/actions";
 import { processSyncQueue } from "../../lib/sync";
 import { isNetworkError } from "../../lib/sync/errors";
 import { markLiveActivityClassified } from "../../lib/liveActivity";
-import { getLocalTrips, getLocalUnsyncedTrips } from "../../lib/db/queries";
+import { getLocalTrips, getLocalUnsyncedTrips, getQueuedTripProjectLabels } from "../../lib/db/queries";
+import {
+  ALL_CLIENTS,
+  clientFilterChoices,
+  clientFilterLabel,
+  clientFilterParams,
+  filterLocalTripsByClient,
+  sameClientFilter,
+  taxYearDateRange,
+  type ClientFilter,
+} from "../../lib/trips/clientFilter";
 import { dayLabel, groupTripsByDay, type DayRow } from "../../lib/trips/dayOrder";
 import { useNewestTripFirst } from "../../lib/trips/orderPref";
 import { createdInBatchIds, dayMilesText, isRecentAutoSort, suggestionLine, tripTag } from "../../lib/trips/tripLabels";
@@ -324,6 +334,20 @@ async function loadFailedTripIds(): Promise<Set<string>> {
   }
 }
 
+/**
+ * Trips on this phone that belong under the client filter, judged by the
+ * Project / client in their queued upload. All clients: every one. If the
+ * queue can't be read, none: better a short list than a wrong one.
+ */
+async function localTripsForClient<T extends { id: string }>(trips: T[], client: ClientFilter): Promise<T[]> {
+  if (client.kind === "all" || trips.length === 0) return trips;
+  try {
+    return filterLocalTripsByClient(trips, await getQueuedTripProjectLabels(), client);
+  } catch {
+    return [];
+  }
+}
+
 export default function TripsScreen() {
   const router = useRouter();
   // "?filter=unclassified" is how the classify reminders (evening digest,
@@ -331,7 +355,16 @@ export default function TripsScreen() {
   // nothing read it, so every one of those taps landed on All instead.
   // "&range=lastTaxYear" narrows it to the tax year the 31 January Self
   // Assessment deadline is for (the "Ready for 31 January?" checklist).
-  const params = useLocalSearchParams<{ filter?: string; range?: string; day?: string }>();
+  // "?client=NHS%20Trust" is how a row on Miles by project opens its trips,
+  // and "?noClient=1" its No project row.
+  const params = useLocalSearchParams<{
+    filter?: string;
+    range?: string;
+    day?: string;
+    client?: string;
+    noClient?: string;
+    taxYear?: string;
+  }>();
   const [trips, setTrips] = useState<TripItem[]>([]);
   // Bumped to refetch the odometer day lines (focus, pull to refresh).
   const [odoTick, setOdoTick] = useState(0);
@@ -341,6 +374,14 @@ export default function TripsScreen() {
   // Platform filter is orthogonal to classification — both can be active at
   // once. Stored as PlatformTag value or "all" sentinel.
   const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
+  // Project / client filter (23 Oct 2026), alongside the app and dates ones.
+  const [clientFilter, setClientFilter] = useState<ClientFilter>(() =>
+    params.noClient === "1"
+      ? { kind: "none" }
+      : typeof params.client === "string" && params.client.trim()
+        ? { kind: "label", label: params.client.trim() }
+        : ALL_CLIENTS
+  );
   const [page, setPage] = useState(1);
   // Saved places ("Home", "Depot") name the ends of the route line first.
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
@@ -370,6 +411,8 @@ export default function TripsScreen() {
   // Whether the driver has tagged any trip with a Project / client. Only
   // then is the "Miles by project" link worth its row. One grouped query.
   const [hasProjectLabels, setHasProjectLabels] = useState(false);
+  // The labels themselves, most recent first: the Client chips in Filters.
+  const [projectLabels, setProjectLabels] = useState<string[]>([]);
   const [classifyingId, setClassifyingId] = useState<string | null>(null);
   // Trips whose upload failed for good, and the "+" sheet.
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set());
@@ -460,6 +503,8 @@ export default function TripsScreen() {
   filterRef.current = filter;
   const platformFilterRef = useRef(platformFilter);
   platformFilterRef.current = platformFilter;
+  const clientFilterRef = useRef(clientFilter);
+  clientFilterRef.current = clientFilter;
   const dateRangeRef = useRef(dateRange);
   dateRangeRef.current = dateRange;
   const customFromRef = useRef(customFrom);
@@ -492,9 +537,11 @@ export default function TripsScreen() {
           customFromRef.current,
           customToRef.current
         );
+        const client = clientFilterRef.current;
         const res = await fetchTrips({
           classification,
           platformTag,
+          ...clientFilterParams(client),
           ...bounds,
           page: pageNum,
           pageSize: PAGE_SIZE,
@@ -508,8 +555,15 @@ export default function TripsScreen() {
           // since page 1 loaded slides the last trip of page 1 onto page 2.
           setTrips((prev) => mergeTripPage(prev, res.data));
         } else {
-          // Merge unsynced local items on first page
-          const unsynced = await getLocalUnsyncedTrips({ classification, platformTag });
+          // Merge unsynced local items on first page. With a client filter,
+          // each one's client comes from its queued upload (lib/trips/clientFilter).
+          const unsynced = await localTripsForClient(
+            await getLocalUnsyncedTrips({ classification, platformTag }),
+            client
+          );
+          // A newer load (another filter tap) may have started while the
+          // phone's trips and queue were read: drop this one.
+          if (generation !== listGenerationRef.current) return;
           const apiIds = new Set(res.data.map((t) => t.id));
           const uniqueLocal = unsynced.filter((t) => !apiIds.has(t.id)) as TripItem[];
           loadFailedTripIds().then(setFailedIds).catch(() => {});
@@ -534,7 +588,15 @@ export default function TripsScreen() {
           const classification = filterRef.current === "all" ? undefined : filterRef.current;
           const platformTag =
             platformFilterRef.current === "all" ? undefined : platformFilterRef.current;
-          const local = await getLocalTrips({ classification, platformTag });
+          // The phone only knows the client of trips not uploaded yet, so a
+          // client filter offline shows just those (the offline line says so).
+          const client = clientFilterRef.current;
+          const all = await getLocalTrips({ classification, platformTag });
+          const local =
+            client.kind === "all"
+              ? all
+              : await localTripsForClient(all.filter((t) => t._isLocal), client);
+          if (generation !== listGenerationRef.current) return;
           setTrips(local as TripItem[]);
           loadFailedTripIds().then(setFailedIds).catch(() => {});
           setLoadError(local.length === 0);
@@ -567,6 +629,7 @@ export default function TripsScreen() {
       const res = await fetchTripSummary({
         classification,
         platformTag,
+        ...clientFilterParams(clientFilterRef.current),
         ...bounds,
       });
       setSummary(res.data);
@@ -587,7 +650,10 @@ export default function TripsScreen() {
       if (filterRef.current !== "unclassified") loadMissedCount();
       loadSavedPlaces().then(setSavedPlaces);
       fetchProjectLabels()
-        .then((labels) => setHasProjectLabels(labels.length > 0))
+        .then((labels) => {
+          setHasProjectLabels(labels.length > 0);
+          setProjectLabels(labels);
+        })
         .catch(() => {});
     }, [loadTrips, loadSummary, loadUnclassifiedCount, loadMissedCount])
   );
@@ -685,13 +751,65 @@ export default function TripsScreen() {
     [loadTrips, loadSummary]
   );
 
-  // Clears both platform and date range in one reload - the "back to
+  const handleClientChange = useCallback(
+    (value: ClientFilter) => {
+      if (sameClientFilter(value, clientFilterRef.current)) return;
+      animateListChange();
+      setClientFilter(value);
+      clientFilterRef.current = value;
+      setTrips([]);
+      setLoading(true);
+      loadTrips(1);
+      loadSummary();
+    },
+    [loadTrips, loadSummary]
+  );
+
+  // Miles by project opens Trips on the trips its row counts: one client (or
+  // No client), Business, one tax year (lib/trips/clientFilter
+  // projectTripsHref), with no app filter, so the stats card shows the row's
+  // figures. One reload for all of it. Cleared afterwards so the same row
+  // tapped again later (after the driver changed the filters) is a change.
+  useEffect(() => {
+    const label = typeof params.client === "string" ? params.client.trim() : "";
+    if (params.noClient !== "1" && !label) return;
+    const client: ClientFilter = params.noClient === "1" ? { kind: "none" } : { kind: "label", label };
+    animateListChange();
+    setClientFilter(client);
+    clientFilterRef.current = client;
+    setPlatformFilter("all");
+    platformFilterRef.current = "all";
+    if (params.filter === "business") {
+      setFilter("business");
+      filterRef.current = "business";
+    }
+    const year = typeof params.taxYear === "string" ? taxYearDateRange(params.taxYear) : null;
+    if (year) {
+      const from = year.range === "custom" ? year.from : null;
+      const to = year.range === "custom" ? year.to : null;
+      setDateRange(year.range);
+      dateRangeRef.current = year.range;
+      setCustomFrom(from);
+      setCustomTo(to);
+      customFromRef.current = from;
+      customToRef.current = to;
+    }
+    setTrips([]);
+    setLoading(true);
+    loadTrips(1);
+    loadSummary();
+    router.setParams({ client: undefined, noClient: undefined, filter: undefined, taxYear: undefined });
+  }, [params.client, params.noClient, params.filter, params.taxYear, loadTrips, loadSummary, router]);
+
+  // Clears platform, client and date range in one reload - the "back to
   // unfiltered" tap from the Filters sheet. Kept separate from
   // handlePlatformChange so clearing doesn't fire two overlapping fetches.
   const clearFilters = useCallback(() => {
     animateListChange();
     setPlatformFilter("all");
     platformFilterRef.current = "all";
+    setClientFilter(ALL_CLIENTS);
+    clientFilterRef.current = ALL_CLIENTS;
     setDateRange("all");
     dateRangeRef.current = "all";
     setCustomFrom(null);
@@ -1551,13 +1669,18 @@ export default function TripsScreen() {
   const activePlatformLabel =
     platformFilter === "all" ? null : (PLATFORM_LABELS[platformFilter] ?? platformFilter);
   const activeDateLabel = dateRange === "all" ? null : rangeLabel(dateRange, customFrom, customTo);
-  const activeFilterCount = (activePlatformLabel ? 1 : 0) + (activeDateLabel ? 1 : 0);
+  const activeClientLabel = clientFilterLabel(clientFilter);
+  const activeFilterLabels = [activeClientLabel, activePlatformLabel, activeDateLabel].filter(
+    (l): l is string => !!l
+  );
+  const activeFilterCount = activeFilterLabels.length;
+  const clientChoices = useMemo(() => clientFilterChoices(projectLabels, clientFilter), [projectLabels, clientFilter]);
 
   // A brand-new driver with no trips and nothing to sort: just the empty state.
   const noTripsAtAll =
     !loading && filter === "all" && trips.length === 0 && unclassifiedCount === 0 &&
     (missedCount ?? 0) === 0 &&
-    dateRange === "all" && platformFilter === "all";
+    dateRange === "all" && platformFilter === "all" && clientFilter.kind === "all";
 
   // To sort: a trip on its own is an ordinary row; several on the same route
   // share one card and one Business / Personal choice for them all.
@@ -1659,8 +1782,10 @@ export default function TripsScreen() {
               accessibilityRole="button"
               accessibilityLabel={
                 activeFilterCount > 0
-                  ? `Filters, ${[activePlatformLabel, activeDateLabel].filter(Boolean).join(", ")} on. Opens filter options.`
-                  : "Filters. Opens app and date options."
+                  ? `Filters, ${activeFilterLabels.join(", ")} on. Opens filter options.`
+                  : hasProjectLabels
+                    ? "Filters. Opens client, app and date options."
+                    : "Filters. Opens app and date options."
               }
             >
               <Ionicons
@@ -1726,7 +1851,9 @@ export default function TripsScreen() {
 
             {isOffline && (
               <Text style={styles.offlineLine} maxFontSizeMultiplier={fontScaleCap.body}>
-                Offline. Showing trips saved on this phone.
+                {clientFilter.kind === "all"
+                  ? "Offline. Showing trips saved on this phone."
+                  : "Offline. The client filter can only show trips not uploaded yet."}
               </Text>
             )}
 
@@ -1777,7 +1904,7 @@ export default function TripsScreen() {
                 is active. Sourced from /trips/summary so totals are accurate
                 no matter how far the user has scrolled. Falls back to a
                 client-side computation if the aggregate request failed. */}
-            {(dateRange !== "all" || platformFilter !== "all") && (summary || trips.length > 0) && (() => {
+            {activeFilterCount > 0 && (summary || trips.length > 0) && (() => {
               const stats = summary ?? {
                 totalMiles: trips.reduce((s, t) => s + t.distanceMiles, 0),
                 totalTrips: trips.length,
@@ -1786,7 +1913,7 @@ export default function TripsScreen() {
                 personalMiles: trips.filter((t) => t.classification === "personal").reduce((s, t) => s + t.distanceMiles, 0),
                 personalTrips: trips.filter((t) => t.classification === "personal").length,
               };
-              const headerLabel = [activeDateLabel, activePlatformLabel].filter(Boolean).join(" · ");
+              const headerLabel = [activeClientLabel, activeDateLabel, activePlatformLabel].filter(Boolean).join(" · ");
               return (
                 <View style={styles.rangeStatsCard}>
                   <Text style={styles.rangeStatsLabel}>{headerLabel}</Text>
@@ -1898,6 +2025,18 @@ export default function TripsScreen() {
                   iconColor={colors.green}
                 />
               )
+            ) : clientFilter.kind !== "all" ? (
+              <EmptyState
+                icon="briefcase-outline"
+                title={clientFilter.kind === "none" ? "No trips without a client" : `No trips for ${clientFilter.label}`}
+                description={
+                  activeFilterCount > 1 || filter !== "all"
+                    ? "Nothing matches all your filters. Try Clear filters in Filters."
+                    : clientFilter.kind === "none"
+                      ? "Every trip here has a Project / client."
+                      : "Trips you give this Project / client show here. Open a trip and tap Details to add one."
+                }
+              />
             ) : filter === "business" || filter === "personal" ? (
               <EmptyState
                 icon="filter-outline"
@@ -2324,6 +2463,43 @@ export default function TripsScreen() {
                 })}
               </ScrollView>
             </View>
+
+            {/* Client: only once the driver has tagged a trip (23 Oct 2026). */}
+            {(hasProjectLabels || clientFilter.kind !== "all") && (
+              <View style={styles.filtersSection}>
+                <Text style={styles.filtersSectionLabel}>Which client</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.dateRangeRow}
+                  accessibilityLabel="Client filter"
+                >
+                  {clientChoices.map((c) => {
+                    const active = sameClientFilter(clientFilter, c.value);
+                    return (
+                      <TouchableOpacity
+                        key={c.key}
+                        style={[styles.dateRangeChip, active && styles.dateRangeChipActive]}
+                        onPress={() => handleClientChange(c.value)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Client: ${c.label}`}
+                        accessibilityState={{ selected: active }}
+                      >
+                        <Text
+                          style={[
+                            styles.dateRangeChipText,
+                            active && styles.dateRangeChipTextActive,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {c.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
 
             {hasProjectLabels && (
               <TouchableOpacity

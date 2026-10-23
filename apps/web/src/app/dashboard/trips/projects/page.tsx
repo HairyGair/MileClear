@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { clientTripsHref } from "@/components/dashboard/trips/lib/filters";
 import { type Column, DataTable, EmptyState, ErrorState, Figure, PageHeader, TaxYearPicker, useData } from "@/components/dashboard/kit";
 import { formatMiles, formatPence, getTaxYear } from "@/lib/dashboard";
 import "@/components/dashboard/trips/trips.css";
@@ -19,6 +21,7 @@ interface ProjectData {
 }
 
 export default function Page() {
+  const router = useRouter();
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
   const totals = useData<ProjectData>(`project-totals:${taxYear}`, () =>
     api.get<{ data: ProjectData }>(`/trips/project-totals?taxYear=${encodeURIComponent(taxYear)}`).then((r) => r.data)
@@ -39,7 +42,7 @@ export default function Page() {
   return (
     <>
       <PageHeader title="Miles by project" back={{ href: "/dashboard/trips", label: "Trips" }}>
-        Your business trips added up by the project or client you gave them.
+        Your business trips added up by the project or client you gave them. Click a row to see its trips.
       </PageHeader>
       <div className="mc-stack">
         <TaxYearPicker value={taxYear} onChange={setTaxYear} />
@@ -59,6 +62,9 @@ export default function Page() {
               columns={columns}
               rows={rows}
               rowKey={(r) => r.label ?? "__none"}
+              // A row opens the trips it counts (23 Oct 2026): that client's, or for
+              // "No project" those with none, Business only, in this tax year.
+              onRowClick={(r) => router.push(clientTripsHref(r.label, taxYear))}
               loading={totals.loading && !totals.data}
               empty={
                 <EmptyState
