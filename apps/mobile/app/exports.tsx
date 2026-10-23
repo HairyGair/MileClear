@@ -33,6 +33,8 @@ import { DateTimePickerField } from "../components/DateTimePickerField";
 import { colors, fonts } from "../lib/theme";
 import { useTaxOverview } from "../lib/tax/useTaxOverview";
 import { useCountryFeatures } from "../lib/country/country";
+import { showsNzLogbook } from "../lib/country/nzLogbook";
+import { NzLogbookSection } from "../components/exports/NzLogbookSection";
 import { defaultExportYear, recentTaxYears } from "../lib/tax/taxYears";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -49,7 +51,7 @@ const ALL_CLIENTS_KEY = "\u0000all";
 /** Fallback wait for the sheet's slide-out when onDismiss doesn't fire (Android). */
 const PICKER_DISMISS_MS = 350;
 
-type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | null;
+type LoadingKey = "csv" | "pdf" | "self-assessment" | "odometer" | "logbook" | null;
 
 export default function ExportsScreen() {
   const { showPaywall } = usePaywall();
@@ -564,6 +566,16 @@ export default function ExportsScreen() {
             <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 8 }} accessible={false} />
           )}
         </TouchableOpacity>
+
+        {/* New Zealand only: IRD's 90-day logbook (23 Oct 2026). */}
+        {showsNzLogbook(country.country) && (
+          <NzLogbookSection
+            isPremium={isPremium}
+            showPaywall={() => showPaywall("exports")}
+            busy={loadingKey !== null}
+            onBusyChange={(b) => setLoadingKey(b ? "logbook" : null)}
+          />
+        )}
 
         {/* Coming Soon rows (UK accounting, so UK only) */}
         {country.ukTax && <Text style={[styles.sectionTitle, { marginTop: 28 }]}>
