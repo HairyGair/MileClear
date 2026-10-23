@@ -21,6 +21,7 @@ import {
   syncDeleteFuelLog,
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
+import { odometerBoxText, odometerBoxToMiles, odometerUnitOf } from "@mileclear/shared";
 import { getCurrentLocation } from "../lib/location/geocoding";
 import { FUEL_BRANDS } from "@mileclear/shared";
 import type { Vehicle, FuelStation } from "@mileclear/shared";
@@ -48,6 +49,10 @@ export default function FuelFormScreen() {
   const [stationName, setStationName] = useState("");
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehiclesLoaded, setVehiclesLoaded] = useState(false);
+  // Edit: the stored odometer (miles), put in the box in the car's unit once the cars are known.
+  const [loadedOdometer, setLoadedOdometer] = useState<number | null>(null);
+  const odometerPrefilled = useRef(false);
   const [litres, setLitres] = useState("");
   const [cost, setCost] = useState("");
   const [odometer, setOdometer] = useState("");
@@ -67,7 +72,8 @@ export default function FuelFormScreen() {
     // Load vehicles for picker
     fetchVehicles()
       .then((res) => setVehicles(res.data))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setVehiclesLoaded(true));
   }, []);
 
   // Fetch nearby stations on mount (new logs only)
@@ -104,7 +110,7 @@ export default function FuelFormScreen() {
       setVehicleId(log.vehicleId);
       setLitres(log.litres.toString());
       setCost((log.costPence / 100).toFixed(2));
-      setOdometer(log.odometerReading?.toString() ?? "");
+      setLoadedOdometer(log.odometerReading ?? null);
       setLoggedAt(new Date(log.loggedAt));
     };
 
@@ -118,6 +124,16 @@ export default function FuelFormScreen() {
   }, [id]);
 
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+  // A fuel log with no car is on the main car. A km car's odometer box is in km.
+  const odometerUnit = odometerUnitOf(
+    (selectedVehicle ?? vehicles.find((v) => v.isPrimary) ?? (vehicles.length === 1 ? vehicles[0] : undefined))?.odometerUnit
+  );
+
+  useEffect(() => {
+    if (odometerPrefilled.current || loadedOdometer == null || !vehiclesLoaded) return;
+    odometerPrefilled.current = true;
+    setOdometer(odometerBoxText(loadedOdometer, odometerUnit));
+  }, [loadedOdometer, vehiclesLoaded, odometerUnit]);
 
   // Get the relevant price from a station based on selected vehicle fuel type
   const getStationPrice = useCallback((station: FuelStation): number | undefined => {
@@ -212,11 +228,17 @@ export default function FuelFormScreen() {
     }
 
     const costPence = Math.round(parsedCost * 100);
-    const parsedOdometer = odometer.trim() ? parseFloat(odometer) : undefined;
-    if (parsedOdometer !== undefined && (isNaN(parsedOdometer) || parsedOdometer <= 0)) {
+    // Typed in the car's unit, stored in miles; an untouched prefill goes back as it was.
+    // Saved before the box was filled in: the stored figure stays as it was.
+    const odo =
+      loadedOdometer != null && !odometerPrefilled.current
+        ? ({ ok: true, miles: loadedOdometer } as const)
+        : odometerBoxToMiles(odometer, odometerUnit, loadedOdometer);
+    if (!odo.ok) {
       Alert.alert("Invalid odometer", "Odometer reading must be a positive number.");
       return;
     }
+    const parsedOdometer = odo.miles ?? undefined;
 
     setSaving(true);
     try {
@@ -266,7 +288,7 @@ export default function FuelFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [isEditing, id, vehicleId, litres, cost, stationName, odometer, loggedAt, router, selectedStation]);
+  }, [isEditing, id, vehicleId, litres, cost, stationName, odometer, odometerUnit, loadedOdometer, loggedAt, router, selectedStation]);
 
   const handleDelete = useCallback(() => {
     Alert.alert("Delete fuel log", "Remove this fuel log? This can't be undone.", [
@@ -459,15 +481,15 @@ export default function FuelFormScreen() {
         </View>
 
         {/* Odometer */}
-        <Text style={styles.label}>Odometer</Text>
+        <Text style={styles.label}>{odometerUnit === "km" ? "Odometer (km)" : "Odometer"}</Text>
         <TextInput
           style={styles.input}
           value={odometer}
           onChangeText={setOdometer}
-          placeholder="Miles (optional)"
+          placeholder={odometerUnit === "km" ? "km (optional)" : "Miles (optional)"}
           placeholderTextColor={TEXT_3}
           keyboardType="decimal-pad"
-          accessibilityLabel="Odometer reading in miles, optional"
+          accessibilityLabel={`Odometer reading in ${odometerUnit === "km" ? "km" : "miles"}, optional`}
         />
 
         {/* Date */}

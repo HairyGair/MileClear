@@ -158,6 +158,9 @@ test.describe("trip form rules", () => {
   test("odometer warning only when more than 20% off", () => {
     expect(odometerWarning("1000", "1013", "12.4")).toBeNull();
     expect(odometerWarning("1000", "1030", "12.4")).toBe("Your odometer difference is 30 mi but the trip measures 12.4 mi. Check the readings.");
+    // A km car's readings are compared in miles: 20 km is 12.4 mi.
+    expect(odometerWarning("1000", "1020", "12.4", "km")).toBeNull();
+    expect(odometerWarning("1000", "1030", "12.4", "km")).toBe("Your odometer difference is 18.6 mi but the trip measures 12.4 mi. Check the readings.");
     expect(odometerWarning("", "1030", "12.4")).toBeNull();
   });
 });

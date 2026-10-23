@@ -103,7 +103,8 @@ export default function VehicleFormScreen() {
   const [providedByOthers, setProvidedByOthers] = useState(false);
   const [nzRecordBasis, setNzRecordBasis] = useState<NzRecordBasis | null>(null);
   const [nzHybridKind, setNzHybridKind] = useState<NzHybridKind | null>(null);
-  const [odometerUnit, setOdometerUnit] = useState<OdometerUnit>("miles");
+  // Null until the driver says: no unit is shown as chosen.
+  const [odometerUnit, setOdometerUnit] = useState<OdometerUnit | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -130,7 +131,7 @@ export default function VehicleFormScreen() {
           setProvidedByOthers(vehicle.providedByOthers ?? false);
           setNzRecordBasis(vehicle.nzRecordBasis ?? null);
           setNzHybridKind(vehicle.nzHybridKind ?? null);
-          setOdometerUnit(vehicle.odometerUnit === "km" ? "km" : "miles");
+          setOdometerUnit(vehicle.odometerUnit === "km" || vehicle.odometerUnit === "miles" ? vehicle.odometerUnit : null);
           setRegistrationPlate(vehicle.registrationPlate || "");
           setCleanAirZones(vehicle.cleanAirZones ?? null);
           if (vehicle.dvlaPlateProblem && vehicle.registrationPlate) {
@@ -188,7 +189,12 @@ export default function VehicleFormScreen() {
     // The optional odometer reading is checked before anything is saved.
     let odometerMiles: number | null = null;
     if (!isEditing && odometerNow.trim()) {
-      const parsed = parseReadingInput(readingTextToMilesText(odometerNow, showOdometerUnit ? odometerUnit : "miles"));
+      // Where km is possible, the reading can't be saved until the unit is said.
+      if (showOdometerUnit && !odometerUnit) {
+        Alert.alert("Odometer reads in", "Say whether this car's odometer reads miles or km, then save.");
+        return;
+      }
+      const parsed = parseReadingInput(readingTextToMilesText(odometerNow, showOdometerUnit ? (odometerUnit ?? "miles") : "miles"));
       if (parsed.kind !== "ok") {
         Alert.alert(
           "Check the odometer",
@@ -249,7 +255,7 @@ export default function VehicleFormScreen() {
         payload.nzRecordBasis = nzRecordBasis;
         payload.nzHybridKind = fuelType === "hybrid" ? nzHybridKind : null;
       }
-      if (showOdometerUnit) payload.odometerUnit = odometerUnit;
+      if (showOdometerUnit && odometerUnit) payload.odometerUnit = odometerUnit;
 
       if (isEditing) {
         await updateVehicle(id, payload);
@@ -430,9 +436,9 @@ export default function VehicleFormScreen() {
                 placeholderTextColor={TEXT_3}
                 keyboardType="decimal-pad"
                 maxLength={9}
-                accessibilityLabel={`Odometer reading now, optional, in ${unitWord(showOdometerUnit ? odometerUnit : "miles")}`}
+                accessibilityLabel={`Odometer reading now, optional, in ${unitWord(showOdometerUnit ? (odometerUnit ?? "miles") : "miles")}`}
               />
-              <Text style={styles.odoSuffix}>{unitWord(showOdometerUnit ? odometerUnit : "miles")}</Text>
+              <Text style={styles.odoSuffix}>{unitWord(showOdometerUnit ? (odometerUnit ?? "miles") : "miles")}</Text>
             </View>
             <Text style={styles.odoHint}>The number on your dashboard. We add your trips to it.</Text>
           </>

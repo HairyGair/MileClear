@@ -39,3 +39,26 @@ export function odometerUnitWord(unit: OdometerUnit): string {
 export function odometerUnitShort(unit: OdometerUnit): string {
   return unit === "km" ? "km" : "mi";
 }
+
+// ── Odometer boxes on the fuel and trip forms ────────────────────────
+// A km car's box is typed and prefilled in km. A prefilled figure the driver
+// didn't touch goes back exactly as it was stored (no km -> miles -> km
+// drift); a changed one is converted once. Miles cars: the old behaviour.
+
+/** The box's starting text for a stored miles figure. */
+export function odometerBoxText(miles: number | null | undefined, unit: OdometerUnit): string {
+  if (miles == null || !Number.isFinite(miles)) return "";
+  return unit === "km" ? String(Math.round(milesToKm(miles))) : String(miles);
+}
+
+export type OdometerBoxResult = { ok: true; miles: number | null } | { ok: false };
+
+/** The miles to store for a box: null when empty, not ok when it isn't a positive number. */
+export function odometerBoxToMiles(text: string, unit: OdometerUnit, loadedMiles?: number | null): OdometerBoxResult {
+  const t = text.trim();
+  if (!t) return { ok: true, miles: null };
+  const n = parseFloat(t);
+  if (!Number.isFinite(n) || n <= 0) return { ok: false };
+  if (loadedMiles != null && t === odometerBoxText(loadedMiles, unit)) return { ok: true, miles: loadedMiles };
+  return { ok: true, miles: odometerUnitToMiles(n, unit) };
+}

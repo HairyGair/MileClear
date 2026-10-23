@@ -40,10 +40,18 @@ export function validateTrip(v: FormValues, opts: { requireClassification: boole
   return e;
 }
 
-/** Warning (never blocks saving) when the odometer difference is more than 20% off the distance. */
-export function odometerWarning(startText: string, endText: string, distanceText: string): string | null {
-  const a = parseFloat(startText);
-  const b = parseFloat(endText);
+/** Warning (never blocks saving) when the odometer difference is more than 20% off the distance.
+ *  A km car's readings are typed in km and compared in miles, like the distance. */
+export function odometerWarning(
+  startText: string,
+  endText: string,
+  distanceText: string,
+  odometerUnit: "miles" | "km" = "miles"
+): string | null {
+  // Kept free of package imports so the e2e logic specs can load it directly.
+  const toMiles = (n: number) => (odometerUnit === "km" ? n / 1.609344 : n);
+  const a = toMiles(parseFloat(startText));
+  const b = toMiles(parseFloat(endText));
   const d = parseFloat(distanceText);
   if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(d) || d <= 0) return null;
   const diff = b - a;

@@ -21,6 +21,8 @@ interface Props {
   onOdometerStart: (t: string) => void;
   odometerEnd: string;
   onOdometerEnd: (t: string) => void;
+  /** What the car's odometer reads in: the boxes are typed in it. Default miles. */
+  odometerUnit?: "miles" | "km";
 }
 
 /** "Toyota Prius · no note", "No car · note added · 2 readings". */
@@ -127,7 +129,9 @@ export function MoreDetails(p: Props) {
             </ScrollView>
           )}
 
-          <Text style={styles.fieldLabel} maxFontSizeMultiplier={fontScaleCap.body}>Odometer readings (optional)</Text>
+          <Text style={styles.fieldLabel} maxFontSizeMultiplier={fontScaleCap.body}>
+            {p.odometerUnit === "km" ? "Odometer readings in km (optional)" : "Odometer readings (optional)"}
+          </Text>
           <View style={styles.odoRow}>
             <TextInput
               style={[styles.input, styles.odo]}
@@ -136,7 +140,7 @@ export function MoreDetails(p: Props) {
               placeholder="At the start"
               placeholderTextColor={colors.text3}
               keyboardType="decimal-pad"
-              accessibilityLabel="Odometer reading at the start"
+              accessibilityLabel={p.odometerUnit === "km" ? "Odometer reading at the start, in km" : "Odometer reading at the start"}
             />
             <Ionicons name="arrow-forward" size={16} color={colors.text3} accessible={false} />
             <TextInput
@@ -146,12 +150,12 @@ export function MoreDetails(p: Props) {
               placeholder="At the end"
               placeholderTextColor={colors.text3}
               keyboardType="decimal-pad"
-              accessibilityLabel="Odometer reading at the end"
+              accessibilityLabel={p.odometerUnit === "km" ? "Odometer reading at the end, in km" : "Odometer reading at the end"}
             />
           </View>
           {p.odometerStart && p.odometerEnd && odoEnd > odoStart && (
             <Text style={styles.hint} maxFontSizeMultiplier={fontScaleCap.body}>
-              Odometer shows {(odoEnd - odoStart).toFixed(1)} miles
+              Odometer shows {(odoEnd - odoStart).toFixed(1)} {p.odometerUnit === "km" ? "km" : "miles"}
             </Text>
           )}
         </View>

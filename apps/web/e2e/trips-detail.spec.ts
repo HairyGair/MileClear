@@ -394,6 +394,27 @@ test.describe("edit a trip", () => {
     expect(calls(state, "PATCH", `/trips/${ID}`)[0].body).toEqual({ notes: "Added a note" });
   });
 
+  test("a km car: odometer boxes in km, an untouched reading goes back unchanged, a changed one is saved as miles once", async ({ page }) => {
+    const KM_CAR = [{ id: "v1", make: "Ford", model: "Transit", isPrimary: true, odometerUnit: "km" }] as TripsState["vehicles"];
+    // Stored 621.37 and 640.02 miles = 1,000 and 1,030 km.
+    const state = newState({ vehicles: KM_CAR, trips: [trip({ id: ID, notes: null, odometerStart: 621.37, odometerEnd: 640.02 })] });
+    await open(page, state, `/dashboard/trips/${ID}/edit`);
+    await expect(page.getByLabel("Odometer at the start")).toHaveValue("1000");
+    await expect(page.getByLabel("Odometer at the end")).toHaveValue("1030");
+    await page.getByLabel("Notes").fill("Added a note");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page).toHaveURL(new RegExp(`/dashboard/trips/${ID}$`));
+    expect(calls(state, "PATCH", `/trips/${ID}`)[0].body).toEqual({ notes: "Added a note" });
+
+    const again = newState({ vehicles: KM_CAR, trips: [trip({ id: ID, notes: null, odometerStart: 621.37, odometerEnd: 640.02 })] });
+    await open(page, again, `/dashboard/trips/${ID}/edit`);
+    await expect(page.getByLabel("Odometer at the end")).toHaveValue("1030");
+    await page.getByLabel("Odometer at the end").fill("1040");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page).toHaveURL(new RegExp(`/dashboard/trips/${ID}$`));
+    expect(calls(again, "PATCH", `/trips/${ID}`)[0].body).toEqual({ odometerEnd: Math.round((1040 / 1.609344) * 100) / 100 });
+  });
+
   test("a missing trip says so", async ({ page }) => {
     await open(page, newState(), `/dashboard/trips/${ID}/edit`);
     await expect(page.getByRole("heading", { name: "Trip not found" })).toBeVisible();

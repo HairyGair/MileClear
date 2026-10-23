@@ -50,6 +50,8 @@ const NOTES: Record<string, string[]> = {
 export const RECORDS_PROMPT =
   "Do you keep a logbook (90 days or more) or full records of every trip for this car?";
 export const HYBRID_PROMPT = "What kind of hybrid is it?";
+/** Under a 25% limit figure: where the figure comes from. */
+export const RECORDED_LINE = "Worked out from the driving MileClear has recorded for this car.";
 export const HYBRID_NO_RATE_LINE = "IRD doesn't set a rate for this kind of hybrid. Check with your accountant.";
 
 const HYBRID_OPTIONS = [
@@ -162,8 +164,8 @@ export function regimeClaimView(s: RegimeSummary): RegimeClaimView {
         if (v.claim.recordBasis && v.claim.recordBasis !== "records") {
           lines.push(
             v.claim.amountWithRecordsMinor != null
-              ? `At the 25% limit. With a logbook or full records it would be ${formatMoney(v.claim.amountWithRecordsMinor, s.currency)}.`
-              : "At the 25% limit (no logbook or full records)."
+              ? `At the 25% limit. ${RECORDED_LINE} With a logbook or full records it would be ${formatMoney(v.claim.amountWithRecordsMinor, s.currency)}.`
+              : `At the 25% limit (no logbook or full records). ${RECORDED_LINE}`
           );
         }
       } else {

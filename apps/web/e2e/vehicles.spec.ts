@@ -170,10 +170,31 @@ test.describe("New Zealand vehicle answers", () => {
     await expect(page.getByLabel("Make")).toHaveValue("Ford");
     await page.getByLabel("What kind of hybrid?").selectOption("plugin");
     await page.getByLabel("Logbook or full records?").selectOption("records");
+    // No unit is shown as chosen until the driver says.
+    await expect(page.getByLabel("Odometer reads in")).toHaveValue("");
     await page.getByLabel("Odometer reads in").selectOption("km");
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Saved").first()).toBeVisible();
     const patch = callsTo(state, "PATCH", `/vehicles/${VEHICLE.id}`);
     expect(patch[0][2]).toMatchObject({ nzHybridKind: "plugin", nzRecordBasis: "records", odometerUnit: "km" });
   });
+});
+
+test("New Zealand: Odometer now needs the unit first, and a km figure is saved as miles", async ({ page }) => {
+  await mockSession(page, { profile: profile({ country: "NZ", countrySettingEnabled: true, isPremium: true }) });
+  const state = drivingState({ vehicles: [] });
+  await mockDriving(page, state);
+  await page.goto("/dashboard/vehicles/new");
+  await page.getByLabel("Make").fill("Toyota");
+  await page.getByLabel("Model").fill("Corolla");
+  await page.getByLabel("Odometer now (optional)").fill("45123");
+  await page.getByRole("button", { name: "Add vehicle" }).click();
+  await expect(page.getByText("Say whether this vehicle's odometer reads miles or km.")).toBeVisible();
+  expect(callsTo(state, "POST", "/vehicles").filter(([, p]) => p === "/vehicles")).toHaveLength(0);
+  await page.getByLabel("Odometer reads in").selectOption("km");
+  await page.getByRole("button", { name: "Add vehicle" }).click();
+  await expect.poll(() => callsTo(state, "POST", "/odometer-readings").length).toBe(1);
+  expect(callsTo(state, "POST", "/odometer-readings")[0][2]).toMatchObject({ readingMiles: 28_038.13 });
+  const create = state.calls.find(([m, p]) => m === "POST" && p === "/vehicles");
+  expect(create?.[2]).toMatchObject({ odometerUnit: "km" });
 });

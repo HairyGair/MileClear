@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCountryFeatures } from "@/lib/dashboard/country";
 import type { ChargePoint, CheapestTodayResponse, FuelLogWithVehicle, FuelStation, NationalAveragePrices } from "@mileclear/shared";
-import { formatPence } from "@mileclear/shared";
+import { formatPence, odometerBoxText, odometerBoxToMiles, odometerUnitOf } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { Button } from "@/components/dashboard/kit/Button";
 import { Card, SectionHeader } from "@/components/dashboard/kit/Card";
@@ -50,7 +50,7 @@ function FuelLogDialog({
 }: {
   log: FuelLogWithVehicle | null;
   open: boolean;
-  vehicles: { id: string; label: string }[];
+  vehicles: { id: string; label: string; odometerUnit?: string | null; isPrimary?: boolean }[];
   onClose: () => void;
   onSaved: () => void;
   onDelete?: (log: FuelLogWithVehicle) => void;
@@ -66,15 +66,20 @@ function FuelLogDialog({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formKey, setFormKey] = useState(0);
+  // A km car's odometer box is in km (stored in miles). No car: the main one.
+  const unitFor = (id: string) =>
+    odometerUnitOf((vehicles.find((v) => v.id === id) ?? vehicles.find((v) => v.isPrimary) ?? vehicles[0])?.odometerUnit);
+  const odoUnit = unitFor(vehicleId);
 
   useEffect(() => {
     if (!open) return;
     const when = log ? new Date(log.loggedAt) : new Date();
-    setVehicleId(log?.vehicleId ?? vehicles[0]?.id ?? "");
+    const vid = log?.vehicleId ?? vehicles[0]?.id ?? "";
+    setVehicleId(vid);
     setLitres(log ? String(log.litres) : "");
     setCost(log ? log.costPence : null);
     setStation(log?.stationName ?? "");
-    setOdo(log?.odometerReading != null ? String(log.odometerReading) : "");
+    setOdo(odometerBoxText(log?.odometerReading ?? null, unitFor(vid)));
     setDate(toDateInput(when));
     setTime(toTimeInput(when));
     setError(null);
@@ -86,7 +91,9 @@ function FuelLogDialog({
     const l = parseFloat(litres);
     if (!Number.isFinite(l) || l <= 0) return setError("Enter the litres.");
     if (!cost || cost <= 0) return setError("Enter what it cost.");
-    const o = odo ? parseFloat(odo) : null;
+    // Typed in the car's unit, stored in miles; an untouched prefill goes back as it was.
+    const r = odometerBoxToMiles(odo, odoUnit, log?.odometerReading ?? null);
+    const o = r.ok ? r.miles : null;
     setSaving(true);
     setError(null);
     try {
@@ -139,7 +146,14 @@ function FuelLogDialog({
           <MoneyField label="Cost" value={cost} onChange={setCost} />
         </div>
         <TextField label="Station" value={station} onChange={setStation} required={false} />
-        <NumberField label="Odometer" value={odo} onChange={setOdo} suffix="miles" required={false} decimals={false} />
+        <NumberField
+          label={odoUnit === "km" ? "Odometer (km)" : "Odometer"}
+          value={odo}
+          onChange={setOdo}
+          suffix={odoUnit === "km" ? "km" : "miles"}
+          required={false}
+          decimals={false}
+        />
         <div className={`${styles.formGrid} ${styles.formGrid2}`}>
           <DateField label="Date" value={date} onChange={setDate} />
           <TimeField label="Time" value={time} onChange={setTime} />
@@ -301,7 +315,12 @@ export default function FuelPage() {
   const monthLitres = monthRows.reduce((s, l) => s + l.litres, 0);
   const monthMiles = miles.data?.data?.totalMiles ?? 0;
   const hasEv = (vehicles.data ?? []).some((v) => v.fuelType === "electric");
-  const vehicleOptions = (vehicles.data ?? []).map((v) => ({ id: v.id, label: vehicleName(v) }));
+  const vehicleOptions = (vehicles.data ?? []).map((v) => ({
+    id: v.id,
+    label: vehicleName(v),
+    odometerUnit: v.odometerUnit ?? null,
+    isPrimary: v.isPrimary,
+  }));
   const empty = !logs.loading && logs.data && logs.data.total === 0;
 
   function reloadAll() {

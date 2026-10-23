@@ -198,7 +198,7 @@ describe("regimeClaimView (New Zealand)", () => {
         ],
       },
     ]);
-    expect(v.vehicles[0].lines).toContain("At the 25% limit. With a logbook or full records it would be $14,265.00.");
+    expect(v.vehicles[0].lines).toContain("At the 25% limit. Worked out from the driving MileClear has recorded for this car. With a logbook or full records it would be $14,265.00.");
   });
 
   it("said no: the 25% figure, no question", () => {

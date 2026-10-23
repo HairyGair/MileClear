@@ -187,7 +187,8 @@ describe("odometer routes", () => {
     it("is null with no readings", async () => {
       mockData({ trips: [{ id: "t1", vehicleId: VEHICLE_ID, startedAt: "2026-10-09T07:00:00Z", distanceMiles: 3 }] });
       const res = await app.inject({ method: "GET", url: `/vehicles/${VEHICLE_ID}/odometer`, headers: auth });
-      expect(res.json().data).toEqual({ current: null, readings: [] });
+      // odometerUnit: null when the vehicle hasn't said what its odometer reads in.
+      expect(res.json().data).toEqual({ current: null, readings: [], odometerUnit: null });
     });
 
     it("404s for a vehicle that is not the user's, and scopes the lookup to the user", async () => {

@@ -25,6 +25,7 @@ import {
 import { formatDay, formatTime } from "../../../lib/dashboard";
 import { isoToLocalHm, isoToLocalYmd, localToIso, toYmd } from "./lib/days";
 import { odometerWarning, validateTrip, type FormErrors } from "./lib/form";
+import { odometerBoxText, odometerBoxToMiles, odometerUnitOf } from "@mileclear/shared";
 import { CATEGORY_OPTIONS, PLATFORM_OPTIONS, PURPOSE_OPTIONS, errorText } from "./lib/labels";
 import type { TripDetailData } from "./lib/types";
 import { aroundTripWords, findTripAround, type AroundTrip } from "./lib/overlap";
@@ -124,6 +125,21 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
   const [overlapAsk, setOverlapAsk] = useState(false);
   const overlapOk = useRef<string | null>(null);
 
+  // A km car's odometer boxes are in km (stored in miles). Edit: once the cars
+  // load, an untouched prefill is shown in km; it goes back as it was stored.
+  const vehicleList = vehiclesData.data ?? [];
+  const odoUnit = odometerUnitOf(
+    (vehicleList.find((v) => v.id === vehicleId) ?? vehicleList.find((v) => v.isPrimary) ?? vehicleList[0])?.odometerUnit
+  );
+  const odoPrefilled = useRef(false);
+  useEffect(() => {
+    if (odoPrefilled.current || !vehiclesData.data) return;
+    odoPrefilled.current = true;
+    if (odoUnit !== "km" || !trip) return;
+    if (trip.odometerStart != null) setOdoStart((t) => (t === String(trip.odometerStart) ? odometerBoxText(trip.odometerStart, odoUnit) : t));
+    if (trip.odometerEnd != null) setOdoEnd((t) => (t === String(trip.odometerEnd) ? odometerBoxText(trip.odometerEnd, odoUnit) : t));
+  }, [vehiclesData.data, odoUnit, trip]);
+
   // Default vehicle once they load (add only).
   useEffect(() => {
     if (vehicleId || editing || !vehiclesData.data || vehiclesData.data.length === 0) return;
@@ -198,7 +214,7 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
     };
   }, [mode, date, startTime, endTime]);
 
-  const odoWarning = odometerWarning(odoStart, odoEnd, distance);
+  const odoWarning = odometerWarning(odoStart, odoEnd, distance, odoUnit);
   const isBusiness = classification === "business";
   const showPlatform = isBusiness && !me.isCompanyDriver && me.user?.workType !== "employee" && me.user?.workType !== "company";
   const showPurpose = isBusiness && (me.isEmployee || me.user?.workType === "company");
@@ -235,8 +251,13 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
     const startedAt = localToIso(date, startTime);
     const endedAt = localToIso(date, endTime);
     const miles = Math.round(parseFloat(distance) * 100) / 100;
-    const odoS = odoStart.trim() ? parseFloat(odoStart) : null;
-    const odoE = odoEnd.trim() ? parseFloat(odoEnd) : null;
+    // Typed in the car's unit, stored in miles; an untouched prefill goes back as it was.
+    const boxMiles = (text: string, loaded: number | null | undefined) => {
+      const r = odometerBoxToMiles(text, odoPrefilled.current ? odoUnit : "miles", loaded ?? null);
+      return r.ok ? r.miles : null;
+    };
+    const odoS = boxMiles(odoStart, trip?.odometerStart);
+    const odoE = boxMiles(odoEnd, trip?.odometerEnd);
     try {
       if (mode === "add") {
         const body: Record<string, unknown> = {
@@ -496,8 +517,8 @@ export function TripForm({ mode, trip, prefill }: { mode: "add" | "edit"; trip?:
         <TextArea label="Notes" value={notes} onChange={setNotes} rows={3} maxLength={2000} required={false} />
 
         <div id="odometer" ref={odoRef} className="mc-tripform__row mc-tripform__row--2">
-          <NumberField label="Odometer at the start" value={odoStart} onChange={setOdoStart} suffix="mi" required={false} />
-          <NumberField label="Odometer at the end" value={odoEnd} onChange={setOdoEnd} suffix="mi" required={false} />
+          <NumberField label="Odometer at the start" value={odoStart} onChange={setOdoStart} suffix={odoUnit === "km" ? "km" : "mi"} required={false} />
+          <NumberField label="Odometer at the end" value={odoEnd} onChange={setOdoEnd} suffix={odoUnit === "km" ? "km" : "mi"} required={false} />
         </div>
         {odoWarning && (
           <p className="mc-warn" role="status">

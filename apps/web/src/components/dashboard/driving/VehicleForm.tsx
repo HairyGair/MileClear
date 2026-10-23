@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FUEL_TYPES, NZ_HYBRID_KIND_LABELS, NZ_HYBRID_KINDS, VEHICLE_TYPES, countryByCode, kmToMiles } from "@mileclear/shared";
+import { FUEL_TYPES, NZ_HYBRID_KIND_LABELS, NZ_HYBRID_KINDS, VEHICLE_TYPES, countryByCode, milesToKm, odometerUnitToMiles } from "@mileclear/shared";
 import { api, isApiError } from "../../../lib/api";
 import { useCountryFeatures } from "../../../lib/dashboard/country";
 import { Button } from "../kit/Button";
@@ -12,7 +12,7 @@ import { NumberField, SelectField, TextField, Toggle } from "../kit/Fields";
 import { useToast } from "../kit/Toast";
 import { addOdometerReading, type VehicleRow } from "./api";
 import { ProDialog } from "./ProDialog";
-import { MAX_READING_MILES, parseReadingInput } from "./odometerLogic";
+import { MAX_READING_MILES, parseReadingInput, sanitiseReadingInput } from "./odometerLogic";
 import styles from "./driving.module.css";
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -26,9 +26,20 @@ const RECORDS_OPTIONS = [
   { value: "none", label: "No" },
 ];
 const ODOMETER_UNIT_OPTIONS = [
+  { value: "", label: "Choose one" },
   { value: "miles", label: "Miles" },
   { value: "km", label: "km" },
 ];
+
+/** The "Odometer now" box as stored miles: a km figure is converted, then held to the miles limit. */
+function parseOdometerNow(text: string, km: boolean): ReturnType<typeof parseReadingInput> {
+  if (!km) return parseReadingInput(text);
+  const cleaned = sanitiseReadingInput(text.trim());
+  if (cleaned === "" || cleaned === ".") return { kind: "empty" };
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n <= 0) return { kind: "invalid" };
+  return parseReadingInput(String(odometerUnitToMiles(n, "km")));
+}
 
 function formatPlate(plate: string): string {
   return /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(plate) ? `${plate.slice(0, 4)} ${plate.slice(4)}` : plate;
@@ -70,7 +81,8 @@ function fromVehicle(v: VehicleRow | null, isFirst: boolean): FormState {
     odometerNow: "",
     nzRecordBasis: v?.nzRecordBasis ?? "",
     nzHybridKind: v?.nzHybridKind ?? "",
-    odometerUnit: v?.odometerUnit === "km" ? "km" : "miles",
+    // "" until the driver says: no unit is shown as chosen.
+    odometerUnit: v?.odometerUnit === "km" || v?.odometerUnit === "miles" ? v.odometerUnit : "",
   };
 }
 
@@ -149,9 +161,12 @@ export function VehicleForm({
       setError("Add the make and model.");
       return;
     }
-    const typed = !editing && f.odometerNow.trim() ? parseReadingInput(f.odometerNow) : null;
-    // Readings are stored in miles; a km odometer's reading is converted.
-    const odo = typed && typed.kind === "ok" && odoKm ? { ...typed, miles: Math.round(kmToMiles(typed.miles) * 100) / 100 } : typed;
+    if (!editing && f.odometerNow.trim() && showOdometerUnit && !f.odometerUnit) {
+      setError("Say whether this vehicle's odometer reads miles or km.");
+      return;
+    }
+    // Readings are stored in miles; a km reading is converted first, then checked against the limit.
+    const odo = !editing && f.odometerNow.trim() ? parseOdometerNow(f.odometerNow, odoKm) : null;
     if (odo && odo.kind === "invalid") {
       setError("That doesn't look like an odometer reading. Check it and try again.");
       return;
@@ -177,7 +192,7 @@ export function VehicleForm({
       body.nzRecordBasis = f.nzRecordBasis || null;
       body.nzHybridKind = f.fuelType === "hybrid" ? f.nzHybridKind || null : null;
     }
-    if (showOdometerUnit) body.odometerUnit = f.odometerUnit;
+    if (showOdometerUnit && f.odometerUnit) body.odometerUnit = f.odometerUnit;
     if (editing) {
       body.year = f.year ? parseInt(f.year, 10) : null;
       body.registrationPlate = plate || null;
@@ -277,7 +292,13 @@ export function VehicleForm({
             onChange={(v) => set("odometerNow", v)}
             suffix={odoKm ? "km" : "miles"}
             hint="The number on your dashboard. We add your trips to it."
-            error={f.odometerNow && parseReadingInput(f.odometerNow).kind === "invalid" ? `Use a number up to ${MAX_READING_MILES.toLocaleString("en-GB")}.` : undefined}
+            error={
+              f.odometerNow && parseOdometerNow(f.odometerNow, odoKm).kind === "invalid"
+                ? odoKm
+                  ? `Use a number up to ${Math.floor(milesToKm(MAX_READING_MILES)).toLocaleString("en-GB")}.`
+                  : `Use a number up to ${MAX_READING_MILES.toLocaleString("en-GB")}.`
+                : undefined
+            }
           />
         )}
         <div className={`${styles.formGrid} ${styles.formGrid2}`}>
