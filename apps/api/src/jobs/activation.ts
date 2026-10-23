@@ -46,6 +46,8 @@ import {
   type BgNudgeDecision,
   type DevicePlatform,
 } from "./activationBgLocation.js";
+import { jobCountry } from "../lib/countrySetting.js";
+import { isUk } from "@mileclear/shared";
 
 export { classifyActivationBlocker, type ActivationBlocker } from "./activationBlocker.js";
 
@@ -78,6 +80,8 @@ export interface ActivationNudgeCandidate {
   pushToken: string | null;
   /** Which phone the permission steps should describe. */
   platform: DevicePlatform;
+  /** UK driver: the copy may quote the 55p rate (23 Oct 2026). */
+  ukTax: boolean;
 }
 
 // Account-age windows in hours. Wider than the 30-minute tick so a missed
@@ -118,6 +122,7 @@ export async function previewActivationEarlyNudges(day: ActivationNudgeDay): Pro
       platformsSeen: true,
       lastHeartbeatAt: true,
       bgLocationPermission: true,
+      country: true,
     },
     take: 200,
   });
@@ -178,17 +183,21 @@ export async function previewActivationEarlyNudges(day: ActivationNudgeDay): Pro
       channel,
       pushToken: u.pushToken,
       platform: devicePlatformOf(u.platformsSeen, u.signupPlatform),
+      ukTax: isUk(jobCountry(u.country)),
     });
   }
   return out;
 }
 
-function pushForBlocker(
+export function pushForBlocker(
   day: ActivationNudgeDay,
   blocker: Exclude<ActivationBlocker, "none">,
   to: string,
-  platform: DevicePlatform
+  platform: DevicePlatform,
+  /** False outside the UK: no 55p, no tax deduction (23 Oct 2026). */
+  ukTax = true
 ): ExpoPushMessage {
+  const worth = ukTax ? ", and every business mile counts at 55p towards your tax deduction" : "";
   const type = `activation_d${day}`;
   if (blocker === "no_permission") {
     return {
@@ -210,7 +219,7 @@ function pushForBlocker(
     return {
       to,
       title: "Two minutes to your first mile",
-      body: "Add a drive you've already done, it takes seconds, and every business mile counts at 55p towards your tax deduction. Or turn on Always location and MileClear records the next one by itself.",
+      body: `Add a drive you've already done, it takes seconds${worth}. Or turn on Always location and MileClear records the next one by itself.`,
       sound: "default",
       data: { type, action: "open_dashboard" },
     };
@@ -220,7 +229,7 @@ function pushForBlocker(
     title: day === 1 ? "Your first mile" : "Still no drives recorded",
     body:
       day === 1
-        ? "Location is set up, so your next drive records by itself. Done one already? Add it from the dashboard in a few seconds, and every business mile counts at 55p towards your tax deduction."
+        ? `Location is set up, so your next drive records by itself. Done one already? Add it from the dashboard in a few seconds${worth}.`
         : "MileClear is ready but nothing has been recorded yet. Add a drive you've already done from the dashboard, or just drive with your phone in the car and it records the next one.",
     sound: "default",
     data: { type, action: "open_dashboard" },
@@ -249,11 +258,11 @@ async function runActivationNudge(day: ActivationNudgeDay): Promise<void> {
     if (c.channel === "push") {
       if (!c.pushToken) continue;
       logEvent(pushEvent(day), c.userId, { blocker: c.blocker });
-      messages.push(pushForBlocker(day, c.blocker, c.pushToken, c.platform));
+      messages.push(pushForBlocker(day, c.blocker, c.pushToken, c.platform, c.ukTax));
       continue;
     }
     try {
-      await sendActivationNudgeEmail(c.email, c.displayName, { reason: c.blocker, platform: c.platform }, c.userId);
+      await sendActivationNudgeEmail(c.email, c.displayName, { reason: c.blocker, platform: c.platform, ukTax: c.ukTax }, c.userId);
       logEvent(emailEvent(day), c.userId, { blocker: c.blocker });
       emailed += 1;
       // Small delay between emails, as the check-in job does.

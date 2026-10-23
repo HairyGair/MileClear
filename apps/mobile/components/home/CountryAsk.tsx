@@ -24,6 +24,8 @@ export function useCountryAsk({ enabled }: { enabled: boolean }): { sheet: React
   const router = useRouter();
   const { user } = useUser();
   const [suggested, setSuggested] = useState<string | null>(null);
+  // Only the sign-up location (an IP) behind it: United Kingdom stays the main button.
+  const [strong, setStrong] = useState(false);
   const tried = useRef(false);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export function useCountryAsk({ enabled }: { enabled: boolean }): { sheet: React
       ]);
       const suggestion = countryToSuggest(deviceRegion(), user.signupCountry, isKnownCountryCode, isUk);
       const due = countryAskDue({
-        suggestion,
+        suggestion: suggestion?.country ?? null,
         cached: { country: currentCountry(), pending: false },
         asked: row?.value === "1",
         accountCreatedAt: user.createdAt,
@@ -52,8 +54,9 @@ export function useCountryAsk({ enabled }: { enabled: boolean }): { sheet: React
         return;
       }
       await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, '1')", [COUNTRY_ASKED_KEY]);
+      setStrong(!!suggestion?.strong);
       setSuggested(due);
-      track("country_ask.shown", { suggested: due });
+      track("country_ask.shown", { suggested: due, strong: !!suggestion?.strong });
     })().catch(() => {});
   }, [enabled, user]);
 
@@ -85,24 +88,18 @@ export function useCountryAsk({ enabled }: { enabled: boolean }): { sheet: React
             Recording and your trips work everywhere. Tax figures, fuel prices and the other UK features are for UK
             drivers for now, so we only show them if you drive in the UK.
           </Text>
-          <Pressable
-            onPress={() => void choose(suggested!)}
-            style={({ pressed }) => [s.primary, pressed && { opacity: 0.85 }]}
-            accessibilityRole="button"
-          >
-            <Text style={s.primaryText} maxFontSizeMultiplier={fontScaleCap.heading}>
-              {name}
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => void choose("GB")}
-            style={({ pressed }) => [s.secondary, pressed && { opacity: 0.85 }]}
-            accessibilityRole="button"
-          >
-            <Text style={s.secondaryText} maxFontSizeMultiplier={fontScaleCap.heading}>
-              United Kingdom
-            </Text>
-          </Pressable>
+          {(strong ? [suggested!, "GB"] : ["GB", suggested!]).map((code, i) => (
+            <Pressable
+              key={code}
+              onPress={() => void choose(code)}
+              style={({ pressed }) => [i === 0 ? s.primary : s.secondary, pressed && { opacity: 0.85 }]}
+              accessibilityRole="button"
+            >
+              <Text style={i === 0 ? s.primaryText : s.secondaryText} maxFontSizeMultiplier={fontScaleCap.heading}>
+                {code === "GB" ? "United Kingdom" : name}
+              </Text>
+            </Pressable>
+          ))}
           <Pressable onPress={other} style={s.link} accessibilityRole="button">
             <Text style={s.linkText} maxFontSizeMultiplier={fontScaleCap.heading}>
               Another country

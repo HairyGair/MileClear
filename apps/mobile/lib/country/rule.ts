@@ -37,11 +37,19 @@ export function onServerCountry(serverRaw: unknown, cached: CachedCountry): Serv
 }
 
 /**
- * The region part of a phone locale ("en_GB", "en-NZ", "en_AU@rg=gbzzzz")
- * as an upper-case code, or null. Script subtags ("zh_Hant_TW") are skipped.
+ * The REGION an iPhone is set to, from its AppleLocale ("en_GB", or
+ * "en_US@rg=gbzzzz" when the region was changed apart from the language:
+ * the @rg= override wins). Upper-case code, or null. Script subtags
+ * ("zh_Hant_TW") are skipped.
+ *
+ * Never pass a language setting here (AppleLanguages, Android's
+ * localeIdentifier): "en_US" is a common language on UK phones and says
+ * nothing about where the driver is.
  */
-export function regionFromLocale(locale: unknown): string | null {
+export function regionFromAppleLocale(locale: unknown): string | null {
   if (typeof locale !== "string") return null;
+  const rg = /@(?:.*;)?rg=([a-z]{2})/i.exec(locale);
+  if (rg) return rg[1].toUpperCase();
   const base = locale.split("@")[0];
   const parts = base.split(/[-_]/).slice(1);
   for (const p of parts) if (/^[A-Za-z]{2}$/.test(p)) return p.toUpperCase();
@@ -73,19 +81,28 @@ export function countryAskDue(args: {
   return suggestion;
 }
 
+export interface CountrySuggestion {
+  country: string;
+  /** From the iPhone's own region setting. False when it is only the
+   *  sign-up location (an IP, so a VPN or a trip abroad): then United
+   *  Kingdom stays the main button. */
+  strong: boolean;
+}
+
 /**
- * Whether to ask "Where do you drive?" once on first run, and with which
- * country picked. Only when the phone's region or the sign-up location is a
- * known country outside the UK; UK phones never see it.
+ * Whether to ask "Where do you drive?" once on first run, and which country
+ * to offer. A phone whose region is the UK is never asked. Otherwise the
+ * iPhone's region (strong), else the sign-up country (weak, the only hint on
+ * Android), when it is a known country outside the UK.
  */
 export function countryToSuggest(
   deviceRegion: string | null,
   signupCountry: string | null | undefined,
   known: (code: string) => boolean,
   isUkCode: (code: string) => boolean
-): string | null {
-  for (const c of [deviceRegion, signupCountry ?? null]) {
-    if (c && known(c) && !isUkCode(c)) return c;
-  }
+): CountrySuggestion | null {
+  if (deviceRegion && isUkCode(deviceRegion)) return null;
+  if (deviceRegion && known(deviceRegion)) return { country: deviceRegion, strong: true };
+  if (signupCountry && known(signupCountry) && !isUkCode(signupCountry)) return { country: signupCountry, strong: false };
   return null;
 }

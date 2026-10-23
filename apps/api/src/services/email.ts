@@ -2805,7 +2805,7 @@ export type ActivationNudgeReason = "web_only" | "no_permission" | "no_drive_yet
 export async function sendActivationNudgeEmail(
   email: string,
   displayName: string | null | undefined,
-  opts: { reason: ActivationNudgeReason; platform?: DevicePlatform },
+  opts: { reason: ActivationNudgeReason; platform?: DevicePlatform; /** False outside the UK: no 55p line. */ ukTax?: boolean },
   userId: string
 ): Promise<void> {
   if (!(await isMarketingAllowed(userId))) return;
@@ -2855,7 +2855,7 @@ ${signoff}`;
     preheader = "MileClear is set up and waiting. A drive you have already done takes seconds to add.";
     bodyHtml = `${p(greeting)}
 ${p("MileClear is set up and nothing has been recorded yet. Your next drive records by itself, but you do not have to wait for it.")}
-${p("Add a drive you have already done from the dashboard: tap Add trip, put in where it started and ended, and MileClear works out the distance. Every business mile counts at 55p towards your tax deduction.")}
+${p(`Add a drive you have already done from the dashboard: tap Add trip, put in where it started and ended, and MileClear works out the distance.${opts.ukTax === false ? "" : " Every business mile counts at 55p towards your tax deduction."}`)}
 ${isAndroid ? p(ANDROID_NEW_NOTE) : ctaButton("Open MileClear", APP_STORE_URL)}
 ${signoff}`;
   }

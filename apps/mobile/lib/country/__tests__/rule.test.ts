@@ -5,7 +5,7 @@ import {
   countryToSuggest,
   onServerCountry,
   parseCachedCountry,
-  regionFromLocale,
+  regionFromAppleLocale,
 } from "../rule";
 
 describe("parseCachedCountry", () => {
@@ -41,18 +41,23 @@ describe("onServerCountry", () => {
   });
 });
 
-describe("regionFromLocale", () => {
-  it("reads the region from iOS and Android locales", () => {
-    expect(regionFromLocale("en_GB")).toBe("GB");
-    expect(regionFromLocale("en-NZ")).toBe("NZ");
-    expect(regionFromLocale("en_AU@rg=gbzzzz")).toBe("AU");
-    expect(regionFromLocale("zh_Hant_TW")).toBe("TW");
+describe("regionFromAppleLocale", () => {
+  it("reads the iPhone's region", () => {
+    expect(regionFromAppleLocale("en_GB")).toBe("GB");
+    expect(regionFromAppleLocale("en-NZ")).toBe("NZ");
+    expect(regionFromAppleLocale("zh_Hant_TW")).toBe("TW");
+  });
+
+  it("lets an @rg= region override win over the language's region", () => {
+    // US English as the language on a UK phone: the region is the UK.
+    expect(regionFromAppleLocale("en_US@rg=gbzzzz")).toBe("GB");
+    expect(regionFromAppleLocale("en_GB@calendar=gregorian;rg=auzzzz")).toBe("AU");
   });
 
   it("returns null when there is no region", () => {
-    expect(regionFromLocale("en")).toBeNull();
-    expect(regionFromLocale(undefined)).toBeNull();
-    expect(regionFromLocale("")).toBeNull();
+    expect(regionFromAppleLocale("en")).toBeNull();
+    expect(regionFromAppleLocale(undefined)).toBeNull();
+    expect(regionFromAppleLocale("")).toBeNull();
   });
 });
 
@@ -93,10 +98,20 @@ describe("countryToSuggest", () => {
     expect(countryToSuggest(null, null, known, isUk)).toBeNull();
   });
 
-  it("suggests the phone's region first, then the sign-up country", () => {
-    expect(countryToSuggest("NZ", "GB", known, isUk)).toBe("NZ");
-    expect(countryToSuggest("GB", "AU", known, isUk)).toBe("AU");
-    expect(countryToSuggest(null, "IE", known, isUk)).toBe("IE");
+  it("never asks a UK-region iPhone with US English as its language", () => {
+    const region = regionFromAppleLocale("en_US@rg=gbzzzz");
+    expect(countryToSuggest(region, null, known, isUk)).toBeNull();
+    // Even when the sign-up IP was abroad (a VPN, a holiday).
+    expect(countryToSuggest(region, "US", known, isUk)).toBeNull();
+  });
+
+  it("an iPhone set to another region is a strong hint", () => {
+    expect(countryToSuggest("NZ", "GB", known, isUk)).toEqual({ country: "NZ", strong: true });
+  });
+
+  it("the sign-up country alone (Android, or no region) is a weak hint", () => {
+    expect(countryToSuggest(null, "IE", known, isUk)).toEqual({ country: "IE", strong: false });
+    expect(countryToSuggest(null, "GB", known, isUk)).toBeNull();
   });
 
   it("ignores codes it doesn't know", () => {

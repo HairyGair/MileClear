@@ -22,6 +22,8 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
+import { isUk } from "@mileclear/shared";
+import { jobCountry } from "../lib/countrySetting.js";
 
 export const MAX_REFERRAL_REWARDS = 3;
 const REWARD_MONTHS = 1;
@@ -258,13 +260,22 @@ export async function qualifyReferralOnFirstTrip(refereeId: string): Promise<voi
     { action: "open_referrals" }
   ).catch(() => {});
 
-  // And the referee — their welcome month just unlocked.
-  sendPushToUser(
-    refereeId,
-    "Your free month of Pro is live!",
-    "First trip recorded — your invite bonus has unlocked a month of MileClear Pro. HMRC exports, business insights, the lot.",
-    { action: "open_billing" }
-  ).catch(() => {});
+  // And the referee — their welcome month just unlocked. "HMRC exports" only
+  // means something in the UK (23 Oct 2026).
+  prisma.user
+    .findUnique({ where: { id: refereeId }, select: { country: true } })
+    .catch(() => null)
+    .then((referee) =>
+      sendPushToUser(
+        refereeId,
+        "Your free month of Pro is live!",
+        isUk(jobCountry(referee?.country))
+          ? "First trip recorded — your invite bonus has unlocked a month of MileClear Pro. HMRC exports, business insights, the lot."
+          : "First trip recorded — your invite bonus has unlocked a month of MileClear Pro. Downloads, business insights, the lot.",
+        { action: "open_billing" }
+      )
+    )
+    .catch(() => {});
 }
 
 export interface ReferralSummary {

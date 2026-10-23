@@ -14,7 +14,7 @@ import {
   NO_COUNTRY,
   onServerCountry,
   parseCachedCountry,
-  regionFromLocale,
+  regionFromAppleLocale,
   type CachedCountry,
 } from "./rule";
 
@@ -29,7 +29,14 @@ function emit() {
 function set(next: CachedCountry) {
   const changed = next.country !== state.country;
   state = next;
-  if (changed) emit();
+  if (changed) {
+    emit();
+    // The phone's own UK tax-year reminder follows the country: off outside
+    // the UK, back on for the UK. Never throws.
+    import("../notifications/scheduler")
+      .then((m) => m.scheduleTaxYearDeadlineReminder())
+      .catch(() => {});
+  }
 }
 
 async function db() {
@@ -143,14 +150,16 @@ export function currentCountryFeatures(): CountryFeatures {
   return featuresFor(state.country);
 }
 
-/** The phone's own region ("NZ"), or null when it can't be read. JS only. */
+/**
+ * The iPhone's REGION setting ("NZ"), or null. Never a language: "en_US" is
+ * a common language on UK phones. Android exposes no region to JS without a
+ * native module (its localeIdentifier is the language), so it returns null
+ * there and the sign-up country is the only hint.
+ */
 export function deviceRegion(): string | null {
   try {
-    if (Platform.OS === "ios") {
-      const s = NativeModules.SettingsManager?.settings;
-      return regionFromLocale(s?.AppleLocale ?? s?.AppleLanguages?.[0]);
-    }
-    return regionFromLocale(NativeModules.I18nManager?.localeIdentifier);
+    if (Platform.OS !== "ios") return null;
+    return regionFromAppleLocale(NativeModules.SettingsManager?.settings?.AppleLocale);
   } catch {
     return null;
   }

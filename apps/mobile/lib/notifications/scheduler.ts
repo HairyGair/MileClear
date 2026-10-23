@@ -3,6 +3,7 @@ import { getDatabase } from "../db/index";
 import { getNotificationPreferences } from "./preferences";
 import { isOnline } from "../network";
 import { fetchUnclassifiedCount } from "../api/trips";
+import { currentCountryFeatures, loadCountry } from "../country/country";
 
 const QUIET_HOURS_START = 22; // 10pm
 const QUIET_HOURS_END = 7;   // 7am
@@ -79,7 +80,24 @@ export async function scheduleWeeklyMileageSummary(): Promise<void> {
 // ─── Tax year deadline reminder — 25 March 10:00 ────────────────────────────
 // Fires before the 5 April UK tax year end
 
+async function cancelTaxYearDeadlineReminders(): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const notif of scheduled) {
+    if (notif.identifier.startsWith("tax-deadline")) {
+      await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+    }
+  }
+}
+
 export async function scheduleTaxYearDeadlineReminder(): Promise<void> {
+  // The UK tax year: outside the UK (23 Oct 2026) nothing is scheduled and
+  // any reminder already on the phone is taken off. Runs again when the
+  // country changes (lib/country/country.ts).
+  await loadCountry();
+  if (!currentCountryFeatures().ukTax) {
+    await cancelTaxYearDeadlineReminders();
+    return;
+  }
   const prefs = await getNotificationPreferences();
   if (!prefs.taxDeadline) return;
 
@@ -94,12 +112,7 @@ export async function scheduleTaxYearDeadlineReminder(): Promise<void> {
   if (fireDate <= now) return;
 
   // Cancel existing tax deadline notifications
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  for (const notif of scheduled) {
-    if (notif.identifier.startsWith("tax-deadline")) {
-      await Notifications.cancelScheduledNotificationAsync(notif.identifier);
-    }
-  }
+  await cancelTaxYearDeadlineReminders();
 
   await Notifications.scheduleNotificationAsync({
     identifier: `tax-deadline-${year}`,
