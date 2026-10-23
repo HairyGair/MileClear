@@ -17,11 +17,18 @@ function apiOrigin(): string {
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The e2e suite runs a second dev server (NZ homepage redirect on) beside
+  // the main one; each needs its own build folder. Unset everywhere else.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   // `pnpm lint` (the repo's eslint.config.mjs, with the react-hooks plugin)
   // is the lint gate, in CI and pre-push. next build's own lint pass uses a
   // config without that plugin and fails on react-hooks disable comments.
   eslint: { ignoreDuringBuilds: true },
   transpilePackages: ["@mileclear/shared"],
+  // The homepage NZ redirect (src/middleware.ts) looks the country up with
+  // geoip-lite, which reads its data files from node_modules at runtime, so
+  // it must not be bundled.
+  serverExternalPackages: ["geoip-lite"],
   async redirects() {
     return [
       // Google crawlers sometimes pick up "£4.99/month" from page copy

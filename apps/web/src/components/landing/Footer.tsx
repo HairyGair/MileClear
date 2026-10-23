@@ -1,6 +1,8 @@
 import CookiePreferencesLink from "@/components/analytics/CookiePreferencesLink";
 
-export default function Footer() {
+/** `nzLink`: the "In New Zealand?" line, shown on the homepage only while
+ *  the NZ homepage redirect is on (lib/region/nzHome.ts). */
+export default function Footer({ nzLink = false }: { nzLink?: boolean } = {}) {
   return (
     <footer className="footer">
       <div className="container">
@@ -111,6 +113,14 @@ export default function Footer() {
             </div>
           </nav>
         </div>
+
+        {nzLink && (
+          <p style={{ marginBottom: "1rem" }}>
+            <a href="/region/nz" className="footer__link" rel="nofollow">
+              In New Zealand? See MileClear for NZ
+            </a>
+          </p>
+        )}
 
         <div className="footer__bottom">
           <div className="footer__copy">

@@ -13,6 +13,7 @@
   "dependencies": {
     "@mileclear/shared": "workspace:*",
     "dotenv": "^16.6.1",
+    "geoip-lite": "^2.0.3",
     "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
     "next": "^15.5.18",
@@ -20,6 +21,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@types/geoip-lite": "^1.4.4",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",

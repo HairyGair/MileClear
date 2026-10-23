@@ -329,6 +329,9 @@ importers:
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
+      geoip-lite:
+        specifier: ^2.0.3
+        version: 2.0.3
       html2canvas:
         specifier: ^1.4.1
         version: 1.4.1
@@ -345,6 +348,9 @@ importers:
         specifier: ^19.0.0
         version: 19.2.4(react@19.2.4)
     devDependencies:
+      '@types/geoip-lite':
+        specifier: ^1.4.4
+        version: 1.4.4
       '@types/leaflet':
         specifier: ^1.9.21
         version: 1.9.21

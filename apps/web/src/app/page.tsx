@@ -12,12 +12,29 @@ import Community from "@/components/landing/Community";
 import Footer from "@/components/landing/Footer";
 import StructuredData from "@/components/landing/StructuredData";
 
+import type { Metadata } from "next";
+import { nzHomeRedirectOn } from "@/lib/region/nzHome";
 import { APP_STORE_RATING, APP_STORE_RATING_COUNT } from "@/data/stats";
 import { getLiveStats, type LiveStats } from "@/data/liveStats";
 
 // The miles and active-driver figures are live (GET /community/totals), so
 // the page is regenerated hourly. Keep in step with LIVE_STATS_REVALIDATE_SECONDS.
 export const revalidate = 3600;
+
+// With the NZ homepage redirect on, tell search engines about the NZ page.
+// Off (the default), the homepage keeps the root layout's alternates.
+export const metadata: Metadata = nzHomeRedirectOn()
+  ? {
+      alternates: {
+        canonical: "https://mileclear.com",
+        languages: {
+          "en-GB": "https://mileclear.com",
+          "en-NZ": "https://mileclear.com/nz",
+          "x-default": "https://mileclear.com",
+        },
+      },
+    }
+  : {};
 
 const APP_STORE_URL = "https://apps.apple.com/app/mileclear/id6759671005";
 
@@ -151,7 +168,7 @@ export default async function LandingPage() {
         <FAQ />
         <AboutSection />
       </main>
-      <Footer />
+      <Footer nzLink={nzHomeRedirectOn()} />
     </>
   );
 }

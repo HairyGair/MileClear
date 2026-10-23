@@ -6,6 +6,8 @@ import { defineConfig, devices } from "@playwright/test";
 // the suite can never reach the real API or database.
 export const FAKE_API = "http://127.0.0.1:3999";
 const PORT = Number(process.env.PW_PORT ?? 3100);
+/** A second server with the NZ homepage redirect switched on (nz-landing.spec.ts). */
+export const NZ_ON_PORT = PORT + 1;
 
 export default defineConfig({
   testDir: ".",
@@ -20,15 +22,30 @@ export default defineConfig({
     trace: "retain-on-failure",
     ...devices["Desktop Chrome"],
   },
-  webServer: {
-    command: `pnpm exec next dev --port ${PORT}`,
-    cwd: "..",
-    url: `http://localhost:${PORT}/login`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-    env: {
-      NEXT_PUBLIC_API_URL: FAKE_API,
-      NEXT_TELEMETRY_DISABLED: "1",
+  webServer: [
+    {
+      command: `pnpm exec next dev --port ${PORT}`,
+      cwd: "..",
+      url: `http://localhost:${PORT}/login`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        NEXT_PUBLIC_API_URL: FAKE_API,
+        NEXT_TELEMETRY_DISABLED: "1",
+      },
     },
-  },
+    {
+      command: `pnpm exec next dev --port ${NZ_ON_PORT}`,
+      cwd: "..",
+      url: `http://localhost:${NZ_ON_PORT}/login`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      env: {
+        NEXT_PUBLIC_API_URL: FAKE_API,
+        NEXT_TELEMETRY_DISABLED: "1",
+        NZ_HOME_REDIRECT: "on",
+        NEXT_DIST_DIR: ".next-e2e-nz",
+      },
+    },
+  ],
 });
