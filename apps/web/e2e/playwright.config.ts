@@ -11,6 +11,7 @@ export const NZ_ON_PORT = PORT + 1;
 
 export default defineConfig({
   testDir: ".",
+  globalTeardown: "./global-teardown.ts",
   timeout: 90_000,
   expect: { timeout: 15_000 },
   fullyParallel: true,
