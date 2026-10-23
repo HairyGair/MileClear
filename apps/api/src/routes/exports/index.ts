@@ -11,6 +11,7 @@ import {
   formatQuickBooksExpense,
 } from "../../services/export.js";
 import { logEvent } from "../../services/appEvents.js";
+import { nzLogbookRoutes } from "./nzLogbook.js";
 import {
   generateOdometerLogCsv,
   inclusiveDayCount,
@@ -196,6 +197,9 @@ function emptyExportMessage(taxYear: string | undefined, what: string): string {
 export async function exportRoutes(app: FastifyInstance) {
   app.addHook("preHandler", authMiddleware);
   app.addHook("preHandler", premiumMiddleware);
+
+  // New Zealand 90-day logbook (PDF and CSV), behind the same auth and Pro checks.
+  await nzLogbookRoutes(app);
 
   // CSV download
   app.get("/csv", async (request: FastifyRequest<{ Querystring: DateRangeQuery }>, reply) => {

@@ -91,7 +91,7 @@ const GREEN = "#10b981";
 
 // ── Helpers ───────────────────────────────────────────────────────
 
-function collectPdfBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
+export function collectPdfBuffer(doc: PDFKit.PDFDocument): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -451,7 +451,7 @@ function drawStatBox(
 
 // === CSV (unchanged) =============================================
 
-function escapeCsvField(value: string | number | null | undefined): string {
+export function escapeCsvField(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return "";
   let str = String(value);
   if (/^[=+\-@\t\r]/.test(str)) {
