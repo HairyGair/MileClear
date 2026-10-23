@@ -108,6 +108,46 @@ test.describe("list", () => {
     await expect(page).toHaveURL(/platform=uber/);
   });
 
+  test("the client filter lists one client's trips, matched however it was typed, with a matching summary", async ({ page }) => {
+    const state = newState({
+      projectLabels: ["NHS Trust", "Private practice"],
+      trips: [
+        trip({ projectLabel: "NHS Trust", distanceMiles: 10, startedAt: at(0, "08:00"), endedAt: at(0, "08:20") }),
+        trip({ projectLabel: "nhs  trust", distanceMiles: 5, startedAt: at(1, "08:00"), endedAt: at(1, "08:20") }),
+        trip({ projectLabel: "Private practice", distanceMiles: 7, startedAt: at(1, "11:00"), endedAt: at(1, "11:20") }),
+        trip({ projectLabel: null, distanceMiles: 3, startedAt: at(2, "11:00"), endedAt: at(2, "11:20") }),
+      ],
+    });
+    await open(page, state);
+    await page.getByRole("button", { name: "Filters" }).click();
+    const dialog = page.getByRole("dialog", { name: "Filters" });
+    await expect(dialog.getByRole("group", { name: "Client" })).toBeVisible();
+    await dialog.getByRole("button", { name: "NHS Trust" }).click();
+    await dialog.getByRole("button", { name: "Show trips" }).click();
+    await expect(page).toHaveURL(/client=NHS\+Trust/);
+    await expect(page.getByTestId("trip-row")).toHaveCount(2);
+    await expect(page.getByRole("button", { name: "Filters (1)" })).toBeVisible();
+    await expect(page.getByTestId("trip-summary")).toContainText("15 mi");
+
+    // No client: the untagged trips, to tag them.
+    await page.getByRole("button", { name: "Remove filter NHS Trust" }).click();
+    await expect(page.getByTestId("trip-row")).toHaveCount(4);
+    await page.getByRole("button", { name: "Filters" }).click();
+    await dialog.getByRole("button", { name: "No client" }).click();
+    await dialog.getByRole("button", { name: "Show trips" }).click();
+    await expect(page).toHaveURL(/noclient=1/);
+    await expect(page.getByTestId("trip-row")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Remove filter No client" })).toBeVisible();
+  });
+
+  test("no Client row in Filters until a trip has a client", async ({ page }) => {
+    await open(page, newState({ projectLabels: [], trips: [trip()] }));
+    await page.getByRole("button", { name: "Filters" }).click();
+    const dialog = page.getByRole("dialog", { name: "Filters" });
+    await expect(dialog.getByText("This tax year")).toBeVisible();
+    await expect(dialog.getByRole("group", { name: "Client" })).toHaveCount(0);
+  });
+
   test("review strip keeps the same height when everything is sorted", async ({ page }) => {
     const state = newState({
       trips: [trip({ classification: "unclassified" }), trip({ classification: "unclassified", startedAt: at(0, "09:00") })],

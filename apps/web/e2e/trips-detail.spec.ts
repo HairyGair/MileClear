@@ -450,6 +450,11 @@ test.describe("miles by project", () => {
     await expect(page.getByRole("row", { name: /Acme refit/ })).toContainText("120.5 mi");
     await expect(page.getByRole("row", { name: /Acme refit/ })).toContainText("£66.28");
     await expect(page.getByRole("row", { name: /No project/ })).toBeVisible();
+
+    // A row opens the trips for that client.
+    await page.getByRole("row", { name: /Acme refit/ }).click();
+    await expect(page).toHaveURL(/\/dashboard\/trips\?client=Acme\+refit$/);
+    await expect(page.getByRole("button", { name: "Remove filter Acme refit" })).toBeVisible();
   });
 
   test("no projects shows the empty state", async ({ page }) => {

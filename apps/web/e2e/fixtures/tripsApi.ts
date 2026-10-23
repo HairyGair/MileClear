@@ -127,6 +127,8 @@ export interface TripsState {
   /** GET /trips/:id/roadworks items per trip (none by default). */
   roadworks: Record<string, unknown[]>;
   projectTotals: unknown;
+  /** GET /trips/project-labels. */
+  projectLabels: string[];
   importPreview: unknown;
   /** Every non-GET call the page made. */
   calls: { method: string; path: string; body: unknown }[];
@@ -145,11 +147,20 @@ export function newState(over: Partial<TripsState> = {}): TripsState {
     splitSuggestions: {},
     roadworks: {},
     projectTotals: { taxYear: "2026-27", projects: [], totals: { trips: 0, miles: 0, valuePence: 0 }, labels: [] },
+    projectLabels: ["Acme refit"],
     importPreview: null,
     calls: [],
     fail: {},
     ...over,
   };
+}
+
+/** The API's client filter: projectLabel by key (trim, single spaces, any case), or noProjectLabel=true. */
+function byClient(rows: TripFx[], q: URLSearchParams): TripFx[] {
+  const key = (s: string | null) => (s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+  if (q.get("noProjectLabel") === "true") return rows.filter((t) => key(t.projectLabel) === "");
+  const label = q.get("projectLabel");
+  return label ? rows.filter((t) => key(t.projectLabel) !== "" && key(t.projectLabel) === key(label)) : rows;
 }
 
 export async function mockTrips(page: Page, state: TripsState): Promise<void> {
@@ -190,6 +201,7 @@ export async function mockTrips(page: Page, state: TripsState): Promise<void> {
       if (c) rows = rows.filter((t) => t.classification === c);
       const p = q.get("platformTag");
       if (p) rows = rows.filter((t) => t.platformTag === p);
+      rows = byClient(rows, q);
       const from = q.get("from");
       if (from) rows = rows.filter((t) => t.startedAt >= new Date(from).toISOString());
       const to = q.get("to");
@@ -223,6 +235,7 @@ export async function mockTrips(page: Page, state: TripsState): Promise<void> {
       let rows = state.trips;
       const p = q.get("platformTag");
       if (p) rows = rows.filter((t) => t.platformTag === p);
+      rows = byClient(rows, q);
       const from = q.get("from");
       if (from) rows = rows.filter((t) => t.startedAt >= new Date(from).toISOString());
       const to = q.get("to");
@@ -241,7 +254,7 @@ export async function mockTrips(page: Page, state: TripsState): Promise<void> {
       });
     }
     if (path === "/trips/project-totals") return json({ data: state.projectTotals });
-    if (path === "/trips/project-labels") return json({ data: { labels: ["Acme refit"] } });
+    if (path === "/trips/project-labels") return json({ data: { labels: state.projectLabels } });
     if (path === "/trips/route-distance") return json({ data: { distanceMiles: 12.4, durationSecs: 1500 } });
     if (path === "/trips/report-missing") return json({ ok: true });
     if (path === "/trips/import/preview") return json({ data: state.importPreview });

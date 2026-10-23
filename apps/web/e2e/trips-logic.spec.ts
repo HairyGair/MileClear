@@ -2,7 +2,17 @@ import { test, expect } from "@playwright/test";
 import { shortPlaceLabel, tripEndLabel, routeTitle } from "../src/components/dashboard/trips/lib/placeLabel";
 import { groupByRoute } from "../src/components/dashboard/trips/lib/routeGroups";
 import { groupByDay, londonDay } from "../src/components/dashboard/trips/lib/days";
-import { activeFilterCount, filterQuery, pageUrlParams, parseFilters, parseView, rangeLabel } from "../src/components/dashboard/trips/lib/filters";
+import {
+  NO_CLIENT,
+  activeFilterCount,
+  clientLabel,
+  clientTripsHref,
+  filterQuery,
+  pageUrlParams,
+  parseFilters,
+  parseView,
+  rangeLabel,
+} from "../src/components/dashboard/trips/lib/filters";
 import { odometerWarning, validateTrip } from "../src/components/dashboard/trips/lib/form";
 import { odometerLineFor } from "../src/components/dashboard/trips/lib/odometerLine";
 import { findStops, speedSeries } from "../src/components/dashboard/trips/lib/stops";
@@ -64,7 +74,7 @@ test.describe("days", () => {
 test.describe("filters", () => {
   test("reads the URL and builds the API query", () => {
     const f = parseFilters((k) => ({ platform: "uber", from: "2026-04-06", to: "bad" } as Record<string, string>)[k] ?? null);
-    expect(f).toEqual({ platform: "uber", from: "2026-04-06", to: "" });
+    expect(f).toEqual({ platform: "uber", from: "2026-04-06", to: "", client: "" });
     expect(activeFilterCount(f)).toBe(2);
     const q = filterQuery("business", f);
     expect(q.get("classification")).toBe("business");
@@ -75,15 +85,35 @@ test.describe("filters", () => {
     expect(parseView("inbox")).toBe("inbox");
   });
   test("page URL only holds what differs from the defaults", () => {
-    expect(pageUrlParams("all", { platform: "", from: "", to: "" }, 1)).toBe("");
-    expect(pageUrlParams("inbox", { platform: "", from: "", to: "" }, 1)).toBe("?view=inbox");
-    expect(pageUrlParams("all", { platform: "uber", from: "", to: "" }, 3)).toBe("?platform=uber&page=3");
+    expect(pageUrlParams("all", { platform: "", from: "", to: "", client: "" }, 1)).toBe("");
+    expect(pageUrlParams("inbox", { platform: "", from: "", to: "", client: "" }, 1)).toBe("?view=inbox");
+    expect(pageUrlParams("all", { platform: "uber", from: "", to: "", client: "" }, 3)).toBe("?platform=uber&page=3");
+  });
+  test("the client filter: one client or no client, in the URL and the API query", () => {
+    const one = parseFilters((k) => ({ client: "  NHS   Trust " } as Record<string, string>)[k] ?? null);
+    expect(one.client).toBe("NHS Trust");
+    expect(activeFilterCount(one)).toBe(1);
+    expect(clientLabel(one)).toBe("NHS Trust");
+    expect(filterQuery("all", one).get("projectLabel")).toBe("NHS Trust");
+    expect(filterQuery("all", one).get("noProjectLabel")).toBeNull();
+    expect(pageUrlParams("all", one, 1)).toBe("?client=NHS+Trust");
+
+    const none = parseFilters((k) => ({ noclient: "1", client: "ignored" } as Record<string, string>)[k] ?? null);
+    expect(none.client).toBe(NO_CLIENT);
+    expect(clientLabel(none)).toBe("No client");
+    expect(filterQuery("all", none).get("noProjectLabel")).toBe("true");
+    expect(filterQuery("all", none).get("projectLabel")).toBeNull();
+    expect(pageUrlParams("all", none, 1)).toBe("?noclient=1");
+
+    expect(parseFilters((k) => ({ client: "x".repeat(150) } as Record<string, string>)[k] ?? null).client).toHaveLength(100);
+    expect(clientTripsHref("Acme refit")).toBe("/dashboard/trips?client=Acme+refit");
+    expect(clientTripsHref(null)).toBe("/dashboard/trips?noclient=1");
   });
   test("range labels name the presets", () => {
     const now = new Date(2026, 9, 9);
-    expect(rangeLabel({ platform: "", from: "2026-04-06", to: "2026-10-09" }, now)).toBe("This tax year");
-    expect(rangeLabel({ platform: "", from: "2025-04-06", to: "2026-04-05" }, now)).toBe("Last tax year");
-    expect(rangeLabel({ platform: "", from: "2026-10-01", to: "2026-10-05" }, now)).toBe("1 Oct to 5 Oct");
+    expect(rangeLabel({ platform: "", from: "2026-04-06", to: "2026-10-09", client: "" }, now)).toBe("This tax year");
+    expect(rangeLabel({ platform: "", from: "2025-04-06", to: "2026-04-05", client: "" }, now)).toBe("Last tax year");
+    expect(rangeLabel({ platform: "", from: "2026-10-01", to: "2026-10-05", client: "" }, now)).toBe("1 Oct to 5 Oct");
   });
 });
 
