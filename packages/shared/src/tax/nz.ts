@@ -6,23 +6,40 @@
 //            https://www.taxtechnical.ird.govt.nz/operational-statements/2026/os-19-04-km-2026
 //   2024-25: https://www.ird.govt.nz/income-tax/income-tax-for-businesses-and-organisations/types-of-business-expenses/claiming-vehicle-expenses/kilometre-rates-2024-2025
 //
-// IRD lists four vehicle types only: petrol, diesel, petrol hybrid, electric.
-// The app's fuel types are petrol, diesel, electric and hybrid, so each maps
-// to one of them; "hybrid" is worked out at IRD's petrol hybrid rate, and a
-// plug-in or diesel hybrid driver is told to check with IRD or an accountant.
-// IRD's pages don't say whether the kilometre rates cover motorbikes, so a
-// motorbike gets no figure. 2026-27 rates were
-// not published on 23 Oct 2026 (IRD sets each year's rates after it ends), so
-// the current year uses the latest published rates and says so.
+// Operational statements read 23 Oct 2026 (official, quoted):
+//   OS 19/04 (KM 2026): https://www.taxtechnical.ird.govt.nz/operational-statements/2026/os-19-04-km-2026
+//   OS 19/04a (Aug 2019, still current): https://www.taxtechnical.ird.govt.nz/-/media/project/ir/tt/pdfs/operational-statements/os-1904a.pdf
 //
-// The tiers, in IRD's words: Tier 1 is for "the business portion of the first
-// 14,000 kilometres travelled by the vehicle in an income year", private use
-// included; Tier 2 is for the business portion "when overall vehicle travel
-// (both business and private) exceeds 14,000 kilometres". IRD gives no
-// formula, so the business portion is taken as the vehicle's business share
-// of its total travel:
+// Vehicles. IRD's schedule lists Petrol, Diesel, Petrol Hybrid and Electric
+// only. OS 19/04a para 11: "The cost method must be used for any vehicle type
+// not included in the above table", and "The rates do not apply to motor
+// cycles or scooters (petrol or electric)". IRD doesn't say which rate a
+// plug-in, diesel or mild hybrid uses, so the app asks which kind of hybrid
+// it is (Vehicle.nzHybridKind) and only a petrol hybrid gets a figure.
+//
+// Tiers. OS 19/04a para 8: "The Tier Two rate must be used for the business
+// portion of any travel after the vehicle has covered 14,000kms total travel
+// in any income year." Example one (60% business, 20,000 km total):
+// "Tier 1 14,000 x $1.17 x 60% = 9,828.00", "Tier 2 6,000 x $0.37 x 60% =
+// 1,332.00". So with a logbook or full records:
 //   total <= 14,000 km: every business km at Tier 1
 //   total  > 14,000 km: Tier 1 km = 14,000 x (business / total), the rest Tier 2
+//
+// No logbook. OS 19/04a para 20: "In the absence of a logbook (or actual
+// records), s DE 4(2) limits any deductions to a maximum of 25% ... For the
+// Tier-One rate, this equates to the first 3,500 business kilometres (14,000
+// x 25%)." Example two (20,000 km total, "at least 25% (or 5,000km)"
+// business): "Tier One 3,500 x $0.79 = 2,765.00", "Tier Two 1,500 x $0.30 =
+// 450.00". So without one (or before the driver has said which):
+//   claimable km = the lesser of business km and 25% of total km
+//   Tier 1 km    = the lesser of claimable km and 25% of min(total, 14,000)
+//   the rest of the claimable km at Tier 2
+// IRD's example only shows business use of exactly 25%; capping business km
+// above 25% at 25% of total is our reading of "a maximum of 25%".
+//
+// Rates are set after each income year ends (OS 19/04 KM 2026: "calculated
+// as soon as possible, after the end of the 2025-26 income year"), so a year
+// with none published yet uses the latest and says when its own come out.
 import type { FuelType } from "../types/index.js";
 import { featuresFor } from "../utils/countryFeatures.js";
 import type { ClaimTier, MileageClaimInput, MileageClaimResult, TaxRegime } from "./regime.js";
@@ -30,6 +47,25 @@ import { startYearOfPairLabel, yearPairLabel } from "./regime.js";
 import { zonedMidnight, zonedParts } from "./zonedTime.js";
 
 export type IrdVehicleClass = "petrol" | "diesel" | "petrol_hybrid" | "electric";
+
+/** Vehicle.nzHybridKind: which kind of hybrid (IRD only sets a rate for petrol hybrids). */
+export type NzHybridKind = "petrol" | "plugin" | "diesel" | "mild";
+export const NZ_HYBRID_KINDS: readonly NzHybridKind[] = ["petrol", "plugin", "diesel", "mild"];
+export const NZ_HYBRID_KIND_LABELS: Record<NzHybridKind, string> = {
+  petrol: "Petrol hybrid",
+  plugin: "Plug-in hybrid",
+  diesel: "Diesel hybrid",
+  mild: "Mild hybrid",
+};
+
+/** Vehicle.nzRecordBasis: "records" = a logbook of 90 days or more, or full
+ *  records of every trip; "none" = neither. Null = not answered yet, worked
+ *  out like "none" (the 25% limit) until the driver says. */
+export type NzRecordBasis = "records" | "none";
+export const NZ_RECORD_BASES: readonly NzRecordBasis[] = ["records", "none"];
+
+/** s DE 4(2), OS 19/04a para 20: without a logbook or records, 25% at most. */
+export const IRD_NO_RECORDS_SHARE = 0.25;
 
 /** Cents per km. */
 interface IrdRate {
@@ -67,18 +103,21 @@ export const IRD_VEHICLE_LABELS: Record<IrdVehicleClass, string> = {
   electric: "Electric",
 };
 
-/** The app's fuel type as one of IRD's four, or null when IRD has no rate for it.
- *  The app's "hybrid" is IRD's petrol hybrid rate (the app can't tell a plug-in
- *  or diesel hybrid apart; the card and help tell those drivers to check). Null
- *  only for a value outside the app's fuel types. */
-export function irdVehicleClass(fuelType: FuelType | string | null | undefined): IrdVehicleClass | null {
+/** The app's fuel type as one of IRD's four, or null when IRD has no rate for
+ *  it. A hybrid is IRD's petrol hybrid only when the driver said it's a petrol
+ *  hybrid (nzHybridKind "petrol"); plug-in, diesel and mild hybrids, and a
+ *  hybrid not answered yet, have no IRD rate. */
+export function irdVehicleClass(
+  fuelType: FuelType | string | null | undefined,
+  hybridKind?: NzHybridKind | string | null
+): IrdVehicleClass | null {
   switch (fuelType) {
     case "petrol":
       return "petrol";
     case "diesel":
       return "diesel";
     case "hybrid":
-      return "petrol_hybrid";
+      return hybridKind === "petrol" ? "petrol_hybrid" : null;
     case "electric":
       return "electric";
     default:
@@ -97,13 +136,34 @@ export function irdRatesYearFor(taxYear: string | undefined): { year: string; pr
   return null;
 }
 
-/** Split business km between the tiers (see the header for IRD's rule). */
-export function irdTierSplit(businessKm: number, totalKm: number): { tier1Km: number; tier2Km: number } {
+/** Split business km between the tiers (see the header for IRD's rules).
+ *  basis "records": the business share of the first 14,000 km at Tier 1.
+ *  Anything else (no logbook, or not answered yet): the 25% limit. */
+export function irdTierSplit(
+  businessKm: number,
+  totalKm: number,
+  basis: NzRecordBasis | string | null | undefined = "records"
+): { tier1Km: number; tier2Km: number } {
   const business = Math.max(0, businessKm);
   const total = Math.max(business, totalKm || 0);
+  if (basis !== "records") {
+    const claimable = Math.min(business, IRD_NO_RECORDS_SHARE * total);
+    const tier1Km = Math.min(claimable, IRD_NO_RECORDS_SHARE * Math.min(total, IRD_TIER1_KM));
+    return { tier1Km, tier2Km: claimable - tier1Km };
+  }
   if (total <= IRD_TIER1_KM) return { tier1Km: business, tier2Km: 0 };
   const tier1Km = IRD_TIER1_KM * (business / total);
   return { tier1Km, tier2Km: business - tier1Km };
+}
+
+/** The claim in cents for a split at a rate (cents per km), rounded per tier. */
+export function irdClaimCents(
+  split: { tier1Km: number; tier2Km: number },
+  rate: { tier1: number; tier2: number }
+): { tier1: number; tier2: number; total: number } {
+  const tier1 = Math.round(split.tier1Km * rate.tier1);
+  const tier2 = Math.round(split.tier2Km * rate.tier2);
+  return { tier1, tier2, total: tier1 + tier2 };
 }
 
 function nzTaxYearOf(date: Date, timeZone = NZ_TIME_ZONE): string {
@@ -129,31 +189,44 @@ export const NZ_REGIME: TaxRegime = {
   distanceBasis: "km",
   timeZone: NZ_TIME_ZONE,
   taxYearDescription: "1 April to 31 March",
+  ratesExpected(taxYear: string): string | null {
+    const start = startYearOfPairLabel(taxYear);
+    return start == null ? null : `IRD publishes the ${taxYear} rates after 31 March ${start + 1}.`;
+  },
   taxYearOf: nzTaxYearOf,
   taxYearRange: nzTaxYearRange,
   isTaxYearLabel: (label) => startYearOfPairLabel(label) != null,
   mileageClaim(input: MileageClaimInput): MileageClaimResult {
     if (input.vehicleType === "motorbike") return { ok: false, reason: "vehicle_type_unsupported" };
-    const cls = irdVehicleClass(input.fuelType);
-    if (!cls) return { ok: false, reason: "fuel_unknown" };
+    if (input.fuelType === "hybrid" && !input.hybridKind) return { ok: false, reason: "hybrid_kind_needed" };
+    const cls = irdVehicleClass(input.fuelType, input.hybridKind);
+    if (!cls) return { ok: false, reason: input.fuelType === "hybrid" ? "hybrid_no_rate" : "fuel_unknown" };
     const ratesYear = irdRatesYearFor(input.taxYear);
     if (!ratesYear) return { ok: false, reason: "no_rates" };
     const rate = IRD_KM_RATES[ratesYear.year][cls];
-    const { tier1Km, tier2Km } = irdTierSplit(input.businessDistance, input.totalDistance ?? input.businessDistance);
-    const t1 = Math.round(tier1Km * rate.tier1);
-    const t2 = Math.round(tier2Km * rate.tier2);
+    const totalDistance = input.totalDistance ?? input.businessDistance;
+    const recordBasis = input.recordBasis === "records" || input.recordBasis === "none" ? input.recordBasis : null;
+    const split = irdTierSplit(input.businessDistance, totalDistance, recordBasis);
+    const cents = irdClaimCents(split, rate);
     const tiers: ClaimTier[] = [
-      { label: "Tier 1", distance: tier1Km, rateMinor: rate.tier1, amountMinor: t1 },
-      { label: "Tier 2", distance: tier2Km, rateMinor: rate.tier2, amountMinor: t2 },
+      { label: "Tier 1", distance: split.tier1Km, rateMinor: rate.tier1, amountMinor: cents.tier1 },
+      { label: "Tier 2", distance: split.tier2Km, rateMinor: rate.tier2, amountMinor: cents.tier2 },
     ];
+    // Under the 25% limit: what it would be with a logbook or full records.
+    const full =
+      recordBasis === "records"
+        ? null
+        : irdClaimCents(irdTierSplit(input.businessDistance, totalDistance, "records"), rate).total;
     return {
       ok: true,
       claim: {
-        amountMinor: t1 + t2,
+        amountMinor: cents.total,
         currency: "NZD",
         tiers,
         ratesYear: ratesYear.year,
         provisional: ratesYear.provisional,
+        recordBasis: recordBasis ?? "unanswered",
+        ...(full != null && full !== cents.total ? { amountWithRecordsMinor: full } : {}),
       },
     };
   },

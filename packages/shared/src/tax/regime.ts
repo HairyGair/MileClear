@@ -23,6 +23,11 @@ export interface MileageClaimInput {
   vehicleType?: RegimeVehicleType | string | null;
   /** Regime tax-year label, e.g. "2025-26". Missing = the latest rates. */
   taxYear?: string;
+  /** New Zealand: a logbook (90+ days) or full records ("records"), neither
+   *  ("none"), or not answered (null or missing, worked out like "none"). The UK ignores it. */
+  recordBasis?: "records" | "none" | null;
+  /** New Zealand: which kind of hybrid ("petrol" | "plugin" | "diesel" | "mild"). The UK ignores it. */
+  hybridKind?: string | null;
 }
 
 export interface ClaimTier {
@@ -44,13 +49,22 @@ export interface MileageClaim {
   /** True when the claim's own year has no published rates yet and
    *  ratesYear's were used instead. */
   provisional: boolean;
+  /** New Zealand: the basis the figure was worked out on. "unanswered" is
+   *  worked out like "none" (the 25% limit). */
+  recordBasis?: "records" | "none" | "unanswered";
+  /** New Zealand, under the 25% limit: the claim with a logbook or full records. */
+  amountWithRecordsMinor?: number;
 }
 
 /** Why there is no claim figure (shown as plain words, never a guessed amount). */
 export type NoClaimReason =
   | "no_rates"
   | "fuel_unknown"
-  | "vehicle_type_unsupported";
+  | "vehicle_type_unsupported"
+  /** A hybrid whose kind the driver hasn't said yet (NZ: only petrol hybrids have a rate). */
+  | "hybrid_kind_needed"
+  /** A plug-in, diesel or mild hybrid: IRD sets no rate. */
+  | "hybrid_no_rate";
 
 export type MileageClaimResult =
   | { ok: true; claim: MileageClaim }
@@ -69,6 +83,9 @@ export interface TaxRegime {
   timeZone: string;
   /** e.g. "6 April to 5 April". */
   taxYearDescription: string;
+  /** When a year's own rates come out, for a figure on an earlier year's:
+   *  "IRD publishes the 2026-27 rates after 31 March 2027." */
+  ratesExpected?(taxYear: string): string | null;
   /** The tax-year label (e.g. "2025-26") that `date` falls in. */
   taxYearOf(date: Date, timeZone?: string): string;
   /** Start and end (inclusive, to the millisecond) of a tax-year label. Throws on a bad label. */
@@ -100,6 +117,9 @@ export interface RegimeVehicleSummary {
   vehicleId: string | null;
   name: string | null;
   fuelType: string | null;
+  /** New Zealand answers saved on the vehicle (null = not answered yet). */
+  recordBasis?: "records" | "none" | null;
+  hybridKind?: string | null;
   businessDistance: number;
   totalDistance: number;
   claim: MileageClaim | null;
@@ -128,6 +148,8 @@ export interface RegimeSummary {
   /** Published rates used (the year itself, or the latest when provisional). */
   ratesYear: string | null;
   provisional: boolean;
+  /** When provisional: when the year's own rates come out. */
+  ratesExpected?: string | null;
   /** True when some business distance has no figure (unknown fuel, no vehicle...). */
   someWithoutFigure: boolean;
   vehicles: RegimeVehicleSummary[];

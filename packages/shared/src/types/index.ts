@@ -513,6 +513,15 @@ export interface Vehicle {
    *  miles count in totals but never in a mileage claim. Optional because
    *  older API responses do not carry it. */
   providedByOthers?: boolean;
+  /** New Zealand (IRD kilometre rates): "records" = a logbook of 90 days or
+   *  more, or full records; "none" = neither (the 25% limit). Null = not
+   *  answered. Optional because older API responses do not carry it. */
+  nzRecordBasis?: "records" | "none" | null;
+  /** New Zealand: which kind of hybrid; IRD only sets a rate for petrol hybrids. */
+  nzHybridKind?: "petrol" | "plugin" | "diesel" | "mild" | null;
+  /** What the car's odometer reads in. Readings are stored in miles either
+   *  way. Optional because older API responses do not carry it (= miles). */
+  odometerUnit?: "miles" | "km";
   /** Set when the DVLA cannot answer for the plate, so MOT and tax reminders
    *  are off: "not_found" (no record) or "invalid" (not a plate it accepts).
    *  Optional because older API responses do not carry it. */

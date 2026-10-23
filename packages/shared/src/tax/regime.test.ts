@@ -6,6 +6,7 @@ import {
   NZ_REGIME,
   UK_REGIME,
   irdRatesYearFor,
+  irdClaimCents,
   irdTierSplit,
   irdVehicleClass,
   regimeFor,
@@ -108,9 +109,54 @@ describe("NZ tier split", () => {
   });
 });
 
+describe("IRD's worked examples (OS 19/04a)", () => {
+  it("Example one, with a logbook: 20,000 km at 60% business, $1.17 / 37c = 9,828.00 + 1,332.00", () => {
+    const split = irdTierSplit(12_000, 20_000, "records");
+    expect(split.tier1Km).toBeCloseTo(8_400, 9); // 14,000 x 60%
+    expect(split.tier2Km).toBeCloseTo(3_600, 9); // 6,000 x 60%
+    expect(irdClaimCents(split, { tier1: 117, tier2: 37 })).toEqual({ tier1: 982_800, tier2: 133_200, total: 1_116_000 });
+  });
+  it("Example two, no logbook: 20,000 km, 5,000 business, $0.79 / 30c = 3,500 x 0.79 + 1,500 x 0.30", () => {
+    const split = irdTierSplit(5_000, 20_000, "none");
+    expect(split).toEqual({ tier1Km: 3_500, tier2Km: 1_500 });
+    expect(irdClaimCents(split, { tier1: 79, tier2: 30 })).toEqual({ tier1: 276_500, tier2: 45_000, total: 321_500 });
+  });
+});
+
+describe("NZ 25% limit (no logbook or full records, OS 19/04a para 20)", () => {
+  it("not answered is worked out like none", () => {
+    expect(irdTierSplit(5_000, 20_000, null)).toEqual(irdTierSplit(5_000, 20_000, "none"));
+    expect(irdTierSplit(5_000, 20_000, undefined)).toEqual({ tier1Km: 14_000 * 0.25, tier2Km: 1_500 });
+  });
+  it("business above 25% is capped at 25% of all travel", () => {
+    // 10,000 km total, 6,000 business: 2,500 claimable, all Tier 1.
+    expect(irdTierSplit(6_000, 10_000, "none")).toEqual({ tier1Km: 2_500, tier2Km: 0 });
+    // 30,000 km total, 20,000 business: 7,500 claimable, 3,500 Tier 1.
+    expect(irdTierSplit(20_000, 30_000, "none")).toEqual({ tier1Km: 3_500, tier2Km: 4_000 });
+  });
+  it("business under 25% is all claimable", () => {
+    expect(irdTierSplit(1_000, 10_000, "none")).toEqual({ tier1Km: 1_000, tier2Km: 0 });
+    expect(irdTierSplit(4_000, 20_000, "none")).toEqual({ tier1Km: 3_500, tier2Km: 500 });
+  });
+  it("never more than with a logbook", () => {
+    for (const [b, t] of [[100, 200], [5_000, 9_000], [12_000, 20_000], [30_000, 30_000]]) {
+      const none = irdTierSplit(b, t, "none");
+      const rec = irdTierSplit(b, t, "records");
+      expect(none.tier1Km).toBeLessThanOrEqual(rec.tier1Km + 1e-9);
+      expect(none.tier1Km + none.tier2Km).toBeLessThanOrEqual(rec.tier1Km + rec.tier2Km + 1e-9);
+    }
+  });
+});
+
 describe("NZ claim", () => {
   it("2025-26 petrol, under 14,000 km: business km x $1.20", () => {
-    const r = NZ_REGIME.mileageClaim({ businessDistance: 5_000, totalDistance: 8_000, fuelType: "petrol", taxYear: "2025-26" });
+    const r = NZ_REGIME.mileageClaim({
+      businessDistance: 5_000,
+      totalDistance: 8_000,
+      fuelType: "petrol",
+      taxYear: "2025-26",
+      recordBasis: "records",
+    });
     expect(r).toEqual({
       ok: true,
       claim: {
@@ -118,6 +164,7 @@ describe("NZ claim", () => {
         currency: "NZD",
         ratesYear: "2025-26",
         provisional: false,
+        recordBasis: "records",
         tiers: [
           { label: "Tier 1", distance: 5_000, rateMinor: 120, amountMinor: 600_000 },
           { label: "Tier 2", distance: 0, rateMinor: 37, amountMinor: 0 },
@@ -126,16 +173,29 @@ describe("NZ claim", () => {
     });
   });
   it("2025-26 diesel over 14,000 km mixes the tiers", () => {
-    const r = NZ_REGIME.mileageClaim({ businessDistance: 15_000, totalDistance: 20_000, fuelType: "diesel", taxYear: "2025-26" });
+    const r = NZ_REGIME.mileageClaim({
+      businessDistance: 15_000,
+      totalDistance: 20_000,
+      fuelType: "diesel",
+      taxYear: "2025-26",
+      recordBasis: "records",
+    });
     // 10,500 x 130c + 4,500 x 38c
     expect(r.ok && r.claim.amountMinor).toBe(10_500 * 130 + 4_500 * 38);
   });
   it("uses each published year's own rates", () => {
-    const r = NZ_REGIME.mileageClaim({ businessDistance: 100, totalDistance: 100, fuelType: "electric", taxYear: "2024-25" });
+    const r = NZ_REGIME.mileageClaim({ businessDistance: 100, totalDistance: 100, fuelType: "electric", taxYear: "2024-25", recordBasis: "records" });
     expect(r.ok && r.claim.amountMinor).toBe(100 * 108);
   });
   it("a year after the latest published uses the latest and says so", () => {
-    const r = NZ_REGIME.mileageClaim({ businessDistance: 100, totalDistance: 100, fuelType: "hybrid", taxYear: "2026-27" });
+    const r = NZ_REGIME.mileageClaim({
+      businessDistance: 100,
+      totalDistance: 100,
+      fuelType: "hybrid",
+      hybridKind: "petrol",
+      taxYear: "2026-27",
+      recordBasis: "records",
+    });
     expect(r.ok && r.claim.ratesYear).toBe("2025-26");
     expect(r.ok && r.claim.provisional).toBe(true);
     expect(r.ok && r.claim.amountMinor).toBe(100 * 90);
@@ -146,6 +206,31 @@ describe("NZ claim", () => {
       reason: "no_rates",
     });
     expect(irdRatesYearFor("rubbish")).toBeNull();
+  });
+  it("without a logbook: the 25% figure, and what it would be with one", () => {
+    const r = NZ_REGIME.mileageClaim({ businessDistance: 12_000, totalDistance: 20_000, fuelType: "petrol", taxYear: "2025-26" });
+    expect(r.ok && r.claim.recordBasis).toBe("unanswered");
+    // 25% of 20,000 = 5,000 claimable: 3,500 x $1.20 + 1,500 x 37c
+    expect(r.ok && r.claim.amountMinor).toBe(3_500 * 120 + 1_500 * 37);
+    // With records: 8,400 x $1.20 + 3,600 x 37c
+    expect(r.ok && r.claim.amountWithRecordsMinor).toBe(8_400 * 120 + 3_600 * 37);
+    const none = NZ_REGIME.mileageClaim({ businessDistance: 12_000, totalDistance: 20_000, fuelType: "petrol", taxYear: "2025-26", recordBasis: "none" });
+    expect(none.ok && none.claim.recordBasis).toBe("none");
+    expect(none.ok && none.claim.amountMinor).toBe(3_500 * 120 + 1_500 * 37);
+  });
+  it("hybrids: only a petrol hybrid has a rate; not answered asks", () => {
+    expect(NZ_REGIME.mileageClaim({ businessDistance: 100, fuelType: "hybrid" })).toEqual({ ok: false, reason: "hybrid_kind_needed" });
+    for (const kind of ["plugin", "diesel", "mild"]) {
+      expect(NZ_REGIME.mileageClaim({ businessDistance: 100, fuelType: "hybrid", hybridKind: kind })).toEqual({
+        ok: false,
+        reason: "hybrid_no_rate",
+      });
+    }
+    const r = NZ_REGIME.mileageClaim({ businessDistance: 100, totalDistance: 100, fuelType: "hybrid", hybridKind: "petrol", taxYear: "2025-26", recordBasis: "records" });
+    expect(r.ok && r.claim.amountMinor).toBe(100 * 90);
+  });
+  it("says when a year's own rates come out", () => {
+    expect(NZ_REGIME.ratesExpected?.("2026-27")).toBe("IRD publishes the 2026-27 rates after 31 March 2027.");
   });
   it("no figure for an unknown fuel or a motorbike", () => {
     expect(NZ_REGIME.mileageClaim({ businessDistance: 100, fuelType: "lpg" })).toEqual({ ok: false, reason: "fuel_unknown" });
@@ -158,7 +243,9 @@ describe("NZ claim", () => {
   it("maps the app's fuel types to IRD's four", () => {
     expect(irdVehicleClass("petrol")).toBe("petrol");
     expect(irdVehicleClass("diesel")).toBe("diesel");
-    expect(irdVehicleClass("hybrid")).toBe("petrol_hybrid");
+    expect(irdVehicleClass("hybrid")).toBeNull();
+    expect(irdVehicleClass("hybrid", "petrol")).toBe("petrol_hybrid");
+    expect(irdVehicleClass("hybrid", "plugin")).toBeNull();
     expect(irdVehicleClass("electric")).toBe("electric");
     expect(irdVehicleClass("plugin_hybrid")).toBeNull();
   });

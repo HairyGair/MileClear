@@ -33,6 +33,7 @@ function summary(over: Partial<RegimeSummary> = {}): RegimeSummary {
           currency: "NZD",
           ratesYear: "2025-26",
           provisional: false,
+          recordBasis: "records",
           tiers: [
             { label: "Tier 1", distance: 10_500, rateMinor: 120, amountMinor: 1_260_000 },
             { label: "Tier 2", distance: 4_500, rateMinor: 37, amountMinor: 166_500 },
@@ -56,13 +57,22 @@ describe("regimeClaimView (New Zealand)", () => {
       "Tier 1: 10,500 km at $1.20 = $12,600.00",
       "Tier 2: 4,500 km at 37c = $1,665.00",
     ]);
-    expect(v.footnote).toContain("14,000 km");
+    expect(v.basisNote).toBe("Worked out from your logbook or full records.");
+    expect(v.questions).toEqual([]);
+    expect(v.notes.join(" ")).toContain("14,000 km");
     expect(v.a11yLabel).not.toMatch(/HMRC|£/);
   });
 
   it("says when last year's rates stand in for this year's", () => {
-    const v = regimeClaimView(summary({ taxYear: "2026-27", provisional: true, ratesYear: "2025-26" }));
-    expect(v.ratesNote).toBe("Using 2025-26 rates, the 2026-27 rates aren't out yet.");
+    const v = regimeClaimView(
+      summary({
+        taxYear: "2026-27",
+        provisional: true,
+        ratesYear: "2025-26",
+        ratesExpected: "IRD publishes the 2026-27 rates after 31 March 2027.",
+      })
+    );
+    expect(v.ratesNote).toBe("Estimate at 2025-26 rates. IRD publishes the 2026-27 rates after 31 March 2027.");
   });
 
   it("no figure when nothing can be priced, with the reason in the breakdown", () => {
@@ -78,7 +88,9 @@ describe("regimeClaimView (New Zealand)", () => {
     );
     expect(v.amount).toBeNull();
     expect(v.subline).toContain("no figure yet");
-    expect(v.vehicles[0].lines[1]).toBe("MileClear can't match this vehicle's fuel type to an IRD rate. Check the fuel type on the vehicle.");
+    expect(v.vehicles[0].lines[1]).toBe(
+      "IRD's kilometre rates only cover petrol, diesel, petrol hybrid and electric vehicles. Check the fuel type on the vehicle; for anything else, use actual costs."
+    );
   });
 
   it("no business driving yet", () => {
@@ -126,14 +138,84 @@ describe("regimeClaimView (New Zealand)", () => {
     expect(regimeClaimView(summary()).unsortedNote).toBeNull();
   });
 
-  it("a hybrid gets the petrol hybrid note; the footnote says it's the self-employed figure", () => {
-    const s = summary();
-    s.vehicles[0].fuelType = "hybrid";
+  it("a hybrid not answered yet: no figure, asks what kind", () => {
+    const s = summary({ totalAmountMinor: 0, someWithoutFigure: true });
+    s.vehicles[0] = { ...s.vehicles[0], fuelType: "hybrid", claim: null, noClaimReason: "hybrid_kind_needed" };
     const v = regimeClaimView(s);
-    expect(v.vehicles[0].lines).toContain(
-      "Hybrid is worked out at IRD's petrol hybrid rate; if yours is a plug-in or diesel hybrid, check with IRD or your accountant."
-    );
-    expect(v.footnote).toContain("if you're an employee, your employer reimburses you instead");
-    expect(regimeClaimView(summary()).vehicles[0].lines.some((l) => l.includes("hybrid"))).toBe(false);
+    expect(v.amount).toBeNull();
+    expect(v.vehicles[0].lines).toContain("Say what kind of hybrid it is to see a figure.");
+    expect(v.questions).toEqual([
+      {
+        vehicleId: "v1",
+        vehicleName: "Toyota Corolla",
+        field: "nzHybridKind",
+        prompt: "What kind of hybrid is it?",
+        options: [
+          { label: "Petrol hybrid", value: "petrol" },
+          { label: "Plug-in hybrid", value: "plugin" },
+          { label: "Diesel hybrid", value: "diesel" },
+          { label: "Mild hybrid", value: "mild" },
+        ],
+      },
+    ]);
+  });
+
+  it("a plug-in hybrid: no figure, check with an accountant", () => {
+    const s = summary({ totalAmountMinor: 0, someWithoutFigure: true });
+    s.vehicles[0] = { ...s.vehicles[0], fuelType: "hybrid", hybridKind: "plugin", claim: null, noClaimReason: "hybrid_no_rate" };
+    const v = regimeClaimView(s);
+    expect(v.vehicles[0].lines).toContain("IRD doesn't set a rate for this kind of hybrid. Check with your accountant.");
+    expect(v.questions).toEqual([]);
+  });
+
+  it("not answered about a logbook: the 25% figure, the question, and the figure with one", () => {
+    const s = summary({ totalAmountMinor: 461_500 });
+    s.vehicles[0] = {
+      ...s.vehicles[0],
+      claim: {
+        ...s.vehicles[0].claim!,
+        amountMinor: 461_500,
+        recordBasis: "unanswered",
+        amountWithRecordsMinor: 1_426_500,
+        tiers: [
+          { label: "Tier 1", distance: 3_500, rateMinor: 120, amountMinor: 420_000 },
+          { label: "Tier 2", distance: 1_500, rateMinor: 37, amountMinor: 55_500 },
+        ],
+      },
+    };
+    const v = regimeClaimView(s);
+    expect(v.amount).toBe("$4,615.00");
+    expect(v.basisNote).toBe("Worked out at IRD's 25% limit, as no logbook or full records are kept.");
+    expect(v.questions).toEqual([
+      {
+        vehicleId: "v1",
+        vehicleName: "Toyota Corolla",
+        field: "nzRecordBasis",
+        prompt: "Do you keep a logbook (90 days or more) or full records of every trip for this car?",
+        options: [
+          { label: "Yes", value: "records" },
+          { label: "No", value: "none" },
+        ],
+      },
+    ]);
+    expect(v.vehicles[0].lines).toContain("At the 25% limit. With a logbook or full records it would be $14,265.00.");
+  });
+
+  it("said no: the 25% figure, no question", () => {
+    const s = summary();
+    s.vehicles[0] = { ...s.vehicles[0], claim: { ...s.vehicles[0].claim!, recordBasis: "none" } };
+    const v = regimeClaimView(s);
+    expect(v.questions).toEqual([]);
+    expect(v.basisNote).toContain("25% limit");
+  });
+
+  it("the notes cover the method choice, depreciation and GST, partners and employees", () => {
+    const notes = regimeClaimView(summary()).notes.join(" ");
+    expect(notes).toContain("first year of business use");
+    expect(notes).toContain("can't be changed");
+    expect(notes).toContain("no GST");
+    expect(notes).toContain("partners in a partnership");
+    expect(notes).toContain("your employer reimburses you instead");
+    expect(notes).toContain("3,500 business km");
   });
 });

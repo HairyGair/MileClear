@@ -1079,7 +1079,7 @@ export const NZ_CLAIM_HELP_ENTRY: HelpEntry = {
   id: "nz-claim",
   area: "account_and_app",
   q: "How does MileClear work out my claim in New Zealand?",
-  a: "With Inland Revenue's (IRD) kilometre rates, in NZ dollars, for the tax year 1 April to 31 March. Mark trips as Business and the claim shows on Home and Insights in Work mode; tap it for each car. Tier 1 covers the business share of the first 14,000 km a vehicle travels in the year, personal driving included; Tier 2 the rest. IRD's 2025-26 rates per km: petrol $1.20 then 37c, diesel $1.30 then 38c, petrol hybrid 90c then 24c, electric $1.22 then 23c. Until IRD sets a year's rates, MileClear uses the latest and says so. Hybrids use the petrol hybrid rate; for a plug-in or diesel hybrid, check with IRD or your accountant. No figure for motorbikes. The figure is for self-employed driving; an employee is reimbursed by their employer. Set your car's fuel type in your vehicle. For your business use, make a 90-day logbook in More > Downloads. Check with IRD or your accountant before you file.",
+  a: "With Inland Revenue's (IRD) kilometre rates, in NZ dollars, for the tax year 1 April to 31 March. Mark trips as Business and the claim shows on Home and Insights in Work mode; tap it for each car. Tier 1 covers the business share of the first 14,000 km a vehicle travels in the year, personal driving included; Tier 2 the rest. IRD's 2025-26 rates per km: petrol $1.20 then 37c, diesel $1.30 then 38c, petrol hybrid 90c then 24c, electric $1.22 then 23c. With no logbook or full records, IRD allows 25% at most: Tier 1 on up to 3,500 business km. MileClear asks which you keep. For a hybrid it asks what kind: IRD only sets a rate for petrol hybrids. No figure for motorbikes or scooters. IRD sets each year's rates after 31 March, so until then MileClear estimates at the latest. Make a 90-day logbook in More > Downloads. Check with IRD or your accountant before you file.",
   goTo: "/(tabs)/insights",
   keywords: ["new zealand", "nz", "ird", "inland revenue", "kilometre rates", "km rates", "tier 1", "tier 2", "14,000", "ir3", "claim"],
 };
@@ -1093,9 +1093,23 @@ export const NZ_LOGBOOK_HELP_ENTRY: HelpEntry = {
   id: "nz-logbook",
   area: "account_and_app",
   q: "How do I make a 90-day logbook for IRD?",
-  a: "Go to More > Downloads and find 90-day logbook (IRD). Choose the vehicle and the first day, and MileClear makes a PDF or CSV of the 90 days: every trip with its date, places, distance in km and whether it was Business or Personal, then your total and business km and your business-use percentage. It's part of Pro. Before you use it, sort every trip as Business or Personal, give each business trip a business purpose, note or client so it has a reason (IRD asks for the reason for each business journey), and write the odometer reading from your car on the first and last day. IRD lets you use the business percentage for up to 3 years if your business use doesn't change by more than 20%. Without a logbook the claim is limited to 25% of the vehicle's running costs. Keep the logbook, and check it with IRD or your accountant before you file.",
+  a: "Go to More > Downloads and find 90-day logbook (IRD). Choose the vehicle and the first day, and MileClear makes a PDF or CSV of the 90 days: every trip with its date, places, distance in km and whether it was Business or Personal, then your total and business km and your business-use percentage. It's part of Pro. Before you use it, sort every trip as Business or Personal and give each business trip a business purpose, note or client (IRD asks for the reason for each business journey). Save an odometer reading near the first and last day and it's printed; otherwise write it in. IRD lets you use the business percentage for up to 3 years if your business use doesn't change by more than 20%. Without a logbook the claim is limited to 25% of the vehicle's running costs. Keep the logbook.",
   goTo: "/exports",
   keywords: ["logbook", "log book", "90 days", "90-day", "ird", "new zealand", "nz", "business use", "business percentage", "odometer", "test period"],
+};
+
+/**
+ * "Can I switch between kilometre rates and actual costs?" (23 Oct 2026).
+ * IRD's OS 19/04a paras 3-4, 12 and 22, and OS 19/04b (partners). Held back
+ * with the other New Zealand answers until the Country setting is on.
+ */
+export const NZ_METHOD_HELP_ENTRY: HelpEntry = {
+  id: "nz-method",
+  area: "account_and_app",
+  q: "Can I switch between kilometre rates and actual costs in New Zealand?",
+  a: "No. IRD says the kilometre rate has to be chosen for each vehicle in the year you first use it for business, and the choice can't be changed while you own it. If you used actual costs that year, you stay on actual costs for that vehicle. With kilometre rates there's nothing extra for depreciation, and you can't claim GST on them. They're for self-employed driving and close companies, not partners in a partnership; if you're an employee, your employer reimburses you instead. Check with IRD or your accountant before you choose.",
+  goTo: "/(tabs)/insights",
+  keywords: ["new zealand", "nz", "ird", "actual costs", "cost method", "switch", "change method", "depreciation", "gst", "partnership", "election"],
 };
 
 /** The answer text for a phone platform ("ios" or "android"). */

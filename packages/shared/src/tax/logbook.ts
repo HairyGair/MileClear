@@ -226,3 +226,55 @@ export function nzDate(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
+
+// ── Odometer readings on the first and last day ──────────────────────
+// IRD asks for "the vehicle's odometer reading" on the start and end dates
+// (and OS 19/04a para 21: "every balance date", 31 March). Readings are
+// stored in miles whatever the car reads in (Vehicle.odometerUnit), so the
+// logbook prints the nearest real reading within a week of each end, in the
+// car's own unit and in km.
+
+/** How far from the first or last day a saved reading can be and still be printed. */
+export const NZ_LOGBOOK_ODOMETER_WINDOW_DAYS = 7;
+
+export interface LogbookOdometerReading {
+  at: Date;
+  /** As stored: miles. */
+  readingMiles: number;
+}
+
+/** The reading nearest `target`, within the window, or null. Earlier wins a tie. */
+export function nearestOdometerReading(
+  readings: LogbookOdometerReading[],
+  target: Date,
+  windowDays: number = NZ_LOGBOOK_ODOMETER_WINDOW_DAYS
+): LogbookOdometerReading | null {
+  const limit = windowDays * 86_400_000;
+  let best: LogbookOdometerReading | null = null;
+  let bestGap = Infinity;
+  for (const r of readings) {
+    if (!(r.readingMiles > 0)) continue;
+    const gap = Math.abs(r.at.getTime() - target.getTime());
+    if (gap > limit) continue;
+    if (gap < bestGap || (gap === bestGap && best && r.at.getTime() < best.at.getTime())) {
+      best = r;
+      bestGap = gap;
+    }
+  }
+  return best;
+}
+
+function wholeNumber(n: number): string {
+  return Math.round(n).toLocaleString("en-NZ");
+}
+
+/** "45,123 km (read 02/04/2026)", or for a car that reads miles
+ *  "28,038 miles = 45,123 km (read 02/04/2026)". */
+export function logbookOdometerText(r: LogbookOdometerReading, unit: "miles" | "km" | string | null | undefined): string {
+  const p = zonedParts(r.at, NZ_LOGBOOK_TIME_ZONE);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const when = `read ${pad(p.day)}/${pad(p.month)}/${p.year}`;
+  const km = wholeNumber(milesToKm(r.readingMiles));
+  if (unit === "km") return `${km} km (${when})`;
+  return `${wholeNumber(r.readingMiles)} miles = ${km} km (${when})`;
+}

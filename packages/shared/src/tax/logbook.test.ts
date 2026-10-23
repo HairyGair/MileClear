@@ -152,3 +152,44 @@ describe("logbook totals", () => {
     expect(logbookTotals([]).businessPercent).toBeNull();
   });
 });
+
+describe("New Zealand rule answers (IRD OS 19/04a)", () => {
+  it("the claim answer has the 25% limit, the hybrid question and when rates come out", async () => {
+    const { NZ_CLAIM_HELP_ENTRY } = await import("../data/help.js");
+    const a = NZ_CLAIM_HELP_ENTRY.a;
+    expect(a).toContain("25% at most: Tier 1 on up to 3,500 business km");
+    expect(a).toContain("IRD only sets a rate for petrol hybrids");
+    expect(a).toContain("after 31 March");
+    expect(a).not.toMatch(/HMRC|£|—/);
+  });
+  it("the method answer: chosen once per vehicle, no depreciation or GST, not partners; held back", async () => {
+    const { NZ_METHOD_HELP_ENTRY, HELP_ENTRIES } = await import("../data/help.js");
+    const a = NZ_METHOD_HELP_ENTRY.a;
+    expect(a).toContain("can't be changed");
+    expect(a).toContain("depreciation");
+    expect(a).toContain("GST");
+    expect(a).toContain("not partners in a partnership");
+    expect(a.length).toBeLessThan(900);
+    expect(a).not.toMatch(/HMRC|£|—/);
+    expect(HELP_ENTRIES.some((e) => e.id === NZ_METHOD_HELP_ENTRY.id)).toBe(false);
+  });
+});
+
+describe("logbook odometer readings", () => {
+  it("picks the nearest real reading within a week, earlier on a tie", async () => {
+    const { nearestOdometerReading } = await import("./logbook.js");
+    const target = new Date("2026-06-01T12:00:00Z");
+    const r = (iso: string, miles: number) => ({ at: new Date(iso), readingMiles: miles });
+    expect(nearestOdometerReading([r("2026-06-09T12:00:01Z", 10)], target)).toBeNull();
+    expect(nearestOdometerReading([r("2026-06-03T12:00:00Z", 10), r("2026-05-31T12:00:00Z", 20)], target)?.readingMiles).toBe(20);
+    expect(nearestOdometerReading([r("2026-06-02T12:00:00Z", 30), r("2026-05-31T12:00:00Z", 20)], target)?.readingMiles).toBe(20);
+    expect(nearestOdometerReading([r("2026-06-01T12:00:00Z", 0)], target)).toBeNull();
+  });
+  it("prints in the car's unit and in km, with the NZ date", async () => {
+    const { logbookOdometerText } = await import("./logbook.js");
+    const reading = { at: new Date("2026-06-01T22:00:00Z"), readingMiles: 28_038.07 };
+    expect(logbookOdometerText(reading, "km")).toBe("45,123 km (read 02/06/2026)");
+    expect(logbookOdometerText(reading, "miles")).toBe("28,038 miles = 45,123 km (read 02/06/2026)");
+    expect(logbookOdometerText(reading, null)).toBe("28,038 miles = 45,123 km (read 02/06/2026)");
+  });
+});
