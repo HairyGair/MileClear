@@ -1,10 +1,13 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { fallbackVehicleTypeForUser } from "./vehicleDefaults.js";
 import { employerRatesFor } from "../lib/mileageRates.js";
 import {
   computeProjectMileageTotals,
   distinctProjectLabels,
+  exportProjectLabel,
   parseTaxYear,
+  projectLabelKey,
   type ProjectMileageTotals,
 } from "@mileclear/shared";
 
@@ -80,4 +83,61 @@ export async function loadProjectLabels(userId: string, max = 30): Promise<strin
     rows.map((r) => ({ projectLabel: r.projectLabel, startedAt: r._max.startedAt ?? new Date(0) })),
     max,
   );
+}
+
+/**
+ * One client the driver has used, for the client filter on the trip list and
+ * the one-client CSV and Trip Report (23 Oct 2026).
+ */
+export interface ProjectLabelMatch {
+  /** projectLabelKey of the label: what every trip's label is compared by. */
+  key: string;
+  /** The most-used spelling, tidied, for headings ("NHS Trust"). */
+  label: string;
+  /** Every stored spelling with that key, for a `projectLabel: { in }` filter. */
+  spellings: string[];
+}
+
+/**
+ * The driver's client matching `label` by projectLabelKey, the rule Miles by
+ * project groups by, so "nhs " finds trips saved as "NHS". Null when no trip
+ * of theirs has that label. Scoped to the user.
+ *
+ * The database compares labels without case or accents (utf8mb4_unicode_ci),
+ * so `in: spellings` can also take in a spelling such as "Café" for "Cafe".
+ * Callers that need the exact set (the exports) also check each row with
+ * projectLabelMatches.
+ */
+export async function resolveProjectLabel(
+  userId: string,
+  label: string,
+): Promise<ProjectLabelMatch | null> {
+  const key = projectLabelKey(label);
+  if (!key) return null;
+  const rows = await prisma.trip.groupBy({
+    by: ["projectLabel"],
+    where: { userId, projectLabel: { not: null } },
+    _count: { _all: true },
+  });
+  const matching = rows.filter((r) => r.projectLabel != null && projectLabelKey(r.projectLabel) === key);
+  if (matching.length === 0) return null;
+  // Most-used spelling; ties keep the first one the database returned.
+  const count = (r: (typeof matching)[number]) => r._count?._all ?? 0;
+  const best = matching.reduce((a, b) => (count(b) > count(a) ? b : a));
+  return {
+    key,
+    label: exportProjectLabel(best.projectLabel!),
+    spellings: matching.map((r) => r.projectLabel!),
+  };
+}
+
+/** Trip where clause for one client (see resolveProjectLabel). */
+export function projectLabelTripWhere(match: Pick<ProjectLabelMatch, "spellings">): Prisma.TripWhereInput {
+  return { projectLabel: { in: match.spellings } };
+}
+
+/** Trip where clause for trips with no Project / client. */
+export function noProjectLabelTripWhere(): Prisma.TripWhereInput {
+  // "" too: under the database's collation it also covers a label of spaces.
+  return { OR: [{ projectLabel: null }, { projectLabel: "" }] };
 }

@@ -21,7 +21,7 @@ import {
   OVERLAP_LOOKBACK_MS,
   TRIPS_AROUND_MAX_DAYS,
 } from "@mileclear/shared";
-import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges, isTypedTotalTrip } from "@mileclear/shared";
+import { haversineDistance, computeTripInsights, assessTripCleanAirZoneCharges, isTypedTotalTrip, PROJECT_LABEL_MAX_LENGTH } from "@mileclear/shared";
 import type { CazVehicleClass } from "@mileclear/shared";
 
 // Map our vehicleType to the CAZ engine's class (car / van / motorcycle).
@@ -33,7 +33,13 @@ function tripVehicleCazClass(vehicleType: string | null | undefined): CazVehicle
 }
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { loadTripRoadworks } from "../../services/tripRoadworks.js";
-import { loadProjectTotals, loadProjectLabels } from "../../services/projectTotals.js";
+import {
+  loadProjectTotals,
+  loadProjectLabels,
+  noProjectLabelTripWhere,
+  projectLabelTripWhere,
+  resolveProjectLabel,
+} from "../../services/projectTotals.js";
 import { startTimeChangeAllowed } from "../../services/tripTimeEdit.js";
 import {
   parseTripCsvPreview,
@@ -257,13 +263,43 @@ function hasAppendCoordinatesEarly(updates: { coordinates?: unknown[] }): boolea
   return (updates.coordinates?.length ?? 0) > 0;
 }
 
+// Client filter (23 Oct 2026: "mileage is charged to different clients"),
+// shared by GET /trips and GET /trips/summary so the stats card agrees with
+// the list. projectLabel: one client, matched by projectLabelKey like Miles
+// by project, so "nhs" lists trips saved as "NHS". noProjectLabel=true: trips
+// with no Project / client, to find the ones still to tag. Not both.
+const clientFilterFields = {
+  projectLabel: z.string().trim().min(1).max(PROJECT_LABEL_MAX_LENGTH).optional(),
+  noProjectLabel: z.enum(["true", "false"]).optional(),
+};
+
+/**
+ * The where clause for the client filter, scoped to the user. undefined: no
+ * client filter. A client none of their trips has matches nothing (an empty
+ * list, not an error: the label may just have been edited away).
+ */
+async function clientFilterWhere(
+  userId: string,
+  q: { projectLabel?: string; noProjectLabel?: "true" | "false" }
+): Promise<Prisma.TripWhereInput | undefined> {
+  if (q.noProjectLabel === "true") return noProjectLabelTripWhere();
+  if (!q.projectLabel) return undefined;
+  const match = await resolveProjectLabel(userId, q.projectLabel);
+  return match ? projectLabelTripWhere(match) : { projectLabel: { in: [] } };
+}
+
+function bothClientFilters(q: { projectLabel?: string; noProjectLabel?: "true" | "false" }): boolean {
+  return !!q.projectLabel && q.noProjectLabel === "true";
+}
+
 const listTripsQuery = z.object({
   classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
   platformTag: z.enum(PLATFORM_TAGS).optional(),
   shiftId: z.string().uuid().optional(),
   vehicleId: z.string().uuid().optional(),
-  // Free-text search over start/end addresses + notes.
+  // Free-text search over start/end addresses, notes and Project / client.
   q: z.string().max(100).optional(),
+  ...clientFilterFields,
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().positive().default(1),
@@ -1463,6 +1499,9 @@ export async function tripRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
 
+    if (bothClientFilters(parsed.data)) {
+      return reply.status(400).send({ error: "Choose one client, or trips with no client, not both" });
+    }
     const { classification, platformTag, shiftId, vehicleId, q, from, to, page, pageSize } = parsed.data;
     const userId = request.userId!;
 
@@ -1477,8 +1516,12 @@ export async function tripRoutes(app: FastifyInstance) {
         { startAddress: { contains: term } },
         { endAddress: { contains: term } },
         { notes: { contains: term } },
+        { projectLabel: { contains: term } },
       ];
     }
+    // In AND: the no-client clause is an OR of its own and must not replace q's.
+    const client = await clientFilterWhere(userId, parsed.data);
+    if (client) where.AND = [client];
     if (from || to) {
       where.startedAt = {
         ...(from && { gte: from }),
@@ -2257,6 +2300,7 @@ export async function tripRoutes(app: FastifyInstance) {
   const summaryQuery = z.object({
     classification: z.enum(TRIP_CLASSIFICATIONS).optional(),
     platformTag: z.enum(PLATFORM_TAGS).optional(),
+    ...clientFilterFields,
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
   });
@@ -2266,9 +2310,14 @@ export async function tripRoutes(app: FastifyInstance) {
     if (!parsed.success) {
       return reply.status(400).send({ error: parsed.error.issues[0].message });
     }
+    if (bothClientFilters(parsed.data)) {
+      return reply.status(400).send({ error: "Choose one client, or trips with no client, not both" });
+    }
     const { classification, platformTag, from, to } = parsed.data;
     const baseWhere: Record<string, unknown> = { userId: request.userId!, isPhantomTrip: false };
     if (platformTag) baseWhere.platformTag = platformTag;
+    const client = await clientFilterWhere(request.userId!, parsed.data);
+    if (client) baseWhere.AND = [client];
     if (from || to) {
       baseWhere.startedAt = {
         ...(from && { gte: from }),
