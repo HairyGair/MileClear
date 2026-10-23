@@ -9,6 +9,7 @@ import { AccessibilityInfo, Modal, Platform, Switch, Text, TouchableOpacity, use
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, heroCard, numberSizes } from "../../lib/theme";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { haptic } from "../../lib/haptics";
 import { Skeleton } from "../Skeleton";
 import { Dial } from "./Dial";
@@ -61,6 +62,7 @@ interface PeriodSummaryCardProps {
 export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
   const { mode, period, offset, range, summary, bars, tripsEver, isPro, reducedMotion } = props;
   const { width, fontScale } = useWindowDimensions();
+  const { unit } = useDistanceUnit();
   const stacked = width < 380 || fontScale > 1.3;
   const shareRef = useRef<View>(null);
   const isPersonal = mode === "personal";
@@ -93,8 +95,9 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
       tripsEver: tripsEver ?? Math.max(current.trips, 1),
       busiestDay: current.busiestDayLabel,
       busiestDayMiles: current.busiestDayMiles,
+      unit,
     });
-  }, [current, summary.previous, period, offset, showComparison, tripsEver]);
+  }, [current, summary.previous, period, offset, showComparison, tripsEver, unit]);
 
   // Loading: skeleton, never a spinner page.
   if (summary.status === "loading" && !current) {
@@ -153,14 +156,15 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
     showComparison,
     claimPence: claim,
     formatPence,
+    unit,
   });
   if (workClaimHeadline) {
     figures = figures.filter((f) => f.key !== "claim");
     figures.unshift({
       key: "miles",
-      value: formatMilesShort(current.miles),
-      label: milesWord(current.miles),
-      spoken: `${formatMilesShort(current.miles)} ${milesWord(current.miles)}`,
+      value: formatMilesShort(current.miles, unit),
+      label: milesWord(current.miles, unit),
+      spoken: `${formatMilesShort(current.miles, unit)} ${unit === "km" ? "kilometres" : milesWord(current.miles)}`,
     });
     figures = figures.slice(0, 3);
   }
@@ -171,15 +175,15 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
       : "A quiet one"
     : workClaimHeadline
       ? formatPence(claim as number)
-      : formatMilesShort(current.miles);
-  const headlineUnit = quiet ? null : workClaimHeadline ? "claim built" : milesWord(current.miles);
+      : formatMilesShort(current.miles, unit);
+  const headlineUnit = quiet ? null : workClaimHeadline ? "claim built" : milesWord(current.miles, unit);
   const periodLine = quiet ? null : whenPhrase(period, offset);
 
   const headlineSpoken = quiet
     ? headlineValue
     : workClaimHeadline
       ? `${headlineValue} mileage claim built ${whenPhrase(period, offset)}`
-      : `${formatMilesShort(current.miles)} ${milesWord(current.miles)} ${whenPhrase(period, offset)}`;
+      : `${formatMilesShort(current.miles, unit)} ${unit === "km" ? "kilometres" : milesWord(current.miles)} ${whenPhrase(period, offset)}`;
 
   const buckets = !bars.truncated && bars.status === "ready" ? bucketTrips(bars.trips, period, offset) : null;
 
@@ -196,6 +200,7 @@ export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
     prevMonthMiles: null,
     deductionPence: 0,
     region: props.region,
+    unit,
   };
 
   const businessShare = !isPersonal

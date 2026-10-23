@@ -18,6 +18,7 @@ import { AvatarIcon } from "../avatars/AvatarRegistry";
 import { segmentTrips, type StoredCoordinate } from "../../lib/tracking/index";
 import { reverseGeocode } from "../../lib/location/geocoding";
 import { colors, fonts } from "../../lib/theme";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const GREEN = colors.green;
@@ -131,6 +132,7 @@ export function LiveMapTracker({
   // trail changes, not on every location-driven re-render — and never re-loops
   // the point list inline during render.
   const trailMiles = useMemo(() => trailDistance(trail), [trail]);
+  const dist = useDistanceUnit();
 
   // ── Foreground location watcher ────────────────────────────────
   useEffect(() => {
@@ -513,7 +515,7 @@ export function LiveMapTracker({
       {showTrail && trail.length >= 2 && (
         <View style={styles.distanceBadge}>
           <Text style={styles.distanceText}>
-            {trailMiles.toFixed(1)} mi
+            {dist.fmt(trailMiles, { fixed: true })}
           </Text>
         </View>
       )}

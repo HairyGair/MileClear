@@ -40,6 +40,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts } from "../lib/theme";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
+import { typedTripMiles } from "../lib/trips/typedDistance";
 import { reportMissingTrip, fetchServerRouteDistance, type CreateTripData } from "../lib/api/trips";
 import { apiRequest } from "../lib/api/index";
 import { getDatabase } from "../lib/db/index";
@@ -51,7 +53,6 @@ import {
   isTooRecent,
   describeReportNote,
   endTimeFor,
-  parseMilesInput,
   pauseIntervals,
   pauseNotice,
   placeLabel,
@@ -243,6 +244,8 @@ export function MissingTripReporter({
   variant?: "card" | "row" | "link";
 } = {}) {
   const router = useRouter();
+  // The "How many miles?" box is in the driver's unit; the trip saves miles.
+  const dist = useDistanceUnit();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("form");
   const [from, setFrom] = useState<Place | null>(null);
@@ -454,7 +457,7 @@ export function MissingTripReporter({
           landed.start_address && landed.end_address
             ? `${landed.start_address} to ${landed.end_address}`
             : landed.start_address || landed.end_address || "a new trip";
-        const miles = landed.distance_miles ? ` (${landed.distance_miles.toFixed(1)} mi)` : "";
+        const miles = landed.distance_miles ? ` (${dist.fmt(landed.distance_miles, { fixed: true })})` : "";
         const choice = await ask("A trip just finished saving", `${where}${miles}.\n\nIs that the one you were missing?`, [
           "No, still missing",
           "Yes, that's it",
@@ -588,7 +591,8 @@ export function MissingTripReporter({
   };
 
   const addWithTypedMiles = async () => {
-    const miles = parseMilesInput(milesText);
+    // In the driver's unit, capped at 1,000 miles after converting.
+    const miles = typedTripMiles(milesText, dist.unit);
     if (miles === null) return;
     Keyboard.dismiss();
     setAdding(true);
@@ -669,7 +673,7 @@ export function MissingTripReporter({
 
   const tooRecent = isTooRecent(departAt, Date.now());
   const canSend = canSendReport({ hasFrom: from !== null, hasTo: to !== null, departAt, extra: note, now: Date.now() });
-  const typedMiles = parseMilesInput(milesText);
+  const typedMiles = typedTripMiles(milesText, dist.unit);
 
   return (
     <>
@@ -832,7 +836,7 @@ export function MissingTripReporter({
 
               {step === "miles" && (
                 <>
-                  <Text style={styles.title}>How many miles?</Text>
+                  <Text style={styles.title}>{dist.isKm ? "How many kilometres?" : "How many miles?"}</Text>
                   <Text style={styles.sub}>
                     We couldn&apos;t work out the road distance just now. If you know roughly how far
                     it was, type it in and we&apos;ll add the trip.
@@ -847,7 +851,7 @@ export function MissingTripReporter({
                     keyboardType="decimal-pad"
                     autoFocus
                     maxLength={7}
-                    accessibilityLabel="Miles driven"
+                    accessibilityLabel={dist.isKm ? "Kilometres driven" : "Miles driven"}
                   />
                   <TouchableOpacity
                     style={[styles.send, (adding || typedMiles === null) && styles.sendDisabled]}

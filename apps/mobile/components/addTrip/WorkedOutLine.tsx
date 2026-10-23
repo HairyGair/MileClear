@@ -12,6 +12,7 @@ import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 import { clockTime } from "../../lib/trips/manualTimeRule";
 import { TYPED_MILES_ASSUMED_MPH } from "../../lib/trips/missingReportRule";
 import { TimeRow, type ClockValue } from "./TimeRow";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 
 interface Props {
   hasFrom: boolean;
@@ -25,9 +26,12 @@ interface Props {
   online: boolean;
   /** The driver is typing the miles. */
   typing: boolean;
+  /** What the box holds, in the driver's unit (Distances in Settings). */
   milesText: string;
   onMilesText: (text: string) => void;
   onStartTyping: () => void;
+  /** The typed figure can't be saved: the line saying why, or null. */
+  rejectedText?: string | null;
   /** Back to the road distance, when there is one. */
   onUseRoad?: (() => void) | null;
   roadMiles?: number | null;
@@ -39,13 +43,17 @@ interface Props {
 
 export function WorkedOutLine(p: Props) {
   const [open, setOpen] = useState(false);
+  const dist = useDistanceUnit();
+  // "Miles" on a miles phone, "Kilometres" on a km one.
+  const Unit = dist.isKm ? "Kilometres" : "Miles";
+  const unit = dist.isKm ? "kilometres" : "miles";
   const noRoute = p.hasTo && !p.calculating && p.routeUnavailable && !p.routed;
   const boxShown = open || p.typing || noRoute;
 
   if (!p.hasFrom && !p.hasTo && !p.typing) {
     return (
       <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>
-        Miles and arrival time are worked out once you&apos;ve said where and when.
+        {Unit} and arrival time are worked out once you&apos;ve said where and when.
       </Text>
     );
   }
@@ -54,10 +62,10 @@ export function WorkedOutLine(p: Props) {
     return (
       <View style={styles.noteRow}>
         <Text style={[styles.note, styles.noteFlex]} maxFontSizeMultiplier={fontScaleCap.body}>
-          Pick where you went and the miles are worked out for you.
+          Pick where you went and the {unit} are worked out for you.
         </Text>
-        <TouchableOpacity onPress={p.onStartTyping} hitSlop={8} accessibilityRole="button" accessibilityLabel="Type the miles instead">
-          <Text style={styles.link} maxFontSizeMultiplier={fontScaleCap.body}>Type the miles</Text>
+        <TouchableOpacity onPress={p.onStartTyping} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Type the ${unit} instead`}>
+          <Text style={styles.link} maxFontSizeMultiplier={fontScaleCap.body}>Type the {unit}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -75,34 +83,36 @@ export function WorkedOutLine(p: Props) {
   const arrivalWords = p.arrival ? `Arrives about ${clockTime(p.arrival)}` : null;
 
   if (!boxShown && p.routed && p.distanceMiles != null) {
-    const miles = p.distanceMiles.toFixed(1);
+    const miles = dist.num(p.distanceMiles, { fixed: true });
     return (
       <View
         style={[styles.card, styles.row]}
         accessible
-        accessibilityLabel={`${miles} miles by road${arrivalWords ? `, ${arrivalWords.toLowerCase()}` : ""}`}
+        accessibilityLabel={`${miles} ${dist.label("spoken")} by road${arrivalWords ? `, ${arrivalWords.toLowerCase()}` : ""}`}
         accessibilityActions={[{ name: "activate", label: "Change" }]}
         onAccessibilityAction={() => setOpen(true)}
-        accessibilityHint="Double tap to change the miles or the arrival time"
+        accessibilityHint={`Double tap to change the ${unit} or the arrival time`}
       >
         <Ionicons name="navigate-outline" size={22} color={colors.text2} accessible={false} />
         <View style={{ flex: 1 }}>
           <Text style={styles.main} maxFontSizeMultiplier={fontScaleCap.display}>
-            <Text style={styles.miles}>{miles} miles</Text>
+            <Text style={styles.miles}>{miles} {dist.label("word")}</Text>
             <Text style={styles.by}> by road</Text>
           </Text>
           {arrivalWords && (
             <Text style={styles.sub} maxFontSizeMultiplier={fontScaleCap.body}>{arrivalWords}</Text>
           )}
         </View>
-        <TouchableOpacity onPress={() => setOpen(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Change the miles or the arrival time">
+        <TouchableOpacity onPress={() => setOpen(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Change the ${unit} or the arrival time`}>
           <Text style={styles.change} maxFontSizeMultiplier={fontScaleCap.body}>Change</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const why = !p.online
+  const why = p.rejectedText
+    ? p.rejectedText
+    : !p.online
     ? "No signal, so we couldn't work out the road distance"
     : noRoute
       ? "We couldn't work out the road distance"
@@ -112,7 +122,7 @@ export function WorkedOutLine(p: Props) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.body}>Miles</Text>
+      <Text style={styles.label} maxFontSizeMultiplier={fontScaleCap.body}>{Unit}</Text>
       <View style={styles.milesRow}>
         <TextInput
           style={styles.input}
@@ -122,23 +132,23 @@ export function WorkedOutLine(p: Props) {
             if (!p.typing) p.onStartTyping();
           }}
           keyboardType="decimal-pad"
-          placeholder={p.roadMiles != null ? p.roadMiles.toFixed(1) : "e.g. 12.5"}
+          placeholder={p.roadMiles != null ? dist.value(p.roadMiles).toFixed(1) : "e.g. 12.5"}
           placeholderTextColor={colors.text3}
           maxLength={7}
-          accessibilityLabel={why ? `Miles. ${why}` : "Miles driven"}
+          accessibilityLabel={why ? `${Unit}. ${why}` : `${Unit} driven`}
         />
         {why ? (
           <Text style={[styles.sub, styles.why]} maxFontSizeMultiplier={fontScaleCap.body}>{why}</Text>
         ) : p.routed && p.distanceMiles != null && !p.typing ? (
           <Text style={[styles.sub, styles.why]} maxFontSizeMultiplier={fontScaleCap.body}>
-            {p.distanceMiles.toFixed(1)} miles by road
+            {dist.fmt(p.distanceMiles, { fixed: true, style: "word" })} by road
           </Text>
         ) : null}
       </View>
       {p.typing && p.onUseRoad && p.roadMiles != null && (
-        <TouchableOpacity onPress={p.onUseRoad} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Use the road distance, ${p.roadMiles.toFixed(1)} miles`}>
+        <TouchableOpacity onPress={p.onUseRoad} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Use the road distance, ${dist.fmt(p.roadMiles, { fixed: true, style: "spoken" })}`}>
           <Text style={[styles.link, { marginTop: 8 }]} maxFontSizeMultiplier={fontScaleCap.body}>
-            Use the road distance ({p.roadMiles.toFixed(1)} mi)
+            Use the road distance ({dist.fmt(p.roadMiles, { fixed: true })})
           </Text>
         </TouchableOpacity>
       )}

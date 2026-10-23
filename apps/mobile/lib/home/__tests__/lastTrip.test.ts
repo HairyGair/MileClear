@@ -60,6 +60,10 @@ describe("selectLastTrip looks", () => {
     expect(v.eyebrow).toBe("30 min ago\u00a0· 12.4\u00a0mi");
     expect(v.route).toBe("Home to Sunderland Depot");
   });
+  it("a km driver sees km", () => {
+    const v = full(selectLastTrip(base({ unit: "km" })));
+    expect(v.eyebrow).toBe("30 min ago · 20.0 km");
+  });
   it("just finished and auto sorted: full, with the Auto tag", () => {
     const v = full(selectLastTrip(base({ trip: trip({ classification: "business", autoSorted: true }) })));
     expect(v.look).toBe("full");

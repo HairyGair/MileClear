@@ -47,6 +47,17 @@ test.describe("list", () => {
     await expect(page.getByRole("link", { name: "Add a trip" })).toHaveAttribute("href", "/dashboard/trips/new");
   });
 
+  test("a driver who chose kilometres in the app sees km on rows and the day total", async ({ page }) => {
+    const state = newState({
+      trips: [trip({ startedAt: at(0, "08:12"), endedAt: at(0, "08:41"), distanceMiles: 12.4 })],
+    });
+    await open(page, state, "/dashboard/trips", { distanceUnit: "km" });
+    const row = page.getByTestId("trip-row").first();
+    await expect(row).toContainText("20 km");
+    await expect(row).not.toContainText(" mi");
+    await expect(page.locator(".mc-day__miles").first()).toHaveText("20 km");
+  });
+
   test("a row opens the trip", async ({ page }) => {
     const t = trip();
     await open(page, newState({ trips: [t] }));

@@ -131,7 +131,7 @@ import {
   type SavedTripFacts,
 } from "../lib/trips/pastTripRule";
 import { findTripAround, knownTripsBetween, lastTripEndedAt, type KnownTrip } from "../lib/trips/overlapLookup";
-import { parseMilesInput } from "../lib/trips/missingReportRule";
+import { typedDistanceProblem, typedDistanceRejected, typedTripMiles } from "../lib/trips/typedDistance";
 import { shortDay } from "../lib/tracking/pauseRule";
 import { FromToCard } from "../components/addTrip/FromToCard";
 import { WorkedOutLine } from "../components/addTrip/WorkedOutLine";
@@ -145,7 +145,8 @@ import { placeWords, usePickerPlaceSource, type PlaceKind, type PlaceValue } fro
 import { WhenCard } from "../components/addTrip/WhenCard";
 import type { ClockValue } from "../components/addTrip/TimeRow";
 import { OverlapLine, OverlapSheet } from "../components/addTrip/OverlapNotice";
-import { editedDistanceToSend, isTypedTotalForEdit, parseTypedMiles } from "../lib/trips/editDistanceRule";
+import { editedDistanceToSend, isTypedTotalForEdit } from "../lib/trips/editDistanceRule";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -470,6 +471,7 @@ function PostTripReviewCard({
   onDone: () => void;
 }) {
   const accent = classification === "business" ? colors.amber : colors.green;
+  const dist = useDistanceUnit();
 
   // Compute AMAP value at the standard car rate. We use calculateHmrcDeduction
   // (tax-year-aware tiered car rate - 55p/25p from 2026-27, was 45p/25p
@@ -498,9 +500,9 @@ function PostTripReviewCard({
         <View style={reviewCardStyles.statsRow}>
           <View style={reviewCardStyles.statItem}>
             <Text style={[reviewCardStyles.statValue, { color: accent }]}>
-              {distanceMiles.toFixed(2)}
+              {dist.num(distanceMiles, { decimals: 2, fixed: true })}
             </Text>
-            <Text style={reviewCardStyles.statLabel}>MILES</Text>
+            <Text style={reviewCardStyles.statLabel}>{dist.isKm ? "KM" : "MILES"}</Text>
           </View>
           {showClaim && (
             <>
@@ -699,6 +701,10 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const router = useRouter();
+  // Miles or kilometres on screen. distanceMiles and everything saved stay
+  // in miles; the typed box is in the driver's unit and converted as typed.
+  const dist = useDistanceUnit();
+  const boxText = (miles: number) => (dist.isKm ? String(Math.round(dist.value(miles) * 10) / 10) : String(miles));
   // For the exit guard: usePreventRemove hands back the navigation action it
   // blocked, and this is what re-dispatches it once the driver has decided.
   const navigation = useNavigation();
@@ -1641,7 +1647,7 @@ export default function TripFormScreen() {
         for (const a of d.nearbyAnomalies.slice(0, 3)) {
           if (a.severity !== "high" && a.severity !== "medium") continue;
           const reason = a.topReasons?.[0] ?? a.response;
-          const location = a.placeName ?? `${a.distanceMiles} mi away`;
+          const location = a.placeName ?? `${dist.fmt(a.distanceMiles)} away`;
           const count = a.reportCount > 1 ? `${a.reportCount} drivers reported ` : "";
           const severityColors: Record<string, string> = { high: RED, medium: "#f59e0b" };
           const icons: Record<string, string> = {
@@ -1682,7 +1688,7 @@ export default function TripFormScreen() {
         setCommunityNudges(nudges.slice(0, 3));
       })
       .catch(() => {});
-  }, [startLat, startLng, isEditing, isWork]);
+  }, [startLat, startLng, isEditing, isWork, dist]);
 
   // Fetch earnings/mile for business mode live stats
   useEffect(() => {
@@ -2731,7 +2737,7 @@ export default function TripFormScreen() {
             : "Updated";
         Alert.alert(
           "Distance updated",
-          `${result.oldMiles.toFixed(2)} mi → ${result.newMiles.toFixed(2)} mi\n${sourceLabel}.`
+          `${dist.fmt(result.oldMiles, { decimals: 2, fixed: true })} → ${dist.fmt(result.newMiles, { decimals: 2, fixed: true })}\n${sourceLabel}.`
         );
       } else {
         Alert.alert(
@@ -2747,9 +2753,19 @@ export default function TripFormScreen() {
     } finally {
       setRecalculating(false);
     }
-  }, []);
+  }, [dist]);
+
+  // The driver typed a distance that can't be saved. Save refuses it.
+  const distanceRejected = typedDistanceRejected({ typed: distanceTyped, text: manualDistanceText, unit: dist.unit });
 
   const handleSave = useCallback(async (skipGuards = false) => {
+    // A typed distance that can't be saved (0, junk, over 1,000 miles) is
+    // refused outright, so an earlier figure from the same box never saves
+    // in its place.
+    if (distanceRejected) {
+      Alert.alert("Check the distance", typedDistanceProblem(dist.unit));
+      return;
+    }
     if (startLat == null || startLng == null) {
       Alert.alert("Missing location", "Set a start location.");
       return;
@@ -2865,7 +2881,7 @@ export default function TripFormScreen() {
         if (Math.abs(odoMiles - distanceMiles) > tolerance) {
           Alert.alert(
             "Odometer doesn't match the distance",
-            `Your odometer shows ${odoMiles.toFixed(1)} miles but the trip distance is ${distanceMiles.toFixed(1)}. Check the readings, or save anyway?`,
+            `Your odometer shows ${dist.fmt(odoMiles, { fixed: true, style: "word" })} but the trip distance is ${dist.fmt(distanceMiles, { fixed: true, style: "word" })}. Check the readings, or save anyway?`,
             [
               { text: "Check", style: "cancel" },
               { text: "Save anyway", onPress: () => handleSave(true) },
@@ -2968,6 +2984,7 @@ export default function TripFormScreen() {
               typed: distanceTyped,
               text: manualDistanceText,
               loadedMiles: loadedDistanceRef.current,
+              unit: dist.unit,
             });
             return typed !== undefined ? { distanceMiles: typed } : {};
           })(),
@@ -3361,7 +3378,7 @@ export default function TripFormScreen() {
     }
   }, [
     isEditing, id, classification, platformTag, businessPurpose, category, vehicleId, vehicles,
-    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, distanceTyped, manualDistanceText,
+    startAddress, endAddress, startLat, startLng, endLat, endLng, startMoved, editingIsManual, distanceTyped, manualDistanceText, dist, distanceRejected,
     distanceMiles, startedAt, endedAt, notes, projectLabel, router, showPaywall, routeSource,
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
@@ -3791,7 +3808,7 @@ export default function TripFormScreen() {
         {insights.longestNonStopMiles > 0.1 && (
           <View style={styles.insightNoteRow}>
             <Ionicons name="trending-up-outline" size={13} color={TEXT_2} />
-            <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
+            <Text style={styles.insightNote}>Longest non-stop: {dist.fmt(insights.longestNonStopMiles, { decimals: 2 })}</Text>
           </View>
         )}
         {insights.timeStoppedSecs > 60 && (
@@ -3853,7 +3870,7 @@ export default function TripFormScreen() {
     const from = startLat != null && startLng != null ? placeWords({ lat: startLat, lng: startLng, address: startAddress }, savedPlaces).name : null;
     const to = endLat != null && endLng != null ? placeWords({ lat: endLat, lng: endLng, address: endAddress }, savedPlaces).name : null;
     const route = from && to ? `${from} to ${to}` : from ? `From ${from}` : to ? `To ${to}` : "Your trip";
-    const miles = distanceMiles != null && distanceMiles > 0 ? `${distanceMiles.toFixed(1)} mi` : null;
+    const miles = distanceMiles != null && distanceMiles > 0 ? dist.fmt(distanceMiles, { fixed: true }) : null;
     return [route, clockTime(startedAt), miles].filter(Boolean).join(" · ");
   })();
 
@@ -3957,25 +3974,22 @@ export default function TripFormScreen() {
         online={online}
         typing={manualDistanceMode}
         milesText={manualDistanceText}
+        rejectedText={distanceRejected ? typedDistanceProblem(dist.unit) : null}
         onMilesText={(t) => {
           const cleaned = t.replace(/[^0-9.,]/g, "");
           setManualDistanceText(cleaned);
           setDistanceTyped(true);
-          const n = parseMilesInput(cleaned);
-          if (n != null) {
-            // The figure as typed, to 2 places: what an edit sends (editDistanceRule).
-            setDistanceMiles(Math.round((parseTypedMiles(cleaned) ?? n) * 100) / 100);
-            setRouteSource(null);
-            setRoutedDurationSecs(null);
-          } else if (cleaned === "") {
-            setDistanceMiles(null);
-            setRouteSource(null);
-            setRoutedDurationSecs(null);
-          }
+          // Typed in the driver's unit, kept in miles to 2 places (what an
+          // edit sends, editDistanceRule). Capped after converting. A figure
+          // that can't be saved clears the distance rather than leave the
+          // last good one behind it.
+          setDistanceMiles(typedTripMiles(cleaned, dist.unit));
+          setRouteSource(null);
+          setRoutedDurationSecs(null);
         }}
         onStartTyping={() => {
           setManualDistanceMode(true);
-          if (!manualDistanceText && distanceMiles != null) setManualDistanceText(String(distanceMiles));
+          if (!manualDistanceText && distanceMiles != null) setManualDistanceText(boxText(distanceMiles));
         }}
         onUseRoad={
           lastRouteRef.current
@@ -4055,7 +4069,7 @@ export default function TripFormScreen() {
       <View style={styles.distanceCard}>
         <Text style={styles.distanceLabel}>Distance</Text>
         <Text style={styles.distanceValue}>
-          {calculatingRoute ? "Calculating..." : distanceMiles != null ? `${distanceMiles} mi` : "--"}
+          {calculatingRoute ? "Calculating..." : distanceMiles != null ? dist.fmt(distanceMiles, { decimals: 2 }) : "--"}
         </Text>
         {!calculatingRoute && distanceMiles != null && routeSource && (
           <Text style={styles.distanceHint}>{provenanceLabel(routeSource)}</Text>
@@ -4082,27 +4096,28 @@ export default function TripFormScreen() {
                 // Typing here counts as typed, including in the field shown
                 // by itself when the route could not be worked out.
                 setDistanceTyped(true);
-                const n = parseFloat(cleaned);
-                if (Number.isFinite(n) && n > 0) {
-                  setDistanceMiles(Math.round(n * 100) / 100);
-                  setRouteSource(null);
-                } else if (cleaned === "") {
-                  setDistanceMiles(null);
-                }
+                // Typed in the driver's unit, kept in miles, capped after
+                // converting. A figure that can't be saved clears the
+                // distance; Save then says what's wrong.
+                setDistanceMiles(typedTripMiles(cleaned, dist.unit));
+                setRouteSource(null);
               }}
               keyboardType="decimal-pad"
               placeholder="0.0"
               placeholderTextColor="#64748b"
-              accessibilityLabel="Enter the trip distance in miles"
+              accessibilityLabel={`Enter the trip distance in ${dist.label("spoken")}`}
             />
-            <Text style={styles.manualDistanceUnit}>miles</Text>
+            <Text style={styles.manualDistanceUnit}>{dist.label("word")}</Text>
           </View>
+        )}
+        {manualDistanceMode && distanceRejected && (
+          <Text style={[styles.distanceHint, { color: "#f59e0b" }]}>{typedDistanceProblem(dist.unit)}</Text>
         )}
         {!manualDistanceMode && !(routeUnavailable && distanceMiles == null) && (
           <TouchableOpacity
             onPress={() => {
               setManualDistanceMode(true);
-              setManualDistanceText(distanceMiles != null ? String(distanceMiles) : "");
+              setManualDistanceText(distanceMiles != null ? boxText(distanceMiles) : "");
             }}
             accessibilityRole="button"
             accessibilityLabel="Enter distance manually"
@@ -4321,9 +4336,9 @@ export default function TripFormScreen() {
             <View style={styles.dashStatsRow}>
               <View style={styles.dashStat}>
                 <Text style={styles.dashStatValue}>
-                  {liveDistance.toFixed(1)}
+                  {dist.num(liveDistance, { fixed: true })}
                 </Text>
-                <Text style={styles.dashStatLabel}>MILES</Text>
+                <Text style={styles.dashStatLabel}>{dist.isKm ? "KM" : "MILES"}</Text>
               </View>
               <View style={styles.dashDivider} />
               <View style={styles.dashStat}>
@@ -4555,7 +4570,7 @@ export default function TripFormScreen() {
                 {restoredArrived ? "Trip not saved yet" : "Trip complete!"}
               </Text>
               <Text style={styles.celebDistance}>
-                {distance != null ? `${distance} mi` : "--"}
+                {distance != null ? dist.fmt(distance, { decimals: 2 }) : "--"}
               </Text>
               <Text style={styles.celebDuration}>
                 {duration != null ? formatTimer(duration) : ""}
@@ -4587,8 +4602,8 @@ export default function TripFormScreen() {
             {/* Stats */}
             <Animated.View style={[styles.statsRow, { opacity: celebStatsAnim }]}>
               <View style={styles.statCard}>
-                <Text style={styles.statValue}>{distance != null ? `${distance}` : "--"}</Text>
-                <Text style={styles.statUnit}>miles</Text>
+                <Text style={styles.statValue}>{distance != null ? dist.num(distance, { decimals: 2 }) : "--"}</Text>
+                <Text style={styles.statUnit}>{dist.label("word")}</Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statValue}>{duration != null ? formatTimer(duration) : "--"}</Text>
@@ -4639,7 +4654,7 @@ export default function TripFormScreen() {
                   {insights.longestNonStopMiles > 0.1 && (
                     <View style={styles.insightNoteRow}>
                       <Ionicons name="trending-up-outline" size={13} color={TEXT_2} />
-                      <Text style={styles.insightNote}>Longest non-stop: {insights.longestNonStopMiles} mi</Text>
+                      <Text style={styles.insightNote}>Longest non-stop: {dist.fmt(insights.longestNonStopMiles, { decimals: 2 })}</Text>
                     </View>
                   )}
                   {insights.timeStoppedSecs > 60 && (
@@ -4676,7 +4691,7 @@ export default function TripFormScreen() {
                 <Text style={styles.leadGapBody}>
                   {trailLeadGap.filled
                     ? `Tracking only started ${trailLeadGap.minutes} min in, so the first ` +
-                      `${trailLeadGap.miles.toFixed(1)} mi is the road distance between where you ` +
+                      `${dist.fmt(trailLeadGap.miles, { fixed: true })} is the road distance between where you ` +
                       `set off and where tracking picked up. Check the total before saving.`
                     : `Tracking only started ${trailLeadGap.minutes} min in and the road distance ` +
                       `could not be worked out, so the mileage below covers only part of the ` +

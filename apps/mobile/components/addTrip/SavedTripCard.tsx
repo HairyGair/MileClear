@@ -9,6 +9,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { TripClassification } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 
 interface ChainButton {
   subtitle: string;
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export function SavedTripCard(p: Props) {
+  const dist = useDistanceUnit();
   const isBusiness = p.classification === "business";
   const isPersonal = p.classification === "personal";
   const chip = isBusiness ? "Business" : isPersonal ? "Personal" : "In To sort";
@@ -47,7 +49,7 @@ export function SavedTripCard(p: Props) {
         <Ionicons name="checkmark-circle" size={44} color={colors.green} accessible={false} />
       </View>
       <Text style={styles.title} accessibilityRole="header" maxFontSizeMultiplier={fontScaleCap.heading}>Trip added</Text>
-      <Text style={styles.miles} maxFontSizeMultiplier={fontScaleCap.display}>{p.miles.toFixed(1)} miles</Text>
+      <Text style={styles.miles} maxFontSizeMultiplier={fontScaleCap.display}>{dist.fmt(p.miles, { fixed: true, style: "word" })}</Text>
       <Text style={styles.summary} maxFontSizeMultiplier={fontScaleCap.body}>{p.summary}</Text>
 
       {p.onClassify ? (

@@ -20,6 +20,7 @@ import { useFailedSyncCount, useLastTrip, useRecordingNow } from "../home/useHom
 import { getNotificationPreferences, type NotificationPreferences } from "../../lib/notifications/preferences";
 import { useUser } from "../../lib/user/context";
 import { useSync } from "../../lib/sync/context";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import {
   checkingRow,
   lastTripCheck,
@@ -172,6 +173,7 @@ export function useSettingsChecks(): SettingsChecks {
   );
 
   const { pendingCount } = useSync();
+  const { unit } = useDistanceUnit();
   const now = Date.now();
   const rows = useMemo(() => {
     const msgs = recordingMessages(phone);
@@ -180,7 +182,7 @@ export function useSettingsChecks(): SettingsChecks {
     if (!phone.loaded) {
       return [
         checkingRow("recording"),
-        lastTripCheck({ trip: last.trip, totalTrips: last.trip ? 1 : 0, loading: last.loading, now }),
+        lastTripCheck({ trip: last.trip, totalTrips: last.trip ? 1 : 0, loading: last.loading, now, unit }),
         checkingRow("notifications"),
         uploadsCheck({ failedCount: failed.count, allTrips: failed.allTrips, pendingCount }),
       ];
@@ -195,8 +197,9 @@ export function useSettingsChecks(): SettingsChecks {
         platform: Platform.OS === "ios" ? "ios" : "android",
         setup: msgs.setup,
         recording,
+        unit,
       }),
-      lastTripCheck({ trip: last.trip, totalTrips: last.trip ? 1 : 0, loading: last.loading, now }),
+      lastTripCheck({ trip: last.trip, totalTrips: last.trip ? 1 : 0, loading: last.loading, now, unit }),
       notificationsCheck({
         permission: phone.notifications,
         counts: prefs ? countNotifications(prefs, isPremium) : null,
@@ -205,7 +208,7 @@ export function useSettingsChecks(): SettingsChecks {
     ];
     // `now` read once per render on purpose, like Home.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phone, recording, last.trip, last.loading, prefs, isPremium, failed.count, failed.allTrips, pendingCount, Math.floor(now / 60000)]);
+  }, [phone, recording, last.trip, last.loading, prefs, isPremium, failed.count, failed.allTrips, pendingCount, unit, Math.floor(now / 60000)]);
 
   const fixLocation = useCallback(async () => {
     await requestOrFixBackgroundLocation();

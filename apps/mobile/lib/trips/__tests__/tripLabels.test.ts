@@ -146,6 +146,10 @@ describe("dayMilesText", () => {
     expect(dayMilesText([{ distanceMiles: 12.44 }, { distanceMiles: 2.9 }])).toBe("15.3\u00a0mi");
     expect(dayMilesText([])).toBe("0.0\u00a0mi");
   });
+
+  it("shows kilometres for a km driver", () => {
+    expect(dayMilesText([{ distanceMiles: 10 }], "km")).toBe("16.1\u00a0km");
+  });
 });
 
 describe("labels from the trip facts (T-F)", () => {

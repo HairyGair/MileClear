@@ -22,6 +22,7 @@ import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
 import { homeLineText, isSelfEmployedPersona } from "../../lib/tax/persona";
 import { badgesDoorText, earningsDoorText, fuelDoorText, insightsDoorText, saSeasonText } from "../../lib/home/doorText";
 import { createTtlCache } from "../../lib/home/ttlCache";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { useInvoiceDoor } from "./useInvoiceDoor";
 import { isEndOfWeek, type DoorTexts } from "../../lib/home/doors";
 import type { HeroRecapTotals } from "../../lib/home/hero";
@@ -57,6 +58,7 @@ function totals(r: PeriodRecap): HeroRecapTotals {
 
 export function useHomeData(a: Args): HomeData {
   const { mode, persona, stats, isPro, userId, refreshKey } = a;
+  const { unit } = useDistanceUnit();
   const totalTrips = stats?.totalTrips ?? 0;
   const [weekRecap, setWeekRecap] = useState<PeriodRecap | null>(null);
   const [lastWeekRecap, setLastWeekRecap] = useState<PeriodRecap | null>(null);
@@ -220,6 +222,7 @@ export function useHomeData(a: Args): HomeData {
       thisWeek: weekRecap,
       isPro,
       totalTrips,
+      unit,
     });
     const monday = endOfWeek && lastWeekRecap && lastWeekRecap.totalTrips > 0;
     const insights: DoorTexts["insights"] = insightsText
@@ -255,11 +258,11 @@ export function useHomeData(a: Args): HomeData {
       earnings: mode === "work" ? earningsDoorText(weekRecap) : null,
       invoices: invoiceDoor.text,
       badges,
-      fuel: fuelDoorText(fuelData),
+      fuel: fuelDoorText(fuelData, unit),
     };
   }, [
     mode, persona, overview, totalReliefPence, endOfWeek, lastWeekRecap, weekRecap, isPro,
-    totalTrips, stats, achievedTypes, roadText, fuelData, invoiceDoor.text,
+    totalTrips, stats, achievedTypes, roadText, fuelData, invoiceDoor.text, unit,
   ]);
 
   const week = useMemo(() => (weekRecap ? totals(weekRecap) : null), [weekRecap]);

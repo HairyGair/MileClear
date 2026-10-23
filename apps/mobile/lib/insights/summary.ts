@@ -5,17 +5,22 @@
 // 9 Oct 2026). Callers pass `showComparison: false` for free drivers and the
 // output then carries no comparison clause and no arrows.
 
+import { distanceIn, distanceUnitLabel, type DistanceUnit } from "@mileclear/shared";
 import { periodNoun, previousWord, type InsightsPeriod } from "./period";
 
-export function formatMilesShort(miles: number): string {
-  if (miles < 100) {
-    const r = Math.round(miles * 10) / 10;
+/** Miles in, the figure in the driver's unit (Distances): "12.4", "1,204". */
+export function formatMilesShort(miles: number, unit: DistanceUnit = "miles"): string {
+  const d = distanceIn(miles, unit);
+  if (d < 100) {
+    const r = Math.round(d * 10) / 10;
     return Number.isInteger(r) ? String(r) : r.toFixed(1);
   }
-  return Math.round(miles).toLocaleString("en-GB");
+  return Math.round(d).toLocaleString("en-GB");
 }
 
-export function milesWord(miles: number): string {
+/** "mile" / "miles", or "km" for a km driver. */
+export function milesWord(miles: number, unit: DistanceUnit = "miles"): string {
+  if (unit === "km") return "km";
   return Math.round(miles * 10) / 10 === 1 ? "mile" : "miles";
 }
 
@@ -53,6 +58,8 @@ export interface SummaryInput {
   tripsEver: number;
   busiestDay?: string | null;
   busiestDayMiles?: number;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }
 
 export type SummaryKind = "empty" | "quiet" | "first" | "up" | "down" | "same" | "plain";
@@ -70,6 +77,7 @@ function isSame(miles: number, prev: number): boolean {
 export function buildSummarySentence(i: SummaryInput): SummarySentence {
   const when = whenPhrase(i.period, i.offset);
   const noun = periodNoun(i.period);
+  const u = i.unit ?? "miles";
 
   if (i.tripsEver === 0) {
     return { kind: "empty", text: "Your insights start with your first trip." };
@@ -78,13 +86,13 @@ export function buildSummarySentence(i: SummaryInput): SummarySentence {
   if (i.trips === 0 || i.miles < 0.05) {
     const tail =
       i.showComparison && i.prevMiles && i.prevMiles >= 0.5
-        ? ` ${capitalise(previousWord(i.period))}: ${formatMilesShort(i.prevMiles)} ${milesWord(i.prevMiles)}.`
+        ? ` ${capitalise(previousWord(i.period))}: ${formatMilesShort(i.prevMiles, u)} ${milesWord(i.prevMiles, u)}.`
         : "";
     const lead = i.offset === 0 ? `No trips ${when} yet.` : `No trips ${when}.`;
     return { kind: "quiet", text: `${lead}${tail}` };
   }
 
-  const m = `${formatMilesShort(i.miles)} ${milesWord(i.miles)}`;
+  const m = `${formatMilesShort(i.miles, u)} ${milesWord(i.miles, u)}`;
   const t = `${i.trips} ${tripsWord(i.trips)}`;
   const busiest = busiestClause(i);
 
@@ -98,7 +106,7 @@ export function buildSummarySentence(i: SummaryInput): SummarySentence {
     if (isSame(i.miles, i.prevMiles)) {
       return { kind: "same", text: `About the same as ${prev}: ${m}.${busiest}` };
     }
-    const d = `${formatMilesShort(Math.abs(diff))} ${milesWord(Math.abs(diff))}`;
+    const d = `${formatMilesShort(Math.abs(diff), u)} ${milesWord(Math.abs(diff), u)}`;
     if (diff > 0) {
       return {
         kind: "up",
@@ -144,11 +152,16 @@ export interface FigureInput {
   /** Mileage claim for the period in pence (Work); null when not known. */
   claimPence: number | null;
   formatPence: (pence: number) => string;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }
 
 /** Up to three figures. Zero values are dropped, never shown as 0. */
 export function buildFigures(i: FigureInput): Figure[] {
   const out: Figure[] = [];
+  const u = i.unit ?? "miles";
+  const short = distanceUnitLabel(u);
+  const spokenUnit = (miles: number) => (u === "km" ? "kilometres" : milesWord(miles));
   if (i.trips > 0) {
     out.push({
       key: "trips",
@@ -161,13 +174,13 @@ export function buildFigures(i: FigureInput): Figure[] {
   if (i.trips > 0 && i.showComparison && i.prevMiles !== null && i.prevMiles >= 0.5 && i.period !== "tax_year") {
     const diff = i.miles - i.prevMiles;
     if (Math.abs(diff) >= 0.5 && !isSame(i.miles, i.prevMiles)) {
-      const abs = formatMilesShort(Math.abs(diff));
+      const abs = formatMilesShort(Math.abs(diff), u);
       out.push({
         key: "compare",
-        value: `${abs} mi`,
+        value: `${abs} ${short}`,
         label: `vs ${previousWord(i.period)}`,
         arrow: diff > 0 ? "up" : "down",
-        spoken: `${abs} ${milesWord(Math.abs(diff))} ${diff > 0 ? "more" : "fewer"} than ${previousWord(i.period)}`,
+        spoken: `${abs} ${spokenUnit(Math.abs(diff))} ${diff > 0 ? "more" : "fewer"} than ${previousWord(i.period)}`,
       });
     }
   }
@@ -181,9 +194,9 @@ export function buildFigures(i: FigureInput): Figure[] {
     const avg = i.miles / i.trips;
     out.push({
       key: "avg",
-      value: `${formatMilesShort(avg)} mi`,
+      value: `${formatMilesShort(avg, u)} ${short}`,
       label: "average trip",
-      spoken: `${formatMilesShort(avg)} ${milesWord(avg)} an average trip`,
+      spoken: `${formatMilesShort(avg, u)} ${spokenUnit(avg)} an average trip`,
     });
   }
   return out.slice(0, 3);

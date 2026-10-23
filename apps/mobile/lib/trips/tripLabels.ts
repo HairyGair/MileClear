@@ -11,7 +11,7 @@
  * those labels. A trip with nothing worth saying gets no tag.
  */
 
-import { isJoinedTrip, isSavedLaterTrip, isSplitTrip, splitPartText } from "@mileclear/shared";
+import { formatDistance, isJoinedTrip, isSavedLaterTrip, isSplitTrip, splitPartText, type DistanceUnit } from "@mileclear/shared";
 
 export interface LabelTrip {
   isManualEntry: boolean;
@@ -205,8 +205,8 @@ export function suggestionLine(s: { classification: string; matchCount: number }
   return `Looks like ${label}: ${n} earlier trip${n === 1 ? "" : "s"} here ${n === 1 ? "was" : "were"}`;
 }
 
-/** The day's miles beside a day header: "15.3 mi". */
-export function dayMilesText(trips: readonly { distanceMiles: number }[]): string {
+/** The day's distance beside a day header: "15.3 mi", or "24.6 km" for a km driver. */
+export function dayMilesText(trips: readonly { distanceMiles: number }[], unit: DistanceUnit = "miles"): string {
   const total = trips.reduce((s, t) => s + (Number.isFinite(t.distanceMiles) ? Math.max(0, t.distanceMiles) : 0), 0);
-  return `${(Math.round(total * 10) / 10).toFixed(1)}\u00a0mi`;
+  return formatDistance(total, unit, { fixed: true, nbsp: true });
 }

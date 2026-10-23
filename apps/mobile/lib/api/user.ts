@@ -31,6 +31,8 @@ export interface UpdateProfileData {
   /** Annual accountant fee in pence. */
   accountantAnnualFeePence?: number | null;
   dashboardMode?: "both" | "work" | "personal";
+  /** Distances shown in the app. Display only, stored values stay miles. */
+  distanceUnit?: "miles" | "km";
   weeklyEarningsGoalPence?: number | null;
   // Business profile for the invoice builder (Get Paid, Jul 2026).
   // Bank details are encrypted at rest server-side; the profile GET

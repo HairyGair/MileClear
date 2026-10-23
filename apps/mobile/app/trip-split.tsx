@@ -33,6 +33,7 @@ import { describeError } from "../lib/api/apiError";
 import { Button } from "../components/Button";
 import { TripMapWidget } from "../components/map/TripMapWidget";
 import { colors, fonts } from "../lib/theme";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
 
 const BG = colors.bg;
 const SURFACE = colors.surface;
@@ -52,6 +53,7 @@ function formatTime(iso: string): string {
 }
 
 export default function TripSplitScreen() {
+  const dist = useDistanceUnit();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -185,7 +187,7 @@ export default function TripSplitScreen() {
         </View>
 
         <Text style={styles.hint}>
-          Your {trip.distanceMiles.toFixed(1)} miles stay exactly as recorded. Splitting only
+          Your {dist.fmt(trip.distanceMiles, { fixed: true, style: "word" })} stay exactly as recorded. Splitting only
           divides them into separate trips. Each new trip starts as{" "}
           {trip.classification === "business" ? "Business" : trip.classification === "personal" ? "Personal" : "not sorted"}{" "}
           and you can change each one on its own.

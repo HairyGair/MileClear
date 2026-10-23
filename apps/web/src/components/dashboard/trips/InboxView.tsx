@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../lib/api";
 import { Button, Card, EmptyState, ErrorState, SectionHeader, Skeleton, useData, useToast } from "../kit";
-import { formatDay, formatMiles, formatTime } from "../../../lib/dashboard";
+import { formatDay, formatTime } from "../../../lib/dashboard";
+import { useDistanceUnit } from "../../../lib/dashboard/distanceUnit";
 import { groupByRoute } from "./lib/routeGroups";
 import { tripEndLabel, type PlaceCircle } from "./lib/placeLabel";
 import { addTripHref, droppedNote, isTripStartOffer, whenLine } from "./lib/missed";
@@ -125,6 +126,7 @@ function GroupCard({
   onDone: (ids: string[]) => void;
 }) {
   const toast = useToast();
+  const { fmt: fmtDistance } = useDistanceUnit();
   const first = trips[0];
   const from = tripEndLabel(first.startAddress, first.startLat, first.startLng, places) || "Start";
   const to = tripEndLabel(first.endAddress, first.endLat, first.endLng, places) || "End";
@@ -185,7 +187,7 @@ function GroupCard({
               <span className="mc-sr-only"> to </span> {to}
             </h3>
             <p className="mc-routegroup__sub">
-              {count}, {formatMiles(miles)}
+              {count}, {fmtDistance(miles)}
             </p>
           </div>
           <div className="mc-routegroup__actions" role="group" aria-label={`Sort ${count} from ${from} to ${to}`}>
@@ -224,7 +226,7 @@ function GroupCard({
                 <Link href={`/dashboard/trips/${t.id}`}>
                   {formatDay(t.startedAt)}, {formatTime(t.startedAt)}
                 </Link>
-                <span className="mc-num">{formatMiles(t.distanceMiles)}</span>
+                <span className="mc-num">{fmtDistance(t.distanceMiles)}</span>
                 <span className="mc-routegroup__tripactions">
                   <Button size="sm" variant="secondary" loading={busyId === t.id} disabled={sorting} onClick={() => sortOne(t, "business")}>
                     Business
@@ -282,6 +284,7 @@ function shortAddress(addr: string | null, lat: number, lng: number): string {
 
 function JourneyCard({ p, onGone }: { p: MissedProposal; onGone: () => void }) {
   const toast = useToast();
+  const { fmt: fmtDistance } = useDistanceUnit();
   const [busy, setBusy] = useState<"dismiss" | "extend" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const route = useData<{ distanceMiles: number } | null>(
@@ -297,7 +300,7 @@ function JourneyCard({ p, onGone }: { p: MissedProposal; onGone: () => void }) {
   const start = isTripStartOffer(p);
   const note = droppedNote(p.source);
   const miles = route.data?.distanceMiles ?? null;
-  const milesText = miles != null ? formatMiles(miles) : `About ${formatMiles(p.estimatedMiles)}`;
+  const milesText = miles != null ? fmtDistance(miles) : `About ${fmtDistance(p.estimatedMiles)}`;
 
   async function resolve(action: "dismiss" | "extend") {
     setBusy(action);

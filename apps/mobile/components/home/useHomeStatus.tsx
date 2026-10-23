@@ -14,6 +14,7 @@ import { HomeSheet } from "./HomeSheet";
 import { SetupChecklistCard, type SetupChecklistRow } from "../SetupChecklistCard";
 import { useFailedSyncCount, useRecordingNow } from "./useHomeSignals";
 import { selectStatusLine, type StatusLine as StatusLineModel } from "../../lib/home/statusLine";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import type { BlockerId } from "../../lib/dashboardMessages";
 import type { PauseChoice } from "../../lib/tracking/pauseRule";
@@ -46,6 +47,7 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
   const recording = useRecordingNow();
   const failed = useFailedSyncCount();
   const [sheet, setSheet] = useState<Sheet>(null);
+  const { unit } = useDistanceUnit();
 
   const now = Date.now();
   const status = useMemo(
@@ -62,10 +64,11 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
         platform: Platform.OS === "ios" ? "ios" : "android",
         setup: a.setup ? { done: a.setup.done, total: a.setup.total } : null,
         recovered: a.recovered,
+        unit,
       }),
     // `now` is read once per render on purpose: a pause ending is picked up on the next render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, Math.floor(now / 60000)]
+    [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
   );
 
   const onPress = useCallback(() => {

@@ -25,6 +25,7 @@ import { useInvoiceDoor } from "../../components/home/useInvoiceDoor";
 import { DOOR_ROW_LABELS } from "../../lib/home/doorPrefs";
 import { getNewestTripFirst, setNewestTripFirst } from "../../lib/trips/orderPref";
 import { useMode } from "../../lib/mode/context";
+import { chooseDistanceUnit, useDistanceUnit } from "../../lib/units/distanceUnit";
 import type { CheckRow, CheckTap } from "../../lib/settings/checks";
 import {
   carSummary,
@@ -154,6 +155,18 @@ export default function SettingsPage() {
     },
     [lock, setupHint]
   );
+  const { unit: distanceUnit } = useDistanceUnit();
+  const pickDistanceUnit = useCallback(() => {
+    Alert.alert(
+      "Show distances in",
+      "Tax figures and downloads stay in miles, because HMRC mileage rates are per mile.",
+      [
+        { text: "Miles", onPress: () => void chooseDistanceUnit("miles") },
+        { text: "Kilometres", onPress: () => void chooseDistanceUnit("km") },
+        { text: "Cancel", style: "cancel" as const },
+      ]
+    );
+  }, []);
   const relockLabel = RELOCK.find((o) => o.ms === lock.config.requireAfterMs)?.label ?? "Immediately";
   const pickRelock = useCallback(() => {
     Alert.alert("Ask again", "Lock MileClear again after it has been in the background for:", [
@@ -282,6 +295,12 @@ export default function SettingsPage() {
           hint="Show each day's latest trip at the top of Trips."
           value={newestFirst}
           onToggle={onNewestFirst}
+        />
+        <SettingsRow
+          icon="speedometer-outline"
+          label="Distances"
+          hint={distanceUnit === "km" ? "Kilometres (tax figures stay in miles)" : "Miles"}
+          onPress={pickDistanceUnit}
         />
         <ToggleRow
           icon="lock-closed-outline"

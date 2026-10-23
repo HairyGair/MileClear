@@ -882,6 +882,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["name", "picture", "avatar", "photo", "full name", "display name"],
   },
   {
+    id: "kilometres",
+    area: "account_and_app",
+    q: "Can I see kilometres instead of miles?",
+    a: "Yes, free. More > Settings > Distances, then choose Kilometres. Your trips (on the website too), Home, Insights and the live drive screen then show km, and a distance you type when you add a trip or report a missing one is in km (a past shift's total stays in miles). Tax figures, the 10,000-mile count, Miles by project and every download stay in miles, because HMRC mileage rates are per mile. The lock screen and Dynamic Island still show miles for now. The choice is saved to your account, so it follows you to a new phone.",
+    goTo: "/settings",
+    keywords: ["kilometres", "kilometers", "km", "metric", "units", "miles or km", "distance unit"],
+  },
+  {
     id: "delete-account",
     area: "account_and_app",
     q: "How do I delete my account?",

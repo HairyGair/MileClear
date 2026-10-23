@@ -22,7 +22,7 @@ import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } fr
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter, Stack } from "expo-router";
 import { fetchShifts, fetchActiveShift, ShiftWithVehicle } from "../lib/api/shifts";
-import { formatMiles } from "@mileclear/shared";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
 import { EmptyState } from "../components/EmptyState";
 import { WorkCalendarCard } from "../components/work/WorkCalendarCard";
 import { colors, fonts, spacing, radii } from "../lib/theme";
@@ -125,6 +125,7 @@ function ActiveShiftCard({ shift }: { shift: ShiftRow }) {
 }
 
 function ShiftCard({ item, showVehicle }: { item: ShiftRow; showVehicle: boolean }) {
+  const { fmt } = useDistanceUnit();
   const vehicle = vehicleLabel(item.vehicle);
   const durationMs = shiftDurationMs(item);
   const hasTripStats = typeof item.tripCount === "number" && typeof item.tripMiles === "number";
@@ -138,7 +139,7 @@ function ShiftCard({ item, showVehicle }: { item: ShiftRow; showVehicle: boolean
     durationMs != null ? formatDuration(durationMs) : null,
     vehicle,
     hasTripStats
-      ? `${item.tripCount} ${item.tripCount === 1 ? "trip" : "trips"}, ${formatMiles(item.tripMiles!)}`
+      ? `${item.tripCount} ${item.tripCount === 1 ? "trip" : "trips"}, ${fmt(item.tripMiles!)}`
       : null,
   ]
     .filter(Boolean)
@@ -168,7 +169,7 @@ function ShiftCard({ item, showVehicle }: { item: ShiftRow; showVehicle: boolean
             <View style={styles.metaItem}>
               <Ionicons name="navigate-outline" size={13} color={colors.text3} />
               <Text style={styles.metaText}>
-                {item.tripCount} {item.tripCount === 1 ? "trip" : "trips"} · {formatMiles(item.tripMiles!)}
+                {item.tripCount} {item.tripCount === 1 ? "trip" : "trips"} · {fmt(item.tripMiles!)}
               </Text>
             </View>
           )}
@@ -180,6 +181,7 @@ function ShiftCard({ item, showVehicle }: { item: ShiftRow; showVehicle: boolean
 
 export default function ShiftsScreen() {
   const router = useRouter();
+  const { fmt } = useDistanceUnit();
   const [activeShift, setActiveShift] = useState<ShiftRow | null>(null);
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -291,7 +293,7 @@ export default function ShiftsScreen() {
     `${totals.count} ${totals.count === 1 ? "shift" : "shifts"}`,
     formatDuration(totals.ms),
     totals.sawStats ? `${totals.trips} ${totals.trips === 1 ? "trip" : "trips"}` : null,
-    totals.sawStats ? formatMiles(totals.miles) : null,
+    totals.sawStats ? fmt(totals.miles) : null,
   ]
     .filter(Boolean)
     .join(" · ");

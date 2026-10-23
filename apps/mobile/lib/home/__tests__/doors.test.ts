@@ -147,6 +147,19 @@ describe("door sentences", () => {
   it("nothing for a driver with no trips", () => {
     expect(insightsDoorText(w({ totalTrips: 0 }))).toBeNull();
   });
+  it("a km driver's driving is in km, the claim stays money", () => {
+    expect(insightsDoorText(w({ mode: "personal", persona: "personal", unit: "km" }))).toBe(
+      "This week: 293 km, longest 66 km on Monday"
+    );
+    expect(insightsDoorText(w({ persona: "company", unit: "km" }))).toBe("This week: 5 trips, 293 km");
+    expect(insightsDoorText(w({ unit: "km" }))).toBe("This week: 5 trips, £58.00 claim built");
+    expect(insightsDoorText(w({ endOfWeek: true, lastWeek: wk(), unit: "km" }))).toBe(
+      "Last week: 293 km, £58.00 claim. See your week"
+    );
+    expect(
+      fuelDoorText({ kind: "fuel", fuel: "diesel", stationName: "Tesco", pencePerLitre: 139.9, distanceMiles: 1.2 }, "km")
+    ).toBe("Diesel 139.9p at Tesco, 1.9 km");
+  });
   it("earnings door needs earnings", () => {
     expect(earningsDoorText(wk())).toBe("£412.00 earned this week · £2.42 a mile");
     expect(earningsDoorText(wk({ earningsPence: 0 }))).toBeNull();

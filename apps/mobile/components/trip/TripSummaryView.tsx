@@ -28,6 +28,7 @@ import { dayLabel } from "../../lib/trips/dayOrder";
 import { distanceWarning, tripMadeDetail } from "../../lib/trips/tripLabels";
 import type { TripFacts } from "@mileclear/shared";
 import { colors, fonts, radii, fontScaleCap } from "../../lib/theme";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 
 // Maps are invisible in Expo Go; the summary draws its own placeholder then,
 // at the same height, so the layout never jumps. Same guard as TripMapWidget.
@@ -528,7 +529,10 @@ export function TripSummaryView(props: TripSummaryViewProps) {
     ? `${dayLabel(startedAt)} · ${clock(startedAt)} to ${clock(endedAt)} · ${durationLabel(mins ?? 0)}`
     : `${dayLabel(startedAt)} · started ${clock(startedAt)}`;
 
-  const miles = props.distanceMiles != null ? Math.round(props.distanceMiles * 10) / 10 : null;
+  const dist = useDistanceUnit();
+  // Rounded in the driver's unit (miles unless they chose kilometres).
+  const miles = props.distanceMiles != null ? Math.round(dist.value(props.distanceMiles) * 10) / 10 : null;
+  const unitWord = dist.isKm ? "km" : miles === 1 ? "mile" : "miles";
   const unclassified = classification === "unclassified";
 
   const made = tripMadeDetail(
@@ -680,14 +684,14 @@ export function TripSummaryView(props: TripSummaryViewProps) {
       <View
         style={styles.milesRow}
         accessible
-        accessibilityLabel={miles != null ? `${miles} ${miles === 1 ? "mile" : "miles"}` : "Distance not known"}
+        accessibilityLabel={miles != null ? `${miles} ${dist.isKm ? "kilometres" : unitWord}` : "Distance not known"}
       >
         <Text style={styles.milesValue} maxFontSizeMultiplier={fontScaleCap.display}>
           {miles != null ? miles.toFixed(1) : "--"}
         </Text>
         {miles != null && (
           <Text style={styles.milesUnit} maxFontSizeMultiplier={fontScaleCap.display}>
-            {miles === 1 ? " mile" : " miles"}
+            {` ${unitWord}`}
           </Text>
         )}
       </View>

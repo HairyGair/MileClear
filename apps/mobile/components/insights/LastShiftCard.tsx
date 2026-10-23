@@ -13,6 +13,7 @@ import { useUser } from "../../lib/user/context";
 import { cachedScorecard } from "../../lib/insights/api";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
 import { shiftSummary } from "../../lib/insights/lastShift";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { colors, fonts, fontScaleCap, spacing } from "../../lib/theme";
 import { InsightCard, CardSkeleton, type InsightCardProps } from "./work/InsightCardUi";
 
@@ -22,12 +23,13 @@ export default function LastShiftCard({ mode, refreshToken }: InsightCardProps) 
   const isGig = (workType === "gig" || workType === "both") && !isCompanyDriver;
   const hidden = mode !== "work" || !isGig;
   const { data, loading } = useAsyncData(cachedScorecard, "last-shift", refreshToken, !hidden);
+  const { unit } = useDistanceUnit();
 
   if (hidden) return null;
   if (loading && !data) return <CardSkeleton lines={2} />;
   // No finished shift (the endpoint says so with an error) or offline: say nothing.
   if (!data) return null;
-  const s = shiftSummary(data);
+  const s = shiftSummary(data, unit);
   if (!s) return null;
 
   return (

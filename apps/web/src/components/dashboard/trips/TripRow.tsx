@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Button, Icon, StatusChip } from "../kit";
-import { formatMiles, formatTime } from "../../../lib/dashboard";
+import { formatTime } from "../../../lib/dashboard";
+import { useDistanceUnit } from "../../../lib/dashboard/distanceUnit";
 import { CLASSIFICATION_WORD, type TripItem } from "./lib/types";
 import { canUndoAuto, platformLabel } from "./lib/labels";
 import { tripEndLabel, type PlaceCircle } from "./lib/placeLabel";
@@ -35,6 +36,7 @@ export function TripRow({
   onMerge,
   onKeepBoth,
 }: TripRowProps) {
+  const { fmt } = useDistanceUnit();
   const from = tripEndLabel(trip.startAddress, trip.startLat, trip.startLng, places) || "Start";
   const to = tripEndLabel(trip.endAddress, trip.endLat, trip.endLng, places) || "End";
   const word = CLASSIFICATION_WORD[trip.classification];
@@ -56,7 +58,7 @@ export function TripRow({
           <span className="mc-sr-only"> to </span>
           {to}
         </span>
-        <span className="mc-trip__miles mc-num">{formatMiles(trip.distanceMiles)}</span>
+        <span className="mc-trip__miles mc-num">{fmt(trip.distanceMiles)}</span>
         <span className="mc-trip__meta">
           <span className="mc-num">{times}</span>
           <span className={trip.classification === "unclassified" ? "mc-trip__word mc-trip__word--unsorted" : "mc-trip__word"}>

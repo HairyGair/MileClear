@@ -67,6 +67,7 @@ import { haptic } from "../../lib/haptics";
 import { AppModal } from "../../components/AppModal";
 import { Swipeable, RectButton } from "react-native-gesture-handler";
 import AppHeader from "../../components/AppHeader";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -350,6 +351,7 @@ async function localTripsForClient<T extends { id: string }>(trips: T[], client:
 
 export default function TripsScreen() {
   const router = useRouter();
+  const dist = useDistanceUnit();
   // "?filter=unclassified" is how the classify reminders (evening digest,
   // weekly nudge, the app's own reminder) open To sort. Until 28 Sep 2026
   // nothing read it, so every one of those taps landed on All instead.
@@ -1288,7 +1290,7 @@ export default function TripsScreen() {
         ? (PLATFORM_LABELS[item.platformTag] ?? item.platformTag)
         : null;
     const when = showDate ? `${dayLabel(new Date(item.startedAt))} ${formatTime(item.startedAt)}` : formatTime(item.startedAt);
-    const line2 = [when, `${item.distanceMiles.toFixed(1)}\u00a0mi`, platformLabel].filter(Boolean).join(" · ");
+    const line2 = [when, dist.fmt(item.distanceMiles, { fixed: true, nbsp: true }), platformLabel].filter(Boolean).join(" · ");
 
     // Swipe actions (Anthony 16 May audit). Right swipe = quick classify to
     // the OTHER state, left swipe = delete. Disabled in join mode, where taps
@@ -1354,8 +1356,8 @@ export default function TripsScreen() {
         accessibilityRole="button"
         accessibilityLabel={
           mergeMode
-            ? `${isSelected ? "Deselect" : "Select"} ${route}, ${formatDate(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles`
-            : `${route}. ${formatDate(item.startedAt)} at ${formatTime(item.startedAt)}, ${item.distanceMiles.toFixed(1)} miles${platformLabel ? `, ${platformLabel}` : ""}, ${sortedWord}${tagWords}. Tap to open. Swipe right to mark ${targetLabel}. Swipe left to delete.`
+            ? `${isSelected ? "Deselect" : "Select"} ${route}, ${formatDate(item.startedAt)}, ${dist.fmt(item.distanceMiles, { fixed: true, style: "spoken" })}`
+            : `${route}. ${formatDate(item.startedAt)} at ${formatTime(item.startedAt)}, ${dist.fmt(item.distanceMiles, { fixed: true, style: "spoken" })}${platformLabel ? `, ${platformLabel}` : ""}, ${sortedWord}${tagWords}. Tap to open. Swipe right to mark ${targetLabel}. Swipe left to delete.`
         }
         accessibilityState={mergeMode ? { selected: isSelected } : undefined}
         accessibilityHint={mergeMode ? undefined : "Long press for more options"}
@@ -1587,7 +1589,7 @@ export default function TripsScreen() {
     let key: string | null = null;
     let list: TripItem[] = [];
     const flush = () => {
-      if (key) out.set(key, dayMilesText(list));
+      if (key) out.set(key, dayMilesText(list, dist.unit));
     };
     for (const row of dayRows) {
       if (row.kind === "header") {
@@ -1600,7 +1602,7 @@ export default function TripsScreen() {
     }
     flush();
     return out;
-  }, [dayRows]);
+  }, [dayRows, dist.unit]);
 
   // Odometer line under each day header (SPEC-UX 2.3). One request covers the
   // days on screen; a failure just means no lines, never an error.
@@ -1637,7 +1639,7 @@ export default function TripsScreen() {
             style={styles.dayHeaderRow}
             accessible
             accessibilityRole="header"
-            accessibilityLabel={miles ? `${item.label}, ${miles.replace("\u00a0mi", " miles")}` : item.label}
+            accessibilityLabel={miles ? `${item.label}, ${miles.replace(`\u00a0${dist.label()}`, ` ${dist.label("spoken")}`)}` : item.label}
           >
             <Text style={styles.dayHeader} maxFontSizeMultiplier={fontScaleCap.heading}>{item.label}</Text>
             {miles ? (
@@ -1698,7 +1700,7 @@ export default function TripsScreen() {
     const fromLabel = tripEndLabel(latestTrip.startAddress, latestTrip.startLat, latestTrip.startLng, savedPlaces);
     const toLabel = tripEndLabel(latestTrip.endAddress, latestTrip.endLat, latestTrip.endLng, savedPlaces);
     const route = routeText(fromLabel, toLabel);
-    const summaryLine = `${n} trips · ${group.totalDistanceMiles.toFixed(1)}\u00a0mi · latest ${dayLabel(new Date(latestTrip.startedAt))} ${formatTime(latestTrip.startedAt)}`;
+    const summaryLine = `${n} trips · ${dist.fmt(group.totalDistanceMiles, { fixed: true, nbsp: true })} · latest ${dayLabel(new Date(latestTrip.startedAt))} ${formatTime(latestTrip.startedAt)}`;
 
     return (
       <View style={styles.routeGroup}>
@@ -1708,7 +1710,7 @@ export default function TripsScreen() {
             onPress={() => toggleGroupExpanded(group.key)}
             activeOpacity={0.75}
             accessibilityRole="button"
-            accessibilityLabel={`${route}, ${n} trips, ${group.totalDistanceMiles.toFixed(1)} miles in all. Tap to ${isExpanded ? "hide" : "show"} them.`}
+            accessibilityLabel={`${route}, ${n} trips, ${dist.fmt(group.totalDistanceMiles, { fixed: true, style: "spoken" })} in all. Tap to ${isExpanded ? "hide" : "show"} them.`}
             accessibilityState={{ expanded: isExpanded }}
           >
             <TripThumb
@@ -1920,9 +1922,9 @@ export default function TripsScreen() {
                   <View style={styles.rangeStatsRow}>
                     <View style={styles.rangeStatItem}>
                       <Text style={styles.rangeStatValue}>
-                        {stats.totalMiles.toFixed(1)}
+                        {dist.num(stats.totalMiles, { fixed: true })}
                       </Text>
-                      <Text style={styles.rangeStatUnit}>miles</Text>
+                      <Text style={styles.rangeStatUnit}>{dist.label("word")}</Text>
                     </View>
                     <View style={styles.rangeStatDivider} />
                     <View style={styles.rangeStatItem}>
@@ -1936,9 +1938,9 @@ export default function TripsScreen() {
                         <View style={styles.rangeStatDivider} />
                         <View style={styles.rangeStatItem}>
                           <Text style={styles.rangeStatValue}>
-                            {stats.businessMiles.toFixed(1)}
+                            {dist.num(stats.businessMiles, { fixed: true })}
                           </Text>
-                          <Text style={styles.rangeStatUnit}>Business mi</Text>
+                          <Text style={styles.rangeStatUnit}>Business {dist.label()}</Text>
                         </View>
                       </>
                     )}
@@ -1947,9 +1949,9 @@ export default function TripsScreen() {
                         <View style={styles.rangeStatDivider} />
                         <View style={styles.rangeStatItem}>
                           <Text style={styles.rangeStatValue}>
-                            {stats.personalMiles.toFixed(1)}
+                            {dist.num(stats.personalMiles, { fixed: true })}
                           </Text>
-                          <Text style={styles.rangeStatUnit}>Personal mi</Text>
+                          <Text style={styles.rangeStatUnit}>Personal {dist.label()}</Text>
                         </View>
                       </>
                     )}
@@ -2238,9 +2240,9 @@ export default function TripsScreen() {
                     <View style={styles.mergePreviewStats}>
                       <Text style={styles.mergePreviewStat}>
                         {preview.kind === "into_total"
-                          ? `${(totalMiles ?? 0).toFixed(1)} mi, the shift's total`
+                          ? `${dist.fmt(totalMiles ?? 0, { fixed: true })}, the shift's total`
                           : totalMiles != null
-                            ? `${totalMiles.toFixed(1)} mi in all`
+                            ? `${dist.fmt(totalMiles, { fixed: true })} in all`
                             : ""}
                       </Text>
                       <Text style={styles.mergePreviewStat}>

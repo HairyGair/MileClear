@@ -14,6 +14,7 @@ import {
 import type { AchievementWithMeta, GamificationStats } from "@mileclear/shared";
 import { maybeRequestReview } from "../lib/rating/index";
 import { colors, fonts } from "../lib/theme";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
 import { Medal } from "../components/insights/BadgesRow";
 import { badgeSpokenLabel } from "../lib/insights/badges";
 
@@ -31,6 +32,8 @@ const TEXT_3 = colors.text3;
 // Personal Records section is also free now (was previously gated).
 
 export default function AchievementsScreen() {
+  // Personal records follow Distances; badge names and goals stay in miles.
+  const dist = useDistanceUnit();
   const [earned, setEarned] = useState<AchievementWithMeta[]>([]);
   const [stats, setStats] = useState<GamificationStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,9 +141,9 @@ export default function AchievementsScreen() {
           <Text style={s.sectionTitle}>Personal Records</Text>
           <View style={s.recordGrid}>
             {[
-              { v: `${stats.personalRecords.mostMilesInDay.toFixed(1)} mi`, l: "Best day" },
+              { v: dist.fmt(stats.personalRecords.mostMilesInDay, { fixed: true }), l: "Best day" },
               { v: `${stats.personalRecords.mostTripsInShift}`, l: "Trips / shift" },
-              { v: `${stats.personalRecords.longestSingleTrip.toFixed(1)} mi`, l: "Longest trip" },
+              { v: dist.fmt(stats.personalRecords.longestSingleTrip, { fixed: true }), l: "Longest trip" },
               { v: `${stats.personalRecords.longestStreakDays}d`, l: "Best streak" },
             ].map((r) => (
               <View key={r.l} style={s.recordCell}>

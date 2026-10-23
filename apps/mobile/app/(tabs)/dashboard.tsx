@@ -16,6 +16,7 @@ import { AppModal } from "../../components/AppModal";
 import { Button } from "../../components/Button";
 import { Skeleton } from "../../components/Skeleton";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { describeError } from "../../lib/api/apiError";
 import { useFocusEffect, useRouter } from "expo-router";
 import { fetchVehicles } from "../../lib/api/vehicles";
@@ -101,6 +102,7 @@ function formatElapsed(seconds: number): string {
 }
 
 function formatMilesShort(miles: number): string {
+  // Callers pass the figure already in the driver's unit (Distances).
   return miles < 1000
     ? `${miles.toFixed(1)}`
     : `${(miles / 1000).toFixed(1)}k`;
@@ -150,6 +152,8 @@ function ExplainerItem({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; t
 
 export default function DashboardScreen() {
   const router = useRouter();
+  // Named `units`: `dist` is a live trip's miles further down.
+  const units = useDistanceUnit();
   const { isWork } = useMode();
   const { user: currentUser } = useUser();
   const [activeShift, setActiveShift] = useState<ShiftWithVehicle | null>(null);
@@ -1595,9 +1599,9 @@ export default function DashboardScreen() {
                 </View>
                 <View style={[s.scorecardCell, s.scorecardCellCenter]}>
                   <Text style={s.scorecardNumLarge}>
-                    {scorecard.totalMiles.toFixed(1)}
+                    {units.num(scorecard.totalMiles, { fixed: true })}
                   </Text>
-                  <Text style={s.scorecardUnit}>miles</Text>
+                  <Text style={s.scorecardUnit}>{units.label("word")}</Text>
                 </View>
                 <View style={s.scorecardCell}>
                   <Text style={s.scorecardNum}>
@@ -1615,9 +1619,9 @@ export default function DashboardScreen() {
                 <View style={s.pbBadge}>
                   <Text style={s.pbText}>
                     {scorecard.isPersonalBestMiles && scorecard.isPersonalBestTrips
-                      ? "New record - Miles & Trips"
+                      ? units.isKm ? "New record - Distance & Trips" : "New record - Miles & Trips"
                       : scorecard.isPersonalBestMiles
-                        ? "New record - Most Miles"
+                        ? units.isKm ? "New record - Most Distance" : "New record - Most Miles"
                         : "New record - Most Trips"}
                   </Text>
                 </View>
@@ -1949,21 +1953,21 @@ export default function DashboardScreen() {
         <View style={s.statsRow}>
           <View style={[s.statCard, s.statCardLive]}>
             <Text style={s.statNumLive} maxFontSizeMultiplier={fontScaleCap.display}>
-              {liveDistance.toFixed(1)}
+              {units.num(liveDistance, { fixed: true })}
             </Text>
-            <Text style={s.statUnit}>mi this shift</Text>
+            <Text style={s.statUnit}>{units.label()} this shift</Text>
           </View>
           <View style={s.statCard}>
             <Text style={s.statNum} maxFontSizeMultiplier={fontScaleCap.display}>
-              {stats ? formatMilesShort(stats.todayMiles) : "0"}
+              {stats ? formatMilesShort(units.value(stats.todayMiles)) : "0"}
             </Text>
-            <Text style={s.statUnit}>mi today</Text>
+            <Text style={s.statUnit}>{units.label()} today</Text>
           </View>
           <View style={s.statCard}>
             <Text style={s.statNum} maxFontSizeMultiplier={fontScaleCap.display}>
-              {stats ? formatMilesShort(stats.weekMiles) : "0"}
+              {stats ? formatMilesShort(units.value(stats.weekMiles)) : "0"}
             </Text>
-            <Text style={s.statUnit}>mi this week</Text>
+            <Text style={s.statUnit}>{units.label()} this week</Text>
           </View>
         </View>
 
