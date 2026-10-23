@@ -651,7 +651,6 @@ export default function VehicleFormScreen() {
               name: `${make.trim()} ${model.trim()}`.trim(),
               registrationPlate: registrationPlate.trim() || null,
               createdAt: vehicleCreatedAt,
-              odometerUnit: showOdometerUnit ? odometerUnit : "miles",
             }}
           />
         ) : null}

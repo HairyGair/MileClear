@@ -35,13 +35,14 @@ import {
   latestAcceptedBefore,
   lowerThanEarlierAlert,
   motHintText,
-  parseReadingInput,
   pickMotHint,
   sanitiseReadingInput,
   saveOutcomeMessage,
   type MotHint,
 } from "../../lib/odometer/logic";
-import { odometerUnitOf, readingTextToMilesText, unitWord } from "../../lib/odometer/unit";
+import { odometerInUnit, odometerUnitOf, readingForSave, unitWord } from "../../lib/odometer/unit";
+import { countryByCode, odometerMilesToUnit, odometerUnitWords, type OdometerUnit } from "@mileclear/shared";
+import { useCountry } from "../../lib/country/country";
 
 export interface UpdateReadingVehicle {
   id: string;
@@ -49,8 +50,6 @@ export interface UpdateReadingVehicle {
   name: string;
   registrationPlate?: string | null;
   createdAt?: string | null;
-  /** What the odometer reads in. A km reading is typed in km and saved as miles. Default miles. */
-  odometerUnit?: "miles" | "km" | null;
 }
 
 interface Props {
@@ -65,7 +64,9 @@ interface Props {
 
 const MOT_TIMEOUT_MS = 2000;
 
-/** Update odometer sheet (SPEC-UX 1.3). Used by the vehicle screen, the log and the Home prompt. */
+/** Update odometer sheet (SPEC-UX 1.3). Used by the vehicle screen, the log and the Home prompt.
+ *  The car's odometer unit comes from its odometer (GET /vehicles/:id/odometer), never from the
+ *  caller: a km car's checks, figures and wording are in km and the reading is saved as miles once. */
 export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeReadings }: Props) {
   const [text, setText] = useState("");
   const [readAt, setReadAt] = useState<Date>(() => new Date());
@@ -77,9 +78,11 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
   const loadRef = useRef<Promise<VehicleOdometer | null> | null>(null);
   const vehicleId = vehicle?.id ?? null;
   const plate = vehicle?.registrationPlate ?? null;
-  const unit = odometerUnitOf(vehicle?.odometerUnit);
-  // The checks and the save work in miles; a km car's reading is converted first.
-  const milesText = readingTextToMilesText(text, unit);
+  const country = useCountry();
+  const unit: OdometerUnit = odometerUnitOf(odo?.odometerUnit);
+  // Every stored figure in the car's unit, for the checks and what's shown.
+  const view = odometerInUnit(odo, unit);
+  const words = useCallback((t: string) => odometerUnitWords(t, unit), [unit]);
 
   useEffect(() => {
     if (!visible || !vehicleId) return;
@@ -112,16 +115,19 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
     };
   }, [visible, vehicleId, plate]);
 
-  const hint = liveHint({
-    text: milesText,
-    estimateMiles: odo?.current?.miles ?? null,
-    earlier: latestAcceptedBefore(odo?.readings ?? [], touchedTime ? readAt : new Date()),
+  const rawHint = liveHint({
+    text,
+    estimateMiles: view?.current?.miles ?? null,
+    earlier: latestAcceptedBefore(view?.readings ?? [], touchedTime ? readAt : new Date()),
   });
+  const hint = { ...rawHint, message: rawHint.message ? words(rawHint.message) : rawHint.message };
   const hasReading = !!odo?.current;
 
-  const showBlocked = useCallback((earlier: { miles: number; at: Date } | null) => {
-    const copy = earlier
-      ? lowerThanEarlierAlert(earlier.miles, earlier.at)
+  // `earlier.miles` is in the car's unit.
+  const showBlocked = useCallback((earlier: { miles: number; at: Date } | null, u: OdometerUnit) => {
+    const raw = earlier ? lowerThanEarlierAlert(earlier.miles, earlier.at) : null;
+    const copy = raw
+      ? { title: odometerUnitWords(raw.title, u), body: odometerUnitWords(raw.body, u) }
       : {
           title: "That's lower than an earlier reading",
           body: "Odometers don't go backwards. If the earlier reading was wrong, delete it first.",
@@ -139,13 +145,16 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
   }, [onClose, onSeeReadings]);
 
   const finishSave = useCallback(
-    async (miles: number, at: Date) => {
+    async (miles: number, at: Date, u: OdometerUnit) => {
       if (!vehicleId) return;
       setSaving(true);
+      const inUnit = (m: number) => odometerMilesToUnit(m, u);
       try {
+        // `miles` is the stored figure: a km reading was converted once, in readingForSave.
         const res = await addOdometerReading(vehicleId, { readingMiles: miles, readAt: at.toISOString() });
         // The server reports the figure our trips gave just before this reading.
-        const message = saveOutcomeMessage(res.data.estimatedMiles ?? null, miles);
+        const est = res.data.estimatedMiles ?? null;
+        const message = odometerUnitWords(saveOutcomeMessage(est == null ? null : inUnit(est), inUnit(miles)), u);
         setSaving(false);
         onSaved(message);
         onClose();
@@ -160,7 +169,8 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
             conflict = classifyConflict(fresh.data.readings, miles, at);
           } catch {}
           if (conflict?.kind === "higher") {
-            const copy = higherThanLaterAlert(conflict.otherMiles, conflict.otherAt);
+            const raw = higherThanLaterAlert(inUnit(conflict.otherMiles), conflict.otherAt);
+            const copy = { title: odometerUnitWords(raw.title, u), body: odometerUnitWords(raw.body, u) };
             Alert.alert(copy.title, copy.body, [
               { text: "Check the number", style: "cancel" },
               {
@@ -172,7 +182,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
               },
             ]);
           } else {
-            showBlocked(conflict ? { miles: conflict.otherMiles, at: conflict.otherAt } : null);
+            showBlocked(conflict ? { miles: inUnit(conflict.otherMiles), at: conflict.otherAt } : null, u);
           }
           return;
         }
@@ -193,41 +203,49 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
     if (saving || !vehicle) return;
     // Wait for the estimate so the checks have something to compare with.
     const data = odo ?? (await loadRef.current);
+    // The unit comes with the odometer. In a km country, without it we can't
+    // tell km from miles, so nothing is saved.
+    if (!data && countryByCode(country)?.usesKm) {
+      setError("Couldn't check this car's odometer. Check your connection and try again.");
+      return;
+    }
+    const u = odometerUnitOf(data?.odometerUnit);
+    const d = odometerInUnit(data ?? null, u);
     const now = new Date();
     const at = touchedTime ? readAt : now;
     if (at.getTime() < earliestReadAt(vehicle.createdAt, now).getTime()) {
       setError("That date is too far back.");
       return;
     }
-    const estimateNow = data?.current?.miles ?? null;
+    // Checked in the car's unit (the MOT hint is miles, UK only, so not for a km car).
     const result = checkReading({
-      text: milesText,
+      text,
       readAt: at,
       now: new Date(now.getTime() + 60_000), // a minute of slack for the picker's seconds
-      estimateMiles: estimateNow,
-      readings: data?.readings ?? [],
-      mot,
+      estimateMiles: d?.current?.miles ?? null,
+      readings: d?.readings ?? [],
+      mot: u === "miles" ? mot : null,
     });
     if (result.kind === "error") {
-      setError(result.message);
+      setError(odometerUnitWords(result.message, u));
       return;
     }
     setError(null);
-    const parsed = parseReadingInput(milesText);
-    if (parsed.kind !== "ok") return;
+    const stored = readingForSave(text, u);
+    if (stored == null) return;
     if (result.kind === "blocked") {
-      showBlocked({ miles: result.earlierMiles, at: result.earlierAt });
+      showBlocked({ miles: result.earlierMiles, at: result.earlierAt }, u);
       return;
     }
     if (result.kind === "confirm") {
-      Alert.alert(result.title, result.body, [
+      Alert.alert(odometerUnitWords(result.title, u), odometerUnitWords(result.body, u), [
         { text: "Fix it", style: "cancel" },
-        { text: "Yes, it's right", onPress: () => finishSave(parsed.miles, at) },
+        { text: "Yes, it's right", onPress: () => finishSave(stored, at, u) },
       ]);
       return;
     }
-    await finishSave(parsed.miles, at);
-  }, [saving, vehicle, odo, touchedTime, readAt, milesText, mot, finishSave, showBlocked]);
+    await finishSave(stored, at, u);
+  }, [saving, vehicle, odo, country, touchedTime, readAt, text, mot, finishSave, showBlocked]);
 
   return (
     <AppModal visible={visible} onRequestClose={onClose}>
@@ -297,7 +315,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                   <StatusChip recorded={!odo.current.isEstimated} source={odo.current.basis.source} />
                 </View>
                 <Text style={styles.panelAsOf} maxFontSizeMultiplier={fontScaleCap.body} numberOfLines={2}>
-                  {basisText(odo.current)}
+                  {view?.current ? words(basisText(view.current)) : basisText(odo.current)}
                 </Text>
               </View>
             ) : null}
@@ -329,7 +347,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                 </Text>
               </View>
             ) : null}
-            {!hasReading && mot ? (
+            {!hasReading && mot && unit === "miles" ? (
               <Text style={styles.hint} maxFontSizeMultiplier={fontScaleCap.body}>{motHintText(mot)}</Text>
             ) : null}
 

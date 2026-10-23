@@ -30,4 +30,5 @@ export * from "./utils/distanceUnit.js";
 export * from "./data/countries.js";
 export * from "./utils/countryFeatures.js";
 export * from "./utils/money.js";
+export * from "./utils/odometerUnit.js";
 export * from "./tax/index.js";

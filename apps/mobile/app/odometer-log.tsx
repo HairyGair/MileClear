@@ -19,6 +19,7 @@ import { DateTimePickerField } from "../components/DateTimePickerField";
 import { OdometerFigure, RecordedMark, StatusChip } from "../components/odometer/OdometerFigure";
 import { ReadingsView } from "../components/odometer/ReadingsView";
 import { UpdateReadingSheet } from "../components/odometer/UpdateReadingSheet";
+import { milesInUnit, odometerUnitOf } from "../lib/odometer/unit";
 import { usePaywall } from "../components/paywall";
 import { getDatabase } from "../lib/db";
 import { useUser } from "../lib/user/context";
@@ -76,6 +77,8 @@ function LogView() {
   const [customFrom, setCustomFrom] = useState<Date>(() => new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
   const [customTo, setCustomTo] = useState<Date>(() => new Date());
   const [current, setCurrent] = useState<OdometerCurrent | null>(null);
+  // What the selected car's odometer reads in (comes with its odometer).
+  const [odoUnit, setOdoUnit] = useState<"miles" | "km">("miles");
   const [days, setDays] = useState<OdometerDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -182,6 +185,7 @@ function LogView() {
         fetchOdometerDays({ vehicleId: selected.id, from: range.from, to: range.to }),
       ]);
       setCurrent(odo.data.current);
+      setOdoUnit(odometerUnitOf(odo.data.odometerUnit));
       setDays([...daysRes.data].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)));
       setFailed(false);
     } catch {
@@ -305,7 +309,13 @@ function LogView() {
 
       {current ? (
         <View style={styles.topCard}>
-          <View accessible accessibilityRole="text" accessibilityLabel={figureA11y(current)}>
+          <View
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={
+              odoUnit === "km" ? `Odometer, ${formatOdo(milesInUnit(current.miles, "km"))} km` : figureA11y(current)
+            }
+          >
             <View style={styles.topHeader}>
               <Text style={styles.topFigure} maxFontSizeMultiplier={fontScaleCap.heading}>
                 {current.isEstimated ? "Now about" : "Now"}
@@ -313,12 +323,18 @@ function LogView() {
               <StatusChip recorded={!current.isEstimated} source={current.basis.source} />
             </View>
             <View style={{ marginTop: 10 }}>
-              <OdometerFigure miles={current.miles} accessibilityLabel={figureA11y(current)} />
+              <OdometerFigure
+                miles={current.miles}
+                unit={odoUnit}
+                accessibilityLabel={odoUnit === "km" ? undefined : figureA11y(current)}
+              />
             </View>
             <Text style={styles.topBody} maxFontSizeMultiplier={fontScaleCap.body}>
               {current.isEstimated && current.basis.source === "user"
                 ? `Estimated from your reading on ${shortDate(new Date(current.basis.readAt))} plus your trips.`
-                : basisText(current)}
+                : odoUnit === "km"
+                  ? `Your reading of ${formatOdo(milesInUnit(current.basis.readingMiles, "km"))} km, plus your trips since.`
+                  : basisText(current)}
             </Text>
           </View>
           <Button

@@ -446,14 +446,18 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string().uuid() }).parse(request.params);
     const userId = request.userId!;
 
-    const vehicle = await prisma.vehicle.findFirst({ where: { id, userId }, select: { id: true } });
+    const vehicle = await prisma.vehicle.findFirst({ where: { id, userId }, select: { id: true, odometerUnit: true } });
     if (!vehicle) {
       return reply.status(404).send({ error: "Vehicle not found" });
     }
 
     const inputs = (await loadOdometerInputs(userId, [id])).get(id)!;
     const timeline = buildOdometerTimeline(inputs);
-    const data: VehicleOdometerResponse = { current: timeline.current, readings: timeline.readings };
+    const data: VehicleOdometerResponse = {
+      current: timeline.current,
+      readings: timeline.readings,
+      odometerUnit: vehicle.odometerUnit === "km" ? "km" : vehicle.odometerUnit === "miles" ? "miles" : null,
+    };
     return reply.send({ data });
   });
 

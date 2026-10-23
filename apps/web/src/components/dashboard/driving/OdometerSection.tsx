@@ -14,6 +14,7 @@ import { deleteOdometerReading, fetchVehicleOdometer, type VehicleRow } from "./
 import { OdometerChip, OdometerFigure } from "./OdometerFigure";
 import { UpdateReadingDialog } from "./UpdateReadingDialog";
 import { basisText, figureText, formatOdo, oldReadingText, sourceLabel } from "./odometerLogic";
+import { odometerMilesToUnit, odometerUnitOf, odometerUnitWord, odometerUnitWords } from "@mileclear/shared";
 import styles from "./driving.module.css";
 
 /**
@@ -22,6 +23,9 @@ import styles from "./driving.module.css";
  * Free for everyone. Copy is odometer spec section 8, word for word.
  */
 export function OdometerSection({ vehicle }: { vehicle: VehicleRow }) {
+  // A km car shows its figures in km; stored figures are miles.
+  const unit = odometerUnitOf(vehicle.odometerUnit);
+  const inUnit = (m: number) => odometerMilesToUnit(m, unit);
   const { show } = useToast();
   const { data, error, loading, reload } = useData(`odometer-${vehicle.id}`, () => fetchVehicleOdometer(vehicle.id));
   const [updateOpen, setUpdateOpen] = useState(false);
@@ -52,10 +56,22 @@ export function OdometerSection({ vehicle }: { vehicle: VehicleRow }) {
       ) : current ? (
         <div className={styles.stack}>
           <div className={styles.actionsRow}>
-            <OdometerFigure miles={current.miles} estimated={current.isEstimated} />
+            <OdometerFigure miles={current.miles} estimated={current.isEstimated} unit={unit} />
             <OdometerChip estimated={current.isEstimated} />
           </div>
-          <p className={styles.muted}>{basisText(current)}</p>
+          <p className={styles.muted}>
+            {unit === "km"
+              ? odometerUnitWords(
+                  basisText({
+                    ...current,
+                    miles: inUnit(current.miles),
+                    tripMilesSince: inUnit(current.tripMilesSince),
+                    basis: { ...current.basis, readingMiles: inUnit(current.basis.readingMiles) },
+                  }),
+                  unit
+                )
+              : basisText(current)}
+          </p>
           <span className="mc-sr-only">{figureText(current)}</span>
           {old && <p className={styles.hint}>{old}</p>}
           {outcome && <p className={styles.ok} role="status">{outcome}</p>}
@@ -99,7 +115,7 @@ export function OdometerSection({ vehicle }: { vehicle: VehicleRow }) {
               {readings.map((r) => (
                 <div key={r.id} className={styles.readingRow}>
                   <div className={styles.readingMain}>
-                    <p className={styles.readingFig}>{formatOdo(r.readingMiles)} miles</p>
+                    <p className={styles.readingFig}>{formatOdo(inUnit(r.readingMiles))} {odometerUnitWord(unit)}</p>
                     <p className={styles.readingSub}>
                       {formatDayTime(r.readAt)} · {sourceLabel(r.source)}
                     </p>
@@ -116,7 +132,7 @@ export function OdometerSection({ vehicle }: { vehicle: VehicleRow }) {
                     )}
                   </div>
                   {r.source === "user" && (
-                    <Button variant="ghost" size="sm" onClick={() => setToDelete(r)} aria-label={`Delete reading of ${formatOdo(r.readingMiles)} miles`}>
+                    <Button variant="ghost" size="sm" onClick={() => setToDelete(r)} aria-label={`Delete reading of ${formatOdo(inUnit(r.readingMiles))} ${odometerUnitWord(unit)}`}>
                       Delete reading
                     </Button>
                   )}

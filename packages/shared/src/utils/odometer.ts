@@ -160,6 +160,9 @@ export interface OdometerDayWithVehicle extends OdometerDay {
 export interface VehicleOdometerResponse {
   current: OdometerCurrent | null;
   readings: OdometerReadingEntry[];
+  /** What the car's odometer reads in (23 Oct 2026): the update sheet reads
+   *  it from here, not from its caller. Null or missing = miles. */
+  odometerUnit?: "miles" | "km" | null;
 }
 
 export interface OdometerReadingCreated {

@@ -330,3 +330,55 @@ test.describe("odometer log at 390px", () => {
     expect(await hasHorizontalScroll(page)).toBe(false);
   });
 });
+
+test.describe("a car whose odometer reads km", () => {
+  const KM_VEHICLE = { ...VEHICLE, odometerUnit: "km" };
+  const toStoredMiles = (km: number) => Math.round((km / 1.609344) * 100) / 100;
+
+  test("the vehicle page shows km, and a km reading is saved as miles once", async ({ page }) => {
+    await mockSession(page);
+    const state = drivingState({ vehicles: [KM_VEHICLE] });
+    await mockDriving(page, state);
+    await page.goto(VEHICLE_URL);
+    // 45,262 miles stored = 72,842 km.
+    await expect(page.getByRole("img", { name: "Odometer about 72,842 km, estimated" })).toBeVisible();
+    const dialog = await openDialog(page);
+    await expect(dialog.getByText("We estimate about 72,842.")).toBeVisible();
+    await dialog.getByLabel("Reading").fill("72900");
+    await dialog.getByRole("button", { name: "Save reading" }).click();
+    const posts = callsTo(state, "POST", "/odometer-readings");
+    await expect.poll(() => posts.length).toBe(1);
+    expect(posts[0][2]).toMatchObject({ readingMiles: toStoredMiles(72_900) });
+    const saved = page.getByText(/^Saved\./).first();
+    await expect(saved).toBeVisible();
+    await expect(saved).not.toContainText("miles");
+  });
+
+  test("the checks say km: lower than the earlier reading is refused in km", async ({ page }) => {
+    await mockSession(page);
+    const state = drivingState({ vehicles: [KM_VEHICLE] });
+    await mockDriving(page, state);
+    await page.goto(VEHICLE_URL);
+    const dialog = await openDialog(page);
+    // The 45,100 mile reading is 72,581 km: 72,000 km is lower.
+    await dialog.getByLabel("Reading").fill("72000");
+    await dialog.getByRole("button", { name: "Save reading" }).click();
+    const refusal = page.getByRole("dialog");
+    await expect(refusal).toContainText("72,581");
+    await expect(refusal).not.toContainText("45,100");
+    expect(callsTo(state, "POST", "/odometer-readings")).toHaveLength(0);
+  });
+
+  test("from the daily log the same dialog saves miles once", async ({ page }) => {
+    await mockSession(page);
+    const state = drivingState({ vehicles: [KM_VEHICLE] });
+    await mockDriving(page, state);
+    await page.goto(`/dashboard/odometer?vehicle=${VEHICLE.id}`);
+    const dialog = await openDialog(page);
+    await dialog.getByLabel("Reading").fill("72900");
+    await dialog.getByRole("button", { name: "Save reading" }).click();
+    const posts = callsTo(state, "POST", "/odometer-readings");
+    await expect.poll(() => posts.length).toBe(1);
+    expect(posts[0][2]).toMatchObject({ readingMiles: toStoredMiles(72_900) });
+  });
+});

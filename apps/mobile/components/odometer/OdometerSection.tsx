@@ -4,7 +4,8 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../Button";
 import { OdometerFigure, StatusChip } from "./OdometerFigure";
 import { UpdateReadingSheet, type UpdateReadingVehicle } from "./UpdateReadingSheet";
-import { milesInUnit, odometerUnitOf } from "../../lib/odometer/unit";
+import { milesInUnit, odometerInUnit, odometerUnitOf } from "../../lib/odometer/unit";
+import { odometerUnitWords } from "@mileclear/shared";
 import { useSync } from "../../lib/sync/context";
 import { fetchVehicleOdometer, type VehicleOdometer } from "../../lib/api/odometer";
 import {
@@ -22,8 +23,6 @@ import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
  * the reading or open the daily log.
  */
 export function OdometerSection({ vehicle }: { vehicle: UpdateReadingVehicle }) {
-  // A km car shows its figure in km (stored in miles either way).
-  const unit = odometerUnitOf(vehicle.odometerUnit);
   const router = useRouter();
   const { pendingCount } = useSync();
   const [data, setData] = useState<VehicleOdometer | null>(null);
@@ -74,6 +73,8 @@ export function OdometerSection({ vehicle }: { vehicle: UpdateReadingVehicle }) 
     router.push(`/odometer-log?view=readings&vehicleId=${vehicle.id}` as never);
 
   const current = data?.current ?? null;
+  // A km car shows its figure in km (stored in miles either way); the unit comes with the odometer.
+  const unit = odometerUnitOf(data?.odometerUnit);
   const hasAnyReading = (data?.readings.length ?? 0) > 0;
   const oldText = current ? oldReadingText(current) : null;
 
@@ -116,7 +117,7 @@ export function OdometerSection({ vehicle }: { vehicle: UpdateReadingVehicle }) 
                 />
               </View>
               <Text style={styles.body} maxFontSizeMultiplier={fontScaleCap.body}>
-                {basisText(current)}
+                {odometerUnitWords(basisText(odometerInUnit(data, unit)?.current ?? current), unit)}
               </Text>
             </View>
             {pendingCount > 0 ? (

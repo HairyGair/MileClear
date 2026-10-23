@@ -12,6 +12,7 @@ import {
 } from "../../lib/api/odometer";
 import { fetchVehicles } from "../../lib/api/vehicles";
 import { formatOdo, isNetworkError, shortDateTime, sourceLabel } from "../../lib/odometer/logic";
+import { milesInUnit, odometerUnitOf, unitWord, type OdometerUnit } from "../../lib/odometer/unit";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 
 /** "Odometer readings": every reading for one vehicle, newest first (SPEC-UX 1.5). */
@@ -19,6 +20,8 @@ export function ReadingsView({ vehicleId }: { vehicleId: string | undefined }) {
   const router = useRouter();
   const [vehicle, setVehicle] = useState<UpdateReadingVehicle | null>(null);
   const [readings, setReadings] = useState<OdometerReadingRow[]>([]);
+  // What the car's odometer reads in (comes with its odometer); stored figures are miles.
+  const [unit, setUnit] = useState<OdometerUnit>("miles");
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,6 +44,7 @@ export function ReadingsView({ vehicleId }: { vehicleId: string | undefined }) {
         createdAt: v.createdAt ?? null,
       });
       const res = await fetchVehicleOdometer(v.id);
+      setUnit(odometerUnitOf(res.data.odometerUnit));
       setReadings(
         [...res.data.readings].sort((a, b) => new Date(b.readAt).getTime() - new Date(a.readAt).getTime())
       );
@@ -107,7 +111,7 @@ export function ReadingsView({ vehicleId }: { vehicleId: string | undefined }) {
       <View style={styles.row}>
         <View style={styles.rowTop}>
           <Text style={styles.rowFigure} maxFontSizeMultiplier={fontScaleCap.heading}>
-            {formatOdo(item.readingMiles)} miles
+            {formatOdo(milesInUnit(item.readingMiles, unit))} {unitWord(unit)}
           </Text>
           <Text style={[styles.rowStatus, !item.used && styles.rowStatusWarn]} maxFontSizeMultiplier={fontScaleCap.body}>
             {status}
@@ -124,7 +128,7 @@ export function ReadingsView({ vehicleId }: { vehicleId: string | undefined }) {
             style={styles.rowAction}
             onPress={() => confirmDelete(item)}
             accessibilityRole="button"
-            accessibilityLabel={`Delete reading ${formatOdo(item.readingMiles)} miles`}
+            accessibilityLabel={`Delete reading ${formatOdo(milesInUnit(item.readingMiles, unit))} ${unitWord(unit)}`}
           >
             <Text style={styles.rowActionDelete} maxFontSizeMultiplier={fontScaleCap.body}>Delete reading</Text>
           </TouchableOpacity>

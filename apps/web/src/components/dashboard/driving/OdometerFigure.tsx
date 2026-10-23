@@ -1,3 +1,4 @@
+import { odometerMilesToUnit, odometerUnitShort, odometerUnitWord, type OdometerUnit } from "@mileclear/shared";
 import { Icon, type IconName } from "../kit/Icon";
 import { cx } from "../kit/cx";
 import { digitGroups, fitsDigitCells, formatOdo } from "./odometerLogic";
@@ -11,19 +12,23 @@ import styles from "./driving.module.css";
  *   <OdometerFigure miles={45140} size="compact" />
  */
 export function OdometerFigure({
-  miles,
+  miles: storedMiles,
   estimated,
   size = "large",
+  unit = "miles",
 }: {
   miles: number;
   estimated: boolean;
   size?: "large" | "compact";
+  /** What the car's odometer reads in; the stored miles are shown converted. */
+  unit?: OdometerUnit;
 }) {
-  const label = `Odometer ${estimated ? "about " : ""}${formatOdo(miles)} miles, ${estimated ? "estimated" : "recorded"}`;
+  const miles = odometerMilesToUnit(storedMiles, unit);
+  const label = `Odometer ${estimated ? "about " : ""}${formatOdo(miles)} ${odometerUnitWord(unit)}, ${estimated ? "estimated" : "recorded"}`;
   if (size === "compact" || !fitsDigitCells(miles)) {
     return (
       <span className={cx(styles.compact)} role="img" aria-label={label}>
-        <span aria-hidden="true">{formatOdo(miles)} mi</span>
+        <span aria-hidden="true">{formatOdo(miles)} {odometerUnitShort(unit)}</span>
       </span>
     );
   }
@@ -40,7 +45,7 @@ export function OdometerFigure({
           </span>
         ))}
       </span>
-      <span className={styles.unit} aria-hidden="true">mi</span>
+      <span className={styles.unit} aria-hidden="true">{odometerUnitShort(unit)}</span>
     </span>
   );
 }

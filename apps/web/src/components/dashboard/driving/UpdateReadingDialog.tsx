@@ -27,7 +27,14 @@ import {
   saveOutcomeMessage,
   type MotHint,
 } from "./odometerLogic";
-import type { OdometerReadingEntry } from "@mileclear/shared";
+import {
+  odometerMilesToUnit,
+  odometerUnitOf,
+  odometerUnitToMiles,
+  odometerUnitWord,
+  odometerUnitWords,
+  type OdometerReadingEntry,
+} from "@mileclear/shared";
 import styles from "./driving.module.css";
 
 type Stage =
@@ -41,6 +48,9 @@ type Stage =
  * 1,000 above the estimate, MOT typo checks). The API's 409 text is shown as given.
  *
  *   <UpdateReadingDialog open vehicle={v} estimateMiles={45262} readings={list} onClose={..} onSaved={(msg) => ..} />
+ *
+ * The unit is the vehicle's own (vehicle.odometerUnit): a km car's figures,
+ * checks and wording are in km, and the reading is saved as miles once.
  */
 export function UpdateReadingDialog({
   open,
@@ -66,6 +76,15 @@ export function UpdateReadingDialog({
   const [stage, setStage] = useState<Stage>({ kind: "form" });
   const [saving, setSaving] = useState(false);
   const [mot, setMot] = useState<MotHint | null>(null);
+  const unit = odometerUnitOf(vehicle.odometerUnit);
+  const words = (t: string) => odometerUnitWords(t, unit);
+  const inUnit = (m: number) => odometerMilesToUnit(m, unit);
+  // Every stored figure in the car's unit, for the checks and what's shown.
+  const estimate = estimateMiles == null ? null : inUnit(estimateMiles);
+  const unitReadings = useMemo(
+    () => (unit === "km" ? readings.map((r) => ({ ...r, readingMiles: odometerMilesToUnit(r.readingMiles, unit) })) : readings),
+    [readings, unit]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +100,8 @@ export function UpdateReadingDialog({
   // MOT hint: only when no reading exists and the vehicle has a plate. Never blocks the dialog.
   const hasReading = readings.some((r) => r.used);
   useEffect(() => {
-    if (!open || hasReading || !vehicle.registrationPlate) return;
+    // MOT figures are miles (UK only): not for a km car.
+    if (!open || hasReading || !vehicle.registrationPlate || unit === "km") return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       cancelled = true;
@@ -96,17 +116,18 @@ export function UpdateReadingDialog({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, hasReading, vehicle.id, vehicle.registrationPlate]);
+  }, [open, hasReading, vehicle.id, vehicle.registrationPlate, unit]);
 
   const readAt = useMemo(() => (date ? fromInputs(date, time) : new Date()), [date, time]);
   const earliest = earliestReadAt(vehicle.createdAt, new Date());
 
   const hint = useMemo(() => {
-    const earlier = readings
+    const earlier = unitReadings
       .filter((r) => r.used && new Date(r.readAt).getTime() <= readAt.getTime())
       .sort((a, b) => new Date(b.readAt).getTime() - new Date(a.readAt).getTime())[0];
-    return liveHint({ text, estimateMiles, earlier: earlier ? { readingMiles: earlier.readingMiles, readAt: earlier.readAt } : null });
-  }, [text, estimateMiles, readings, readAt]);
+    const h = liveHint({ text, estimateMiles: estimate, earlier: earlier ? { readingMiles: earlier.readingMiles, readAt: earlier.readAt } : null });
+    return { ...h, message: h.message ? odometerUnitWords(h.message, unit) : h.message };
+  }, [text, estimate, unitReadings, readAt, unit]);
 
   async function save() {
     setSaving(true);
@@ -116,19 +137,23 @@ export function UpdateReadingDialog({
       setSaving(false);
       return;
     }
+    // Typed in the car's unit, stored in miles: converted once, here.
+    const stored = odometerUnitToMiles(parsed.miles, unit);
     try {
-      const created = await addOdometerReading(vehicle.id, { readingMiles: parsed.miles, readAt: readAt.toISOString() });
-      onSaved(saveOutcomeMessage(created.estimatedMiles ?? estimateMiles, parsed.miles));
+      const created = await addOdometerReading(vehicle.id, { readingMiles: stored, readAt: readAt.toISOString() });
+      const est = created.estimatedMiles ?? estimateMiles;
+      onSaved(words(saveOutcomeMessage(est == null ? null : inUnit(est), parsed.miles)));
       onClose();
     } catch (e) {
       if (e instanceof ReadingConflictError) {
         // The API's refusal, shown as given. The lower and higher cases get the app's own title.
         if (e.code === "LOWER_THAN_EARLIER" && e.other) {
-          const a = lowerThanEarlierAlert(e.other.readingMiles, new Date(e.other.readAt));
-          setStage({ kind: "blocked", title: a.title, body: a.body });
+          const a = lowerThanEarlierAlert(inUnit(e.other.readingMiles), new Date(e.other.readAt));
+          setStage({ kind: "blocked", title: words(a.title), body: words(a.body) });
         } else if (e.code === "HIGHER_THAN_LATER" && e.other) {
-          const a = higherThanLaterAlert(e.other.readingMiles, new Date(e.other.readAt));
-          setStage({ kind: "blocked", title: a.title, body: e.message || a.body });
+          const a = higherThanLaterAlert(inUnit(e.other.readingMiles), new Date(e.other.readAt));
+          // The API's text quotes stored miles; a km car gets the app's own wording.
+          setStage({ kind: "blocked", title: words(a.title), body: unit === "km" ? words(a.body) : e.message || a.body });
         } else {
           setStage({ kind: "blocked", title: "Couldn't save that", body: e.message });
         }
@@ -143,22 +168,22 @@ export function UpdateReadingDialog({
 
   function submit() {
     setError(null);
-    const check = checkReading({ text, readAt, now: new Date(), estimateMiles, readings, mot });
+    const check = checkReading({ text, readAt, now: new Date(), estimateMiles: estimate, readings: unitReadings, mot: unit === "km" ? null : mot });
     if (readAt.getTime() < earliest.getTime()) {
       setError("That date is too far back for this vehicle.");
       return;
     }
     if (check.kind === "error") {
-      setError(check.message);
+      setError(words(check.message));
       return;
     }
     if (check.kind === "blocked") {
       const a = lowerThanEarlierAlert(check.earlierMiles, check.earlierAt);
-      setStage({ kind: "blocked", title: a.title, body: a.body });
+      setStage({ kind: "blocked", title: words(a.title), body: words(a.body) });
       return;
     }
     if (check.kind === "confirm") {
-      setStage({ kind: "confirm", title: check.title, body: check.body });
+      setStage({ kind: "confirm", title: words(check.title), body: words(check.body) });
       return;
     }
     void save();
@@ -208,22 +233,22 @@ export function UpdateReadingDialog({
             label="Reading"
             value={text}
             onChange={setText}
-            suffix="miles"
+            suffix={odometerUnitWord(unit)}
             error={error ?? undefined}
             hint={
               hint.message
                 ? hint.message
-                : estimateMiles != null
-                  ? `We estimate about ${formatOdo(estimateMiles)}.`
-                  : mot
+                : estimate != null
+                  ? `We estimate about ${formatOdo(estimate)}.`
+                  : mot && unit === "miles"
                     ? motHintText(mot)
                     : undefined
             }
           />
-          {estimateMiles != null && hint.message && !error && (
-            <p className={styles.hint}>We estimate about {formatOdo(estimateMiles)}.</p>
+          {estimate != null && hint.message && !error && (
+            <p className={styles.hint}>We estimate about {formatOdo(estimate)}.</p>
           )}
-          {estimateMiles == null && mot && hint.message && <p className={styles.hint}>{motHintText(mot)}</p>}
+          {estimate == null && mot && unit === "miles" && hint.message && <p className={styles.hint}>{motHintText(mot)}</p>}
           <div className={styles.formGrid + " " + styles.formGrid2}>
             <DateField label="When did you read it?" value={date} onChange={setDate} />
             <TimeField label="Time" value={time} onChange={setTime} />
