@@ -18,6 +18,7 @@ const NZ_SUMMARY = {
   totalAmountMinor: 600_000,
   businessDistance: 5_000,
   totalDistance: 8_000,
+  unclassifiedDistance: 120,
   ratesYear: "2025-26",
   provisional: true,
   someWithoutFigure: false,
@@ -66,6 +67,7 @@ test("a New Zealand driver sees the claim at IRD kilometre rates in dollars", as
   await expect(card).toContainText("$6,000.00");
   await expect(card).toContainText("5,000 km of business driving this tax year");
   await expect(card).toContainText("Using 2025-26 rates, the 2026-27 rates aren't out yet.");
+  await expect(card).toContainText("120 km not yet marked Business or Personal.");
   await expect(card).not.toContainText("£");
   await expect(card).not.toContainText("HMRC");
   await card.getByText("How it's worked out").click();

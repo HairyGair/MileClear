@@ -44,7 +44,8 @@ export function RegimeClaimCard() {
           <p className="mc-tax-text">{view.subline}</p>
         )}
         {view.ratesNote && <p className="mc-tax-note">{view.ratesNote}</p>}
-        {view.vehicles.length > 0 && (
+        {view.unsortedNote && <p className="mc-tax-note">{view.unsortedNote}</p>}
+        {(view.vehicles.length > 0 || view.footnote) && (
           <details>
             <summary className="mc-tax-text">How it&apos;s worked out</summary>
             <div className="mc-tax-stack" style={{ marginTop: 8 }}>

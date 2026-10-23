@@ -13,6 +13,8 @@ export interface RegimeClaimView {
   subline: string;
   /** Rates not out yet for this year: which year's are used. */
   ratesNote: string | null;
+  /** Unsorted trips this tax year: mark them to count any business ones. */
+  unsortedNote: string | null;
   /** One block per vehicle, for the breakdown on tap. */
   vehicles: Array<{ name: string; lines: string[] }>;
   /** How the tiers work, under the breakdown. */
@@ -22,8 +24,11 @@ export interface RegimeClaimView {
 
 const FOOTNOTES: Record<string, string> = {
   IRD:
-    "Tier 1 covers the business share of the first 14,000 km each vehicle travels in the tax year, personal driving included. Tier 2 covers the business share of the rest.",
+    "Tier 1 covers the business share of the first 14,000 km each vehicle travels in the tax year, personal driving included. Tier 2 covers the business share of the rest. This figure is for self-employed driving: if you're an employee, your employer reimburses you instead.",
 };
+
+export const HYBRID_NOTE =
+  "Hybrid is worked out at IRD's petrol hybrid rate; if yours is a plug-in or diesel hybrid, check with IRD or your accountant.";
 
 function distanceText(n: number, basis: "miles" | "km"): string {
   const whole = Math.round(n).toLocaleString("en-GB");
@@ -41,9 +46,9 @@ function reasonLine(v: RegimeVehicleSummary, s: RegimeSummary): string {
     case "provided_by_others":
       return "Someone else pays for this vehicle, so there's no claim for it.";
     case "fuel_unknown":
-      return `${s.authority} has no kilometre rate for this vehicle's fuel type.`;
+      return `MileClear can't match this vehicle's fuel type to an ${s.authority} rate. Check the fuel type on the vehicle.`;
     case "vehicle_type_unsupported":
-      return `${s.authority}'s kilometre rates don't cover motorbikes.`;
+      return `${s.authority}'s kilometre rates don't say they cover motorbikes, so there's no figure.`;
     case "no_rates":
       return `There are no ${s.authority} rates for ${s.taxYear}.`;
     default:
@@ -52,7 +57,9 @@ function reasonLine(v: RegimeVehicleSummary, s: RegimeSummary): string {
 }
 
 export function regimeClaimView(s: RegimeSummary): RegimeClaimView {
-  const has = s.totalAmountMinor > 0 || s.vehicles.some((v) => v.claim);
+  // A figure only when there is business driving with a rate behind it: a car
+  // with no business trips would otherwise read "$0.00" (review, 23 Oct).
+  const has = s.businessDistance > 0 && s.vehicles.some((v) => v.claim && v.businessDistance > 0);
   const amount = has ? formatMoney(s.totalAmountMinor, s.currency) : null;
   const title = `Your claim at ${rateNoun(s.authority)}`;
   const business = distanceText(s.businessDistance, s.distanceBasis);
@@ -64,8 +71,14 @@ export function regimeClaimView(s: RegimeSummary): RegimeClaimView {
   const ratesNote =
     s.provisional && s.ratesYear ? `Using ${s.ratesYear} rates, the ${s.taxYear} rates aren't out yet.` : null;
 
+  const unsorted = Math.round(s.unclassifiedDistance ?? 0);
+  const unsortedNote =
+    unsorted > 0
+      ? `${distanceText(unsorted, s.distanceBasis)} not yet marked Business or Personal. Mark them to count any business ones.`
+      : null;
+
   const vehicles = s.vehicles
-    .filter((v) => v.businessDistance > 0 || v.claim)
+    .filter((v) => v.businessDistance > 0)
     .map((v) => {
       const name = v.name ?? "No car";
       const lines: string[] = [
@@ -78,6 +91,7 @@ export function regimeClaimView(s: RegimeSummary): RegimeClaimView {
             `${t.label}: ${distanceText(t.distance, s.distanceBasis)} at ${formatRatePerKm(t.rateMinor, s.currency)} = ${formatMoney(t.amountMinor, s.currency)}`
           );
         }
+        if (s.authority === "IRD" && v.fuelType === "hybrid") lines.push(HYBRID_NOTE);
       } else {
         const r = reasonLine(v, s);
         if (r) lines.push(r);
@@ -85,6 +99,6 @@ export function regimeClaimView(s: RegimeSummary): RegimeClaimView {
       return { name, lines };
     });
 
-  const a11yLabel = [title, amount ?? "no figure yet", subline, ratesNote].filter(Boolean).join(". ");
-  return { title, amount, subline, ratesNote, vehicles, footnote: FOOTNOTES[s.authority] ?? null, a11yLabel };
+  const a11yLabel = [title, amount ?? "no figure yet", subline, ratesNote, unsortedNote].filter(Boolean).join(". ");
+  return { title, amount, subline, ratesNote, unsortedNote, vehicles, footnote: FOOTNOTES[s.authority] ?? null, a11yLabel };
 }

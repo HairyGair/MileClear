@@ -16,6 +16,7 @@ function summary(over: Partial<RegimeSummary> = {}): RegimeSummary {
     totalAmountMinor: 1_426_500,
     businessDistance: 15_000,
     totalDistance: 20_000,
+    unclassifiedDistance: 0,
     ratesYear: "2025-26",
     provisional: false,
     someWithoutFigure: false,
@@ -70,19 +71,69 @@ describe("regimeClaimView (New Zealand)", () => {
         totalAmountMinor: 0,
         someWithoutFigure: true,
         vehicles: [
-          { vehicleId: "v2", name: "Ford Ranger", fuelType: "lpg", businessDistance: 300, totalDistance: 400, claim: null, noClaimReason: "fuel_unknown" },
+          { vehicleId: "v2", name: "Ford Ranger", fuelType: null, businessDistance: 300, totalDistance: 400, claim: null, noClaimReason: "fuel_unknown" },
         ],
         businessDistance: 300,
       })
     );
     expect(v.amount).toBeNull();
     expect(v.subline).toContain("no figure yet");
-    expect(v.vehicles[0].lines[1]).toBe("IRD has no kilometre rate for this vehicle's fuel type.");
+    expect(v.vehicles[0].lines[1]).toBe("MileClear can't match this vehicle's fuel type to an IRD rate. Check the fuel type on the vehicle.");
   });
 
   it("no business driving yet", () => {
     const v = regimeClaimView(summary({ totalAmountMinor: 0, businessDistance: 0, totalDistance: 0, vehicles: [] }));
     expect(v.amount).toBeNull();
     expect(v.subline).toBe("No business driving yet this tax year (1 April to 31 March).");
+  });
+
+  it("a car with only personal trips shows no $0.00 and no 0 km business line", () => {
+    const v = regimeClaimView(
+      summary({
+        totalAmountMinor: 0,
+        businessDistance: 0,
+        totalDistance: 900,
+        vehicles: [
+          {
+            vehicleId: "v1",
+            name: "Toyota Corolla",
+            fuelType: "petrol",
+            businessDistance: 0,
+            totalDistance: 900,
+            noClaimReason: null,
+            claim: {
+              amountMinor: 0,
+              currency: "NZD",
+              ratesYear: "2025-26",
+              provisional: false,
+              tiers: [
+                { label: "Tier 1", distance: 0, rateMinor: 120, amountMinor: 0 },
+                { label: "Tier 2", distance: 0, rateMinor: 37, amountMinor: 0 },
+              ],
+            },
+          },
+        ],
+      })
+    );
+    expect(v.amount).toBeNull();
+    expect(v.subline).toBe("No business driving yet this tax year (1 April to 31 March).");
+    expect(v.vehicles).toEqual([]);
+  });
+
+  it("asks for unsorted trips to be marked", () => {
+    const v = regimeClaimView(summary({ unclassifiedDistance: 432.4 }));
+    expect(v.unsortedNote).toBe("432 km not yet marked Business or Personal. Mark them to count any business ones.");
+    expect(regimeClaimView(summary()).unsortedNote).toBeNull();
+  });
+
+  it("a hybrid gets the petrol hybrid note; the footnote says it's the self-employed figure", () => {
+    const s = summary();
+    s.vehicles[0].fuelType = "hybrid";
+    const v = regimeClaimView(s);
+    expect(v.vehicles[0].lines).toContain(
+      "Hybrid is worked out at IRD's petrol hybrid rate; if yours is a plug-in or diesel hybrid, check with IRD or your accountant."
+    );
+    expect(v.footnote).toContain("if you're an employee, your employer reimburses you instead");
+    expect(regimeClaimView(summary()).vehicles[0].lines.some((l) => l.includes("hybrid"))).toBe(false);
   });
 });

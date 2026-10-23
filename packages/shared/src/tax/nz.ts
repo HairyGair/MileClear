@@ -7,8 +7,11 @@
 //   2024-25: https://www.ird.govt.nz/income-tax/income-tax-for-businesses-and-organisations/types-of-business-expenses/claiming-vehicle-expenses/kilometre-rates-2024-2025
 //
 // IRD lists four vehicle types only: petrol, diesel, petrol hybrid, electric.
-// It names no rate for plug-in hybrids, LPG or motorbikes, so MileClear shows
-// no figure for anything it can't map to one of the four. 2026-27 rates were
+// The app's fuel types are petrol, diesel, electric and hybrid, so each maps
+// to one of them; "hybrid" is worked out at IRD's petrol hybrid rate, and a
+// plug-in or diesel hybrid driver is told to check with IRD or an accountant.
+// IRD's pages don't say whether the kilometre rates cover motorbikes, so a
+// motorbike gets no figure. 2026-27 rates were
 // not published on 23 Oct 2026 (IRD sets each year's rates after it ends), so
 // the current year uses the latest published rates and says so.
 //
@@ -65,7 +68,9 @@ export const IRD_VEHICLE_LABELS: Record<IrdVehicleClass, string> = {
 };
 
 /** The app's fuel type as one of IRD's four, or null when IRD has no rate for it.
- *  The app's "hybrid" is taken as a petrol hybrid (IRD lists no diesel or plug-in hybrid). */
+ *  The app's "hybrid" is IRD's petrol hybrid rate (the app can't tell a plug-in
+ *  or diesel hybrid apart; the card and help tell those drivers to check). Null
+ *  only for a value outside the app's fuel types. */
 export function irdVehicleClass(fuelType: FuelType | string | null | undefined): IrdVehicleClass | null {
   switch (fuelType) {
     case "petrol":

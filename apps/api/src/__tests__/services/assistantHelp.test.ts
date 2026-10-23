@@ -231,6 +231,10 @@ describe("EmSee and the driver's country (23 Oct 2026)", () => {
     expect(line).toContain("1 April to 31 March");
     expect(line).toContain("petrol $1.20 then 37c");
     expect(line).not.toContain("check their own country's tax office");
+    expect(line).toContain("Never work out the claim yourself");
+    expect(line).toContain("claim card on Home");
+    expect(line).toContain("petrol hybrid rate");
+    expect(line).not.toMatch(/LPG/);
   });
 
   it("other countries without rules are pointed at their own tax office", () => {

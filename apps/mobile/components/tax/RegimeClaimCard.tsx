@@ -63,6 +63,11 @@ export default function RegimeClaimCard({ refreshToken }: { refreshToken?: numbe
             {view.ratesNote}
           </Text>
         ) : null}
+        {view.unsortedNote ? (
+          <Text style={styles.note} maxFontSizeMultiplier={fontScaleCap.body}>
+            {view.unsortedNote}
+          </Text>
+        ) : null}
 
         {open ? (
           <View style={styles.breakdown}>
