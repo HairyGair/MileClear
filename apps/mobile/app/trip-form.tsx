@@ -44,7 +44,8 @@ import {
 } from "../lib/sync/actions";
 import { fetchVehicles } from "../lib/api/vehicles";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, haversineDistance, calculateHmrcDeduction } from "@mileclear/shared";
-import { odometerBoxText, odometerBoxToMiles, odometerUnitOf, odometerUnitToMiles } from "@mileclear/shared";
+import { odometerUnitOf } from "@mileclear/shared";
+import { useOdometerBox } from "../lib/odometer/useOdometerBox";
 import { fetchServerRouteDistance, fetchProjectLabels, type RouteDistanceResult } from "../lib/api/trips";
 import { describeError } from "../lib/api/apiError";
 import type { TripClassification, TripCategory, PlatformTag, BusinessPurpose, Vehicle, CazTripAssessment, TripRoadworksItem } from "@mileclear/shared";
@@ -1017,27 +1018,20 @@ export default function TripFormScreen() {
   const [canSplit, setCanSplit] = useState(false);
   // Odometer (optional trust primitive).
   const [odometerOpen, setOdometerOpen] = useState(false);
-  const [odometerStart, setOdometerStart] = useState("");
-  const [odometerEnd, setOdometerEnd] = useState("");
-  // A km car's odometer boxes are in km (stored in miles). Edit: the stored
-  // readings go in the boxes in the car's unit once the cars are known, and an
-  // untouched one goes back exactly as it was stored.
-  const [loadedOdo, setLoadedOdo] = useState<{ start: number | null; end: number | null } | null>(null);
-  const [vehiclesLoaded, setVehiclesLoaded] = useState(false);
-  const odoPrefilled = useRef(false);
+  // A km car's odometer boxes are in km (stored in miles); miles cars keep
+  // the old boxes exactly (lib/odometer/useOdometerBox).
   const odoUnit = odometerUnitOf(
     (vehicles.find((v) => v.id === vehicleId) ?? vehicles.find((v) => v.isPrimary) ?? (vehicles.length === 1 ? vehicles[0] : undefined))
       ?.odometerUnit
   );
-  /** The miles to send for an odometer box (null when empty or not a number, as before). */
-  const odoToSend = useCallback(
-    (text: string, loaded: number | null | undefined): number | null => {
-      if (loaded != null && !odoPrefilled.current) return loaded;
-      const r = odometerBoxToMiles(text, odoUnit, loaded);
-      return r.ok ? r.miles : null;
-    },
-    [odoUnit]
-  );
+  const odoStartBox = useOdometerBox(odoUnit);
+  const odoEndBox = useOdometerBox(odoUnit);
+  const odometerStart = odoStartBox.text;
+  const odometerEnd = odoEndBox.text;
+  const odoStartMiles = odoStartBox.miles;
+  const odoEndMiles = odoEndBox.miles;
+  const { load: loadOdoStart, set: setOdoStartText } = odoStartBox;
+  const { load: loadOdoEnd, set: setOdoEndText } = odoEndBox;
   // Edit audit trail — "Edited <date>" when the trip has been changed.
   const [editedAt, setEditedAt] = useState<string | null>(null);
   // For the "how this trip was made" line: when the server saved it, and
@@ -1607,10 +1601,8 @@ export default function TripFormScreen() {
         setRouteMatched(sampleRoute(t.matchedCoordinates!));
       }
       const od = t as { odometerStart?: number | null; odometerEnd?: number | null; updatedAt?: string; createdAt?: string };
-      if (od.odometerStart != null || od.odometerEnd != null) {
-        setLoadedOdo({ start: od.odometerStart ?? null, end: od.odometerEnd ?? null });
-        setOdometerOpen(true);
-      }
+      if (od.odometerStart != null) { loadOdoStart(od.odometerStart); setOdometerOpen(true); }
+      if (od.odometerEnd != null) { loadOdoEnd(od.odometerEnd); setOdometerOpen(true); }
       setCreatedAt(od.createdAt ?? null);
       setSplitLeg(isSplitLeg((t as { gpsQuality?: unknown }).gpsQuality));
       // Absent from servers before Oct 2026, so the line just says less.
@@ -1654,7 +1646,7 @@ export default function TripFormScreen() {
     return () => {
       cancelled = true;
     };
-  }, [id, loadAttempt]);
+  }, [id, loadAttempt, loadOdoStart, loadOdoEnd]);
 
   // Fetch community alerts and nudges for the ready state
   useEffect(() => {
@@ -1737,16 +1729,8 @@ export default function TripFormScreen() {
           if (primary) setVehicleId(primary.id);
         }
       })
-      .catch(() => {})
-      .finally(() => setVehiclesLoaded(true));
+      .catch(() => {});
   }, [id, prefillVehicleId]);
-
-  useEffect(() => {
-    if (odoPrefilled.current || !loadedOdo || !vehiclesLoaded) return;
-    odoPrefilled.current = true;
-    setOdometerStart(odometerBoxText(loadedOdo.start, odoUnit));
-    setOdometerEnd(odometerBoxText(loadedOdo.end, odoUnit));
-  }, [loadedOdo, vehiclesLoaded, odoUnit]);
 
   // Auto-calculate distance via the server-side routing service.
   // Cache → GraphHopper → Google. Never silently falls back to crow-flies
@@ -2899,9 +2883,8 @@ export default function TripFormScreen() {
       // GPS-vs-odometer mismatch — if both odometer readings are present and
       // the odometer distance disagrees materially with the recorded distance,
       // flag it so a typo or a wrong figure doesn't go in unnoticed.
-      // In miles, like the trip distance (a km car's boxes are typed in km).
-      const odoStart = odometerUnitToMiles(parseFloat(odometerStart), odoUnit);
-      const odoEnd = odometerUnitToMiles(parseFloat(odometerEnd), odoUnit);
+      const odoStart = odoStartMiles(odometerStart);
+      const odoEnd = odoEndMiles(odometerEnd);
       if (
         odometerStart.trim() && odometerEnd.trim() &&
         Number.isFinite(odoStart) && Number.isFinite(odoEnd) && odoEnd > odoStart &&
@@ -3006,8 +2989,8 @@ export default function TripFormScreen() {
           // Allow correcting a wrong vehicle — was never sent, so the picker in
           // edit mode did nothing on save (audit point 5).
           vehicleId: vehicleId ?? null,
-          odometerStart: odoToSend(odometerStart, loadedOdo?.start),
-          odometerEnd: odoToSend(odometerEnd, loadedOdo?.end),
+          odometerStart: odometerStart.trim() ? odoStartMiles(odometerStart) : null,
+          odometerEnd: odometerEnd.trim() ? odoEndMiles(odometerEnd) : null,
           // Miles the driver typed with "Enter distance manually" (a 48
           // typed as 84). Never sent before, so the correction was dropped.
           ...(() => {
@@ -3091,8 +3074,8 @@ export default function TripFormScreen() {
           ...(vehicleId && { vehicleId }),
           ...(coords && { coordinates: coords }),
           ...(keptGoing && { gpsQuality: { driverKeptGoing: true } }),
-          ...(odometerStart.trim() && { odometerStart: odoToSend(odometerStart, null) }),
-          ...(odometerEnd.trim() && { odometerEnd: odoToSend(odometerEnd, null) }),
+          ...(odometerStart.trim() && { odometerStart: odoStartMiles(odometerStart) }),
+          ...(odometerEnd.trim() && { odometerEnd: odoEndMiles(odometerEnd) }),
           recordedBy: recordedByForForm(mode),
         };
         const tripResult = await syncCreateTrip(data);
@@ -3414,7 +3397,7 @@ export default function TripFormScreen() {
     trailLeadGap,
     anomalyDef, anomalyResponse, anomalyCustomNote,
     locationQuestions, locationResponses, locationCustomNotes,
-    odometerStart, odometerEnd, odoUnit, odoToSend, loadedOdo, missedId, mode, timeTouched,
+    odometerStart, odometerEnd, odoStartMiles, odoEndMiles, missedId, mode, timeTouched,
     whenDay, whenTime, routedDurationSecs, endTimeTouched, personalOnly, chain, savedPlaces,
   ]);
 
@@ -3674,8 +3657,8 @@ export default function TripFormScreen() {
         setEndedAt(snap.endedAt);
         setNotes(snap.notes);
         setProjectLabel(snap.projectLabel);
-        setOdometerStart(snap.odometerStart);
-        setOdometerEnd(snap.odometerEnd);
+        setOdoStartText(snap.odometerStart);
+        setOdoEndText(snap.odometerEnd);
         setStartMoved(snap.startMoved);
         setManualDistanceMode(false);
         setDistanceTyped(false);
@@ -3693,7 +3676,7 @@ export default function TripFormScreen() {
       { text: "Keep editing", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: back },
     ]);
-  }, [captureForm]);
+  }, [captureForm, setOdoStartText, setOdoEndText]);
 
   /**
    * One-tap change from the summary (Business / Personal, category, app,
@@ -4075,10 +4058,10 @@ export default function TripFormScreen() {
         onProjectLabel={setProjectLabel}
         projectOptions={projectLabelOptions}
         odometerStart={odometerStart}
-        onOdometerStart={setOdometerStart}
+        onOdometerStart={odoStartBox.type}
         odometerEnd={odometerEnd}
-        onOdometerEnd={setOdometerEnd}
-        odometerUnit={odoUnit}
+        onOdometerEnd={odoEndBox.type}
+        odometerUnit={odoStartBox.unit}
       />
 
       <Button
@@ -4182,12 +4165,12 @@ export default function TripFormScreen() {
           </TouchableOpacity>
         ) : (
           <>
-            <Text style={styles.odometerLabel}>Odometer (miles)</Text>
+            <Text style={styles.odometerLabel}>{odoStartBox.unit === "km" ? "Odometer (km)" : "Odometer (miles)"}</Text>
             <View style={styles.odometerRow}>
               <TextInput
                 style={[styles.input, styles.odometerInput]}
                 value={odometerStart}
-                onChangeText={(t) => setOdometerStart(t.replace(/[^0-9.]/g, ""))}
+                onChangeText={(t) => odoStartBox.type(t.replace(/[^0-9.]/g, ""))}
                 placeholder="Start"
                 placeholderTextColor="#64748b"
                 keyboardType="decimal-pad"
@@ -4197,7 +4180,7 @@ export default function TripFormScreen() {
               <TextInput
                 style={[styles.input, styles.odometerInput]}
                 value={odometerEnd}
-                onChangeText={(t) => setOdometerEnd(t.replace(/[^0-9.]/g, ""))}
+                onChangeText={(t) => odoEndBox.type(t.replace(/[^0-9.]/g, ""))}
                 placeholder="End"
                 placeholderTextColor="#64748b"
                 keyboardType="decimal-pad"
@@ -4206,7 +4189,7 @@ export default function TripFormScreen() {
             </View>
             {odometerStart && odometerEnd && parseFloat(odometerEnd) > parseFloat(odometerStart) && (
               <Text style={styles.odometerHint}>
-                Odometer shows {(parseFloat(odometerEnd) - parseFloat(odometerStart)).toFixed(1)} miles
+                Odometer shows {(parseFloat(odometerEnd) - parseFloat(odometerStart)).toFixed(1)} {odoStartBox.unit === "km" ? "km" : "miles"}
               </Text>
             )}
           </>

@@ -41,24 +41,80 @@ export function odometerUnitShort(unit: OdometerUnit): string {
 }
 
 // ── Odometer boxes on the fuel and trip forms ────────────────────────
-// A km car's box is typed and prefilled in km. A prefilled figure the driver
-// didn't touch goes back exactly as it was stored (no km -> miles -> km
-// drift); a changed one is converted once. Miles cars: the old behaviour.
+// Each box remembers the unit its text is in (boxUnit) and whether the driver
+// has typed in it. Miles: the forms keep their old parsing exactly (a stored
+// figure prefills as String(miles), parseFloat reads it back). A km car: the
+// untouched box is prefilled in km and re-prefilled when the car (unit)
+// changes; untouched, the stored figure goes back unchanged; typed, it is
+// read in the unit it was typed in and converted to miles once.
 
-/** The box's starting text for a stored miles figure. */
+/** The box's text for a stored miles figure, in `unit` (miles: String(miles), as before). */
 export function odometerBoxText(miles: number | null | undefined, unit: OdometerUnit): string {
   if (miles == null || !Number.isFinite(miles)) return "";
   return unit === "km" ? String(Math.round(milesToKm(miles))) : String(miles);
 }
 
-export type OdometerBoxResult = { ok: true; miles: number | null } | { ok: false };
+/**
+ * The number a box stands for, in miles, where the old code called
+ * parseFloat(text). Miles: exactly parseFloat(text) (0, negatives and NaN
+ * pass through as before). km: the stored figure when untouched, otherwise
+ * parseFloat(text) converted once (non-numbers pass through unchanged).
+ */
+export function odometerBoxValue(
+  text: string,
+  box: { unit: OdometerUnit; touched: boolean; loadedMiles?: number | null }
+): number {
+  if (box.unit !== "km") return parseFloat(text);
+  if (!box.touched && box.loadedMiles != null) return box.loadedMiles;
+  const n = parseFloat(text);
+  return Number.isFinite(n) ? odometerUnitToMiles(n, "km") : n;
+}
 
-/** The miles to store for a box: null when empty, not ok when it isn't a positive number. */
-export function odometerBoxToMiles(text: string, unit: OdometerUnit, loadedMiles?: number | null): OdometerBoxResult {
-  const t = text.trim();
-  if (!t) return { ok: true, miles: null };
-  const n = parseFloat(t);
-  if (!Number.isFinite(n) || n <= 0) return { ok: false };
-  if (loadedMiles != null && t === odometerBoxText(loadedMiles, unit)) return { ok: true, miles: loadedMiles };
-  return { ok: true, miles: odometerUnitToMiles(n, unit) };
+/** One odometer box on a form: its text, the stored figure it was filled
+ *  from, the unit its text is in, and whether the driver typed in it. */
+export interface OdometerBoxState {
+  text: string;
+  loadedMiles: number | null;
+  unit: OdometerUnit;
+  touched: boolean;
+}
+
+export type OdometerBoxEvent =
+  /** A stored figure arrives (edit): filled in the car's unit if known (miles: String(miles), as before). */
+  | { type: "load"; miles: number | null | undefined; unit?: OdometerUnit }
+  /** The driver typed: the text wins from now on, in the unit it's in. */
+  | { type: "type"; text: string }
+  /** The form set the text itself (a restored draft): not a typed change. */
+  | { type: "set"; text: string }
+  /** The car's unit is known or changed (cars loaded, another car picked). */
+  | { type: "carUnit"; unit: OdometerUnit };
+
+export const ODOMETER_BOX_EMPTY: OdometerBoxState = { text: "", loadedMiles: null, unit: "miles", touched: false };
+
+/**
+ * The box's next state. Miles cars never see a "carUnit" change, so they keep
+ * the old text exactly. An untouched box follows the car's unit (re-filled
+ * from the stored miles, so switching miles <-> km never misreads it); a
+ * typed box keeps its text and the unit it was typed in.
+ */
+export function odometerBoxReduce(s: OdometerBoxState, e: OdometerBoxEvent): OdometerBoxState {
+  switch (e.type) {
+    case "load": {
+      const miles = e.miles ?? null;
+      const unit = e.unit ?? "miles";
+      return { text: miles == null ? "" : odometerBoxText(miles, unit), loadedMiles: miles, unit, touched: false };
+    }
+    case "type":
+      return { ...s, text: e.text, touched: true };
+    case "set":
+      return { ...s, text: e.text };
+    case "carUnit":
+      if (s.touched || e.unit === s.unit) return s;
+      return { ...s, unit: e.unit, text: s.loadedMiles != null ? odometerBoxText(s.loadedMiles, e.unit) : s.text };
+  }
+}
+
+/** The box as miles, where the old code called parseFloat(text). */
+export function odometerBoxMiles(s: OdometerBoxState, text: string = s.text): number {
+  return odometerBoxValue(text, { unit: s.unit, touched: s.touched, loadedMiles: s.loadedMiles });
 }

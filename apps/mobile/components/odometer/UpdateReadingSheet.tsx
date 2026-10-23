@@ -83,6 +83,9 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
   // Every stored figure in the car's unit, for the checks and what's shown.
   const view = odometerInUnit(odo, unit);
   const words = useCallback((t: string) => odometerUnitWords(t, unit), [unit]);
+  // In a km country the unit isn't known until the odometer arrives: no suffix
+  // until then. Everywhere else it's miles from the start, as before.
+  const suffix = !odo && countryByCode(country)?.usesKm ? null : unitWord(unit);
 
   useEffect(() => {
     if (!visible || !vehicleId) return;
@@ -283,11 +286,13 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                 textContentType="none"
                 placeholder="e.g. 45100"
                 placeholderTextColor={colors.text3}
-                accessibilityLabel={`Odometer reading in ${unitWord(unit)}`}
+                accessibilityLabel={suffix ? `Odometer reading in ${suffix}` : "Odometer reading"}
                 accessibilityHint="What your dashboard shows now"
                 maxFontSizeMultiplier={fontScaleCap.display}
               />
-              <Text style={styles.suffix} maxFontSizeMultiplier={fontScaleCap.body}>{unitWord(unit)}</Text>
+              {suffix ? (
+                <Text style={styles.suffix} maxFontSizeMultiplier={fontScaleCap.body}>{suffix}</Text>
+              ) : null}
             </View>
             {error ? (
               <Text style={styles.error} accessibilityLiveRegion="polite" accessibilityRole="alert" maxFontSizeMultiplier={fontScaleCap.body}>

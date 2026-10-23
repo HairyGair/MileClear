@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useCountryFeatures } from "@/lib/dashboard/country";
 import type { ChargePoint, CheapestTodayResponse, FuelLogWithVehicle, FuelStation, NationalAveragePrices } from "@mileclear/shared";
-import { formatPence, odometerBoxText, odometerBoxToMiles, odometerUnitOf } from "@mileclear/shared";
+import { ODOMETER_BOX_EMPTY, formatPence, odometerBoxMiles, odometerBoxReduce, odometerUnitOf } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { Button } from "@/components/dashboard/kit/Button";
 import { Card, SectionHeader } from "@/components/dashboard/kit/Card";
@@ -60,26 +60,34 @@ function FuelLogDialog({
   const [litres, setLitres] = useState("");
   const [cost, setCost] = useState<number | null>(null);
   const [station, setStation] = useState("");
-  const [odo, setOdo] = useState("");
+  // The odometer box (shared odometerBoxReduce): miles cars keep the old box
+  // exactly; an untouched box follows a km car's unit; typing wins.
+  const [odoBox, odoDispatch] = useReducer(odometerBoxReduce, ODOMETER_BOX_EMPTY);
+  const odo = odoBox.text;
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formKey, setFormKey] = useState(0);
-  // A km car's odometer box is in km (stored in miles). No car: the main one.
-  const unitFor = (id: string) =>
-    odometerUnitOf((vehicles.find((v) => v.id === id) ?? vehicles.find((v) => v.isPrimary) ?? vehicles[0])?.odometerUnit);
-  const odoUnit = unitFor(vehicleId);
+  // The car's unit, worked out every render so cars that load late still count. No car: the main one.
+  const carUnit = odometerUnitOf(
+    (vehicles.find((v) => v.id === vehicleId) ?? vehicles.find((v) => v.isPrimary) ?? vehicles[0])?.odometerUnit
+  );
+  const carUnitRef = useRef(carUnit);
+  carUnitRef.current = carUnit;
+  useEffect(() => {
+    if (!odoBox.touched && odoBox.unit !== carUnit) odoDispatch({ type: "carUnit", unit: carUnit });
+  }, [carUnit, odoBox.unit, odoBox.touched]);
+  const odoUnit = odoBox.unit;
 
   useEffect(() => {
     if (!open) return;
     const when = log ? new Date(log.loggedAt) : new Date();
-    const vid = log?.vehicleId ?? vehicles[0]?.id ?? "";
-    setVehicleId(vid);
+    setVehicleId(log?.vehicleId ?? vehicles[0]?.id ?? "");
     setLitres(log ? String(log.litres) : "");
     setCost(log ? log.costPence : null);
     setStation(log?.stationName ?? "");
-    setOdo(odometerBoxText(log?.odometerReading ?? null, unitFor(vid)));
+    odoDispatch({ type: "load", miles: log?.odometerReading ?? null, unit: carUnitRef.current });
     setDate(toDateInput(when));
     setTime(toTimeInput(when));
     setError(null);
@@ -91,9 +99,8 @@ function FuelLogDialog({
     const l = parseFloat(litres);
     if (!Number.isFinite(l) || l <= 0) return setError("Enter the litres.");
     if (!cost || cost <= 0) return setError("Enter what it cost.");
-    // Typed in the car's unit, stored in miles; an untouched prefill goes back as it was.
-    const r = odometerBoxToMiles(odo, odoUnit, log?.odometerReading ?? null);
-    const o = r.ok ? r.miles : null;
+    // Miles: parseFloat as before. km: read in the unit it was typed in, stored in miles.
+    const o = odo ? odometerBoxMiles(odoBox) : null;
     setSaving(true);
     setError(null);
     try {
@@ -149,7 +156,7 @@ function FuelLogDialog({
         <NumberField
           label={odoUnit === "km" ? "Odometer (km)" : "Odometer"}
           value={odo}
-          onChange={setOdo}
+          onChange={(t) => odoDispatch({ type: "type", text: t })}
           suffix={odoUnit === "km" ? "km" : "miles"}
           required={false}
           decimals={false}

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   odometerBoxText,
-  odometerBoxToMiles,
+  odometerBoxValue,
+  odometerBoxReduce,
+  odometerBoxMiles,
+  ODOMETER_BOX_EMPTY,
   odometerMilesToUnit,
   odometerUnitOf,
   odometerUnitToMiles,
@@ -31,18 +34,73 @@ describe("odometer unit", () => {
 });
 
 describe("odometer boxes (fuel and trip forms)", () => {
-  it("miles: as before", () => {
+  it("miles: exactly parseFloat, as before (0, negatives, NaN, prefill)", () => {
+    const m = (text: string, touched = true) => odometerBoxValue(text, { unit: "miles", touched, loadedMiles: 45_100.5 });
     expect(odometerBoxText(45_100.5, "miles")).toBe("45100.5");
-    expect(odometerBoxToMiles("45100.5", "miles", 45_100.5)).toEqual({ ok: true, miles: 45_100.5 });
-    expect(odometerBoxToMiles("45200", "miles", 45_100)).toEqual({ ok: true, miles: 45_200 });
-    expect(odometerBoxToMiles("", "miles", 45_100)).toEqual({ ok: true, miles: null });
-    expect(odometerBoxToMiles("-3", "miles")).toEqual({ ok: false });
+    expect(m("45100.5", false)).toBe(45_100.5);
+    expect(m("45200")).toBe(45_200);
+    expect(m("0")).toBe(0);
+    expect(m("-5")).toBe(-5);
+    expect(m("abc")).toBeNaN();
   });
-  it("km: prefilled in km; untouched goes back unchanged, changed is converted once", () => {
+  it("km: prefilled in km; untouched goes back as stored, typed is converted once", () => {
     const stored = 28_038.07;
     expect(odometerBoxText(stored, "km")).toBe("45123");
-    expect(odometerBoxToMiles("45123", "km", stored)).toEqual({ ok: true, miles: stored });
-    expect(odometerBoxToMiles("45200", "km", stored)).toEqual({ ok: true, miles: odometerUnitToMiles(45_200, "km") });
-    expect(odometerBoxToMiles("45123", "km", null)).toEqual({ ok: true, miles: 28_038.13 });
+    expect(odometerBoxValue("45123", { unit: "km", touched: false, loadedMiles: stored })).toBe(stored);
+    expect(odometerBoxValue("45200", { unit: "km", touched: true, loadedMiles: stored })).toBe(odometerUnitToMiles(45_200, "km"));
+    expect(odometerBoxValue("45123", { unit: "km", touched: true, loadedMiles: null })).toBe(28_038.13);
+    expect(odometerBoxValue("0", { unit: "km", touched: true })).toBe(0);
+  });
+});
+
+describe("odometer box state", () => {
+  const load = (miles: number | null) => odometerBoxReduce(ODOMETER_BOX_EMPTY, { type: "load", miles });
+
+  it("UK / miles: filled at once as before, the late car list changes nothing, typing wins", () => {
+    let s = load(45_100);
+    expect(s.text).toBe("45100");
+    expect(odometerBoxMiles(s)).toBe(45_100);
+    s = odometerBoxReduce(s, { type: "carUnit", unit: "miles" });
+    expect(s.text).toBe("45100");
+    // Typed before or after the cars load: what's typed is what's saved.
+    s = odometerBoxReduce(load(45_100), { type: "type", text: "45250" });
+    s = odometerBoxReduce(s, { type: "carUnit", unit: "miles" });
+    expect(odometerBoxMiles(s)).toBe(45_250);
+    // 0 and negatives pass through as before (the server or the form's own check answers).
+    expect(odometerBoxMiles(odometerBoxReduce(load(10), { type: "type", text: "0" }))).toBe(0);
+    expect(odometerBoxMiles(odometerBoxReduce(load(10), { type: "type", text: "-5" }))).toBe(-5);
+  });
+
+  it("a load with the car's unit already known fills in that unit at once", () => {
+    const s = odometerBoxReduce(ODOMETER_BOX_EMPTY, { type: "load", miles: 28_038.07, unit: "km" });
+    expect(s).toEqual({ text: "45123", loadedMiles: 28_038.07, unit: "km", touched: false });
+    expect(odometerBoxReduce(ODOMETER_BOX_EMPTY, { type: "load", miles: 45_100, unit: "miles" }).text).toBe("45100");
+  });
+
+  it("km car: re-filled in km once the cars load, untouched goes back as stored", () => {
+    const s = odometerBoxReduce(load(28_038.07), { type: "carUnit", unit: "km" });
+    expect(s.text).toBe("45123");
+    expect(odometerBoxMiles(s)).toBe(28_038.07);
+  });
+
+  it("switching between a miles and a km car while untouched never misreads it", () => {
+    let s = odometerBoxReduce(load(28_038.07), { type: "carUnit", unit: "km" });
+    s = odometerBoxReduce(s, { type: "carUnit", unit: "miles" });
+    expect(s.text).toBe("28038.07");
+    expect(odometerBoxMiles(s)).toBe(28_038.07);
+    s = odometerBoxReduce(s, { type: "carUnit", unit: "km" });
+    expect(odometerBoxMiles(s)).toBe(28_038.07);
+  });
+
+  it("a typed box converts in the unit it was typed in, whatever car is picked after", () => {
+    let s = odometerBoxReduce(load(28_038.07), { type: "carUnit", unit: "km" });
+    s = odometerBoxReduce(s, { type: "type", text: "45200" });
+    s = odometerBoxReduce(s, { type: "carUnit", unit: "miles" });
+    expect(s.unit).toBe("km");
+    expect(odometerBoxMiles(s)).toBe(odometerUnitToMiles(45_200, "km"));
+    // Typed in miles before a km car's unit arrived: read as miles.
+    let t = odometerBoxReduce(load(null), { type: "type", text: "30000" });
+    t = odometerBoxReduce(t, { type: "carUnit", unit: "km" });
+    expect(odometerBoxMiles(t)).toBe(30_000);
   });
 });

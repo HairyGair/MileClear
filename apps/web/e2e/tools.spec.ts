@@ -180,6 +180,50 @@ test.describe("fuel", () => {
     { id: "f1", vehicleId: VEHICLE.id, litres: 40, costPence: 5600, stationName: "Asda Gosforth", odometerReading: 45000, loggedAt: new Date().toISOString(), vehicle: { id: VEHICLE.id, make: "Ford", model: "Focus", fuelType: "petrol" } },
   ];
 
+  test("odometer box, miles car: filled at once and read as before (typed wins; 0 goes as the old code sent it)", async ({ page }) => {
+    await mockSession(page);
+    const state = drivingState({ fuelLogs: LOGS });
+    await mockDriving(page, state);
+    await page.goto("/dashboard/fuel");
+    await page.getByRole("row").filter({ hasText: "Asda Gosforth" }).click();
+    const edit = page.getByRole("dialog", { name: "Edit fill-up" });
+    await expect(edit.getByLabel("Odometer")).toHaveValue("45000");
+    await edit.getByRole("button", { name: "Save" }).click();
+    await expect.poll(() => callsTo(state, "PATCH", "/fuel/logs/f1").length).toBe(1);
+    expect(callsTo(state, "PATCH", "/fuel/logs/f1")[0][2]).toMatchObject({ odometerReading: 45000 });
+    // The old code sent odometerReading: o && o > 0 ? o : null on an edit, so 0 went as null
+    // (the box itself won't take a minus sign).
+    for (const [typed, sent] of [["45250", 45250], ["0", null]] as const) {
+      state.calls.length = 0;
+      await page.getByRole("row").filter({ hasText: "Asda Gosforth" }).click();
+      const again = page.getByRole("dialog", { name: "Edit fill-up" });
+      await again.getByLabel("Odometer").fill(typed);
+      await again.getByRole("button", { name: "Save" }).click();
+      await expect.poll(() => callsTo(state, "PATCH", "/fuel/logs/f1").length).toBe(1);
+      expect((callsTo(state, "PATCH", "/fuel/logs/f1")[0][2] as { odometerReading: unknown }).odometerReading).toBe(sent);
+    }
+  });
+
+  test("odometer box, km car: shown in km, untouched goes back as stored, typed is converted once", async ({ page }) => {
+    await mockSession(page);
+    const KM = { ...VEHICLE, odometerUnit: "km" };
+    const state = drivingState({ vehicles: [KM], fuelLogs: [{ ...LOGS[0], odometerReading: 28038.07 }] });
+    await mockDriving(page, state);
+    await page.goto("/dashboard/fuel");
+    await page.getByRole("row").filter({ hasText: "Asda Gosforth" }).click();
+    const edit = page.getByRole("dialog", { name: "Edit fill-up" });
+    await expect(edit.getByLabel("Odometer (km)")).toHaveValue("45123");
+    await edit.getByRole("button", { name: "Save" }).click();
+    await expect.poll(() => callsTo(state, "PATCH", "/fuel/logs/f1").length).toBe(1);
+    expect(callsTo(state, "PATCH", "/fuel/logs/f1")[0][2]).toMatchObject({ odometerReading: 28038.07 });
+    await page.getByRole("row").filter({ hasText: "Asda Gosforth" }).click();
+    const again = page.getByRole("dialog", { name: "Edit fill-up" });
+    await again.getByLabel("Odometer (km)").fill("45200");
+    await again.getByRole("button", { name: "Save" }).click();
+    await expect.poll(() => callsTo(state, "PATCH", "/fuel/logs/f1").length).toBe(2);
+    expect(callsTo(state, "PATCH", "/fuel/logs/f1")[1][2]).toMatchObject({ odometerReading: Math.round((45200 / 1.609344) * 100) / 100 });
+  });
+
   test("empty state, then Log fill-up sends pence", async ({ page }) => {
     await mockSession(page);
     const state = drivingState({ fuelLogs: [] });
