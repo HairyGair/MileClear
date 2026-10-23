@@ -16,6 +16,7 @@ import { getPeriodRecap } from "../services/gamification.js";
 import {
   formatMiles,
   formatPence,
+  isUk,
   MILESTONE_MILES,
 } from "@mileclear/shared";
 import { sendCheckinEmail } from "../services/email.js";
@@ -316,7 +317,7 @@ async function runWeeklyRecapJob(): Promise<void> {
 
     const users = await prisma.user.findMany({
       where: { pushToken: { not: null } },
-      select: { id: true, pushToken: true, pushPrefs: true },
+      select: { id: true, pushToken: true, pushPrefs: true, country: true },
     });
 
     const messages: ExpoPushMessage[] = [];
@@ -331,7 +332,8 @@ async function runWeeklyRecapJob(): Promise<void> {
 
         if (recap.totalTrips === 0) continue; // Skip users with no trips last week
 
-        const body = recap.deductionPence > 0
+        // An HMRC deduction means nothing outside the UK (23 Oct 2026).
+        const body = recap.deductionPence > 0 && isUk(user.country)
           ? `${recap.totalTrips} trips, ${formatMiles(recap.totalMiles)} driven, ${formatPence(recap.deductionPence)} tax deduction earned`
           : `${recap.totalTrips} trips, ${formatMiles(recap.totalMiles)} driven last week`;
 
@@ -377,7 +379,7 @@ async function runMonthlyRecapJob(): Promise<void> {
 
     const users = await prisma.user.findMany({
       where: { pushToken: { not: null } },
-      select: { id: true, pushToken: true, pushPrefs: true },
+      select: { id: true, pushToken: true, pushPrefs: true, country: true },
     });
 
     const messages: ExpoPushMessage[] = [];
@@ -393,7 +395,7 @@ async function runMonthlyRecapJob(): Promise<void> {
         if (recap.totalTrips === 0) continue;
 
         const monthName = lastMonth.toLocaleDateString("en-GB", { month: "long" });
-        const body = recap.deductionPence > 0
+        const body = recap.deductionPence > 0 && isUk(user.country)
           ? `${formatMiles(recap.totalMiles)} driven across ${recap.totalTrips} trips. ${formatPence(recap.deductionPence)} in tax deductions!`
           : `${formatMiles(recap.totalMiles)} driven across ${recap.totalTrips} trips in ${monthName}`;
 
@@ -593,7 +595,7 @@ export async function sendMilestonePush(userId: string): Promise<void> {
     // pref system and was one of two bypassing it (8 Jul 2026 review).
     const prefUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { pushPrefs: true },
+      select: { pushPrefs: true, country: true },
     });
     if (!pushPrefEnabled(prefUser?.pushPrefs, "milestoneAlerts")) return;
 
@@ -604,7 +606,9 @@ export async function sendMilestonePush(userId: string): Promise<void> {
     await sendPushToUser(
       userId,
       `${formatted} miles tracked`,
-      `Total distance: ${formatMiles(totalMiles)}. Tap to see what it's worth at HMRC rates.`,
+      isUk(prefUser?.country)
+        ? `Total distance: ${formatMiles(totalMiles)}. Tap to see what it's worth at HMRC rates.`
+        : `Total distance: ${formatMiles(totalMiles)}.`,
       { type: "milestone", action: "open_achievements", milestone }
     );
   } catch (err) {
@@ -652,7 +656,7 @@ export async function sendShiftSummaryPush(
     // pref system and was one of two bypassing it (8 Jul 2026 review).
     const prefUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: { pushPrefs: true },
+      select: { pushPrefs: true, country: true },
     });
     if (!pushPrefEnabled(prefUser?.pushPrefs, "shiftSummary")) return;
 
@@ -662,7 +666,7 @@ export async function sendShiftSummaryPush(
 
     const tripWord = stats.tripsCompleted === 1 ? "trip" : "trips";
     let body = `${stats.tripsCompleted} ${tripWord}, ${formatMiles(stats.totalMiles)} in ${duration}`;
-    if (stats.deductionPence > 0) {
+    if (stats.deductionPence > 0 && isUk(prefUser?.country)) {
       body += `. ${formatPence(stats.deductionPence)} added to this year's deduction.`;
     }
 

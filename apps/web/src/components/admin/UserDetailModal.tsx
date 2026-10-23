@@ -4,6 +4,7 @@
 // Used by the Users section and by any page that links to a user.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { countryName } from "@mileclear/shared";
 import { api } from "@/lib/api";
 import { addDarkBasemap } from "@/lib/basemap";
 import { Badge } from "@/components/ui/Badge";
@@ -603,6 +604,10 @@ export function UserDetailModal({
                   {user.signupPlatform ? user.signupPlatform : "-"}
                   {user.signupLocation ? ` · ${user.signupLocation}` : ""}
                 </p>
+              </div>
+              <div>
+                <span style={{ color: "var(--text-secondary)" }}>Drives in</span>
+                <p style={{ marginTop: 2 }}>{countryName(user.country)}</p>
               </div>
             </div>
           </div>

@@ -21,7 +21,7 @@ import { prisma } from "../../lib/prisma.js";
 import { HELP_AREAS, HELP_ENTRIES, helpForArea, searchHelp } from "../../services/assistantHelp.js";
 import { QUESTION_BANK } from "./helpQuestionBank.js";
 import { ASSISTANT_TOOLS, runAssistantTool } from "../../services/assistantTools.js";
-import { SYSTEM_PROMPT, plainAnswer } from "../../services/assistant.js";
+import { SYSTEM_PROMPT, countryLine, plainAnswer } from "../../services/assistant.js";
 
 const ME = "11111111-1111-1111-1111-111111111111";
 const NOW = new Date("2026-10-09T12:00:00Z");
@@ -209,5 +209,18 @@ describe("plainAnswer", () => {
     expect(plainAnswer("Fuel is included \u2014 you can't claim it")).toBe("Fuel is included, you can't claim it");
     expect(plainAnswer("- a list line stays")).toBe("- a list line stays");
     expect(plainAnswer("about 2\u20134% a shift")).toBe("about 2 to 4% a shift");
+  });
+});
+
+describe("EmSee and the driver's country (23 Oct 2026)", () => {
+  it("adds nothing for the UK or a missing country", () => {
+    for (const c of ["GB", "JE", null, undefined, ""]) expect(countryLine(c)).toBeNull();
+  });
+
+  it("tells EmSee the UK tax rules don't apply outside the UK", () => {
+    const line = countryLine("NZ")!;
+    expect(line).toContain("New Zealand");
+    expect(line).toContain("HMRC");
+    expect(line).toContain("do not apply");
   });
 });

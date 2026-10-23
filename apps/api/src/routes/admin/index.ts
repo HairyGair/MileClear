@@ -624,6 +624,7 @@ export async function adminRoutes(app: FastifyInstance) {
         platformsSeen: true,
         signupPlatform: true,
         signupLocation: true,
+        country: true,
         osVersion: true,
         lastPendingSyncCount: true,
         // 1.1.3+ heartbeat telemetry

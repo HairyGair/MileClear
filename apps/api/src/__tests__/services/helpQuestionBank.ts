@@ -185,6 +185,8 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I change my password?", area: "account_and_app", id: "change-email", expect: [/change password/i] },
   { q: "My phone is set to metric. Can MileClear show kilometres?", area: "account_and_app", id: "kilometres", expect: [/Distances/i, /stay in miles/i, FREE] },
   { q: "Can I change the distance unit to km?", area: "account_and_app", id: "kilometres", expect: [/kilometres/i] },
+  { q: "I drive in Australia. Does MileClear work outside the UK?", area: "account_and_app", id: "outside-uk", expect: [/Country/i, /UK drivers/i] },
+  { q: "Can I use the app abroad in another country?", area: "account_and_app", id: "outside-uk", expect: [/any country/i] },
   { q: "How do I change my display name?", area: "account_and_app", id: "names", expect: [/your name|you screen/i] },
   { q: "How do I delete my account?", area: "account_and_app", id: "delete-account", expect: [/delete account/i, /your name|you screen/i] },
   { q: "Can I download everything you hold about me?", area: "account_and_app", id: "my-data", expect: [/get a copy of your data/i] },

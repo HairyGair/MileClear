@@ -95,6 +95,8 @@ export interface AdminUserDetail extends AdminUser {
   platforms?: string[];
   signupPlatform?: string | null;
   signupLocation?: string | null;
+  /** Where they drive, from Settings > Country (23 Oct 2026). */
+  country?: string;
   totalMiles: number;
   totalEarningsPence: number;
   stripeCustomerId: string | null;

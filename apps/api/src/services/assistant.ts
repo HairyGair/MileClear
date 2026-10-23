@@ -14,7 +14,7 @@
  */
 
 import { prisma } from "../lib/prisma.js";
-import { getTaxYear } from "@mileclear/shared";
+import { countryName, getTaxYear, isUk } from "@mileclear/shared";
 import { ASSISTANT_TOOLS, londonDayKey, londonMidnight, dayLabel, runAssistantTool } from "./assistantTools.js";
 
 // Haiku 5.5 from 9 Oct 2026: follows the "answer only from the tools" rules
@@ -237,6 +237,16 @@ export function historyToMessages(history: HistoryTurn[]): Message[] {
  * The app shows answers as plain text, so markdown the model slips in would
  * show as stars and hashes. Strip it rather than trust the prompt alone.
  */
+/**
+ * Where the driver drives (users.country, 23 Oct 2026). Null for the UK, so
+ * the prompt is unchanged there. Outside the UK the HMRC rules in the prompt
+ * don't apply to this driver.
+ */
+export function countryLine(country: string | null | undefined): string | null {
+  if (isUk(country)) return null;
+  return `This driver drives in ${countryName(country)}, not the UK. UK tax rules do not apply to them: never quote HMRC, the 55p and 25p mileage rates, AMAP, Self Assessment, Making Tax Digital, the 6 April tax year or a mileage claim in pounds as if they applied. Give their trips, distances and business or personal split as recorded, and if they ask about tax, say MileClear's tax figures are for UK drivers for now and suggest they check their own country's tax office.`;
+}
+
 export function plainAnswer(text: string): string {
   return text
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -264,6 +274,16 @@ export async function runAssistant(opts: {
     { type: "text", text: SYSTEM_PROMPT },
     { type: "text", text: contextLine(now) },
   ];
+  // The driver's country: a missing row or a failed read is the UK, as before.
+  let country: string | null = null;
+  try {
+    const who = await prisma.user.findUnique({ where: { id: opts.userId }, select: { country: true } });
+    country = who?.country ?? null;
+  } catch {
+    // UK, as before
+  }
+  const outsideUk = countryLine(country);
+  if (outsideUk) system.push({ type: "text", text: outsideUk });
 
   const toolCalls: string[] = [];
   const periods: string[] = [];
