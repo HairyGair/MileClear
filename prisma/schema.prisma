@@ -472,10 +472,11 @@ model Vehicle {
   // hybrids. Never shown to UK drivers.
   nzRecordBasis     String?  @db.VarChar(16)
   nzHybridKind      String?  @db.VarChar(16)
-  // What the car's odometer reads in. Readings are always stored in miles
+  // What the car's odometer reads in: "miles" | "km", null until the driver
+  // says (treated as miles). Readings are always stored in miles
   // (OdometerReading.readingMiles, trip and fuel odometers); a "km" car's
   // readings are typed and shown in km and converted at the edges.
-  odometerUnit      String   @default("miles") @db.VarChar(8)
+  odometerUnit      String?  @db.VarChar(8)
   createdAt         DateTime @default(now())
 
   // DVLA-sourced expiry data + reminder bookkeeping. Refreshed weekly by

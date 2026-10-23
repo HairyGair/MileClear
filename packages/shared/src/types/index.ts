@@ -519,9 +519,9 @@ export interface Vehicle {
   nzRecordBasis?: "records" | "none" | null;
   /** New Zealand: which kind of hybrid; IRD only sets a rate for petrol hybrids. */
   nzHybridKind?: "petrol" | "plugin" | "diesel" | "mild" | null;
-  /** What the car's odometer reads in. Readings are stored in miles either
-   *  way. Optional because older API responses do not carry it (= miles). */
-  odometerUnit?: "miles" | "km";
+  /** What the car's odometer reads in; null or missing = not said, treated
+   *  as miles. Readings are stored in miles either way. */
+  odometerUnit?: "miles" | "km" | null;
   /** Set when the DVLA cannot answer for the plate, so MOT and tax reminders
    *  are off: "not_found" (no record) or "invalid" (not a plate it accepts).
    *  Optional because older API responses do not carry it. */

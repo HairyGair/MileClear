@@ -5,9 +5,10 @@
 //
 // Odometer readings: IRD asks for the reading on the first and last day.
 // Readings are stored in miles; a car whose odometer reads km
-// (Vehicle.odometerUnit) has them typed in km and converted. The nearest real
-// reading (typed, fuel log or trip) within a week of each end is printed in
-// the car's unit and in km; with none, the line is left to write in.
+// (Vehicle.odometerUnit "km") has them typed in km and converted. Only for a
+// km car is the nearest real reading (typed, fuel log or trip) within a week
+// of each end printed: for any other car (miles, or not said) a typed figure
+// may really be km, so the line is left to write in from the car.
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
@@ -137,7 +138,10 @@ export async function loadNzLogbook(
     });
   }
 
-  const readings = await loadOdometerReadingsNear(userId, vehicle.id, defaultId === vehicle.id, start, endExclusive);
+  const readings =
+    vehicle.odometerUnit === "km"
+      ? await loadOdometerReadingsNear(userId, vehicle.id, defaultId === vehicle.id, start, endExclusive)
+      : [];
   const first = nearestOdometerReading(readings, start);
   const last = nearestOdometerReading(readings, endExclusive);
 

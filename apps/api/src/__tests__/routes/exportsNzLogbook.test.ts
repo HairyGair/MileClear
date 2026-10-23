@@ -199,6 +199,13 @@ describe("NZ logbook downloads", () => {
     expect(where.OR).toHaveLength(2);
   });
 
+  it("a car not set to read km keeps the write-in lines and reads no odometer rows", async () => {
+    p.odometerReading.findMany.mockResolvedValue([{ readAt: new Date("2026-06-01T22:00:00Z"), readingMiles: 28_038.07 }]);
+    const res = await get("/exports/logbook-csv?from=2026-06-01");
+    expect(res.body).toMatch(/Odometer on first day,\r?\n/);
+    expect(p.odometerReading.findMany).not.toHaveBeenCalled();
+  });
+
   it("selects the business purpose for the reason", async () => {
     await get("/exports/logbook-csv?from=2026-06-01");
     expect(p.trip.findMany.mock.calls[0][0].select.businessPurpose).toBe(true);

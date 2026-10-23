@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth.js";
 import { prisma } from "../../lib/prisma.js";
 import { attachSoleVehicleToOrphanTrips } from "../../services/vehicleDefaults.js";
+import { effectiveCountry } from "../../lib/countrySetting.js";
 import { isProUser } from "../../services/proEntitlement.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { cacheGet, cacheSet } from "../../lib/redis.js";
@@ -73,6 +74,19 @@ const nzRecordBasisField = z.enum(["records", "none"]);
 const nzHybridKindField = z.enum(["petrol", "plugin", "diesel", "mild"]);
 const odometerUnitField = z.enum(["miles", "km"]);
 
+/** The New Zealand answers only count for a driver whose country is NZ; for
+ *  anyone else they're dropped, so nothing outside New Zealand stores them. */
+async function stripNzAnswersUnlessNz<T extends { nzRecordBasis?: unknown; nzHybridKind?: unknown }>(
+  userId: string,
+  data: T
+): Promise<T> {
+  if (data.nzRecordBasis === undefined && data.nzHybridKind === undefined) return data;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { isAdmin: true, country: true } });
+  if (user && effectiveCountry(user) === "NZ") return data;
+  const { nzRecordBasis: _r, nzHybridKind: _h, ...rest } = data;
+  return rest as T;
+}
+
 const createVehicleSchema = z.object({
   make: z.string().min(1).max(100),
   model: z.string().min(1).max(100),
@@ -87,7 +101,7 @@ const createVehicleSchema = z.object({
   providedByOthers: z.boolean().default(false),
   nzRecordBasis: nzRecordBasisField.nullable().optional(),
   nzHybridKind: nzHybridKindField.nullable().optional(),
-  odometerUnit: odometerUnitField.optional(),
+  odometerUnit: odometerUnitField.nullable().optional(),
   // DVLA emissions data, passed straight from the lookup result so Clean Air
   // Zone compliance can be shown without a second DVLA call.
   euroStatus: z.string().max(20).optional(),
@@ -113,7 +127,7 @@ const updateVehicleSchema = z.object({
   providedByOthers: z.boolean().optional(),
   nzRecordBasis: nzRecordBasisField.nullable().optional(),
   nzHybridKind: nzHybridKindField.nullable().optional(),
-  odometerUnit: odometerUnitField.optional(),
+  odometerUnit: odometerUnitField.nullable().optional(),
   euroStatus: z.string().max(20).nullable().optional(),
   firstRegistration: z.string().max(7).nullable().optional(),
 });
@@ -273,7 +287,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const data = parsed.data;
+    const data = await stripNzAnswersUnlessNz(userId, parsed.data);
 
     // Free users limited to 1 vehicle of their own plus 1 that someone else
     // pays for (a client's van). Pro from any source (subscription, referral
@@ -341,7 +355,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
     }
 
     const userId = request.userId!;
-    const data = parsed.data;
+    const data = await stripNzAnswersUnlessNz(userId, parsed.data);
 
     const existing = await prisma.vehicle.findFirst({
       where: { id, userId },
