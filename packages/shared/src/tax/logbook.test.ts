@@ -94,6 +94,21 @@ describe("logbook rows", () => {
   });
 });
 
+describe("logbook help answer", () => {
+  it("matches IRD's rules and stays held back", async () => {
+    const { NZ_LOGBOOK_HELP_ENTRY, HELP_ENTRIES } = await import("../data/help.js");
+    const { NZ_LOGBOOK_MIN_DAYS, NZ_LOGBOOK_REUSE_YEARS, NZ_LOGBOOK_REUSE_CHANGE_PERCENT, NZ_NO_LOGBOOK_CAP_PERCENT } =
+      await import("./logbook.js");
+    const a = NZ_LOGBOOK_HELP_ENTRY.a;
+    expect(a).toContain(`${NZ_LOGBOOK_MIN_DAYS} days`);
+    expect(a).toContain(`up to ${NZ_LOGBOOK_REUSE_YEARS} years`);
+    expect(a).toContain(`more than ${NZ_LOGBOOK_REUSE_CHANGE_PERCENT}%`);
+    expect(a).toContain(`limited to ${NZ_NO_LOGBOOK_CAP_PERCENT}%`);
+    expect(a).not.toMatch(/HMRC|miles|—/);
+    expect(HELP_ENTRIES.some((e) => e.id === NZ_LOGBOOK_HELP_ENTRY.id)).toBe(false);
+  });
+});
+
 describe("logbook totals", () => {
   it("business share of all km, not sorted counted in the total", () => {
     const t = logbookTotals([

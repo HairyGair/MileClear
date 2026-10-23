@@ -1084,6 +1084,20 @@ export const NZ_CLAIM_HELP_ENTRY: HelpEntry = {
   keywords: ["new zealand", "nz", "ird", "inland revenue", "kilometre rates", "km rates", "tier 1", "tier 2", "14,000", "ir3", "claim"],
 };
 
+/**
+ * "How do I make a 90-day logbook for IRD?" (23 Oct 2026). Held back like
+ * NZ_CLAIM_HELP_ENTRY until the Country setting is on. IRD's rules are in
+ * packages/shared/src/tax/logbook.ts; a test keeps the figures in step.
+ */
+export const NZ_LOGBOOK_HELP_ENTRY: HelpEntry = {
+  id: "nz-logbook",
+  area: "account_and_app",
+  q: "How do I make a 90-day logbook for IRD?",
+  a: "Go to More > Downloads and find 90-day logbook (IRD). Choose the vehicle and the first day, and MileClear makes a PDF or CSV of the 90 days: every trip with its date, places, distance in km and whether it was Business or Private, then your total and business km and your business-use percentage. It's part of Pro. Before you use it, sort every trip as Business or Personal, add a note or a client to each business trip so it has a reason (IRD asks for the reason for each business journey), and write the odometer reading from your car on the first and last day. IRD lets you use the business percentage for up to 3 years if your business use doesn't change by more than 20%. Without a logbook the claim is limited to 25%. Keep the logbook, and check it with IRD or your accountant before you file.",
+  goTo: "/exports",
+  keywords: ["logbook", "log book", "90 days", "90-day", "ird", "new zealand", "nz", "business use", "business percentage", "odometer", "test period"],
+};
+
 /** The answer text for a phone platform ("ios" or "android"). */
 export function helpAnswerFor(entry: HelpEntry, platform: "ios" | "android"): string {
   return platform === "android" && entry.android ? entry.android : entry.a;
