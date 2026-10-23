@@ -67,6 +67,12 @@ const regPlateField = z
   .transform((v) => v.replace(/\s+/g, "").toUpperCase())
   .optional();
 
+// New Zealand answers (IRD kilometre rates) and the odometer's unit. Saved
+// for anyone; only shown, and only used, where they apply.
+const nzRecordBasisField = z.enum(["records", "none"]);
+const nzHybridKindField = z.enum(["petrol", "plugin", "diesel", "mild"]);
+const odometerUnitField = z.enum(["miles", "km"]);
+
 const createVehicleSchema = z.object({
   make: z.string().min(1).max(100),
   model: z.string().min(1).max(100),
@@ -79,6 +85,9 @@ const createVehicleSchema = z.object({
   milesPerKwh: z.number().positive().max(20).optional(),
   isPrimary: z.boolean().default(true),
   providedByOthers: z.boolean().default(false),
+  nzRecordBasis: nzRecordBasisField.nullable().optional(),
+  nzHybridKind: nzHybridKindField.nullable().optional(),
+  odometerUnit: odometerUnitField.optional(),
   // DVLA emissions data, passed straight from the lookup result so Clean Air
   // Zone compliance can be shown without a second DVLA call.
   euroStatus: z.string().max(20).optional(),
@@ -102,6 +111,9 @@ const updateVehicleSchema = z.object({
   milesPerKwh: z.number().positive().max(20).nullable().optional(),
   isPrimary: z.boolean().optional(),
   providedByOthers: z.boolean().optional(),
+  nzRecordBasis: nzRecordBasisField.nullable().optional(),
+  nzHybridKind: nzHybridKindField.nullable().optional(),
+  odometerUnit: odometerUnitField.optional(),
   euroStatus: z.string().max(20).nullable().optional(),
   firstRegistration: z.string().max(7).nullable().optional(),
 });

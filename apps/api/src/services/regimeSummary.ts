@@ -31,6 +31,13 @@ export interface SummaryVehicle {
   fuelType: string;
   vehicleType: string;
   providedByOthers: boolean;
+  /** New Zealand answers (null = not answered yet). */
+  nzRecordBasis?: string | null;
+  nzHybridKind?: string | null;
+}
+
+function recordBasisOf(v: SummaryVehicle | null): "records" | "none" | null {
+  return v?.nzRecordBasis === "records" || v?.nzRecordBasis === "none" ? v.nzRecordBasis : null;
 }
 
 function toBasis(miles: number, regime: TaxRegime): number {
@@ -97,6 +104,8 @@ export function buildRegimeSummary(args: {
         fuelType: v.fuelType,
         vehicleType: v.vehicleType,
         taxYear,
+        recordBasis: recordBasisOf(v),
+        hybridKind: v.nzHybridKind ?? null,
       });
       if (r.ok) claim = r.claim;
       else noClaimReason = r.reason;
@@ -114,6 +123,8 @@ export function buildRegimeSummary(args: {
       vehicleId: v?.id ?? null,
       name: v ? `${v.make} ${v.model}`.trim() : null,
       fuelType: v?.fuelType ?? null,
+      recordBasis: recordBasisOf(v),
+      hybridKind: v?.nzHybridKind ?? null,
       businessDistance: round1(businessDistance),
       totalDistance: round1(totalDistance),
       claim,
@@ -139,6 +150,7 @@ export function buildRegimeSummary(args: {
     unclassifiedDistance: round1(toBasis(unclassifiedMiles, regime)),
     ratesYear,
     provisional,
+    ratesExpected: provisional ? (regime.ratesExpected?.(taxYear) ?? null) : null,
     someWithoutFigure,
     vehicles: rows,
   };
@@ -164,6 +176,8 @@ export async function loadRegimeSummary(userId: string, regime: TaxRegime, taxYe
         fuelType: true,
         vehicleType: true,
         providedByOthers: true,
+        nzRecordBasis: true,
+        nzHybridKind: true,
       },
     }),
     defaultVehicleIdForUser(userId),

@@ -234,6 +234,9 @@ describe("EmSee and the driver's country (23 Oct 2026)", () => {
     expect(line).toContain("Never work out the claim yourself");
     expect(line).toContain("claim card on Home");
     expect(line).toContain("petrol hybrid rate");
+    expect(line).toContain("25%: Tier 1 on at most 3,500 business km");
+    expect(line).toContain("the card asks");
+    expect(line).toContain("can't be changed later");
     expect(line).not.toMatch(/LPG/);
   });
 

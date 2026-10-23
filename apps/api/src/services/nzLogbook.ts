@@ -3,11 +3,11 @@
 // vehicle's trips for the period and draws them. No HMRC wording anywhere:
 // km, NZ dollars, New Zealand dates.
 //
-// Odometer readings: IRD asks for the reading on the first and last day. The
-// app's odometer readings are stored and typed as miles, so a reading a New
-// Zealand driver typed may really be km; rather than print a figure that could
-// be in the wrong unit, both lines are left for the driver to write in from
-// the car.
+// Odometer readings: IRD asks for the reading on the first and last day.
+// Readings are stored in miles; a car whose odometer reads km
+// (Vehicle.odometerUnit) has them typed in km and converted. The nearest real
+// reading (typed, fuel log or trip) within a week of each end is printed in
+// the car's unit and in km; with none, the line is left to write in.
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
@@ -19,6 +19,10 @@ import {
   NZ_REGIME,
   addLogbookDays,
   formatMoney,
+  logbookOdometerText,
+  nearestOdometerReading,
+  NZ_LOGBOOK_ODOMETER_WINDOW_DAYS,
+  type LogbookOdometerReading,
   logbookRow,
   logbookTotals,
   nzDate,
@@ -40,6 +44,8 @@ export interface LogbookVehicle {
   make: string;
   model: string;
   registrationPlate: string | null;
+  /** What the odometer reads in ("miles" when missing). */
+  odometerUnit?: string | null;
 }
 
 export interface NzLogbook {
@@ -51,6 +57,9 @@ export interface NzLogbook {
   totals: LogbookTotals;
   /** This vehicle's claim for each tax year the period touches (two when it crosses 1 April). */
   claims: LogbookClaim[];
+  /** "45,123 km (read 02/04/2026)", or null: no reading within a week, write it in. */
+  odometerStart: string | null;
+  odometerEnd: string | null;
 }
 
 export interface LogbookClaim {
@@ -82,7 +91,7 @@ export async function loadNzLogbook(
 ): Promise<NzLogbook | null> {
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: vehicleId, userId },
-    select: { id: true, make: true, model: true, registrationPlate: true },
+    select: { id: true, make: true, model: true, registrationPlate: true, odometerUnit: true },
   });
   if (!vehicle) return null;
 
@@ -128,6 +137,10 @@ export async function loadNzLogbook(
     });
   }
 
+  const readings = await loadOdometerReadingsNear(userId, vehicle.id, defaultId === vehicle.id, start, endExclusive);
+  const first = nearestOdometerReading(readings, start);
+  const last = nearestOdometerReading(readings, endExclusive);
+
   return {
     vehicle,
     from: period.from,
@@ -136,7 +149,53 @@ export async function loadNzLogbook(
     rows: trips.map(logbookRow),
     totals: logbookTotals(trips),
     claims,
+    odometerStart: first ? logbookOdometerText(first, vehicle.odometerUnit) : null,
+    odometerEnd: last ? logbookOdometerText(last, vehicle.odometerUnit) : null,
   };
+}
+
+/** Real readings (typed, fuel log, on a trip) within the window of the period's ends. */
+async function loadOdometerReadingsNear(
+  userId: string,
+  vehicleId: string,
+  isDefault: boolean,
+  start: Date,
+  endExclusive: Date
+): Promise<LogbookOdometerReading[]> {
+  const pad = NZ_LOGBOOK_ODOMETER_WINDOW_DAYS * 86_400_000;
+  const near = (t: Date) => ({ gte: new Date(t.getTime() - pad), lte: new Date(t.getTime() + pad) });
+  const windows = [near(start), near(endExclusive)];
+  const vehicleFilter = isDefault ? [{ vehicleId }, { vehicleId: null }] : [{ vehicleId }];
+  const [typed, fuel, trips] = await Promise.all([
+    prisma.odometerReading.findMany({
+      where: { userId, vehicleId, OR: windows.map((w) => ({ readAt: w })) },
+      select: { readAt: true, readingMiles: true },
+    }),
+    prisma.fuelLog.findMany({
+      where: { userId, odometerReading: { gt: 0 }, AND: [{ OR: vehicleFilter }, { OR: windows.map((w) => ({ loggedAt: w })) }] },
+      select: { loggedAt: true, odometerReading: true },
+    }),
+    prisma.trip.findMany({
+      where: {
+        userId,
+        isPhantomTrip: false,
+        AND: [
+          { OR: vehicleFilter },
+          { OR: windows.map((w) => ({ startedAt: w })) },
+          { OR: [{ odometerStart: { gt: 0 } }, { odometerEnd: { gt: 0 } }] },
+        ],
+      },
+      select: { startedAt: true, endedAt: true, odometerStart: true, odometerEnd: true },
+    }),
+  ]);
+  const out: LogbookOdometerReading[] = [];
+  for (const r of typed) out.push({ at: r.readAt, readingMiles: r.readingMiles });
+  for (const f of fuel) if (f.odometerReading) out.push({ at: f.loggedAt, readingMiles: f.odometerReading });
+  for (const t of trips) {
+    if (t.odometerStart) out.push({ at: t.startedAt, readingMiles: t.odometerStart });
+    if (t.odometerEnd) out.push({ at: t.endedAt ?? t.startedAt, readingMiles: t.odometerEnd });
+  }
+  return out;
 }
 
 // ── CSV ─────────────────────────────────────────────────────────────
@@ -157,8 +216,8 @@ export function nzLogbookCsv(book: NzLogbook): string {
   const summary: Array<[string, string]> = [
     ["Vehicle", vehicleName(book.vehicle)],
     ["Logbook period", `${nzDate(book.from)} to ${nzDate(book.to)} (${book.days} days)`],
-    ["Odometer on first day", ""],
-    ["Odometer on last day", ""],
+    ["Odometer on first day", book.odometerStart ?? ""],
+    ["Odometer on last day", book.odometerEnd ?? ""],
     ["Total distance (km)", t.totalKm.toFixed(1)],
     ["Business distance (km)", t.businessKm.toFixed(1)],
     ["Business use", t.businessPercent === null ? "" : `${t.businessPercent.toFixed(1)}%`],
@@ -213,7 +272,9 @@ export function logbookClaimLine(entry: LogbookClaim): { label: string; value: s
     .join(", ");
   return {
     label: `Claim for the ${entry.taxYear} tax year (${entry.wholeYear ? "whole year" : "so far"})`,
-    value: `${formatMoney(c.amountMinor, c.currency)}${tiers ? ` (${tiers})` : ""}${c.provisional ? `, using ${c.ratesYear} rates` : ""}`,
+    value: `${formatMoney(c.amountMinor, c.currency)}${tiers ? ` (${tiers})` : ""}${c.provisional ? `, using ${c.ratesYear} rates` : ""}${
+      c.recordBasis && c.recordBasis !== "records" ? ", at the 25% limit (no logbook or full records)" : ""
+    }`,
   };
 }
 
@@ -247,9 +308,9 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
     doc.moveDown(0.35);
   };
   line("Start date", nzDate(book.from));
-  line("Odometer on the start date", "____________ km  (write in from the car)");
+  line("Odometer on the start date", book.odometerStart ?? "____________ km  (write in from the car)");
   line("End date", nzDate(book.to));
-  line("Odometer on the end date", "____________ km  (write in from the car)");
+  line("Odometer on the end date", book.odometerEnd ?? "____________ km  (write in from the car)");
   line("Total distance", `${km(t.totalKm)} km over ${t.trips} ${t.trips === 1 ? "trip" : "trips"}`);
   line("Business distance", `${km(t.businessKm)} km`);
   line("Business use", t.businessPercent === null ? "No driving in this period" : `${t.businessPercent.toFixed(1)}%`);

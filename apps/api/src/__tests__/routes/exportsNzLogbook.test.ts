@@ -14,6 +14,8 @@ vi.mock("../../lib/prisma.js", () => ({
     vehicle: { findFirst: vi.fn(), count: vi.fn() },
     trip: { findMany: vi.fn(), count: vi.fn() },
     earning: { count: vi.fn() },
+    odometerReading: { findMany: vi.fn() },
+    fuelLog: { findMany: vi.fn() },
   },
 }));
 vi.mock("../../services/appEvents.js", () => ({ logEvent: vi.fn() }));
@@ -85,6 +87,8 @@ describe("NZ logbook downloads", () => {
     );
     p.vehicle.count.mockResolvedValue(1);
     p.trip.findMany.mockResolvedValue(trips);
+    p.odometerReading.findMany.mockResolvedValue([]);
+    p.fuelLog.findMany.mockResolvedValue([]);
     vi.mocked(defaultVehicleIdForUser).mockResolvedValue("v1");
     vi.mocked(loadRegimeSummary).mockResolvedValue({
       vehicles: [
@@ -172,6 +176,27 @@ describe("NZ logbook downloads", () => {
     const res = await get("/exports/logbook-csv?from=2026-03-01&to=2026-05-31");
     expect(res.statusCode).toBe(200);
     expect(vi.mocked(loadRegimeSummary).mock.calls.map((c) => c[2])).toEqual(["2025-26", "2026-27"]);
+  });
+
+  it("prints the nearest saved odometer reading within a week of each end, in the car's unit and km", async () => {
+    p.vehicle.findFirst.mockImplementation(async (args: { where: { id: string; userId: string } }) =>
+      args.where.id === VEHICLE.id && args.where.userId === USER_ID ? { ...VEHICLE, odometerUnit: "km" } : null
+    );
+    // 2 June 2026 10:00 NZST; the period starts at midnight 1 June NZ.
+    p.odometerReading.findMany.mockResolvedValue([
+      { readAt: new Date("2026-06-01T22:00:00Z"), readingMiles: 28_038.07 },
+      // 20 days out: not printed.
+      { readAt: new Date("2026-07-15T00:00:00Z"), readingMiles: 28_500 },
+    ]);
+    const res = await get("/exports/logbook-csv?from=2026-06-01");
+    const text = res.body;
+    expect(text).toContain("Odometer on first day,\"45,123 km (read 02/06/2026)\"");
+    expect(text).toMatch(/Odometer on last day,\r?\n/);
+    // Typed readings for this vehicle only, near the two ends.
+    const where = p.odometerReading.findMany.mock.calls[0][0].where;
+    expect(where.vehicleId).toBe("v1");
+    expect(where.userId).toBe(USER_ID);
+    expect(where.OR).toHaveLength(2);
   });
 
   it("selects the business purpose for the reason", async () => {

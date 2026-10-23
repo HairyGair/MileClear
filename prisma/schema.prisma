@@ -464,6 +464,18 @@ model Vehicle {
   // trips in it are never in a mileage claim: you cannot claim 55p a mile for
   // a vehicle you did not pay to run. Read through lib/claimableTrips.ts.
   providedByOthers  Boolean  @default(false)
+  // New Zealand (23 Oct 2026, held until the Country switch goes on). IRD's
+  // kilometre rates: "records" = a logbook of 90 days or more, or full records
+  // of every trip; "none" = neither, which limits the claim to 25% (OS 19/04a
+  // para 20). Null = not asked yet, worked out like "none". nzHybridKind:
+  // "petrol" | "plugin" | "diesel" | "mild"; IRD only sets a rate for petrol
+  // hybrids. Never shown to UK drivers.
+  nzRecordBasis     String?  @db.VarChar(16)
+  nzHybridKind      String?  @db.VarChar(16)
+  // What the car's odometer reads in. Readings are always stored in miles
+  // (OdometerReading.readingMiles, trip and fuel odometers); a "km" car's
+  // readings are typed and shown in km and converted at the edges.
+  odometerUnit      String   @default("miles") @db.VarChar(8)
   createdAt         DateTime @default(now())
 
   // DVLA-sourced expiry data + reminder bookkeeping. Refreshed weekly by

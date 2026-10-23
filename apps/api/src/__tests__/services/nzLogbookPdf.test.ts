@@ -27,6 +27,8 @@ function book(n: number): NzLogbook {
     rows: trips.map(logbookRow),
     totals: logbookTotals(trips),
     claims: [{ taxYear: "2026-27", wholeYear: false, claim: null }],
+    odometerStart: null,
+    odometerEnd: null,
   };
 }
 

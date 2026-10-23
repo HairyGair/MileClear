@@ -12,6 +12,8 @@ const car: SummaryVehicle = {
   fuelType: "petrol",
   vehicleType: "car",
   providedByOthers: false,
+  nzRecordBasis: "records",
+  nzHybridKind: null,
 };
 
 const km = (n: number) => kmToMiles(n);
@@ -54,6 +56,43 @@ describe("buildRegimeSummary (New Zealand)", () => {
     });
     expect(s.ratesYear).toBe("2025-26");
     expect(s.provisional).toBe(true);
+    expect(s.ratesExpected).toBe("IRD publishes the 2026-27 rates after 31 March 2027.");
+  });
+
+  it("not answered about a logbook: the 25% limit, with the full figure alongside", () => {
+    const s = buildRegimeSummary({
+      regime: NZ_REGIME,
+      taxYear: "2025-26",
+      vehicles: [{ ...car, nzRecordBasis: null }],
+      defaultVehicleId: "v1",
+      trips: [
+        { distanceMiles: km(12_000), classification: "business", vehicleId: "v1" },
+        { distanceMiles: km(8_000), classification: "personal", vehicleId: "v1" },
+      ],
+    });
+    const v = s.vehicles[0];
+    expect(v.recordBasis).toBeNull();
+    expect(v.claim?.recordBasis).toBe("unanswered");
+    // 25% of 20,000 km = 5,000 km: 3,500 at $1.20, 1,500 at 37c
+    expect(v.claim?.amountMinor).toBe(3_500 * 120 + 1_500 * 37);
+    expect(v.claim?.amountWithRecordsMinor).toBe(8_400 * 120 + 3_600 * 37);
+    expect(s.ratesExpected).toBeNull();
+  });
+
+  it("a hybrid: asks what kind; only a petrol hybrid is priced", () => {
+    const base = {
+      regime: NZ_REGIME,
+      taxYear: "2025-26",
+      defaultVehicleId: "v1",
+      trips: [{ distanceMiles: km(1_000), classification: "business", vehicleId: "v1" }],
+    };
+    const unknown = buildRegimeSummary({ ...base, vehicles: [{ ...car, fuelType: "hybrid" }] });
+    expect(unknown.vehicles[0].noClaimReason).toBe("hybrid_kind_needed");
+    const plugin = buildRegimeSummary({ ...base, vehicles: [{ ...car, fuelType: "hybrid", nzHybridKind: "plugin" }] });
+    expect(plugin.vehicles[0].noClaimReason).toBe("hybrid_no_rate");
+    expect(plugin.vehicles[0].hybridKind).toBe("plugin");
+    const petrol = buildRegimeSummary({ ...base, vehicles: [{ ...car, fuelType: "hybrid", nzHybridKind: "petrol" }] });
+    expect(petrol.vehicles[0].claim?.amountMinor).toBe(1_000 * 90);
   });
 
   it("no figure for trips with no vehicle, a fuel IRD has no rate for, or someone else's vehicle", () => {
