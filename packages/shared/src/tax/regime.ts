@@ -93,3 +93,40 @@ export function startYearOfPairLabel(label: string): number | null {
   if (m[2] !== String(start + 1).slice(2)) return null;
   return start;
 }
+
+/** One vehicle's figures in GET /tax/regime-summary. Distances in the regime's basis. */
+export interface RegimeVehicleSummary {
+  /** Null for trips with no vehicle that couldn't be put on one. */
+  vehicleId: string | null;
+  name: string | null;
+  fuelType: string | null;
+  businessDistance: number;
+  totalDistance: number;
+  claim: MileageClaim | null;
+  /** Why claim is null: no vehicle, a vehicle someone else pays for, or a regime reason. */
+  noClaimReason: NoClaimReason | "no_vehicle" | "provided_by_others" | null;
+}
+
+/** GET /tax/regime-summary for a driver outside the UK. */
+export interface RegimeSummary {
+  regime: RegimeId;
+  authority: string;
+  country: string;
+  currency: string;
+  distanceBasis: "miles" | "km";
+  taxYear: string;
+  taxYearDescription: string;
+  /** ISO instants, inclusive. */
+  start: string;
+  end: string;
+  /** Sum of the vehicles' claims (those with a figure). */
+  totalAmountMinor: number;
+  businessDistance: number;
+  totalDistance: number;
+  /** Published rates used (the year itself, or the latest when provisional). */
+  ratesYear: string | null;
+  provisional: boolean;
+  /** True when some business distance has no figure (unknown fuel, no vehicle...). */
+  someWithoutFigure: boolean;
+  vehicles: RegimeVehicleSummary[];
+}
