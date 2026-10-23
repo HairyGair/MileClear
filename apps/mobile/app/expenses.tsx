@@ -190,7 +190,7 @@ export default function ExpensesScreen() {
         ]
       );
     },
-    []
+    [formatPence]
   );
 
   const totalThisMonthPence = useMemo(() => {
