@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { RegimeSummary } from "@mileclear/shared";
-import { regimeClaimView } from "../regimeClaim";
+import type { RegimeSummary } from "./regime.js";
+import { regimeClaimView } from "./claimView.js";
 
 function summary(over: Partial<RegimeSummary> = {}): RegimeSummary {
   return {

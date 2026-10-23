@@ -15,6 +15,7 @@ import {
 } from "../../components/dashboard/home";
 import { WorkHeroCard } from "../../components/dashboard/tax/WorkHeroCard";
 import { TaxReadinessCard } from "../../components/dashboard/tax/TaxReadinessCard";
+import { RegimeClaimCard } from "../../components/dashboard/tax/RegimeClaimCard";
 import { SaCountdownCard } from "../../components/dashboard/tax/SaCountdownCard";
 import { JourneyMapCard } from "../../components/dashboard/trips/JourneyMapCard";
 import { BusinessMileageCard } from "../../components/dashboard/trips/BusinessMileageCard";
@@ -60,6 +61,8 @@ export default function HomePage() {
             <HomeOdometerCard mode="work" />
             {f.roadAlerts && <RoadAlertsCard mode="work" />}
             {f.ukTax && <TaxReadinessCard mode="work" />}
+            {/* Outside the UK: the claim under the country's own rules (NZ first); nothing where there are none. */}
+            {!f.ukTax && <RegimeClaimCard />}
             {f.selfAssessment && <SaCountdownCard mode="work" />}
             <JourneyMapCard mode="work" />
             <ShiftSuggestionCard mode="work" />

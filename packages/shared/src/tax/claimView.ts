@@ -1,8 +1,9 @@
-// Words for the claim card outside the UK (New Zealand first, 23 Oct 2026).
-// Pure, so the copy is tested without a phone. Figures come from
+// Words for the claim card outside the UK (New Zealand first, 23 Oct 2026),
+// shared so the app and the website say the same thing. Figures come from
 // GET /tax/regime-summary; distances there are in the regime's basis (km for
 // New Zealand), because the rates are per km whatever the driver's setting.
-import { formatMoney, formatRatePerKm, type RegimeSummary, type RegimeVehicleSummary } from "@mileclear/shared";
+import { formatMoney, formatRatePerKm } from "../utils/money.js";
+import type { RegimeSummary, RegimeVehicleSummary } from "./regime.js";
 
 export interface RegimeClaimView {
   title: string;

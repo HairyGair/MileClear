@@ -10,11 +10,10 @@
 import { useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { regimeFor } from "@mileclear/shared";
+import { regimeClaimView, regimeFor } from "@mileclear/shared";
 import { fetchRegimeSummary } from "../../lib/api/tax";
 import { useCountry } from "../../lib/country/country";
 import { useAsyncData } from "../../lib/insights/useAsyncData";
-import { regimeClaimView } from "../../lib/tax/regimeClaim";
 import { colors, fonts, fontScaleCap, numberSizes, spacing } from "../../lib/theme";
 import { InsightCard, CardSkeleton, CardError } from "../insights/work/InsightCardUi";
 
