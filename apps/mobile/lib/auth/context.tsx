@@ -82,6 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     import("../home/odometerCache")
       .then((m) => m.clearHomeOdometerCache())
       .catch(() => {});
+    // ...and the Miles / Kilometres choice goes back to miles.
+    import("../units/distanceUnit")
+      .then((m) => m.clearDistanceUnit())
+      .catch(() => {});
   }, [isLoading, isAuthenticated]);
 
   const login = useCallback(async (email: string, password: string) => {
