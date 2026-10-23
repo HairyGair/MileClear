@@ -27,3 +27,5 @@ export * from "./utils/practice.js";
 export * from "./utils/exportVehicle.js";
 export * from "./utils/exportProject.js";
 export * from "./utils/distanceUnit.js";
+export * from "./data/countries.js";
+export * from "./utils/countryFeatures.js";

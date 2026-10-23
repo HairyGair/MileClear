@@ -138,6 +138,9 @@ model User {
    *  Display only: every stored distance stays in miles, and tax figures
    *  and downloads stay in miles because HMRC rates are per mile. */
   distanceUnit         String    @default("miles") @db.VarChar(8)
+  /** Where the driver drives, ISO 3166-1 alpha-2 (23 Oct 2026). Decides the
+   *  UK-only features (shared featuresFor). Every driver before it is GB. */
+  country              String    @default("GB") @db.VarChar(2)
   // Home electricity unit rate (pence per kWh) for EV cost-per-mile. Null =
   // use the UK default. Octopus can suggest a current rate; user can override.
   electricityPencePerKwh Float?

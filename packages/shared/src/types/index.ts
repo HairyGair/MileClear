@@ -44,6 +44,10 @@ export interface User {
   /** Distances shown in the app. Display only: stored distances, tax
    *  figures and downloads are always miles. Older servers omit it. */
   distanceUnit?: DistanceUnit;
+  /** Where the driver drives, ISO 3166-1 alpha-2 ("GB", "IE", "AU"...).
+   *  Decides the UK-only features (featuresFor). Older servers omit it:
+   *  treat missing as GB. */
+  country?: string;
   weeklyEarningsGoalPence: number | null;
   marketingEmailsEnabled: boolean;
   emailVerified: boolean;

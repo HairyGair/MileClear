@@ -17,7 +17,7 @@ import { directionsRecordingFor } from "../../services/directionsRecording.js";
 import { hasPremiumAccess } from "../../middleware/premium.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
 import { deletedByLabel } from "../../services/tripArchive.js";
-import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, type AcquisitionSource } from "@mileclear/shared";
+import { formatInvoiceNumber, getTaxYear, scrubCoordinates, scrubDiagnosticEventData, ACQUISITION_SOURCES, isKnownCountryCode, type AcquisitionSource } from "@mileclear/shared";
 
 const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
@@ -52,6 +52,8 @@ const updateProfileSchema = z.object({
   dashboardMode: z.enum(["both", "work", "personal"]).optional(),
   // Display only (23 Oct 2026): stored distances and tax figures stay miles.
   distanceUnit: z.enum(["miles", "km"]).optional(),
+  // Where the driver drives (23 Oct 2026): decides the UK-only features.
+  country: z.string().refine(isKnownCountryCode, "Unknown country").optional(),
   weeklyEarningsGoalPence: z.number().int().min(0).max(1000000).nullable().optional(),
   marketingEmailsEnabled: z.boolean().optional(),
   // Business profile for the invoice builder (Get Paid, Jul 2026). Bank
@@ -114,6 +116,7 @@ const USER_SELECT = {
   accountantAnnualFeePence: true,
   dashboardMode: true,
   distanceUnit: true,
+  country: true,
   weeklyEarningsGoalPence: true,
   marketingEmailsEnabled: true,
   tradingName: true,
@@ -454,6 +457,10 @@ export async function userRoutes(app: FastifyInstance) {
 
     if (parsed.data.distanceUnit !== undefined) {
       updateData.distanceUnit = parsed.data.distanceUnit;
+    }
+
+    if (parsed.data.country !== undefined) {
+      updateData.country = parsed.data.country;
     }
 
     // Weekly earnings goal
