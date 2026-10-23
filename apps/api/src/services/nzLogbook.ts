@@ -8,6 +8,8 @@
 // Zealand driver typed may really be km; rather than print a figure that could
 // be in the wrong unit, both lines are left for the driver to write in from
 // the car.
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import {
   NZ_LOGBOOK_REUSE_CHANGE_PERCENT,
@@ -47,8 +49,14 @@ export interface NzLogbook {
   days: number;
   rows: LogbookRow[];
   totals: LogbookTotals;
-  /** This vehicle's claim for the tax year the period ends in, if one can be worked out. */
+  /** This vehicle's claim for each tax year the period touches (two when it crosses 1 April). */
+  claims: LogbookClaim[];
+}
+
+export interface LogbookClaim {
   taxYear: string;
+  /** True when the tax year is over, so the claim is for the whole year; false: so far. */
+  wholeYear: boolean;
   claim: RegimeVehicleSummary | null;
 }
 
@@ -102,12 +110,23 @@ export async function loadNzLogbook(
       platformTag: true,
       projectLabel: true,
       notes: true,
+      businessPurpose: true,
     },
   });
 
-  const taxYear = NZ_REGIME.taxYearOf(new Date(endExclusive.getTime() - 1));
-  const summary = await loadRegimeSummary(userId, NZ_REGIME, taxYear);
-  const claim = summary.vehicles.find((v) => v.vehicleId === vehicle.id) ?? null;
+  // The claim is the tax year's, not the period's (the 14,000 km tier is
+  // yearly), so each tax year the period touches gets its own line.
+  const years = [...new Set([NZ_REGIME.taxYearOf(start), NZ_REGIME.taxYearOf(new Date(endExclusive.getTime() - 1))])];
+  const now = new Date();
+  const claims: LogbookClaim[] = [];
+  for (const taxYear of years) {
+    const summary = await loadRegimeSummary(userId, NZ_REGIME, taxYear);
+    claims.push({
+      taxYear,
+      wholeYear: NZ_REGIME.taxYearRange(taxYear).end.getTime() < now.getTime(),
+      claim: summary.vehicles.find((v) => v.vehicleId === vehicle.id) ?? null,
+    });
+  }
 
   return {
     vehicle,
@@ -116,8 +135,7 @@ export async function loadNzLogbook(
     days: period.days,
     rows: trips.map(logbookRow),
     totals: logbookTotals(trips),
-    taxYear,
-    claim,
+    claims,
   };
 }
 
@@ -149,10 +167,31 @@ export function nzLogbookCsv(book: NzLogbook): string {
   lines.push("");
   for (const [k, v] of summary) lines.push([k, v].map(escapeCsvField).join(","));
   lines.push(escapeCsvField(LOGBOOK_FOOTER));
-  return lines.join("\r\n") + "\r\n";
+  // A BOM so Excel reads the file as UTF-8 (macrons in Māori place names).
+  return "\uFEFF" + lines.join("\r\n") + "\r\n";
 }
 
 // ── PDF ─────────────────────────────────────────────────────────────
+
+// Plus Jakarta Sans (SIL OFL, apps/api/assets/fonts/OFL.txt) draws the macrons
+// in Māori place names (Whangārei, Taupō), which PDFKit's built-in Helvetica
+// can't. The path works from src/services (tests) and dist/services (prod).
+// If the files are ever missing, Helvetica is used rather than failing.
+const FONT_REGULAR = fileURLToPath(new URL("../../assets/fonts/PlusJakartaSans_400Regular.ttf", import.meta.url));
+const FONT_BOLD = fileURLToPath(new URL("../../assets/fonts/PlusJakartaSans_700Bold.ttf", import.meta.url));
+
+export function logbookFonts(): { body: string; bold: string; embedded: boolean } {
+  if (existsSync(FONT_REGULAR) && existsSync(FONT_BOLD)) return { body: FONT_REGULAR, bold: FONT_BOLD, embedded: true };
+  return { body: "Helvetica", bold: "Helvetica-Bold", embedded: false };
+}
+
+/** Emoji (and the joiners and variation selectors around them) left out: no font here draws them. */
+export function pdfText(s: string): string {
+  return s
+    .replace(/\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|\u200D|\uFE0E|\uFE0F|\u20E3/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
 
 const NAVY = "#030712";
 const AMBER = "#f5a623";
@@ -165,15 +204,15 @@ const TEXT = "#111827";
  * with no business driving yet this tax year, and nothing when IRD has no rate
  * for it (the claim card in the app says why). Tiers with no km are left out.
  */
-export function logbookClaimLine(book: Pick<NzLogbook, "claim" | "taxYear">): { label: string; value: string } | null {
-  const c = book.claim?.claim;
+export function logbookClaimLine(entry: LogbookClaim): { label: string; value: string } | null {
+  const c = entry.claim?.claim;
   if (!c || c.amountMinor <= 0) return null;
   const tiers = c.tiers
     .filter((tier) => tier.distance > 0)
     .map((tier) => `${tier.label} ${km(tier.distance)} km`)
     .join(", ");
   return {
-    label: `Claim at IRD kilometre rates, ${book.taxYear} tax year so far`,
+    label: `Claim for the ${entry.taxYear} tax year (${entry.wholeYear ? "whole year" : "so far"})`,
     value: `${formatMoney(c.amountMinor, c.currency)}${tiers ? ` (${tiers})` : ""}${c.provisional ? `, using ${c.ratesYear} rates` : ""}`,
   };
 }
@@ -182,26 +221,29 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
   const margin = 40;
   const doc = new PDFDocument({ layout: "landscape", size: "A4", margin, bufferPages: true });
   const bufferPromise = collectPdfBuffer(doc);
+  const fonts = logbookFonts();
+  const BODY = fonts.body;
+  const BOLD = fonts.bold;
   const width = doc.page.width - margin * 2;
   const t = book.totals;
   doc.info.Title = `Vehicle logbook: ${vehicleName(book.vehicle)}`;
 
   // Header
   doc.rect(0, 0, doc.page.width, 64).fill(NAVY);
-  doc.font("Helvetica-Bold").fontSize(18).fillColor("#ffffff").text("Vehicle logbook", margin, 18);
+  doc.font(BOLD).fontSize(18).fillColor("#ffffff").text("Vehicle logbook", margin, 18);
   doc
-    .font("Helvetica")
+    .font(BODY)
     .fontSize(10)
     .fillColor(AMBER)
-    .text(`${vehicleName(book.vehicle)} · ${nzDate(book.from)} to ${nzDate(book.to)} (${book.days} days)`, margin, 42);
+    .text(`${pdfText(vehicleName(book.vehicle))} · ${nzDate(book.from)} to ${nzDate(book.to)} (${book.days} days)`, margin, 42);
   doc.y = 84;
   doc.x = margin;
 
   // Summary
   const line = (label: string, value: string) => {
     const y = doc.y;
-    doc.font("Helvetica").fontSize(10).fillColor(GREY_600).text(label, margin, y, { width: 220 });
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(TEXT).text(value, margin + 230, y, { width: width - 230 });
+    doc.font(BODY).fontSize(10).fillColor(GREY_600).text(label, margin, y, { width: 220 });
+    doc.font(BOLD).fontSize(10).fillColor(TEXT).text(value, margin + 230, y, { width: width - 230 });
     doc.moveDown(0.35);
   };
   line("Start date", nzDate(book.from));
@@ -212,25 +254,27 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
   line("Business distance", `${km(t.businessKm)} km`);
   line("Business use", t.businessPercent === null ? "No driving in this period" : `${t.businessPercent.toFixed(1)}%`);
 
-  const claim = logbookClaimLine(book);
-  if (claim) line(claim.label, claim.value);
+  for (const entry of book.claims) {
+    const claim = logbookClaimLine(entry);
+    if (claim) line(claim.label, `${claim.value}, at IRD kilometre rates`);
+  }
 
   doc.moveDown(0.4);
   const notes = [
     `IRD asks for a logbook of at least 90 days in a row, with the odometer reading on the first and last day and the date, distance and reason for each business journey.`,
-    `Keep this logbook. IRD lets you use this business percentage for up to ${NZ_LOGBOOK_REUSE_YEARS} years if your business use doesn't change by more than ${NZ_LOGBOOK_REUSE_CHANGE_PERCENT}%. Without a logbook, the claim is limited to ${NZ_NO_LOGBOOK_CAP_PERCENT}%.`,
+    `Keep this logbook. IRD lets you use this business percentage for up to ${NZ_LOGBOOK_REUSE_YEARS} years if your business use doesn't change by more than ${NZ_LOGBOOK_REUSE_CHANGE_PERCENT}%. Without a logbook, the claim is limited to ${NZ_NO_LOGBOOK_CAP_PERCENT}% of the vehicle's running costs.`,
   ];
   if (t.notSortedTrips > 0) {
     notes.push(
-      `${t.notSortedTrips} ${t.notSortedTrips === 1 ? "trip isn't" : "trips aren't"} marked Business or Private yet, so the business percentage may be low. Sort them in MileClear and download this again.`
+      `${t.notSortedTrips} ${t.notSortedTrips === 1 ? "trip isn't" : "trips aren't"} marked Business or Personal yet, so the business percentage may be low. Sort them in MileClear and download this again.`
     );
   }
   if (t.businessWithoutReason > 0) {
     notes.push(
-      `${t.businessWithoutReason} business ${t.businessWithoutReason === 1 ? "trip has" : "trips have"} no reason recorded. IRD asks for the reason for each business journey: add a note or client to ${t.businessWithoutReason === 1 ? "it" : "them"} in MileClear, or write it in here.`
+      `${t.businessWithoutReason} business ${t.businessWithoutReason === 1 ? "trip has" : "trips have"} no reason recorded. IRD asks for the reason for each business journey: add a business purpose, note or client to ${t.businessWithoutReason === 1 ? "it" : "them"} in MileClear, or write it in here.`
     );
   }
-  doc.font("Helvetica").fontSize(9).fillColor(GREY_600);
+  doc.font(BODY).fontSize(9).fillColor(GREY_600);
   for (const n of notes) {
     doc.text(n, margin, doc.y, { width });
     doc.moveDown(0.3);
@@ -251,7 +295,7 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
     const y = doc.y;
     doc.rect(margin, y, width, 18).fill(GREY_200);
     let x = margin;
-    doc.font("Helvetica-Bold").fontSize(8).fillColor(TEXT);
+    doc.font(BOLD).fontSize(8).fillColor(TEXT);
     for (const c of cols) {
       doc.text(c.title, x + 3, y + 5, { width: c.w - 6, align: c.align ?? "left" });
       x += c.w;
@@ -260,17 +304,20 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
   };
   drawHead();
   const bottom = doc.page.height - margin - 24;
-  doc.font("Helvetica").fontSize(8).fillColor(TEXT);
+  doc.font(BODY).fontSize(8).fillColor(TEXT);
   if (book.rows.length === 0) doc.text("No trips recorded for this vehicle in this period.", margin + 3, doc.y);
   for (const r of book.rows) {
-    const cells = [nzDate(r.date), r.time, r.from || "—", r.to || "—", r.km.toFixed(1), r.use, r.reason || (r.use === "Business" ? "________________" : "")];
-    doc.font("Helvetica").fontSize(8);
+    const from = pdfText(r.from);
+    const to = pdfText(r.to);
+    const reason = pdfText(r.reason);
+    const cells = [nzDate(r.date), r.time, from || "—", to || "—", r.km.toFixed(1), r.use, reason || (r.use === "Business" ? "________________" : "")];
+    doc.font(BODY).fontSize(8);
     const h = Math.max(...cells.map((text, i) => doc.heightOfString(text, { width: cols[i].w - 6 }))) + 6;
     if (doc.y + h > bottom) {
       doc.addPage();
       doc.y = margin;
       drawHead();
-      doc.font("Helvetica").fontSize(8);
+      doc.font(BODY).fontSize(8);
     }
     const y = doc.y;
     let x = margin;
@@ -290,7 +337,7 @@ export async function nzLogbookPdf(book: NzLogbook): Promise<Buffer> {
     // Writing below the bottom margin would make PDFKit add a page.
     doc.page.margins.bottom = 0;
     doc
-      .font("Helvetica")
+      .font(BODY)
       .fontSize(8)
       .fillColor(GREY_600)
       .text(`${LOGBOOK_FOOTER}   Page ${i - range.start + 1} of ${range.count}`, margin, doc.page.height - margin - 10, {

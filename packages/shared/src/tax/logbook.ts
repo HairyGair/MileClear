@@ -19,7 +19,7 @@
 // PDF and CSV from these (apps/api/src/services/nzLogbook.ts); the app and the
 // website use the period helpers for the picker.
 import { milesToKm } from "../utils/distanceUnit.js";
-import { GIG_PLATFORMS } from "../constants/index.js";
+import { BUSINESS_PURPOSES, GIG_PLATFORMS } from "../constants/index.js";
 import { zonedParts } from "./zonedTime.js";
 
 export const NZ_LOGBOOK_TIME_ZONE = "Pacific/Auckland";
@@ -80,8 +80,8 @@ export type LogbookPeriodResult =
 
 /**
  * Check a requested period. `to` left out: the 90 days from `from`. The period
- * must be at least 90 days (IRD), at most a year, and end no later than today
- * in New Zealand.
+ * must be at least 90 days (IRD), at most a year, and end by yesterday in New
+ * Zealand, so every day in it is complete (the same limit as the pickers).
  */
 export function resolveLogbookPeriod(
   from: string | undefined | null,
@@ -99,8 +99,8 @@ export function resolveLogbookPeriod(
     };
   }
   if (days > NZ_LOGBOOK_MAX_DAYS) return { ok: false, error: "Pick a period of a year or less." };
-  if (end > nzToday(now)) {
-    return { ok: false, error: "The logbook can't end after today. Pick an earlier first day, or come back when the 90 days are up." };
+  if (end >= nzToday(now)) {
+    return { ok: false, error: "The logbook has to end by yesterday. Pick an earlier first day, or come back when the 90 days are up." };
   }
   return { ok: true, from, to: end, days };
 }
@@ -114,9 +114,12 @@ export interface LogbookTripInput {
   platformTag: string | null;
   projectLabel: string | null;
   notes: string | null;
+  /** The business purpose chosen on the trip (BUSINESS_PURPOSES value), if any. */
+  businessPurpose?: string | null;
 }
 
-export type LogbookUse = "Business" | "Private" | "Not sorted";
+/** "Personal" as the app says it, not IRD's "private". */
+export type LogbookUse = "Business" | "Personal" | "Not sorted";
 
 export interface LogbookRow {
   /** YYYY-MM-DD in New Zealand. */
@@ -128,7 +131,7 @@ export interface LogbookRow {
   /** km, 1 decimal place. */
   km: number;
   use: LogbookUse;
-  /** The reason for the journey: platform, client and notes, as recorded. */
+  /** The reason for the journey: business purpose, platform, client and notes, as recorded. */
   reason: string;
 }
 
@@ -137,13 +140,17 @@ function round1(n: number): number {
   return r === 0 ? 0 : r;
 }
 
+function purposeLabel(value: string): string {
+  return BUSINESS_PURPOSES.find((p) => p.value === value)?.label ?? value;
+}
+
 function platformLabel(tag: string): string {
   return GIG_PLATFORMS.find((p) => p.value === tag)?.label ?? tag;
 }
 
 export function logbookUse(classification: string): LogbookUse {
   if (classification === "business") return "Business";
-  if (classification === "personal") return "Private";
+  if (classification === "personal") return "Personal";
   return "Not sorted";
 }
 
@@ -151,6 +158,7 @@ export function logbookRow(t: LogbookTripInput): LogbookRow {
   const p = zonedParts(t.startedAt, NZ_LOGBOOK_TIME_ZONE);
   const pad = (n: number) => String(n).padStart(2, "0");
   const reason = [
+    t.businessPurpose ? purposeLabel(t.businessPurpose) : null,
     t.platformTag ? platformLabel(t.platformTag) : null,
     t.projectLabel?.trim() || null,
     t.notes?.trim().replace(/\s+/g, " ") || null,
@@ -172,7 +180,7 @@ export interface LogbookTotals {
   trips: number;
   totalKm: number;
   businessKm: number;
-  privateKm: number;
+  personalKm: number;
   notSortedKm: number;
   notSortedTrips: number;
   /** Business trips with no reason recorded: IRD asks for the reason for each. */
@@ -185,7 +193,7 @@ export interface LogbookTotals {
 export function logbookTotals(trips: LogbookTripInput[]): LogbookTotals {
   let total = 0;
   let business = 0;
-  let priv = 0;
+  let personal = 0;
   let notSorted = 0;
   let notSortedTrips = 0;
   let businessWithoutReason = 0;
@@ -195,7 +203,7 @@ export function logbookTotals(trips: LogbookTripInput[]): LogbookTotals {
     if (use === "Business") {
       business += t.distanceMiles;
       if (!logbookRow(t).reason) businessWithoutReason++;
-    } else if (use === "Private") priv += t.distanceMiles;
+    } else if (use === "Personal") personal += t.distanceMiles;
     else {
       notSorted += t.distanceMiles;
       notSortedTrips++;
@@ -205,7 +213,7 @@ export function logbookTotals(trips: LogbookTripInput[]): LogbookTotals {
     trips: trips.length,
     totalKm: round1(milesToKm(total)),
     businessKm: round1(milesToKm(business)),
-    privateKm: round1(milesToKm(priv)),
+    personalKm: round1(milesToKm(personal)),
     notSortedKm: round1(milesToKm(notSorted)),
     notSortedTrips,
     businessWithoutReason,

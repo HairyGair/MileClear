@@ -31,6 +31,7 @@ import { prisma } from "../../lib/prisma.js";
 import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { loadRegimeSummary } from "../../services/regimeSummary.js";
 import { NZ_LOGBOOK_CSV_HEADERS } from "../../services/nzLogbook.js";
+import { addLogbookDays, nzToday } from "@mileclear/shared";
 
 const USER_ID = "00000000-0000-0000-0000-0000000000d4";
 const auth = { authorization: `Bearer ${makeAccessToken(USER_ID)}` };
@@ -159,6 +160,25 @@ describe("NZ logbook downloads", () => {
     expect(res.json().error).toMatch(/Add a vehicle/);
   });
 
+  it("refuses a period that ends today in New Zealand (it must end by yesterday)", async () => {
+    const today = nzToday();
+    const res = await get(`/exports/logbook-csv?from=${addLogbookDays(today, -89)}&to=${today}`);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/end by yesterday/);
+    expect(p.trip.findMany).not.toHaveBeenCalled();
+  });
+
+  it("a period crossing 1 April asks for both tax years' claims", async () => {
+    const res = await get("/exports/logbook-csv?from=2026-03-01&to=2026-05-31");
+    expect(res.statusCode).toBe(200);
+    expect(vi.mocked(loadRegimeSummary).mock.calls.map((c) => c[2])).toEqual(["2025-26", "2026-27"]);
+  });
+
+  it("selects the business purpose for the reason", async () => {
+    await get("/exports/logbook-csv?from=2026-06-01");
+    expect(p.trip.findMany.mock.calls[0][0].select.businessPurpose).toBe(true);
+  });
+
   it("400 when the period has no trips", async () => {
     p.trip.findMany.mockResolvedValue([]);
     const res = await get("/exports/logbook-csv?from=2026-06-01");
@@ -181,13 +201,14 @@ describe("NZ logbook downloads", () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toContain("text/csv");
     expect(res.headers["content-disposition"]).toContain("mileclear-logbook-2026-06-01-to-2026-08-29.csv");
-    const lines = res.body.split("\r\n");
+    expect(res.body.startsWith("\uFEFF")).toBe(true);
+    const lines = res.body.slice(1).split("\r\n");
     expect(lines[0]).toBe(NZ_LOGBOOK_CSV_HEADERS.join(","));
     expect(lines[0]).toBe("Date,Time,From,To,Distance (km),Use,Reason for journey");
     expect(lines[1]).toBe('02/06/2026,08:30,"Queen St, Auckland","Ponsonby Rd, Auckland",48.3,Business,Uber / Uber Eats');
     expect(lines[2]).toContain(`'=HYPERLINK`);
     expect(lines[2]).toContain('"Home, ""the bach"""');
-    expect(lines[2]).toContain(",112.7,Private,");
+    expect(lines[2]).toContain(",112.7,Personal,");
     expect(res.body).toContain("Business use,30.0%");
     expect(res.body).toContain("Odometer on first day,");
     expect(res.body).toContain("Prepared by MileClear from your recorded trips. Check it before you use it.");

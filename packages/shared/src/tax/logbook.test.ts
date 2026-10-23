@@ -57,10 +57,14 @@ describe("logbook period", () => {
     expect(resolveLogbookPeriod("2025-01-01", "2026-10-22", now).ok).toBe(false);
   });
 
-  it("refuses an end after today in New Zealand", () => {
-    const r = resolveLogbookPeriod("2026-07-26", undefined, now); // ends 23 Oct... today
-    expect(r.ok).toBe(true);
+  it("must end by yesterday in New Zealand, like the pickers", () => {
+    expect(resolveLogbookPeriod("2026-07-25", undefined, now)).toMatchObject({ ok: true, to: "2026-10-22" });
+    const today = resolveLogbookPeriod("2026-07-26", undefined, now); // would end today, 23 Oct
+    expect(today.ok).toBe(false);
+    if (!today.ok) expect(today.error).toMatch(/end by yesterday/);
     expect(resolveLogbookPeriod("2026-07-27", undefined, now).ok).toBe(false);
+    const d = defaultLogbookPeriod(now);
+    expect(resolveLogbookPeriod(d.from, d.to, now).ok).toBe(true);
   });
 
   it("refuses dates that don't exist or are badly written", () => {
@@ -88,8 +92,15 @@ describe("logbook rows", () => {
     expect(logbookRow(trip()).reason).toBe("");
   });
 
-  it("personal is Private, anything else Not sorted", () => {
-    expect(logbookRow(trip({ classification: "personal" })).use).toBe("Private");
+  it("the business purpose comes first in the reason", () => {
+    expect(logbookRow(trip({ businessPurpose: "client_meeting", platformTag: "uber", notes: "Acme" })).reason).toBe(
+      "Client Meeting · Uber / Uber Eats · Acme"
+    );
+    expect(logbookRow(trip({ businessPurpose: "delivery" })).reason).toBe("Delivery");
+  });
+
+  it("personal is Personal (as the app says it), anything else Not sorted", () => {
+    expect(logbookRow(trip({ classification: "personal" })).use).toBe("Personal");
     expect(logbookRow(trip({ classification: "unclassified" })).use).toBe("Not sorted");
   });
 });
@@ -103,7 +114,8 @@ describe("logbook help answer", () => {
     expect(a).toContain(`${NZ_LOGBOOK_MIN_DAYS} days`);
     expect(a).toContain(`up to ${NZ_LOGBOOK_REUSE_YEARS} years`);
     expect(a).toContain(`more than ${NZ_LOGBOOK_REUSE_CHANGE_PERCENT}%`);
-    expect(a).toContain(`limited to ${NZ_NO_LOGBOOK_CAP_PERCENT}%`);
+    expect(a).toContain(`limited to ${NZ_NO_LOGBOOK_CAP_PERCENT}% of the vehicle's running costs`);
+    expect(a).not.toContain("Private");
     expect(a).not.toMatch(/HMRC|miles|—/);
     expect(HELP_ENTRIES.some((e) => e.id === NZ_LOGBOOK_HELP_ENTRY.id)).toBe(false);
   });
@@ -126,7 +138,7 @@ describe("logbook totals", () => {
     expect(t.trips).toBe(3);
     expect(t.totalKm).toBe(160.9);
     expect(t.businessKm).toBe(48.3);
-    expect(t.privateKm).toBe(96.6);
+    expect(t.personalKm).toBe(96.6);
     expect(t.notSortedKm).toBe(16.1);
     expect(t.notSortedTrips).toBe(1);
     expect(t.businessPercent).toBe(30);
@@ -135,6 +147,8 @@ describe("logbook totals", () => {
 
   it("counts business trips with no reason, and no driving gives no percentage", () => {
     expect(logbookTotals([trip()]).businessWithoutReason).toBe(1);
+    // A business purpose alone is a reason.
+    expect(logbookTotals([trip({ businessPurpose: "site_visit" })]).businessWithoutReason).toBe(0);
     expect(logbookTotals([]).businessPercent).toBeNull();
   });
 });
