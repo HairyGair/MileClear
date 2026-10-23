@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap, numberSizes } from "../../lib/theme";
 import { Skeleton } from "../Skeleton";
 import { buildRecords, type RecordsInput, type RecordCell } from "../../lib/insights/records";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 
 const ICONS: Record<RecordCell["key"], keyof typeof Ionicons.glyphMap> = {
   bestDay: "trophy-outline",
@@ -23,6 +24,7 @@ interface RecordsCardProps {
 }
 
 export function RecordsCard({ mode, records, loading, range }: RecordsCardProps) {
+  const { unit } = useDistanceUnit();
   if (loading && !records) {
     return (
       <View style={styles.card}>
@@ -36,7 +38,7 @@ export function RecordsCard({ mode, records, loading, range }: RecordsCardProps)
   }
   if (!records) return null;
 
-  const cells = buildRecords(records, mode, range);
+  const cells = buildRecords(records, mode, range, unit);
 
   return (
     <View style={styles.card}>

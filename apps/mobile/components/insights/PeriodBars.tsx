@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { chart, colors, fonts, fontScaleCap, motion } from "../../lib/theme";
 import { chartLabel, type Bucket, type InsightsPeriod } from "../../lib/insights/period";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { formatMilesShort, milesWord, tripsWord } from "../../lib/insights/summary";
 
 const PLOT = chart.barMaxHeight;
@@ -41,7 +42,8 @@ export function PeriodBars({ buckets, period, offset, reducedMotion }: PeriodBar
 
   const max = useMemo(() => Math.max(...buckets.map((b) => b.miles), 0), [buckets]);
   const topIndex = useMemo(() => buckets.findIndex((b) => b.miles === max && max > 0), [buckets, max]);
-  const label = useMemo(() => chartLabel(buckets, period, offset), [buckets, period, offset]);
+  const dist = useDistanceUnit();
+  const label = useMemo(() => chartLabel(buckets, period, offset, dist.unit), [buckets, period, offset, dist.unit]);
   const total = buckets.reduce((s, b) => s + b.miles, 0);
   const drivenCount = buckets.filter((b) => b.miles >= 0.05).length;
 
@@ -89,7 +91,7 @@ export function PeriodBars({ buckets, period, offset, reducedMotion }: PeriodBar
                     maxFontSizeMultiplier={fontScaleCap.display}
                     numberOfLines={1}
                   >
-                    {Math.round(b.miles)}
+                    {Math.round(dist.value(b.miles))}
                   </Text>
                 )}
                 {!b.isFuture && <Animated.View style={[styles.bar, { height, backgroundColor: color }]} />}
@@ -112,7 +114,7 @@ export function PeriodBars({ buckets, period, offset, reducedMotion }: PeriodBar
       </View>
       {pick && (
         <Text style={styles.picked} maxFontSizeMultiplier={fontScaleCap.body} accessibilityLiveRegion="polite">
-          {pick.name}: {pick.miles >= 0.05 ? `${formatMilesShort(pick.miles)} ${milesWord(pick.miles)} over ${pick.trips} ${tripsWord(pick.trips)}` : "no driving"}
+          {pick.name}: {pick.miles >= 0.05 ? `${formatMilesShort(pick.miles, dist.unit)} ${milesWord(pick.miles, dist.unit)} over ${pick.trips} ${tripsWord(pick.trips)}` : "no driving"}
         </Text>
       )}
     </View>

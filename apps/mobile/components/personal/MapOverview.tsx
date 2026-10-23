@@ -14,6 +14,7 @@ import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import type { TripDetail } from "../../lib/api/trips";
 import { colors, fonts, mapPalette, mapOlder } from "../../lib/theme";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { useReducedMotion } from "../../lib/accessibility";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -114,6 +115,7 @@ function filterTrips(trips: TripDetail[], filter: TimeFilter): TripDetail[] {
 }
 
 export function MapOverview({ trips, title }: MapOverviewProps) {
+  const dist = useDistanceUnit();
   const [fullscreen, setFullscreen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<number | null>(null);
   const [sheetAnim] = useState(() => new Animated.Value(250));
@@ -284,7 +286,7 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
         <View key={trip.id} style={styles.legendItem}>
           <View style={[styles.legendDot, { backgroundColor: tripColour(i) }]} />
           <Text style={styles.legendText} numberOfLines={1} maxFontSizeMultiplier={1.4}>
-            {formatClock(trip.startedAt)} {"\u00B7"} {trip.distanceMiles.toFixed(1)} mi
+            {formatClock(trip.startedAt)} {"\u00B7"} {dist.fmt(trip.distanceMiles, { fixed: true })}
           </Text>
         </View>
       ))}
@@ -395,9 +397,9 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
               <View style={styles.tripSheetStats}>
                 <View style={styles.tripSheetStat}>
                   <Text style={[styles.tripSheetStatValue, { color: selectedColor }]}>
-                    {selectedInfo.distanceMiles.toFixed(1)}
+                    {dist.num(selectedInfo.distanceMiles, { fixed: true })}
                   </Text>
-                  <Text style={styles.tripSheetStatLabel}>miles</Text>
+                  <Text style={styles.tripSheetStatLabel}>{dist.label("word")}</Text>
                 </View>
                 {selectedInfo.endedAt && (
                   <View style={styles.tripSheetStat}>
@@ -469,13 +471,13 @@ export function MapOverview({ trips, title }: MapOverviewProps) {
                       onPress={() => showSheet(i)}
                       activeOpacity={0.7}
                       accessibilityRole="button"
-                      accessibilityLabel={`Trip ${i + 1}, ${trip.distanceMiles.toFixed(1)} miles, ${trip.startAddress ?? "Unknown"} to ${trip.endAddress ?? "Unknown"}`}
+                      accessibilityLabel={`Trip ${i + 1}, ${dist.fmt(trip.distanceMiles, { fixed: true, style: "spoken" })}, ${trip.startAddress ?? "Unknown"} to ${trip.endAddress ?? "Unknown"}`}
                     >
                       <View style={styles.tripListHeader}>
                         <View style={[styles.legendDot, { backgroundColor: color }]} />
                         <Text style={styles.tripListDate}>{formatDate(trip.startedAt)}</Text>
                         <Text style={[styles.tripListDistance, { color }]}>
-                          {trip.distanceMiles.toFixed(1)} mi
+                          {dist.fmt(trip.distanceMiles, { fixed: true })}
                         </Text>
                       </View>
                       <Text style={styles.tripListAddress} numberOfLines={1}>

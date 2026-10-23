@@ -1,6 +1,7 @@
 // Personal records for the Insights screen. Hides empty records, adds dates
 // and a "New" flag, and keeps Work words out of Personal mode.
 
+import { distanceIn, type DistanceUnit } from "@mileclear/shared";
 import { dayMonth } from "./period";
 
 export interface RecordsInput {
@@ -45,7 +46,9 @@ function miles(n: number): string {
 export function buildRecords(
   r: RecordsInput,
   mode: "work" | "personal",
-  period: { start: Date; end: Date }
+  period: { start: Date; end: Date },
+  /** Distances in Settings. Default miles. */
+  unit: DistanceUnit = "miles"
 ): RecordCell[] {
   const cells: RecordCell[] = [];
   const isNewOn = (d: Date | null) =>
@@ -73,10 +76,12 @@ export function buildRecords(
     });
   };
 
+  const short = unit === "km" ? "km" : "mi";
+  const spoken = unit === "km" ? "kilometres" : "miles";
   const day = parseDate(r.mostMilesInDayDate);
-  add("bestDay", "Best day", r.mostMilesInDay, miles(r.mostMilesInDay), "mi", day, "miles");
+  add("bestDay", "Best day", r.mostMilesInDay, miles(distanceIn(r.mostMilesInDay, unit)), short, day, spoken);
   const trip = parseDate(r.longestSingleTripDate);
-  add("longestTrip", "Longest trip", r.longestSingleTrip, miles(r.longestSingleTrip), "mi", trip, "miles");
+  add("longestTrip", "Longest trip", r.longestSingleTrip, miles(distanceIn(r.longestSingleTrip, unit)), short, trip, spoken);
 
   if (mode === "work") {
     const shift = parseDate(r.mostTripsInShiftDate);

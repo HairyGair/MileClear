@@ -2,6 +2,8 @@
 // offset (0 = now, -1 = the one before). Pure and local-time, so it can be
 // tested without a phone. Weeks start on Monday.
 
+import { distanceIn, type DistanceUnit } from "@mileclear/shared";
+
 export type InsightsPeriod = "week" | "month" | "tax_year";
 
 export const PERIOD_KEY = "insights_period";
@@ -230,12 +232,12 @@ export function bucketTrips(
 }
 
 /** One sentence a screen reader can read for the whole chart. */
-export function chartLabel(buckets: Bucket[], period: InsightsPeriod, offset: number): string {
-  const total = buckets.reduce((s, b) => s + b.miles, 0);
+export function chartLabel(buckets: Bucket[], period: InsightsPeriod, offset: number, unit: DistanceUnit = "miles"): string {
+  const total = distanceIn(buckets.reduce((s, b) => s + b.miles, 0), unit);
   const lead =
     offset === 0 ? `This ${periodNoun(period)}` : offset === -1 ? `Last ${periodNoun(period)}` : "This period";
   const driven = buckets.filter((b) => b.miles >= 0.05 && !b.isFuture);
   if (driven.length === 0) return `${lead}, no driving yet.`;
-  const parts = driven.map((b) => `${b.name} ${Math.round(b.miles)}`);
-  return `${lead}, ${Math.round(total)} miles. ${parts.join(", ")}.`;
+  const parts = driven.map((b) => `${b.name} ${Math.round(distanceIn(b.miles, unit))}`);
+  return `${lead}, ${Math.round(total)} ${unit === "km" ? "kilometres" : "miles"}. ${parts.join(", ")}.`;
 }

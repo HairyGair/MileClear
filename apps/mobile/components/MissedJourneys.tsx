@@ -25,6 +25,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { colors, fonts, radii } from "../lib/theme";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
 import {
   fetchMissedJourneys,
   fetchServerRouteDistance,
@@ -190,6 +191,7 @@ export function MissedJourneys({
   onCountChange?: (count: number) => void;
 } = {}) {
   const router = useRouter();
+  const dist = useDistanceUnit();
   const [items, setItems] = useState<MissedJourneyProposal[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -491,7 +493,7 @@ export function MissedJourneys({
             {shortPlace(p.fromAddress, p.fromLat, p.fromLng)} to {shortPlace(p.toAddress, p.toLat, p.toLng)}
           </Text>
           <Text style={styles.meta}>
-            {whenLine(p)} · about {p.estimatedMiles} mi
+            {whenLine(p)} · about {dist.fmt(p.estimatedMiles)}
           </Text>
           {droppedNote(p.source) != null && (
             // Worth distinguishing. A gap row is us guessing from a hole in the

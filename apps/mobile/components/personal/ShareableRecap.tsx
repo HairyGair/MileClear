@@ -2,7 +2,7 @@ import { type RefObject } from "react";
 import { View, Text, StyleSheet, Share as RNShare } from "react-native";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
-import { getDistanceEquivalent } from "@mileclear/shared";
+import { distanceIn, getDistanceEquivalent, type DistanceUnit } from "@mileclear/shared";
 import { colors, fonts } from "../../lib/theme";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -30,6 +30,21 @@ export interface RecapShareCardProps {
   heading?: string;
   /** Line under the card in place of "total miles tracked" ("miles in September 2026"). */
   totalLabel?: string;
+  /** Distances in Settings. Default miles. Figures come in as miles. */
+  unit?: DistanceUnit;
+}
+
+/** The card's words in the driver's unit. */
+function unitWords(unit: DistanceUnit | undefined) {
+  const km = unit === "km";
+  return {
+    word: km ? "km" : "miles",
+    driven: km ? "km driven" : "miles driven",
+    avg: km ? "avg km" : "avg miles",
+    tracked: km ? "total km tracked" : "total miles tracked",
+    // "miles in September 2026" from shareLabels, in the driver's unit.
+    label: (l: string | undefined) => (l && km ? l.replace(/^miles\b/, "km") : l),
+  };
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -67,14 +82,18 @@ export function RecapShareCard({
   region,
   heading,
   totalLabel,
+  unit,
 }: RecapShareCardProps) {
   const year = new Date().getFullYear();
-  const milesStr = formatMilesReadable(monthMiles);
-  const avgStr = avgTripMiles < 10 ? avgTripMiles.toFixed(1) : String(Math.round(avgTripMiles));
+  const u = unit ?? "miles";
+  const w = unitWords(u);
+  const milesStr = formatMilesReadable(distanceIn(monthMiles, u));
+  const avgD = distanceIn(avgTripMiles, u);
+  const avgStr = avgD < 10 ? avgD.toFixed(1) : String(Math.round(avgD));
   const deductionStr = deductionPence > 0
     ? `\u00A3${(deductionPence / 100).toFixed(2)}`
     : null;
-  const totalStr = Math.round(totalMiles).toLocaleString("en-GB");
+  const totalStr = Math.round(distanceIn(totalMiles, u)).toLocaleString("en-GB");
   const tripWord = monthTrips === 1 ? "trip" : "trips";
 
   // Month-over-month comparison
@@ -85,8 +104,8 @@ export function RecapShareCard({
     if (pct >= 1) {
       const prev = prevMonthName(monthLabel);
       comparisonText = diff > 0
-        ? `${pct}% more miles than ${prev}`
-        : `${pct}% fewer miles than ${prev}`;
+        ? `${pct}% more ${w.word} than ${prev}`
+        : `${pct}% fewer ${w.word} than ${prev}`;
     }
   }
 
@@ -129,7 +148,7 @@ export function RecapShareCard({
 
       {/* Hero miles — the big number */}
       <Text style={s.heroMiles}>{milesStr}</Text>
-      <Text style={s.heroUnit}>miles driven</Text>
+      <Text style={s.heroUnit}>{w.driven}</Text>
 
       {/* Stats row */}
       <View style={s.statsRow}>
@@ -140,7 +159,7 @@ export function RecapShareCard({
         <View style={s.statDivider} />
         <View style={s.statBox}>
           <Text style={s.statValue}>{avgStr}</Text>
-          <Text style={s.statLabel}>avg miles</Text>
+          <Text style={s.statLabel}>{w.avg}</Text>
         </View>
         {deductionStr && (
           <>
@@ -185,7 +204,7 @@ export function RecapShareCard({
 
       {/* Lifetime total */}
       <Text style={s.lifetimeText}>
-        {totalStr} {totalLabel ?? "total miles tracked"}
+        {totalStr} {w.label(totalLabel) ?? w.tracked}
       </Text>
 
       {/* Bottom accent line */}
@@ -229,22 +248,25 @@ export async function captureAndShareRecap(
 
 async function textFallbackShare(data: RecapShareCardProps): Promise<void> {
   const { period, monthLabel, monthMiles, monthTrips, avgTripMiles, totalMiles, deductionPence } = data;
-  const milesStr = formatMilesReadable(monthMiles);
-  const avgStr = avgTripMiles < 10 ? avgTripMiles.toFixed(1) : String(Math.round(avgTripMiles));
-  const totalStr = Math.round(totalMiles).toLocaleString("en-GB");
+  const u = data.unit ?? "miles";
+  const w = unitWords(u);
+  const milesStr = formatMilesReadable(distanceIn(monthMiles, u));
+  const avgD = distanceIn(avgTripMiles, u);
+  const avgStr = avgD < 10 ? avgD.toFixed(1) : String(Math.round(avgD));
+  const totalStr = Math.round(distanceIn(totalMiles, u)).toLocaleString("en-GB");
   const tripWord = monthTrips === 1 ? "trip" : "trips";
   const recapLabel = period === "daily" ? "today's" : (data.heading ?? monthLabel);
 
   const lines = [
     `My ${recapLabel} driving recap:`,
-    `- ${milesStr} miles across ${monthTrips} ${tripWord}`,
-    `- Average trip: ${avgStr} miles`,
+    `- ${milesStr} ${w.word} across ${monthTrips} ${tripWord}`,
+    `- Average trip: ${avgStr} ${w.word}`,
   ];
   if (deductionPence > 0) {
     lines.push(`- \u00A3${(deductionPence / 100).toFixed(2)} HMRC deduction`);
   }
   lines.push(
-    `- ${totalStr} ${data.totalLabel ?? "total miles tracked"}!`,
+    `- ${totalStr} ${w.label(data.totalLabel) ?? w.tracked}!`,
     "",
     "Tracked with MileClear - your mileage journal",
     "https://apps.apple.com/app/mileclear/id6759671005",
