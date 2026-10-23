@@ -131,19 +131,37 @@ describe("NZ 25% limit (no logbook or full records, OS 19/04a para 20)", () => {
   it("business above 25% is capped at 25% of all travel", () => {
     // 10,000 km total, 6,000 business: 2,500 claimable, all Tier 1.
     expect(irdTierSplit(6_000, 10_000, "none")).toEqual({ tier1Km: 2_500, tier2Km: 0 });
-    // 30,000 km total, 20,000 business: 7,500 claimable, 3,500 Tier 1.
+    // 30,000 km total, 20,000 business: 25% share, 3,500 Tier 1 + 4,000 Tier 2.
     expect(irdTierSplit(20_000, 30_000, "none")).toEqual({ tier1Km: 3_500, tier2Km: 4_000 });
   });
-  it("business under 25% is all claimable", () => {
+  it("business under 25% is the same split as with a logbook", () => {
     expect(irdTierSplit(1_000, 10_000, "none")).toEqual({ tier1Km: 1_000, tier2Km: 0 });
-    expect(irdTierSplit(4_000, 20_000, "none")).toEqual({ tier1Km: 3_500, tier2Km: 500 });
+    // 2,000 of 20,000 (10%): 1,400 Tier 1 + 600 Tier 2, as with a logbook (review case).
+    const none = irdTierSplit(2_000, 20_000, "none");
+    expect(none.tier1Km).toBeCloseTo(1_400, 9);
+    expect(none.tier2Km).toBeCloseTo(600, 9);
+    expect(irdClaimCents(none, { tier1: 120, tier2: 37 }).total).toBe(1_400 * 120 + 600 * 37); // $1,902.00
   });
-  it("never more than with a logbook", () => {
-    for (const [b, t] of [[100, 200], [5_000, 9_000], [12_000, 20_000], [30_000, 30_000]]) {
-      const none = irdTierSplit(b, t, "none");
-      const rec = irdTierSplit(b, t, "records");
-      expect(none.tier1Km).toBeLessThanOrEqual(rec.tier1Km + 1e-9);
-      expect(none.tier1Km + none.tier2Km).toBeLessThanOrEqual(rec.tier1Km + rec.tier2Km + 1e-9);
+  it("property: the no-logbook figure is never above the logbook one", () => {
+    // A small deterministic generator, so the test is repeatable.
+    let seed = 42;
+    const rand = () => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+      return seed / 2_147_483_648;
+    };
+    const rates = [
+      { tier1: 120, tier2: 37 },
+      { tier1: 79, tier2: 30 },
+      { tier1: 90, tier2: 24 },
+      { tier1: 122, tier2: 23 },
+    ];
+    for (let i = 0; i < 5_000; i++) {
+      const total = Math.round(rand() * 60_000);
+      const business = Math.round(rand() * total);
+      const rate = rates[i % rates.length];
+      const none = irdClaimCents(irdTierSplit(business, total, "none"), rate).total;
+      const rec = irdClaimCents(irdTierSplit(business, total, "records"), rate).total;
+      expect(none).toBeLessThanOrEqual(rec);
     }
   });
 });

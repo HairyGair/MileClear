@@ -31,11 +31,13 @@
 // x 25%)." Example two (20,000 km total, "at least 25% (or 5,000km)"
 // business): "Tier One 3,500 x $0.79 = 2,765.00", "Tier Two 1,500 x $0.30 =
 // 450.00". So without one (or before the driver has said which):
-//   claimable km = the lesser of business km and 25% of total km
-//   Tier 1 km    = the lesser of claimable km and 25% of min(total, 14,000)
-//   the rest of the claimable km at Tier 2
-// IRD's example only shows business use of exactly 25%; capping business km
-// above 25% at 25% of total is our reading of "a maximum of 25%".
+//   share     = the lesser of (business km / total km) and 25%
+//   Tier 1 km = share x min(total, 14,000)
+//   Tier 2 km = share x the total above 14,000
+// The same proportional split as with a logbook, with the share capped at
+// 25%, so it is never more than the logbook figure (review, 23 Oct). IRD's
+// example only shows business use of exactly 25%; capping a higher share at
+// 25% is our reading of "a maximum of 25%".
 //
 // Rates are set after each income year ends (OS 19/04 KM 2026: "calculated
 // as soon as possible, after the end of the 2025-26 income year"), so a year
@@ -147,9 +149,12 @@ export function irdTierSplit(
   const business = Math.max(0, businessKm);
   const total = Math.max(business, totalKm || 0);
   if (basis !== "records") {
-    const claimable = Math.min(business, IRD_NO_RECORDS_SHARE * total);
-    const tier1Km = Math.min(claimable, IRD_NO_RECORDS_SHARE * Math.min(total, IRD_TIER1_KM));
-    return { tier1Km, tier2Km: claimable - tier1Km };
+    if (total <= 0) return { tier1Km: 0, tier2Km: 0 };
+    const share = Math.min(business / total, IRD_NO_RECORDS_SHARE);
+    return {
+      tier1Km: share * Math.min(total, IRD_TIER1_KM),
+      tier2Km: share * Math.max(0, total - IRD_TIER1_KM),
+    };
   }
   if (total <= IRD_TIER1_KM) return { tier1Km: business, tier2Km: 0 };
   const tier1Km = IRD_TIER1_KM * (business / total);
