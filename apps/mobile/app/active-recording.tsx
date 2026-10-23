@@ -41,8 +41,9 @@ import { Card } from "../components/Card";
 import { HoldToConfirm } from "../components/HoldToConfirm";
 import { WaitTimer } from "../components/business/WaitTimer";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../lib/theme";
+import { useDistanceUnit } from "../lib/units/distanceUnit";
 import { haptic } from "../lib/haptics";
-import { haversineDistance, formatMiles } from "@mileclear/shared";
+import { haversineDistance } from "@mileclear/shared";
 
 // ── Lazy native map import (Expo Go safe) ──────────────────────────
 let MapViewComponent: any = null;
@@ -97,6 +98,7 @@ function formatDuration(ms: number): string {
 
 export default function ActiveRecordingScreen() {
   const router = useRouter();
+  const dist = useDistanceUnit();
   const [snapshot, setSnapshot] = useState<RecordingSnapshot>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [endingTrip, setEndingTrip] = useState(false);
@@ -318,7 +320,7 @@ export default function ActiveRecordingScreen() {
                 style={[styles.statValue, { transform: [{ scale: distancePulse }] }]}
                 maxFontSizeMultiplier={fontScaleCap.display}
               >
-                {formatMiles(snapshot.distanceMiles)}
+                {dist.fmt(snapshot.distanceMiles)}
               </Animated.Text>
               <Text style={styles.statLabel}>distance</Text>
             </View>
