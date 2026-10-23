@@ -13,12 +13,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import {
+  exportProjectChoices,
+  exportProjectSlug,
   exportVehicleChoices,
   exportVehicleLabel,
   exportVehicleSlug,
   parseTaxYear,
   type ExportVehicleLike,
 } from "@mileclear/shared";
+import { fetchProjectLabels } from "../lib/api/trips";
 import { PickerSheet, type PickerOption } from "../components/trip/PickerSheet";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile } from "../lib/api/user";
@@ -40,6 +43,8 @@ const BG = colors.bg;
 const GREEN = colors.green;
 /** The "All vehicles" row in the Which vehicle? sheet. Not a vehicle id. */
 const ALL_VEHICLES_KEY = "__all__";
+/** The "All clients" row in the Which client? sheet. Not a label (labels are trimmed text). */
+const ALL_CLIENTS_KEY = "\u0000all";
 /** Fallback wait for the sheet's slide-out when onDismiss doesn't fire (Android). */
 const PICKER_DISMISS_MS = 350;
 
@@ -88,7 +93,11 @@ export default function ExportsScreen() {
   }, [taxYears]);
 
   const handleDownload = useCallback(
-    async (type: "csv" | "pdf" | "self-assessment", car?: { id: string; slug: string }) => {
+    async (
+      type: "csv" | "pdf" | "self-assessment",
+      car?: { id: string; slug: string },
+      client?: { label: string; slug: string }
+    ) => {
       setLoadingKey(type);
       try {
         const ext = type === "csv" ? "csv" : "pdf";
@@ -101,12 +110,15 @@ export default function ExportsScreen() {
         const useRange = rangeMode === "dateRange" && type !== "self-assessment";
         const rangeLabel = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
         const carPart = car ? `${car.slug}-` : "";
-        const filename = `mileclear-${type}-${carPart}${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
+        const clientPart = client ? `${client.slug}-` : "";
+        const filename = `mileclear-${type}-${clientPart}${carPart}${useRange ? rangeLabel : selectedYear}-${date}.${ext}`;
         const base = useRange
           ? `from=${fromDate.toISOString()}&to=${toDate.toISOString()}`
           : `taxYear=${selectedYear}`;
         let param = businessOnly && type !== "self-assessment" ? `${base}&classification=business` : base;
         if (car && type !== "self-assessment") param += `&vehicleId=${encodeURIComponent(car.id)}`;
+        // The Self Assessment report is always the whole business.
+        if (client && type !== "self-assessment") param += `&projectLabel=${encodeURIComponent(client.label)}`;
 
         await downloadAndShareExport(
           `/exports/${type}?${param}`,
@@ -131,10 +143,16 @@ export default function ExportsScreen() {
   // "Which vehicle?" as a sheet, not Alert.alert: Android keeps only three
   // Alert buttons (Cancel and the 3rd vehicle onwards were lost) and its Alert
   // can't be dismissed by tapping outside. Closing the sheet downloads nothing.
+  // The same sheet asks "Which client?" (23 Oct 2026), before the vehicle.
   const [vehiclePicker, setVehiclePicker] = useState<{
+    title: string;
     options: PickerOption[];
     onPick: (key: string) => void;
   } | null>(null);
+  // The title stays put while the sheet slides away (the state is already null).
+  const pickerTitleRef = useRef("Which vehicle?");
+  if (vehiclePicker) pickerTitleRef.current = vehiclePicker.title;
+  const pickerTitle = pickerTitleRef.current;
   // Set before the vehicle list is fetched, so a quick double tap can't open
   // two pickers or start two downloads.
   const pickingRef = useRef(false);
@@ -170,21 +188,35 @@ export default function ExportsScreen() {
     []
   );
 
-  const loadVehicles = useCallback(async (): Promise<ExportVehicleLike[] | null> => {
-    // Also refuse while a picked download is waiting for the sheet to go.
-    if (pickingRef.current || pendingPickRef.current) return null;
-    pickingRef.current = true;
-    try {
-      return (await fetchVehicles()).data;
-    } catch {
-      return []; // No list: carry on as with one vehicle.
-    } finally {
-      pickingRef.current = false;
-    }
-  }, []);
+  // Vehicles, and for the trip downloads the Project / client labels too.
+  // Null while another tap is being handled.
+  const loadChoices = useCallback(
+    async (withLabels: boolean): Promise<{ vehicles: ExportVehicleLike[]; labels: string[] } | null> => {
+      // Also refuse while a picked download is waiting for the sheet to go.
+      if (pickingRef.current || pendingPickRef.current) return null;
+      pickingRef.current = true;
+      try {
+        const [vehicles, labels] = await Promise.all([
+          // No list: carry on as with one vehicle / no clients.
+          fetchVehicles().then((r) => r.data).catch(() => [] as ExportVehicleLike[]),
+          withLabels ? fetchProjectLabels().catch(() => [] as string[]) : Promise.resolve([] as string[]),
+        ]);
+        return { vehicles, labels };
+      } finally {
+        pickingRef.current = false;
+      }
+    },
+    []
+  );
 
-  // CSV and Trip Report: with 2+ vehicles, ask which one, "All vehicles"
-  // first (Colin, 17 Oct 2026). One vehicle or none: straight through, as before.
+  const loadVehicles = useCallback(
+    async (): Promise<ExportVehicleLike[] | null> => (await loadChoices(false))?.vehicles ?? null,
+    [loadChoices]
+  );
+
+  // CSV and Trip Report: with tagged trips, ask which client, "All clients"
+  // first (23 Oct 2026); with 2+ vehicles, then ask which one, "All vehicles"
+  // first (Colin, 17 Oct 2026). Neither: straight through, as before.
   const handleTripDownload = useCallback(
     async (type: "csv" | "pdf") => {
       if (loadingKey !== null) return;
@@ -192,22 +224,40 @@ export default function ExportsScreen() {
         handleDownload(type);
         return;
       }
-      const vehicles = await loadVehicles();
-      if (vehicles === null) return; // a tap is already being handled
-      const choices = exportVehicleChoices(vehicles);
-      if (!choices) {
-        handleDownload(type);
+      const loaded = await loadChoices(true);
+      if (loaded === null) return; // a tap is already being handled
+      const { vehicles, labels } = loaded;
+      const carChoices = exportVehicleChoices(vehicles);
+      const clientChoices = exportProjectChoices(labels);
+
+      const askVehicle = (client?: { label: string; slug: string }) => {
+        if (!carChoices) {
+          handleDownload(type, undefined, client);
+          return;
+        }
+        setVehiclePicker({
+          title: "Which vehicle?",
+          options: carChoices.map((c) => ({ key: c.vehicleId ?? ALL_VEHICLES_KEY, label: c.label })),
+          onPick: (key) => {
+            const v = vehicles.find((x) => x.id === key);
+            handleDownload(type, v ? { id: v.id, slug: exportVehicleSlug(v) } : undefined, client);
+          },
+        });
+      };
+
+      if (!clientChoices) {
+        askVehicle();
         return;
       }
       setVehiclePicker({
-        options: choices.map((c) => ({ key: c.vehicleId ?? ALL_VEHICLES_KEY, label: c.label })),
-        onPick: (key) => {
-          const v = vehicles.find((x) => x.id === key);
-          handleDownload(type, v ? { id: v.id, slug: exportVehicleSlug(v) } : undefined);
-        },
+        title: "Which client?",
+        options: clientChoices.map((c) => ({ key: c.projectLabel ?? ALL_CLIENTS_KEY, label: c.label })),
+        // Runs once this sheet has gone, so the vehicle sheet can open next.
+        onPick: (key) =>
+          askVehicle(key === ALL_CLIENTS_KEY ? undefined : { label: key, slug: exportProjectSlug(key) }),
       });
     },
-    [loadingKey, isPremium, handleDownload, loadVehicles]
+    [loadingKey, isPremium, handleDownload, loadChoices]
   );
 
   // Odometer log CSV (Pro): the same tax year or date range as the other
@@ -259,6 +309,7 @@ export default function ExportsScreen() {
     if (vehicles.length > 1) {
       // The odometer belongs to one vehicle, so there is no "All vehicles" here.
       setVehiclePicker({
+        title: "Which vehicle?",
         options: vehicles.map((v) => ({ key: v.id, label: exportVehicleLabel(v) })),
         onPick: (key) => downloadOdometerLog(key),
       });
@@ -528,7 +579,7 @@ export default function ExportsScreen() {
       </ScrollView>
       <PickerSheet
         visible={vehiclePicker !== null}
-        title="Which vehicle?"
+        title={pickerTitle}
         options={vehiclePicker?.options ?? []}
         onPick={(key) => {
           // PickerSheet calls onClose straight after this; the download starts once it has gone.
