@@ -27,6 +27,7 @@ import {
   useToast,
 } from "@/components/dashboard/kit";
 import { downloadFile, messageOf, todayStamp } from "@/components/dashboard/tax/tax-utils";
+import { NzLogbookCard, showsNzLogbook } from "@/components/dashboard/tax/NzLogbookCard";
 import { endOfLocalDayIso, startOfLocalDayIso } from "@/components/dashboard/trips/lib/days";
 
 function datesInvalidFor(r: { from: string; to: string }): boolean {
@@ -111,7 +112,7 @@ function Exports() {
   const { mode } = useMe();
   // Outside the UK (23 Oct 2026) the UK tax year means nothing: dates only,
   // and no Self Assessment summary or certificate.
-  const { ukTax } = useCountryFeatures();
+  const { ukTax, country } = useCountryFeatures();
   const [periodChoice, setPeriodMode] = useState<PeriodMode>("year");
   const periodMode: PeriodMode = ukTax ? periodChoice : "dates";
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
@@ -261,6 +262,9 @@ function Exports() {
           <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}-${tripCarId}-${client ?? ""}`} row={r} />
         ))}
       </Card>
+
+      {/* New Zealand only: IRD's 90-day logbook (23 Oct 2026). */}
+      {showsNzLogbook(country) && <NzLogbookCard vehicles={vehicles} />}
 
       {ukTax && <p className="mc-tax-text">Using Xero, QuickBooks or FreeAgent? Download the CSV and import it there.</p>}
     </div>
