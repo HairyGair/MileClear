@@ -354,8 +354,15 @@ export default function TripsScreen() {
   // nothing read it, so every one of those taps landed on All instead.
   // "&range=lastTaxYear" narrows it to the tax year the 31 January Self
   // Assessment deadline is for (the "Ready for 31 January?" checklist).
-  // "?client=NHS%20Trust" is how a row on Miles by project opens its trips.
-  const params = useLocalSearchParams<{ filter?: string; range?: string; day?: string; client?: string }>();
+  // "?client=NHS%20Trust" is how a row on Miles by project opens its trips,
+  // and "?noClient=1" its No project row.
+  const params = useLocalSearchParams<{
+    filter?: string;
+    range?: string;
+    day?: string;
+    client?: string;
+    noClient?: string;
+  }>();
   const [trips, setTrips] = useState<TripItem[]>([]);
   // Bumped to refetch the odometer day lines (focus, pull to refresh).
   const [odoTick, setOdoTick] = useState(0);
@@ -367,9 +374,11 @@ export default function TripsScreen() {
   const [platformFilter, setPlatformFilter] = useState<PlatformTag | "all">("all");
   // Project / client filter (23 Oct 2026), alongside the app and dates ones.
   const [clientFilter, setClientFilter] = useState<ClientFilter>(() =>
-    typeof params.client === "string" && params.client.trim()
-      ? { kind: "label", label: params.client.trim() }
-      : ALL_CLIENTS
+    params.noClient === "1"
+      ? { kind: "none" }
+      : typeof params.client === "string" && params.client.trim()
+        ? { kind: "label", label: params.client.trim() }
+        : ALL_CLIENTS
   );
   const [page, setPage] = useState(1);
   // Saved places ("Home", "Depot") name the ends of the route line first.
@@ -753,11 +762,16 @@ export default function TripsScreen() {
   // Miles by project opens Trips for one client. Cleared afterwards so the
   // same row tapped again later (after the driver changed the filter) is a change.
   useEffect(() => {
-    if (typeof params.client !== "string") return;
-    const label = params.client.trim();
-    if (label) handleClientChange({ kind: "label", label });
-    router.setParams({ client: undefined });
-  }, [params.client, handleClientChange, router]);
+    if (params.noClient === "1") {
+      handleClientChange({ kind: "none" });
+    } else if (typeof params.client === "string") {
+      const label = params.client.trim();
+      if (label) handleClientChange({ kind: "label", label });
+    } else {
+      return;
+    }
+    router.setParams({ client: undefined, noClient: undefined });
+  }, [params.client, params.noClient, handleClientChange, router]);
 
   // Clears platform, client and date range in one reload - the "back to
   // unfiltered" tap from the Filters sheet. Kept separate from

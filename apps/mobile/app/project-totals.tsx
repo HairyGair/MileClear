@@ -165,28 +165,16 @@ export default function ProjectTotalsScreen() {
                     </View>
                   </>
                 );
-                // A client's row opens the Trips tab filtered to that client
-                // (23 Oct 2026). "No project" stays a plain row.
-                if (p.label === null) {
-                  return (
-                    <View
-                      key="__none__"
-                      style={[styles.row, i > 0 && styles.rowDivider]}
-                      accessible
-                      accessibilityLabel={summary}
-                    >
-                      {body}
-                    </View>
-                  );
-                }
+                // A row opens the Trips tab filtered to that client (23 Oct
+                // 2026); "No project" to the trips with no client.
                 const label = p.label;
+                const href =
+                  label === null ? "/(tabs)/trips?noClient=1" : `/(tabs)/trips?client=${encodeURIComponent(label)}`;
                 return (
                   <TouchableOpacity
-                    key={label}
+                    key={label ?? "__none__"}
                     style={[styles.row, i > 0 && styles.rowDivider]}
-                    onPress={() =>
-                      router.navigate(`/(tabs)/trips?client=${encodeURIComponent(label)}` as never)
-                    }
+                    onPress={() => router.navigate(href as never)}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={`${summary}. Opens these trips.`}
