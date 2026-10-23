@@ -41,6 +41,7 @@ import {
   saveOutcomeMessage,
   type MotHint,
 } from "../../lib/odometer/logic";
+import { odometerUnitOf, readingTextToMilesText, unitWord } from "../../lib/odometer/unit";
 
 export interface UpdateReadingVehicle {
   id: string;
@@ -48,6 +49,8 @@ export interface UpdateReadingVehicle {
   name: string;
   registrationPlate?: string | null;
   createdAt?: string | null;
+  /** What the odometer reads in. A km reading is typed in km and saved as miles. Default miles. */
+  odometerUnit?: "miles" | "km" | null;
 }
 
 interface Props {
@@ -74,6 +77,9 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
   const loadRef = useRef<Promise<VehicleOdometer | null> | null>(null);
   const vehicleId = vehicle?.id ?? null;
   const plate = vehicle?.registrationPlate ?? null;
+  const unit = odometerUnitOf(vehicle?.odometerUnit);
+  // The checks and the save work in miles; a km car's reading is converted first.
+  const milesText = readingTextToMilesText(text, unit);
 
   useEffect(() => {
     if (!visible || !vehicleId) return;
@@ -107,7 +113,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
   }, [visible, vehicleId, plate]);
 
   const hint = liveHint({
-    text,
+    text: milesText,
     estimateMiles: odo?.current?.miles ?? null,
     earlier: latestAcceptedBefore(odo?.readings ?? [], touchedTime ? readAt : new Date()),
   });
@@ -195,7 +201,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
     }
     const estimateNow = data?.current?.miles ?? null;
     const result = checkReading({
-      text,
+      text: milesText,
       readAt: at,
       now: new Date(now.getTime() + 60_000), // a minute of slack for the picker's seconds
       estimateMiles: estimateNow,
@@ -207,7 +213,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
       return;
     }
     setError(null);
-    const parsed = parseReadingInput(text);
+    const parsed = parseReadingInput(milesText);
     if (parsed.kind !== "ok") return;
     if (result.kind === "blocked") {
       showBlocked({ miles: result.earlierMiles, at: result.earlierAt });
@@ -221,7 +227,7 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
       return;
     }
     await finishSave(parsed.miles, at);
-  }, [saving, vehicle, odo, touchedTime, readAt, text, mot, finishSave, showBlocked]);
+  }, [saving, vehicle, odo, touchedTime, readAt, milesText, mot, finishSave, showBlocked]);
 
   return (
     <AppModal visible={visible} onRequestClose={onClose}>
@@ -259,11 +265,11 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                 textContentType="none"
                 placeholder="e.g. 45100"
                 placeholderTextColor={colors.text3}
-                accessibilityLabel="Odometer reading in miles"
+                accessibilityLabel={`Odometer reading in ${unitWord(unit)}`}
                 accessibilityHint="What your dashboard shows now"
                 maxFontSizeMultiplier={fontScaleCap.display}
               />
-              <Text style={styles.suffix} maxFontSizeMultiplier={fontScaleCap.body}>miles</Text>
+              <Text style={styles.suffix} maxFontSizeMultiplier={fontScaleCap.body}>{unitWord(unit)}</Text>
             </View>
             {error ? (
               <Text style={styles.error} accessibilityLiveRegion="polite" accessibilityRole="alert" maxFontSizeMultiplier={fontScaleCap.body}>
@@ -279,10 +285,13 @@ export function UpdateReadingSheet({ visible, vehicle, onClose, onSaved, onSeeRe
                   <OdometerFigure
                     size="compact"
                     miles={odo.current.miles}
+                    unit={unit}
                     accessibilityLabel={
-                      odo.current.isEstimated
-                        ? `We estimate about ${formatOdo(odo.current.miles)} miles`
-                        : `Your last reading, ${formatOdo(odo.current.miles)} miles, recorded`
+                      unit === "km"
+                        ? undefined
+                        : odo.current.isEstimated
+                          ? `We estimate about ${formatOdo(odo.current.miles)} miles`
+                          : `Your last reading, ${formatOdo(odo.current.miles)} miles, recorded`
                     }
                   />
                   <StatusChip recorded={!odo.current.isEstimated} source={odo.current.basis.source} />

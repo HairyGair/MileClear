@@ -4,11 +4,13 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Button } from "../Button";
 import { OdometerFigure, StatusChip } from "./OdometerFigure";
 import { UpdateReadingSheet, type UpdateReadingVehicle } from "./UpdateReadingSheet";
+import { milesInUnit, odometerUnitOf } from "../../lib/odometer/unit";
 import { useSync } from "../../lib/sync/context";
 import { fetchVehicleOdometer, type VehicleOdometer } from "../../lib/api/odometer";
 import {
   basisText,
   figureA11y,
+  formatOdo,
   oldReadingText,
   PENDING_SYNC_TEXT,
 } from "../../lib/odometer/logic";
@@ -20,6 +22,8 @@ import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
  * the reading or open the daily log.
  */
 export function OdometerSection({ vehicle }: { vehicle: UpdateReadingVehicle }) {
+  // A km car shows its figure in km (stored in miles either way).
+  const unit = odometerUnitOf(vehicle.odometerUnit);
   const router = useRouter();
   const { pendingCount } = useSync();
   const [data, setData] = useState<VehicleOdometer | null>(null);
@@ -93,13 +97,23 @@ export function OdometerSection({ vehicle }: { vehicle: UpdateReadingVehicle }) 
           </View>
         ) : current ? (
           <View>
-            <View accessible accessibilityRole="text" accessibilityLabel={figureA11y(current)}>
+            <View
+              accessible
+              accessibilityRole="text"
+              accessibilityLabel={
+                unit === "km" ? `Current reading, ${formatOdo(milesInUnit(current.miles, unit))} km` : figureA11y(current)
+              }
+            >
               <View style={styles.figureHeader}>
                 <Text style={styles.cardTitle} maxFontSizeMultiplier={fontScaleCap.heading}>Current reading</Text>
                 <StatusChip recorded={!current.isEstimated} source={current.basis.source} />
               </View>
               <View style={{ marginTop: 12 }}>
-                <OdometerFigure miles={current.miles} accessibilityLabel={figureA11y(current)} />
+                <OdometerFigure
+                  miles={current.miles}
+                  unit={unit}
+                  accessibilityLabel={unit === "km" ? undefined : figureA11y(current)}
+                />
               </View>
               <Text style={styles.body} maxFontSizeMultiplier={fontScaleCap.body}>
                 {basisText(current)}

@@ -13,6 +13,7 @@ export type AskId =
   | "acquisition" // Where did you hear about MileClear? (first 30 days)
   | "vehicle" // Add your vehicle
   | "odometer" // Odometer readings for work
+  | "nz_balance_date" // New Zealand: note each car's odometer for 31 March (25 Mar to 15 Apr)
   | "employer" // Does your employer pay your mileage? Invite your manager
   | "shift" // Looks like a shift: grade it
   | "saved_places" // Save the places you visit often
@@ -31,6 +32,9 @@ export const ASK_ORDER: readonly AskId[] = [
   // week one, and a third of them never sorted a trip (18 Oct 2026). Drawn on
   // the Last trip card, not the ask row.
   "first_week",
+  // New Zealand only, three weeks a year: IRD asks for the odometer at every
+  // balance date, and it can't be read back later.
+  "nz_balance_date",
   "acquisition",
   "odometer",
   "employer",

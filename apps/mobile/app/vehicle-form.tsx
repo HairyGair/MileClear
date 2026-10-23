@@ -22,6 +22,8 @@ import {
   lookupVehicle,
 } from "../lib/api/vehicles";
 import type { FuelType, VehicleType, CazAssessment } from "@mileclear/shared";
+import { countryByCode, NZ_HYBRID_KIND_LABELS, NZ_HYBRID_KINDS, type NzHybridKind, type NzRecordBasis } from "@mileclear/shared";
+import { readingTextToMilesText, unitWord, type OdometerUnit } from "../lib/odometer/unit";
 import { Button } from "../components/Button";
 import { CleanAirZoneCard } from "../components/CleanAirZoneCard";
 import { OdometerSection } from "../components/odometer/OdometerSection";
@@ -66,7 +68,11 @@ export default function VehicleFormScreen() {
 
   const [registrationPlate, setRegistrationPlate] = useState("");
   // The DVLA lookup and its MOT and tax checks are UK only (23 Oct 2026).
-  const { vehicleLookup } = useCountryFeatures();
+  const { vehicleLookup, country } = useCountryFeatures();
+  // New Zealand: IRD's kilometre rates need two answers per vehicle. Drivers
+  // in a km country can say their odometer reads km. UK drivers see neither.
+  const isNz = country === "NZ";
+  const showOdometerUnit = isNz || !!countryByCode(country)?.usesKm;
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupDone, setLookupDone] = useState(false);
   // Emissions data from the DVLA lookup, sent through on create so Clean Air
@@ -95,6 +101,9 @@ export default function VehicleFormScreen() {
   const [milesPerKwh, setMilesPerKwh] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
   const [providedByOthers, setProvidedByOthers] = useState(false);
+  const [nzRecordBasis, setNzRecordBasis] = useState<NzRecordBasis | null>(null);
+  const [nzHybridKind, setNzHybridKind] = useState<NzHybridKind | null>(null);
+  const [odometerUnit, setOdometerUnit] = useState<OdometerUnit>("miles");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -119,6 +128,9 @@ export default function VehicleFormScreen() {
           setIsPrimary(vehicle.isPrimary);
           setVehicleCreatedAt((vehicle as { createdAt?: string }).createdAt ?? null);
           setProvidedByOthers(vehicle.providedByOthers ?? false);
+          setNzRecordBasis(vehicle.nzRecordBasis ?? null);
+          setNzHybridKind(vehicle.nzHybridKind ?? null);
+          setOdometerUnit(vehicle.odometerUnit === "km" ? "km" : "miles");
           setRegistrationPlate(vehicle.registrationPlate || "");
           setCleanAirZones(vehicle.cleanAirZones ?? null);
           if (vehicle.dvlaPlateProblem && vehicle.registrationPlate) {
@@ -176,7 +188,7 @@ export default function VehicleFormScreen() {
     // The optional odometer reading is checked before anything is saved.
     let odometerMiles: number | null = null;
     if (!isEditing && odometerNow.trim()) {
-      const parsed = parseReadingInput(odometerNow);
+      const parsed = parseReadingInput(readingTextToMilesText(odometerNow, showOdometerUnit ? odometerUnit : "miles"));
       if (parsed.kind !== "ok") {
         Alert.alert(
           "Check the odometer",
@@ -232,6 +244,12 @@ export default function VehicleFormScreen() {
       }
       if (euroStatus) payload.euroStatus = euroStatus;
       if (firstRegistration) payload.firstRegistration = firstRegistration;
+      // Only sent where they're asked, so a UK save is exactly what it was.
+      if (isNz) {
+        payload.nzRecordBasis = nzRecordBasis;
+        payload.nzHybridKind = fuelType === "hybrid" ? nzHybridKind : null;
+      }
+      if (showOdometerUnit) payload.odometerUnit = odometerUnit;
 
       if (isEditing) {
         await updateVehicle(id, payload);
@@ -260,7 +278,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall, isNz, nzRecordBasis, nzHybridKind, showOdometerUnit, odometerUnit]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -412,9 +430,9 @@ export default function VehicleFormScreen() {
                 placeholderTextColor={TEXT_3}
                 keyboardType="decimal-pad"
                 maxLength={9}
-                accessibilityLabel="Odometer reading now, optional, in miles"
+                accessibilityLabel={`Odometer reading now, optional, in ${unitWord(showOdometerUnit ? odometerUnit : "miles")}`}
               />
-              <Text style={styles.odoSuffix}>miles</Text>
+              <Text style={styles.odoSuffix}>{unitWord(showOdometerUnit ? odometerUnit : "miles")}</Text>
             </View>
             <Text style={styles.odoHint}>The number on your dashboard. We add your trips to it.</Text>
           </>
@@ -473,6 +491,82 @@ export default function VehicleFormScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* New Zealand: which kind of hybrid (IRD only sets a rate for petrol hybrids) */}
+        {isNz && fuelType === "hybrid" && (
+          <>
+            <Text style={styles.label}>What kind of hybrid?</Text>
+            <View style={styles.segmentRow}>
+              {NZ_HYBRID_KINDS.map((k) => (
+                <TouchableOpacity
+                  key={k}
+                  style={[styles.segment, nzHybridKind === k && styles.segmentActive]}
+                  onPress={() => setNzHybridKind(k)}
+                  accessibilityRole="button"
+                  accessibilityLabel={NZ_HYBRID_KIND_LABELS[k]}
+                  accessibilityState={{ selected: nzHybridKind === k }}
+                >
+                  <Text style={[styles.segmentText, nzHybridKind === k && styles.segmentTextActive]}>
+                    {NZ_HYBRID_KIND_LABELS[k].replace(" hybrid", "")}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.toggleHint}>
+              IRD only sets a kilometre rate for petrol hybrids. For the others, check with your accountant.
+            </Text>
+          </>
+        )}
+
+        {/* New Zealand: logbook or full records (without, IRD limits the claim to 25%) */}
+        {isNz && (
+          <>
+            <Text style={styles.label}>Logbook or full records?</Text>
+            <View style={styles.segmentRow}>
+              {([
+                ["records", "Yes, I keep one"],
+                ["none", "No"],
+              ] as const).map(([value, label]) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[styles.segment, nzRecordBasis === value && styles.segmentActive]}
+                  onPress={() => setNzRecordBasis(value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  accessibilityState={{ selected: nzRecordBasis === value }}
+                >
+                  <Text style={[styles.segmentText, nzRecordBasis === value && styles.segmentTextActive]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.toggleHint}>
+              Do you keep a logbook (90 days or more) or full records of every trip for this car? Without one, IRD limits the claim to 25%.
+            </Text>
+          </>
+        )}
+
+        {/* Odometer unit, for drivers in a km country */}
+        {showOdometerUnit && (
+          <>
+            <Text style={styles.label}>Odometer reads in</Text>
+            <View style={styles.segmentRow}>
+              {(["miles", "km"] as const).map((u) => (
+                <TouchableOpacity
+                  key={u}
+                  style={[styles.segment, odometerUnit === u && styles.segmentActive]}
+                  onPress={() => setOdometerUnit(u)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Odometer reads in ${unitWord(u)}`}
+                  accessibilityState={{ selected: odometerUnit === u }}
+                >
+                  <Text style={[styles.segmentText, odometerUnit === u && styles.segmentTextActive]}>
+                    {u === "km" ? "km" : "Miles"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
 
         {/* Estimated MPG — hidden for electric */}
         {fuelType !== "electric" && (
@@ -557,6 +651,7 @@ export default function VehicleFormScreen() {
               name: `${make.trim()} ${model.trim()}`.trim(),
               registrationPlate: registrationPlate.trim() || null,
               createdAt: vehicleCreatedAt,
+              odometerUnit: showOdometerUnit ? odometerUnit : "miles",
             }}
           />
         ) : null}

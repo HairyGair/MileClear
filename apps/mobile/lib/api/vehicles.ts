@@ -33,6 +33,9 @@ export interface CreateVehicleData {
   providedByOthers?: boolean;
   euroStatus?: string | null;
   firstRegistration?: string | null;
+  nzRecordBasis?: "records" | "none" | null;
+  nzHybridKind?: "petrol" | "plugin" | "diesel" | "mild" | null;
+  odometerUnit?: "miles" | "km";
 }
 
 export interface UpdateVehicleData {
@@ -46,6 +49,9 @@ export interface UpdateVehicleData {
   estimatedMpg?: number | null;
   isPrimary?: boolean;
   providedByOthers?: boolean;
+  nzRecordBasis?: "records" | "none" | null;
+  nzHybridKind?: "petrol" | "plugin" | "diesel" | "mild" | null;
+  odometerUnit?: "miles" | "km";
 }
 
 export function fetchVehicles() {

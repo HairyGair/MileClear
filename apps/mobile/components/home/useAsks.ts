@@ -20,6 +20,7 @@ import { createTtlCache } from "../../lib/home/ttlCache";
 import { fetchPracticeLinks } from "../../lib/api/practice";
 import { pickHomePracticeAsk, type HomePracticeAsk } from "../../lib/practice/logic";
 import { takePendingConsent } from "../../lib/practice/pending";
+import { NZ_BALANCE_DATE_ASK_KEY, nzBalanceDateAskDue, nzBalanceDateWindowYear } from "../../lib/country/nzBalanceDate";
 
 const QUIET_KEY = "home_ask_dismissed_at";
 const VEHICLE_SNOOZE_KEY = "home_vehicle_ask_dismissed_at";
@@ -150,6 +151,24 @@ export function useOdometerAsk(
     writeKey(ODOMETER_DISMISSED_KEY, "1");
   }, []);
   return { vehicle, dismiss };
+}
+
+/** New Zealand: note each car's odometer for 31 March. Once a year; "done" for that year when tapped or dismissed. */
+export function useNzBalanceDateAsk(country: string): { eligible: boolean; done: () => void } {
+  const [doneYear, setDoneYear] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (country !== "NZ") return;
+    readKey(NZ_BALANCE_DATE_ASK_KEY).then((v) => setDoneYear(v));
+  }, [country]);
+  const done = useCallback(() => {
+    const year = nzBalanceDateWindowYear(new Date());
+    if (year == null) return;
+    setDoneYear(String(year));
+    writeKey(NZ_BALANCE_DATE_ASK_KEY, String(year));
+  }, []);
+  // Unknown (still reading) stays quiet.
+  const eligible = doneYear !== undefined && nzBalanceDateAskDue({ country, now: new Date(), doneYear });
+  return { eligible, done };
 }
 
 /**

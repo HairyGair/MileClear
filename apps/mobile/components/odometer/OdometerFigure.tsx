@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, PixelRatio } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 import { digitGroups, fitsDigitCells, formatOdo } from "../../lib/odometer/logic";
+import { milesInUnit, unitShort, unitWord, type OdometerUnit } from "../../lib/odometer/unit";
 import type { OdometerReadingSource } from "../../lib/api/odometer";
 
 // SPEC-VISUAL 1: one figure component, two sizes. "large" draws each digit in
@@ -14,12 +15,15 @@ const CELL_H = 40;
 interface FigureProps {
   miles: number;
   size?: "large" | "compact";
+  /** What the car's odometer reads in; the stored miles are shown converted. Default miles. */
+  unit?: OdometerUnit;
   /** Spoken label for the whole figure; the digits are never read one by one. */
   accessibilityLabel?: string;
 }
 
-export function OdometerFigure({ miles, size = "large", accessibilityLabel }: FigureProps) {
-  const label = accessibilityLabel ?? `${formatOdo(miles)} miles`;
+export function OdometerFigure({ miles: storedMiles, size = "large", accessibilityLabel, unit = "miles" }: FigureProps) {
+  const miles = milesInUnit(storedMiles, unit);
+  const label = accessibilityLabel ?? `${formatOdo(miles)} ${unitWord(unit)}`;
   if (size === "compact" || !fitsDigitCells(miles)) {
     return (
       <Text
@@ -27,7 +31,7 @@ export function OdometerFigure({ miles, size = "large", accessibilityLabel }: Fi
         accessibilityLabel={label}
         maxFontSizeMultiplier={fontScaleCap.display}
       >
-        {formatOdo(miles)} mi
+        {formatOdo(miles)} {unitShort(unit)}
       </Text>
     );
   }
@@ -49,7 +53,7 @@ export function OdometerFigure({ miles, size = "large", accessibilityLabel }: Fi
         </View>
       ))}
       <Text style={styles.unit} maxFontSizeMultiplier={fontScaleCap.heading} accessible={false}>
-        mi
+        {unitShort(unit)}
       </Text>
     </View>
   );

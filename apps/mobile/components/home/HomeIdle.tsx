@@ -50,6 +50,7 @@ import {
   useEmployerAsk,
   useFirstWeekLocal,
   useOdometerAsk,
+  useNzBalanceDateAsk,
   usePracticeAsk,
   useShiftAsk,
   useVehicleAskSnooze,
@@ -218,6 +219,7 @@ export function HomeIdle(p: Props) {
   const vehicleSnooze = useVehicleAskSnooze();
   const hasBusinessMileage = (p.stats?.deductionPence ?? 0) > 0;
   const odo = useOdometerAsk(isWork, totalTrips);
+  const { eligible: nzBalanceDateDue, done: nzBalanceDateDone } = useNzBalanceDateAsk(country);
   const employer = useEmployerAsk({
     isWork,
     // Anyone on the company-driver app (team or "A company car") has an
@@ -268,6 +270,7 @@ export function HomeIdle(p: Props) {
     acquisition: acq.eligible,
     vehicle: !p.hasVehicle && !vehicleSnooze.snoozed,
     odometer: !!odo.vehicle,
+    nz_balance_date: nzBalanceDateDue,
     employer: ukTax && employer.eligible,
     shift: shiftEligibleDriver && !!shiftAsk.suggestion,
     saved_places: p.savedPlaces.eligible,
@@ -336,6 +339,16 @@ export function HomeIdle(p: Props) {
           line: "Once is enough. We add your trips to it.", dismissLabel: "Not now",
           onPress: press(() => setOdoOpen(true)), onDismiss: dismiss(odo.dismiss),
         };
+      case "nz_balance_date":
+        return {
+          id: askId, icon: "speedometer-outline", title: "Note each car's odometer for 31 March",
+          line: "IRD asks for it every year.", dismissLabel: "Not now",
+          onPress: press(() => {
+            nzBalanceDateDone();
+            router.push("/vehicles" as never);
+          }),
+          onDismiss: dismiss(nzBalanceDateDone),
+        };
       case "employer":
         return {
           id: askId, icon: "briefcase-outline", title: "Does your employer pay your mileage?",
@@ -396,7 +409,7 @@ export function HomeIdle(p: Props) {
           onDismiss: dismiss(p.androidBeta.dismiss),
         };
     }
-  }, [askId, mode, p, isWork, router, quiet, vehicleSnooze, odo, employer, shiftAsk, gradingShift, showPaywall, practice.ask]);
+  }, [askId, mode, p, isWork, router, quiet, vehicleSnooze, odo, employer, shiftAsk, gradingShift, showPaywall, practice.ask, nzBalanceDateDone]);
 
   // ── Layout ──
   const narrow = width < 380 || fontScale > 1.3;
