@@ -58,6 +58,7 @@ import { resolveShiftSuggestion } from "../../lib/api/shifts";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
 import { useCountryFeatures } from "../../lib/country/country";
+import RegimeClaimCard, { hasRegimeClaim } from "../tax/RegimeClaimCard";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { insightsCache } from "../../lib/insights/requestCache";
 import { stampInsightsLink } from "../../lib/insights/linkParams";
@@ -111,7 +112,7 @@ export function HomeIdle(p: Props) {
   const { showPaywall } = usePaywall();
   const { width, fontScale } = useWindowDimensions();
   const { unit } = useDistanceUnit();
-  const { ukTax } = useCountryFeatures();
+  const { ukTax, country } = useCountryFeatures();
 
   const isWork = mode === "work";
   const persona = homePersona({ isPersonal, isCompanyDriver, workType: user?.workType });
@@ -466,6 +467,15 @@ export function HomeIdle(p: Props) {
                   else router.navigate("/(tabs)/tax" as never);
                 }}
               />
+            </View>
+          </FadeInStagger>
+        ) : null}
+
+        {/* Outside the UK, Work: the claim under the country's own rules (NZ first). Renders nothing for the UK. */}
+        {isWork && !ukTax && !isCompanyDriver && hasRegimeClaim(country) ? (
+          <FadeInStagger index={stagger++} delayPer={40}>
+            <View style={s.afterHero}>
+              <RegimeClaimCard refreshToken={refreshKey} />
             </View>
           </FadeInStagger>
         ) : null}

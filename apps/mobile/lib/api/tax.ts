@@ -1,4 +1,4 @@
-import type { TaxOverview } from "@mileclear/shared";
+import type { RegimeSummary, TaxOverview } from "@mileclear/shared";
 import { apiRequest } from "./index";
 
 /**
@@ -11,4 +11,14 @@ export function fetchTaxOverview(opts: { fresh?: boolean; asOf?: string } = {}) 
   if (opts.fresh) q.push("fresh=1");
   if (opts.asOf) q.push(`asOf=${encodeURIComponent(opts.asOf)}`);
   return apiRequest<{ data: TaxOverview }>(`/tax/overview${q.length ? `?${q.join("&")}` : ""}`);
+}
+
+/**
+ * GET /tax/regime-summary: the mileage claim under the driver's country's
+ * rules (New Zealand first). Null for UK drivers and countries with no rules
+ * yet. `taxYear` like "2025-26"; missing = the current one.
+ */
+export function fetchRegimeSummary(taxYear?: string) {
+  const q = taxYear ? `?taxYear=${encodeURIComponent(taxYear)}` : "";
+  return apiRequest<{ data: RegimeSummary | null }>(`/tax/regime-summary${q}`);
 }

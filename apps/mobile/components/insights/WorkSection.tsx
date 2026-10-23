@@ -15,6 +15,7 @@
 
 import type { ReactNode } from "react";
 import TaxYearProgressCard from "./TaxYearProgressCard";
+import RegimeClaimCard from "../tax/RegimeClaimCard";
 import { useCountryFeatures } from "../../lib/country/country";
 import PlatformLeagueCard from "./PlatformLeagueCard";
 import WhenYouDriveCard from "./WhenYouDriveCard";
@@ -58,6 +59,8 @@ export function WorkSection(p: WorkSectionProps) {
     <>
       {/* The 10,000-mile line only matters for a mileage claim, which a company car has none of. */}
       {!p.isCompanyDriver && ukTax && <TaxYearProgressCard {...card} />}
+      {/* Outside the UK: the claim under the country's own rules (NZ first); renders nothing where there are none. */}
+      {!p.isCompanyDriver && !ukTax && p.mode === "work" && <RegimeClaimCard refreshToken={p.refreshToken} />}
       {!p.isCompanyDriver && <PlatformLeagueCard {...card} />}
       {p.comingUp}
       {p.showEarningsGoal && <WeeklyGoalCard />}
