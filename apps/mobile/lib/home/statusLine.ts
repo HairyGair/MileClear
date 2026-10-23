@@ -13,6 +13,7 @@
 
 import type { BlockerId } from "../dashboardMessages";
 import { pausedRowText } from "../tracking/pauseRule";
+import { distanceIn, distanceUnitLabel, type DistanceUnit } from "@mileclear/shared";
 
 export type StatusKind =
   | "recording"
@@ -59,6 +60,8 @@ export interface StatusInputs {
   setup: { done: number; total: number } | null;
   /** The one-time "we improved your trip data" note, until it has been seen. */
   recovered: { trips: number; miles: number } | null;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }
 
 export interface StatusLine {
@@ -85,9 +88,9 @@ export function durationText(ms: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m} min`;
 }
 
-function milesText(miles: number): string {
-  const m = Math.max(0, miles);
-  return `${m < 100 ? m.toFixed(1) : String(Math.round(m))} mi`;
+function milesText(miles: number, unit: DistanceUnit = "miles"): string {
+  const m = Math.max(0, distanceIn(miles, unit));
+  return `${m < 100 ? m.toFixed(1) : String(Math.round(m))} ${distanceUnitLabel(unit)}`;
 }
 
 function pausedTitle(until: number, now: number): string {
@@ -133,7 +136,7 @@ export function selectStatusLine(i: StatusInputs): StatusLine {
     return make(
       "recording",
       "live",
-      `Recording · ${milesText(i.recording.miles)} · ${durationText(i.recording.elapsedMs)}`,
+      `Recording · ${milesText(i.recording.miles, i.unit)} · ${durationText(i.recording.elapsedMs)}`,
       "live_trip"
     );
   }
@@ -186,11 +189,12 @@ export function selectStatusLine(i: StatusInputs): StatusLine {
     );
   }
   if (i.recovered) {
-    const miles = Math.round(i.recovered.miles * 10) / 10;
+    const km = i.unit === "km";
+    const miles = Math.round(distanceIn(i.recovered.miles, i.unit ?? "miles") * 10) / 10;
     return make(
       "recovered",
       "warning",
-      `We recovered ${miles} ${miles === 1 ? "mile" : "miles"} on ${i.recovered.trips} ${i.recovered.trips === 1 ? "trip" : "trips"}`,
+      `We recovered ${miles} ${km ? "km" : miles === 1 ? "mile" : "miles"} on ${i.recovered.trips} ${i.recovered.trips === 1 ? "trip" : "trips"}`,
       "trips",
       { icon: "sparkles-outline" }
     );

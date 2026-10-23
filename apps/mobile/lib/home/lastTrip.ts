@@ -10,6 +10,8 @@
 //    Business trip).
 // The footer is separate: unsorted count first, else a possible missed drive.
 
+import { formatDistance, type DistanceUnit } from "@mileclear/shared";
+
 export type SyncChip = "synced" | "saving" | "waiting" | "failed";
 
 export type TripChoice = "business" | "personal" | "unclassified";
@@ -49,6 +51,8 @@ export interface LastTripInputs {
   unsortedCount: number | null;
   missedCount: number | null;
   now: number;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }
 
 export type LastTripFooter =
@@ -105,10 +109,9 @@ export function whenLabel(startedAtIso: string, endedAtIso: string | null, now: 
   return `${DAYS[shown.getDay()]} ${shown.getDate()} ${MONTHS[shown.getMonth()]} ${clock(shown)}`;
 }
 
-export function milesText(miles: number): string {
-  const m = Math.round(Math.max(0, miles) * 10) / 10;
+export function milesText(miles: number, unit: DistanceUnit = "miles"): string {
   // No-break spaces keep "12.8 mi" (and the dot before it) from wrapping apart.
-  return `${m.toFixed(1)}\u00a0mi`;
+  return formatDistance(Math.max(0, miles), unit, { fixed: true, nbsp: true });
 }
 
 /** "Home to Sunderland Depot", "To Sunderland Depot", "From Home", or "Route not recorded". */
@@ -172,7 +175,7 @@ export function selectLastTrip(i: LastTripInputs): LastTripView {
   const look: "full" | "compact" = showChoice ? "full" : "compact";
 
   const when = whenLabel(t.startedAt, t.endedAt, i.now);
-  const miles = milesText(t.distanceMiles);
+  const miles = milesText(t.distanceMiles, i.unit);
   const route = routeText(t.startLabel, t.endLabel);
   const footer = lastTripFooter({
     unsortedCount: i.unsortedCount,

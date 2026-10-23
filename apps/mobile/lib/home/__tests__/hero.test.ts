@@ -121,6 +121,28 @@ describe("selectHero Personal", () => {
   it("is loading until the month is in", () => {
     expect(selectHero(base({ persona: "personal", month: null })).kind).toBe("loading");
   });
+
+  it("shows kilometres for a km driver", () => {
+    const h = figure(selectHero(base({ persona: "personal", unit: "km" })));
+    expect(h.figure).toBe("330");
+    expect(h.unit).toBe("km");
+    expect(h.line).toBe("306 km this week · 5 trips this month");
+    const quiet = figure(
+      selectHero(
+        base({ persona: "personal", unit: "km", month: { totalMiles: 0, businessMiles: 0, totalTrips: 0, previousMiles: 640 } })
+      )
+    );
+    expect(quiet.line).toBe("September: 1,030 km");
+  });
+
+  it("keeps a claim and its business miles in miles for a km driver", () => {
+    const h = figure(selectHero(base({ unit: "km" })));
+    expect(h.figure).toBe("£139.33");
+    expect(h.line).toBe("182 business miles this week");
+    const c = figure(selectHero(base({ persona: "company", unit: "km", stats: stats({ businessMiles: 1204 }) })));
+    expect(c.figure).toBe("1,204");
+    expect(c.unit).toBe("miles");
+  });
 });
 
 describe("claimGainNote", () => {

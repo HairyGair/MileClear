@@ -10,7 +10,7 @@
 //
 // Pure and unit-tested.
 
-import { formatPence } from "@mileclear/shared";
+import { distanceIn, formatPence, type DistanceUnit } from "@mileclear/shared";
 import {
   chooseHeroFigure,
   formatWholeMiles,
@@ -43,6 +43,9 @@ export interface HeroInputs {
   week: HeroRecapTotals | null;
   /** This calendar month and the one before, from the monthly recap. */
   month: (HeroRecapTotals & { previousMiles: number | null }) | null;
+  /** Distances in Settings. Only the Personal hero (driving, not a claim)
+   *  follows it: a claim and its business miles are always miles. */
+  unit?: DistanceUnit;
 }
 
 export type HeroModel =
@@ -87,6 +90,15 @@ export function milesFigure(miles: number): string {
   return formatWholeMiles(m);
 }
 
+/** The Personal hero's driving figure in the driver's unit. */
+function driveFigure(miles: number, unit: DistanceUnit): string {
+  return milesFigure(distanceIn(miles, unit));
+}
+
+function driveWord(miles: number, unit: DistanceUnit): string {
+  return unit === "km" ? "km" : milesWord(miles);
+}
+
 function tripsWord(n: number): string {
   return n === 1 ? "trip" : "trips";
 }
@@ -127,19 +139,20 @@ export function selectHero(i: HeroInputs): HeroModel {
   if (stats.totalTrips === 0) return { kind: "hidden" };
 
   if (i.persona === "personal") {
+    const unit = i.unit ?? "miles";
     const m = i.month;
     if (!m) return { kind: "loading" };
     const monthName = MONTHS[i.now.getMonth()];
     // Labelled ("182 miles this week"), and left out when the week has none yet.
     const weekPart =
       i.week && round1(i.week.totalMiles) > 0
-        ? `${milesFigure(i.week.totalMiles)} ${milesWord(i.week.totalMiles)} this week`
+        ? `${driveFigure(i.week.totalMiles, unit)} ${driveWord(i.week.totalMiles, unit)} this week`
         : null;
     if (m.totalMiles < 0.05) {
       const prevMonth = MONTHS[(i.now.getMonth() + 11) % 12];
       const line =
         m.previousMiles != null && m.previousMiles >= 0.5
-          ? `${prevMonth}: ${formatWholeMiles(m.previousMiles)} ${milesWord(m.previousMiles)}`
+          ? `${prevMonth}: ${formatWholeMiles(distanceIn(m.previousMiles, unit))} ${driveWord(m.previousMiles, unit)}`
           : `Every drive adds to ${monthName}`;
       return figureModel(monthName, "A quiet month so far", null, line, "insights_month", null);
     }
@@ -149,8 +162,8 @@ export function selectHero(i: HeroInputs): HeroModel {
     ].filter((p): p is string => !!p);
     return figureModel(
       monthName,
-      milesFigure(m.totalMiles),
-      milesWord(m.totalMiles),
+      driveFigure(m.totalMiles, unit),
+      driveWord(m.totalMiles, unit),
       parts.join(" · "),
       "insights_month",
       null

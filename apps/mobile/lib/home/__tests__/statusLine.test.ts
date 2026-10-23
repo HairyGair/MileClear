@@ -44,6 +44,11 @@ describe("selectStatusLine priority", () => {
     expect(s.tap).toBe("live_trip");
   });
 
+  it("a km driver's live trip is in km", () => {
+    const s = selectStatusLine(withIn({ recording: { miles: 3.1, elapsedMs: 6 * 60_000, mode: "auto" }, unit: "km" }));
+    expect(s.title).toBe("Recording · 5.0 km · 6 min");
+  });
+
   it("a blocker beats sync, pause, off, low power, setup and the recovered note", () => {
     const s = selectStatusLine(
       withIn({

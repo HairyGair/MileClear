@@ -7,6 +7,7 @@
 import type { BlockerId } from "../dashboardMessages";
 import { selectStatusLine, syncFailedTitle, type StatusKind, type StatusLine } from "../home/statusLine";
 import { routeText, whenLabel, milesText, type LastTripData } from "../home/lastTrip";
+import type { DistanceUnit } from "@mileclear/shared";
 
 /** How a check row is drawn. ok = green tick, bad = red, warn = amber, neutral = grey. */
 export type CheckLook = "ok" | "warn" | "bad" | "neutral";
@@ -46,6 +47,8 @@ export interface RecordingCheckInputs {
   setup: { done: number; total: number } | null;
   /** A trip is being recorded right now. */
   recording: { miles: number; elapsedMs: number; mode: "auto" | "quick" } | null;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }
 
 /**
@@ -65,6 +68,7 @@ export function recordingStatus(i: RecordingCheckInputs): StatusLine {
     platform: i.platform,
     setup: i.setup,
     recovered: null,
+    unit: i.unit,
   });
 }
 
@@ -98,6 +102,8 @@ export function lastTripCheck(args: {
   totalTrips: number;
   loading: boolean;
   now: number;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }): CheckRow {
   if (!args.trip) {
     if (args.loading) {
@@ -119,7 +125,10 @@ export function lastTripCheck(args: {
     id: "last_trip",
     look: "ok",
     title: `Last trip: ${when}`,
-    hint: route === "Route not recorded" ? milesText(t.distanceMiles) : `${milesText(t.distanceMiles)}, ${route}`,
+    hint:
+      route === "Route not recorded"
+        ? milesText(t.distanceMiles, args.unit)
+        : `${milesText(t.distanceMiles, args.unit)}, ${route}`,
     action: null,
     tap: "trips",
   };

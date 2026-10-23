@@ -2,7 +2,7 @@
 // numbers come from the same endpoints the screens behind the doors use, so a
 // door can never say something its screen contradicts.
 
-import { formatPence } from "@mileclear/shared";
+import { distanceIn, formatPence, type DistanceUnit } from "@mileclear/shared";
 import { milesFigure } from "./hero";
 import type { HomePersona } from "./persona";
 
@@ -31,6 +31,12 @@ function milesWord(n: number): string {
   return round1(n) === 1 ? "mile" : "miles";
 }
 
+/** Driving distance in the driver's unit: "182 miles" / "293 km". A claim is never this. */
+function driveText(miles: number, unit: DistanceUnit, short = false): string {
+  if (unit === "km") return `${milesFigure(distanceIn(miles, unit))} km`;
+  return `${milesFigure(miles)} ${short ? "mi" : milesWord(miles)}`;
+}
+
 /** "up 12%" / "down 8%" for a Pro driver; null when free, unknown or flat. */
 export function changePhrase(percent: number | null | undefined, isPro: boolean): string | null {
   if (!isPro || percent == null || !Number.isFinite(percent)) return null;
@@ -55,13 +61,16 @@ export function insightsDoorText(args: {
   thisWeek: WeekRecapLike | null;
   isPro: boolean;
   totalTrips: number;
+  /** Distances in Settings. Default miles. */
+  unit?: DistanceUnit;
 }): string | null {
   const { mode, persona, thisWeek, lastWeek, isPro } = args;
+  const unit = args.unit ?? "miles";
   if (args.totalTrips === 0) return null;
   const claimDriver = mode === "work" && persona !== "company" && persona !== "personal";
 
   if (args.endOfWeek && lastWeek && lastWeek.totalTrips > 0) {
-    const bits = [`${milesFigure(lastWeek.totalMiles)} mi`];
+    const bits = [driveText(lastWeek.totalMiles, unit, true)];
     if (claimDriver && lastWeek.deductionPence > 0) bits.push(`${formatPence(lastWeek.deductionPence)} claim`);
     return `Last week: ${bits.join(", ")}. See your week`;
   }
@@ -79,9 +88,9 @@ export function insightsDoorText(args: {
       const d = new Date(thisWeek.longestTripDate);
       if (!Number.isNaN(d.getTime())) day = ` on ${WEEKDAYS[d.getDay()]}`;
     }
-    const miles = `${milesFigure(thisWeek.totalMiles)} ${milesWord(thisWeek.totalMiles)}`;
+    const miles = driveText(thisWeek.totalMiles, unit);
     return longest > 0 && thisWeek.totalTrips > 1
-      ? `This week: ${miles}, longest ${milesFigure(longest)} mi${day}`
+      ? `This week: ${miles}, longest ${driveText(longest, unit, true)}${day}`
       : `This week: ${miles}, ${thisWeek.totalTrips} ${tripsWord(thisWeek.totalTrips)}`;
   }
 
@@ -90,7 +99,7 @@ export function insightsDoorText(args: {
   if (claimDriver && thisWeek.deductionPence > 0) {
     text = `This week: ${trips}, ${formatPence(thisWeek.deductionPence)} claim built`;
   } else {
-    text = `This week: ${trips}, ${milesFigure(thisWeek.totalMiles)} ${milesWord(thisWeek.totalMiles)}`;
+    text = `This week: ${trips}, ${driveText(thisWeek.totalMiles, unit)}`;
   }
   const change = changePhrase(thisWeek.change?.totalMilesPercent, isPro);
   return change ? `${text}, ${change} on last week` : text;
@@ -104,7 +113,7 @@ export function insightsDoorText(args: {
 export function doorKeyFigure(text: string): { before: string; figure: string; after: string } | null {
   const m =
     /£[\d,]+(?:\.\d+)?/.exec(text) ??
-    /\b\d[\d,]*(?:\.\d+)?(?:p\b|\s(?:days?|miles?|mi|trips?)\b)/.exec(text);
+    /\b\d[\d,]*(?:\.\d+)?(?:p\b|\s(?:days?|miles?|mi|km|trips?)\b)/.exec(text);
   if (!m) return null;
   return { before: text.slice(0, m.index), figure: m[0], after: text.slice(m.index + m[0].length) };
 }
@@ -145,14 +154,17 @@ export function badgesDoorText(next: { label: string; progressText: string } | n
 
 /** "Diesel 139.9p at Tesco Silksworth, 1.2 mi". Null for EV drivers or no data. */
 export function fuelDoorText(
-  data: { kind: string; fuel?: string; stationName?: string; pencePerLitre?: number; distanceMiles?: number } | null
+  data: { kind: string; fuel?: string; stationName?: string; pencePerLitre?: number; distanceMiles?: number } | null,
+  unit: DistanceUnit = "miles"
 ): string | null {
   if (!data || data.kind !== "fuel") return null;
   if (!data.stationName || typeof data.pencePerLitre !== "number") return null;
   const fuel = data.fuel === "diesel" ? "Diesel" : "Petrol";
   const p = Math.round(data.pencePerLitre * 10) / 10;
   const dist =
-    typeof data.distanceMiles === "number" ? `, ${round1(data.distanceMiles).toFixed(1)} mi` : "";
+    typeof data.distanceMiles === "number"
+      ? `, ${round1(distanceIn(data.distanceMiles, unit)).toFixed(1)} ${unit === "km" ? "km" : "mi"}`
+      : "";
   return `${fuel} ${p}p at ${data.stationName}${dist}`;
 }
 

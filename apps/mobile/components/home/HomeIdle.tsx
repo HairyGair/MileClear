@@ -57,6 +57,7 @@ import {
 import { resolveShiftSuggestion } from "../../lib/api/shifts";
 import { useMode } from "../../lib/mode/context";
 import { useUser } from "../../lib/user/context";
+import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { insightsCache } from "../../lib/insights/requestCache";
 import { stampInsightsLink } from "../../lib/insights/linkParams";
 import { selectAsk, proAskLine, type AskId } from "../../lib/home/ask";
@@ -108,6 +109,7 @@ export function HomeIdle(p: Props) {
   const isPremium = useIsPremium();
   const { showPaywall } = usePaywall();
   const { width, fontScale } = useWindowDimensions();
+  const { unit } = useDistanceUnit();
 
   const isWork = mode === "work";
   const persona = homePersona({ isPersonal, isCompanyDriver, workType: user?.workType });
@@ -142,8 +144,9 @@ export function HomeIdle(p: Props) {
         previousYear: p.previousYear,
         week: data.week,
         month: data.month,
+        unit,
       }),
-    [persona, p.stats, p.previousYear, data.week, data.month]
+    [persona, p.stats, p.previousYear, data.week, data.month, unit]
   );
   // Home only draws once the dashboard's first load has finished, so no stats
   // (or no month for Personal) means the request failed, usually no signal.
@@ -164,8 +167,9 @@ export function HomeIdle(p: Props) {
         unsortedCount: lastTrip.unsortedCount,
         missedCount: lastTrip.missedCount,
         now: Date.now(),
+        unit,
       }),
-    [mode, personalOnlyDriver, lastTrip.trip, totalTrips, lastTrip.unsortedCount, lastTrip.missedCount]
+    [mode, personalOnlyDriver, lastTrip.trip, totalTrips, lastTrip.unsortedCount, lastTrip.missedCount, unit]
   );
   const recentTrip =
     !!lastTrip.trip &&
