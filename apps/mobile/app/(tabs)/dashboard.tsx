@@ -1619,9 +1619,9 @@ export default function DashboardScreen() {
                 <View style={s.pbBadge}>
                   <Text style={s.pbText}>
                     {scorecard.isPersonalBestMiles && scorecard.isPersonalBestTrips
-                      ? "New record - Miles & Trips"
+                      ? units.isKm ? "New record - Distance & Trips" : "New record - Miles & Trips"
                       : scorecard.isPersonalBestMiles
-                        ? "New record - Most Miles"
+                        ? units.isKm ? "New record - Most Distance" : "New record - Most Miles"
                         : "New record - Most Trips"}
                   </Text>
                 </View>
