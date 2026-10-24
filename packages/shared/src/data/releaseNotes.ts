@@ -131,6 +131,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "New drivers see their first trips and what they could claim on Home in their first two weeks",
       "Didn't turn on notifications at the start? You're asked once more after your first trip",
       "Android: the app no longer says notifications are refused when you can still turn them on",
+      // Reached every phone by OTA on 22, 23 and 24 Oct 2026.
+      "Linked a bank? Mark an app that pays you a week behind, and its payouts count in the week you did the work",
+      "Distances in kilometres: choose Miles or Kilometres in Settings > Distances. Tax figures and downloads stay in miles",
+      "Filter your trips by client, and download a trip report or trips CSV for just one client",
+      "Link your bank shows which banks work before you upgrade, and you can tell us if yours isn't there",
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
@@ -1070,6 +1075,10 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
       "The app no longer says notifications are refused when you can still turn them on",
       "Newest trip first: an option in Settings to show each day's latest trip at the top",
       "Saved places: name a suggested place yourself",
+      "Linked a bank? Mark an app that pays you a week behind, and its payouts count in the week you did the work",
+      "Distances in kilometres: choose Miles or Kilometres in Settings > Distances. Tax figures and downloads stay in miles",
+      "Filter your trips by client, and download a trip report or trips CSV for just one client",
+      "Link your bank shows which banks work before you upgrade, and you can tell us if yours isn't there",
     ],
   },
   {
