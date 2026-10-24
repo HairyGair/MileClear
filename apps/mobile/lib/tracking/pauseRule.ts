@@ -118,6 +118,12 @@ export function pausedRowText(until: number, now: number): string {
   return `Recording paused until ${pauseEndPhrase(until, now)}`;
 }
 
+/** The same line for Only record in work hours' own pause (24 Oct 2026): a
+ *  routine, not a warning, so it says when recording starts again. */
+export function workHoursRowText(until: number, now: number): string {
+  return `Work hours only. Recording from ${pauseEndPhrase(until, now)}`;
+}
+
 export interface PausePromptCopy {
   title: string;
   message: string;

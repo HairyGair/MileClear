@@ -99,6 +99,9 @@ function askWithAlert(copy: PausePromptCopy): Promise<"resume" | "keep"> {
 const defaultDeps: PausePromptDeps = {
   getPauseUntil: async () => {
     const m = await import("./detection");
+    // Not for Only record in work hours' own pause: asking "Turn it back on?"
+    // before every evening Start Trip would nag, and Start Trip records anyway.
+    if ((await m.getDrivePauseReason()) === "work_hours") return null;
     return m.getDrivePauseUntil();
   },
   now: () => Date.now(),

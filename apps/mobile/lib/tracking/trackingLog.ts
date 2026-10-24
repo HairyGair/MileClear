@@ -59,6 +59,7 @@ export const TRACKING_LOG_PATTERNS: readonly string[] = [
   "detection_using_native_engine",
   "detection_off_discarded",
   "pause_discarded",
+  "work_hours_paused",
   "drive_paused",
   "drive_resumed",
   // Motion and the starts it leads to

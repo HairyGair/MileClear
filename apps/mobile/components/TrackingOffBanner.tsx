@@ -31,7 +31,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { colors, fonts } from "../lib/theme";
-import { getDrivePauseUntil, resumeDriveDetection } from "../lib/tracking/detection";
+import { getDrivePauseReason, getDrivePauseUntil, resumeDriveDetection } from "../lib/tracking/detection";
 import { readAutomaticTrips, setAutomaticTrips } from "../lib/tracking/automaticTrips";
 import { isPauseActive } from "../lib/tracking/pauseRule";
 import { PauseRecordingRow } from "./PauseRecordingRow";
@@ -47,13 +47,15 @@ async function readActivePause(): Promise<number | null> {
 export function TrackingOffBanner({ hidePause = false }: { hidePause?: boolean } = {}) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [pausedUntil, setPausedUntil] = useState<number | null>(null);
+  const [workHours, setWorkHours] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => {
-    Promise.all([readAutomaticTrips(), readActivePause()])
-      .then(([on, paused]) => {
+    Promise.all([readAutomaticTrips(), readActivePause(), getDrivePauseReason()])
+      .then(([on, paused, reason]) => {
         setEnabled(on);
         setPausedUntil(on ? paused : null);
+        setWorkHours(reason === "work_hours");
       })
       .catch(() => {});
   }, []);
@@ -87,7 +89,13 @@ export function TrackingOffBanner({ hidePause = false }: { hidePause?: boolean }
   if (enabled === true && pausedUntil !== null) {
     if (hidePause) return null;
     return (
-      <PauseRecordingRow pausedUntil={pausedUntil} now={Date.now()} onPause={() => {}} onResume={resume} />
+      <PauseRecordingRow
+        pausedUntil={pausedUntil}
+        workHours={workHours}
+        now={Date.now()}
+        onPause={() => {}}
+        onResume={resume}
+      />
     );
   }
 

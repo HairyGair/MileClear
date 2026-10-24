@@ -96,6 +96,15 @@ describe("selectStatusLine priority", () => {
     expect(s.red).toBe(false);
   });
 
+  it("a work-hours pause says when recording starts, without a warning (24 Oct 2026)", () => {
+    const s = selectStatusLine(withIn({ pausedUntil: new Date(2026, 9, 10, 18, 0).getTime(), pausedForWorkHours: true }));
+    expect(s.kind).toBe("paused");
+    expect(s.look).toBe("neutral");
+    expect(s.title).toBe("Work hours only. Recording from 18:00 today");
+    expect(s.action).toBe("Record now");
+    expect(s.tap).toBe("recording_sheet");
+  });
+
   it("a pause that has ended is not paused", () => {
     expect(selectStatusLine(withIn({ pausedUntil: NOW - 1 })).kind).toBe("fine");
   });

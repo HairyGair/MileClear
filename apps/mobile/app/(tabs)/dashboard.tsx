@@ -271,6 +271,7 @@ export default function DashboardScreen() {
   // Pause with an end (16 Sep 2026): epoch ms while paused, else null. And
   // when the permanent Settings switch went off, for the "off since" card.
   const [pausedUntil, setPausedUntil] = useState<number | null>(null);
+  const [pausedForWorkHours, setPausedForWorkHours] = useState(false);
   const [detectionOffSince, setDetectionOffSince] = useState<number | null>(null);
   // Low Power Mode (iPhone) / Battery Saver (Android), live. iOS cuts
   // background location in it, so drives go unrecorded without a word.
@@ -280,6 +281,7 @@ export default function DashboardScreen() {
     import("../../lib/tracking/detection")
       .then(async (m) => {
         setPausedUntil(await m.getDrivePauseUntil());
+        setPausedForWorkHours((await m.getDrivePauseReason()) === "work_hours");
         const enabled = await m.isDriveDetectionEnabled();
         const offAt = await m.getDriveDetectionOffAt();
         setDetectionOffSince(!enabled && (await m.getDrivePauseUntil()) === null ? (offAt ?? Date.now()) : null);
@@ -878,6 +880,7 @@ export default function DashboardScreen() {
       : null,
     lowPowerMode: dashboardMessages.notice === "low_power_mode",
     pausedUntil,
+    pausedForWorkHours,
     automaticOff: detectionOffSince !== null,
     recovered:
       !dqBannerSeen && dqImprovement

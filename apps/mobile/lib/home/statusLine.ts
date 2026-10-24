@@ -12,7 +12,7 @@
 // Pure, so the order is proven without booting the native stack.
 
 import type { BlockerId } from "../dashboardMessages";
-import { pausedRowText } from "../tracking/pauseRule";
+import { pausedRowText, workHoursRowText } from "../tracking/pauseRule";
 import { distanceIn, distanceUnitLabel, type DistanceUnit } from "@mileclear/shared";
 
 export type StatusKind =
@@ -50,6 +50,8 @@ export interface StatusInputs {
   failedSyncAllTrips?: boolean;
   /** Epoch ms when a pause ends, or null. */
   pausedUntil: number | null;
+  /** The pause is Only record in work hours' own. Omitted means no. */
+  pausedForWorkHours?: boolean;
   now: number;
   /** The permanent Automatic trips switch is off (a timed pause is not this). */
   automaticOff: boolean;
@@ -155,6 +157,12 @@ export function selectStatusLine(i: StatusInputs): StatusLine {
       "sync_status",
       { action: "Retry", icon: "cloud-offline-outline", red: true }
     );
+  }
+  if (i.pausedUntil !== null && i.pausedUntil > i.now && i.pausedForWorkHours) {
+    return make("paused", "neutral", workHoursRowText(i.pausedUntil, i.now), "recording_sheet", {
+      action: "Record now",
+      icon: "time-outline",
+    });
   }
   if (i.pausedUntil !== null && i.pausedUntil > i.now) {
     return make("paused", "warning", pausedTitle(i.pausedUntil, i.now), "recording_sheet", {

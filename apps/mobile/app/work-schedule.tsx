@@ -61,6 +61,15 @@ function formatTimeDisplay(str: string): string {
   return `${h12}:${m}${ampm}`;
 }
 
+/** Start or end the work-hours pause now, after the switch or the hours
+ *  change, rather than at the next drive. Never throws. */
+async function applyRecordOnly(): Promise<void> {
+  try {
+    const { applyWorkHoursRecording } = await import("../lib/tracking/detection");
+    await applyWorkHoursRecording("work_hours_screen", true);
+  } catch {}
+}
+
 // ── Component ──────────────────────────────────────────────────────
 
 export default function WorkScheduleScreen() {
@@ -68,6 +77,7 @@ export default function WorkScheduleScreen() {
   const [autoClassify, setAutoClassify] = useState(true);
   const [autoMode, setAutoMode] = useState(false);
   const [reminder, setReminder] = useState(true);
+  const [recordOnly, setRecordOnly] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Time picker state
@@ -79,11 +89,12 @@ export default function WorkScheduleScreen() {
 
   useEffect(() => {
     (async () => {
-      const [schedule, ac, am, rem] = await Promise.all([
+      const [schedule, ac, am, rem, ro] = await Promise.all([
         getSchedule(),
         getScheduleSetting("schedule_auto_classify"),
         getScheduleSetting("schedule_auto_mode"),
         getScheduleSetting("schedule_reminder"),
+        getScheduleSetting("schedule_record_only"),
       ]);
 
       const map = new Map<number, ScheduleSlot>();
@@ -94,6 +105,7 @@ export default function WorkScheduleScreen() {
       setAutoClassify(ac);
       setAutoMode(am);
       setReminder(rem);
+      setRecordOnly(ro);
       setLoading(false);
     })();
   }, []);
@@ -121,6 +133,7 @@ export default function WorkScheduleScreen() {
         setSlots(next);
       }
       scheduleShiftReminders();
+      void applyRecordOnly();
     },
     [slots]
   );
@@ -136,6 +149,7 @@ export default function WorkScheduleScreen() {
       const next = new Map(slots);
       next.set(day, updated);
       setSlots(next);
+      void applyRecordOnly();
     },
     [slots]
   );
@@ -190,6 +204,7 @@ export default function WorkScheduleScreen() {
       const next = new Map(slots);
       next.set(editingDay, updated);
       setSlots(next);
+      void applyRecordOnly();
 
       if (Platform.OS === "ios") {
         setPickerDate(date);
@@ -213,6 +228,10 @@ export default function WorkScheduleScreen() {
       if (key === "schedule_reminder") {
         setReminder(value);
         scheduleShiftReminders();
+      }
+      if (key === "schedule_record_only") {
+        setRecordOnly(value);
+        void applyRecordOnly();
       }
     },
     []
@@ -360,6 +379,29 @@ export default function WorkScheduleScreen() {
               />
             )}
           </>
+        )}
+
+        {/* Only record in work hours (Ben Turner, 24 Oct 2026). Free, like
+            Pause recording: it is about not recording, not automation. */}
+        {hasAnySlots && (
+          <View style={[s.settingCard, { marginTop: 24 }]}>
+            <View style={s.settingRow}>
+              <View style={s.settingBody}>
+                <Text style={s.settingLabel}>Only record in work hours</Text>
+                <Text style={s.settingHint}>
+                  Drives outside these hours aren't recorded. Recording starts half an hour before your hours and
+                  stops half an hour after. You can still add trips by hand.
+                </Text>
+              </View>
+              <Switch
+                value={recordOnly}
+                onValueChange={(v) => handleSettingToggle("schedule_record_only", v)}
+                trackColor={{ false: "#374151", true: "rgba(245, 166, 35, 0.4)" }}
+                thumbColor={recordOnly ? AMBER : TEXT_2}
+                accessibilityLabel="Only record drives during work hours"
+              />
+            </View>
+          </View>
         )}
 
         {/* Schedule Settings — auto-classify rules + auto-mode-switch +
