@@ -169,6 +169,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I save my home address?", area: "vehicles_and_places", id: "saved-places", expect: [/saved places/i] },
   { q: "Do saved places start trips?", area: "vehicles_and_places", id: "saved-places", expect: [/(don't|do not|doesn't) start/i] },
   { q: "How do I set my working hours?", area: "vehicles_and_places", id: "work-schedule", expect: [/work hours/i] },
+  { q: "Can the app tell which car I'm in from its Bluetooth?", area: "vehicles_and_places", id: "car-bluetooth", expect: [/bluetooth/i, /main car/i] },
 
   // Pro and billing
   { q: "What do I get with Pro?", area: "pro_and_billing", id: "free-vs-pro", expect: [/downloads|export/i] },

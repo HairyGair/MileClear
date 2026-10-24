@@ -1,6 +1,9 @@
 {
-  "platforms": ["apple"],
+  "platforms": ["apple", "android"],
   "apple": {
     "modules": ["CarAudioModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.caraudio.CarAudioModule"]
   }
 }

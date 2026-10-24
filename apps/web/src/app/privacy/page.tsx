@@ -124,6 +124,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Fuel type (petrol, diesel, electric, hybrid)</li>
                   <li className="legal__list-item">Registration plate (used for DVLA lookup to confirm vehicle details)</li>
                   <li className="legal__list-item">Miles per gallon (MPG) or efficiency rating</li>
+                  <li className="legal__list-item">If you choose to link a car&apos;s Bluetooth: the name your car calls itself (for example &ldquo;MY FORD&rdquo;), stored with that car so MileClear can pick the right car for a trip</li>
                 </ul>
               </div>
 

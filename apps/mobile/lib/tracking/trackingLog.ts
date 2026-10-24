@@ -60,6 +60,7 @@ export const TRACKING_LOG_PATTERNS: readonly string[] = [
   "detection_off_discarded",
   "pause_discarded",
   "work_hours_paused",
+  "car_from_bluetooth",
   "drive_paused",
   "drive_resumed",
   // Motion and the starts it leads to

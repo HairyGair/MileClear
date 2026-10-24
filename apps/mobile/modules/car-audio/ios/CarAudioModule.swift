@@ -6,6 +6,11 @@ import AVFoundation
 // the car is the earliest, most reliable signal that a drive is starting — it
 // beats CoreMotion and geofence latency, which is what loses short trips.
 //
+// It also reads which car it is: the output's portName is the name the car
+// gives itself over Bluetooth (e.g. "MY FORD") and uid is stable per device.
+// No Bluetooth permission is involved; this is the audio route the system
+// already chose (docs/car-bluetooth-plan-oct2026.md).
+//
 // Note: route-change notifications are delivered while the app is running. Full
 // background coverage may need an active audio session; this module is the
 // foreground/connected-fast-path trigger we iterate on.
@@ -17,7 +22,24 @@ public class CarAudioModule: Module {
 
     // Synchronous check of the current output route.
     Function("isConnectedToCar") { () -> Bool in
-      return CarAudioModule.routeIsCar(AVAudioSession.sharedInstance().currentRoute)
+      return CarAudioModule.carOutput(AVAudioSession.sharedInstance().currentRoute) != nil
+    }
+
+    // The car output the phone is on now, or nil. Same shape as the
+    // onCarConnected payload: { name, id, kind }.
+    Function("currentCarAudio") { () -> [String: Any]? in
+      guard let output = CarAudioModule.carOutput(AVAudioSession.sharedInstance().currentRoute) else {
+        return nil
+      }
+      return CarAudioModule.payload(output)
+    }
+
+    // Every car output on the route now, best first; currentCarAudio is the
+    // first. JS drops nameless ones and duplicates.
+    Function("currentCarAudioOutputs") { () -> [[String: Any]] in
+      return CarAudioModule.carOutputs(AVAudioSession.sharedInstance().currentRoute).map {
+        CarAudioModule.payload($0)
+      }
     }
 
     // Register the route-change observer only while JS is listening.
@@ -51,23 +73,50 @@ public class CarAudioModule: Module {
           reason == .newDeviceAvailable || reason == .oldDeviceUnavailable else {
       return
     }
-    let isCar = CarAudioModule.routeIsCar(AVAudioSession.sharedInstance().currentRoute)
-    if isCar {
-      self.sendEvent("onCarConnected", [:])
+    if let output = CarAudioModule.carOutput(AVAudioSession.sharedInstance().currentRoute) {
+      self.sendEvent("onCarConnected", CarAudioModule.payload(output))
     } else {
       self.sendEvent("onCarDisconnected", [:])
     }
   }
 
-  private static func routeIsCar(_ route: AVAudioSessionRouteDescription) -> Bool {
-    for output in route.outputs {
-      switch output.portType {
-      case .carAudio, .bluetoothA2DP, .bluetoothHFP:
-        return true
-      default:
-        continue
-      }
+  // Every car output on the route, best first: CarPlay (unambiguously a car),
+  // then Bluetooth music, then Bluetooth calls. A route normally has a single
+  // output, so the order only matters in rare multi-output routes.
+  private static func carOutputs(_ route: AVAudioSessionRouteDescription) -> [AVAudioSessionPortDescription] {
+    let ranked: [AVAudioSession.Port] = [.carAudio, .bluetoothA2DP, .bluetoothHFP]
+    var result: [AVAudioSessionPortDescription] = []
+    for type in ranked {
+      result.append(contentsOf: route.outputs.filter { $0.portType == type })
     }
-    return false
+    return result
+  }
+
+  private static func carOutput(_ route: AVAudioSessionRouteDescription) -> AVAudioSessionPortDescription? {
+    return carOutputs(route).first
+  }
+
+  private static func payload(_ output: AVAudioSessionPortDescription) -> [String: Any] {
+    let name = output.portName.trimmingCharacters(in: .whitespacesAndNewlines)
+    return [
+      // JS drops a payload with an empty name (contract: never empty).
+      "name": name,
+      "id": stableId(output.uid) ?? NSNull(),
+      "kind": output.portType == .carAudio ? "carplay" : "bluetooth",
+    ]
+  }
+
+  // Bluetooth uids look like "00:11:22:33:44:55-tacl" (music) and
+  // "00:11:22:33:44:55-tsco" (calls): the same car with two suffixes. Keep
+  // only the address so both profiles give one id. Anything else (CarPlay)
+  // is passed through unchanged.
+  private static func stableId(_ uid: String) -> String? {
+    let trimmed = uid.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty { return nil }
+    let mac = "^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"
+    if let range = trimmed.range(of: mac, options: .regularExpression) {
+      return String(trimmed[range]).uppercased().replacingOccurrences(of: "-", with: ":")
+    }
+    return trimmed
   }
 }

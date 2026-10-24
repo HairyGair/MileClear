@@ -10,12 +10,15 @@
 // and falls back to its own default.
 
 import { getDatabase } from "../db/index";
+import { cacheCarLinks, forgetCarBluetooth } from "./carBluetooth";
 
 const KEY = "default_vehicle";
 
 interface CarLike {
   id: string;
   isPrimary?: boolean | null;
+  bluetoothName?: string | null;
+  bluetoothId?: string | null;
 }
 
 /** The primary car, else the only car, else null (2+ cars, none primary). */
@@ -36,6 +39,8 @@ export async function rememberCars(cars: CarLike[]): Promise<void> {
   } catch {
     /* best effort */
   }
+  // The car Bluetooth links, read at finalize the same way (carBluetooth.ts).
+  await cacheCarLinks(cars);
 }
 
 /** On sign out, so the next driver on the phone never gets this one's car. */
@@ -46,6 +51,7 @@ export async function forgetCars(): Promise<void> {
   } catch {
     /* best effort */
   }
+  await forgetCarBluetooth();
 }
 
 /**

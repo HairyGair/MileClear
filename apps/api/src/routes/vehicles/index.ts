@@ -75,6 +75,9 @@ const createVehicleSchema = z.object({
   vehicleType: z.enum(VEHICLE_TYPES),
   registrationPlate: regPlateField,
   bluetoothName: z.string().max(100).optional(),
+  // Car Bluetooth link: "name:<name>" when the phone gives the car no id
+  // (bluetoothIdFor in apps/mobile/lib/vehicles/carBluetooth.ts).
+  bluetoothId: z.string().min(1).max(100).nullable().optional(),
   estimatedMpg: z.number().positive().optional(),
   milesPerKwh: z.number().positive().max(20).optional(),
   isPrimary: z.boolean().default(true),
@@ -98,6 +101,7 @@ const updateVehicleSchema = z.object({
     .nullable()
     .optional(),
   bluetoothName: z.string().max(100).nullable().optional(),
+  bluetoothId: z.string().min(1).max(100).nullable().optional(),
   estimatedMpg: z.number().positive().nullable().optional(),
   milesPerKwh: z.number().positive().max(20).nullable().optional(),
   isPrimary: z.boolean().optional(),
@@ -365,6 +369,10 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const plateChanged =
       data.registrationPlate !== undefined &&
       (data.registrationPlate || null) !== (existing.registrationPlate || null);
+
+    // Clearing the Bluetooth name unlinks the car: a link with no name could
+    // never match anything, and must not linger as a half link.
+    if (data.bluetoothName === null || data.bluetoothName === "") data.bluetoothId = null;
 
     const vehicle = await prisma.vehicle.update({
       where: { id },

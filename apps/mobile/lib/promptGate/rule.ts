@@ -12,6 +12,7 @@ export type PromptId =
   | "work_explainer"
   | "notifications"
   | "saved_places"
+  | "which_car"
   | "rating";
 
 // Highest first. Why this order:
@@ -28,13 +29,16 @@ export type PromptId =
 //    once a trip is saved, so it can wait an app open for the explainer.
 // 5. saved_places: names stops the driver already visits. Needs 10+ trips, so
 //    it is never the first thing a new driver needs.
-// 6. rating: asks for something for us, not the driver. Always last.
+// 6. which_car: "Which car is MY FORD?" (car Bluetooth). Only for drivers with
+//    2+ cars; the trip still saved on the main car, so nothing is lost waiting.
+// 7. rating: asks for something for us, not the driver. Always last.
 export const PROMPT_PRIORITY: readonly PromptId[] = [
   "location_primer",
   "whats_new",
   "work_explainer",
   "notifications",
   "saved_places",
+  "which_car",
   "rating",
 ];
 

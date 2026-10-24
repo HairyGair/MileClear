@@ -3192,8 +3192,27 @@ async function _finalizeAutoTripInner(): Promise<void> {
     if (!merged) {
     // The primary car (else the only car), so a trip moved to a second car
     // doesn't drag the ones after it there (lib/vehicles/defaultCar.ts).
-    const { carForRecordedTrip } = await import("../vehicles/defaultCar");
-    const vehicleId = await carForRecordedTrip();
+    // A car linked to the Bluetooth the phone was on during the drive comes
+    // first (lib/vehicles/carBluetooth.ts). Best effort, local reads only,
+    // capped at two seconds; anything else keeps today's choice.
+    let vehicleId: string | undefined;
+    try {
+      const { bluetoothCarForTrip } = await import("../vehicles/carBluetooth");
+      const fromBluetooth = await bluetoothCarForTrip(
+        new Date(first.recorded_at).getTime(),
+        new Date(last.recorded_at).getTime()
+      );
+      if (fromBluetooth) {
+        vehicleId = fromBluetooth.vehicleId;
+        logDetectionEvent("car_from_bluetooth", { ...fromBluetooth }).catch(() => {});
+      }
+    } catch {
+      // the trip goes on the default car below
+    }
+    if (!vehicleId) {
+      const { carForRecordedTrip } = await import("../vehicles/defaultCar");
+      vehicleId = await carForRecordedTrip();
+    }
 
     const wasAutoClassified = classification !== "unclassified";
     const roundedDistance = Math.round(totalDistance * 100) / 100;

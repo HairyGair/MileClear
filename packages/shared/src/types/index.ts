@@ -492,6 +492,9 @@ export interface Vehicle {
   vehicleType: VehicleType;
   registrationPlate: string | null;
   bluetoothName: string | null;
+  /** Set only when the driver linked the car's Bluetooth from the phone; a
+   *  bluetoothName without it is an old typed-in name and is not a link. */
+  bluetoothId: string | null;
   estimatedMpg: number | null;
   actualMpg: number | null;
   /** EV energy efficiency, miles per kWh — the electric analogue of MPG, used

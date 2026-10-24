@@ -52,6 +52,8 @@ import { formatPence, filterTraceOutliers, MAX_FREE_SAVED_LOCATIONS } from "@mil
 import { maybeRequestReview } from "../../lib/rating/index";
 import { maybeSuggestSavedPlaces } from "../../lib/savedPlacesPrompt/index";
 import { requestPromptSlot } from "../../lib/promptGate/index";
+import { WhichCarSheet } from "../../components/vehicles/WhichCarSheet";
+import { pendingCarQuestion, type CarQuestion } from "../../lib/vehicles/carBluetooth";
 import { WhatsNewSheet } from "../../components/home/WhatsNewSheet";
 import { useMode } from "../../lib/mode/context";
 import { LiveMapTracker } from "../../components/map/LiveMapTracker";
@@ -216,6 +218,8 @@ export default function DashboardScreen() {
 
   // Work mode explainer — shown once on first Work mode visit
   const [showWorkExplainer, setShowWorkExplainer] = useState(false);
+  // "Which car is MY FORD?" Once per Bluetooth name, only with 2+ cars.
+  const [carQuestion, setCarQuestion] = useState<CarQuestion | null>(null);
   const [workExplainerSeen, setWorkExplainerSeen] = useState(true); // default true until loaded
   // Location primer - the one-time blocking explainer shown to users who
   // currently have NO location access at all, so the app is recording
@@ -1311,6 +1315,26 @@ export default function DashboardScreen() {
     }, [loadData, isPremium, refreshPauseState])
   );
 
+  // Waits for the other Home asks to be out of the way rather than stacking a
+  // second pop-up on them; it comes back on a later visit.
+  useEffect(() => {
+    if (loading || vehicles.length < 2 || showWorkExplainer || showLocPrimer || carQuestion) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      (async () => {
+        const q = await pendingCarQuestion();
+        if (!q || cancelled) return;
+        // One pop-up per app open (lib/promptGate); a lost slot asks next open.
+        if (!(await requestPromptSlot("which_car")) || cancelled) return;
+        setCarQuestion(q);
+      })().catch(() => {});
+    }, 6000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [loading, vehicles.length, showWorkExplainer, showLocPrimer, carQuestion]);
+
   useEffect(() => {
     if (activeShift) {
       let tick = 0;
@@ -1997,6 +2021,7 @@ export default function DashboardScreen() {
       {locPrimerModal}
       <WhatsNewSheet />
       {notifAsk.sheet}
+      <WhichCarSheet question={carQuestion} cars={vehicles} onDone={() => setCarQuestion(null)} />
       <HomeIdle
         stats={stats}
         previousYear={previousYear}

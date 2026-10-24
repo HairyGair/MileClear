@@ -1,5 +1,6 @@
-// Car-audio + CLVisit trip-start triggers. Both are independent of CoreMotion
-// (whose latency loses short trips). When either fires, we wake RNBG into
+// Car-audio + CLVisit trip-start triggers. The car-audio connect now only
+// logs which car (carBluetooth.ts); its wake is off, see below. Both are
+// independent of CoreMotion (whose latency loses short trips). When either fires, we wake RNBG into
 // continuous tracking via wakeNativeTracking — the recording still only opens on
 // a real driving-speed fix (the speed backstop), so these never create a false
 // trip; they just get the engine delivering location from the first metre.
@@ -7,10 +8,12 @@
 // Everything here is fail-safe: the native modules are guarded (no-op when the
 // build doesn't include them), and any error is swallowed — this can only help
 // detection, never break it.
+import { Platform } from "react-native";
 import {
   addCarConnectionListener,
   isCarAudioAvailable,
 } from "../../modules/car-audio";
+import { readConnectedCars, recordCarSighting } from "../vehicles/carBluetooth";
 import {
   addVisitListener,
   startVisitMonitoring,
@@ -19,6 +22,10 @@ import {
 } from "../../modules/visit-monitor";
 import { wakeNativeTracking } from "./nativeLocation";
 import { isDriveDetectionEnabled, logDetectionEvent } from "./detection";
+
+// Off: the car-audio module never shipped before, so this wake never ran.
+// Needs Anthony's OK, and would only ever be iPhone.
+const CAR_CONNECT_WAKES_RECORDING = false;
 
 let carUnsub: (() => void) | null = null;
 let visitUnsub: (() => void) | null = null;
@@ -44,8 +51,19 @@ async function handleExternalTrigger(reason: string): Promise<void> {
 /** Arm the car-audio + CLVisit triggers. Idempotent; safe to call repeatedly. */
 export function startCarAndVisitTriggers(): void {
   if (isCarAudioAvailable() && !carUnsub) {
-    carUnsub = addCarConnectionListener(() => {
-      void handleExternalTrigger("car_connected");
+    carUnsub = addCarConnectionListener((out) => {
+      // Note which car (lib/vehicles/carBluetooth.ts), on both phones.
+      try {
+        // The full list when there is one: on Android a speaker connecting
+        // alongside the car must not hide it.
+        const all = readConnectedCars();
+        void recordCarSighting(all.length > 0 ? all : out, "connect");
+      } catch {
+        // never throw out of a native event callback
+      }
+      if (CAR_CONNECT_WAKES_RECORDING && Platform.OS === "ios") {
+        void handleExternalTrigger("car_connected");
+      }
     });
   }
   if (isVisitMonitorAvailable() && !visitUnsub) {

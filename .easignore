@@ -39,6 +39,9 @@ ios/
 # Local Expo module native code must reach the build (1.4.0 Directions).
 !apps/mobile/modules/nav-voice/ios/
 !apps/mobile/modules/nav-voice/android/
+# Car Bluetooth (which car a trip was in), both phones.
+!apps/mobile/modules/car-audio/ios/
+!apps/mobile/modules/car-audio/android/
 
 # Expo
 web-build/

@@ -450,6 +450,12 @@ model Vehicle {
   vehicleType       String
   registrationPlate String?  @db.VarChar(10)
   bluetoothName     String?  @db.VarChar(100)
+  // Car Bluetooth link (24 Oct 2026): what the phone reports for the car's
+  // Bluetooth (iPhone port uid, Android address, "name:<name>" when the
+  // phone gives none), set by "Use the Bluetooth I'm connected to now". A
+  // link counts only when this is set: 42 cars still carry a bluetoothName
+  // typed in for the removed feature, and those never choose a trip's car.
+  bluetoothId       String?  @db.VarChar(100)
   estimatedMpg      Float?
   actualMpg         Float?
   // EV energy efficiency (miles per kWh) — electric analogue of MPG, powers
