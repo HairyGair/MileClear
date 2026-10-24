@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { workHoursPauseUntil, endOfLocalDay, WORK_HOURS_LEAD_MS, type WorkHoursSlot } from "../workHoursRecording";
+import { workHoursPauseUntil, workHoursLastEnd, endOfLocalDay, WORK_HOURS_LEAD_MS, WORK_HOURS_TRAIL_MS, type WorkHoursSlot } from "../workHoursRecording";
 
 // Ben Turner, 24 Oct 2026: works about two hours over lunch.
 const lunch = (day: number, enabled = true): WorkHoursSlot => ({ dayOfWeek: day, startTime: "12:00", endTime: "14:00", enabled });
@@ -46,5 +46,23 @@ describe("workHoursPauseUntil", () => {
 describe("endOfLocalDay", () => {
   it("is the next midnight", () => {
     expect(endOfLocalDay(at(26, 9, 33))).toBe(at(27, 0));
+  });
+});
+
+describe("workHoursLastEnd", () => {
+  it("is when the last hours' trail ended", () => {
+    expect(workHoursLastEnd(WEEKDAYS, at(27, 7))).toBe(at(26, 14) + WORK_HOURS_TRAIL_MS);
+  });
+
+  it("goes back over the weekend", () => {
+    expect(workHoursLastEnd(WEEKDAYS, at(25, 9))).toBe(at(23, 14) + WORK_HOURS_TRAIL_MS);
+  });
+
+  it("skips hours still running or their trail", () => {
+    expect(workHoursLastEnd(WEEKDAYS, at(26, 14, 10))).toBe(at(23, 14) + WORK_HOURS_TRAIL_MS);
+  });
+
+  it("is null with no usable hours", () => {
+    expect(workHoursLastEnd([], at(26, 9))).toBeNull();
   });
 });

@@ -35,7 +35,7 @@ function minutesOf(hhmm: string): number | null {
  *  The screen keeps start before end, so a slot never crosses midnight. */
 function windows(slots: WorkHoursSlot[], now: number): Array<{ start: number; end: number }> {
   const out: Array<{ start: number; end: number }> = [];
-  for (let offset = -1; offset <= 8; offset++) {
+  for (let offset = -8; offset <= 8; offset++) {
     const day = new Date(now);
     day.setHours(0, 0, 0, 0);
     day.setDate(day.getDate() + offset);
@@ -78,4 +78,17 @@ export function endOfLocalDay(now: number): number {
   const d = new Date(now);
   d.setHours(24, 0, 0, 0);
   return d.getTime();
+}
+
+/** When recording last stopped for the hours: the latest end of the hours
+ *  plus the trail that is already past. A work-hours pause's window starts
+ *  here, so the fixes since then are the pause's and a drive from the hours
+ *  is not. Null with no usable hours in the last week. */
+export function workHoursLastEnd(slots: WorkHoursSlot[], now: number): number | null {
+  let last: number | null = null;
+  for (const w of windows(slots, now)) {
+    const stop = w.end + WORK_HOURS_TRAIL_MS;
+    if (stop <= now && (last === null || stop > last)) last = stop;
+  }
+  return last;
 }
