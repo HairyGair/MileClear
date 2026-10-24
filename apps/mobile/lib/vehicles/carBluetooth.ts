@@ -60,6 +60,9 @@ const MASKED_PREFIX = "xx:xx:xx:xx:";
 const ADDRESS = /^(?:[0-9a-fx]{2}:){5}[0-9a-f]{2}$/;
 const LINKS_KEY = "car_links";
 const QUESTION_KEY = "car_question";
+const SNOOZE_KEY = "car_question_snooze_until";
+/** A snoozed question stays away this long, across app opens. */
+export const QUESTION_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const ANSWERED_KEY = "car_question_answered";
 
 // ── Native read (guarded) ───────────────────────────────────────────────
@@ -107,14 +110,23 @@ export function looksLikeACar(out: Pick<CarAudioOutput, "name"> | null | undefin
   return isOutput(out) && !NOT_A_CAR.test(out.name);
 }
 
-/** Every car-like output the phone is on right now, best first. Sync, never throws. */
-export function readConnectedCars(): CarAudioOutput[] {
+/**
+ * Every car-audio output the phone is on right now, best first, with no
+ * name filter: for the link button only, so a head unit that calls itself
+ * "JBL" can still be linked by hand. Sync, never throws.
+ */
+export function readConnectedOutputs(): CarAudioOutput[] {
   try {
     const all = loadCarAudio()?.currentCarAudioOutputs?.();
-    return Array.isArray(all) ? all.filter(looksLikeACar) : [];
+    return Array.isArray(all) ? all.filter(isOutput) : [];
   } catch {
     return [];
   }
+}
+
+/** Every car-like output the phone is on right now, best first. Sync, never throws. */
+export function readConnectedCars(): CarAudioOutput[] {
+  return readConnectedOutputs().filter(looksLikeACar);
 }
 
 /** The car output the phone is on right now, or null. Sync, never throws. */
@@ -242,8 +254,10 @@ function tally(startMs: number, endMs: number, links: CarLink[], sightings: CarS
   if (!validWindow(startMs, endMs)) return out;
   const seen: Array<{ key: string; s: CarSighting; vehicleId: string | null }> = [];
   for (const s of sightings) {
-    if (!looksLikeACar(s) || !counts(startMs, endMs, s)) continue;
+    if (!isOutput(s) || !counts(startMs, endMs, s)) continue;
     const linked = new Set(links.filter((l) => matches(l, s)).map((l) => l.vehicleId));
+    // A name the driver linked by hand counts even if it looks like headphones.
+    if (linked.size === 0 && !looksLikeACar(s)) continue;
     if (linked.size > 1) {
       out.ambiguous = true;
       return out;
@@ -333,13 +347,27 @@ export function unlinkedCarDuring(
 
 // ── Sightings store ─────────────────────────────────────────────────────
 
-/** Log what the phone is connected to. Best effort, never throws. */
+/**
+ * Log what the phone is connected to: car-like names, and any name a car is
+ * linked to (a head unit called "JBL" linked by hand). Headphones are never
+ * stored. Best effort, never throws.
+ */
 export async function recordCarSighting(
   out: CarAudioOutput | CarAudioOutput[] | null,
   source: string
 ): Promise<void> {
   try {
-    const outs = (Array.isArray(out) ? out : [out]).filter((o): o is CarAudioOutput => looksLikeACar(o)).slice(0, 5);
+    let outs = (Array.isArray(out) ? out : [out]).filter(isOutput);
+    if (outs.some((o) => !looksLikeACar(o))) {
+      let links: CarLink[] = [];
+      try {
+        links = (await readLinks()).links;
+      } catch {
+        /* no links: only car-like names */
+      }
+      outs = outs.filter((o) => looksLikeACar(o) || links.some((l) => matches(l, o)));
+    }
+    outs = outs.slice(0, 5);
     if (outs.length === 0) return;
     const now = Date.now();
     const db = await getDatabase();
@@ -369,7 +397,7 @@ export function noteCarOnFix(nowMs: number = Date.now()): void {
     // The native read too runs after the fix handler has moved on.
     setTimeout(() => {
       try {
-        const outs = readConnectedCars();
+        const outs = readConnectedOutputs();
         if (outs.length > 0) void recordCarSighting(outs, "fix");
       } catch {
         /* best effort */
@@ -470,7 +498,7 @@ export async function cacheCarLinks(
 /** On sign out: links, sightings and the question go with the driver. */
 export async function forgetCarBluetooth(): Promise<void> {
   questionSnoozed = false;
-  for (const key of [LINKS_KEY, QUESTION_KEY, ANSWERED_KEY]) {
+  for (const key of [LINKS_KEY, QUESTION_KEY, ANSWERED_KEY, SNOOZE_KEY]) {
     try {
       await deleteKey(key);
     } catch {
@@ -541,19 +569,60 @@ export async function bluetoothCarForTrip(
   }
 }
 
+/**
+ * The car a recorded trip goes on: the Bluetooth answer, else the default
+ * (carForRecordedTrip). A lookup that throws or gives nothing is the default,
+ * exactly as before.
+ */
+export async function chooseRecordedTripCar(
+  bluetooth: () => Promise<BluetoothCarAnswer | null>,
+  fallback: () => Promise<string | undefined>
+): Promise<{ vehicleId: string | undefined; fromBluetooth: BluetoothCarAnswer | null }> {
+  let fromBluetooth: BluetoothCarAnswer | null = null;
+  try {
+    fromBluetooth = await bluetooth();
+  } catch {
+    fromBluetooth = null;
+  }
+  if (fromBluetooth?.vehicleId) return { vehicleId: fromBluetooth.vehicleId, fromBluetooth };
+  return { vehicleId: await fallback(), fromBluetooth: null };
+}
+
+/**
+ * A segment the phone says was in one linked car must not be merged onto a
+ * trip in another car. Only a definite answer blocks: no answer, or a
+ * previous trip with no car, is today's merge rule.
+ */
+export function mergeBlockedByCar(
+  segmentCar: string | null | undefined,
+  recentTripCar: string | null | undefined
+): boolean {
+  return !!segmentCar && !!recentTripCar && segmentCar !== recentTripCar;
+}
+
 // ── "Which car is MY FORD?" ─────────────────────────────────────────────
 
 let questionSnoozed = false;
 
-/** Not now: no question for the rest of this app open (a failed answer, or the sheet dismissed). */
+/**
+ * Not now (a failed answer, or the sheet dismissed): no question for this
+ * app open, nor for 24 hours. Never throws.
+ */
 export async function snoozeCarQuestion(): Promise<void> {
   questionSnoozed = true;
+  try {
+    await writeJson(SNOOZE_KEY, Date.now() + QUESTION_SNOOZE_MS);
+  } catch {
+    /* the in-memory snooze still holds for this app open */
+  }
 }
 
 /** The question to show, or null. Re-checked on read: still 2+ cars, name not linked or answered since. */
 export async function pendingCarQuestion(): Promise<CarQuestion | null> {
   if (questionSnoozed) return null;
   try {
+    const until = await readJson<unknown>(SNOOZE_KEY);
+    if (typeof until === "number" && Date.now() < until) return null;
     const q = await readJson<CarQuestion>(QUESTION_KEY);
     if (!q || typeof q.name !== "string" || !normName(q.name)) return null;
     const { cars, links } = await readLinks();
@@ -580,23 +649,29 @@ export async function pendingCarQuestion(): Promise<CarQuestion | null> {
  * this name. Dismissing the sheet is not an answer: don't call this for it.
  */
 export async function answerCarQuestion(q: CarQuestion, vehicleId: string | null): Promise<void> {
+  let replaced: string | null = null;
   try {
-    if (vehicleId) await linkFromAnswer(q, vehicleId);
+    if (vehicleId) replaced = await linkFromAnswer(q, vehicleId);
   } catch (err) {
-    questionSnoozed = true; // never loops in this app open
+    await snoozeCarQuestion(); // never loops
     throw err;
   }
   try {
+    // The car's old link name too, if this replaced one: otherwise the next
+    // trip on that output (CarPlay vs Bluetooth, say) asks straight back.
     const answered = await readAnswered();
-    if (!answered.map(normName).includes(normName(q.name))) answered.push(q.name.trim());
+    for (const name of [q.name, replaced]) {
+      if (name && !answered.map(normName).includes(normName(name))) answered.push(name.trim());
+    }
     await writeJson(ANSWERED_KEY, answered.slice(-50));
     await deleteKey(QUESTION_KEY);
   } catch {
-    questionSnoozed = true;
+    await snoozeCarQuestion();
   }
 }
 
-async function linkFromAnswer(q: CarQuestion, vehicleId: string): Promise<void> {
+/** Links the chosen car; returns the name of the link it replaced, if any. */
+async function linkFromAnswer(q: CarQuestion, vehicleId: string): Promise<string | null> {
   const out: CarAudioOutput = { name: q.name.trim(), id: q.id, kind: "bluetooth" };
   const { updateVehicle } = await import("../api/vehicles");
   let cache: LinksCache = { cars: 0, links: [] };
@@ -605,6 +680,7 @@ async function linkFromAnswer(q: CarQuestion, vehicleId: string): Promise<void> 
   } catch {
     /* no cache: nothing known to unlink */
   }
+  const previous = cache.links.find((l) => l.vehicleId === vehicleId)?.name ?? null;
   // The chosen car first: if this throws, nothing has changed anywhere.
   await updateVehicle(vehicleId, { bluetoothName: out.name, bluetoothId: bluetoothIdFor(out) });
   const unlinked = new Set<string>();
@@ -628,4 +704,5 @@ async function linkFromAnswer(q: CarQuestion, vehicleId: string): Promise<void> 
   } catch {
     /* the next car list load writes it */
   }
+  return previous && normName(previous) !== normName(out.name) ? previous : null;
 }

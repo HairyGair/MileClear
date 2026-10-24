@@ -13,7 +13,7 @@ import {
   addCarConnectionListener,
   isCarAudioAvailable,
 } from "../../modules/car-audio";
-import { readConnectedCars, recordCarSighting } from "../vehicles/carBluetooth";
+import { readConnectedOutputs, recordCarSighting } from "../vehicles/carBluetooth";
 import {
   addVisitListener,
   startVisitMonitoring,
@@ -56,7 +56,7 @@ export function startCarAndVisitTriggers(): void {
       try {
         // The full list when there is one: on Android a speaker connecting
         // alongside the car must not hide it.
-        const all = readConnectedCars();
+        const all = readConnectedOutputs();
         void recordCarSighting(all.length > 0 ? all : out, "connect");
       } catch {
         // never throw out of a native event callback

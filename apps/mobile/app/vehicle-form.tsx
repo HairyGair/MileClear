@@ -38,6 +38,7 @@ import {
   linkedElsewhere,
   linksFromCars,
   readConnectedCars,
+  readConnectedOutputs,
   type CarAudioOutput,
 } from "../lib/vehicles/carBluetooth";
 import CarBluetoothArt from "../components/vehicles/CarBluetoothArt";
@@ -91,6 +92,8 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
   const supported = isCarBluetoothSupported();
   const [checking, setChecking] = useState(false);
   const [notConnected, setNotConnected] = useState(false);
+  // 3 or more things to pick from: shown as a list in the card, not an alert.
+  const [choices, setChoices] = useState<CarAudioOutput[] | null>(null);
   const store = Platform.OS === "ios" ? "App Store" : "Play Store";
   const mounted = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,28 +135,44 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
 
   const handleUseNow = useCallback(() => {
     setNotConnected(false);
+    setChoices(null);
     setChecking(true);
     // The read is instant; a short beat makes it feel like the phone looked.
     timer.current = setTimeout(() => {
       if (!mounted.current) return;
       setChecking(false);
-      const found = readConnectedCars();
+      const cars = readConnectedCars();
+      // Nothing that looks like a car: offer whatever the phone is on, so a
+      // stereo called "JBL" can still be linked by a driver who says so.
+      const guesses = cars.length === 0 ? readConnectedOutputs() : [];
+      const found = cars.length > 0 ? cars : guesses;
+      const guessing = cars.length === 0 && guesses.length > 0;
       if (found.length === 0) {
         haptic("warning");
         setNotConnected(true);
       } else if (found.length === 1) {
-        confirmLink(found[0]);
-      } else {
-        // Phone is on more than one: let the driver say which is the car.
+        if (!guessing) {
+          confirmLink(found[0]);
+        } else {
+          haptic("light");
+          Alert.alert(`Is ${found[0].name} your car?`, undefined, [
+            { text: "No", style: "cancel" },
+            { text: "Yes", onPress: () => confirmLink(found[0]) },
+          ]);
+        }
+      } else if (found.length === 2) {
         haptic("light");
         Alert.alert(
           "Which one is the car?",
           "Your phone is connected to more than one thing.",
           [
-            ...found.slice(0, 2).map((f) => ({ text: f.name, onPress: () => confirmLink(f) })),
+            ...found.map((f) => ({ text: f.name, onPress: () => confirmLink(f) })),
             { text: "Cancel", style: "cancel" as const },
           ]
         );
+      } else {
+        haptic("light");
+        setChoices(found);
       }
     }, 450);
   }, [confirmLink]);
@@ -226,7 +245,37 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
           {isEditing && unsaved && (
             <Text style={styles.btSteps} accessibilityLiveRegion="polite">Unlinked when you tap Save changes</Text>
           )}
-          <Text style={styles.btSteps}>Sit in the car with the engine on, then tap the button.</Text>
+          {choices ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.btChoiceTitle}>Which one is the car?</Text>
+              {choices.map((c, i) => (
+                <TouchableOpacity
+                  key={`${c.name}-${i}`}
+                  style={styles.btChoice}
+                  onPress={() => {
+                    setChoices(null);
+                    confirmLink(c);
+                  }}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${c.name} is my car`}
+                >
+                  <Ionicons name="bluetooth" size={18} color={AMBER} />
+                  <Text style={styles.btChoiceText} numberOfLines={1}>{c.name}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_2} />
+                </TouchableOpacity>
+              ))}
+              <Button
+                variant="ghost"
+                title="Cancel"
+                size="sm"
+                onPress={() => setChoices(null)}
+                accessibilityLabel="Cancel"
+              />
+            </View>
+          ) : (
+            <Text style={styles.btSteps}>Sit in the car with the engine on, then tap the button.</Text>
+          )}
           {notConnected && (
             <View style={styles.btNotice} accessibilityRole="alert" accessibilityLiveRegion="polite">
               <Ionicons name="information-circle" size={18} color={AMBER} />
@@ -908,6 +957,20 @@ const styles = StyleSheet.create({
   btTitle: { fontSize: 17, fontFamily: fonts.bold, color: colors.text1 },
   btHint: { fontSize: 14, lineHeight: 20, fontFamily: fonts.regular, color: TEXT_2, marginTop: 4 },
   btSteps: { fontSize: 13, lineHeight: 18, fontFamily: fonts.regular, color: TEXT_3, marginTop: 14 },
+  btChoiceTitle: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_2, marginBottom: 8 },
+  btChoice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  btChoiceText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.text1 },
   btNotice: {
     flexDirection: "row",
     alignItems: "flex-start",

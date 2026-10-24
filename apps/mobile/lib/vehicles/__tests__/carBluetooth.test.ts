@@ -47,7 +47,9 @@ import {
   bluetoothIdFor,
   cacheCarLinks,
   carSeenDuring,
+  chooseRecordedTripCar,
   forgetCarBluetooth,
+  mergeBlockedByCar,
   linkedElsewhere,
   linksFromCars,
   looksLikeACar,
@@ -283,6 +285,36 @@ describe("linksFromCars: only cars linked with the button count", () => {
   it("an old typed-in name never chooses the car", () => {
     const links = linksFromCars([{ id: "old", bluetoothName: "MY FORD", bluetoothId: null }]);
     expect(carSeenDuring(START, END, links, [seen(START, "MY FORD")])).toBeNull();
+  });
+});
+
+describe("at finalize", () => {
+  it("chooseRecordedTripCar: the linked car, else the default car on null or a throw", async () => {
+    const fallback = vi.fn(async () => "primary");
+    expect(await chooseRecordedTripCar(async () => ({ vehicleId: "kia", seen: 3 }), fallback)).toEqual({
+      vehicleId: "kia",
+      fromBluetooth: { vehicleId: "kia", seen: 3 },
+    });
+    expect(fallback).not.toHaveBeenCalled();
+    expect(await chooseRecordedTripCar(async () => null, fallback)).toEqual({ vehicleId: "primary", fromBluetooth: null });
+    expect(
+      await chooseRecordedTripCar(async () => {
+        throw new Error("boom");
+      }, fallback)
+    ).toEqual({ vehicleId: "primary", fromBluetooth: null });
+    expect(await chooseRecordedTripCar(async () => null, async () => undefined)).toEqual({
+      vehicleId: undefined,
+      fromBluetooth: null,
+    });
+  });
+
+  it("mergeBlockedByCar: only a definite different car stops a merge", () => {
+    expect(mergeBlockedByCar("kia", "ford")).toBe(true);
+    expect(mergeBlockedByCar("ford", "ford")).toBe(false);
+    expect(mergeBlockedByCar(null, "ford")).toBe(false);
+    expect(mergeBlockedByCar(undefined, "ford")).toBe(false);
+    expect(mergeBlockedByCar("kia", null)).toBe(false);
+    expect(mergeBlockedByCar("kia", "")).toBe(false);
   });
 });
 
@@ -572,6 +604,55 @@ describe("the phone's store", () => {
     expect(await pendingCarQuestion()).toBeNull(); // snoozed without being asked to
     expect(JSON.parse(state.get("car_links")!).links).toEqual([]);
     await forgetCarBluetooth();
+  });
+
+  it("a car linked by hand to a headphone-looking name still counts", async () => {
+    await cacheCarLinks([{ id: "van", bluetoothName: "JBL Car", bluetoothId: "XX:XX:XX:XX:EE:FF" }]);
+    await recordCarSighting(
+      [
+        { name: "JBL Car", id: "XX:XX:XX:XX:EE:FF", kind: "bluetooth" },
+        { name: "AirPods Pro", id: "XX:XX:XX:XX:11:22", kind: "bluetooth" },
+      ],
+      "connect"
+    );
+    expect(sightingsTable.map((r) => r.name)).toEqual(["JBL Car"]);
+    const at = sightingsTable[0].at_ms;
+    expect(await bluetoothCarForTrip(at, at + MIN)).toEqual({ vehicleId: "van", seen: 1 });
+  });
+
+  it("real masked ids: a link from a full address matches the masked form, another car's doesn't", async () => {
+    await cacheCarLinks([
+      { id: "ford", bluetoothName: "MY FORD", bluetoothId: "AA:BB:CC:DD:EE:FF" },
+      { id: "ford2", bluetoothName: "MY FORD", bluetoothId: "XX:XX:XX:XX:12:34" },
+    ]);
+    sightingsTable.push(
+      { at_ms: START + MIN, name: "MY FORD", device_id: "XX:XX:XX:XX:EE:FF", kind: "bluetooth" },
+      { at_ms: START + 2 * MIN, name: "MY FORD", device_id: "XX:XX:XX:XX:EE:FF", kind: "bluetooth" }
+    );
+    expect(await bluetoothCarForTrip(START, END)).toEqual({ vehicleId: "ford", seen: 2 });
+    sightingsTable = [{ at_ms: START + MIN, name: "MY FORD", device_id: "XX:XX:XX:XX:12:34", kind: "bluetooth" }];
+    expect(await bluetoothCarForTrip(START, END)).toEqual({ vehicleId: "ford2", seen: 1 });
+  });
+
+  it("a snooze lasts 24 hours across app opens, and sign out clears it", async () => {
+    await pendingSeat();
+    await snoozeCarQuestion();
+    expect(Number(state.get("car_question_snooze_until"))).toBeGreaterThan(Date.now() + 23 * 60 * MIN);
+    await forgetCarBluetooth();
+    expect(state.has("car_question_snooze_until")).toBe(false);
+    await pendingSeat();
+    // A fresh process (no in-memory flag) still honours a stored snooze.
+    state.set("car_question_snooze_until", String(Date.now() + MIN));
+    expect(await pendingCarQuestion()).toBeNull();
+    state.set("car_question_snooze_until", String(Date.now() - 1));
+    expect(await pendingCarQuestion()).toEqual({ name: "SEAT BT", id: null });
+  });
+
+  it("replacing a car's link marks the old name answered too, so it is never asked back", async () => {
+    await cacheCarLinks([{ id: "kia", bluetoothName: "Kia CarPlay", bluetoothId: "UID-1" }, { id: "ford" }]);
+    await answerCarQuestion({ name: "KIA BT", id: "XX:XX:XX:XX:EE:FF" }, "kia");
+    const answered = JSON.parse(state.get("car_question_answered")!);
+    expect(answered).toEqual(["KIA BT", "Kia CarPlay"]);
   });
 
   it("does not log headphones", async () => {

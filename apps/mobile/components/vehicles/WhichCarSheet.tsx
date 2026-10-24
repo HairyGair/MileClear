@@ -175,7 +175,7 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
                   activeOpacity={0.75}
                   accessibilityRole="button"
                   accessibilityLabel="Not now"
-                  accessibilityHint="We will ask again another day"
+                  accessibilityHint="We'll ask again tomorrow."
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <Text style={styles.noneText}>Not now</Text>

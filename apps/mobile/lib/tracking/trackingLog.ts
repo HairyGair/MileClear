@@ -60,7 +60,6 @@ export const TRACKING_LOG_PATTERNS: readonly string[] = [
   "detection_off_discarded",
   "pause_discarded",
   "work_hours_paused",
-  "car_from_bluetooth",
   "drive_paused",
   "drive_resumed",
   // Motion and the starts it leads to
@@ -88,6 +87,8 @@ export const TRACKING_LOG_PATTERNS: readonly string[] = [
   "orphan_*",
   "deferred_buffer_*",
   "merge_attempted",
+  "car_from_bluetooth",
+  "car_split_merge",
   "not_driving_*",
   "shift_*",
   "background_fetch_*",

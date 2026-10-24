@@ -3012,9 +3012,24 @@ async function _finalizeAutoTripInner(): Promise<void> {
       ended_at: string | null;
       distance_miles: number;
       started_at: string;
+      vehicle_id: string | null;
     }>(
-      "SELECT id, end_lat, end_lng, ended_at, distance_miles, started_at FROM trips ORDER BY ended_at DESC LIMIT 1"
+      "SELECT id, end_lat, end_lng, ended_at, distance_miles, started_at, vehicle_id FROM trips ORDER BY ended_at DESC LIMIT 1"
     );
+    // Which linked car the phone was on during this segment
+    // (lib/vehicles/carBluetooth.ts), looked up once: it can stop a merge onto
+    // a trip in another car, and picks the car for a new trip below. Local
+    // reads only, capped at two seconds, never throws: null is today's
+    // behaviour exactly.
+    const bluetoothCar = (async () => {
+      try {
+        const { bluetoothCarForTrip } = await import("../vehicles/carBluetooth");
+        // The stored times: a raw native epoch is already ISO here.
+        return await bluetoothCarForTrip(wireStartedAt, wireEndedAt);
+      } catch {
+        return null;
+      }
+    })();
 
     let merged = false;
     if (recentTrip?.ended_at && recentTrip.end_lat != null && recentTrip.end_lng != null) {
@@ -3058,9 +3073,31 @@ async function _finalizeAutoTripInner(): Promise<void> {
       if (keepGoing) await clearKeepGoingHint();
       const mergeMs = keepGoingApplies ? KEEP_GOING_MERGE_MS : boundaryMergeMs;
       const mergeDistanceM = keepGoingApplies ? KEEP_GOING_MERGE_DISTANCE_M : MERGE_DISTANCE_M;
+      const closeEnough = Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < mergeDistanceM;
+      // Close enough to merge, but the phone was on a different linked car:
+      // two drives in two cars, saved apart.
+      let carSplit = false;
+      if (closeEnough) {
+        try {
+          const { mergeBlockedByCar } = await import("../vehicles/carBluetooth");
+          const segmentCar = (await bluetoothCar)?.vehicleId ?? null;
+          carSplit = mergeBlockedByCar(segmentCar, recentTrip.vehicle_id);
+          if (carSplit) {
+            logDetectionEvent("car_split_merge", {
+              recentTripId: recentTrip.id,
+              recentVehicleId: recentTrip.vehicle_id,
+              segmentVehicleId: segmentCar,
+            }).catch(() => {});
+          }
+        } catch {
+          carSplit = false;
+        }
+      }
       const decision: string =
-        Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < mergeDistanceM
+        closeEnough && !carSplit
           ? "merged"
+          : closeEnough
+          ? "rejected_other_car"
           : Math.abs(timeSinceLastTrip) >= mergeMs
           ? "rejected_too_old"
           : "rejected_too_far";
@@ -3089,7 +3126,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // continuous drive. (Raven 13 May 2026: 5.7 mi trip + 103 mi
       // trip split at Spicewood, 18m apart, 1-second overlap.)
       // Math.abs() so the 15-minute window is symmetric.
-      if (Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < mergeDistanceM) {
+      if (closeEnough && !carSplit) {
         // Merge: extend the previous trip's end point, distance, and time
         const { syncUpdateTrip } = await import("../sync/actions");
         const newDistance = Math.round((recentTrip.distance_miles + totalDistance) * 100) / 100;
@@ -3193,22 +3230,17 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // The primary car (else the only car), so a trip moved to a second car
     // doesn't drag the ones after it there (lib/vehicles/defaultCar.ts).
     // A car linked to the Bluetooth the phone was on during the drive comes
-    // first (lib/vehicles/carBluetooth.ts). Best effort, local reads only,
-    // capped at two seconds; anything else keeps today's choice.
+    // first (bluetoothCar above); anything else keeps today's choice.
+    const { carForRecordedTrip } = await import("../vehicles/defaultCar");
     let vehicleId: string | undefined;
     try {
-      const { bluetoothCarForTrip } = await import("../vehicles/carBluetooth");
-      // The stored times: a raw native epoch is already ISO here.
-      const fromBluetooth = await bluetoothCarForTrip(wireStartedAt, wireEndedAt);
-      if (fromBluetooth) {
-        vehicleId = fromBluetooth.vehicleId;
-        logDetectionEvent("car_from_bluetooth", { ...fromBluetooth }).catch(() => {});
+      const { chooseRecordedTripCar } = await import("../vehicles/carBluetooth");
+      const choice = await chooseRecordedTripCar(() => bluetoothCar, carForRecordedTrip);
+      vehicleId = choice.vehicleId;
+      if (choice.fromBluetooth) {
+        logDetectionEvent("car_from_bluetooth", { ...choice.fromBluetooth }).catch(() => {});
       }
     } catch {
-      // the trip goes on the default car below
-    }
-    if (!vehicleId) {
-      const { carForRecordedTrip } = await import("../vehicles/defaultCar");
       vehicleId = await carForRecordedTrip();
     }
 
