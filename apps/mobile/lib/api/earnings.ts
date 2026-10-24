@@ -85,6 +85,14 @@ export function confirmCsvImport(rows: CsvEarningRow[], filename?: string) {
 
 // ── Open Banking (TrueLayer) ────────────────────────────────────────
 
+/** "My bank isn't listed": tells us which bank to ask TrueLayer for. */
+export function reportMissingBank(bank: string) {
+  return apiRequest<{ data: { ok: true } }>("/earnings/open-banking/missing-bank", {
+    method: "POST",
+    body: JSON.stringify({ bank }),
+  });
+}
+
 export function createOpenBankingAuthLink() {
   return apiRequest<{ data: { authLink: string } }>(
     "/earnings/open-banking/link-token",

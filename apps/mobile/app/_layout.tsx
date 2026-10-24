@@ -802,6 +802,7 @@ function RootNavigator() {
         <Stack.Screen name="achievements" options={{ headerShown: true, title: "Badges" }} />
         <Stack.Screen name="csv-import" options={{ headerShown: true, title: "Import CSV" }} />
         <Stack.Screen name="open-banking" options={{ headerShown: true, title: "Link your bank" }} />
+        <Stack.Screen name="banks-that-work" options={{ headerShown: true, title: "Banks that work" }} />
         <Stack.Screen name="admin-users" options={{ headerShown: true, title: "User Management" }} />
         <Stack.Screen name="admin-user-detail" options={{ headerShown: true, title: "User Detail" }} />
         <Stack.Screen name="admin-health" options={{ headerShown: true, title: "System Health" }} />

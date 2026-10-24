@@ -7,6 +7,7 @@ import {
   Alert,
   StyleSheet,
   Switch,
+  TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -110,6 +111,21 @@ function PaidWeekBehind() {
         quarter, as HMRC counts money when you got it.
       </Text>
     </View>
+  );
+}
+
+/** Opens the list of banks that work, with "My bank isn't listed". */
+function BankListLink({ label }: { label: string }) {
+  const router = useRouter();
+  return (
+    <TouchableOpacity
+      onPress={() => router.push("/banks-that-work")}
+      style={styles.bankListLink}
+      accessibilityRole="link"
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+    >
+      <Text style={styles.bankListLinkText}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -293,6 +309,7 @@ export default function OpenBankingScreen() {
             onPress={() => showPaywall("open_banking")}
             style={{ marginTop: 20, width: "100%" }}
           />
+          <BankListLink label="Check your bank works first" />
         </View>
       </View>
     );
@@ -352,6 +369,7 @@ export default function OpenBankingScreen() {
               onPress={handleConnect}
               loading={connecting}
             />
+            <BankListLink label="My bank isn't listed" />
           </View>
         }
       />
@@ -513,6 +531,16 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: 16,
     paddingBottom: 20,
+  },
+  bankListLink: {
+    alignSelf: "center",
+    marginTop: 16,
+    paddingVertical: 4,
+  },
+  bankListLinkText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: AMBER,
   },
   // Premium gate
   gateContainer: {

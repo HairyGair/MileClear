@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { formatDay } from "@/lib/dashboard/dates";
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SettingsGroup, Skeleton, StatusChip, ToggleRow, useData, useToast } from "@/components/dashboard/kit";
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, PageHeader, SettingsGroup, Skeleton, StatusChip, ToggleRow, useData, useMe, useToast } from "@/components/dashboard/kit";
 import { platformLabel } from "@/components/dashboard/money/format";
 import { ProPage, SelfEmployedOnly } from "@/components/dashboard/money/Company";
+import { BanksThatWork } from "@/components/dashboard/money/BanksThatWork";
 import s from "@/components/dashboard/money/money.module.css";
 
 interface Connection {
@@ -168,6 +169,11 @@ function Banks() {
           <PaidWeekBehind />
         </div>
       )}
+      {data && (
+        <div className={s.stack} style={{ marginTop: "var(--mc-s-md)" }}>
+          <BanksThatWork />
+        </div>
+      )}
       <ConfirmDialog
         open={disconnect !== null}
         title="Disconnect this bank?"
@@ -187,11 +193,14 @@ function Banks() {
 }
 
 export default function Page() {
+  const { isPro } = useMe();
   return (
     <SelfEmployedOnly title="Link a bank">
       <ProPage title="Link a bank" reason="bank" teaser={<p>Payments from your bank turn into earnings for you to sort.</p>}>
         <Banks />
       </ProPage>
+      {/* Before the upgrade too, so nobody pays to find their bank missing. */}
+      {!isPro && <BanksThatWork />}
     </SelfEmployedOnly>
   );
 }

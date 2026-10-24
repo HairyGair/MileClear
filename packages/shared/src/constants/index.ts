@@ -1,4 +1,5 @@
 export * from "./hmrc-sa103.js";
+export * from "./openBankingBanks.js";
 
 /**
  * HMRC Approved Mileage Allowance Payment (AMAP) rates by UK tax year.

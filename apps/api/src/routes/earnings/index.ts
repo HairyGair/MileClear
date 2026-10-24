@@ -36,6 +36,7 @@ import {
 import {
   DEFAULT_PAGE_SIZE,
   MAX_PAGE_SIZE,
+  MISSING_BANK_MAX_LENGTH,
 } from "@mileclear/shared";
 import { logEvent } from "../../services/appEvents.js";
 import { ARREARS_PLATFORMS, arrearsPlatformsFor, parseArrears, redateBankEarnings } from "../../services/payoutWeek.js";
@@ -435,6 +436,27 @@ export async function earningRoutes(app: FastifyInstance) {
         });
         return reply.status(500).send({ error: "Failed to connect bank" });
       }
+    }
+  );
+
+  // "My bank isn't listed" (any signed-in driver, Pro or not: the bank
+  // list shows before the paywall). Records which bank the driver wanted
+  // so we know what to ask TrueLayer for. Nothing else is stored.
+  const missingBankSchema = z.object({
+    bank: z.string().trim().min(2, "Type your bank's name").max(MISSING_BANK_MAX_LENGTH),
+  });
+  app.post(
+    "/open-banking/missing-bank",
+    { config: { rateLimit: { max: 5, timeWindow: "10 minutes" } } },
+    async (request, reply) => {
+      const parsed = missingBankSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: parsed.error.issues[0].message });
+      }
+      logEvent("earnings.open_banking_bank_missing", request.userId!, {
+        bank: parsed.data.bank.replace(/\s+/g, " "),
+      });
+      return reply.send({ data: { ok: true } });
     }
   );
 
