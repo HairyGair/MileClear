@@ -136,6 +136,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Distances in kilometres: choose Miles or Kilometres in Settings > Distances. Tax figures and downloads stay in miles",
       "Filter your trips by client, and download a trip report or trips CSV for just one client",
       "Link your bank shows which banks work before you upgrade, and you can tell us if yours isn't there",
+      "More than one car? Trips the app records on its own go on your primary car, not the car of your last trip",
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
@@ -1079,6 +1080,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
       "Distances in kilometres: choose Miles or Kilometres in Settings > Distances. Tax figures and downloads stay in miles",
       "Filter your trips by client, and download a trip report or trips CSV for just one client",
       "Link your bank shows which banks work before you upgrade, and you can tell us if yours isn't there",
+      "More than one car? Trips the app records on its own go on your primary car, not the car of your last trip",
     ],
   },
   {
