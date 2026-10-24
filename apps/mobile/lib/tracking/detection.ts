@@ -3016,20 +3016,25 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }>(
       "SELECT id, end_lat, end_lng, ended_at, distance_miles, started_at, vehicle_id FROM trips ORDER BY ended_at DESC LIMIT 1"
     );
-    // Which linked car the phone was on during this segment
-    // (lib/vehicles/carBluetooth.ts), looked up once: it can stop a merge onto
-    // a trip in another car, and picks the car for a new trip below. Local
-    // reads only, capped at two seconds, never throws: null is today's
-    // behaviour exactly.
-    const bluetoothCar = (async () => {
-      try {
-        const { bluetoothCarForTrip } = await import("../vehicles/carBluetooth");
-        // The stored times: a raw native epoch is already ISO here.
-        return await bluetoothCarForTrip(wireStartedAt, wireEndedAt);
-      } catch {
-        return null;
-      }
-    })();
+    // Which linked car the phone was on during this segment, and during the
+    // trip it might join (lib/vehicles/carBluetooth.ts). Both start now and
+    // run side by side, each capped at two seconds, read only, never throw:
+    // null is today's behaviour exactly. The segment's answer is looked up
+    // once and also picks the car for a new trip below.
+    const bluetoothLookup = (startedAt: string | null | undefined, endedAt: string | null | undefined) =>
+      (async () => {
+        try {
+          const { bluetoothCarForTrip } = await import("../vehicles/carBluetooth");
+          return await bluetoothCarForTrip(startedAt, endedAt);
+        } catch {
+          return null;
+        }
+      })();
+    // The stored times: a raw native epoch is already ISO here.
+    const bluetoothCar = bluetoothLookup(wireStartedAt, wireEndedAt);
+    const recentLegCar = recentTrip?.vehicle_id
+      ? bluetoothLookup(recentTrip.started_at, recentTrip.ended_at)
+      : Promise.resolve(null);
 
     let merged = false;
     if (recentTrip?.ended_at && recentTrip.end_lat != null && recentTrip.end_lng != null) {
@@ -3074,19 +3079,27 @@ async function _finalizeAutoTripInner(): Promise<void> {
       const mergeMs = keepGoingApplies ? KEEP_GOING_MERGE_MS : boundaryMergeMs;
       const mergeDistanceM = keepGoingApplies ? KEEP_GOING_MERGE_DISTANCE_M : MERGE_DISTANCE_M;
       const closeEnough = Math.abs(timeSinceLastTrip) < mergeMs && distFromLastEnd < mergeDistanceM;
-      // Close enough to merge, but the phone was on a different linked car:
-      // two drives in two cars, saved apart.
+      // Close enough to merge, but the phone says both legs were in two
+      // different linked cars: two drives, saved apart. Only a definite
+      // answer on both legs splits; "Still on a job" never does.
       let carSplit = false;
-      if (closeEnough) {
+      if (closeEnough && !keepGoingApplies && recentTrip.vehicle_id) {
         try {
-          const { mergeBlockedByCar } = await import("../vehicles/carBluetooth");
-          const segmentCar = (await bluetoothCar)?.vehicleId ?? null;
-          carSplit = mergeBlockedByCar(segmentCar, recentTrip.vehicle_id);
+          const { mergeOutcome } = await import("../vehicles/carBluetooth");
+          const [segment, recentLeg] = await Promise.all([bluetoothCar, recentLegCar]);
+          carSplit =
+            mergeOutcome({
+              closeEnough,
+              keepGoingApplies,
+              segmentCar: segment?.vehicleId,
+              recentLegCar: recentLeg?.vehicleId,
+              recentTripVehicleId: recentTrip.vehicle_id,
+            }) === "split";
           if (carSplit) {
             logDetectionEvent("car_split_merge", {
               recentTripId: recentTrip.id,
               recentVehicleId: recentTrip.vehicle_id,
-              segmentVehicleId: segmentCar,
+              segmentVehicleId: segment?.vehicleId ?? null,
             }).catch(() => {});
           }
         } catch {
@@ -3243,6 +3256,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
     } catch {
       vehicleId = await carForRecordedTrip();
     }
+    // This leg becomes a trip of its own: the one place "Which car is
+    // SEAT BT?" may be noted. Fire and forget.
+    import("../vehicles/carBluetooth")
+      .then((m) => m.maybeAskCarQuestion(wireStartedAt, wireEndedAt))
+      .catch(() => {});
 
     const wasAutoClassified = classification !== "unclassified";
     const roundedDistance = Math.round(totalDistance * 100) / 100;

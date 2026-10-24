@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  AccessibilityInfo,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -94,6 +95,9 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
   const [notConnected, setNotConnected] = useState(false);
   // 3 or more things to pick from: shown as a list in the card, not an alert.
   const [choices, setChoices] = useState<CarAudioOutput[] | null>(null);
+  useEffect(() => {
+    if (choices) AccessibilityInfo.announceForAccessibility("Pick which one is the car");
+  }, [choices]);
   const store = Platform.OS === "ios" ? "App Store" : "Play Store";
   const mounted = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -116,7 +120,7 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
           "Trips the app picks up on its own will go on this car instead.",
           [
             { text: "Cancel", style: "cancel" },
-            { text: "Move", onPress: () => { haptic("success"); onLink(found, other.vehicleId); } },
+            { text: "Move", onPress: () => { haptic("success"); onLink(found, other.vehicleId); setChoices(null); } },
           ]
         );
         return;
@@ -126,11 +130,11 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
         `Trips the app picks up on its own while your phone is connected to ${found.name} will go on this car.`,
         [
           { text: "Cancel", style: "cancel" },
-          { text: "Link", onPress: () => { haptic("success"); onLink(found, null); } },
+          { text: "Link", onPress: () => { haptic("success"); onLink(found, null); setChoices(null); } },
         ]
       );
     },
-    [otherCars, vehicleId, onLink]
+    [otherCars, vehicleId, onLink, setChoices]
   );
 
   const handleUseNow = useCallback(() => {
@@ -247,15 +251,13 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
           )}
           {choices ? (
             <View style={{ marginTop: 14 }}>
-              <Text style={styles.btChoiceTitle}>Which one is the car?</Text>
+              <Text style={styles.btChoiceTitle} accessibilityRole="header">Which one is the car?</Text>
               {choices.map((c, i) => (
                 <TouchableOpacity
                   key={`${c.name}-${i}`}
                   style={styles.btChoice}
-                  onPress={() => {
-                    setChoices(null);
-                    confirmLink(c);
-                  }}
+                  onPress={() => confirmLink(c)}
+                  disabled={disabled}
                   activeOpacity={0.75}
                   accessibilityRole="button"
                   accessibilityLabel={`${c.name} is my car`}
@@ -265,13 +267,25 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
                   <Ionicons name="chevron-forward" size={18} color={TEXT_2} />
                 </TouchableOpacity>
               ))}
-              <Button
-                variant="ghost"
-                title="Cancel"
-                size="sm"
-                onPress={() => setChoices(null)}
-                accessibilityLabel="Cancel"
-              />
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                <Button
+                  variant="ghost"
+                  title="Look again"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={handleUseNow}
+                  disabled={disabled}
+                  accessibilityLabel="Look again for the car"
+                />
+                <Button
+                  variant="ghost"
+                  title="Cancel"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={() => setChoices(null)}
+                  accessibilityLabel="Cancel"
+                />
+              </View>
             </View>
           ) : (
             <Text style={styles.btSteps}>Sit in the car with the engine on, then tap the button.</Text>

@@ -521,25 +521,38 @@ export interface BluetoothCarAnswer {
   seen: number;
 }
 
+// Read only: used for decisions (which car, merge or not), so it never
+// writes the question. maybeAskCarQuestion does that, for saved trips only.
 async function lookup(startMs: number, endMs: number): Promise<BluetoothCarAnswer | null> {
-  const { cars, links } = await readLinks();
+  const { links } = await readLinks();
+  if (links.length === 0) return null;
   const sightings = await readSightings(startMs - SIGHTING_LEAD_MS, endMs);
   if (sightings.length === 0) return null;
-  const answer = tallyLinked(startMs, endMs, links, sightings);
-  if (answer) return answer;
-  // No linked car: maybe worth asking which car this was (once per name).
-  if (cars >= 2) {
-    void (async () => {
-      try {
-        if (await readJson<CarQuestion>(QUESTION_KEY)) return; // one question at a time
-        const ask = unlinkedCarDuring(startMs, endMs, links, sightings, await readAnswered());
-        if (ask) await writeJson(QUESTION_KEY, ask satisfies CarQuestion);
-      } catch {
-        /* best effort */
-      }
-    })();
+  return tallyLinked(startMs, endMs, links, sightings);
+}
+
+/**
+ * After a recorded drive is saved as a new trip (not merged, not deduped):
+ * if it was mostly in a car no link matches, note "Which car is SEAT BT?"
+ * once per name, on a 2+ car account. Fire and forget, never throws.
+ */
+export async function maybeAskCarQuestion(
+  startedAt: string | number | null | undefined,
+  endedAt: string | number | null | undefined
+): Promise<void> {
+  try {
+    const w = tripWindowMs(startedAt, endedAt);
+    if (!w) return;
+    const { cars, links } = await readLinks();
+    if (cars < 2) return;
+    if (await readJson<CarQuestion>(QUESTION_KEY)) return; // one question at a time
+    const sightings = await readSightings(w.startMs - SIGHTING_LEAD_MS, w.endMs);
+    if (sightings.length === 0) return;
+    const ask = unlinkedCarDuring(w.startMs, w.endMs, links, sightings, await readAnswered());
+    if (ask) await writeJson(QUESTION_KEY, ask satisfies CarQuestion);
+  } catch {
+    /* best effort */
   }
-  return null;
 }
 
 /**
@@ -589,15 +602,35 @@ export async function chooseRecordedTripCar(
 }
 
 /**
- * A segment the phone says was in one linked car must not be merged onto a
- * trip in another car. Only a definite answer blocks: no answer, or a
- * previous trip with no car, is today's merge rule.
+ * Two drives in two cars must not be glued into one trip, but a false split
+ * is worse than a wrong car, so only a definite answer on BOTH legs blocks a
+ * merge: the trip being extended was itself seen in its own car, and this
+ * segment in a different linked car. Any missing answer, or "Still on a
+ * job", is today's merge rule.
  */
 export function mergeBlockedByCar(
   segmentCar: string | null | undefined,
-  recentTripCar: string | null | undefined
+  recentLegCar: string | null | undefined,
+  recentTripVehicleId: string | null | undefined,
+  keepGoing: boolean
 ): boolean {
-  return !!segmentCar && !!recentTripCar && segmentCar !== recentTripCar;
+  if (keepGoing) return false;
+  if (!segmentCar || !recentLegCar || !recentTripVehicleId) return false;
+  return recentLegCar === recentTripVehicleId && segmentCar !== recentTripVehicleId;
+}
+
+/** The merge decision for a segment close enough (in time and place) to the last trip. */
+export function mergeOutcome(input: {
+  closeEnough: boolean;
+  keepGoingApplies: boolean;
+  segmentCar: string | null | undefined;
+  recentLegCar: string | null | undefined;
+  recentTripVehicleId: string | null | undefined;
+}): "merge" | "split" | "apart" {
+  if (!input.closeEnough) return "apart";
+  return mergeBlockedByCar(input.segmentCar, input.recentLegCar, input.recentTripVehicleId, input.keepGoingApplies)
+    ? "split"
+    : "merge";
 }
 
 // ── "Which car is MY FORD?" ─────────────────────────────────────────────
@@ -622,7 +655,9 @@ export async function pendingCarQuestion(): Promise<CarQuestion | null> {
   if (questionSnoozed) return null;
   try {
     const until = await readJson<unknown>(SNOOZE_KEY);
-    if (typeof until === "number" && Date.now() < until) return null;
+    // A snooze reaching past 24 h from now means the clock went back: expired.
+    const now = Date.now();
+    if (typeof until === "number" && now < until && until <= now + QUESTION_SNOOZE_MS) return null;
     const q = await readJson<CarQuestion>(QUESTION_KEY);
     if (!q || typeof q.name !== "string" || !normName(q.name)) return null;
     const { cars, links } = await readLinks();

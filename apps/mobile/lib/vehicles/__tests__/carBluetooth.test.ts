@@ -49,7 +49,9 @@ import {
   carSeenDuring,
   chooseRecordedTripCar,
   forgetCarBluetooth,
+  maybeAskCarQuestion,
   mergeBlockedByCar,
+  mergeOutcome,
   linkedElsewhere,
   linksFromCars,
   looksLikeACar,
@@ -308,13 +310,31 @@ describe("at finalize", () => {
     });
   });
 
-  it("mergeBlockedByCar: only a definite different car stops a merge", () => {
-    expect(mergeBlockedByCar("kia", "ford")).toBe(true);
-    expect(mergeBlockedByCar("ford", "ford")).toBe(false);
-    expect(mergeBlockedByCar(null, "ford")).toBe(false);
-    expect(mergeBlockedByCar(undefined, "ford")).toBe(false);
-    expect(mergeBlockedByCar("kia", null)).toBe(false);
-    expect(mergeBlockedByCar("kia", "")).toBe(false);
+  it("mergeBlockedByCar: only a definite answer on both legs, in different cars, splits", () => {
+    // Leg 1 had no answer, leg 2 the Kia: merge (a false split is worse).
+    expect(mergeBlockedByCar("kia", null, "ford", false)).toBe(false);
+    // Both definite and different: split.
+    expect(mergeBlockedByCar("kia", "ford", "ford", false)).toBe(true);
+    // "Still on a job": merge.
+    expect(mergeBlockedByCar("kia", "ford", "ford", true)).toBe(false);
+    // Recent leg definite, segment the same car: merge.
+    expect(mergeBlockedByCar("ford", "ford", "ford", false)).toBe(false);
+    // The recent trip's Bluetooth car isn't the car it is on (moved by hand): merge.
+    expect(mergeBlockedByCar("kia", "seat", "ford", false)).toBe(false);
+    // No answer for the segment, or a recent trip with no car: merge.
+    expect(mergeBlockedByCar(null, "ford", "ford", false)).toBe(false);
+    expect(mergeBlockedByCar("kia", "ford", null, false)).toBe(false);
+  });
+
+  it("mergeOutcome: the decision finalize acts on", () => {
+    const base = { closeEnough: true, keepGoingApplies: false, recentTripVehicleId: "ford" };
+    expect(mergeOutcome({ ...base, segmentCar: null, recentLegCar: null })).toBe("merge");
+    expect(mergeOutcome({ ...base, segmentCar: "kia", recentLegCar: null })).toBe("merge");
+    expect(mergeOutcome({ ...base, segmentCar: "kia", recentLegCar: "ford" })).toBe("split");
+    expect(mergeOutcome({ ...base, keepGoingApplies: true, segmentCar: "kia", recentLegCar: "ford" })).toBe("merge");
+    expect(mergeOutcome({ ...base, segmentCar: "ford", recentLegCar: "ford" })).toBe("merge");
+    expect(mergeOutcome({ ...base, closeEnough: false, segmentCar: "ford", recentLegCar: "ford" })).toBe("apart");
+    expect(mergeOutcome({ ...base, closeEnough: false, segmentCar: "kia", recentLegCar: "ford" })).toBe("apart");
   });
 });
 
@@ -488,13 +508,14 @@ describe("the phone's store", () => {
       { at_ms: START + MIN, name: "SEAT BT", device_id: "S1", kind: "bluetooth" }
     );
     expect(await bluetoothCarForTrip(START, END)).toBeNull();
-    await new Promise((r) => setTimeout(r, 0));
+    // The lookup itself is read only: a merged or deduped leg never asks.
+    expect(await pendingCarQuestion()).toBeNull();
+    await maybeAskCarQuestion(START, END);
     const q = await pendingCarQuestion();
     expect(q).toEqual({ name: "SEAT BT", id: "S1" });
     await answerCarQuestion(q!, null);
     expect(await pendingCarQuestion()).toBeNull();
-    await bluetoothCarForTrip(START, END);
-    await new Promise((r) => setTimeout(r, 0));
+    await maybeAskCarQuestion(START, END);
     expect(await pendingCarQuestion()).toBeNull();
     expect(updateVehicle).not.toHaveBeenCalled();
   });
@@ -505,8 +526,7 @@ describe("the phone's store", () => {
       { at_ms: START, name: "SEAT BT", device_id: null, kind: "bluetooth" },
       { at_ms: START + MIN, name: "SEAT BT", device_id: null, kind: "bluetooth" }
     );
-    await bluetoothCarForTrip(START, END);
-    await new Promise((r) => setTimeout(r, 0));
+    await maybeAskCarQuestion(START, END);
     expect(await pendingCarQuestion()).toBeNull();
   });
 
@@ -544,8 +564,7 @@ describe("the phone's store", () => {
       { at_ms: START, name: "SEAT BT", device_id: null, kind: "bluetooth" },
       { at_ms: START + MIN, name: "SEAT BT", device_id: null, kind: "bluetooth" }
     );
-    await bluetoothCarForTrip(START, END);
-    await new Promise((r) => setTimeout(r, 0));
+    await maybeAskCarQuestion(new Date(START).toISOString(), new Date(END).toISOString());
   }
 
   it("a failed answer throws and keeps the question; snooze hides it for this app open only", async () => {
@@ -645,6 +664,9 @@ describe("the phone's store", () => {
     state.set("car_question_snooze_until", String(Date.now() + MIN));
     expect(await pendingCarQuestion()).toBeNull();
     state.set("car_question_snooze_until", String(Date.now() - 1));
+    expect(await pendingCarQuestion()).toEqual({ name: "SEAT BT", id: null });
+    // More than 24 h ahead means the clock was set back: treated as expired.
+    state.set("car_question_snooze_until", String(Date.now() + 48 * 60 * MIN));
     expect(await pendingCarQuestion()).toEqual({ name: "SEAT BT", id: null });
   });
 
