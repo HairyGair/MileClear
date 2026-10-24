@@ -217,7 +217,7 @@ import {
   startTripHoldsThroughStops,
   QUICK_TRIP_LIVE_COORD_MS as QUICK_TRIP_LIVE_COORD_MS_RULE,
 } from "./quickTripLock";
-import { orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
+import { ORPHAN_MIN_AGE_MS, orphanRouteDecision, savedTripOverlap } from "./orphanRoute";
 import {
   rescueBufferBeforeOpen,
   type BufferedFix as RescueBufferedFix,
@@ -6394,10 +6394,7 @@ async function pauseDriveDetectionNow(until: number, choice: string, opts: Pause
   // Not while a shift or Start Trip runs: the stores then hold that trip's
   // own copy, which its end clears, and saving it here would duplicate it.
   let unsaved = false;
-  // A work-hours pause skips this: its window starts when the hours ended,
-  // so a route from the hours is outside it and saved by the next sweep,
-  // and fixes since then (the drive that woke us) are the pause's.
-  if (!opts.workHours && open?.value !== "1" && !(await shiftSuppressesAutoDetection(db))) {
+  if (open?.value !== "1" && !(await shiftSuppressesAutoDetection(db))) {
     try {
       const buffered = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM detection_coordinates");
       const { getNativeStoreSummary } = await import("./nativeLocation");
@@ -6405,16 +6402,23 @@ async function pauseDriveDetectionNow(until: number, choice: string, opts: Pause
       unsaved = (buffered?.n ?? 0) >= 2 || (native?.count ?? 0) >= 2;
     } catch {}
   }
-  if (open?.value === "1" || unsaved) {
-    try {
-      await finalizeAutoTrip();
-    } catch {}
-  }
+  // The pause is written BEFORE the save below, which can be slow (it may
+  // wait on the network): a Resume tapped meanwhile must find a pause to
+  // end. The save keeps everything recorded before the window's start, and
+  // finalize drops what falls inside it.
   await writePauseKeys(db, {
     until,
     startedAt: Math.min(opts.startedAt ?? Date.now(), Date.now()),
     workHours: opts.workHours === true,
   });
+  if (open?.value === "1" || unsaved) {
+    try {
+      await finalizeAutoTrip();
+    } catch {}
+  }
+  // Resumed (or replaced) while that ran: parking the engine now would
+  // undo it.
+  if ((await readPauseKeys(db))?.untilRaw !== String(until)) return;
   logDetectionEvent("drive_paused", { choice, until, hours: Math.round((until - Date.now()) / 36e5) }).catch(() => {});
   // Low power: armed, able to wake, no continuous GPS (enginePowerRule.ts).
   // Stored in the SDK's own config, so it holds with the app closed.
@@ -6572,9 +6576,13 @@ async function applyWorkHoursRecordingNow(source: string, allowResume: boolean):
     }
     if (get("auto_recording_active") === "1") return;
     if (await shiftSuppressesAutoDetection(db)) return;
+    // From when the hours ended, but no further back than the sweep's ten
+    // minutes: a drive recorded before that (a Record now evening, the hours
+    // before the switch went on) is not the pause's and is saved, while the
+    // drive that woke us is.
     await pauseDriveDetectionNow(until, "work_hours", {
       workHours: true,
-      startedAt: workHoursLastEnd(slots, now) ?? now,
+      startedAt: Math.max(workHoursLastEnd(slots, now) ?? now, now - ORPHAN_MIN_AGE_MS),
     });
     logDetectionEvent("work_hours_paused", { source, until }).catch(() => {});
   } catch {
