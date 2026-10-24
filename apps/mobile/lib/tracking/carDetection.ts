@@ -13,7 +13,7 @@ import {
   addCarConnectionListener,
   isCarAudioAvailable,
 } from "../../modules/car-audio";
-import { readConnectedOutputs, recordCarSighting } from "../vehicles/carBluetooth";
+import { isCarBluetoothOn, readConnectedOutputs, recordCarSighting } from "../vehicles/carBluetooth";
 import {
   addVisitListener,
   startVisitMonitoring,
@@ -53,14 +53,18 @@ export function startCarAndVisitTriggers(): void {
   if (isCarAudioAvailable() && !carUnsub) {
     carUnsub = addCarConnectionListener((out) => {
       // Note which car (lib/vehicles/carBluetooth.ts), on both phones.
-      try {
-        // The full list when there is one: on Android a speaker connecting
-        // alongside the car must not hide it.
-        const all = readConnectedOutputs();
-        void recordCarSighting(all.length > 0 ? all : out, "connect");
-      } catch {
-        // never throw out of a native event callback
-      }
+      // Nothing is read unless this driver is a tester (the flag is cached).
+      void isCarBluetoothOn()
+        .then((on) => {
+          if (!on) return;
+          // The full list when there is one: on Android a speaker connecting
+          // alongside the car must not hide it.
+          const all = readConnectedOutputs();
+          return recordCarSighting(all.length > 0 ? all : out, "connect");
+        })
+        .catch(() => {
+          // never throw out of a native event callback
+        });
       if (CAR_CONNECT_WAKES_RECORDING && Platform.OS === "ios") {
         void handleExternalTrigger("car_connected");
       }
