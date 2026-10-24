@@ -876,8 +876,9 @@ export default function VehicleFormScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Car Bluetooth: which car the phone is in decides the trip's car */}
-        {otherCars.length >= 1 && (
+        {/* Car Bluetooth: which car the phone is in decides the trip's car.
+            Testers only until rolled out (user.carBluetooth, CAR_BLUETOOTH_ROLLOUT). */}
+        {user?.carBluetooth === true && otherCars.length >= 1 && (
           <CarBluetoothCard
             linkedName={btName}
             linked={!!btId}

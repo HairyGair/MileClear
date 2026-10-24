@@ -3096,11 +3096,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
               recentTripVehicleId: recentTrip.vehicle_id,
             }) === "split";
           if (carSplit) {
-            logDetectionEvent("car_split_merge", {
+            const note = {
               recentTripId: recentTrip.id,
               recentVehicleId: recentTrip.vehicle_id,
               segmentVehicleId: segment?.vehicleId ?? null,
-            }).catch(() => {});
+              segmentSeen: segment?.seen ?? 0,
+              recentSeen: recentLeg?.seen ?? 0,
+            };
+            logDetectionEvent("car_split_merge", note).catch(() => {});
+            // For measuring the rollout: ids and counts only, never a car name.
+            import("./recordingDrops")
+              .then((m) => m.queueAppEvent("trip.car_bluetooth", { decision: "split_merge", startedAt: wireStartedAt, ...note }))
+              .catch(() => {});
           }
         } catch {
           carSplit = false;
@@ -3252,6 +3259,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
       vehicleId = choice.vehicleId;
       if (choice.fromBluetooth) {
         logDetectionEvent("car_from_bluetooth", { ...choice.fromBluetooth }).catch(() => {});
+        // For measuring the rollout: the trip is known by its start time
+        // (the server id comes later). Ids and counts only.
+        import("./recordingDrops")
+          .then((m) =>
+            m.queueAppEvent("trip.car_bluetooth", {
+              decision: "chosen",
+              startedAt: wireStartedAt,
+              vehicleId: choice.fromBluetooth!.vehicleId,
+              seen: choice.fromBluetooth!.seen,
+            })
+          )
+          .catch(() => {});
       }
     } catch {
       vehicleId = await carForRecordedTrip();

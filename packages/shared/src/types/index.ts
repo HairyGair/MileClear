@@ -64,6 +64,9 @@ export interface User {
    *  Optional: older API responses lack it, which means off. The 1.4.x app
    *  that first reads it treats "on" exactly like "log". */
   directionsRecording?: "off" | "log" | "on";
+  /** Know which car from its Bluetooth is switched on for this driver
+   *  (CAR_BLUETOOTH_ROLLOUT). Absent or false: the feature is inert. */
+  carBluetooth?: boolean;
   createdAt: string;
 }
 

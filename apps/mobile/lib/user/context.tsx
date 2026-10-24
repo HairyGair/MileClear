@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { fetchProfile } from "../api/user";
 import { rememberDirectionsRecording } from "../navigation/store";
+import { rememberCarBluetoothFlag } from "../vehicles/carBluetooth";
 import { adoptServerDistanceUnit } from "../units/distanceUnit";
 import { fetchTeamMe, type TeamMembership } from "../api/team";
 import { useAuth } from "../auth/context";
@@ -45,6 +46,9 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       // recorder (it never asks the network). Off also deletes any stored
       // guidance sessions. Never throws.
       void rememberDirectionsRecording(res.data.directionsRecording);
+      // Car Bluetooth on or off for this driver, kept on the phone for the
+      // recorder; off also deletes the sightings. Never throws.
+      void rememberCarBluetoothFlag(res.data.carBluetooth);
       // Miles or kilometres: cached on the phone, and a choice made offline
       // is sent again here. Never throws.
       void adoptServerDistanceUnit(res.data.distanceUnit);

@@ -61,9 +61,56 @@ const ADDRESS = /^(?:[0-9a-fx]{2}:){5}[0-9a-f]{2}$/;
 const LINKS_KEY = "car_links";
 const QUESTION_KEY = "car_question";
 const SNOOZE_KEY = "car_question_snooze_until";
+const FLAG_KEY = "car_bluetooth_enabled";
 /** A snoozed question stays away this long, across app opens. */
 export const QUESTION_SNOOZE_MS = 24 * 60 * 60 * 1000;
 const ANSWERED_KEY = "car_question_answered";
+
+// ── Who has it (tester rollout) ─────────────────────────────────────────
+//
+// The server decides (carBluetooth on /user/profile, CAR_BLUETOOTH_ROLLOUT)
+// and the phone keeps the answer in tracking_state, because finalize runs in
+// the background with no network. Unknown means off. Off, the feature is
+// inert: nothing recorded, no lookup, no question.
+
+let flagCache: boolean | null = null;
+
+/** Is car Bluetooth switched on for this driver? Never throws; unknown is false. */
+export async function isCarBluetoothOn(): Promise<boolean> {
+  if (flagCache !== null) return flagCache;
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = ?",
+      [FLAG_KEY]
+    );
+    flagCache = row?.value === "1";
+  } catch {
+    return false; // not cached: try the database again next time
+  }
+  return flagCache;
+}
+
+/**
+ * The server's answer, from every profile load. Off (or missing) also deletes
+ * the sightings and any waiting question, so turning it off stops everything.
+ */
+export async function rememberCarBluetoothFlag(raw: unknown): Promise<void> {
+  const on = raw === true;
+  flagCache = on;
+  try {
+    const db = await getDatabase();
+    if (on) {
+      await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [FLAG_KEY, "1"]);
+      return;
+    }
+    await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [FLAG_KEY]);
+    await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUESTION_KEY]);
+    await db.runAsync("DELETE FROM car_sightings");
+  } catch {
+    /* best effort: the in-memory answer holds for this process */
+  }
+}
 
 // ── Native read (guarded) ───────────────────────────────────────────────
 
@@ -357,6 +404,7 @@ export async function recordCarSighting(
   source: string
 ): Promise<void> {
   try {
+    if (!(await isCarBluetoothOn())) return;
     let outs = (Array.isArray(out) ? out : [out]).filter(isOutput);
     if (outs.some((o) => !looksLikeACar(o))) {
       let links: CarLink[] = [];
@@ -392,16 +440,20 @@ let lastFixSightingAt = 0;
  */
 export function noteCarOnFix(nowMs: number = Date.now()): void {
   try {
+    if (flagCache === false) return;
     if (nowMs >= lastFixSightingAt && nowMs - lastFixSightingAt < FIX_SIGHTING_GAP_MS) return;
     lastFixSightingAt = nowMs;
     // The native read too runs after the fix handler has moved on.
     setTimeout(() => {
-      try {
-        const outs = readConnectedOutputs();
-        if (outs.length > 0) void recordCarSighting(outs, "fix");
-      } catch {
-        /* best effort */
-      }
+      void (async () => {
+        try {
+          if (!(await isCarBluetoothOn())) return;
+          const outs = readConnectedOutputs();
+          if (outs.length > 0) await recordCarSighting(outs, "fix");
+        } catch {
+          /* best effort */
+        }
+      })();
     }, 0);
   } catch {
     /* never into the recorder */
@@ -498,7 +550,8 @@ export async function cacheCarLinks(
 /** On sign out: links, sightings and the question go with the driver. */
 export async function forgetCarBluetooth(): Promise<void> {
   questionSnoozed = false;
-  for (const key of [LINKS_KEY, QUESTION_KEY, ANSWERED_KEY, SNOOZE_KEY]) {
+  flagCache = false;
+  for (const key of [LINKS_KEY, QUESTION_KEY, ANSWERED_KEY, SNOOZE_KEY, FLAG_KEY]) {
     try {
       await deleteKey(key);
     } catch {
@@ -524,6 +577,7 @@ export interface BluetoothCarAnswer {
 // Read only: used for decisions (which car, merge or not), so it never
 // writes the question. maybeAskCarQuestion does that, for saved trips only.
 async function lookup(startMs: number, endMs: number): Promise<BluetoothCarAnswer | null> {
+  if (!(await isCarBluetoothOn())) return null;
   const { links } = await readLinks();
   if (links.length === 0) return null;
   const sightings = await readSightings(startMs - SIGHTING_LEAD_MS, endMs);
@@ -541,6 +595,7 @@ export async function maybeAskCarQuestion(
   endedAt: string | number | null | undefined
 ): Promise<void> {
   try {
+    if (!(await isCarBluetoothOn())) return;
     const w = tripWindowMs(startedAt, endedAt);
     if (!w) return;
     const { cars, links } = await readLinks();
@@ -565,6 +620,7 @@ export async function bluetoothCarForTrip(
   startedAt: string | number | null | undefined,
   endedAt: string | number | null | undefined
 ): Promise<BluetoothCarAnswer | null> {
+  if (flagCache === false) return null; // off: nothing to wait for
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const w = tripWindowMs(startedAt, endedAt);
@@ -653,6 +709,7 @@ export async function snoozeCarQuestion(): Promise<void> {
 /** The question to show, or null. Re-checked on read: still 2+ cars, name not linked or answered since. */
 export async function pendingCarQuestion(): Promise<CarQuestion | null> {
   if (questionSnoozed) return null;
+  if (!(await isCarBluetoothOn())) return null;
   try {
     const until = await readJson<unknown>(SNOOZE_KEY);
     // A snooze reaching past 24 h from now means the clock went back: expired.

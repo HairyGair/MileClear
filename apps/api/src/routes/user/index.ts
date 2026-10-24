@@ -13,6 +13,7 @@ import { getProEntitlement } from "../../services/proEntitlement.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import { canSafelyEmbedImage } from "../../services/export.js";
 import { navigationEnabledFor } from "../../services/navigation.js";
+import { carBluetoothEnabledFor } from "../../services/carBluetooth.js";
 import { directionsRecordingFor } from "../../services/directionsRecording.js";
 import { hasPremiumAccess } from "../../middleware/premium.js";
 import { upsertMileageSummary } from "../../services/mileage.js";
@@ -352,7 +353,9 @@ export async function userRoutes(app: FastifyInstance) {
     // Whether a Directions drive may open, fill or name a recording
     // (DIRECTIONS_RECORDING off | log | on). Always "off" without Directions.
     const directionsRecording = directionsRecordingFor(navigationEnabled);
-    return reply.send({ data: { ...profile, navigationEnabled, directionsRecording } });
+    // Know which car from its Bluetooth: testers first (CAR_BLUETOOTH_ROLLOUT).
+    const carBluetooth = carBluetoothEnabledFor({ id: user.id, isAdmin: user.isAdmin });
+    return reply.send({ data: { ...profile, navigationEnabled, directionsRecording, carBluetooth } });
   });
 
   // Update profile

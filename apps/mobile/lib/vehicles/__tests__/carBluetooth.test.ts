@@ -52,6 +52,8 @@ import {
   maybeAskCarQuestion,
   mergeBlockedByCar,
   mergeOutcome,
+  noteCarOnFix,
+  rememberCarBluetoothFlag,
   linkedElsewhere,
   linksFromCars,
   looksLikeACar,
@@ -452,11 +454,12 @@ describe("unlinkedCarDuring: what to ask about", () => {
 });
 
 describe("the phone's store", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     state.clear();
     sightingsTable = [];
     failDb = false;
     hangDb = false;
+    await rememberCarBluetoothFlag(true);
     updateVehicle.mockClear();
     updateVehicle.mockImplementation(async () => ({ data: {} }));
   });
@@ -559,6 +562,7 @@ describe("the phone's store", () => {
   });
 
   async function pendingSeat(): Promise<void> {
+    await rememberCarBluetoothFlag(true);
     await cacheCarLinks([{ id: "ford" }, { id: "kia" }]);
     sightingsTable.push(
       { at_ms: START, name: "SEAT BT", device_id: null, kind: "bluetooth" },
@@ -688,6 +692,73 @@ describe("the phone's store", () => {
     await forgetCarBluetooth();
     expect(sightingsTable).toHaveLength(0);
     expect(state.size).toBe(0);
+    expect(await bluetoothCarForTrip(START, END)).toBeNull();
+  });
+});
+
+describe("switched off (CAR_BLUETOOTH_ROLLOUT): completely inert", () => {
+  beforeEach(async () => {
+    state.clear();
+    sightingsTable = [];
+    failDb = false;
+    hangDb = false;
+    await cacheCarLinks([
+      { id: "ford", bluetoothName: "MY FORD", bluetoothId: "AA:01" },
+      { id: "kia" },
+    ]);
+  });
+
+  it("is off when the phone has never been told", async () => {
+    vi.resetModules();
+    const fresh = await import("../carBluetooth");
+    expect(await fresh.isCarBluetoothOn()).toBe(false);
+    await fresh.recordCarSighting({ name: "MY FORD", id: "AA:01", kind: "bluetooth" }, "connect");
+    expect(sightingsTable).toHaveLength(0);
+  });
+
+  it("records nothing, finds nothing and asks nothing", async () => {
+    await rememberCarBluetoothFlag(false);
+    await recordCarSighting({ name: "MY FORD", id: "AA:01", kind: "bluetooth" }, "connect");
+    noteCarOnFix(Date.now() + 10 * MIN);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sightingsTable).toHaveLength(0);
+    // Even with sightings and a question already on the phone.
+    sightingsTable.push(
+      { at_ms: START + MIN, name: "MY FORD", device_id: "AA:01", kind: "bluetooth" },
+      { at_ms: START + 2 * MIN, name: "SEAT BT", device_id: null, kind: "bluetooth" }
+    );
+    state.set("car_question", JSON.stringify({ name: "SEAT BT", id: null }));
+    expect(await bluetoothCarForTrip(START, END)).toBeNull();
+    expect(await pendingCarQuestion()).toBeNull();
+    await maybeAskCarQuestion(START, END);
+    expect(JSON.parse(state.get("car_question")!)).toEqual({ name: "SEAT BT", id: null });
+  });
+
+  it("turning it off clears the sightings and the question; on again works", async () => {
+    await rememberCarBluetoothFlag(true);
+    await recordCarSighting({ name: "MY FORD", id: "AA:01", kind: "bluetooth" }, "connect");
+    state.set("car_question", JSON.stringify({ name: "SEAT BT", id: null }));
+    expect(sightingsTable).toHaveLength(1);
+    await rememberCarBluetoothFlag(false);
+    expect(sightingsTable).toHaveLength(0);
+    expect(state.has("car_question")).toBe(false);
+    expect(state.has("car_bluetooth_enabled")).toBe(false);
+    await rememberCarBluetoothFlag(true);
+    expect(state.get("car_bluetooth_enabled")).toBe("1");
+    sightingsTable.push({ at_ms: START + MIN, name: "MY FORD", device_id: "AA:01", kind: "bluetooth" });
+    expect(await bluetoothCarForTrip(START, END)).toEqual({ vehicleId: "ford", seen: 1 });
+  });
+
+  it("anything but true from the server is off; sign out forgets it", async () => {
+    for (const raw of [undefined, null, "1", 1, "true"]) {
+      await rememberCarBluetoothFlag(true);
+      await rememberCarBluetoothFlag(raw);
+      expect(await bluetoothCarForTrip(START, END)).toBeNull();
+    }
+    await rememberCarBluetoothFlag(true);
+    await forgetCarBluetooth();
+    expect(state.has("car_bluetooth_enabled")).toBe(false);
+    sightingsTable.push({ at_ms: START + MIN, name: "MY FORD", device_id: "AA:01", kind: "bluetooth" });
     expect(await bluetoothCarForTrip(START, END)).toBeNull();
   });
 });
