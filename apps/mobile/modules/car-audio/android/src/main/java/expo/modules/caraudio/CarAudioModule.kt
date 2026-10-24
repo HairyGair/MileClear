@@ -25,14 +25,32 @@ import expo.modules.kotlin.modules.ModuleDefinition
 // Android that is a separate decision (Bluetooth-started location in the
 // background is restricted from Android 12).
 class CarAudioModule : Module() {
+  // Taken from the application context once, so a destroyed activity or
+  // React context never leaves us holding (or losing) the service.
+  @Volatile private var cachedAudioManager: AudioManager? = null
+
   private val audioManager: AudioManager?
-    get() = appContext.reactContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    get() {
+      cachedAudioManager?.let { return it }
+      val am = try {
+        appContext.reactContext?.applicationContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+      } catch (_: Throwable) {
+        null
+      }
+      cachedAudioManager = am
+      return am
+    }
 
   // "name|id" of the car last reported, so events only fire on a change.
   // Registering the callback replays every current device as "added", and a
   // car's music and calls outputs come and go separately; neither is news.
   @Volatile private var lastKey: String? = null
-  private var registered = false
+  @Volatile private var registered = false
+
+  // Events with at least one JS listener. Expo's Android OnStopObserving with
+  // no event name runs when EITHER event loses its last listener, so we track
+  // both and stop only when neither is observed (as iOS does).
+  private val observed = HashSet<String>()
 
   private val callback = object : AudioDeviceCallback() {
     override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = check()
@@ -56,19 +74,31 @@ class CarAudioModule : Module() {
       currentCars()
     }
 
-    OnStartObserving {
-      start()
+    // Lets JS tell this binary from one with the old iPhone-only module.
+    Function("hasOutputsApi") {
+      true
     }
 
-    OnStopObserving {
-      stop()
-    }
+    OnStartObserving("onCarConnected") { observe("onCarConnected", true) }
+    OnStartObserving("onCarDisconnected") { observe("onCarDisconnected", true) }
+    OnStopObserving("onCarConnected") { observe("onCarConnected", false) }
+    OnStopObserving("onCarDisconnected") { observe("onCarDisconnected", false) }
 
     OnDestroy {
-      stop()
+      synchronized(observed) { observed.clear() }
+      stop(force = true)
     }
   }
 
+  private fun observe(event: String, on: Boolean) {
+    val any = synchronized(observed) {
+      if (on) observed.add(event) else observed.remove(event)
+      observed.isNotEmpty()
+    }
+    if (any) start() else stop()
+  }
+
+  @Synchronized
   private fun start() {
     if (registered) return
     val am = audioManager ?: return
@@ -81,8 +111,9 @@ class CarAudioModule : Module() {
     }
   }
 
-  private fun stop() {
-    if (!registered) return
+  @Synchronized
+  private fun stop(force: Boolean = false) {
+    if (!registered && !force) return
     registered = false
     try {
       audioManager?.unregisterAudioDeviceCallback(callback)
@@ -122,13 +153,23 @@ class CarAudioModule : Module() {
     val kind = if (inCarMode()) "android_auto" else "bluetooth"
     val seen = HashSet<String>()
     return devices
-      .filter { rankOf(it.type) != Int.MAX_VALUE }
-      .sortedBy { rankOf(it.type) } // stable: same-type outputs keep the system's order
+      .filter { safeRank(it) != Int.MAX_VALUE }
+      .sortedBy { safeRank(it) } // stable: same-type outputs keep the system's order
       .mapNotNull { d ->
-        val name = nameOf(d) ?: return@mapNotNull null
-        val car = mapOf("name" to name, "id" to idOf(d), "kind" to kind)
-        if (seen.add(keyOf(car)!!)) car else null
+        try {
+          val name = nameOf(d) ?: return@mapNotNull null
+          val car = mapOf("name" to name, "id" to idOf(d), "kind" to kind)
+          if (seen.add(keyOf(car)!!)) car else null
+        } catch (_: Throwable) {
+          null // one odd device never empties the list
+        }
       }
+  }
+
+  private fun safeRank(d: AudioDeviceInfo): Int = try {
+    rankOf(d.type)
+  } catch (_: Throwable) {
+    Int.MAX_VALUE
   }
 
   // Bluetooth music first (what a car stereo is on most of the time), then
@@ -153,6 +194,8 @@ class CarAudioModule : Module() {
   // most of the time; JS only uses it as a tie-breaker. Null when there is
   // no address to use.
   private fun idOf(d: AudioDeviceInfo): String? {
+    // getAddress() is API 28; older phones (minSdk 24) get no id.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return null
     val address = d.address?.trim().orEmpty().uppercase()
     if (address.isEmpty()) return null
     if (!MAC.matches(address)) return null

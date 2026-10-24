@@ -3198,10 +3198,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     let vehicleId: string | undefined;
     try {
       const { bluetoothCarForTrip } = await import("../vehicles/carBluetooth");
-      const fromBluetooth = await bluetoothCarForTrip(
-        new Date(first.recorded_at).getTime(),
-        new Date(last.recorded_at).getTime()
-      );
+      // The stored times: a raw native epoch is already ISO here.
+      const fromBluetooth = await bluetoothCarForTrip(wireStartedAt, wireEndedAt);
       if (fromBluetooth) {
         vehicleId = fromBluetooth.vehicleId;
         logDetectionEvent("car_from_bluetooth", { ...fromBluetooth }).catch(() => {});

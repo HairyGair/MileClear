@@ -42,6 +42,11 @@ public class CarAudioModule: Module {
       }
     }
 
+    // Lets JS tell this binary from one with the old module (no names).
+    Function("hasOutputsApi") { () -> Bool in
+      return true
+    }
+
     // Register the route-change observer only while JS is listening.
     OnStartObserving {
       NotificationCenter.default.addObserver(
@@ -108,15 +113,25 @@ public class CarAudioModule: Module {
 
   // Bluetooth uids look like "00:11:22:33:44:55-tacl" (music) and
   // "00:11:22:33:44:55-tsco" (calls): the same car with two suffixes. Keep
-  // only the address so both profiles give one id. Anything else (CarPlay)
-  // is passed through unchanged.
+  // only the last two bytes, masked as "XX:XX:XX:XX:44:55" exactly as
+  // Android gives it, so both profiles and both phones give one id and the
+  // full address never leaves the phone's native layer. Anything that is not
+  // an address (CarPlay) is passed through unchanged.
   private static func stableId(_ uid: String) -> String? {
     let trimmed = uid.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty { return nil }
     let mac = "^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}"
-    if let range = trimmed.range(of: mac, options: .regularExpression) {
-      return String(trimmed[range]).uppercased().replacingOccurrences(of: "-", with: ":")
+    guard let range = trimmed.range(of: mac, options: .regularExpression) else {
+      // Not an address uid, but mask any address inside it all the same.
+      return trimmed.replacingOccurrences(
+        of: "(?:[0-9A-Fa-f]{2}[:-]){4}([0-9A-Fa-f]{2})[:-]([0-9A-Fa-f]{2})",
+        with: "XX:XX:XX:XX:$1:$2",
+        options: .regularExpression
+      )
     }
-    return trimmed
+    let address = String(trimmed[range]).uppercased().replacingOccurrences(of: "-", with: ":")
+    let tail = String(address.suffix(5))
+    if tail == "00:00" { return nil }
+    return "XX:XX:XX:XX:" + tail
   }
 }

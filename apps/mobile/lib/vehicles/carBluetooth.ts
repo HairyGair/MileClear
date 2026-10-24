@@ -18,6 +18,7 @@
 // stored as "name:<name>" and matches on the name alone.
 
 import { getDatabase } from "../db/index";
+import { fixTimeMs } from "../tracking/savedFixes";
 import type { CarAudioKind, CarAudioOutput } from "../../modules/car-audio";
 
 export type { CarAudioOutput } from "../../modules/car-audio";
@@ -34,24 +35,27 @@ export interface CarSighting {
   name: string;
   id: string | null;
   kind: CarAudioKind | string | null;
+  /** "connect" (a connect event) or "fix" (the once-a-minute read). */
+  source?: string | null;
 }
 
 export interface CarQuestion {
   name: string;
   id: string | null;
-  tripId?: string;
 }
 
-/** Sightings this long before the first fix count: the car pairs before the wheels turn. */
+/** Connect events this long before the first fix count: the car pairs before the wheels turn. */
 export const SIGHTING_LEAD_MS = 2 * 60 * 1000;
 /** At most one sighting a minute from location fixes. */
 export const FIX_SIGHTING_GAP_MS = 60 * 1000;
 /** Sightings older than this are pruned. */
 export const SIGHTING_KEEP_MS = 3 * 24 * 60 * 60 * 1000;
 /** Finalize never waits longer than this for an answer. */
-const LOOKUP_TIMEOUT_MS = 2000;
+export const LOOKUP_TIMEOUT_MS = 2000;
 
 const NAME_ONLY_PREFIX = "name:";
+// Both phones mask the address down to its last two bytes.
+const MASKED_PREFIX = "xx:xx:xx:xx:";
 const LINKS_KEY = "car_links";
 const QUESTION_KEY = "car_question";
 const ANSWERED_KEY = "car_question_answered";
@@ -59,10 +63,7 @@ const ANSWERED_KEY = "car_question_answered";
 // ── Native read (guarded) ───────────────────────────────────────────────
 
 interface CarAudioLike {
-  isCarAudioAvailable(): boolean;
-  currentCarAudio?: () => CarAudioOutput | null;
-  // Every car-like output, if the module offers it: Android lists each
-  // connected Bluetooth output, so a second speaker could hide the car.
+  isCarOutputsAvailable?: () => boolean;
   currentCarAudioOutputs?: () => CarAudioOutput[];
 }
 
@@ -80,27 +81,13 @@ function loadCarAudio(): CarAudioLike | null {
   return carAudio;
 }
 
-/** True when this build can read the car's Bluetooth. */
+/** True when this build's native side can say which car it is. */
 export function isCarBluetoothSupported(): boolean {
   try {
     const m = loadCarAudio();
-    return (
-      !!m &&
-      (typeof m.currentCarAudio === "function" || typeof m.currentCarAudioOutputs === "function") &&
-      m.isCarAudioAvailable()
-    );
+    return typeof m?.isCarOutputsAvailable === "function" && m.isCarOutputsAvailable() === true;
   } catch {
     return false;
-  }
-}
-
-/** The car output the phone is on right now, or null. Sync, never throws. */
-export function readConnectedCar(): CarAudioOutput | null {
-  try {
-    const out = loadCarAudio()?.currentCarAudio?.() ?? null;
-    return out && typeof out.name === "string" && out.name.trim() ? out : null;
-  } catch {
-    return null;
   }
 }
 
@@ -108,19 +95,29 @@ function isOutput(out: unknown): out is CarAudioOutput {
   return !!out && typeof (out as CarAudioOutput).name === "string" && !!(out as CarAudioOutput).name.trim();
 }
 
-/** Every car output the phone is on right now (often none or one). Sync, never throws. */
+// Headphones, speakers, watches and TVs are Bluetooth outputs too. They are
+// never offered for a link, logged, or asked about ("Which car is AirPods?").
+const NOT_A_CAR =
+  /airpods|beats|buds|earbud|earphone|headphone|headset|speaker|soundbar|soundcore|anker|\bjbl\b|bose|jabra|shokz|aftershokz|nothing ear|\becho\b|sonos|\bwh-|\bwf-|\btws\b|watch|hearing|\btv\b|television|chromecast|fire ?stick/i;
+
+/** False for names that are plainly not a car. CarPlay or Android Auto doesn't override the name. */
+export function looksLikeACar(out: Pick<CarAudioOutput, "name"> | null | undefined): boolean {
+  return isOutput(out) && !NOT_A_CAR.test(out.name);
+}
+
+/** Every car-like output the phone is on right now, best first. Sync, never throws. */
 export function readConnectedCars(): CarAudioOutput[] {
   try {
-    const m = loadCarAudio();
-    if (typeof m?.currentCarAudioOutputs === "function") {
-      const all = m.currentCarAudioOutputs();
-      if (Array.isArray(all)) return all.filter(isOutput);
-    }
-    const one = m?.currentCarAudio?.() ?? null;
-    return isOutput(one) ? [one] : [];
+    const all = loadCarAudio()?.currentCarAudioOutputs?.();
+    return Array.isArray(all) ? all.filter(looksLikeACar) : [];
   } catch {
     return [];
   }
+}
+
+/** The car output the phone is on right now, or null. Sync, never throws. */
+export function readConnectedCar(): CarAudioOutput | null {
+  return readConnectedCars()[0] ?? null;
 }
 
 /** The bluetoothId to save when linking a car (the UI's one rule). */
@@ -142,6 +139,15 @@ function realId(id: string | null | undefined): string | null {
   return t && !t.startsWith(NAME_ONLY_PREFIX) ? t : null;
 }
 
+/** Same device? A masked id on either side compares the last two bytes only,
+ *  so an unmasked id from a dev build still matches its masked form. */
+function sameId(rawA: string, rawB: string): boolean {
+  const a = rawA.toLowerCase();
+  const b = rawB.toLowerCase();
+  if (a.startsWith(MASKED_PREFIX) || b.startsWith(MASKED_PREFIX)) return a.slice(-5) === b.slice(-5);
+  return a === b;
+}
+
 /** Links from a car list: only cars linked with the button (bluetoothId set). */
 export function linksFromCars(
   cars: Array<{ id: string; bluetoothName?: string | null; bluetoothId?: string | null }>
@@ -155,28 +161,58 @@ export function linksFromCars(
   return links;
 }
 
-function matches(link: CarLink, s: CarSighting): boolean {
+function matches(link: CarLink, s: { name: string; id: string | null }): boolean {
   if (!normName(link.name) || normName(link.name) !== normName(s.name)) return false;
   const a = realId(link.id);
   const b = realId(s.id);
-  // Ids only separate when both sides have one: an Android address may be
-  // masked, and a name-only link has none.
-  return a === null || b === null || a === b;
-}
-
-function inWindow(startMs: number, endMs: number, s: CarSighting): boolean {
-  return Number.isFinite(s.atMs) && s.atMs >= startMs - SIGHTING_LEAD_MS && s.atMs <= endMs;
-}
-
-function validWindow(startMs: number, endMs: number): boolean {
-  return Number.isFinite(startMs) && Number.isFinite(endMs) && endMs >= startMs;
+  // Ids only separate when both sides have one: a name-only link has none.
+  return a === null || b === null || sameId(a, b);
 }
 
 /**
- * The linked car seen most during [start - 2 min, end], or null. Null too
- * when two cars tie, or when a sighting fits more than one linked car (two
- * cars with the same Bluetooth name that ids can't tell apart): a wrong car
- * is worse than the primary car.
+ * Another car already linked to this output, or null. For the car screen
+ * ("MY FORD is linked to your Fiesta. Move it here?") and the question, so
+ * our own UI never makes two cars match the same Bluetooth.
+ */
+export function linkedElsewhere(
+  out: Pick<CarAudioOutput, "name" | "id">,
+  links: CarLink[],
+  vehicleId: string
+): CarLink | null {
+  return links.find((l) => l.vehicleId !== vehicleId && matches(l, out)) ?? null;
+}
+
+/** Trip start and end in epoch ms from stored times (ISO or raw native epoch), or null. */
+export function tripWindowMs(
+  startedAt: string | number | null | undefined,
+  endedAt: string | number | null | undefined
+): { startMs: number; endMs: number } | null {
+  const startMs = fixTimeMs(startedAt);
+  const endMs = fixTimeMs(endedAt);
+  return startMs > 0 && endMs >= startMs ? { startMs, endMs } : null;
+}
+
+function validWindow(startMs: number, endMs: number): boolean {
+  return Number.isFinite(startMs) && Number.isFinite(endMs) && startMs > 0 && endMs >= startMs;
+}
+
+function duringTrip(startMs: number, endMs: number, s: CarSighting): boolean {
+  return Number.isFinite(s.atMs) && s.atMs >= startMs && s.atMs <= endMs;
+}
+
+/** Inside the trip, or a connect event in the two minutes before it. A
+ *  once-a-minute read before the start is the previous drive's car. */
+function counts(startMs: number, endMs: number, s: CarSighting): boolean {
+  if (duringTrip(startMs, endMs, s)) return true;
+  return s.source === "connect" && s.atMs >= startMs - SIGHTING_LEAD_MS && s.atMs < startMs;
+}
+
+/**
+ * The linked car seen most during the trip, or null. A car needs at least
+ * one sighting inside [start, end]; a connect event up to two minutes before
+ * the start also counts towards it. Null too when two cars tie, or when a
+ * sighting fits more than one linked car (two cars with the same Bluetooth
+ * name that ids can't tell apart): a wrong car is worse than the primary.
  */
 export function carSeenDuring(
   startMs: number,
@@ -184,18 +220,32 @@ export function carSeenDuring(
   links: CarLink[],
   sightings: CarSighting[]
 ): string | null {
+  return tallyLinked(startMs, endMs, links, sightings)?.vehicleId ?? null;
+}
+
+function tallyLinked(
+  startMs: number,
+  endMs: number,
+  links: CarLink[],
+  sightings: CarSighting[]
+): { vehicleId: string; seen: number } | null {
   if (!validWindow(startMs, endMs) || links.length === 0) return null;
-  const counts = new Map<string, number>();
+  const total = new Map<string, number>();
+  const inside = new Set<string>();
   for (const s of sightings) {
-    if (!inWindow(startMs, endMs, s) || !normName(s.name)) continue;
+    if (!normName(s.name) || !counts(startMs, endMs, s)) continue;
     const cars = new Set(links.filter((l) => matches(l, s)).map((l) => l.vehicleId));
     if (cars.size > 1) return null;
-    for (const id of cars) counts.set(id, (counts.get(id) ?? 0) + 1);
+    for (const id of cars) {
+      total.set(id, (total.get(id) ?? 0) + 1);
+      if (duringTrip(startMs, endMs, s)) inside.add(id);
+    }
   }
   let best: string | null = null;
   let bestCount = 0;
   let tie = false;
-  for (const [id, n] of counts) {
+  for (const [id, n] of total) {
+    if (!inside.has(id)) continue;
     if (n > bestCount) {
       best = id;
       bestCount = n;
@@ -204,19 +254,14 @@ export function carSeenDuring(
       tie = true;
     }
   }
-  return tie ? null : best;
+  return best && !tie ? { vehicleId: best, seen: bestCount } : null;
 }
-
-// Headphones and speakers are Bluetooth outputs too; never ask "Which car is
-// AirPods?". Only names that plainly aren't cars are skipped.
-const NOT_A_CAR =
-  /airpods|beats|buds|earbud|earphone|headphone|headset|speaker|soundbar|soundcore|\bjbl\b|bose|\bwh-|\bwf-|\btws\b|watch|hearing/i;
 
 /**
  * An output seen during the trip that no linked car matches, worth asking
- * about: seen twice or more (or CarPlay / Android Auto, which is always a
- * car), not a headphone-like name, not already answered. Null when any
- * linked car was seen, since that trip already has its answer.
+ * about: seen twice or more (or CarPlay / Android Auto), car-like by name,
+ * not already answered. Null when any linked car was seen, since that trip
+ * already has its answer.
  */
 export function unlinkedCarDuring(
   startMs: number,
@@ -224,16 +269,16 @@ export function unlinkedCarDuring(
   links: CarLink[],
   sightings: CarSighting[],
   answered: string[]
-): { name: string; id: string | null } | null {
+): CarQuestion | null {
   if (!validWindow(startMs, endMs)) return null;
   const skip = new Set(answered.map(normName));
   const seen = new Map<string, { name: string; id: string | null; n: number; car: boolean }>();
   for (const s of sightings) {
-    if (!inWindow(startMs, endMs, s) || !normName(s.name)) continue;
+    if (!duringTrip(startMs, endMs, s) || !normName(s.name)) continue;
     if (links.some((l) => matches(l, s))) return null;
     const key = normName(s.name);
-    if (skip.has(key) || NOT_A_CAR.test(s.name)) continue;
-    const e = seen.get(key) ?? { name: s.name.trim(), id: realId(s.id), n: 0, car: false };
+    if (skip.has(key) || !looksLikeACar(s)) continue;
+    const e = seen.get(key) ?? { name: s.name.trim(), id: s.id ?? null, n: 0, car: false };
     e.n += 1;
     if (s.kind === "carplay" || s.kind === "android_auto") e.car = true;
     seen.set(key, e);
@@ -254,7 +299,7 @@ export async function recordCarSighting(
   source: string
 ): Promise<void> {
   try {
-    const outs = (Array.isArray(out) ? out : [out]).filter(isOutput).slice(0, 5);
+    const outs = (Array.isArray(out) ? out : [out]).filter((o): o is CarAudioOutput => looksLikeACar(o)).slice(0, 5);
     if (outs.length === 0) return;
     const now = Date.now();
     const db = await getDatabase();
@@ -290,11 +335,23 @@ export function noteCarOnFix(nowMs: number = Date.now()): void {
 
 async function readSightings(fromMs: number, toMs: number): Promise<CarSighting[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<{ at_ms: number; name: string; device_id: string | null; kind: string | null }>(
-    "SELECT at_ms, name, device_id, kind FROM car_sightings WHERE at_ms >= ? AND at_ms <= ? ORDER BY at_ms",
+  const rows = await db.getAllAsync<{
+    at_ms: number;
+    name: string;
+    device_id: string | null;
+    kind: string | null;
+    source: string | null;
+  }>(
+    "SELECT at_ms, name, device_id, kind, source FROM car_sightings WHERE at_ms >= ? AND at_ms <= ? ORDER BY at_ms",
     [fromMs, toMs]
   );
-  return rows.map((r) => ({ atMs: Number(r.at_ms), name: r.name, id: r.device_id, kind: r.kind }));
+  return rows.map((r) => ({
+    atMs: Number(r.at_ms),
+    name: r.name,
+    id: r.device_id,
+    kind: r.kind,
+    source: r.source,
+  }));
 }
 
 // ── Links cache (tracking_state) ────────────────────────────────────────
@@ -334,6 +391,15 @@ async function readLinks(): Promise<LinksCache> {
   };
 }
 
+/** The links this phone knows (from the last car list load). Empty on failure. */
+export async function readCarLinks(): Promise<CarLink[]> {
+  try {
+    return (await readLinks()).links;
+  } catch {
+    return [];
+  }
+}
+
 async function readAnswered(): Promise<string[]> {
   try {
     const a = await readJson<unknown>(ANSWERED_KEY);
@@ -356,6 +422,7 @@ export async function cacheCarLinks(
 
 /** On sign out: links, sightings and the question go with the driver. */
 export async function forgetCarBluetooth(): Promise<void> {
+  questionSnoozed = false;
   for (const key of [LINKS_KEY, QUESTION_KEY, ANSWERED_KEY]) {
     try {
       await deleteKey(key);
@@ -375,7 +442,7 @@ export async function forgetCarBluetooth(): Promise<void> {
 
 export interface BluetoothCarAnswer {
   vehicleId: string;
-  /** In-window sightings that matched it, for the log. */
+  /** Sightings that counted for it, for the log. */
   seen: number;
 }
 
@@ -383,12 +450,8 @@ async function lookup(startMs: number, endMs: number): Promise<BluetoothCarAnswe
   const { cars, links } = await readLinks();
   const sightings = await readSightings(startMs - SIGHTING_LEAD_MS, endMs);
   if (sightings.length === 0) return null;
-  const vehicleId = carSeenDuring(startMs, endMs, links, sightings);
-  if (vehicleId) {
-    const link = links.filter((l) => l.vehicleId === vehicleId);
-    const seen = sightings.filter((s) => inWindow(startMs, endMs, s) && link.some((l) => matches(l, s))).length;
-    return { vehicleId, seen };
-  }
+  const answer = tallyLinked(startMs, endMs, links, sightings);
+  if (answer) return answer;
   // No linked car: maybe worth asking which car this was (once per name).
   if (cars >= 2) {
     void (async () => {
@@ -406,17 +469,20 @@ async function lookup(startMs: number, endMs: number): Promise<BluetoothCarAnswe
 
 /**
  * The linked car the phone was on during a recorded trip, or null (then the
- * caller uses carForRecordedTrip as before). Never throws, never takes more
- * than two seconds.
+ * caller uses carForRecordedTrip as before). Takes the trip's stored start
+ * and end (ISO or raw native epoch). Never throws, never takes more than two
+ * seconds.
  */
 export async function bluetoothCarForTrip(
-  startMs: number,
-  endMs: number
+  startedAt: string | number | null | undefined,
+  endedAt: string | number | null | undefined
 ): Promise<BluetoothCarAnswer | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    const w = tripWindowMs(startedAt, endedAt);
+    if (!w) return null;
     return await Promise.race([
-      lookup(startMs, endMs).catch(() => null),
+      lookup(w.startMs, w.endMs).catch(() => null),
       new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), LOOKUP_TIMEOUT_MS);
       }),
@@ -430,8 +496,16 @@ export async function bluetoothCarForTrip(
 
 // ── "Which car is MY FORD?" ─────────────────────────────────────────────
 
+let questionSnoozed = false;
+
+/** Not now: no question for the rest of this app open (a failed answer, or the sheet dismissed). */
+export async function snoozeCarQuestion(): Promise<void> {
+  questionSnoozed = true;
+}
+
 /** The question to show, or null. Re-checked on read: still 2+ cars, name not linked or answered since. */
 export async function pendingCarQuestion(): Promise<CarQuestion | null> {
+  if (questionSnoozed) return null;
   try {
     const q = await readJson<CarQuestion>(QUESTION_KEY);
     if (!q || typeof q.name !== "string" || !normName(q.name)) return null;
@@ -440,45 +514,53 @@ export async function pendingCarQuestion(): Promise<CarQuestion | null> {
     const stale =
       cars < 2 ||
       answered.includes(normName(q.name)) ||
-      links.some((l) => matches(l, { atMs: 0, name: q.name, id: q.id ?? null, kind: null }));
+      links.some((l) => matches(l, { name: q.name, id: q.id ?? null }));
     if (stale) {
       await deleteKey(QUESTION_KEY).catch(() => {});
       return null;
     }
-    return { name: q.name, id: q.id ?? null, ...(q.tripId ? { tripId: q.tripId } : {}) };
+    return { name: q.name, id: q.id ?? null };
   } catch {
     return null;
   }
 }
 
 /**
- * The driver's answer. A car links that car's Bluetooth to this name (the
- * server call can throw; the question then stays for next time). null means
- * "None of these": never asked about this name again.
+ * The driver's answer. A car links that car's Bluetooth to this name, first
+ * unlinking any other car that holds the same link (best effort). The link
+ * call can throw; the question then stays for another app open (call
+ * snoozeCarQuestion). null means "None of these": never asked again for this
+ * name. Dismissing the sheet is not an answer: don't call this for it.
  */
 export async function answerCarQuestion(q: CarQuestion, vehicleId: string | null): Promise<void> {
   if (vehicleId) {
-    const out: CarAudioOutput = { name: q.name, id: q.id, kind: "bluetooth" };
+    const out: CarAudioOutput = { name: q.name.trim(), id: q.id, kind: "bluetooth" };
     const { updateVehicle } = await import("../api/vehicles");
-    await updateVehicle(vehicleId, { bluetoothName: q.name.trim(), bluetoothId: bluetoothIdFor(out) });
+    let cache: LinksCache = { cars: 0, links: [] };
+    try {
+      cache = await readLinks();
+    } catch {
+      /* no cache: nothing known to unlink */
+    }
+    const others = cache.links.filter((l) => l.vehicleId !== vehicleId && matches(l, out));
+    for (const other of others) {
+      try {
+        await updateVehicle(other.vehicleId, { bluetoothName: null, bluetoothId: null });
+      } catch {
+        /* best effort: the rule gives no answer for an ambiguous pair */
+      }
+    }
+    await updateVehicle(vehicleId, { bluetoothName: out.name, bluetoothId: bluetoothIdFor(out) });
     try {
       // The link counts from the next trip without waiting for a car list load.
-      const cache = await readLinks();
-      const link: CarLink = { vehicleId, name: q.name.trim(), id: realId(q.id) };
+      const gone = new Set([vehicleId, ...others.map((o) => o.vehicleId)]);
+      const link: CarLink = { vehicleId, name: out.name, id: realId(q.id) };
       await writeJson(LINKS_KEY, {
         cars: cache.cars,
-        links: [...cache.links.filter((l) => l.vehicleId !== vehicleId), link],
+        links: [...cache.links.filter((l) => !gone.has(l.vehicleId)), link],
       } satisfies LinksCache);
     } catch {
       /* the next car list load writes it */
-    }
-    if (q.tripId) {
-      try {
-        const { syncUpdateTrip } = await import("../sync/actions");
-        await syncUpdateTrip(q.tripId, { vehicleId });
-      } catch {
-        /* the trip keeps its car; the driver can change it */
-      }
     }
   }
   try {

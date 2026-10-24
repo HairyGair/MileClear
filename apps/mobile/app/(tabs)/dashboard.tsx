@@ -1317,6 +1317,18 @@ export default function DashboardScreen() {
 
   // Waits for the other Home asks to be out of the way rather than stacking a
   // second pop-up on them; it comes back on a later visit.
+  // A bump of this re-runs the check when Home regains focus or the app
+  // comes back to the foreground.
+  const [carCheckTick, setCarCheckTick] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      setCarCheckTick((n) => n + 1);
+      const sub = AppState.addEventListener("change", (st) => {
+        if (st === "active") setCarCheckTick((n) => n + 1);
+      });
+      return () => sub.remove();
+    }, [])
+  );
   useEffect(() => {
     if (loading || vehicles.length < 2 || showWorkExplainer || showLocPrimer || carQuestion) return;
     let cancelled = false;
@@ -1333,7 +1345,7 @@ export default function DashboardScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [loading, vehicles.length, showWorkExplainer, showLocPrimer, carQuestion]);
+  }, [loading, vehicles.length, showWorkExplainer, showLocPrimer, carQuestion, carCheckTick]);
 
   useEffect(() => {
     if (activeShift) {

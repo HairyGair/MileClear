@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -32,7 +32,14 @@ import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
 import { haptic } from "../lib/haptics";
-import { bluetoothIdFor, isCarBluetoothSupported, readConnectedCar, type CarAudioOutput } from "../lib/vehicles/carBluetooth";
+import {
+  bluetoothIdFor,
+  isCarBluetoothSupported,
+  linkedElsewhere,
+  linksFromCars,
+  readConnectedCars,
+  type CarAudioOutput,
+} from "../lib/vehicles/carBluetooth";
 import CarBluetoothArt from "../components/vehicles/CarBluetoothArt";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -65,54 +72,95 @@ function formatPlate(plate: string): string {
 interface CarBluetoothCardProps {
   /** Name the car calls itself, e.g. "MY FORD"; null when not linked. */
   linkedName: string | null;
+  /** True when a link is set, even if its name is missing. */
+  linked: boolean;
   /** True when the link changed on this screen and is not saved yet. */
   unsaved: boolean;
   isEditing: boolean;
   disabled: boolean;
-  onLink: (out: CarAudioOutput) => void;
+  /** The driver's other cars, to spot a Bluetooth already linked to one of them. */
+  otherCars: Array<{ id: string; label: string; bluetoothName?: string | null; bluetoothId?: string | null }>;
+  /** This car's id; empty while it is still being added. */
+  vehicleId: string;
+  /** moveFrom: the other car the link is being taken from, if any. */
+  onLink: (out: CarAudioOutput, moveFrom: string | null) => void;
   onUnlink: () => void;
 }
 
-function CarBluetoothCard({ linkedName, unsaved, isEditing, disabled, onLink, onUnlink }: CarBluetoothCardProps) {
+function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, otherCars, vehicleId, onLink, onUnlink }: CarBluetoothCardProps) {
   const supported = isCarBluetoothSupported();
   const [checking, setChecking] = useState(false);
   const [notConnected, setNotConnected] = useState(false);
-  const linked = linkedName !== null;
   const store = Platform.OS === "ios" ? "App Store" : "Play Store";
+  const mounted = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
+
+  const confirmLink = useCallback(
+    (found: CarAudioOutput) => {
+      haptic("light");
+      const other = linkedElsewhere(found, linksFromCars(otherCars), vehicleId);
+      const otherCar = other ? otherCars.find((c) => c.id === other.vehicleId) : undefined;
+      if (other) {
+        Alert.alert(
+          `${found.name} is linked to your ${otherCar?.label ?? "other car"}. Move it here?`,
+          "Trips the app picks up on its own will go on this car instead.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Move", onPress: () => { haptic("success"); onLink(found, other.vehicleId); } },
+          ]
+        );
+        return;
+      }
+      Alert.alert(
+        `Link ${found.name} to this car?`,
+        `Trips the app picks up on its own while your phone is connected to ${found.name} will go on this car.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Link", onPress: () => { haptic("success"); onLink(found, null); } },
+        ]
+      );
+    },
+    [otherCars, vehicleId, onLink]
+  );
 
   const handleUseNow = useCallback(() => {
     setNotConnected(false);
     setChecking(true);
     // The read is instant; a short beat makes it feel like the phone looked.
-    setTimeout(() => {
+    timer.current = setTimeout(() => {
+      if (!mounted.current) return;
       setChecking(false);
-      const found = readConnectedCar();
-      if (!found) {
+      const found = readConnectedCars();
+      if (found.length === 0) {
         haptic("warning");
         setNotConnected(true);
-        return;
+      } else if (found.length === 1) {
+        confirmLink(found[0]);
+      } else {
+        // Phone is on more than one: let the driver say which is the car.
+        haptic("light");
+        Alert.alert(
+          "Which one is the car?",
+          "Your phone is connected to more than one thing.",
+          [
+            ...found.slice(0, 3).map((f) => ({ text: f.name, onPress: () => confirmLink(f) })),
+            { text: "Cancel", style: "cancel" as const },
+          ]
+        );
       }
-      haptic("light");
-      Alert.alert(
-        `Link ${found.name} to this car?`,
-        `Trips the app records while your phone is connected to ${found.name} will go on this car.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Link",
-            onPress: () => {
-              haptic("success");
-              onLink(found);
-            },
-          },
-        ]
-      );
     }, 450);
-  }, [onLink]);
+  }, [confirmLink]);
 
   const handleUnlink = useCallback(() => {
     Alert.alert(
-      `Unlink ${linkedName}?`,
+      linkedName ? `Unlink ${linkedName}?` : "Unlink this car's Bluetooth?",
       "Trips will go on your main car again.",
       [
         { text: "Cancel", style: "cancel" },
@@ -129,7 +177,7 @@ function CarBluetoothCard({ linkedName, unsaved, isEditing, disabled, onLink, on
           <Text style={styles.btTitle} accessibilityRole="header">Car Bluetooth</Text>
           <Text style={styles.btHint}>
             {supported
-              ? "Trips the app records go on the car your phone is connected to."
+              ? "Trips the app picks up on its own go on the car your phone is connected to."
               : "Your phone can tell which car you are in."}
           </Text>
         </View>
@@ -144,17 +192,21 @@ function CarBluetoothCard({ linkedName, unsaved, isEditing, disabled, onLink, on
 
       {supported && linked && (
         <>
-          <View style={styles.btLinkedRow} accessible accessibilityLabel={`Linked to ${linkedName}`}>
+          <View
+            style={styles.btLinkedRow}
+            accessible
+            accessibilityLabel={`Linked to ${linkedName ?? "this car"}${unsaved ? ", not saved yet" : ""}`}
+          >
             <View style={styles.btLinkedIcon}>
-              <Ionicons name="bluetooth" size={18} color={GREEN} />
+              <Ionicons name="bluetooth" size={18} color={AMBER} />
             </View>
             <View style={styles.btLinkedText}>
-              <Text style={styles.btLinkedName} numberOfLines={1}>{linkedName}</Text>
+              <Text style={styles.btLinkedName} numberOfLines={1}>{linkedName ?? "Your car"}</Text>
               <Text style={styles.btLinkedSub}>
                 {unsaved ? (isEditing ? "Linked when you tap Save changes" : "Linked when you add the car") : "Linked to this car"}
               </Text>
             </View>
-            <Ionicons name="checkmark-circle" size={22} color={GREEN} />
+            <Ionicons name="checkmark-circle" size={22} color={AMBER} />
           </View>
           <Button
             variant="ghost"
@@ -163,7 +215,7 @@ function CarBluetoothCard({ linkedName, unsaved, isEditing, disabled, onLink, on
             size="sm"
             onPress={handleUnlink}
             disabled={disabled}
-            accessibilityLabel={`Unlink ${linkedName} from this car`}
+            accessibilityLabel={`Unlink ${linkedName ?? "Bluetooth"} from this car`}
             style={{ marginTop: 8 }}
           />
         </>
@@ -177,6 +229,7 @@ function CarBluetoothCard({ linkedName, unsaved, isEditing, disabled, onLink, on
               <Ionicons name="information-circle" size={18} color={AMBER} />
               <Text style={styles.btNoticeText}>
                 Your phone isn't connected to a car right now. Sit in the car with the engine on and try again.
+                {Platform.OS === "ios" ? " On iPhone, if it is connected, play some music through the car and try again." : ""}
               </Text>
             </View>
           )}
@@ -239,6 +292,11 @@ export default function VehicleFormScreen() {
   const [btName, setBtName] = useState<string | null>(null);
   const [btId, setBtId] = useState<string | null>(null);
   const [btChanged, setBtChanged] = useState(false);
+  // The driver's cars, for "already linked to your Fiesta" and to hide the
+  // card for a one-car driver.
+  const [allCars, setAllCars] = useState<Awaited<ReturnType<typeof fetchVehicles>>["data"]>([]);
+  // A car this link is being moved from; cleared on save.
+  const [btMoveFrom, setBtMoveFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -247,6 +305,7 @@ export default function VehicleFormScreen() {
     if (!id) return;
     fetchVehicles()
       .then((res) => {
+        setAllCars(res.data);
         const vehicle = res.data.find((v) => v.id === id);
         if (vehicle) {
           setMake(vehicle.make);
@@ -281,6 +340,26 @@ export default function VehicleFormScreen() {
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);
+
+  useEffect(() => {
+    if (id) return;
+    fetchVehicles()
+      .then((res) => setAllCars(res.data))
+      .catch(() => {});
+  }, [id]);
+
+  const otherCars = useMemo(
+    () =>
+      allCars
+        .filter((v) => v.id !== id)
+        .map((v) => ({
+          id: v.id,
+          label: `${v.make} ${v.model}`.trim(),
+          bluetoothName: v.bluetoothName,
+          bluetoothId: (v as { bluetoothId?: string | null }).bluetoothId ?? null,
+        })),
+    [allCars, id]
+  );
 
   const handleLookup = useCallback(async () => {
     const plate = registrationPlate.trim();
@@ -393,6 +472,14 @@ export default function VehicleFormScreen() {
         }
       }
 
+      // A Bluetooth moved from another car is cleared there first, so two cars
+      // never claim the same one.
+      if (btChanged && btId && btMoveFrom) {
+        try {
+          await updateVehicle(btMoveFrom, { bluetoothName: null, bluetoothId: null });
+        } catch {}
+      }
+
       if (isEditing) {
         await updateVehicle(id, payload);
       } else {
@@ -420,7 +507,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, btName, btId, btChanged, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, btName, btId, btChanged, btMoveFrom, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -707,22 +794,29 @@ export default function VehicleFormScreen() {
         </TouchableOpacity>
 
         {/* Car Bluetooth: which car the phone is in decides the trip's car */}
-        <CarBluetoothCard
-          linkedName={btId ? btName ?? "Your car" : null}
-          unsaved={btChanged}
-          isEditing={isEditing}
-          disabled={saving || deleting}
-          onLink={(out) => {
-            setBtName(out.name);
-            setBtId(bluetoothIdFor(out));
-            setBtChanged(true);
-          }}
-          onUnlink={() => {
-            setBtName(null);
-            setBtId(null);
-            setBtChanged(true);
-          }}
-        />
+        {otherCars.length >= 1 && (
+          <CarBluetoothCard
+            linkedName={btName}
+            linked={!!btId}
+            unsaved={btChanged}
+            isEditing={isEditing}
+            disabled={saving || deleting}
+            otherCars={otherCars}
+            vehicleId={id ?? ""}
+            onLink={(out, moveFrom) => {
+              setBtName(out.name);
+              setBtId(bluetoothIdFor(out));
+              setBtMoveFrom(moveFrom);
+              setBtChanged(true);
+            }}
+            onUnlink={() => {
+              setBtName(null);
+              setBtId(null);
+              setBtMoveFrom(null);
+              setBtChanged(true);
+            }}
+          />
+        )}
 
         {/* Clean Air Zone / ULEZ compliance — edit mode, when we have data */}
         {isEditing && cleanAirZones && <CleanAirZoneCard assessment={cleanAirZones} />}
@@ -812,15 +906,15 @@ const styles = StyleSheet.create({
     marginTop: 14,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: colors.greenDim,
+    backgroundColor: colors.amberDim,
     borderWidth: 1,
-    borderColor: "rgba(16,185,129,0.3)",
+    borderColor: "rgba(245,166,35,0.3)",
   },
   btLinkedIcon: {
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "rgba(16,185,129,0.18)",
+    backgroundColor: "rgba(245,166,35,0.18)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,

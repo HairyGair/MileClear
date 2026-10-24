@@ -9,12 +9,12 @@
 // Plain TouchableOpacity rows, not <Button>: same iPad hit-testing reason as
 // the Work explainer in the dashboard.
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Vehicle } from "@mileclear/shared";
 import { AppModal } from "../AppModal";
-import { answerCarQuestion, type CarQuestion } from "../../lib/vehicles/carBluetooth";
+import { answerCarQuestion, snoozeCarQuestion, type CarQuestion } from "../../lib/vehicles/carBluetooth";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts } from "../../lib/theme";
 import CarBluetoothArt from "./CarBluetoothArt";
@@ -28,29 +28,52 @@ interface WhichCarSheetProps {
 }
 
 export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
-  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // A ref, not state: two quick taps both see the same render's state.
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (question) setFailed(false);
+  }, [question]);
 
   const answer = useCallback(
     async (vehicleId: string | null) => {
-      if (!question || busy) return;
-      setBusy(true);
+      if (!question || busy.current) return;
+      busy.current = true;
       haptic(vehicleId ? "success" : "selection");
       try {
         await answerCarQuestion(question, vehicleId);
       } catch {
-        // Not saved: we simply ask again next time rather than bother them now.
+        // Not saved: ask again later, and say so rather than close silently.
+        await snoozeCarQuestion().catch(() => {});
+        if (mounted.current) {
+          setFailed(true);
+          haptic("error");
+          await new Promise((r) => setTimeout(r, 1800));
+        }
       } finally {
-        setBusy(false);
+        busy.current = false;
         onDone();
       }
     },
-    [question, busy, onDone]
+    [question, onDone]
   );
+
+  // Android back / swipe away: no answer, so it is asked again another day.
+  const dismiss = useCallback(() => {
+    if (!busy.current) onDone();
+  }, [onDone]);
 
   const name = question?.name ?? "";
 
   return (
-    <AppModal visible={!!question} animationType="slide" onRequestClose={() => answer(null)}>
+    <AppModal visible={!!question} animationType="slide" onRequestClose={dismiss}>
       <View style={styles.overlay}>
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.grabber} />
@@ -61,22 +84,21 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
             Which car is {name}?
           </Text>
           <Text style={styles.body}>
-            Your phone was connected to it on a recent trip. Pick the car and we will put trips
-            recorded while it is connected on that car from now on.
+            From now on, trips the app picks up on its own while {name} is connected go on the car you pick.
           </Text>
 
           <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
             {cars.map((car) => {
               const label = `${car.make} ${car.model}`.trim();
+              const plate = car.registrationPlate ? `, ${car.registrationPlate}` : "";
               return (
                 <TouchableOpacity
                   key={car.id}
                   style={styles.row}
                   onPress={() => answer(car.id)}
-                  disabled={busy}
                   activeOpacity={0.75}
                   accessibilityRole="button"
-                  accessibilityLabel={`${name} is my ${label}`}
+                  accessibilityLabel={`${name} is my ${label}${plate}${car.isPrimary ? ", main car" : ""}`}
                 >
                   <View style={styles.rowIcon}>
                     <Ionicons name="car-sport" size={20} color={colors.amber} />
@@ -85,9 +107,9 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
                     <Text style={styles.rowTitle} numberOfLines={1}>
                       {label}
                     </Text>
-                    {car.registrationPlate ? (
+                    {car.registrationPlate || car.isPrimary ? (
                       <Text style={styles.rowSub} numberOfLines={1}>
-                        {car.registrationPlate}
+                        {[car.registrationPlate, car.isPrimary ? "Main car" : null].filter(Boolean).join("  \u00b7  ")}
                       </Text>
                     ) : null}
                   </View>
@@ -100,7 +122,6 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
           <TouchableOpacity
             style={styles.none}
             onPress={() => answer(null)}
-            disabled={busy}
             activeOpacity={0.75}
             accessibilityRole="button"
             accessibilityLabel="None of these"
@@ -109,7 +130,13 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
           >
             <Text style={styles.noneText}>None of these</Text>
           </TouchableOpacity>
-          <Text style={styles.footnote}>We will not ask about {name} again.</Text>
+          {failed ? (
+            <Text style={styles.failed} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              Couldn't save that. We'll ask again later.
+            </Text>
+          ) : (
+            <Text style={styles.footnote}>We will not ask about {name} again.</Text>
+          )}
         </View>
       </View>
     </AppModal>
@@ -193,6 +220,12 @@ const styles = StyleSheet.create({
   },
   none: { alignItems: "center", paddingVertical: 12, marginTop: 2 },
   noneText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.text2 },
+  failed: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.amber,
+    textAlign: "center",
+  },
   footnote: {
     fontSize: 12,
     fontFamily: fonts.regular,

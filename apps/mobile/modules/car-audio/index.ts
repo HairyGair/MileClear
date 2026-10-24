@@ -10,9 +10,9 @@ export interface CarAudioOutput {
   /** What the car calls itself, e.g. "MY FORD". Trimmed, never empty. */
   name: string;
   /**
-   * Stable per device where the OS gives one: iPhone the Bluetooth address
-   * from the port uid (profile suffix removed; CarPlay's uid as given),
-   * Android the address masked to "XX:XX:XX:XX:EE:FF". Null if none.
+   * Stable per device where the OS gives one: the Bluetooth address masked
+   * to "XX:XX:XX:XX:EE:FF" on both phones (CarPlay's uid as given). Null if
+   * none (also Android 8.1 and older).
    */
   id: string | null;
   kind: CarAudioKind;
@@ -30,6 +30,7 @@ declare class CarAudioNativeModule extends NativeModule<CarAudioEvents> {
   // Absent on binaries built before car Bluetooth (24 Oct 2026).
   currentCarAudio?: () => RawOutput;
   currentCarAudioOutputs?: () => RawOutput[];
+  hasOutputsApi?: () => boolean;
 }
 
 const KINDS: readonly CarAudioKind[] = ["bluetooth", "carplay", "android_auto", "usb", "other"];
@@ -62,6 +63,21 @@ function toOutput(raw: RawOutput): CarAudioOutput | null {
 /** True only when the native CarAudio module is present in this build. */
 export function isCarAudioAvailable(): boolean {
   return load() !== null;
+}
+
+/**
+ * True only when this build's native side can say which car it is (names
+ * and ids, both phones). False on Expo Go, OTA-only phones and binaries with
+ * the older iPhone-only module, which could only say "a car".
+ */
+export function isCarOutputsAvailable(): boolean {
+  const m = load();
+  if (!m || typeof m.hasOutputsApi !== "function") return false;
+  try {
+    return m.hasOutputsApi() === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Synchronous check: is the phone currently on a car audio output? */
