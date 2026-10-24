@@ -1,4 +1,5 @@
 import { apiRequest } from "./index";
+import { rememberCars } from "../vehicles/defaultCar";
 import type { VehicleListOdometer } from "./odometer";
 import type {
   Vehicle,
@@ -48,8 +49,11 @@ export interface UpdateVehicleData {
   providedByOthers?: boolean;
 }
 
-export function fetchVehicles() {
-  return apiRequest<{ data: VehicleWithCaz[] }>("/vehicles");
+export async function fetchVehicles() {
+  const res = await apiRequest<{ data: VehicleWithCaz[] }>("/vehicles");
+  // Remember the default car for trips recorded in the background.
+  void rememberCars(res.data);
+  return res;
 }
 
 export function createVehicle(data: CreateVehicleData) {

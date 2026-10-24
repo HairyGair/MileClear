@@ -3185,17 +3185,10 @@ async function _finalizeAutoTripInner(): Promise<void> {
     }
 
     if (!merged) {
-    // Look up the most recently used vehicle from local trips, so auto-detected
-    // trips inherit a vehicle rather than appearing as "Unknown vehicle" in exports.
-    let vehicleId: string | undefined;
-    try {
-      const lastTrip = await db.getFirstAsync<{ vehicle_id: string | null }>(
-        "SELECT vehicle_id FROM trips WHERE vehicle_id IS NOT NULL ORDER BY started_at DESC LIMIT 1"
-      );
-      if (lastTrip?.vehicle_id) vehicleId = lastTrip.vehicle_id;
-    } catch {
-      // Best-effort - trip will just have no vehicle
-    }
+    // The primary car (else the only car), so a trip moved to a second car
+    // doesn't drag the ones after it there (lib/vehicles/defaultCar.ts).
+    const { carForRecordedTrip } = await import("../vehicles/defaultCar");
+    const vehicleId = await carForRecordedTrip();
 
     const wasAutoClassified = classification !== "unclassified";
     const roundedDistance = Math.round(totalDistance * 100) / 100;

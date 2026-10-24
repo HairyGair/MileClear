@@ -89,11 +89,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Signed out (by hand or an expired session): forget the Home odometer
-  // card's saved figure so the next driver on this phone never sees it.
+  // card's saved figure and the default car, so the next driver on this
+  // phone never gets either.
   useEffect(() => {
     if (isLoading || isAuthenticated) return;
     import("../home/odometerCache")
       .then((m) => m.clearHomeOdometerCache())
+      .catch(() => {});
+    import("../vehicles/defaultCar")
+      .then((m) => m.forgetCars())
       .catch(() => {});
   }, [isLoading, isAuthenticated]);
 
