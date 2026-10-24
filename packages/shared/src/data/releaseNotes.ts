@@ -78,6 +78,17 @@ export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    // Next App Store build (1.4.0, after TestFlight build 96, which predates
+    // this). Only lines that need the new build go here; flip the label to
+    // "Pending Review" on submit. Directions stays unlisted until it's on.
+    version: "1.4.0",
+    date: "October 2026",
+    label: "In Development",
+    items: [
+      "More than one car? Link each car's Bluetooth on its screen, and trips the app records go on the car your phone is connected to",
+    ],
+  },
+  {
     // Build 95, cut 11 Oct 2026 from ui-set-oct (main @ 37ecd2f3), submitted to
     // Apple the same evening. Everything below also reached every older build by
     // OTA on 11 Oct (plus the add-trip redesign, c283476e), so the email is
@@ -1035,6 +1046,16 @@ export function blogUrlForRelease(version: string): string {
 // Rendered at /android-releases. Deliberately NOT read by the Product Update
 // email, which goes to the whole fleet and is overwhelmingly iPhone users.
 export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
+  {
+    // Next Play build (1.4.0). Car Bluetooth needs native code, so it can't
+    // arrive by update; flip the label when the build reaches testers.
+    version: "1.4.0",
+    date: "October 2026",
+    label: "In Development",
+    items: [
+      "More than one car? Link each car's Bluetooth on its screen, and trips the app records go on the car your phone is connected to",
+    ],
+  },
   {
     // Build 8 (runtime 1.3.13-build8), cut 11 Oct 2026, Play closed testing.
     // Every change below also reached the Play public build 6 by OTA between
