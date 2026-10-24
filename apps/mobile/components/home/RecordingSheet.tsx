@@ -8,7 +8,7 @@ import { View, Text, Switch, Pressable, StyleSheet, Linking, Alert } from "react
 import { Ionicons } from "@expo/vector-icons";
 import { HomeSheet } from "./HomeSheet";
 import { readAutomaticTrips, setAutomaticTrips } from "../../lib/tracking/automaticTrips";
-import { pauseChoices, pausedRowText, type PauseChoice } from "../../lib/tracking/pauseRule";
+import { pauseChoices, pausedRowText, workHoursRowText, type PauseChoice } from "../../lib/tracking/pauseRule";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 
 // "Not working? Tell us": straight to support with the state in the subject.
@@ -28,6 +28,8 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   pausedUntil: number | null;
+  /** The pause is Only record in work hours' own. */
+  pausedForWorkHours?: boolean;
   onPause: (choice: PauseChoice) => void;
   onResume: () => void;
   /** Told after the switch changes, so Home can refresh what depends on it. */
@@ -39,6 +41,7 @@ export function RecordingSheet({
   visible,
   onClose,
   pausedUntil,
+  pausedForWorkHours = false,
   onPause,
   onResume,
   onAutomaticChange,
@@ -104,6 +107,9 @@ export function RecordingSheet({
 
   const now = Date.now();
   const paused = pausedUntil !== null && pausedUntil > now;
+  // Outside work hours the driver can still record now or choose a holiday
+  // pause, so the pause choices stay on show below the work-hours line.
+  const workHoursPause = paused && pausedForWorkHours;
 
   return (
     <HomeSheet visible={visible} title="Recording" onClose={onClose}>
@@ -133,7 +139,28 @@ export function RecordingSheet({
       </View>
 
       <View style={s.card}>
-        {paused ? (
+        {workHoursPause ? (
+          <>
+            <Text style={s.rowTitle} maxFontSizeMultiplier={fontScaleCap.body}>
+              {workHoursRowText(pausedUntil as number, now)}
+            </Text>
+            <Text style={s.hint} maxFontSizeMultiplier={fontScaleCap.body}>
+              Only record in work hours is on, in More &gt; Work hours.
+            </Text>
+            <Pressable
+              onPress={() => {
+                onResume();
+                onClose();
+              }}
+              style={s.primaryOutline}
+              accessibilityRole="button"
+              accessibilityLabel="Record the rest of today"
+            >
+              <Text style={s.primaryOutlineText} maxFontSizeMultiplier={fontScaleCap.body}>Record the rest of today</Text>
+            </Pressable>
+          </>
+        ) : null}
+        {paused && !workHoursPause ? (
           <>
             <Text style={s.rowTitle} maxFontSizeMultiplier={fontScaleCap.body}>
               {pausedRowText(pausedUntil as number, now)}

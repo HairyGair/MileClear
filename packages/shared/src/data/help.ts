@@ -803,9 +803,9 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "work-schedule",
     area: "vehicles_and_places",
     q: "How do I set my working hours?",
-    a: "More > Work hours (also in More > Settings) is where you set your working days and hours. That's free. With Pro, it can also mark trips in your working hours as Business and switch you to Work mode while you're working.",
+    a: "More > Work hours (also in More > Settings) is where you set your working days and hours. That's free. With Pro, it can also mark trips in your working hours as Business and switch you to Work mode while you're working. Anyone can switch on \"Only record in work hours\" there: drives outside your hours aren't recorded, recording starts half an hour before your hours and stops half an hour after, and Home says when it starts again. Tapping Resume records the rest of that day.",
     goTo: "/work-schedule",
-    keywords: ["hours", "schedule", "working days", "work hours", "rota"],
+    keywords: ["hours", "schedule", "working days", "work hours", "rota", "only record", "mornings", "outside work"],
   },
 
   // ── Pro and billing ──────────────────────────────────────────────────────

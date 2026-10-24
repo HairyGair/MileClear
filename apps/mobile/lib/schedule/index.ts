@@ -122,7 +122,9 @@ export async function hasSchedule(): Promise<boolean> {
 export type ScheduleSetting =
   | "schedule_auto_classify"
   | "schedule_auto_mode"
-  | "schedule_reminder";
+  | "schedule_reminder"
+  /** Only record in work hours (24 Oct 2026, lib/schedule/workHoursRecording.ts). */
+  | "schedule_record_only";
 
 export async function getScheduleSetting(
   key: ScheduleSetting

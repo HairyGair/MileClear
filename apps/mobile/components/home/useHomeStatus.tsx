@@ -26,6 +26,8 @@ interface Args {
   setup: { done: number; total: number; rows: SetupChecklistRow[] } | null;
   lowPowerMode: boolean;
   pausedUntil: number | null;
+  /** The pause is Only record in work hours' own. */
+  pausedForWorkHours?: boolean;
   /** The permanent Automatic trips switch is off. */
   automaticOff: boolean;
   recovered: { trips: number; miles: number } | null;
@@ -58,6 +60,7 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
         failedSyncCount: failed.count,
         failedSyncAllTrips: failed.allTrips,
         pausedUntil: a.pausedUntil,
+        pausedForWorkHours: a.pausedForWorkHours,
         now,
         automaticOff: a.automaticOff,
         lowPowerMode: a.lowPowerMode,
@@ -68,7 +71,7 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
       }),
     // `now` is read once per render on purpose: a pause ending is picked up on the next render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
+    [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.pausedForWorkHours, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
   );
 
   const onPress = useCallback(() => {
@@ -114,6 +117,7 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
         visible={sheet === "recording"}
         onClose={closeSheet}
         pausedUntil={a.pausedUntil}
+        pausedForWorkHours={a.pausedForWorkHours}
         onPause={a.onPause}
         onResume={a.onResume}
         onAutomaticChange={a.onAutomaticChange}
