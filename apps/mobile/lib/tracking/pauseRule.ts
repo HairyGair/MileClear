@@ -138,3 +138,38 @@ export function pausePromptCopy(until: number | null | undefined, now: number): 
     keepLabel: "Keep paused",
   };
 }
+
+export interface PauseFixWindow {
+  /** Fixes recorded at or after this (epoch ms) belong to the pause. */
+  fromMs: number;
+  /** ...and before this: the pause's end. Fixes after it are a drive. */
+  toMs: number;
+}
+
+/**
+ * Which buffered fixes were recorded during a pause, and so are not wanted
+ * (Celerio, 23-24 Oct 2026: "For a week" for a holiday, and four drives were
+ * still saved from fixes the native engine kept storing while paused).
+ *
+ * The window is the stored pause, whether it is still running or ended
+ * without anything clearing it yet: from when it started to when it was set
+ * to end. Fixes after the end are the next drive and are kept.
+ *
+ * A pause set before 24 Oct 2026 has no start time. Then everything up to the
+ * end is the pause's, except when a recording is armed: that recording began
+ * before the pause, and losing a real drive is worse than saving a stray one.
+ * Null means nothing to drop.
+ */
+export function pauseFixWindow(input: {
+  until: number | null | undefined;
+  startedAt: number | null | undefined;
+  armed: boolean;
+}): PauseFixWindow | null {
+  const { until, startedAt, armed } = input;
+  if (typeof until !== "number" || !Number.isFinite(until)) return null;
+  if (typeof startedAt === "number" && Number.isFinite(startedAt) && startedAt > 0) {
+    return startedAt < until ? { fromMs: startedAt, toMs: until } : null;
+  }
+  if (armed) return null;
+  return { fromMs: 0, toMs: until };
+}

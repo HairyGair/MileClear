@@ -1,5 +1,5 @@
 import { AppState, Platform } from "react-native";
-import { isPauseActive, pauseWakeDecision, type PauseWake } from "./pauseRule";
+import { isPauseActive, pauseFixWindow, pauseWakeDecision, type PauseWake } from "./pauseRule";
 import { detectionOffAction, readDetectionSwitch, shouldDiscardAutoRoute, type DetectionOffAction } from "./detectionOffRule";
 import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
@@ -228,6 +228,7 @@ import {
   applySameStartTrim,
   decideSameStart,
   dropSavedFixesFromBuffer,
+  fixTimeMs,
   recordSavedFixes,
 } from "./savedFixes";
 import {
@@ -1591,6 +1592,10 @@ export async function finalizeAutoTrip(): Promise<void> {
     // or a trip already saved from them cover, so the same drive is never saved
     // twice. See ownedFixes.ts.
     await dropFixesAlreadyRecorded();
+    // Fixes the engine stored during a pause are not a drive the driver
+    // wanted, whichever path is finalizing (a Start Trip's earlier-drive save,
+    // the stale sweeper, the heartbeat). See dropPauseFixesFromBuffer.
+    await dropPauseFixesFromBuffer("finalize");
     try {
       // Drain loop: a multileg buffer defers its remaining real legs and sets
       // deferredFinalizePending; each pass consumes the oldest leg, so the loop
@@ -3695,6 +3700,9 @@ export async function sweepOrphanedRoute(source: string): Promise<void> {
   try {
     if (isFinalizeInFlight()) return;
     const db = await getDatabase();
+    // A pause that ended with nothing to clear it leaves its fixes behind,
+    // and once it has ended nothing below reads as paused. Clear them first.
+    await clearPauseFixes(`sweep_${source}`);
 
     const buffer = await db.getFirstAsync<{ n: number; newest: string | null; oldest: string | null }>(
       "SELECT COUNT(*) AS n, MAX(recorded_at) AS newest, MIN(recorded_at) AS oldest FROM detection_coordinates"
@@ -6154,8 +6162,106 @@ export async function enforceDriveDetectionOff(source: string, checkLock: boolea
 }
 
 const PAUSE_KEY = "drive_pause_until";
+/** When the pause was set (epoch ms). Written from 24 Oct 2026; an older
+ *  pause has none (see pauseFixWindow). */
+const PAUSE_STARTED_KEY = "drive_pause_started_at";
 const OFF_AT_KEY = "drive_detection_off_at";
 const PAUSE_NOTIFICATION_ID = "drive-pause-ended";
+
+/**
+ * Delete the buffered fixes recorded during the stored pause, running or
+ * ended but not yet cleared (pauseFixWindow). JS buffer only: callers that
+ * hold the native store drain it first. Returns how many went. Never throws;
+ * a failure keeps the fixes, as a failed read must not lose a drive.
+ */
+async function dropPauseFixesFromBuffer(source: string): Promise<number> {
+  try {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ key: string; value: string }>(
+      `SELECT key, value FROM tracking_state WHERE key IN ('${PAUSE_KEY}', '${PAUSE_STARTED_KEY}', 'auto_recording_active')`
+    );
+    const get = (k: string) => rows.find((r) => r.key === k)?.value;
+    const untilRaw = get(PAUSE_KEY);
+    if (untilRaw === undefined) return 0;
+    const startedRaw = get(PAUSE_STARTED_KEY);
+    const win = pauseFixWindow({
+      until: Number(untilRaw),
+      startedAt: startedRaw === undefined ? null : Number(startedRaw),
+      armed: get("auto_recording_active") === "1",
+    });
+    if (!win) return 0;
+    // Judged in JS, not by comparing recorded_at as text: the native engine
+    // can store a raw epoch there, which sorts outside any ISO range. An
+    // unreadable time is kept.
+    const rows2 = await db.getAllAsync<{ id: number; recorded_at: string; recorded_ms: number | null }>(
+      "SELECT id, recorded_at, recorded_ms FROM detection_coordinates"
+    );
+    const hit = rows2
+      .map((r) => ({ id: r.id, ms: r.recorded_ms && r.recorded_ms > 0 ? r.recorded_ms : fixTimeMs(r.recorded_at) }))
+      .filter((r) => r.ms > 0 && r.ms >= win.fromMs && r.ms < win.toMs);
+    const n = hit.length;
+    if (n === 0) return 0;
+    for (let i = 0; i < n; i += 300) {
+      const ids = hit.slice(i, i + 300).map((r) => r.id);
+      await db.runAsync(`DELETE FROM detection_coordinates WHERE id IN (${ids.map(() => "?").join(",")})`, ids);
+    }
+    const times = hit.map((r) => r.ms);
+    logDetectionEvent("pause_discarded", { source, jsCoords: n, legacy: startedRaw === undefined }).catch(() => {});
+    if (n >= 2) {
+      await noteRecordingDropped({
+        reason: "paused",
+        source,
+        startedAt: new Date(Math.min(...times)).toISOString(),
+        endedAt: new Date(Math.max(...times)).toISOString(),
+        coords: n,
+        nativeCoords: null,
+      });
+    }
+    return n;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Clear what the engine stored during the pause from both buffers: drain the
+ * native store into the JS buffer, drop the pause's fixes, and empty the
+ * native store, which cannot be trimmed in place. Fixes after the pause's end
+ * stay in the JS buffer for the drive they belong to. Skipped while a
+ * recording is armed: that recording owns the native store, and finalize
+ * drops the pause's fixes from it when it runs. Never throws.
+ */
+async function clearPauseFixes(source: string): Promise<void> {
+  try {
+    const db = await getDatabase();
+    const pause = await db.getFirstAsync<{ value: string }>(
+      `SELECT value FROM tracking_state WHERE key = '${PAUSE_KEY}'`
+    );
+    if (!pause) return;
+    // The native store belongs to someone else while a recording is armed, a
+    // shift or Start Trip runs (its end needs the store to find an earlier
+    // drive), or a finalize is consuming it. Then only the JS buffer is
+    // trimmed, and finalize drops the pause's fixes when it drains the store.
+    const ownedElsewhere = async () => {
+      const armed = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
+      );
+      return armed?.value === "1" || isFinalizeInFlight() || (await shiftSuppressesAutoDetection(db));
+    };
+    if (await ownedElsewhere()) {
+      await dropPauseFixesFromBuffer(source);
+      return;
+    }
+    const nl = await import("./nativeLocation");
+    const native = await nl.getNativeStoreSummary();
+    if ((native?.count ?? 0) > 0) await nl.reconcileNativeBufferBeforeFinalize();
+    await dropPauseFixesFromBuffer(source);
+    // Asked again: a recording may have opened while the store was read.
+    if ((native?.count ?? 0) > 0 && !(await ownedElsewhere())) await nl.destroyNativeLocations();
+  } catch {
+    // best effort: finalize and the next sweep drop them too
+  }
+}
 
 /** Epoch ms when the current pause ends, or null when not paused. Expired
  *  pauses read as null. */
@@ -6182,17 +6288,39 @@ export async function getDrivePauseUntil(): Promise<number | null> {
  *  drive during a pause costs one wake instead of a recorded route. */
 export async function pauseDriveDetection(until: number, choice: string): Promise<void> {
   const db = await getDatabase();
+  // A finalize already running (an app-open sweep) would make the one below
+  // return at once, and the route it is saving must finish before the pause
+  // window starts, or its fixes could be judged the pause's.
+  await waitForFinalizeInFlight();
   // A pause mid-drive must not strand the route it is interrupting. Close the
   // open recording first, so the miles up to this point are saved rather than
   // sitting in the buffer until the next app open.
   const open = await db.getFirstAsync<{ value: string }>(
     "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
   );
-  if (open?.value === "1") {
+  // The same for a finished route nothing was armed for yet (a lost flag, or
+  // one still inside the sweep's ten minutes): from here on anything in the
+  // buffers is thrown away as the pause's, so it is saved now or never.
+  // Not while a shift or Start Trip runs: the stores then hold that trip's
+  // own copy, which its end clears, and saving it here would duplicate it.
+  let unsaved = false;
+  if (open?.value !== "1" && !(await shiftSuppressesAutoDetection(db))) {
+    try {
+      const buffered = await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM detection_coordinates");
+      const { getNativeStoreSummary } = await import("./nativeLocation");
+      const native = await getNativeStoreSummary();
+      unsaved = (buffered?.n ?? 0) >= 2 || (native?.count ?? 0) >= 2;
+    } catch {}
+  }
+  if (open?.value === "1" || unsaved) {
     try {
       await finalizeAutoTrip();
     } catch {}
   }
+  await db.runAsync(
+    "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
+    [PAUSE_STARTED_KEY, String(Date.now())]
+  );
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)",
     [PAUSE_KEY, String(until)]
@@ -6239,7 +6367,9 @@ export async function resumeDriveDetection(reason: "manual" | "notification" | "
     `SELECT value FROM tracking_state WHERE key = '${PAUSE_KEY}'`
   );
   if (!row) return;
-  await db.runAsync(`DELETE FROM tracking_state WHERE key = '${PAUSE_KEY}'`);
+  // Before the keys go: they are what says which fixes were the pause's.
+  await clearPauseFixes(`resume_${reason}`);
+  await db.runAsync(`DELETE FROM tracking_state WHERE key IN ('${PAUSE_KEY}', '${PAUSE_STARTED_KEY}')`);
   logDetectionEvent("drive_resumed", { reason, early: reason === "manual" && isPauseActive(Number(row.value), Date.now()) }).catch(() => {});
   await applyNativeEnginePower(`pause_resumed_${reason}`);
   try {
@@ -6288,7 +6418,18 @@ async function applyNativeEnginePower(source: string): Promise<void> {
  * be able to silence a phone, which is the same trap that fails an Android
  * engine flag closed onto an engine that records nothing.
  */
-export async function resolvePauseOnWake(): Promise<PauseWake> {
+export function resolvePauseOnWake(): Promise<PauseWake> {
+  // One at a time: a wake brings a motion change and a fix together, and two
+  // resumes racing would clear the pause's fixes twice, the second time from
+  // under the recording the first one opened.
+  const run = pauseWakeChain.then(resolvePauseOnWakeNow, resolvePauseOnWakeNow);
+  pauseWakeChain = run.catch(() => "record" as PauseWake);
+  return run;
+}
+
+let pauseWakeChain: Promise<PauseWake> = Promise.resolve("record");
+
+async function resolvePauseOnWakeNow(): Promise<PauseWake> {
   try {
     const db = await getDatabase();
     const row = await db.getFirstAsync<{ value: string }>(
@@ -6297,7 +6438,10 @@ export async function resolvePauseOnWake(): Promise<PauseWake> {
     if (!row) return "record";
     const decision = pauseWakeDecision(Number(row.value), Date.now());
     if (decision !== "resume") return decision;
-    await db.runAsync(`DELETE FROM tracking_state WHERE key = '${PAUSE_KEY}'`);
+    // Fixes stored during the pause go before the drive this wake is for
+    // starts recording; fixes after the pause's end are kept for it.
+    await clearPauseFixes("resume_on_wake");
+    await db.runAsync(`DELETE FROM tracking_state WHERE key IN ('${PAUSE_KEY}', '${PAUSE_STARTED_KEY}')`);
     logDetectionEvent("drive_resumed", { reason: "expired_on_wake" }).catch(() => {});
     // Back to normal power BEFORE the caller judges the fix that woke us, so
     // the drive this wake belongs to records at full accuracy (26 Sep 2026).

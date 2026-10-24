@@ -44,6 +44,8 @@ export type DropReason =
   | "deduped"
   /** Automatic trips switched off: the route was thrown away on purpose. */
   | "switched_off"
+  /** Fixes stored during a pause: thrown away on purpose. */
+  | "paused"
   /** The driver said "Not driving". */
   | "cancelled"
   /** Old fixes cleared when a new recording opened. */
@@ -73,6 +75,7 @@ const LOST: ReadonlySet<DropReason> = new Set<DropReason>([
   "implausible_distance",
   "tail_trim",
   "switched_off",
+  "paused",
   "cancelled",
   "stale_buffer_cleared",
 ]);
