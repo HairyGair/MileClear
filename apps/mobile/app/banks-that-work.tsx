@@ -67,7 +67,6 @@ export default function BanksThatWorkScreen() {
       keyboardVerticalOffset={100}
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.heading}>Banks that work</Text>
         <Text style={styles.body}>
           You can link a personal account at any of these banks. MileClear only reads your
           payments and can't move money.
@@ -98,7 +97,8 @@ export default function BanksThatWorkScreen() {
               your earnings from Uber, Deliveroo, Just Eat or similar, and MileClear reads the total.
             </Text>
             <Text style={styles.sentBody}>
-              {"•"} Import CSV from platform: adds a platform's earnings file in one go.
+              {"•"} Import CSV from platform{user?.isPremium ? "" : " (Pro)"}: adds a platform's
+              earnings file in one go.
             </Text>
             <Text style={styles.sentBody}>{"•"} Add manually, on the Earnings screen.</Text>
             <Button
@@ -158,12 +158,6 @@ const styles = StyleSheet.create({
   scroll: {
     padding: 16,
     paddingBottom: 40,
-  },
-  heading: {
-    fontSize: 24,
-    fontFamily: fonts.bold,
-    color: "#fff",
-    marginBottom: 8,
   },
   body: {
     fontSize: 14,

@@ -46,7 +46,7 @@ export function BanksThatWork() {
       {sent ? (
         <p className={s.totalLine} role="status">
           Thanks, we&apos;ve noted {sent}. We&apos;ll ask our banking partner, TrueLayer, to add it. Until then you can
-          add earnings by hand, or import a platform&apos;s earnings file, on the Earnings page.
+          add earnings by hand on the Earnings page, or with Pro import a platform&apos;s earnings file.
         </p>
       ) : (
         <form onSubmit={send} className={s.stack}>
