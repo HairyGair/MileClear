@@ -2,6 +2,10 @@
 
 # Dependencies
 node_modules/
+
+# Agent worktrees and local Claude files (gigabytes, never part of a build)
+.claude/
+docs/
 .pnpm-store/
 
 # Build output (except shared package)
