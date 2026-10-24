@@ -42,6 +42,20 @@ export async function noteRecordingDropped(input: DropInput): Promise<void> {
   }
 }
 
+/**
+ * Any other app event from the trip pipeline (car Bluetooth's trip notes, 24
+ * Oct 2026): same outbox, so it reaches the server from the background too.
+ * Never throws.
+ */
+export async function queueAppEvent(type: string, metadata: Record<string, unknown>): Promise<void> {
+  try {
+    await enqueueOutboxEvent(type, metadata);
+    void flushEventOutbox();
+  } catch {
+    // Telemetry must never reach the trip pipeline.
+  }
+}
+
 async function enqueueOutboxEvent(type: string, metadata: Record<string, unknown>): Promise<void> {
   const db = await getDatabase();
   await db.runAsync("INSERT INTO event_outbox (type, metadata, created_at) VALUES (?, ?, ?)", [

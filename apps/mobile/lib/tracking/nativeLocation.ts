@@ -66,6 +66,7 @@ import { fixTimeMs } from "./savedFixes";
 import { decideSpeedStart, isNearMiss } from "./speedStartRule";
 import { footStopDecision, FOOT_STOP_MS, type ActivityFix } from "./footStop";
 import { recordBatterySample } from "./batterySamples";
+import { noteCarOnFix } from "../vehicles/carBluetooth";
 import { engineTriggerActivities } from "./engineTriggers";
 import { getMotionPermission } from "./motionPermission";
 import {
@@ -1514,6 +1515,9 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // Battery over time (batterySamples.ts): at most one sample per ten
     // minutes, fire and forget, never in the way of the fix.
     void recordBatterySample();
+    // Which car's Bluetooth the phone is on (carBluetooth.ts): at most one
+    // read a minute, written fire and forget, never in the way of the fix.
+    noteCarOnFix();
 
     // Low power (a shift or Start Trip owns the GPS): this coarse fix is only
     // good for noticing that the lock has gone. The shared helper self-heals

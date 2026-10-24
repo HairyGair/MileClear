@@ -182,6 +182,19 @@ async function initializeSchema(database: SQLite.SQLiteDatabase): Promise<void> 
       created_at INTEGER NOT NULL
     );
 
+    -- What the phone's audio was connected to (a car's Bluetooth, CarPlay),
+    -- kept three days, so a recorded trip can go on the linked car it was in;
+    -- see lib/vehicles/carBluetooth.ts (24 Oct 2026).
+    CREATE TABLE IF NOT EXISTS car_sightings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at_ms INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      device_id TEXT,
+      kind TEXT,
+      source TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_car_sightings_at ON car_sightings (at_ms);
+
     -- Battery over time while the tracking engine is awake, shipped in the
     -- diagnostic dump; see lib/tracking/batterySamples.ts (24 Sep 2026).
     CREATE TABLE IF NOT EXISTS battery_samples (
@@ -428,6 +441,7 @@ const USER_DATA_TABLES = [
   "tracking_log",
   "event_outbox",
   "battery_samples",
+  "car_sightings",
   "trips",
   "shifts",
   "fuel_logs",

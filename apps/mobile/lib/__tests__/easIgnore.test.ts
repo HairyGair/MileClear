@@ -21,6 +21,14 @@ describe(".easignore", () => {
     "apps/mobile/modules/nav-voice/android/build.gradle",
     "apps/mobile/modules/nav-voice/android/src/main/java/expo/modules/navvoice/NavVoiceModule.kt",
     "apps/mobile/modules/nav-voice/index.ts",
+    "apps/mobile/modules/car-audio/ios/",
+    "apps/mobile/modules/car-audio/ios/CarAudioModule.swift",
+    "apps/mobile/modules/car-audio/ios/CarAudio.podspec",
+    "apps/mobile/modules/car-audio/android/",
+    "apps/mobile/modules/car-audio/android/build.gradle",
+    "apps/mobile/modules/car-audio/android/src/main/java/expo/modules/caraudio/CarAudioModule.kt",
+    "apps/mobile/modules/car-audio/expo-module.config.json",
+    "apps/mobile/modules/car-audio/index.ts",
   ])("ships %s", (p) => expect(ig.ignores(p)).toBe(false));
 
   it.each([
@@ -28,8 +36,7 @@ describe(".easignore", () => {
     "apps/mobile/ios/Podfile",
     "apps/mobile/android/",
     "apps/mobile/android/app/build.gradle",
-    // Not switched on here: shipping them is a separate decision.
-    "apps/mobile/modules/car-audio/ios/CarAudioModule.swift",
+    // Not switched on here: shipping it is a separate decision.
     "apps/mobile/modules/visit-monitor/ios/VisitMonitorModule.swift",
   ])("still leaves out %s", (p) => expect(ig.ignores(p)).toBe(true));
 });

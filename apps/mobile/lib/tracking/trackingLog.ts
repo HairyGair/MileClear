@@ -87,6 +87,8 @@ export const TRACKING_LOG_PATTERNS: readonly string[] = [
   "orphan_*",
   "deferred_buffer_*",
   "merge_attempted",
+  "car_from_bluetooth",
+  "car_split_merge",
   "not_driving_*",
   "shift_*",
   "background_fetch_*",

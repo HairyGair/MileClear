@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,16 +7,19 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  AccessibilityInfo,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, Stack } from "expo-router";
 import { showSupportAlert } from "../lib/support";
 import {
   createVehicle,
   updateVehicle,
   deleteVehicle,
+  type UpdateVehicleData,
   fetchVehicles,
   lookupVehicle,
 } from "../lib/api/vehicles";
@@ -29,6 +32,17 @@ import { parseReadingInput, sanitiseReadingInput } from "../lib/odometer/logic";
 import { useUser } from "../lib/user/context";
 import { usePaywall } from "../components/paywall";
 import { colors, fonts } from "../lib/theme";
+import { haptic } from "../lib/haptics";
+import {
+  bluetoothIdFor,
+  isCarBluetoothSupported,
+  linkedElsewhere,
+  linksFromCars,
+  readConnectedCars,
+  readConnectedOutputs,
+  type CarAudioOutput,
+} from "../lib/vehicles/carBluetooth";
+import CarBluetoothArt from "../components/vehicles/CarBluetoothArt";
 
 // Local theme aliases — same pattern as the (tabs) screens.
 const AMBER = colors.amber;
@@ -54,6 +68,252 @@ const FUEL_TYPE_OPTIONS: { value: FuelType; label: string }[] = [
 /** "DL74ONT" -> "DL74 ONT" for a current-format plate; others as stored. */
 function formatPlate(plate: string): string {
   return /^[A-Z]{2}[0-9]{2}[A-Z]{3}$/.test(plate) ? `${plate.slice(0, 4)} ${plate.slice(4)}` : plate;
+}
+
+/** What the Car Bluetooth card needs to know; the screen owns the state. */
+interface CarBluetoothCardProps {
+  /** Name the car calls itself, e.g. "MY FORD"; null when not linked. */
+  linkedName: string | null;
+  /** True when a link is set, even if its name is missing. */
+  linked: boolean;
+  /** True when the link changed on this screen and is not saved yet. */
+  unsaved: boolean;
+  isEditing: boolean;
+  disabled: boolean;
+  /** The driver's other cars, to spot a Bluetooth already linked to one of them. */
+  otherCars: Array<{ id: string; label: string; bluetoothName?: string | null; bluetoothId?: string | null }>;
+  /** This car's id; empty while it is still being added. */
+  vehicleId: string;
+  /** moveFrom: the other car the link is being taken from, if any. */
+  onLink: (out: CarAudioOutput, moveFrom: string | null) => void;
+  onUnlink: () => void;
+}
+
+function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, otherCars, vehicleId, onLink, onUnlink }: CarBluetoothCardProps) {
+  const supported = isCarBluetoothSupported();
+  const [checking, setChecking] = useState(false);
+  const [notConnected, setNotConnected] = useState(false);
+  // 3 or more things to pick from: shown as a list in the card, not an alert.
+  const [choices, setChoices] = useState<CarAudioOutput[] | null>(null);
+  useEffect(() => {
+    if (choices) AccessibilityInfo.announceForAccessibility("Pick which one is the car");
+  }, [choices]);
+  const store = Platform.OS === "ios" ? "App Store" : "Play Store";
+  const mounted = useRef(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
+
+  const confirmLink = useCallback(
+    (found: CarAudioOutput) => {
+      haptic("light");
+      const other = linkedElsewhere(found, linksFromCars(otherCars), vehicleId);
+      const otherCar = other ? otherCars.find((c) => c.id === other.vehicleId) : undefined;
+      if (other) {
+        Alert.alert(
+          `${found.name} is linked to your ${otherCar?.label ?? "other car"}. Move it here?`,
+          "Trips the app picks up on its own will go on this car instead.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Move", onPress: () => { haptic("success"); onLink(found, other.vehicleId); setChoices(null); } },
+          ]
+        );
+        return;
+      }
+      Alert.alert(
+        `Link ${found.name} to this car?`,
+        `Trips the app picks up on its own while your phone is connected to ${found.name} will go on this car.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Link", onPress: () => { haptic("success"); onLink(found, null); setChoices(null); } },
+        ]
+      );
+    },
+    [otherCars, vehicleId, onLink, setChoices]
+  );
+
+  const handleUseNow = useCallback(() => {
+    setNotConnected(false);
+    setChoices(null);
+    setChecking(true);
+    // The read is instant; a short beat makes it feel like the phone looked.
+    timer.current = setTimeout(() => {
+      if (!mounted.current) return;
+      setChecking(false);
+      const cars = readConnectedCars();
+      // Nothing that looks like a car: offer whatever the phone is on, so a
+      // stereo called "JBL" can still be linked by a driver who says so.
+      const guesses = cars.length === 0 ? readConnectedOutputs() : [];
+      const found = cars.length > 0 ? cars : guesses;
+      const guessing = cars.length === 0 && guesses.length > 0;
+      if (found.length === 0) {
+        haptic("warning");
+        setNotConnected(true);
+      } else if (found.length === 1) {
+        if (!guessing) {
+          confirmLink(found[0]);
+        } else {
+          haptic("light");
+          Alert.alert(`Is ${found[0].name} your car?`, undefined, [
+            { text: "No", style: "cancel" },
+            { text: "Yes", onPress: () => confirmLink(found[0]) },
+          ]);
+        }
+      } else if (found.length === 2) {
+        haptic("light");
+        Alert.alert(
+          "Which one is the car?",
+          "Your phone is connected to more than one thing.",
+          [
+            ...found.map((f) => ({ text: f.name, onPress: () => confirmLink(f) })),
+            { text: "Cancel", style: "cancel" as const },
+          ]
+        );
+      } else {
+        haptic("light");
+        setChoices(found);
+      }
+    }, 450);
+  }, [confirmLink]);
+
+  const handleUnlink = useCallback(() => {
+    Alert.alert(
+      linkedName ? `Unlink ${linkedName}?` : "Unlink this car's Bluetooth?",
+      "Trips will go on your main car instead.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Unlink", style: "destructive", onPress: () => { haptic("warning"); onUnlink(); } },
+      ]
+    );
+  }, [linkedName, onUnlink]);
+
+  return (
+    <View style={styles.btCard} accessibilityLabel="Car Bluetooth">
+      <View style={styles.btHeader}>
+        <CarBluetoothArt size={72} linked={linked} />
+        <View style={styles.btHeaderText}>
+          <Text style={styles.btTitle} accessibilityRole="header">Car Bluetooth</Text>
+          <Text style={styles.btHint}>
+            {supported
+              ? "Link this car and trips the app picks up on its own go on it while your phone is connected."
+              : "Your phone can tell which car you are in."}
+          </Text>
+        </View>
+      </View>
+
+      {!supported && (
+        <View style={styles.btNotice}>
+          <Ionicons name="arrow-up-circle" size={18} color={AMBER} />
+          <Text style={styles.btNoticeText}>Needs the latest version of MileClear from the {store}.</Text>
+        </View>
+      )}
+
+      {supported && linked && (
+        <>
+          <View
+            style={styles.btLinkedRow}
+            accessible
+            accessibilityLabel={`Linked to ${linkedName ?? "this car"}${unsaved ? ", not saved yet" : ""}`}
+          >
+            <View style={styles.btLinkedIcon}>
+              <Ionicons name="bluetooth" size={18} color={AMBER} />
+            </View>
+            <View style={styles.btLinkedText}>
+              <Text style={styles.btLinkedName} numberOfLines={1}>{linkedName ?? "Your car"}</Text>
+              <Text style={styles.btLinkedSub}>
+                {unsaved ? (isEditing ? "Linked when you tap Save changes" : "Linked when you tap Add car") : "Linked to this car"}
+              </Text>
+            </View>
+            <Ionicons name="checkmark-circle" size={22} color={AMBER} />
+          </View>
+          <Button
+            variant="ghost"
+            title="Unlink"
+            icon="close-circle-outline"
+            size="sm"
+            onPress={handleUnlink}
+            disabled={disabled}
+            accessibilityLabel={`Unlink ${linkedName ?? "Bluetooth"} from this car`}
+            style={{ marginTop: 8 }}
+          />
+        </>
+      )}
+
+      {supported && !linked && (
+        <>
+          {isEditing && unsaved && (
+            <Text style={styles.btSteps} accessibilityLiveRegion="polite">Unlinked when you tap Save changes</Text>
+          )}
+          {choices ? (
+            <View style={{ marginTop: 14 }}>
+              <Text style={styles.btChoiceTitle} accessibilityRole="header">Which one is the car?</Text>
+              {choices.map((c, i) => (
+                <TouchableOpacity
+                  key={`${c.name}-${i}`}
+                  style={styles.btChoice}
+                  onPress={() => confirmLink(c)}
+                  disabled={disabled}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${c.name} is my car`}
+                >
+                  <Ionicons name="bluetooth" size={18} color={AMBER} />
+                  <Text style={styles.btChoiceText} numberOfLines={1}>{c.name}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={TEXT_2} />
+                </TouchableOpacity>
+              ))}
+              <View style={{ flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                <Button
+                  variant="ghost"
+                  title="Look again"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={handleUseNow}
+                  disabled={disabled}
+                  accessibilityLabel="Look again for the car"
+                />
+                <Button
+                  variant="ghost"
+                  title="Cancel"
+                  size="sm"
+                  fullWidth={false}
+                  onPress={() => setChoices(null)}
+                  accessibilityLabel="Cancel"
+                />
+              </View>
+            </View>
+          ) : (
+            <Text style={styles.btSteps}>Sit in the car with the engine on, then tap the button.</Text>
+          )}
+          {notConnected && (
+            <View style={styles.btNotice} accessibilityRole="alert" accessibilityLiveRegion="polite">
+              <Ionicons name="information-circle" size={18} color={AMBER} />
+              <Text style={styles.btNoticeText}>
+                Your phone isn't connected to a car right now. Sit in the car with the engine on and try again.
+                {Platform.OS === "ios" ? " On iPhone, if it is connected, play some music through the car and try again." : ""}
+              </Text>
+            </View>
+          )}
+          <Button
+            variant="secondary"
+            icon="bluetooth"
+            title={checking ? "Looking..." : notConnected ? "Try again" : "Use the Bluetooth I'm connected to now"}
+            onPress={handleUseNow}
+            loading={checking}
+            disabled={disabled}
+            accessibilityLabel={notConnected ? "Try again to find the car's Bluetooth" : "Use the Bluetooth I'm connected to now"}
+            accessibilityHint="Links the car your phone is connected to with this car"
+            style={{ marginTop: 12 }}
+          />
+        </>
+      )}
+    </View>
+  );
 }
 
 export default function VehicleFormScreen() {
@@ -92,6 +352,17 @@ export default function VehicleFormScreen() {
   const [milesPerKwh, setMilesPerKwh] = useState("");
   const [isPrimary, setIsPrimary] = useState(true);
   const [providedByOthers, setProvidedByOthers] = useState(false);
+  // Car Bluetooth link. A car counts as linked only when the phone confirmed
+  // its id: names typed in by the removed old feature have no id and are not
+  // shown as linked. Changes apply on save, so a new car can be linked too.
+  const [btName, setBtName] = useState<string | null>(null);
+  const [btId, setBtId] = useState<string | null>(null);
+  const [btChanged, setBtChanged] = useState(false);
+  // The driver's cars, for "already linked to your Fiesta" and to hide the
+  // card for a one-car driver.
+  const [allCars, setAllCars] = useState<Awaited<ReturnType<typeof fetchVehicles>>["data"]>([]);
+  // A car this link is being moved from; cleared on save.
+  const [btMoveFrom, setBtMoveFrom] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [loadingExisting, setLoadingExisting] = useState(isEditing);
@@ -100,6 +371,7 @@ export default function VehicleFormScreen() {
     if (!id) return;
     fetchVehicles()
       .then((res) => {
+        setAllCars(res.data);
         const vehicle = res.data.find((v) => v.id === id);
         if (vehicle) {
           setMake(vehicle.make);
@@ -114,6 +386,11 @@ export default function VehicleFormScreen() {
               : ""
           );
           setIsPrimary(vehicle.isPrimary);
+          const savedBtId = (vehicle as { bluetoothId?: string | null }).bluetoothId ?? null;
+          if (savedBtId) {
+            setBtId(savedBtId);
+            setBtName(vehicle.bluetoothName ?? null);
+          }
           setVehicleCreatedAt((vehicle as { createdAt?: string }).createdAt ?? null);
           setProvidedByOthers(vehicle.providedByOthers ?? false);
           setRegistrationPlate(vehicle.registrationPlate || "");
@@ -129,6 +406,26 @@ export default function VehicleFormScreen() {
       })
       .finally(() => setLoadingExisting(false));
   }, [id]);
+
+  useEffect(() => {
+    if (id) return;
+    fetchVehicles()
+      .then((res) => setAllCars(res.data))
+      .catch(() => {});
+  }, [id]);
+
+  const otherCars = useMemo(
+    () =>
+      allCars
+        .filter((v) => v.id !== id)
+        .map((v) => ({
+          id: v.id,
+          label: `${v.make} ${v.model}`.trim(),
+          bluetoothName: v.bluetoothName,
+          bluetoothId: (v as { bluetoothId?: string | null }).bluetoothId ?? null,
+        })),
+    [allCars, id]
+  );
 
   const handleLookup = useCallback(async () => {
     const plate = registrationPlate.trim();
@@ -230,10 +527,35 @@ export default function VehicleFormScreen() {
       if (euroStatus) payload.euroStatus = euroStatus;
       if (firstRegistration) payload.firstRegistration = firstRegistration;
 
+      if (btChanged) {
+        if (btId) {
+          payload.bluetoothName = btName ?? undefined;
+          payload.bluetoothId = btId;
+        } else if (isEditing) {
+          // Unlink clears both so the old typed-in name goes too.
+          (payload as UpdateVehicleData).bluetoothName = null;
+          (payload as UpdateVehicleData).bluetoothId = null;
+        }
+      }
+
+      // A Bluetooth moved from another car is cleared there only after this
+      // car saved, so a failed save never leaves the link on neither car.
+      let moveFailedFor: string | null = null;
+      const clearMovedLink = async () => {
+        if (!(btChanged && btId && btMoveFrom)) return;
+        try {
+          await updateVehicle(btMoveFrom, { bluetoothName: null, bluetoothId: null });
+        } catch {
+          moveFailedFor = otherCars.find((c) => c.id === btMoveFrom)?.label ?? "other car";
+        }
+      };
+
       if (isEditing) {
         await updateVehicle(id, payload);
+        await clearMovedLink();
       } else {
         const created = await createVehicle(payload);
+        await clearMovedLink();
         if (odometerMiles != null) {
           try {
             await addOdometerReading(created.data.id, {
@@ -244,12 +566,23 @@ export default function VehicleFormScreen() {
             // The vehicle is kept; the reading can be added from its screen.
             Alert.alert(
               "Car saved",
-              "We couldn't save the odometer reading. Add it from the car's screen.",
+              "We couldn't save the odometer reading. Add it from the car's screen." +
+                (moveFailedFor
+                  ? ` We also couldn't unlink the Bluetooth from your ${moveFailedFor}. Open that car and tap Unlink.`
+                  : ""),
               [{ text: "OK", onPress: () => router.back() }]
             );
             return;
           }
         }
+      }
+      if (moveFailedFor) {
+        Alert.alert(
+          "Saved",
+          `Linked here, but we couldn't unlink it from your ${moveFailedFor}. Open that car and tap Unlink.`,
+          [{ text: "OK", onPress: () => router.back() }]
+        );
+        return;
       }
       router.back();
     } catch (err: unknown) {
@@ -257,7 +590,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, btName, btId, btChanged, btMoveFrom, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, otherCars, user?.isPremium, showPaywall]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -543,6 +876,32 @@ export default function VehicleFormScreen() {
           </View>
         </TouchableOpacity>
 
+        {/* Car Bluetooth: which car the phone is in decides the trip's car.
+            Testers only until rolled out (user.carBluetooth, CAR_BLUETOOTH_ROLLOUT). */}
+        {user?.carBluetooth === true && otherCars.length >= 1 && (
+          <CarBluetoothCard
+            linkedName={btName}
+            linked={!!btId}
+            unsaved={btChanged}
+            isEditing={isEditing}
+            disabled={saving || deleting}
+            otherCars={otherCars}
+            vehicleId={id ?? ""}
+            onLink={(out, moveFrom) => {
+              setBtName(out.name);
+              setBtId(bluetoothIdFor(out));
+              setBtMoveFrom(moveFrom);
+              setBtChanged(true);
+            }}
+            onUnlink={() => {
+              setBtName(null);
+              setBtId(null);
+              setBtMoveFrom(null);
+              setBtChanged(true);
+            }}
+          />
+        )}
+
         {/* Clean Air Zone / ULEZ compliance — edit mode, when we have data */}
         {isEditing && cleanAirZones && <CleanAirZoneCard assessment={cleanAirZones} />}
 
@@ -600,6 +959,67 @@ export default function VehicleFormScreen() {
 }
 
 const styles = StyleSheet.create({
+  btCard: {
+    marginTop: 24,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  btHeader: { flexDirection: "row", alignItems: "center", gap: 14 },
+  btHeaderText: { flex: 1 },
+  btTitle: { fontSize: 17, fontFamily: fonts.bold, color: colors.text1 },
+  btHint: { fontSize: 14, lineHeight: 20, fontFamily: fonts.regular, color: TEXT_2, marginTop: 4 },
+  btSteps: { fontSize: 13, lineHeight: 18, fontFamily: fonts.regular, color: TEXT_3, marginTop: 14 },
+  btChoiceTitle: { fontSize: 14, fontFamily: fonts.semibold, color: TEXT_2, marginBottom: 8 },
+  btChoice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  btChoiceText: { flex: 1, fontSize: 15, fontFamily: fonts.semibold, color: colors.text1 },
+  btNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(245,158,11,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.3)",
+  },
+  btNoticeText: { flex: 1, fontSize: 13, lineHeight: 18, fontFamily: fonts.regular, color: "#fcd34d" },
+  btLinkedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 14,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: colors.amberDim,
+    borderWidth: 1,
+    borderColor: "rgba(245,166,35,0.3)",
+  },
+  btLinkedIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(245,166,35,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  btLinkedText: { flex: 1, marginRight: 8 },
+  btLinkedName: { fontSize: 16, fontFamily: fonts.bold, color: colors.text1 },
+  btLinkedSub: { fontSize: 12, fontFamily: fonts.regular, color: TEXT_2, marginTop: 2 },
   container: {
     flex: 1,
     backgroundColor: BG,

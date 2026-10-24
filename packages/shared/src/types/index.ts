@@ -64,6 +64,9 @@ export interface User {
    *  Optional: older API responses lack it, which means off. The 1.4.x app
    *  that first reads it treats "on" exactly like "log". */
   directionsRecording?: "off" | "log" | "on";
+  /** Know which car from its Bluetooth is switched on for this driver
+   *  (CAR_BLUETOOTH_ROLLOUT). Absent or false: the feature is inert. */
+  carBluetooth?: boolean;
   createdAt: string;
 }
 
@@ -492,6 +495,9 @@ export interface Vehicle {
   vehicleType: VehicleType;
   registrationPlate: string | null;
   bluetoothName: string | null;
+  /** Set only when the driver linked the car's Bluetooth from the phone; a
+   *  bluetoothName without it is an old typed-in name and is not a link. */
+  bluetoothId: string | null;
   estimatedMpg: number | null;
   actualMpg: number | null;
   /** EV energy efficiency, miles per kWh — the electric analogue of MPG, used

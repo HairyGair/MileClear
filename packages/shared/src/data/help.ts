@@ -784,6 +784,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["vehicle", "car", "van", "motorbike", "add", "registration", "reg"],
   },
   {
+    id: "car-bluetooth",
+    area: "vehicles_and_places",
+    q: "Can MileClear tell which car I'm in?",
+    a: "Yes, if you have more than one car. Sit in the car with the engine on, open the car in More > Your cars and tap Use the Bluetooth I'm connected to now, then save. After that, trips the app picks up on its own while your phone is connected to that car go on that car. Start Trip and shifts use the car you pick. If your phone isn't connected to a car, trips go on your main car as before. It needs the latest version of MileClear, and if the app sees an unlinked car it may ask you once which car it is.",
+    goTo: "/vehicles",
+    keywords: ["bluetooth", "car", "which car", "connected", "link", "multiple cars", "wrong car", "main car"],
+  },
+  {
     id: "mot-reminders",
     area: "vehicles_and_places",
     q: "Does MileClear remind me about MOT and road tax?",

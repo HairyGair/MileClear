@@ -28,6 +28,8 @@ export interface CreateVehicleData {
   vehicleType: VehicleType;
   registrationPlate?: string;
   bluetoothName?: string;
+  // Car Bluetooth link: from bluetoothIdFor() (lib/vehicles/carBluetooth.ts).
+  bluetoothId?: string | null;
   estimatedMpg?: number;
   milesPerKwh?: number;
   isPrimary?: boolean;
@@ -44,6 +46,8 @@ export interface UpdateVehicleData {
   vehicleType?: VehicleType;
   registrationPlate?: string | null;
   bluetoothName?: string | null;
+  // Car Bluetooth link: bluetoothIdFor() to link, null (with bluetoothName) to unlink.
+  bluetoothId?: string | null;
   estimatedMpg?: number | null;
   isPrimary?: boolean;
   providedByOthers?: boolean;

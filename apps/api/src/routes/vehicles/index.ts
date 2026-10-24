@@ -75,6 +75,9 @@ const createVehicleSchema = z.object({
   vehicleType: z.enum(VEHICLE_TYPES),
   registrationPlate: regPlateField,
   bluetoothName: z.string().max(100).optional(),
+  // Car Bluetooth link: "name:<name>" when the phone gives the car no id
+  // (bluetoothIdFor in apps/mobile/lib/vehicles/carBluetooth.ts).
+  bluetoothId: z.string().min(1).max(100).nullable().optional(),
   estimatedMpg: z.number().positive().optional(),
   milesPerKwh: z.number().positive().max(20).optional(),
   isPrimary: z.boolean().default(true),
@@ -98,6 +101,7 @@ const updateVehicleSchema = z.object({
     .nullable()
     .optional(),
   bluetoothName: z.string().max(100).nullable().optional(),
+  bluetoothId: z.string().min(1).max(100).nullable().optional(),
   estimatedMpg: z.number().positive().nullable().optional(),
   milesPerKwh: z.number().positive().max(20).nullable().optional(),
   isPrimary: z.boolean().optional(),
@@ -105,6 +109,13 @@ const updateVehicleSchema = z.object({
   euroStatus: z.string().max(20).nullable().optional(),
   firstRegistration: z.string().max(7).nullable().optional(),
 });
+
+// A Bluetooth link is a name plus its id, always set together, so a bare id
+// can never sit on a car whose old typed-in name it was not made from.
+const BLUETOOTH_ID_NEEDS_NAME = "Send the car's Bluetooth name with its link.";
+function bluetoothIdWithoutName(data: { bluetoothId?: string | null; bluetoothName?: string | null }): boolean {
+  return !!data.bluetoothId && !data.bluetoothName?.trim();
+}
 
 // Allow a phone clock this far ahead before "Now" counts as the future.
 const ODOMETER_CLOCK_SKEW_MS = 2 * 60 * 1000;
@@ -262,6 +273,9 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
     const userId = request.userId!;
     const data = parsed.data;
+    if (bluetoothIdWithoutName(data)) {
+      return reply.status(400).send({ error: BLUETOOTH_ID_NEEDS_NAME });
+    }
 
     // Free users limited to 1 vehicle of their own plus 1 that someone else
     // pays for (a client's van). Pro from any source (subscription, referral
@@ -330,6 +344,9 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
     const userId = request.userId!;
     const data = parsed.data;
+    if (bluetoothIdWithoutName(data)) {
+      return reply.status(400).send({ error: BLUETOOTH_ID_NEEDS_NAME });
+    }
 
     const existing = await prisma.vehicle.findFirst({
       where: { id, userId },
@@ -365,6 +382,10 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const plateChanged =
       data.registrationPlate !== undefined &&
       (data.registrationPlate || null) !== (existing.registrationPlate || null);
+
+    // Clearing the Bluetooth name unlinks the car: a link with no name could
+    // never match anything, and must not linger as a half link.
+    if (data.bluetoothName === null || data.bluetoothName === "") data.bluetoothId = null;
 
     const vehicle = await prisma.vehicle.update({
       where: { id },

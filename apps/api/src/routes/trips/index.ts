@@ -4062,6 +4062,15 @@ export async function tripRoutes(app: FastifyInstance) {
     checkAndAwardAchievements(userId).catch(() => {});
 
     logEvent("trip.updated", userId, { classification: updates.classification });
+    // A trip moved to another car: how often the car the app chose (from
+    // Bluetooth or the primary car) gets corrected. Ids only.
+    if (updates.vehicleId !== undefined && (updates.vehicleId ?? null) !== (existing.vehicleId ?? null)) {
+      logEvent("trip.vehicle_changed", userId, {
+        tripId: id,
+        from: existing.vehicleId ?? null,
+        to: updates.vehicleId ?? null,
+      });
+    }
     // The phone's Directions note arrives as a follow-up update once the trip
     // is saved (PLAN-recording.md). Counts only, as on trip.created.
     if (incomingGpsQuality && "directions" in incomingGpsQuality) {

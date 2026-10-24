@@ -44,7 +44,8 @@ export const metadata: Metadata = {
 const CTA_HREF = "/app?from=seo-android";
 
 
-const latest = ANDROID_RELEASE_NOTES[0];
+// The build testers can install, so not one still in development.
+const latest = ANDROID_RELEASE_NOTES.find((r) => r.label !== "In Development");
 
 const points = [
   {

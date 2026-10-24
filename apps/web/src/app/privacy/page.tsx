@@ -124,6 +124,7 @@ export default function PrivacyPolicy() {
                   <li className="legal__list-item">Fuel type (petrol, diesel, electric, hybrid)</li>
                   <li className="legal__list-item">Registration plate (used for DVLA lookup to confirm vehicle details)</li>
                   <li className="legal__list-item">Miles per gallon (MPG) or efficiency rating</li>
+                  <li className="legal__list-item">If you link a car&apos;s Bluetooth: the name your car calls itself (for example &ldquo;MY FORD&rdquo;) and a short code from the car (the last part of its Bluetooth address, or its CarPlay ID), stored with that car so MileClear can pick the right car for a trip. Your phone also keeps a list of what it was connected to for 3 days, which never leaves the phone.</li>
                 </ul>
               </div>
 
