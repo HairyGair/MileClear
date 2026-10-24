@@ -64,7 +64,9 @@ import {
 
 const MIN = 60 * 1000;
 const START = 1_800_000_000_000;
-const END = START + 30 * MIN;
+// A short trip (one sighting is enough); the long-trip rules have their own tests.
+const END = START + 3 * MIN;
+const LONG_END = START + 30 * MIN;
 
 const ford: CarLink = { vehicleId: "ford", name: "MY FORD", id: "AA:01" };
 const kia: CarLink = { vehicleId: "kia", name: "Kia Picanto", id: null };
@@ -101,7 +103,7 @@ describe("carSeenDuring: which linked car the phone was on", () => {
     const connectBefore = seen(START - SIGHTING_LEAD_MS, "Kia Picanto", null, "bluetooth", "connect");
 
     it("a connect event there counts towards a car also seen during the trip", () => {
-      const s = [connectBefore, seen(START + MIN, "Kia Picanto"), seen(START + 2 * MIN, "MY FORD")];
+      const s = [connectBefore, seen(START + 2 * MIN, "Kia Picanto"), seen(START + 2.5 * MIN, "MY FORD")];
       expect(carSeenDuring(START, END, [ford, kia], s)).toBe("kia");
     });
 
@@ -111,7 +113,7 @@ describe("carSeenDuring: which linked car the phone was on", () => {
 
     it("a connect event earlier than two minutes doesn't count", () => {
       const early = seen(START - SIGHTING_LEAD_MS - 1, "Kia Picanto", null, "bluetooth", "connect");
-      const s = [early, seen(START + MIN, "Kia Picanto"), seen(START + 2 * MIN, "MY FORD")];
+      const s = [early, seen(START + 2 * MIN, "Kia Picanto"), seen(START + 2.5 * MIN, "MY FORD")];
       expect(carSeenDuring(START, END, [ford, kia], s)).toBeNull();
     });
 
@@ -128,7 +130,7 @@ describe("carSeenDuring: which linked car the phone was on", () => {
   });
 
   it("gives no answer on a tie", () => {
-    const s = [seen(START, "MY FORD"), seen(START + MIN, "Kia Picanto")];
+    const s = [seen(START + 2 * MIN, "MY FORD"), seen(START + 2.5 * MIN, "Kia Picanto")];
     expect(carSeenDuring(START, END, [ford, kia], s)).toBeNull();
   });
 
@@ -198,6 +200,59 @@ describe("carSeenDuring: which linked car the phone was on", () => {
       const s = [seen(START, "MY FORD"), seen(START + MIN, "MY FORD"), seen(START + 2 * MIN, "VW BT", null)];
       expect(carSeenDuring(START, END, [ford, vw1, vw2], s)).toBeNull();
     });
+  });
+
+  describe("a car swap and a trip in an unlinked car", () => {
+    const seatAllTrip = () => {
+      const s: CarSighting[] = [];
+      for (let t = 1; t <= 30; t++) s.push(seen(START + t * MIN - 1, "SEAT BT", "S1"));
+      return s;
+    };
+
+    it("parked the Ford, drove the Seat: one early Ford read never wins", () => {
+      const s = [seen(START + 20_000, "MY FORD", "AA:01"), ...seatAllTrip()];
+      expect(carSeenDuring(START, LONG_END, [ford], s)).toBeNull();
+    });
+
+    it("even a Ford read later in the trip loses to thirty of the Seat", () => {
+      const s = [seen(START + 10 * MIN, "MY FORD", "AA:01"), ...seatAllTrip()];
+      expect(carSeenDuring(START, LONG_END, [ford], s)).toBeNull();
+    });
+
+    it("the Ford the whole trip with one Seat blip is the Ford", () => {
+      const s: CarSighting[] = [];
+      for (let t = 1; t <= 30; t++) s.push(seen(START + t * MIN - 1, "MY FORD", "AA:01"));
+      s.push(seen(START + 12 * MIN + 5, "SEAT BT"));
+      expect(carSeenDuring(START, LONG_END, [ford], s)).toBe("ford");
+    });
+
+    it("a short trip with one sighting is that car", () => {
+      expect(carSeenDuring(START, START + 2 * MIN, [ford], [seen(START + MIN, "MY FORD")])).toBe("ford");
+    });
+
+    it("a longer trip needs two sightings of the car", () => {
+      expect(carSeenDuring(START, LONG_END, [ford], [seen(START + 5 * MIN, "MY FORD")])).toBeNull();
+      expect(
+        carSeenDuring(START, LONG_END, [ford], [seen(START + 5 * MIN, "MY FORD"), seen(START + 6 * MIN, "MY FORD")])
+      ).toBe("ford");
+    });
+
+    it("Android listing the Ford and a Seat all trip gives no answer", () => {
+      const s: CarSighting[] = [];
+      for (let t = 0; t <= 30; t++) s.push(seen(START + t * MIN, "MY FORD"), seen(START + t * MIN, "SEAT BT"));
+      expect(carSeenDuring(START, LONG_END, [ford], s)).toBeNull();
+    });
+
+    it("an early read that agrees with the rest of the trip is kept", () => {
+      expect(
+        carSeenDuring(START, START + 2 * MIN, [ford], [seen(START + 10_000, "MY FORD"), seen(START + MIN, "MY FORD")])
+      ).toBe("ford");
+    });
+  });
+
+  it("a CarPlay uid matches a link made from the masked Bluetooth address, by name", () => {
+    const masked: CarLink = { vehicleId: "ford", name: "MY FORD", id: "XX:XX:XX:XX:EE:FF" };
+    expect(carSeenDuring(START, END, [masked], [seen(START, "MY FORD", "6F2A1B3C-CARPLAY-UID", "carplay")])).toBe("ford");
   });
 
   it("skips sightings with an empty name", () => {
@@ -321,9 +376,21 @@ describe("unlinkedCarDuring: what to ask about", () => {
     expect(unlinkedCarDuring(START, END, [], s, [])).toBeNull();
   });
 
-  it("not when a linked car was seen", () => {
-    const s = [seen(START, "MY FORD"), seen(START, "SEAT BT"), seen(START + MIN, "SEAT BT")];
+  it("not when the trip was mostly in a linked car", () => {
+    const s = [seen(START + 2 * MIN, "MY FORD"), seen(START + 2.2 * MIN, "MY FORD"), seen(START + 2.5 * MIN, "SEAT BT"), seen(START + 2.6 * MIN, "SEAT BT")];
     expect(unlinkedCarDuring(START, END, [ford], s, [])).toBeNull();
+    s.push(seen(START + 2.8 * MIN, "MY FORD"));
+    expect(unlinkedCarDuring(START, END, [ford], s, [])).toBeNull();
+  });
+
+  it("asks about the car the trip was really in, even if a linked car showed briefly", () => {
+    const s = [seen(START + 10_000, "MY FORD")];
+    for (let t = 1; t <= 30; t++) s.push(seen(START + t * MIN, "SEAT BT"));
+    expect(unlinkedCarDuring(START, LONG_END, [ford], s, [])).toEqual({ name: "SEAT BT", id: null });
+  });
+
+  it("Android Auto alone is not proof: one sighting is not enough", () => {
+    expect(unlinkedCarDuring(START, END, [], [seen(START, "SEAT", null, "android_auto")], [])).toBeNull();
   });
 
   it("never again for a name already answered", () => {
@@ -465,18 +532,46 @@ describe("the phone's store", () => {
     expect(await pendingCarQuestion()).toEqual({ name: "SEAT BT", id: null });
   });
 
-  it("answering with a car unlinks another car holding the same link first", async () => {
+  it("answering with a car links it, then unlinks another car holding the same link", async () => {
     await cacheCarLinks([
       { id: "ford", bluetoothName: "SEAT BT", bluetoothId: "name:SEAT BT" },
       { id: "kia" },
     ]);
     await answerCarQuestion({ name: "SEAT BT", id: null }, "kia");
     expect(updateVehicle.mock.calls).toEqual([
-      ["ford", { bluetoothName: null, bluetoothId: null }],
       ["kia", { bluetoothName: "SEAT BT", bluetoothId: "name:SEAT BT" }],
+      ["ford", { bluetoothName: null, bluetoothId: null }],
     ]);
     sightingsTable.push({ at_ms: START, name: "SEAT BT", device_id: null, kind: "bluetooth" });
     expect(await bluetoothCarForTrip(START, END)).toEqual({ vehicleId: "kia", seen: 1 });
+  });
+
+  it("an unlink that fails stays in the cache, so finalize gives no answer rather than the wrong car", async () => {
+    await cacheCarLinks([
+      { id: "ford", bluetoothName: "SEAT BT", bluetoothId: "name:SEAT BT" },
+      { id: "kia" },
+    ]);
+    updateVehicle.mockImplementation(async (id: string) => {
+      if (id === "ford") throw new Error("offline");
+      return { data: {} };
+    });
+    await answerCarQuestion({ name: "SEAT BT", id: null }, "kia");
+    sightingsTable.push({ at_ms: START, name: "SEAT BT", device_id: null, kind: "bluetooth" });
+    expect(await bluetoothCarForTrip(START, END)).toBeNull();
+    // Answered all the same: the chosen car was linked.
+    expect(await pendingCarQuestion()).toBeNull();
+  });
+
+  it("a failed link leaves the cache alone and snoozes the question", async () => {
+    await pendingSeat();
+    updateVehicle.mockImplementation(async () => {
+      throw new Error("offline");
+    });
+    await expect(answerCarQuestion({ name: "SEAT BT", id: null }, "kia")).rejects.toThrow();
+    expect(updateVehicle).toHaveBeenCalledTimes(1);
+    expect(await pendingCarQuestion()).toBeNull(); // snoozed without being asked to
+    expect(JSON.parse(state.get("car_links")!).links).toEqual([]);
+    await forgetCarBluetooth();
   });
 
   it("does not log headphones", async () => {

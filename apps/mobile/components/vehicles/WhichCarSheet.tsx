@@ -10,11 +10,11 @@
 // the Work explainer in the dashboard.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, AccessibilityInfo } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Vehicle } from "@mileclear/shared";
 import { AppModal } from "../AppModal";
-import { answerCarQuestion, snoozeCarQuestion, type CarQuestion } from "../../lib/vehicles/carBluetooth";
+import { answerCarQuestion, linksFromCars, snoozeCarQuestion, type CarQuestion } from "../../lib/vehicles/carBluetooth";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts } from "../../lib/theme";
 import CarBluetoothArt from "./CarBluetoothArt";
@@ -22,7 +22,7 @@ import CarBluetoothArt from "./CarBluetoothArt";
 interface WhichCarSheetProps {
   /** The question to ask; null keeps the sheet closed. */
   question: CarQuestion | null;
-  cars: Pick<Vehicle, "id" | "make" | "model" | "registrationPlate" | "isPrimary">[];
+  cars: Pick<Vehicle, "id" | "make" | "model" | "registrationPlate" | "isPrimary" | "bluetoothName" | "bluetoothId">[];
   /** Called once the answer is saved (or the sheet is dismissed after it). */
   onDone: () => void;
 }
@@ -49,31 +49,56 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
       haptic(vehicleId ? "success" : "selection");
       try {
         await answerCarQuestion(question, vehicleId);
+        busy.current = false;
+        onDone();
       } catch {
-        // Not saved: ask again later, and say so rather than close silently.
+        // Not saved: stay open and say so; Close snoozes so we ask another day.
         await snoozeCarQuestion().catch(() => {});
+        busy.current = false;
         if (mounted.current) {
           setFailed(true);
           haptic("error");
-          await new Promise((r) => setTimeout(r, 1800));
+          AccessibilityInfo.announceForAccessibility("Couldn't save that. We'll ask again later.");
+        } else {
+          onDone();
         }
-      } finally {
-        busy.current = false;
-        onDone();
       }
     },
     [question, onDone]
   );
 
-  // Android back / swipe away: no answer, so it is asked again another day.
-  const dismiss = useCallback(() => {
-    if (!busy.current) onDone();
+  // Not now, Close and Android back: no answer, asked again another day.
+  const snooze = useCallback(() => {
+    if (busy.current) return;
+    busy.current = true;
+    snoozeCarQuestion()
+      .catch(() => {})
+      .finally(() => {
+        busy.current = false;
+        onDone();
+      });
   }, [onDone]);
+
+  const links = linksFromCars(cars);
+
+  const pick = useCallback(
+    (car: WhichCarSheetProps["cars"][number], label: string, linkedTo: string | null) => {
+      if (!linkedTo) {
+        void answer(car.id);
+        return;
+      }
+      Alert.alert(`This replaces ${linkedTo} on your ${label}.`, undefined, [
+        { text: "Cancel", style: "cancel" },
+        { text: "Replace", onPress: () => void answer(car.id) },
+      ]);
+    },
+    [answer]
+  );
 
   const name = question?.name ?? "";
 
   return (
-    <AppModal visible={!!question} animationType="slide" onRequestClose={dismiss}>
+    <AppModal visible={!!question} animationType="slide" onRequestClose={snooze}>
       <View style={styles.overlay}>
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.grabber} />
@@ -91,14 +116,15 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
             {cars.map((car) => {
               const label = `${car.make} ${car.model}`.trim();
               const plate = car.registrationPlate ? `, ${car.registrationPlate}` : "";
+              const linkedTo = links.find((l) => l.vehicleId === car.id)?.name ?? null;
               return (
                 <TouchableOpacity
                   key={car.id}
                   style={styles.row}
-                  onPress={() => answer(car.id)}
+                  onPress={() => pick(car, label, linkedTo)}
                   activeOpacity={0.75}
                   accessibilityRole="button"
-                  accessibilityLabel={`${name} is my ${label}${plate}${car.isPrimary ? ", main car" : ""}`}
+                  accessibilityLabel={`${name} is my ${label}${plate}${car.isPrimary ? ", main car" : ""}${linkedTo ? `, already linked to ${linkedTo}` : ""}`}
                 >
                   <View style={styles.rowIcon}>
                     <Ionicons name="car-sport" size={20} color={colors.amber} />
@@ -112,6 +138,11 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
                         {[car.registrationPlate, car.isPrimary ? "Main car" : null].filter(Boolean).join("  \u00b7  ")}
                       </Text>
                     ) : null}
+                    {linkedTo ? (
+                      <Text style={styles.rowLinked} numberOfLines={1}>
+                        Linked to {linkedTo}
+                      </Text>
+                    ) : null}
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.text2} />
                 </TouchableOpacity>
@@ -119,23 +150,50 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
             })}
           </ScrollView>
 
-          <TouchableOpacity
-            style={styles.none}
-            onPress={() => answer(null)}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel="None of these"
-            accessibilityHint={`We will not ask about ${name} again`}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.noneText}>None of these</Text>
-          </TouchableOpacity>
           {failed ? (
-            <Text style={styles.failed} accessibilityRole="alert" accessibilityLiveRegion="polite">
-              Couldn't save that. We'll ask again later.
-            </Text>
+            <>
+              <Text style={styles.failed} accessibilityRole="alert" accessibilityLiveRegion="polite">
+                Couldn't save that. We'll ask again later.
+              </Text>
+              <TouchableOpacity
+                style={styles.none}
+                onPress={snooze}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={styles.noneText}>Close</Text>
+              </TouchableOpacity>
+            </>
           ) : (
-            <Text style={styles.footnote}>We will not ask about {name} again.</Text>
+            <>
+              <View style={styles.footerRow}>
+                <TouchableOpacity
+                  style={styles.none}
+                  onPress={snooze}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="Not now"
+                  accessibilityHint="We will ask again another day"
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.noneText}>Not now</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.none}
+                  onPress={() => answer(null)}
+                  activeOpacity={0.75}
+                  accessibilityRole="button"
+                  accessibilityLabel="None of these"
+                  accessibilityHint={`We will not ask about ${name} again`}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text style={styles.noneText}>None of these</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.footnote}>Pick None of these and we won't ask about {name} again.</Text>
+            </>
           )}
         </View>
       </View>
@@ -218,6 +276,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginTop: 2,
   },
+  footerRow: { flexDirection: "row", justifyContent: "space-around" },
+  rowLinked: { fontSize: 12, fontFamily: fonts.medium, color: colors.amber, marginTop: 2 },
   none: { alignItems: "center", paddingVertical: 12, marginTop: 2 },
   noneText: { fontSize: 15, fontFamily: fonts.semibold, color: colors.text2 },
   failed: {

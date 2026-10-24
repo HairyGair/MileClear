@@ -150,7 +150,7 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
           "Which one is the car?",
           "Your phone is connected to more than one thing.",
           [
-            ...found.slice(0, 3).map((f) => ({ text: f.name, onPress: () => confirmLink(f) })),
+            ...found.slice(0, 2).map((f) => ({ text: f.name, onPress: () => confirmLink(f) })),
             { text: "Cancel", style: "cancel" as const },
           ]
         );
@@ -161,7 +161,7 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
   const handleUnlink = useCallback(() => {
     Alert.alert(
       linkedName ? `Unlink ${linkedName}?` : "Unlink this car's Bluetooth?",
-      "Trips will go on your main car again.",
+      "Trips will go on your main car instead.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Unlink", style: "destructive", onPress: () => { haptic("warning"); onUnlink(); } },
@@ -177,7 +177,7 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
           <Text style={styles.btTitle} accessibilityRole="header">Car Bluetooth</Text>
           <Text style={styles.btHint}>
             {supported
-              ? "Trips the app picks up on its own go on the car your phone is connected to."
+              ? "Link this car and trips the app picks up on its own go on it while your phone is connected."
               : "Your phone can tell which car you are in."}
           </Text>
         </View>
@@ -203,7 +203,7 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
             <View style={styles.btLinkedText}>
               <Text style={styles.btLinkedName} numberOfLines={1}>{linkedName ?? "Your car"}</Text>
               <Text style={styles.btLinkedSub}>
-                {unsaved ? (isEditing ? "Linked when you tap Save changes" : "Linked when you add the car") : "Linked to this car"}
+                {unsaved ? (isEditing ? "Linked when you tap Save changes" : "Linked when you tap Add car") : "Linked to this car"}
               </Text>
             </View>
             <Ionicons name="checkmark-circle" size={22} color={AMBER} />
@@ -223,6 +223,9 @@ function CarBluetoothCard({ linkedName, linked, unsaved, isEditing, disabled, ot
 
       {supported && !linked && (
         <>
+          {isEditing && unsaved && (
+            <Text style={styles.btSteps} accessibilityLiveRegion="polite">Unlinked when you tap Save changes</Text>
+          )}
           <Text style={styles.btSteps}>Sit in the car with the engine on, then tap the button.</Text>
           {notConnected && (
             <View style={styles.btNotice} accessibilityRole="alert" accessibilityLiveRegion="polite">
@@ -472,18 +475,24 @@ export default function VehicleFormScreen() {
         }
       }
 
-      // A Bluetooth moved from another car is cleared there first, so two cars
-      // never claim the same one.
-      if (btChanged && btId && btMoveFrom) {
+      // A Bluetooth moved from another car is cleared there only after this
+      // car saved, so a failed save never leaves the link on neither car.
+      let moveFailedFor: string | null = null;
+      const clearMovedLink = async () => {
+        if (!(btChanged && btId && btMoveFrom)) return;
         try {
           await updateVehicle(btMoveFrom, { bluetoothName: null, bluetoothId: null });
-        } catch {}
-      }
+        } catch {
+          moveFailedFor = otherCars.find((c) => c.id === btMoveFrom)?.label ?? "other car";
+        }
+      };
 
       if (isEditing) {
         await updateVehicle(id, payload);
+        await clearMovedLink();
       } else {
         const created = await createVehicle(payload);
+        await clearMovedLink();
         if (odometerMiles != null) {
           try {
             await addOdometerReading(created.data.id, {
@@ -494,12 +503,23 @@ export default function VehicleFormScreen() {
             // The vehicle is kept; the reading can be added from its screen.
             Alert.alert(
               "Car saved",
-              "We couldn't save the odometer reading. Add it from the car's screen.",
+              "We couldn't save the odometer reading. Add it from the car's screen." +
+                (moveFailedFor
+                  ? ` We also couldn't unlink the Bluetooth from your ${moveFailedFor}. Open that car and tap Unlink.`
+                  : ""),
               [{ text: "OK", onPress: () => router.back() }]
             );
             return;
           }
         }
+      }
+      if (moveFailedFor) {
+        Alert.alert(
+          "Saved",
+          `Linked here, but we couldn't unlink it from your ${moveFailedFor}. Open that car and tap Unlink.`,
+          [{ text: "OK", onPress: () => router.back() }]
+        );
+        return;
       }
       router.back();
     } catch (err: unknown) {
@@ -507,7 +527,7 @@ export default function VehicleFormScreen() {
     } finally {
       setSaving(false);
     }
-  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, btName, btId, btChanged, btMoveFrom, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, user?.isPremium, showPaywall]);
+  }, [make, model, year, vehicleType, fuelType, estimatedMpg, milesPerKwh, isPrimary, providedByOthers, btName, btId, btChanged, btMoveFrom, registrationPlate, euroStatus, firstRegistration, odometerNow, isEditing, id, router, otherCars, user?.isPremium, showPaywall]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(

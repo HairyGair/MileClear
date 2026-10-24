@@ -85,7 +85,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     date: "October 2026",
     label: "In Development",
     items: [
-      "More than one car? Link each car's Bluetooth on its screen, and trips the app records go on the car your phone is connected to",
+      "More than one car? Link each car's Bluetooth on its screen, and trips the app picks up on its own go on the car your phone is connected to",
     ],
   },
   {
@@ -1053,7 +1053,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
     date: "October 2026",
     label: "In Development",
     items: [
-      "More than one car? Link each car's Bluetooth on its screen, and trips the app records go on the car your phone is connected to",
+      "More than one car? Link each car's Bluetooth on its screen, and trips the app picks up on its own go on the car your phone is connected to",
     ],
   },
   {

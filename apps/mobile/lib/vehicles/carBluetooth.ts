@@ -56,6 +56,8 @@ export const LOOKUP_TIMEOUT_MS = 2000;
 const NAME_ONLY_PREFIX = "name:";
 // Both phones mask the address down to its last two bytes.
 const MASKED_PREFIX = "xx:xx:xx:xx:";
+// A Bluetooth address, full or masked (lower case).
+const ADDRESS = /^(?:[0-9a-fx]{2}:){5}[0-9a-f]{2}$/;
 const LINKS_KEY = "car_links";
 const QUESTION_KEY = "car_question";
 const ANSWERED_KEY = "car_question_answered";
@@ -144,6 +146,11 @@ function realId(id: string | null | undefined): string | null {
 function sameId(rawA: string, rawB: string): boolean {
   const a = rawA.toLowerCase();
   const b = rawB.toLowerCase();
+  const addrA = ADDRESS.test(a);
+  const addrB = ADDRESS.test(b);
+  // A Bluetooth address on one side and some other id (a CarPlay uid) on the
+  // other: different kinds of id for the same car, so the name decides.
+  if (addrA !== addrB) return true;
   if (a.startsWith(MASKED_PREFIX) || b.startsWith(MASKED_PREFIX)) return a.slice(-5) === b.slice(-5);
   return a === b;
 }
@@ -207,10 +214,74 @@ function counts(startMs: number, endMs: number, s: CarSighting): boolean {
   return s.source === "connect" && s.atMs >= startMs - SIGHTING_LEAD_MS && s.atMs < startMs;
 }
 
+/** A read this early in the trip may still be the last car's Bluetooth. */
+export const EARLY_READ_MS = 90 * 1000;
+/** Trips longer than this need two sightings of the linked car, not one. */
+export const SHORT_TRIP_MS = 3 * 60 * 1000;
+
+interface Tally {
+  /** A sighting fitted two linked cars that ids can't tell apart. */
+  ambiguous: boolean;
+  /** Every car seen (linked: "v:<vehicleId>", unlinked: "n:<name>"). */
+  cars: Map<
+    string,
+    { vehicleId: string | null; name: string; id: string | null; total: number; inTrip: number; carplay: boolean }
+  >;
+  /** All counted sightings, every car. */
+  counted: number;
+}
+
 /**
- * The linked car seen most during the trip, or null. A car needs at least
- * one sighting inside [start, end]; a connect event up to two minutes before
- * the start also counts towards it. Null too when two cars tie, or when a
+ * Every car-like output seen during the trip, linked or not, so a linked car
+ * has to beat the unlinked car the driver was really in: one lingering
+ * sighting of the parked Ford must not win a trip in the Seat. Once-a-minute
+ * reads in the first 90 s are dropped when a later sighting disagrees.
+ */
+function tally(startMs: number, endMs: number, links: CarLink[], sightings: CarSighting[]): Tally {
+  const out: Tally = { ambiguous: false, cars: new Map(), counted: 0 };
+  if (!validWindow(startMs, endMs)) return out;
+  const seen: Array<{ key: string; s: CarSighting; vehicleId: string | null }> = [];
+  for (const s of sightings) {
+    if (!looksLikeACar(s) || !counts(startMs, endMs, s)) continue;
+    const linked = new Set(links.filter((l) => matches(l, s)).map((l) => l.vehicleId));
+    if (linked.size > 1) {
+      out.ambiguous = true;
+      return out;
+    }
+    const vehicleId = linked.size === 1 ? [...linked][0] : null;
+    seen.push({ key: vehicleId ? `v:${vehicleId}` : `n:${normName(s.name)}`, s, vehicleId });
+  }
+  for (const e of seen) {
+    const early = e.s.source !== "connect" && e.s.atMs >= startMs && e.s.atMs < startMs + EARLY_READ_MS;
+    if (early && seen.some((f) => f.s.atMs > e.s.atMs && f.key !== e.key)) continue;
+    const c = out.cars.get(e.key) ?? {
+      vehicleId: e.vehicleId,
+      name: e.s.name.trim(),
+      id: e.s.id ?? null,
+      total: 0,
+      inTrip: 0,
+      carplay: false,
+    };
+    c.total += 1;
+    if (duringTrip(startMs, endMs, e.s)) c.inTrip += 1;
+    if (e.s.kind === "carplay") c.carplay = true;
+    out.cars.set(e.key, c);
+    out.counted += 1;
+  }
+  return out;
+}
+
+/** The car with a strict majority of the counted sightings, or null. */
+function majority(t: Tally) {
+  for (const c of t.cars.values()) if (c.total * 2 > t.counted) return c;
+  return null;
+}
+
+/**
+ * The linked car the phone was on during the trip, or null. It needs a
+ * strict majority of every car-like sighting (linked or not) and at least
+ * one sighting inside the trip, two when the trip is over three minutes; a
+ * connect event up to two minutes before the start also counts. Null when a
  * sighting fits more than one linked car (two cars with the same Bluetooth
  * name that ids can't tell apart): a wrong car is worse than the primary.
  */
@@ -229,39 +300,20 @@ function tallyLinked(
   links: CarLink[],
   sightings: CarSighting[]
 ): { vehicleId: string; seen: number } | null {
-  if (!validWindow(startMs, endMs) || links.length === 0) return null;
-  const total = new Map<string, number>();
-  const inside = new Set<string>();
-  for (const s of sightings) {
-    if (!normName(s.name) || !counts(startMs, endMs, s)) continue;
-    const cars = new Set(links.filter((l) => matches(l, s)).map((l) => l.vehicleId));
-    if (cars.size > 1) return null;
-    for (const id of cars) {
-      total.set(id, (total.get(id) ?? 0) + 1);
-      if (duringTrip(startMs, endMs, s)) inside.add(id);
-    }
-  }
-  let best: string | null = null;
-  let bestCount = 0;
-  let tie = false;
-  for (const [id, n] of total) {
-    if (!inside.has(id)) continue;
-    if (n > bestCount) {
-      best = id;
-      bestCount = n;
-      tie = false;
-    } else if (n === bestCount) {
-      tie = true;
-    }
-  }
-  return best && !tie ? { vehicleId: best, seen: bestCount } : null;
+  if (links.length === 0) return null;
+  const t = tally(startMs, endMs, links, sightings);
+  if (t.ambiguous) return null;
+  const best = majority(t);
+  if (!best?.vehicleId) return null;
+  const needInTrip = endMs - startMs > SHORT_TRIP_MS ? 2 : 1;
+  return best.inTrip >= needInTrip ? { vehicleId: best.vehicleId, seen: best.total } : null;
 }
 
 /**
- * An output seen during the trip that no linked car matches, worth asking
- * about: seen twice or more (or CarPlay / Android Auto), car-like by name,
- * not already answered. Null when any linked car was seen, since that trip
- * already has its answer.
+ * The unlinked car the trip was mostly in, worth asking about: a strict
+ * majority of the car-like sightings, seen twice or more inside the trip
+ * (once is enough for CarPlay; Android tags every output Android Auto in car
+ * mode, so that is no proof), not already answered.
  */
 export function unlinkedCarDuring(
   startMs: number,
@@ -270,25 +322,13 @@ export function unlinkedCarDuring(
   sightings: CarSighting[],
   answered: string[]
 ): CarQuestion | null {
-  if (!validWindow(startMs, endMs)) return null;
-  const skip = new Set(answered.map(normName));
-  const seen = new Map<string, { name: string; id: string | null; n: number; car: boolean }>();
-  for (const s of sightings) {
-    if (!duringTrip(startMs, endMs, s) || !normName(s.name)) continue;
-    if (links.some((l) => matches(l, s))) return null;
-    const key = normName(s.name);
-    if (skip.has(key) || !looksLikeACar(s)) continue;
-    const e = seen.get(key) ?? { name: s.name.trim(), id: s.id ?? null, n: 0, car: false };
-    e.n += 1;
-    if (s.kind === "carplay" || s.kind === "android_auto") e.car = true;
-    seen.set(key, e);
-  }
-  let best: { name: string; id: string | null; n: number } | null = null;
-  for (const e of seen.values()) {
-    if (e.n < 2 && !e.car) continue;
-    if (!best || e.n > best.n) best = e;
-  }
-  return best ? { name: best.name, id: best.id } : null;
+  const t = tally(startMs, endMs, links, sightings);
+  if (t.ambiguous) return null;
+  const best = majority(t);
+  if (!best || best.vehicleId) return null;
+  if (answered.map(normName).includes(normName(best.name))) return null;
+  if (best.inTrip < 2 && !(best.carplay && best.inTrip >= 1)) return null;
+  return { name: best.name, id: best.id };
 }
 
 // ── Sightings store ─────────────────────────────────────────────────────
@@ -319,15 +359,22 @@ let lastFixSightingAt = 0;
 
 /**
  * From every native location fix: at most once a minute, read the car output
- * and log it if there is one. Synchronous gate, fire-and-forget write, so the
- * fix is never held up.
+ * and log it if there is one. Synchronous gate; the read and the write run on
+ * a later tick, so the fix is never held up.
  */
 export function noteCarOnFix(nowMs: number = Date.now()): void {
   try {
     if (nowMs >= lastFixSightingAt && nowMs - lastFixSightingAt < FIX_SIGHTING_GAP_MS) return;
     lastFixSightingAt = nowMs;
-    const outs = readConnectedCars();
-    if (outs.length > 0) void recordCarSighting(outs, "fix");
+    // The native read too runs after the fix handler has moved on.
+    setTimeout(() => {
+      try {
+        const outs = readConnectedCars();
+        if (outs.length > 0) void recordCarSighting(outs, "fix");
+      } catch {
+        /* best effort */
+      }
+    }, 0);
   } catch {
     /* never into the recorder */
   }
@@ -526,42 +573,18 @@ export async function pendingCarQuestion(): Promise<CarQuestion | null> {
 }
 
 /**
- * The driver's answer. A car links that car's Bluetooth to this name, first
- * unlinking any other car that holds the same link (best effort). The link
- * call can throw; the question then stays for another app open (call
- * snoozeCarQuestion). null means "None of these": never asked again for this
- * name. Dismissing the sheet is not an answer: don't call this for it.
+ * The driver's answer. A car links that car's Bluetooth to this name, then
+ * unlinks any other car that held the same link (best effort). If the link
+ * call fails this throws, the question stays for another app open and is
+ * snoozed for this one. null means "None of these": never asked again for
+ * this name. Dismissing the sheet is not an answer: don't call this for it.
  */
 export async function answerCarQuestion(q: CarQuestion, vehicleId: string | null): Promise<void> {
-  if (vehicleId) {
-    const out: CarAudioOutput = { name: q.name.trim(), id: q.id, kind: "bluetooth" };
-    const { updateVehicle } = await import("../api/vehicles");
-    let cache: LinksCache = { cars: 0, links: [] };
-    try {
-      cache = await readLinks();
-    } catch {
-      /* no cache: nothing known to unlink */
-    }
-    const others = cache.links.filter((l) => l.vehicleId !== vehicleId && matches(l, out));
-    for (const other of others) {
-      try {
-        await updateVehicle(other.vehicleId, { bluetoothName: null, bluetoothId: null });
-      } catch {
-        /* best effort: the rule gives no answer for an ambiguous pair */
-      }
-    }
-    await updateVehicle(vehicleId, { bluetoothName: out.name, bluetoothId: bluetoothIdFor(out) });
-    try {
-      // The link counts from the next trip without waiting for a car list load.
-      const gone = new Set([vehicleId, ...others.map((o) => o.vehicleId)]);
-      const link: CarLink = { vehicleId, name: out.name, id: realId(q.id) };
-      await writeJson(LINKS_KEY, {
-        cars: cache.cars,
-        links: [...cache.links.filter((l) => !gone.has(l.vehicleId)), link],
-      } satisfies LinksCache);
-    } catch {
-      /* the next car list load writes it */
-    }
+  try {
+    if (vehicleId) await linkFromAnswer(q, vehicleId);
+  } catch (err) {
+    questionSnoozed = true; // never loops in this app open
+    throw err;
   }
   try {
     const answered = await readAnswered();
@@ -569,6 +592,40 @@ export async function answerCarQuestion(q: CarQuestion, vehicleId: string | null
     await writeJson(ANSWERED_KEY, answered.slice(-50));
     await deleteKey(QUESTION_KEY);
   } catch {
-    /* best effort */
+    questionSnoozed = true;
+  }
+}
+
+async function linkFromAnswer(q: CarQuestion, vehicleId: string): Promise<void> {
+  const out: CarAudioOutput = { name: q.name.trim(), id: q.id, kind: "bluetooth" };
+  const { updateVehicle } = await import("../api/vehicles");
+  let cache: LinksCache = { cars: 0, links: [] };
+  try {
+    cache = await readLinks();
+  } catch {
+    /* no cache: nothing known to unlink */
+  }
+  // The chosen car first: if this throws, nothing has changed anywhere.
+  await updateVehicle(vehicleId, { bluetoothName: out.name, bluetoothId: bluetoothIdFor(out) });
+  const unlinked = new Set<string>();
+  for (const other of cache.links.filter((l) => l.vehicleId !== vehicleId && matches(l, out))) {
+    try {
+      await updateVehicle(other.vehicleId, { bluetoothName: null, bluetoothId: null });
+      unlinked.add(other.vehicleId);
+    } catch {
+      // Still linked on the server, so it stays in the cache: the pair is
+      // ambiguous and finalize gives no answer rather than the wrong car.
+    }
+  }
+  try {
+    // Exactly what the server now holds, so the next trip uses it without
+    // waiting for a car list load.
+    const link: CarLink = { vehicleId, name: out.name, id: realId(q.id) };
+    await writeJson(LINKS_KEY, {
+      cars: cache.cars,
+      links: [...cache.links.filter((l) => l.vehicleId !== vehicleId && !unlinked.has(l.vehicleId)), link],
+    } satisfies LinksCache);
+  } catch {
+    /* the next car list load writes it */
   }
 }

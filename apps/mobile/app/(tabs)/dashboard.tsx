@@ -1330,7 +1330,7 @@ export default function DashboardScreen() {
     }, [])
   );
   useEffect(() => {
-    if (loading || vehicles.length < 2 || showWorkExplainer || showLocPrimer || carQuestion) return;
+    if (loading || vehicles.length < 2 || showWorkExplainer || showLocPrimer || showScorecard || carQuestion) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       (async () => {
@@ -1345,7 +1345,7 @@ export default function DashboardScreen() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [loading, vehicles.length, showWorkExplainer, showLocPrimer, carQuestion, carCheckTick]);
+  }, [loading, vehicles.length, showWorkExplainer, showLocPrimer, showScorecard, carQuestion, carCheckTick]);
 
   useEffect(() => {
     if (activeShift) {
