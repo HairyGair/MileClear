@@ -413,7 +413,7 @@ export default function AmazonFlexMileageTracker() {
                 {
                   title: "HMRC Reconciliation",
                   body:
-                    "Amazon Flex reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so any mismatch is visible to you before HMRC raises it.",
+                    "Amazon Flex reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool lets you type in the figure your platform reported to HMRC and compares it with what MileClear tracked, so any mismatch is visible to you before HMRC raises it.",
                 },
                 {
                   title: "Tax Readiness Card",

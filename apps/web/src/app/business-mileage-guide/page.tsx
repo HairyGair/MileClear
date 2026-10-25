@@ -43,7 +43,7 @@ export default function BusinessMileageGuidePage() {
       },
     },
     datePublished: "2026-04-21",
-    dateModified: "2026-04-21",
+    dateModified: "2026-10-25",
     mainEntityOfPage: "https://mileclear.com/business-mileage-guide",
     inLanguage: "en-GB",
   };
@@ -101,8 +101,8 @@ export default function BusinessMileageGuidePage() {
                 A driver doing 12,000 business miles a year is looking at
                 £6,000 off their taxable income at the new rates. At 20% tax,
                 that is £1,200 in their pocket. Drive 18,000 miles and the
-                figure jumps to £7,500 deducted and £1,500 saved. Gig workers routinely cross
-                20,000 miles a year and never claim a penny of it.
+                figure jumps to £7,500 deducted and £1,500 saved. Many gig workers cross
+                20,000 miles a year, and some never claim the full amount they are due.
               </p>
               <p>
                 There is also a personal side. Even if you do not drive for

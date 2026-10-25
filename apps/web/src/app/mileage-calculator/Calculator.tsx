@@ -152,8 +152,8 @@ export default function Calculator({ initialPencePerLitre }: { initialPencePerLi
               onChange={(e) => setTaxYear(e.target.value as TaxYear)}
               style={fieldInput}
             >
-              <option value="2026-27">2026-27 (current, from 6 Apr 2026)</option>
-              <option value="2025-26">2025-26 (and earlier)</option>
+              <option value="2026-27">2026-27 (from 6 Apr 2026){defaultTaxYear === "2026-27" ? ", current" : ""}</option>
+              <option value="2025-26">2025-26 (and earlier){defaultTaxYear === "2025-26" ? ", current" : ""}</option>
             </select>
           </div>
         </div>
@@ -278,8 +278,10 @@ export default function Calculator({ initialPencePerLitre }: { initialPencePerLi
             </div>
           </div>
           <p id="mc-mpg-hint" style={{ fontSize: "0.8rem", color: "var(--text-muted)", lineHeight: 1.55 }}>
-            UK miles per (imperial) gallon, from your logbook or manufacturer figures. Defaults
-            are typical UK averages, not live prices, replace them with your own for an exact figure.
+            UK miles per (imperial) gallon, from your logbook or manufacturer figures. The
+            pence-per-litre default is the current UK average petrol price from our fuel data when
+            available, and the MPG default is a typical figure. Replace both with your own for an
+            exact result.
           </p>
         </div>
       </div>

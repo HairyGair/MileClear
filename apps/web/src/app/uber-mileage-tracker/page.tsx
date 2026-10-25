@@ -248,7 +248,7 @@ export default function UberMileageTracker() {
                 {
                   title: "HMRC Reconciliation",
                   body:
-                    "Since January 2024, Uber reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool shows HMRC's figure alongside what MileClear tracked, so you spot any mismatch before they raise it.",
+                    "Since January 2024, Uber reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool lets you type in the figure your platform reported to HMRC and compares it with what MileClear tracked, so you spot any mismatch before they raise it.",
                 },
                 {
                   title: "Tax Readiness Card",

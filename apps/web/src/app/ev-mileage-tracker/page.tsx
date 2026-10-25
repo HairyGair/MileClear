@@ -95,7 +95,7 @@ const faqSchema = {
       name: "Do electric cars pay road tax (VED) in the UK?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, since April 2025. Electric cars registered on or after 1 April 2025 pay the standard rate of Vehicle Excise Duty, and many owners are caught out by the change. It does not affect your mileage claim, but it is a running cost worth budgeting for.",
+        text: "Yes, since April 2025. Electric cars no longer have a Vehicle Excise Duty exemption. One registered on or after 1 April 2025 pays a £10 first-year rate, then the £200 standard rate, and many owners are caught out by the change. It does not affect your mileage claim, but it is a running cost worth budgeting for.",
       },
     },
   ],
@@ -450,7 +450,7 @@ export default function EvMileageTracker() {
               },
               {
                 q: "Do electric cars pay road tax now?",
-                a: "Yes, since April 2025 electric cars pay standard Vehicle Excise Duty. It does not affect your mileage claim, but it is a running cost worth budgeting for. Our EV tax relief guide covers it in full.",
+                a: "Yes, since April 2025 electric cars pay Vehicle Excise Duty (a £10 first-year rate for new cars, then £200 a year). It does not affect your mileage claim, but it is a running cost worth budgeting for. Our EV tax relief guide covers it in full.",
               },
             ].map(({ q, a }, i, arr) => (
               <div

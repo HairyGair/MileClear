@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "What is the best Driversnote alternative in the UK?",
-    a: "MileClear is a strong Driversnote alternative for gig and self-employed drivers who want unlimited tracking without paying. Both apps are UK-native and apply HMRC's AMAP rates, but MileClear tracks unlimited drives on its free tier and needs no beacon or hardware - it uses your phone's GPS and motion sensor (ClearTrack) to detect drives automatically. Pro is £4.99/month only for tax-ready exports and Self Assessment tooling.",
+    a: "MileClear is a strong Driversnote alternative for gig and self-employed drivers who want unlimited tracking without paying. MileClear is built in the UK and applies HMRC's AMAP rates by default. Driversnote is Danish-built and available in the UK. MileClear tracks unlimited drives on its free tier and needs no beacon or hardware - it uses your phone's GPS and motion sensor (ClearTrack) to detect drives automatically. Pro is £4.99/month only for tax-ready exports and Self Assessment tooling.",
   },
   {
     q: "Is MileClear cheaper than Driversnote?",
@@ -45,7 +45,7 @@ const faqs = [
   },
   {
     q: "Do I need a beacon or any hardware with MileClear?",
-    a: "No. MileClear's ClearTrack engine detects your drives automatically using your iPhone's GPS and motion coprocessor - there's no iBeacon or dongle to buy, fit or keep charged. You just drive, and trips appear on their own.",
+    a: "No. MileClear's ClearTrack engine detects your drives automatically using your phone's GPS and motion sensors - there's no iBeacon or dongle to buy, fit or keep charged. You just drive, and trips appear on their own.",
   },
   {
     q: "Does MileClear handle HMRC mileage like Driversnote?",
@@ -126,7 +126,7 @@ export default function DriversnoteAlternative() {
               A free, no-hardware Driversnote alternative for UK drivers
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              Driversnote is a solid, UK-native mileage tracker - but it&rsquo;s built around a paid subscription
+              Driversnote is a solid, Danish-built mileage tracker available in the UK - but it&rsquo;s built around a paid subscription
               and an optional iBeacon you have to buy and fit. MileClear gives gig and self-employed drivers the
               same calculations at HMRC rates with <strong style={{ color: "#e2e8f0" }}>unlimited free tracking</strong>,
               <strong style={{ color: "#e2e8f0" }}> no hardware</strong>, and tagging built around how you actually
@@ -161,8 +161,8 @@ export default function DriversnoteAlternative() {
               </table>
             </div>
             <p style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "0.85rem" }}>
-              Driversnote is a genuine UK-native competitor; details reflect its publicly described pricing and
-              features as of 2026 - check Driversnote&rsquo;s site for the latest. MileClear figures are our own.
+              Driversnote is a genuine competitor in the UK; details reflect its publicly described pricing and
+              free-tier limits, checked 2 October 2026 - check Driversnote&rsquo;s site for the latest. MileClear figures are our own.
             </p>
           </section>
 
@@ -172,7 +172,7 @@ export default function DriversnoteAlternative() {
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "1.25rem" }}>
               {[
                 ["Free, unlimited tracking.", "Every business drive, automatically, on the free tier - no monthly allowance to run out of."],
-                ["No beacon to buy or charge.", "ClearTrack uses your iPhone's GPS and motion coprocessor to detect drives - there's nothing to fit to your car."],
+                ["No beacon to buy or charge.", "ClearTrack uses your phone's GPS and motion sensors to detect drives - there's nothing to fit to your car."],
                 ["Built for gig work.", "Tag trips to Uber, Deliveroo, Just Eat, Amazon Flex, DPD or Evri, with per-platform earnings - not just a generic business/personal toggle."],
                 ["Same HMRC compliance.", "55p first-10,000-mile rate, 25p after, 24p motorbikes - applied per trip by date, ready for Self Assessment."],
                 ["Pay only for exports.", "Tracking and HMRC totals are free. Pro (£4.99/mo) adds PDF/CSV exports, the Self Assessment PDF and analytics - if and when you need them."],
