@@ -1113,7 +1113,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <ul>
 <li>Your <strong>commute</strong> from home to your normal workplace - this is "ordinary commuting" and is never claimable</li>
 <li>Any private journey, even in a vehicle used mostly for business</li>
-<li>For most self-employed drivers, the journey from home to your <em>first</em> job of the day (HMRC generally treats this as commuting unless you have no fixed workplace, which is the case for many gig drivers)</li>
+<li>For self-employed drivers, the journey from home to a place you work from regularly, such as the same depot or station every day. If you run your business from home and travel to different places each day, as many gig drivers do, that first journey is often business travel instead. It depends on the facts.</li>
 </ul>
 
 <p>Our <a href="/what-counts-as-business-mileage">full guide on what counts as business mileage</a> walks through the edge cases.</p>
@@ -2581,7 +2581,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Open MileClear and go to your Trips tab. Open the "To sort" list - these are trips the app recorded but you haven't confirmed as business or personal yet. Go through them and classify each one. It only takes a tap per trip, but it makes a big difference to your deduction total.</p>
 
-<p>If you're not sure whether a trip counts as business, the general rule is: if you were driving to earn money (heading to a pickup, driving between deliveries, going to a depot), it's business. Driving from home to your first job of the day is commuting and doesn't count - but once you're "on the clock", everything in between does.</p>
+<p>If you're not sure whether a trip counts as business, a good rule of thumb: driving between pick-ups and drops is business. A drive from home to a place you work from regularly, such as the same depot or station every day, is usually commuting and doesn't count. If you run your business from home and go straight out to different places each day, that first drive is often business travel, because HMRC treats travel from a home base to temporary places of work differently. It depends on the facts, so see <a href="/what-counts-as-business-mileage">what counts as business mileage</a>, or ask an accountant if those miles add up to a lot.</p>
 
 <h2>2. Check your vehicle details</h2>
 
