@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "What is the Advisory Electricity Rate?",
-    a: "The Advisory Electricity Rate (AER) is the per-mile rate HMRC sets for reimbursing electricity used in a company electric car. As of June 2026 it is 7p per mile for home charging and 15p per mile for public charging, and it is reviewed quarterly. It applies to company cars only. If you use your own EV for work, you use the higher AMAP rate (45p/25p) instead, because that covers the whole cost of the car, not just the electricity.",
+    a: "The Advisory Electricity Rate (AER) is the per-mile rate HMRC sets for reimbursing electricity used in a company electric car. As of October 2026 it is 7p per mile for home charging and 15p per mile for public charging (unchanged since 1 June 2026), and it is reviewed quarterly. It applies to company cars only. If you use your own EV for work, you use the higher AMAP rate (55p/25p in 2026-27) instead, because that covers the whole cost of the car, not just the electricity.",
   },
   {
     q: "Why is an electric company car so tax-efficient?",
@@ -49,11 +49,11 @@ const faqs = [
   },
   {
     q: "Do electric cars pay road tax now?",
-    a: "Yes. From 1 April 2025 electric and zero-emission cars stopped being exempt from Vehicle Excise Duty. A new EV pays a £10 first-year rate, then the £200 standard rate from year two. EVs with a list price over £50,000 also pay the Expensive Car Supplement (around £425 a year) in years two to six. This is a recent change that catches a lot of people out.",
+    a: "Yes. From 1 April 2025 electric and zero-emission cars stopped being exempt from Vehicle Excise Duty. A new EV pays a £10 first-year rate, then the £200 standard rate from year two. EVs with a list price over £50,000 also pay the Expensive Car Supplement (£440 a year) in years two to six. This is a recent change that catches a lot of people out.",
   },
   {
     q: "Is this tax advice?",
-    a: "No. This is general information to help you understand the reliefs that exist, based on HMRC and gov.uk guidance current in June 2026. The right method and the amounts depend on your own figures, and the choice between mileage and actual costs is locked per vehicle, so if real money is at stake it is worth confirming with an accountant or HMRC before you commit.",
+    a: "No. This is general information to help you understand the reliefs that exist, based on HMRC and gov.uk guidance current in October 2026. The right method and the amounts depend on your own figures, and the choice between mileage and actual costs is locked per vehicle, so if real money is at stake it is worth confirming with an accountant or HMRC before you commit.",
   },
 ];
 
@@ -138,7 +138,7 @@ export default function EvTaxReliefPage() {
       logo: { "@type": "ImageObject", url: "https://mileclear.com/branding/logo-120x120.png" },
     },
     datePublished: "2026-06-14",
-    dateModified: "2026-06-14",
+    dateModified: "2026-10-25",
     mainEntityOfPage: "https://mileclear.com/ev-tax-relief",
     inLanguage: "en-GB",
   };
@@ -288,15 +288,14 @@ export default function EvTaxReliefPage() {
             <Card>
               <P>
                 Your employer can pay you up to the <strong style={{ color: "var(--text-white)" }}>approved
-                mileage rate</strong> (45p per mile for the first 10,000 business miles, 25p after)
+                mileage rate</strong> (55p per mile for the first 10,000 business miles from 6 April 2026, 25p after)
                 tax-free. There is no separate, lower rate for EVs.
               </P>
               <P style={{ marginBottom: 0 }}>
                 If your employer pays <em>less</em> than the approved rate, for example a flat 25p or
                 only the electricity cost, you can claim <strong style={{ color: "var(--text-white)" }}>Mileage
-                Allowance Relief</strong> on the shortfall through your tax return or a P87. Because the
-                45p rate has not changed in years while EV running costs are low, this relief is often
-                well worth claiming.
+                Allowance Relief</strong> on the shortfall through your tax return or a P87. Because EV running costs
+                are low compared with the mileage rate, this relief is often worth claiming.
               </P>
             </Card>
           </div>
@@ -324,7 +323,7 @@ export default function EvTaxReliefPage() {
               </ul>
               <P style={{ marginBottom: 0 }}>
                 Compared with 25% to 37% for many petrol and diesel cars, that is roughly a tenth of the
-                tax. A £40,000 EV at 3% is a £1,200 taxable benefit, costing a 40% taxpayer about £480 a
+                tax. A £40,000 EV at 4% (the 2026-27 rate) is a £1,600 taxable benefit, costing a 40% taxpayer about £640 a
                 year. Even with the planned rises, EVs stay the cheapest band by a wide margin into
                 2029-30.
               </P>
@@ -345,8 +344,8 @@ export default function EvTaxReliefPage() {
               <H3>Charging a company EV</H3>
               <P>
                 The <strong style={{ color: "var(--text-white)" }}>Advisory Electricity Rate</strong>
-                lets the employer reimburse electricity tax-free: as of June 2026, 7p per mile for home
-                charging and 15p per mile for public, reviewed quarterly.
+                lets the employer reimburse electricity tax-free: as of October 2026, 7p per mile for home
+                charging and 15p per mile for public (unchanged since 1 June 2026), reviewed quarterly.
               </P>
               <P style={{ marginBottom: 0 }}>
                 <strong style={{ color: "var(--text-white)" }}>Workplace charging is tax-free</strong>:
@@ -389,7 +388,7 @@ export default function EvTaxReliefPage() {
               </P>
               <ul style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: 1.8, paddingLeft: "1.2rem", margin: 0 }}>
                 <li>A new EV pays a <strong style={{ color: "var(--text-white)" }}>£10</strong> first-year rate, then the <strong style={{ color: "var(--text-white)" }}>£200</strong> standard rate from year two. Older EVs moved onto the standard rate too.</li>
-                <li>EVs with a list price over <strong style={{ color: "var(--text-white)" }}>£50,000</strong> also pay the Expensive Car Supplement (around £425 a year) in years two to six. The threshold for zero-emission cars was raised from £40,000 to £50,000, applied retrospectively, so most EVs registered from April 2025 escape it.</li>
+                <li>EVs with a list price over <strong style={{ color: "var(--text-white)" }}>£50,000</strong> also pay the Expensive Car Supplement (£440 a year) in years two to six. The threshold for zero-emission cars was raised from £40,000 to £50,000, applied retrospectively, so most EVs registered from April 2025 escape it.</li>
               </ul>
             </Card>
           </div>
@@ -401,10 +400,11 @@ export default function EvTaxReliefPage() {
             <SectionHead
               label="Grants & schemes"
               title="Help with a charge point"
-              intro="The old grant for buying an EV ended years ago. The grants that survive are about chargers, and most run to 31 March 2027."
+              intro="Buying a new EV can come with a discount through the Electric Car Grant. Separate grants help with charge points, and most of those run to 31 March 2027."
             />
             <Card>
               <ul style={{ color: "var(--text-secondary)", fontSize: "0.95rem", lineHeight: 1.85, paddingLeft: "1.2rem", margin: 0 }}>
+                <li><strong style={{ color: "var(--text-white)" }}>Electric Car Grant</strong>: a discount of up to £3,750 on an eligible new electric car priced at £37,000 or less, taken off by the dealer at the point of sale. Only models on the government list qualify, and the scheme is due to run to 2030 with funding committed to 2028-29.</li>
                 <li><strong style={{ color: "var(--text-white)" }}>Workplace Charging Scheme</strong>: up to £500 per socket (max 40) for businesses, charities and public bodies.</li>
                 <li><strong style={{ color: "var(--text-white)" }}>Flats and rented homes, and on-street parking</strong>: £500 per socket for people who rent or own a flat, or have no off-street parking.</li>
                 <li><strong style={{ color: "var(--text-white)" }}>Residential landlords</strong>: £500 per socket, up to 200 sockets.</li>
@@ -418,7 +418,7 @@ export default function EvTaxReliefPage() {
           <div className="container" style={wrap}>
             <Card>
               <P style={{ marginBottom: 0, fontSize: "0.875rem" }}>
-                This page is general information based on HMRC and gov.uk guidance current in June 2026,
+                This page is general information based on HMRC and gov.uk guidance current in October 2026,
                 not personal tax advice. Rates and thresholds change, the choice between mileage and
                 actual costs is locked per vehicle, and the right answer depends on your figures. If a
                 meaningful amount of tax is at stake, confirm with an accountant or HMRC before you

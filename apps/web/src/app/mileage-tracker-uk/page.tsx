@@ -97,7 +97,7 @@ const faqSchema = {
       name: "Is there a free mileage tracker for the UK?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. MileClear is free to download and free to use for the core tracking, classification, vehicle records, fuel logging and HMRC rate calculations - with no monthly drive cap. That last point is what separates MileClear from the US-built alternatives: MileIQ caps the free tier at 40 drives a month, Driversnote at 15. MileClear has no cap and never will. Pro (£4.99/month) unlocks the Self Assessment PDF export, CSV export, business insights, open-banking earnings sync, and a few quality-of-life extras. The deduction is yours either way - Pro just makes filing it painless.",
+        text: "Yes. MileClear is free to download and free to use for the core tracking, classification, vehicle records, fuel logging and HMRC rate calculations - with no monthly drive cap. That last point is what separates MileClear from alternatives built for other markets: MileIQ caps the free tier at 40 drives a month, Driversnote at 15. MileClear has no cap and never will. Pro (£4.99/month) unlocks the Self Assessment PDF export, CSV export, business insights, open-banking earnings sync, and a few quality-of-life extras. The deduction is yours either way - Pro just makes filing it painless.",
       },
     },
     {
@@ -307,9 +307,9 @@ export default function MileageTrackerUk() {
                     "GPS keeps working in tunnels, basements, rural blackspots. Trips stored locally, synced when you have signal. Your data is yours.",
                 },
                 {
-                  title: "MTD ITSA ready",
+                  title: "MTD ITSA tools in beta",
                   body:
-                    "Quarterly submission to HMRC built in for the April 2026 Making Tax Digital deadline. Mileage rolls straight into your quarterly update.",
+                    "Quarterly updates for Making Tax Digital are built and tested with HMRC's test service only. Nothing is sent to HMRC yet. Your mileage rolls straight into the figures.",
                 },
               ].map(({ title, body }) => (
                 <div

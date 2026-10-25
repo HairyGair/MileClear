@@ -296,6 +296,7 @@ export default function FreeMileageTrackerUk() {
                   <li>Activity heatmap + benchmarking</li>
                   <li>MOT + tax expiry reminders</li>
                   <li>Manual expense tracking</li>
+                  <li>Share with your accountant</li>
                   <li>Push notifications, profile, feedback</li>
                 </ul>
               </div>
@@ -320,10 +321,13 @@ export default function FreeMileageTrackerUk() {
                   <li>Sorting trips by your work hours</li>
                   <li>Business Insights (£/mile, £/hour, golden hours)</li>
                   <li>Driving Analytics multi-month trends</li>
-                  <li>Accountant sharing (read-only dashboard)</li>
                   <li>Journey Map (full-route visualisation)</li>
                   <li>Unlimited saved locations</li>
                   <li>Unlimited vehicles</li>
+                  <li>Unlimited invoices (free plan: 3 a month)</li>
+                  <li>Mileage Certificate</li>
+                  <li>Snap a Statement (earnings from a screenshot)</li>
+                  <li>Ticket Defender</li>
                 </ul>
               </div>
             </div>

@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     q: "Why are people switching from MileIQ?",
-    a: "MileIQ raised its price in 2026 (its monthly plan moved to roughly $8.99), and its free tier stops at 40 drives a month. It is also US-first, so it does not natively understand HMRC's two-tier 10,000-mile split or UK gig platforms. UK drivers switch to get unlimited free tracking and calculations at HMRC rates without paying a US-priced subscription.",
+    a: "MileIQ Unlimited costs £9.49 a month (£7.91 a month billed yearly) on its UK pricing page, checked 2 October 2026, and its free tier stops at 40 drives a month. It is also US-first, so it does not natively understand HMRC's two-tier 10,000-mile split or UK gig platforms. UK drivers switch to get unlimited free tracking and calculations at HMRC rates without paying a US-priced subscription.",
   },
   {
     q: "Does MileClear calculate HMRC mileage for me?",
@@ -59,7 +59,7 @@ const faqs = [
 
 const rows: [string, string, string][] = [
   ["Free tier", "Unlimited drives, forever", "40 drives / month, then paid"],
-  ["Headline price", "Free · Pro £4.99/mo", "~$8.99/mo (raised in 2026)"],
+  ["Headline price", "Free · Pro £4.99/mo", "£9.49/mo, or £7.91/mo billed yearly (checked 2 Oct 2026)"],
   ["HMRC mileage rates (55p, 10k split)", "Yes - built in, tax-year aware", "No - US flat-rate logic"],
   ["Gig-platform tagging", "Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri…", "No"],
   ["Works offline", "Yes - offline-first", "Limited"],
@@ -127,8 +127,8 @@ export default function MileIqAlternativeUk() {
               The best MileIQ alternative for UK drivers - and it&rsquo;s free
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              MileIQ is the name everyone knows, but it was built for the US - and in 2026 it raised its price
-              while still capping the free tier at 40 drives a month. MileClear is the UK-native alternative:
+              MileIQ is the name everyone knows, but it was built for the US, it costs £9.49 a month on its UK
+              pricing page, and it caps the free tier at 40 drives a month. MileClear is the UK-native alternative:
               it tracks <strong style={{ color: "#e2e8f0" }}>unlimited drives for free</strong>, applies HMRC&rsquo;s
               new <strong style={{ color: "#e2e8f0" }}>55p</strong> rate automatically, tags your Uber and
               Deliveroo trips, and keeps recording offline. If you drive for work in the UK, those differences
@@ -163,7 +163,7 @@ export default function MileIqAlternativeUk() {
               </table>
             </div>
             <p style={{ fontSize: "0.8rem", color: "#64748b", marginTop: "0.85rem" }}>
-              MileIQ details based on its publicly listed pricing and free-tier limits as of 2026; check MileIQ&rsquo;s
+              MileIQ details based on its publicly listed pricing and free-tier limits, checked 2 October 2026; check MileIQ&rsquo;s
               site for the latest. MileClear figures are our own.
             </p>
           </section>

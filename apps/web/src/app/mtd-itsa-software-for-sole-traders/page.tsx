@@ -6,16 +6,16 @@ import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import StoreButtons from "@/components/StoreButtons";
 
 export const metadata: Metadata = {
-  title: "MTD ITSA Software for Sole Traders & Self-Employed Drivers (2026 Deadline)",
+  title: "MTD for Income Tax: What Sole Traders & Self-Employed Drivers Need (2026-27)",
   description:
-    "Making Tax Digital for Income Tax kicks in on 6 April 2026. The first quarterly submission is due 7 August 2026 for sole traders earning over £50,000. Here's what MTD ITSA actually requires, who has to comply, and how MileClear is preparing UK gig drivers for it.",
+    "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders with qualifying income over £50,000. The next quarterly update deadlines are 7 November 2026 and 7 February 2027. Here's what it requires, who has to comply, and where MileClear's own build stands (tested with HMRC's test service only).",
   alternates: {
     canonical: "https://mileclear.com/mtd-itsa-software-for-sole-traders",
   },
   openGraph: {
     title: "MTD ITSA Software for Sole Traders | MileClear",
     description:
-      "First quarterly MTD ITSA submission is due 7 August 2026. Most mileage apps don't actually file with HMRC. MileClear is one of the few UK apps building this in.",
+      "MTD for Income Tax is live for sole traders over £50,000. Next quarterly update deadlines: 7 November 2026 and 7 February 2027. What it means for self-employed drivers.",
     url: "https://mileclear.com/mtd-itsa-software-for-sole-traders",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MTD ITSA Software for Sole Traders | MileClear",
     description:
-      "MTD ITSA's first quarterly deadline is 7 August 2026. Most mileage apps don't actually submit. MileClear is preparing for it.",
+      "MTD for Income Tax is live. Next quarterly deadlines: 7 November 2026 and 7 February 2027. What self-employed drivers need to know.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -31,39 +31,39 @@ export const metadata: Metadata = {
 const faqs = [
   {
     q: "What is MTD ITSA?",
-    a: "Making Tax Digital for Income Tax Self Assessment (MTD ITSA, sometimes shortened to MTD for Income Tax or MTD IT) is HMRC's new way of receiving tax information from sole traders and landlords. Instead of one Self Assessment return at the end of the tax year, you submit a digital quarterly summary every three months from MTD-compliant software. There is also an end-of-year final declaration. The system has been delayed several times. It now launches on 6 April 2026.",
+    a: "Making Tax Digital for Income Tax Self Assessment (MTD ITSA, sometimes shortened to MTD for Income Tax or MTD IT) is HMRC's new way of receiving tax information from sole traders and landlords. You keep digital records and send a quarterly update from compatible software, then make a final declaration after the tax year. It started on 6 April 2026 for people with qualifying income over £50,000.",
   },
   {
     q: "Who has to comply with MTD ITSA in 2026?",
-    a: "From 6 April 2026, MTD ITSA applies to sole traders and landlords whose combined self-employment income plus property income exceeds £50,000 in the 2024-25 tax year. From 6 April 2027 the threshold drops to £30,000. From 6 April 2028 it drops to £20,000. If you are below the relevant threshold you stay on regular Self Assessment for now.",
+    a: "MTD ITSA has applied since 6 April 2026 to sole traders and landlords whose combined self-employment income plus property income exceeds £50,000 in the 2024-25 tax year. From 6 April 2027 the threshold drops to £30,000. From 6 April 2028 it drops to £20,000. If you are below the relevant threshold you stay on regular Self Assessment for now.",
   },
   {
     q: "When is the first MTD ITSA quarterly submission due?",
-    a: "The first quarterly window of the new regime covers 6 April to 5 July 2026. The submission deadline for that quarter is 7 August 2026. Subsequent quarters end on 5 October, 5 January, and 5 April, with submission deadlines roughly one month later. The end-of-year final declaration for 2026-27 is due by 31 January 2028.",
+    a: "The first update for 2026-27 was due on 7 August 2026. The remaining deadlines for 2026-27 are 7 November 2026, 7 February 2027 and 7 May 2027. The final declaration for 2026-27 is due by 31 January 2028 (source: HMRC's MTD timeline on GOV.UK).",
   },
   {
     q: "What does MTD-compliant software actually have to do?",
-    a: "Three things. First, integrate with HMRC's MTD APIs over OAuth - your software talks to HMRC on your behalf, you don't type figures into a portal. Second, transmit nine to fifteen mandatory fraud-prevention headers on every API call (device, location, software identification). Third, submit a digital quarterly summary that maps your business income and expenses to HMRC's schema. A spreadsheet, even a digital one, is not compliant on its own. You either need MTD-compliant accounting software or 'bridging software' that links your spreadsheet to HMRC.",
+    a: "Three things. First, connect to HMRC's MTD APIs over OAuth so the software talks to HMRC on your behalf. Second, send HMRC's mandatory fraud-prevention headers on every API call (device, location, software identification). Third, send a digital quarterly update that maps your business income and expenses to HMRC's schema. A spreadsheet on its own does not do this. You need software that is compatible with MTD, or bridging software that links your spreadsheet to HMRC.",
   },
   {
     q: "Why don't most mileage trackers do MTD ITSA submissions?",
-    a: "Mileage tracking is a different problem from tax submission. Most apps in this category - including the well-known international ones - focus on producing a CSV or PDF of your business mileage and stopping there. Submitting that data to HMRC requires an entirely separate workstream: HMRC Developer Hub registration, OAuth implementation, fraud-prevention header generation, sandbox testing, and a 3-8 week production review by HMRC. Few mileage trackers have built this infrastructure because their core product is the tracker, not the filer.",
+    a: "Mileage tracking is a different problem from tax submission. Most apps in this category focus on producing a CSV or PDF of your business mileage and stopping there. Sending data to HMRC needs a separate workstream: HMRC Developer Hub registration, OAuth, fraud-prevention headers, sandbox testing and a production review by HMRC. Few mileage trackers have built that, because their core product is the tracker.",
   },
   {
     q: "Can I keep using my existing mileage tracker and submit elsewhere?",
-    a: "Yes, but you will be juggling at least two pieces of software. Your tracker generates a mileage figure (or an export); a separate piece of MTD-compliant accounting software submits to HMRC. Most accountancy packages - Xero, FreeAgent, QuickBooks, Sage - support MTD ITSA submissions but do not track mileage natively. The disjointed workflow is exactly what UK gig drivers tell us they want to avoid. MileClear is being built so the mileage and the submission live in the same place.",
+    a: "Yes, but you will use at least two pieces of software. Your tracker gives you a mileage figure or an export; separate MTD-compatible accounting software sends the quarterly update to HMRC. Most accountancy packages (Xero, FreeAgent, QuickBooks, Sage) support MTD for Income Tax but do not track mileage natively. MileClear tracks and totals your mileage and deduction. Nothing from MileClear is sent to HMRC yet, so use your accounting software or accountant for real quarterly updates.",
   },
   {
-    q: "What if I miss the 7 August 2026 deadline?",
-    a: "HMRC has confirmed a points-based late submission penalty. You accumulate one point per missed quarterly submission. At four points (sole trader on quarterly cadence) HMRC issues a £200 fine, with further £200 fines for each subsequent late submission until you reset by submitting on time for a defined period. There is also a separate late payment regime if you owe tax. The simpler answer is: file on time. The first deadline is the one most people will miss because the regime is brand new - set up your software early.",
+    q: "What if I miss a quarterly deadline?",
+    a: "HMRC uses a points-based late submission penalty for MTD, plus a separate late payment regime if you owe tax. How the penalties apply in the first year is set out on GOV.UK, so check the current guidance or ask your accountant. The simple answer is to send each update on time, and to set up your software well before the deadline.",
   },
   {
     q: "Do I still need to do a Self Assessment return?",
-    a: "Not in the same way. Under MTD ITSA the four quarterly submissions plus an end-of-year final declaration replace the annual Self Assessment return for affected sole traders. You won't be filing two things; you'll be filing the new MTD ITSA workflow only. If you have other income (salary, dividends, capital gains) the final declaration is where that goes.",
+    a: "For the 2025-26 tax year, yes: that Self Assessment return is still due by 31 January 2027. From 2026-27, if you are in MTD, the four quarterly updates plus a final declaration take the place of the annual return, and the final declaration is due by 31 January 2028. If you have other income (salary, dividends, capital gains) it goes in the final declaration. Either way, you file on GOV.UK or through your accountant, not through MileClear.",
   },
   {
-    q: "When will MileClear's MTD ITSA submission feature be available?",
-    a: "The full MTD journey is built into MileClear and labelled beta: connect your HMRC account, see your obligations, preview your figures and walk through a submission. Until HMRC grants production credentials, submissions go to HMRC's test service and do not change your real tax record. Our request for production credentials is under HMRC's review.",
+    q: "Does MileClear send my quarterly update to HMRC?",
+    a: "Not yet. The MTD journey is built into MileClear and labelled beta: connect your HMRC account, see your obligations, preview your figures and walk through an update. It is tested with HMRC's test service only, so nothing is sent to HMRC and your real tax record does not change. For real quarterly updates and your Self Assessment, use your accountant or MTD-compatible accounting software, or file on GOV.UK.",
   },
 ];
 
@@ -73,7 +73,7 @@ export default function MtdItsaSoftwarePage() {
     "@type": "Article",
     headline: "MTD ITSA Software for Sole Traders & Self-Employed Drivers",
     description:
-      "Making Tax Digital for Income Tax launches 6 April 2026. The first quarterly submission deadline is 7 August 2026 for sole traders over £50,000. Here's what MTD ITSA actually requires and how MileClear is preparing UK gig drivers for it.",
+      "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders over £50,000. The next quarterly update deadlines are 7 November 2026 and 7 February 2027. Here's what MTD ITSA requires and where MileClear's own build stands.",
     author: { "@type": "Person", name: "Anthony Gair" },
     publisher: {
       "@type": "Organization",
@@ -84,7 +84,7 @@ export default function MtdItsaSoftwarePage() {
       },
     },
     datePublished: "2026-05-09",
-    dateModified: "2026-05-09",
+    dateModified: "2026-10-25",
     mainEntityOfPage: "https://mileclear.com/mtd-itsa-software-for-sole-traders",
     inLanguage: "en-GB",
   };
@@ -129,12 +129,13 @@ export default function MtdItsaSoftwarePage() {
                 MTD ITSA software for sole traders &amp; self-employed UK drivers
               </h1>
               <p className="subtext" style={{ margin: "0 auto", maxWidth: 660 }}>
-                Making Tax Digital for Income Tax launches on 6 April 2026. The
-                first quarterly submission deadline is 7 August 2026 for
+                Making Tax Digital for Income Tax started on 6 April 2026 for
                 anyone whose self-employment plus property income exceeded
-                £50,000 in 2024-25. Most mileage-tracking apps are not
-                MTD-compliant on their own. MileClear is being built so the
-                tracking and the submission live in one place.
+                £50,000 in 2024-25. The next quarterly update deadlines are
+                7 November 2026 and 7 February 2027. A mileage app does not
+                replace MTD software on its own. MileClear tracks and totals
+                your mileage and is testing quarterly updates with HMRC&apos;s
+                test service; nothing is sent to HMRC yet.
               </p>
             </div>
 
@@ -159,7 +160,7 @@ export default function MtdItsaSoftwarePage() {
                   marginBottom: "0.5rem",
                 }}
               >
-                First quarterly deadline
+                Next quarterly deadline
               </div>
               <div
                 style={{
@@ -171,7 +172,7 @@ export default function MtdItsaSoftwarePage() {
                   marginBottom: "0.5rem",
                 }}
               >
-                7 August 2026
+                7 November 2026
               </div>
               <p
                 style={{
@@ -180,9 +181,10 @@ export default function MtdItsaSoftwarePage() {
                   margin: 0,
                 }}
               >
-                The submission window covers 6 April – 5 July 2026 (Q1 of the
-                2026-27 tax year). If you are over the £50,000 threshold this
-                is your first MTD ITSA filing.
+                This update covers 6 July to 5 October 2026 (Q2 of the
+                2026-27 tax year). The one after is due 7 February 2027, then
+                7 May 2027. If you are over the £50,000 threshold, these are
+                your MTD updates.
               </p>
             </div>
           </div>
@@ -359,7 +361,7 @@ export default function MtdItsaSoftwarePage() {
               </li>
               <li style={{ marginBottom: "0.75rem" }}>
                 <strong style={{ color: "var(--text-white)" }}>Fraud-prevention headers on every call.</strong>{" "}
-                HMRC mandates 9–15 specific HTTP headers (device fingerprint,
+                HMRC mandates a set of specific HTTP headers (device fingerprint,
                 public IP, screen size, OS family, vendor identification, and
                 more) on every MTD API call. The format is strict and is
                 validated automatically. Get any of them wrong and the call
@@ -376,7 +378,7 @@ export default function MtdItsaSoftwarePage() {
               <li style={{ marginBottom: "0.75rem" }}>
                 <strong style={{ color: "var(--text-white)" }}>HMRC production credentials.</strong>{" "}
                 Sandbox access is open to anyone. Production access requires
-                a security review by HMRC that takes 3–8 weeks: terms of
+                a security review by HMRC that is a lengthy process: terms of
                 use, fraud-prevention header evidence, security policy,
                 personal data handling, accessibility (WCAG 2.2 AA),
                 penetration testing.
@@ -396,7 +398,7 @@ export default function MtdItsaSoftwarePage() {
         <section className="section">
           <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
             <h2 className="heading" style={{ fontSize: "1.75rem", marginBottom: "1.25rem" }}>
-              Why most mileage trackers won&apos;t file your MTD ITSA return
+              Why most mileage trackers don&apos;t send MTD updates
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
               The well-known international mileage trackers, the ones
@@ -406,10 +408,10 @@ export default function MtdItsaSoftwarePage() {
               accountant. That&apos;s the entire workflow.
             </p>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
-              MTD ITSA changes the shape of the workflow. The submission
-              <em> is</em> the product. A mileage figure on a CSV is no
-              longer the end-state: it has to flow into a quarterly
-              filing that lives inside MTD-compliant software.
+              MTD ITSA changes the shape of the workflow. The quarterly
+              update is a digital step. A mileage figure on a CSV is no
+              longer the end of the road: it has to flow into a quarterly
+              update made from MTD-compatible software.
             </p>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
               The realistic UK options for sole traders right now look like:
@@ -437,9 +439,9 @@ export default function MtdItsaSoftwarePage() {
               </li>
               <li style={{ marginBottom: "0.5rem" }}>
                 <strong style={{ color: "var(--text-white)" }}>Mileage-first apps with MTD bolted on</strong>.
-                A small but growing category. MileClear is in this
-                bucket, built UK-first with HMRC integration as a native
-                workflow rather than an export.
+                A small but growing category. MileClear is building towards
+                this, UK-first, and tests it with HMRC&apos;s test service. It is
+                not live yet, so do not rely on it for a real update.
               </li>
             </ul>
 
@@ -457,7 +459,7 @@ export default function MtdItsaSoftwarePage() {
         <section className="section">
           <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
             <h2 className="heading" style={{ fontSize: "1.75rem", marginBottom: "1.25rem" }}>
-              How MileClear is preparing for the 7 August 2026 deadline
+              Where MileClear&apos;s MTD build stands
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
               MileClear is being built so the UK gig driver journey is
@@ -465,8 +467,9 @@ export default function MtdItsaSoftwarePage() {
               platform (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri,
               Stuart, Gophr, Yodel), capture earnings via Open Banking or
               CSV import, log allowable expenses, and prepare the quarterly
-              figures for HMRC. The submission journey is built and running
-              against HMRC's sandbox while we wait on production credentials.
+              figures. The update journey is built and running against
+              HMRC&apos;s test service while we wait on production credentials.
+              Nothing is sent to HMRC yet.
             </p>
 
             <div
@@ -499,11 +502,11 @@ export default function MtdItsaSoftwarePage() {
               >
                 <li style={{ marginBottom: "0.5rem" }}>
                   <strong style={{ color: "var(--text-white)" }}>Built:</strong>{" "}
-                  Connect your HMRC account, see your quarterly obligations, preview every figure and walk through a submission. It is in the app now, labelled beta.
+                  Connect your HMRC account, see your quarterly obligations, preview every figure and walk through an update. It is in the app now, labelled beta.
                 </li>
                 <li style={{ marginBottom: "0.5rem" }}>
                   <strong style={{ color: "var(--text-white)" }}>Running against HMRC&apos;s test service:</strong>{" "}
-                  until HMRC grants production credentials, submissions go to HMRC&apos;s sandbox and do not change your real tax record.
+                  until HMRC grants production credentials, updates go to HMRC&apos;s test service only. Nothing is sent to HMRC and your real tax record does not change.
                 </li>
                 <li style={{ marginBottom: 0 }}>
                   <strong style={{ color: "var(--text-white)" }}>With HMRC now:</strong>{" "}
@@ -531,14 +534,13 @@ export default function MtdItsaSoftwarePage() {
         <section className="section">
           <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
             <h2 className="heading" style={{ fontSize: "1.75rem", marginBottom: "1.25rem" }}>
-              What MileClear automates for your MTD ITSA filing
+              What MileClear prepares for your MTD ITSA figures
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
-              The whole point of MTD-compliant software is that you stop
-              copying numbers between spreadsheets. Here&apos;s what the MTD
-              ITSA feature (built, in beta on HMRC&apos;s test service until
-              production credentials are granted) handles automatically once
-              your quarterly window opens:
+              Here&apos;s what the MTD ITSA feature (built, in beta on
+              HMRC&apos;s test service until production credentials are
+              granted) prepares from your records once your quarterly window
+              opens. Nothing is sent to HMRC yet:
             </p>
 
             <div
@@ -564,11 +566,11 @@ export default function MtdItsaSoftwarePage() {
                 },
                 {
                   title: "Obligations countdown",
-                  body: "Live countdown to your next quarterly submission, sourced directly from HMRC's Obligations API. No surprise deadlines.",
+                  body: "Live countdown to your next quarterly update, sourced directly from HMRC's Obligations API. No surprise deadlines.",
                 },
                 {
-                  title: "Preview before submitting",
-                  body: "Every figure shown side-by-side with where it came from before you authorise the submission. If something looks wrong, you fix it in MileClear, not in a spreadsheet.",
+                  title: "Preview before any update",
+                  body: "Every figure shown side-by-side with where it came from, so you can check it before any update. If something looks wrong, you fix it in MileClear, not in a spreadsheet.",
                 },
                 {
                   title: "End-of-year final declaration",
@@ -666,7 +668,7 @@ export default function MtdItsaSoftwarePage() {
             }}
           >
             <h2 className="heading" style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
-              Get ahead of the 7 August deadline
+              Get your records in order before the next deadline
             </h2>
             <p
               style={{
@@ -680,11 +682,11 @@ export default function MtdItsaSoftwarePage() {
               }}
             >
               Start tracking your mileage and platform earnings now so
-              your first MTD ITSA submission is one tap, not one
-              panicked weekend in late July. MileClear is free for
-              tracking, classification, and tax-readiness tooling. MTD ITSA
-              quarterly submission is in the app in beta and goes live once
-              HMRC grants production credentials.
+              your mileage and income figures are ready when a quarterly
+              deadline arrives. MileClear is free for tracking,
+              classification, and tax-readiness tooling. MTD ITSA quarterly
+              updates are in the app in beta, tested with HMRC&apos;s test
+              service only.
             </p>
             <StoreButtons align="center" page="tax" />
             <div style={{ marginTop: "0.5rem" }}>

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     absolute: "Self-Employed Mileage Tracker UK - Sole Trader HMRC App | MileClear",
   },
   description:
-    "The mileage tracker built for UK sole traders. Auto-track every business mile, claim 55p/25p AMAP relief on Self Assessment (rate raised from 45p on 6 April 2026), MTD ITSA ready. Free.",
+    "The mileage tracker built for UK sole traders. Auto-track every business mile, claim 55p/25p AMAP relief on Self Assessment (rate raised from 45p on 6 April 2026), with MTD ITSA tools in beta. Free.",
   keywords: [
     "self employed mileage tracker uk",
     "sole trader mileage tracker",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Self-Employed Mileage Tracker UK | MileClear",
     description:
-      "Built for UK sole traders. AMAP relief on autopilot. MTD ITSA ready. Free.",
+      "Built for UK sole traders. AMAP relief on autopilot. MTD ITSA tools in beta. Free.",
     url: "https://mileclear.com/self-employed-mileage-tracker",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Self-Employed Mileage Tracker UK | MileClear",
     description:
-      "Built for UK sole traders. AMAP relief on autopilot. MTD ITSA ready. Free.",
+      "Built for UK sole traders. AMAP relief on autopilot. MTD ITSA tools in beta. Free.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -43,7 +43,7 @@ const pageSchema = {
   name: "Self-Employed Mileage Tracker UK - MileClear",
   url: "https://mileclear.com/self-employed-mileage-tracker",
   description:
-    "MileClear is the mileage tracker built for UK sole traders. Auto-tracks every business mile, applies HMRC AMAP rates, exports a Self Assessment-ready PDF, and is ready for MTD ITSA quarterly submissions.",
+    "MileClear is the mileage tracker built for UK sole traders. Auto-tracks every business mile, applies HMRC AMAP rates, exports a Self Assessment-ready PDF, and has MTD ITSA quarterly updates in beta, tested with HMRC's test service only.",
   breadcrumb: {
     "@type": "BreadcrumbList",
     itemListElement: [
@@ -83,7 +83,7 @@ const faqSchema = {
       name: "What about MTD ITSA - making tax digital for self-employed?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "From April 2026, UK sole traders with self-employed income above £50,000 must submit quarterly digital updates to HMRC instead of (and on top of) the annual Self Assessment - this is Making Tax Digital for Income Tax (MTD ITSA). The threshold drops to £30,000 in April 2027. MileClear is registered with HMRC's developer hub and building MTD ITSA support: pulling your obligations and submitting your quarterly mileage and earnings totals from inside the app. This is in development now, not yet live - it is targeted for the 1.2.0 release ahead of the first quarterly deadline. Your mileage records are already in the digital, exportable shape MTD will need.",
+        text: "Since 6 April 2026, UK sole traders with self-employed income above £50,000 have to keep digital records and send quarterly updates to HMRC from compatible software. This is Making Tax Digital for Income Tax (MTD ITSA). The threshold drops to £30,000 in April 2027. MileClear has MTD ITSA tools in beta: pulling your obligations and previewing your quarterly mileage and earnings totals. They are tested with HMRC's test service only, so nothing is sent to HMRC yet. For real quarterly updates and your Self Assessment, use your accountant or MTD-compatible accounting software, or file on GOV.UK. Your mileage records are already in the digital, exportable shape MTD needs.",
       },
     },
     {
@@ -164,8 +164,8 @@ export default function SelfEmployedMileageTracker() {
               PDF when tax season comes. Tracking is unlimited and free forever - no 40-drive
               monthly cap like MileIQ, no 15-trip cap like Driversnote. Whether you're a
               tradesperson on 10 jobs a day or a consultant doing two client visits a week, every
-              mile is captured. MTD ITSA quarterly submission is in development and
-              coming soon.
+              mile is captured. MTD ITSA quarterly updates are in beta, tested with
+              HMRC's test service only.
             </p>
             <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1.5rem" }}>
               <StoreButtons align="start" page="tax" />
@@ -338,21 +338,21 @@ export default function SelfEmployedMileageTracker() {
                 marginBottom: "1.25rem",
               }}
             >
-              MTD ITSA - Getting You Ready for the April 2026 Deadline
+              MTD ITSA - Getting Your Records Ready
             </h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
               From <strong style={{ color: "#e2e8f0" }}>6 April 2026</strong>, sole traders with
-              self-employed income above £50,000 must submit quarterly digital updates to HMRC
-              alongside the annual Self Assessment. The threshold drops to £30,000 from April 2027.
-              The first quarterly deadline is <strong style={{ color: "#e2e8f0" }}>7 August 2026</strong>.
+              self-employed income above £50,000 keep digital records and send quarterly updates to
+              HMRC. The threshold drops to £30,000 from April 2027. The next quarterly deadlines are
+              <strong style={{ color: "#e2e8f0" }}> 7 November 2026</strong> and
+              <strong style={{ color: "#e2e8f0" }}> 7 February 2027</strong>.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              MileClear is registered with HMRC's developer hub and building MTD ITSA support so your
-              quarterly mileage and earnings totals can submit straight from the app - no third-party
-              bridging software, no spreadsheet uploads, no extra subscription. This is in development
-              now, targeted for the 1.2.0 release ahead of the first quarterly deadline. In the
-              meantime, every business mile you track is already stored in the digital, exportable
-              shape MTD needs.
+              MileClear is registered with HMRC's developer hub and has MTD ITSA tools in beta, so you can
+              see your obligations and preview your quarterly mileage and earnings totals. They are
+              tested with HMRC's test service only, and nothing is sent to HMRC yet. For real
+              quarterly updates, use your accountant or MTD-compatible accounting software. Every
+              business mile you track is already stored in the digital, exportable shape MTD needs.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
               See the <a href="/mtd-itsa-software-for-sole-traders" style={{ color: "#fbbf24", textDecoration: "underline" }}>full
@@ -384,7 +384,7 @@ export default function SelfEmployedMileageTracker() {
               },
               {
                 q: "What about MTD ITSA?",
-                a: "From 6 April 2026, sole traders earning over £50k must submit quarterly digital updates to HMRC. MileClear is registered with HMRC's developer hub and building MTD ITSA submission into the app - it's in development now, targeted for the 1.2.0 release ahead of the first deadline. Your mileage records are already in the digital, exportable shape MTD needs.",
+                a: "From 6 April 2026, sole traders earning over £50k send quarterly digital updates to HMRC. MileClear is registered with HMRC's developer hub and has MTD ITSA tools in beta, tested with HMRC's test service only, so nothing is sent to HMRC yet. Use your accountant or MTD-compatible accounting software for real updates. Your mileage records are already in the digital, exportable shape MTD needs.",
               },
               {
                 q: "Can I claim home-to-work miles?",
@@ -481,7 +481,7 @@ export default function SelfEmployedMileageTracker() {
               Claim Every Mile You're Owed
             </h2>
             <p style={{ color: "#94a3b8", fontSize: "1rem", lineHeight: 1.7, marginBottom: "1.75rem", maxWidth: 520, margin: "0 auto 1.75rem" }}>
-              Free to download. HMRC AMAP rates from your first trip. MTD ITSA support on the way.
+              Free to download. HMRC AMAP rates from your first trip. MTD ITSA tools in beta.
             </p>
             <StoreButtons align="center" page="tax" />
           </section>

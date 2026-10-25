@@ -71,7 +71,7 @@ const faqSchema = {
       name: "Does Just Eat report my earnings to HMRC?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, since 1 January 2024. The HMRC Digital Platform Reporting rules require platforms including Just Eat, Uber Eats, Deliveroo, and Stuart to report each courier's annual earnings directly to HMRC. The first reports were due by 31 January 2026 covering the 2025 calendar year. If you have not been declaring your Just Eat earnings, HMRC now has the data to compare against your Self Assessment.",
+        text: "Yes, since 1 January 2024. The HMRC Digital Platform Reporting rules require platforms including Just Eat, Uber Eats, Deliveroo, and Stuart to report each courier's annual earnings directly to HMRC. The first reports were due by 31 January 2025, covering the 2024 calendar year. If you have not been declaring your Just Eat earnings, HMRC now has the data to compare against your Self Assessment.",
       },
     },
     {
@@ -162,7 +162,7 @@ export default function JustEatMileageTracker() {
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
               Since January 2024 Just Eat has been required to report your annual earnings
-              directly to HMRC. The first reports landed on 31 January 2026. If you ride a
+              directly to HMRC. The first reports were due on 31 January 2025. If you ride a
               moped you claim 24p per mile, not 55p - and the difference between the two on a
               full-time year is several thousand pounds of overstated deduction. MileClear, a free Just Eat mileage tracker, records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
@@ -202,7 +202,7 @@ export default function JustEatMileageTracker() {
               Platforms. From that date Just Eat, Uber Eats, Deliveroo, Stuart, Amazon Flex,
               and every other gig platform operating in the UK has been logging your full
               annual earnings - and reporting them directly to HMRC. The first batch of reports
-              were due by 31 January 2026, covering the 2025 calendar year.
+              were due by 31 January 2025, covering the 2024 calendar year.
             </p>
             <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               The practical effect: if you have been delivering for Just Eat without filing
@@ -641,9 +641,8 @@ export default function JustEatMileageTracker() {
               The Leigh Day Claim and What Worker Status Would Mean
             </h2>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              In April 2023 the law firm Leigh Day launched a group claim representing tens of
-              thousands of Just Eat couriers, arguing they should be classified as workers
-              rather than independent contractors. The case is ongoing. Uber drivers won
+              In April 2023 the law firm Leigh Day launched a group claim for Just Eat couriers, arguing they should be classified as workers
+              rather than independent contractors. A tribunal heard the worker-status question in May 2026 for more than 7,000 couriers; check for the latest on the outcome. Uber drivers won
               worker status at the Supreme Court in 2021; Bolt drivers won worker status in
               November 2024; the Just Eat case is the obvious next domino.
             </p>
@@ -677,7 +676,7 @@ export default function JustEatMileageTracker() {
               },
               {
                 q: "Does Just Eat report my earnings to HMRC?",
-                a: "Yes, since 1 January 2024 under the Digital Platform Reporting rules. The first reports were due by 31 January 2026 covering the 2025 calendar year. HMRC now has your earnings data; if you are not declaring, the discrepancy is visible to them.",
+                a: "Yes, since 1 January 2024 under the Digital Platform Reporting rules. The first reports were due by 31 January 2025 covering the 2024 calendar year. HMRC now has your earnings data; if you are not declaring, the discrepancy is visible to them.",
               },
               {
                 q: "What HMRC mileage rate can a moped courier claim?",
