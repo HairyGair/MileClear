@@ -19,12 +19,28 @@ export default function Hero() {
             <em>Claim every penny.</em>
           </h1>
           <p className="hero__sub">
-            A free mileage tracker app for iPhone and Android, built for UK
-            gig workers, delivery drivers, and anyone who drives their own car
-            for work. It records your trips on
-            its own and turns them into the figures HMRC or your employer asks
-            for. <strong>Every trip, every month, free.</strong>
+            MileClear records your drives on its own, even with the app
+            closed, and turns them into your mileage claim. Free on iPhone
+            and Android, for gig drivers, the self-employed and employees.
           </p>
+          <dl className="hero__caps">
+            <div className="hero__cap">
+              <dt>Trips</dt>
+              <dd>Recorded automatically. Sort business or personal in a tap. Shifts for gig work.</dd>
+            </div>
+            <div className="hero__cap">
+              <dt>Money</dt>
+              <dd>Your claim at HMRC rates, earnings by platform, expenses with receipt scanning, invoices.</dd>
+            </div>
+            <div className="hero__cap">
+              <dt>Tax</dt>
+              <dd>A Self Assessment checklist, what to set aside each week, downloads for your accountant (Pro).</dd>
+            </div>
+            <div className="hero__cap">
+              <dt>Running costs</dt>
+              <dd>Cheapest fuel near you, EV cost per mile, MOT and tax reminders.</dd>
+            </div>
+          </dl>
           <StoreButtons size="lg" />
           <p className="hero__trust">
             Unlimited trips &middot; No card required &middot; Pro is optional, never gates tracking
