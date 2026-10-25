@@ -7,12 +7,12 @@ import StoreButtons from "@/components/StoreButtons";
 export const metadata: Metadata = {
   title: { absolute: "MileClear Case Study: Reliable UK Mileage Tracking" },
   description:
-    "How MileClear became a mileage tracker UK drivers actually trust: offline-first capture, tax-ready exports, and a relentless focus on never losing a trip. 249 drivers have tracked 82,924 miles to date.",
+    "How MileClear became a mileage tracker UK drivers actually trust: offline-first capture, tax-ready exports, and a relentless focus on reliable capture. As of June 2026, 249 drivers had tracked 82,924 miles.",
   alternates: { canonical: "https://mileclear.com/case-study" },
   openGraph: {
     title: "MileClear Case Study | Reliable mileage tracking for UK drivers",
     description:
-      "Built from what drivers said was broken. Offline-first trip capture, tax-ready exports, and a never-lose-a-trip guarantee - 249 drivers, 82,924 miles tracked.",
+      "Built from what drivers said was broken. Offline-first trip capture, and tax-ready exports. As of June 2026: 249 drivers, 82,924 miles tracked.",
     url: "https://mileclear.com/case-study",
     type: "article",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MileClear Case Study | Reliable mileage tracking for UK drivers",
     description:
-      "Built from what drivers said was broken: offline-first capture, tax-ready exports, never lose a trip. 249 drivers, 82,924 miles tracked.",
+      "Built from what drivers said was broken: offline-first capture, tax-ready exports. As of June 2026: 249 drivers, 82,924 miles tracked.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -95,7 +95,7 @@ export default function CaseStudyPage() {
     "@type": "Article",
     headline: "MileClear Case Study - Reliable mileage tracking built for UK drivers",
     description:
-      "How MileClear became a mileage tracker UK drivers trust: offline-first capture, tax-ready exports, and a never-lose-a-trip focus. 249 drivers have tracked 82,924 miles.",
+      "How MileClear became a mileage tracker UK drivers trust: offline-first capture, and tax-ready exports. As of June 2026, 249 drivers had tracked 82,924 miles.",
     author: { "@type": "Person", name: "Anthony Gair" },
     publisher: {
       "@type": "Organization",
@@ -193,7 +193,7 @@ export default function CaseStudyPage() {
           <div className="container" style={wrap}>
             <SectionHead
               label="The approach"
-              title="Offline-first, and built to never lose a trip"
+              title="Offline-first, built to keep every trip safe"
               intro="Reliability wasn't a feature to bolt on - it was the whole point. So the architecture started there."
             />
             <Card accent="amber">

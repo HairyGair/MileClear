@@ -23,7 +23,7 @@ const faqs: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: "Is my data safe?",
-    a: "Your location data is encrypted and stored securely. We never sell your data to anyone. You can export a full copy of everything we hold, or delete your account entirely, at any time from your settings. Fully GDPR compliant.",
+    a: "Your location data is encrypted and stored securely. We never sell your data to anyone. You can export a full copy of everything we hold, or delete your account entirely, at any time from your settings. Built to UK GDPR.",
   },
   {
     q: "Can I use it for HMRC Self Assessment?",
@@ -81,7 +81,7 @@ export default function FAQ() {
         <Reveal delay="reveal-d2">
           <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
             <a href="/faq" style={{ color: "var(--amber-400)", fontFamily: "var(--font-display)", fontSize: "0.9375rem", textDecoration: "none" }}>
-              View all 29 questions &rarr;
+              View all questions &rarr;
             </a>
           </div>
         </Reveal>

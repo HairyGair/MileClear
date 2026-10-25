@@ -3,6 +3,7 @@ import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
 import BreadcrumbsJsonLd from '@/components/seo/BreadcrumbsJsonLd';
 import StoreButtons from "@/components/StoreButtons";
+import { APP_STORE_RATING, APP_STORE_RATING_COUNT } from "@/data/stats";
 
 export const metadata: Metadata = {
   title: 'Pricing: Free Mileage Tracking, Pro £4.99/mo',
@@ -113,7 +114,9 @@ const proFeatures: FeatureGroup[] = [
       'Print-ready Self Assessment PDF - the wizard\'s SA103 figures as a filing-ready document',
       'PDF mileage log with signed attestation cover sheet',
       'CSV export of trips, earnings and expenses',
-      'Accountant Portal - read-only dashboard you invite your accountant to by email',
+      'Read-only dashboard link you can email to your accountant (sharing with a MileClear practice account is free)',
+      'Mileage Certificate - a record of your miles anyone can check, for an insurer, employer or buyer',
+      'Ticket Defender - a PDF record of where your phone was when a fine says you were somewhere, plus Clean Air Zone pay-by dates',
     ],
   },
   {
@@ -121,6 +124,7 @@ const proFeatures: FeatureGroup[] = [
     items: [
       'Open Banking - connect your bank and import earnings automatically, with an inbox to sort transactions into earnings or expenses',
       'CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart',
+      'Snap a Statement - read your earnings from a platform screenshot',
       'Unlimited invoices and one-tap late-payment chase emails',
     ],
   },
@@ -149,7 +153,7 @@ const faqs = [
   },
   {
     q: 'Does MileClear cap how many trips I can track on the free tier?',
-    a: 'No. Trip tracking is unlimited and free forever - no monthly drive cap. That is the biggest difference between MileClear and the US-built alternatives most UK drivers are pointed at: MileIQ stops at 40 drives a month on its free tier and Driversnote at 15. A full-time gig driver or a DPD ODF burns through either inside the first shift. Pro is for exports, Open Banking, automation and business insights, never for the tracker.',
+    a: 'No. Trip tracking is unlimited and free forever - no monthly drive cap. That is the biggest difference between MileClear and the alternatives most UK drivers are pointed at (MileIQ is US-built, Driversnote is Danish-built and available in the UK): MileIQ stops at 40 drives a month on its free tier and Driversnote at 15. A full-time gig driver or a DPD ODF burns through either inside the first shift. Pro is for exports, Open Banking, automation and business insights, never for the tracker.',
   },
   {
     q: 'What does the free plan limit?',
@@ -157,7 +161,7 @@ const faqs = [
   },
   {
     q: 'What happens when I upgrade to Pro?',
-    a: 'You unlock the print-ready Self Assessment PDF, PDF and CSV exports, the Accountant Portal, Open Banking earnings import, CSV earnings import, sorting by work hours, business insights (golden hours, platform comparison, P&L), Driving Analytics, the Journey Map, and unlimited vehicles, saved locations and invoices. Everything switches on the moment your payment goes through.',
+    a: 'You unlock the print-ready Self Assessment PDF, PDF and CSV exports, a read-only dashboard link to email your accountant, Open Banking earnings import, CSV earnings import, Snap a Statement, Mileage Certificate, Ticket Defender, sorting by work hours, business insights (golden hours, platform comparison, P&L), Driving Analytics, the Journey Map, and unlimited vehicles, saved locations and invoices. Everything switches on the moment your payment goes through.',
   },
   {
     q: 'Where does MileClear run?',
@@ -173,7 +177,7 @@ const faqs = [
   },
   {
     q: 'Do I need Pro to file my Self Assessment?',
-    a: 'You do not need Pro to track your mileage, see your HMRC deduction build up, log expenses, or use the Self Assessment wizard that maps your numbers to specific SA103 form boxes - all of that is on the free plan. Pro is for the export workflow: the wizard\'s figures as a print-ready PDF, a mileage log with a signed cover sheet, and the Accountant Portal that lets you share read-only access by email. If you do your own return manually using just the numbers, free is enough.',
+    a: 'You do not need Pro to track your mileage, see your HMRC deduction build up, log expenses, or use the Self Assessment wizard that maps your numbers to specific SA103 form boxes - all of that is on the free plan. Pro is for the export workflow: the wizard\'s figures as a print-ready PDF, a mileage log with a signed cover sheet, and a read-only dashboard link you can email to your accountant. Sharing with an accountant who uses a MileClear practice account is free. If you do your own return manually using just the numbers, free is enough.',
   },
   {
     q: 'Does MileClear connect to Xero, QuickBooks or FreeAgent?',
@@ -185,7 +189,7 @@ const faqs = [
   },
   {
     q: 'Is there a yearly plan?',
-    a: 'On the website, Pro is £4.99 a month. The iPhone app also offers a yearly plan when you subscribe there.',
+    a: 'On the website, Pro is £4.99 a month. The iPhone and Android apps also offer a yearly plan (£44.99 a year) when you subscribe there.',
   },
 ];
 
@@ -199,8 +203,8 @@ export default function PricingPage() {
     brand: { '@type': 'Brand', name: 'MileClear' },
     aggregateRating: {
       '@type': 'AggregateRating',
-      ratingValue: '5',
-      ratingCount: '4',
+      ratingValue: APP_STORE_RATING,
+      ratingCount: String(APP_STORE_RATING_COUNT),
       bestRating: '5',
       worstRating: '1',
     },
@@ -223,7 +227,7 @@ export default function PricingPage() {
         availability: 'https://schema.org/InStock',
         url: 'https://mileclear.com/pricing',
         description:
-          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, Accountant Portal, Open Banking and CSV earnings import, sorting by work hours, business insights, Driving Analytics, Journey Map, unlimited vehicles, saved locations and invoices.',
+          'Print-ready Self Assessment PDF, PDF and CSV exports with attestation cover sheet, an emailed read-only accountant link, Mileage Certificate, Snap a Statement, Ticket Defender, Open Banking and CSV earnings import, sorting by work hours, business insights, Driving Analytics, Journey Map, unlimited vehicles, saved locations and invoices.',
         priceSpecification: {
           '@type': 'UnitPriceSpecification',
           price: '4.99',
@@ -231,6 +235,22 @@ export default function PricingPage() {
           unitCode: 'MON',
           unitText: 'month',
           billingDuration: 'P1M',
+        },
+      },
+      {
+        '@type': 'Offer',
+        name: 'Pro Yearly (iPhone and Android apps)',
+        price: '44.99',
+        priceCurrency: 'GBP',
+        availability: 'https://schema.org/InStock',
+        url: 'https://mileclear.com/pricing',
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: '44.99',
+          priceCurrency: 'GBP',
+          unitCode: 'ANN',
+          unitText: 'year',
+          billingDuration: 'P1Y',
         },
       },
     ],
@@ -312,13 +332,12 @@ export default function PricingPage() {
 
               {/* Pro */}
               <div className="p-card p-card--pro">
-                <span className="p-card__badge">Most popular</span>
                 <p className="p-card__name">Pro</p>
                 <p className="p-card__price">
                   &pound;4.99<span className="p-card__period"> /month</span>
                 </p>
                 <p className="p-card__desc">
-                  Filing-ready exports, Accountant Portal, Open Banking, auto-classification and the full business-insights toolkit for self-employed drivers.
+                  Filing-ready exports, Open Banking, auto-classification and the full business-insights toolkit for self-employed drivers.
                 </p>
                 <p className="p-card__group-title">Everything in Free, plus:</p>
                 <ul className="p-card__list">

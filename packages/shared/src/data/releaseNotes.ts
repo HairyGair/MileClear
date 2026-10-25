@@ -17,7 +17,7 @@ export interface ReleaseNote {
    *  track actually sees next to the version. iOS entries leave it unset. */
   build?: string;
   date: string;
-  label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing" | "In Development";
+  label?: "Latest" | "Major" | "Pending Review" | "App Store" | "In Testing" | "In Development" | "Superseded";
   items: string[];
   ctaUrl?: string;
   ctaLabel?: string;
@@ -76,18 +76,10 @@ export interface SiteAnnouncement {
 // surfacing site-wide.
 export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
+// The 1.4.0 entries (iOS and Android) were taken out on 25 Oct 2026: their
+// only item was car Bluetooth, which is tester-only until release. Add the
+// entries back, with real public items, when 1.4.0 ships.
 export const RELEASE_NOTES: ReleaseNote[] = [
-  {
-    // Next App Store build (1.4.0, after TestFlight build 96, which predates
-    // this). Only lines that need the new build go here; flip the label to
-    // "Pending Review" on submit. Directions stays unlisted until it's on.
-    version: "1.4.0",
-    date: "October 2026",
-    label: "In Development",
-    items: [
-      "More than one car? Link each car's Bluetooth on its screen, and trips the app picks up on its own go on the car your phone is connected to",
-    ],
-  },
   {
     // Build 95, cut 11 Oct 2026 from ui-set-oct (main @ 37ecd2f3), submitted to
     // Apple the same evening. Everything below also reached every older build by
@@ -543,7 +535,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**A fresh app icon.**",
       "**The live map no longer freezes your phone on long drives.** On longer journeys the live tracking map could lock the phone up - enough that you couldn't even answer a call mid-drive. It now stays smooth however far you go.",
       "**HMRC (Making Tax Digital) is clearly marked work-in-progress.** Every screen in the HMRC submission flow now makes plain that the integration is in beta and submissions currently go to HMRC's test system while we wait for HMRC's production credentials - so nothing reads as a live filing by mistake. The quarterly preview also spells out that figures are year-to-date (HMRC updates are cumulative), with the required notes that the tax shown is an estimate, MileClear covers self-employment income only, and the year-end Final Declaration is completed separately.",
-      "**Smoother, more reliable HMRC submissions.** Fixed a handful of issues that could block a quarterly update from going through, so connecting and submitting runs cleanly.",
+      "**Smoother quarterly updates in HMRC's test service.** Fixed a handful of issues that could block a test quarterly update from going through, so connecting and previewing runs cleanly. Nothing reaches your real tax account.",
       "**Add a note to any trip.** Jot a quick reminder of what a journey was for, right on the trip card - handy come tax time. The back button across trip screens is more reliable too.",
       "**A clear heads-up when auto-tracking is off.** If automatic detection gets switched off, the dashboard now says so plainly and asks you to confirm before disabling it, so you are never silently not recording.",
       "**Fewer surprise sign-outs.** Tightened how your login refreshes in the background so the app stops occasionally bumping you to the sign-in screen.",
@@ -675,21 +667,21 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     emailSubject: "MileClear 1.2.0 is here - and it's a big one",
     emailHero: "1.2.0 - the biggest update since launch",
     emailTagline:
-      "Two weeks. One huge update. Quarterly HMRC submissions, road-accurate trip distances, a Lock Screen that earns its keep while you drive, and every sole-trader feature the community has been asking for. Thirty-odd things in total, all in one release - free for free users, baked in for Pro. Open the app and have a poke around.",
+      "Two weeks. One huge update. Quarterly updates (tested with HMRC's test service), road-accurate trip distances, a Lock Screen that earns its keep while you drive, and every sole-trader feature the community has been asking for. Thirty-odd things in total, all in one release - free for free users, baked in for Pro. Open the app and have a poke around.",
     emailHighlights: [
-      "**Quarterly Self Assessment updates (beta).** Connect your HMRC account, confirm your trade, preview each quarterly update against your MileClear figures, and submit. The headline figures cross-check against HMRC's own calculation engine so you see the marginal-rate breakdown before it's locked in. The headline tax feature most UK sole traders will need from April 2026 - already in the app.",
+      "**Quarterly Self Assessment updates (beta).** Connect your HMRC account, confirm your trade, preview each quarterly update against your MileClear figures, and try the submit step. This works with HMRC's test service only, so nothing reaches your real tax account. The headline figures cross-check against HMRC's own calculation engine so you see the marginal-rate breakdown before it's locked in. Built ahead of when most UK sole traders will need quarterly updates from April 2026.",
       "**Your Lock Screen actually shows what you're doing.** Leave home, head out for a delivery, and your Lock Screen now shows a 'Trip Active - From Home' Live Activity with miles ticking up in real time. Park at the destination and it flips to a Trip Complete summary that, for business trips, shows the pound value you just earned back from HMRC. Visible the moment you stop the car, before you've even unlocked the phone.",
       "**Trip distances that are actually accurate.** Manual trip A to B uses our self-hosted UK routing engine - same address pair returns the same mileage, every time. Auto-tracked trips get road-snapped polylines so the map shows your actual route, not the GPS-jittered breadcrumb trail. The figure on your tax return is now structurally consistent.",
       "**Smarter trip classification.** Tag the same A to B journey as Work three times, and the fourth time MileClear auto-classifies it for you. Auto-detected trips now ask 'Was this a Work trip?' with one-tap Yes / Personal / Not me buttons right on the Lock Screen. The classification tap disappears.",
       "**Invoices for freelancers and sole traders.** Track who owes you, when invoices went out, what's been paid. Free tier covers 3 invoices a month, plenty for the occasional side gig. Pro unlocks unlimited. Tax Readiness only counts income that's actually arrived (cash basis, the UK default since April 2024) so your figures stay honest.",
       "**'My Accountant' factors the filing fee into your set-aside.** Settings - Work & Tax - My Accountant. Enter their annual fee and we spread it across 52 weeks. The Tax Readiness set-aside line covers both the tax bill AND the accountant by the time filing season comes around.",
       "**PAYE deductions counted properly.** If you have a salaried day job alongside gig work, tell MileClear what your employer has already deducted in PAYE. The 'still owed' figure on Tax Readiness becomes honest instead of double-counting tax that's already been collected via your payslip.",
-      "**Confidence indicator on every trip.** High / medium / low badge with tap-to-expand reasons. HMRC-defence material - every claimed mile is auditable.",
+      "**Confidence indicator on every trip.** High / medium / low badge with tap-to-expand reasons. Evidence if HMRC ever asks - every claimed mile can be explained.",
       "**Help & Tutorials right inside the app.** Avatar menu - Help & Tutorials. Replayable first-launch tour, categorised FAQ, and inline info buttons throughout the app. Tap any ⓘ next to the Tax Readiness card, the PAYE field, the My Accountant row, or the tax basis toggle and a focused explainer slides up. No more guessing what something means.",
       "**Rock-solid foundations.** The under-the-hood work no one sees but everyone benefits from. Refresh-token sessions don't randomly drop you to the login screen anymore. End Shift from the Lock Screen actually ends the shift. Opening the app while parked no longer triggers a phantom trip. Brief petrol-station stops no longer split a single drive into two records. A dozen smaller reliability wins on top of those.",
     ],
     items: [
-      "**HMRC MTD ITSA submissions - full flow.** Settings → Work & Tax → MTD ITSA. Connect your HMRC account, enter your National Insurance Number, confirm your trade, and submit quarterly periods directly from the app. The preview screen shows exactly what we're about to send - per-platform income breakdown, mileage tier crossings, expense bucketing - so there are no surprises. After submission, MileClear asks HMRC's own calculation engine for the tax due and shows you both their number and ours.",
+      "**HMRC MTD ITSA quarterly updates - full flow (test service).** Settings → Work & Tax → MTD ITSA. Connect your HMRC account, enter your National Insurance Number, confirm your trade, and send quarterly periods from the app to HMRC's test service. Nothing reaches your real tax account. The preview screen shows exactly what we're about to send - per-platform income breakdown, mileage tier crossings, expense bucketing - so there are no surprises. After submission, MileClear asks HMRC's own calculation engine for the tax due and shows you both their number and ours.",
       "**Premium routing stack.** Replaces the previous mileage calculation path that occasionally fell back to straight-line distance when the public routing service was rate-limited. Manual trips now use a three-layer stack: a persistent cache (so identical A→B always returns the same mileage), our self-hosted UK routing engine, and a commercial fallback. Same address pair → same distance, every time, structurally.",
       "**GPS map-matching.** Auto-tracked trips now get a clean road-snapped polyline. The map shows the actual roads you drove, not the GPS-jittered breadcrumb trail with corner-cutting and the occasional driving-through-a-building artefact.",
       "**Pattern-learning trip classification.** Done a particular A→B three or more times tagged consistently? The fourth time we auto-classify it. Toast confirms the decision so you can override if it's wrong. Won't auto-apply unless the same classification has 80%+ agreement across at least 3 prior trips.",
@@ -705,7 +697,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "**Heartbeat-driven proactive alerts.** If background location is turned off, background app refresh is denied, your sync queue has permanently-failed rows, or your phone storage is critically low, we now push you a one-tap fix before you notice trips have stopped recording.",
       "**Data-quality celebration.** If we corrected any of your trips behind the scenes (rare, but it's happened to a handful of users on older routing paths), you'll see a one-shot banner on the dashboard telling you what changed and how many miles you recovered.",
       "**Auto-classify suggestion on manual trip flow.** When you set a start + end for a manual trip, we now look at your prior trips with the same A→B and pre-fill the classification + platform dropdown. Saves a tap.",
-      "**Routing provenance shown to user.** Every trip's distance now carries a small label - 'Route distance via road', 'Route distance via road (cached)', or 'Route distance via Google Maps' - so the figure is auditable for HMRC purposes. No more silent fallback to crow-flies.",
+      "**Routing provenance shown to user.** Every trip's distance now carries a small label - 'Route distance via road', 'Route distance via road (cached)', or 'Route distance via Google Maps' - so the figure is evidence if HMRC ever asks. No more silent fallback to crow-flies.",
       "**Heartbeat sync deep-link.** Tapping a 'N trips failed to upload' push notification now lands you directly on the Sync Status screen with a retry button, instead of dumping you on the dashboard.",
       "**Pair-based classification suggestion endpoint.** Same as point 4 but available for client-side use in the Active Recording trip-end flow, giving real-time suggestions as soon as both endpoints of a trip are known.",
       "**Routing stack admin panel** (internal): live GraphHopper health probe, cache row count, recent route source breakdown, fallback rate. Lets us spot when the primary engine has issues before it shows up in user reports.",
@@ -1047,16 +1039,6 @@ export function blogUrlForRelease(version: string): string {
 // email, which goes to the whole fleet and is overwhelmingly iPhone users.
 export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
   {
-    // Next Play build (1.4.0). Car Bluetooth needs native code, so it can't
-    // arrive by update; flip the label when the build reaches testers.
-    version: "1.4.0",
-    date: "October 2026",
-    label: "In Development",
-    items: [
-      "More than one car? Link each car's Bluetooth on its screen, and trips the app picks up on its own go on the car your phone is connected to",
-    ],
-  },
-  {
     // Build 8 (runtime 1.3.13-build8), cut 11 Oct 2026, Play closed testing.
     // Every change below also reached the Play public build 6 by OTA between
     // 28 Sep and 19 Oct, so the first line says so. Items already in the
@@ -1146,7 +1128,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
     version: "1.3.9",
     build: "5",
     date: "August 2026",
-    label: "In Testing",
+    label: "Superseded",
     items: [
       "Buy Pro inside the app through Google Play, monthly or yearly, and manage it from your Play subscriptions",
       "The menu is reorganised into Tracking, Tax, Money, Insights and More, two entries to a row, with Self Assessment, HMRC Reconciliation, Link Bank, Saved Locations, Achievements, your accountant and referrals all listed",
@@ -1162,7 +1144,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
     version: "1.3.9",
     build: "4",
     date: "August 2026",
-    label: "In Testing",
+    label: "Superseded",
     items: [
       "MileClear on Android, in closed testing: the same app, the same account, and the same trips as the iPhone version",
       "Background trip capture on the same tracking engine the iPhone app uses, now fully licensed, so drives are detected and recorded without opening the app",
@@ -1170,7 +1152,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
       "Maps, trip history, classification, saved locations, vehicles, fuel logs, earnings and expenses",
       "Receipt scanning on-device, and push notifications for streaks, reminders and trip prompts",
       "If you already pay for Pro on the web or on an iPhone, signing in on Android gives you Pro there too",
-      "Not yet: buying Pro from inside the Android app. Google Play billing is waiting on merchant setup, so upgrades still happen on the web for now",
+      "Buying Pro from inside the app was not in this build; it arrived in build 5",
     ],
   },
 ];

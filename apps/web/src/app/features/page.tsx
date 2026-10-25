@@ -3,6 +3,7 @@ import Navbar from "@/components/landing/Navbar";
 import Footer from "@/components/landing/Footer";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import StoreButtons from "@/components/StoreButtons";
+import { ACHIEVEMENT_COUNT } from "@/data/stats";
 
 export const metadata: Metadata = {
   title: "Mileage Tracker Features: Auto Trips, Tax, Fuel",
@@ -85,7 +86,7 @@ const featuresItemList = {
       "Saved locations with geofencing for auto-classification",
       "Self Assessment wizard with SA103 box mapping (print-ready PDF with Pro)",
       "PDF mileage log with signed attestation cover sheet (Pro)",
-      "Accountant Portal - read-only dashboard sharing (Pro)",
+      "Sharing with your accountant: free through a MileClear practice account, or a read-only link by email (Pro)",
       "On-device receipt OCR",
       "Pickup wait timer",
       "Live Activities on lock screen and Dynamic Island",
@@ -1083,7 +1084,7 @@ export default function FeaturesPage() {
                     marginBottom: "1.5rem",
                   }}
                 >
-                  At the end of each week and month, MileClear generates a
+                  Each day, week, month and year, MileClear can generate a
                   recap showing your totals, highlights, and how you compared
                   to the previous period. Recaps include a share card so you
                   can post your stats to Facebook groups and driver communities.
@@ -1099,12 +1100,11 @@ export default function FeaturesPage() {
                   }}
                 >
                   {[
-                    "18 achievement types",
+                    `${ACHIEVEMENT_COUNT} achievement types`,
                     "Driving streaks",
                     "Personal records",
                     "Distance milestones",
-                    "Weekly recap",
-                    "Monthly recap",
+                    "Daily, weekly, monthly and yearly recaps",
                     "Shareable stats card",
                     "Push reminders to keep streak",
                   ].map((item) => (
@@ -1170,7 +1170,7 @@ export default function FeaturesPage() {
               >
                 Most features are free, including the Self Assessment wizard and
                 receipt scanning. Pro adds the Self Assessment PDF, tax exports,
-                the Accountant Portal and business insights for{" "}
+                a read-only accountant link, Open Banking and business insights for{" "}
                 <a
                   href="/pricing"
                   style={{ color: "var(--amber-400)", textDecoration: "underline" }}
@@ -1259,14 +1259,20 @@ export default function FeaturesPage() {
                 { feature: "All achievements, streaks, recaps, personal records", free: true, pro: true },
                 { feature: "Self Assessment wizard (SA103 mapping)", free: true, pro: true },
                 { feature: "Receipt scanning (on-device OCR)", free: true, pro: true },
-                { feature: "Vehicle CRUD with DVLA lookup", free: true, pro: true },
+                { feature: "Vehicles with DVLA lookup", free: "1 vehicle", pro: "Unlimited" },
+                { feature: "Invoicing", free: "3 a month", pro: "Unlimited" },
+                { feature: "Sharing with an accountant on a MileClear practice account", free: true, pro: true },
                 { feature: "First-time Self Assessment guide", free: true, pro: true },
                 { feature: "Web dashboard", free: true, pro: true },
                 { feature: "Saved locations (home, work, depot)", free: "2 max", pro: "Unlimited" },
                 { feature: "Self Assessment PDF (print-ready)", free: false, pro: true },
                 { feature: "PDF mileage log with attestation cover sheet", free: false, pro: true },
                 { feature: "CSV trip export", free: false, pro: true },
-                { feature: "Accountant Portal (read-only sharing)", free: false, pro: true },
+                { feature: "Emailed read-only accountant link", free: false, pro: true },
+                { feature: "Open Banking earnings import", free: false, pro: true },
+                { feature: "Mileage Certificate", free: false, pro: true },
+                { feature: "Snap a Statement (earnings from a screenshot)", free: false, pro: true },
+                { feature: "Ticket Defender", free: false, pro: true },
                 { feature: "CSV earnings import (gig platforms)", free: false, pro: true },
                 { feature: "Business insights (golden hours, P&L)", free: false, pro: true },
                 { feature: "Driving Analytics and Journey Map", free: false, pro: true },
@@ -1344,13 +1350,12 @@ export default function FeaturesPage() {
                 color: "var(--text-muted)",
               }}
             >
-              Pro is £4.99/month. Cancel any time. Available via the App Store
-              on iOS or{" "}
+              Pro is £4.99/month, or £44.99/year in the iPhone and Android apps. Cancel any time. See{" "}
               <a
                 href="/pricing"
                 style={{ color: "var(--amber-400)", textDecoration: "underline" }}
               >
-                view full pricing details
+                full pricing details
               </a>
               .
             </p>
@@ -1423,7 +1428,7 @@ export default function FeaturesPage() {
                 color: "var(--text-muted)",
               }}
             >
-              On iPhone, and on Android once Google approves the release. Have questions?{" "}
+              On iPhone, iPad and Android. Have questions?{" "}
               <a
                 href="/support"
                 style={{ color: "var(--amber-400)", textDecoration: "underline" }}

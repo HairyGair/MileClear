@@ -66,7 +66,7 @@ const route = (
 );
 
 const audiences = [
-  { icon: car, title: "Uber and ride-hail drivers", desc: "Uber, Bolt, FREE NOW, Ola", href: "/uber-mileage-tracker" },
+  { icon: car, title: "Uber and ride-hail drivers", desc: "Uber, Bolt, FREENOW, Ola", href: "/uber-mileage-tracker" },
   { icon: box, title: "Delivery drivers", desc: "Deliveroo, Just Eat, Uber Eats, Amazon Flex", href: "/deliveroo-mileage-tracker" },
   { icon: van, title: "Couriers and logistics", desc: "DPD, Evri, Yodel, Stuart, Gophr, Royal Mail", href: "/amazon-flex-mileage-tracker" },
   { icon: briefcase, title: "Sales reps and field workers", desc: "Anyone logging client visits or site trips", href: "/employee-mileage-tracker" },

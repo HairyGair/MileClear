@@ -91,12 +91,12 @@ export default function AccountantsPage() {
                 <li>Create your free practice account. Add colleagues if you like.</li>
                 <li>Invite clients by email, paste a list, or share your join link and QR code.</li>
                 <li>Each driver says yes in the MileClear app. Nothing is shared until they do.</li>
-                <li>Work from one client list: chase trips to sort, download records, see who has sent their quarterly update.</li>
+                <li>Work from one client list: chase trips to sort, download records, see which clients have a quarterly update ready.</li>
               </ol>
             </div>
 
             <p style={{ marginTop: "2rem", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-              MileClear sends quarterly updates for drivers today. Sending them as your clients&apos; agent is planned and depends on HMRC; we will tell you when it is available.
+              Quarterly updates in MileClear are tested with HMRC&apos;s test service only, and nothing is sent to HMRC yet. Your clients file their Self Assessment on GOV.UK or through you. Sending as your clients&apos; agent is planned and depends on HMRC; we will tell you when it is available.
             </p>
           </div>
         </section>

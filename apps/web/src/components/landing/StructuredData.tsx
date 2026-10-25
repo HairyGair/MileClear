@@ -1,4 +1,4 @@
-import { ANDROID_FAQ_ANSWER, ANDROID_OS_SCHEMA } from "@/data/android";
+import { ANDROID_FAQ_ANSWER, ANDROID_OS_SCHEMA, PLAY_LIVE, PLAY_STORE_URL } from "@/data/android";
 
 export default function StructuredData() {
   const website = {
@@ -19,7 +19,10 @@ export default function StructuredData() {
       "@type": "Person",
       name: "Anthony Gair",
     },
-    sameAs: ["https://apps.apple.com/app/mileclear/id6759671005"],
+    sameAs: [
+      "https://apps.apple.com/app/mileclear/id6759671005",
+      ...(PLAY_LIVE ? [PLAY_STORE_URL] : []),
+    ],
     contactPoint: {
       "@type": "ContactPoint",
       email: "support@mileclear.com",
@@ -34,7 +37,9 @@ export default function StructuredData() {
     name: "MileClear",
     applicationCategory: "BusinessApplication",
     operatingSystem: ANDROID_OS_SCHEMA,
-    downloadUrl: "https://apps.apple.com/app/mileclear/id6759671005",
+    downloadUrl: PLAY_LIVE
+      ? ["https://apps.apple.com/app/mileclear/id6759671005", PLAY_STORE_URL]
+      : "https://apps.apple.com/app/mileclear/id6759671005",
     description:
       "The UK mileage tracker built for gig workers, delivery drivers, and anyone who drives for a living. Automatic trip recording, HMRC tax deductions, and real earnings insights.",
     featureList: [
@@ -69,7 +74,7 @@ export default function StructuredData() {
         availability: "https://schema.org/InStock",
         url: "https://mileclear.com/pricing",
         description:
-          "PDF and CSV exports, the Self Assessment PDF, CSV earnings import, Open Banking sync, business insights, platform comparison, unlimited vehicles and saved locations.",
+          "PDF and CSV exports, the Self Assessment PDF, CSV earnings import, Open Banking sync, business insights, platform comparison, Mileage Certificate, Snap a Statement, Ticket Defender, unlimited invoices, vehicles and saved locations.",
         priceSpecification: {
           "@type": "UnitPriceSpecification",
           price: "4.99",
@@ -77,6 +82,22 @@ export default function StructuredData() {
           unitCode: "MON",
           unitText: "month",
           billingDuration: "P1M",
+        },
+      },
+      {
+        "@type": "Offer",
+        name: "Pro Yearly (iPhone and Android apps)",
+        price: "44.99",
+        priceCurrency: "GBP",
+        availability: "https://schema.org/InStock",
+        url: "https://mileclear.com/pricing",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: "44.99",
+          priceCurrency: "GBP",
+          unitCode: "ANN",
+          unitText: "year",
+          billingDuration: "P1Y",
         },
       },
     ],
@@ -91,7 +112,7 @@ export default function StructuredData() {
         name: "Is MileClear really free?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes, and the tracker itself is unlimited: there is no monthly cap on drives, no trial, and no card to start. Shift mode, auto-detection, fuel prices, the Tax Readiness card showing your live HMRC deduction, the Self Assessment wizard, receipt scanning and achievements are all free. Pro (4.99 a month) adds the filing-ready exports, Open Banking, auto-classification and the insights toolkit. It never gates the tracker.",
+          text: "Yes, and the tracker itself is unlimited: there is no monthly cap on drives, no trial, and no card to start. Shift mode, auto-detection, fuel prices, the Tax Readiness card showing your live HMRC deduction, the Self Assessment wizard, receipt scanning and achievements are all free. Pro (4.99 a month) adds the exports, Open Banking, auto-classification and the insights toolkit. It never gates the tracker.",
         },
       },
       {
@@ -115,7 +136,7 @@ export default function StructuredData() {
         name: "Is my data safe?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Your location data is encrypted and stored securely. We never sell your data to anyone. You can export a full copy of everything we hold, or delete your account entirely, at any time from your settings. Fully GDPR compliant.",
+          text: "Your location data is encrypted and stored securely. We never sell your data to anyone. You can export a full copy of everything we hold, or delete your account entirely, at any time from your settings. Built to UK GDPR.",
         },
       },
       {
@@ -123,7 +144,7 @@ export default function StructuredData() {
         name: "Can I use it for HMRC Self Assessment?",
         acceptedAnswer: {
           "@type": "Answer",
-          text: "Yes. The free tier gives you the Tax Readiness card with your live HMRC tax and NI estimate, and the step-by-step Self Assessment wizard that maps your figures to the SA103 form boxes. Pro turns that into files you can send: the print-ready Self Assessment PDF, a PDF mileage log with a signed attestation cover sheet, and CSV exports. Pro also lets you invite your accountant to a read-only portal.",
+          text: "Yes. The free tier gives you the Tax Readiness card with your live HMRC tax and NI estimate, and the step-by-step Self Assessment wizard that maps your figures to the SA103 form boxes. Pro turns that into files you can keep or give your accountant: the print-ready Self Assessment PDF, a PDF mileage log with a signed attestation cover sheet, and CSV exports. Sharing with an accountant on a MileClear practice account is free; Pro adds an emailed read-only link.",
         },
       },
       {

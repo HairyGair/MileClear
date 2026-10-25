@@ -26,7 +26,8 @@ const pro = [
   "Everything in Free, plus:",
   "Print-ready Self Assessment PDF: the wizard's figures, ready to file",
   "PDF mileage log with signed attestation cover sheet, CSV exports",
-  "Accountant Portal (read-only dashboard you can invite by email)",
+  "Read-only dashboard link you can email to your accountant (sharing with a MileClear practice is free)",
+  "Mileage Certificate, Snap a Statement and Ticket Defender",
   "Open Banking earnings import and bank-transaction inbox",
   "CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart",
   "Sort by work hours: trips in your work hours marked as Business",
@@ -72,7 +73,6 @@ export default function Pricing() {
 
             {/* Premium */}
             <div className="p-card p-card--pro">
-              <span className="p-card__badge">Most popular</span>
               <p className="p-card__name">Pro</p>
               <p className="p-card__price">
                 &pound;4.99<span className="p-card__period"> /month</span>

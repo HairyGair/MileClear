@@ -122,8 +122,8 @@ export default function AboutPage() {
                 investors pushing features that do not matter to UK drivers.
               </p>
               <p className="legal__text">
-                The app is self-hosted on UK infrastructure, fully GDPR compliant, and built with
-                a focus on accuracy and reliability. Your data stays in the UK. It is never sold.
+                The app is self-hosted on UK infrastructure, built to UK GDPR, and built with
+                a focus on accuracy and reliability. Your data is stored on UK servers; a few service providers we use are outside the UK, under standard contractual safeguards. It is never sold.
                 You can export or delete it at any time.
               </p>
               <p className="legal__text">
@@ -142,7 +142,7 @@ export default function AboutPage() {
               </p>
               <ul className="legal__list" style={{ marginBottom: '1rem' }}>
                 <li className="legal__list-item">
-                  Improving auto-trip detection reliability across more iPhone models
+                  Improving auto-trip detection reliability across more iPhone and Android phones
                 </li>
                 <li className="legal__list-item">
                   Expanding business intelligence features - route analytics, shift grading
@@ -150,10 +150,10 @@ export default function AboutPage() {
                 </li>
                 <li className="legal__list-item">
                   Deepening Making Tax Digital (MTD ITSA) support ahead of the quarterly
-                  reporting deadlines
+                  reporting deadlines (quarterly updates are tested with HMRC&apos;s test service only)
                 </li>
                 <li className="legal__list-item">
-                  Accounting software integrations for Xero and FreeAgent (coming soon)
+                  Direct accounting software integrations (not available yet, on the roadmap)
                 </li>
               </ul>
               <p className="legal__text">

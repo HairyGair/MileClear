@@ -103,7 +103,7 @@ const features = [
       </svg>
     ),
     title: "Set up in under a minute",
-    desc: "Sign in with Apple or email, add your vehicle (or look it up by registration), and you're tracking.",
+    desc: "Sign in with Apple, Google or email, add your vehicle (or look it up by registration), and you're tracking.",
   },
 ];
 

@@ -5,7 +5,7 @@ import Footer from "@/components/landing/Footer";
 import StoreButtons from "@/components/StoreButtons";
 import BreadcrumbsJsonLd from "@/components/seo/BreadcrumbsJsonLd";
 import { ANDROID_RELEASE_NOTES } from "@mileclear/shared";
-import { PLAY_STORE_URL } from "@/data/android";
+import { PLAY_LIVE, PLAY_STORE_URL } from "@/data/android";
 import "../updates.css";
 
 export const metadata: Metadata = {
@@ -71,8 +71,10 @@ export default function AndroidReleasesPage() {
         <header className="updates__header">
           <h1 className="updates__heading">Android release notes</h1>
           <p className="updates__sub">
-            MileClear for Android is in testing, with its public release waiting
-            on Google. It shares a codebase and an account with the iPhone app,
+            {PLAY_LIVE
+              ? "MileClear for Android is on Google Play in the UK. New builds are tested in closed testing first."
+              : "MileClear for Android is in testing, with its public release waiting on Google."}{" "}
+            It shares a codebase and an account with the iPhone app,
             but not a release history, so it has its own notes.{" "}
             <a href={PLAY_STORE_URL} className="updates__inline-link" rel="noopener noreferrer">
               Open on Google Play
@@ -133,9 +135,19 @@ export default function AndroidReleasesPage() {
           </ul>
 
           <p className="updates__sub" style={{ marginTop: "2rem" }}>
-            Testing is closed while we work through the first round of real
-            drives on real hardware. If you drive for a living on an Android
-            phone and want in,{" "}
+            {PLAY_LIVE ? (
+              <>
+                New builds go to a small closed test group before they reach
+                everyone on Google Play. If you drive for a living on an
+                Android phone and want to help test,{" "}
+              </>
+            ) : (
+              <>
+                Testing is closed while we work through the first round of real
+                drives on real hardware. If you drive for a living on an
+                Android phone and want in,{" "}
+              </>
+            )}
             <Link href="/support" className="updates__inline-link">
               tell us
             </Link>

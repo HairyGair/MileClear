@@ -148,8 +148,8 @@ export default function DonatePage() {
             </li>
             <li>
               <strong>Want ongoing access to Pro features?</strong> You're looking
-              for the <a href="https://apps.apple.com/app/mileclear/id6759671005" className="donate__inline-link">subscription</a>{" "}
-              instead. £4.99/month unlocks the filing-ready exports,
+              for the <a href="/pricing" className="donate__inline-link">Pro subscription</a>{" "}
+              instead (iPhone, Android or web). £4.99/month unlocks the exports,
               unlimited invoices, business insights, and the rest.
             </li>
             <li>

@@ -184,7 +184,7 @@ const faqSchema = {
       name: 'Can I use MileClear for my Self Assessment tax return?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'Yes. MileClear Pro generates a PDF Self Assessment export that includes your total business miles, deduction amount, vehicle breakdown, and tax year summary. It also exports a detailed trip log as CSV or PDF. These documents are designed to be submitted directly as mileage evidence for your Self Assessment. See the Exports section of the app or visit our pricing page at mileclear.com/pricing to learn more about Pro.',
+        text: 'Yes. MileClear Pro generates a PDF Self Assessment export that includes your total business miles, deduction amount, vehicle breakdown, and tax year summary. It also exports a detailed trip log as CSV or PDF. These are records to keep as evidence of your mileage, or to give your accountant when you file your Self Assessment. See the Exports section of the app or visit our pricing page at mileclear.com/pricing to learn more about Pro.',
       },
     },
     {
@@ -209,7 +209,7 @@ const faqSchema = {
       name: 'What does MileClear Pro include?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'MileClear Pro (£4.99 per month) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, sorting trips by your work hours, the Accountant Portal (read-only dashboard you can invite your accountant to by email), business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, unlimited invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
+        text: 'MileClear Pro (£4.99 per month) adds: the PDF Self Assessment export with a signed attestation cover sheet, CSV and PDF trip exports, CSV earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open Banking auto-import via TrueLayer, sorting trips by your work hours, a read-only dashboard link you can email to your accountant, a Mileage Certificate, Snap a Statement (earnings read from a platform screenshot), Ticket Defender, business insights including earnings per mile, golden hours and weekly P&L, Driving Analytics, the Journey Map, unlimited invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is free; Pro adds the print-ready PDF.',
       },
     },
     {
@@ -225,7 +225,7 @@ const faqSchema = {
       name: 'Is there a yearly plan?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'On the website, Pro is £4.99 a month. The iPhone app also offers a yearly plan when you subscribe there.',
+        text: 'On the website, Pro is £4.99 a month. The iPhone and Android apps also offer a yearly plan (£44.99 a year) when you subscribe there.',
       },
     },
     // Data & Privacy
@@ -521,8 +521,8 @@ export default function FaqPage() {
                 <p className="legal__text">
                   Yes. MileClear Pro generates a PDF Self Assessment export that includes your total
                   business miles, deduction amount, vehicle breakdown, and tax year summary. It also
-                  exports a detailed trip log as CSV or PDF. These documents are designed to be
-                  submitted directly as mileage evidence for your Self Assessment.
+                  exports a detailed trip log as CSV or PDF. These are records to keep as
+                  evidence of your mileage, or to give your accountant when you file your Self Assessment.
                 </p>
               </div>
 
@@ -565,8 +565,9 @@ export default function FaqPage() {
                   with a signed attestation cover sheet, CSV and PDF trip exports, CSV
                   earnings import from Uber, Deliveroo, Just Eat, Amazon Flex and Stuart, Open
                   Banking auto-import via TrueLayer, sorting trips by your work
-                  hours, the Accountant Portal (read-only dashboard you can invite your
-                  accountant to by email), business insights including earnings per mile, golden
+                  hours, a read-only dashboard link you can email to your
+                  accountant, a Mileage Certificate, Snap a Statement (earnings read from a platform
+                  screenshot), Ticket Defender, business insights including earnings per mile, golden
                   hours and weekly P&amp;L, Driving Analytics, the Journey Map, unlimited
                   invoices, unlimited saved locations, and unlimited vehicles. The Self Assessment wizard itself is
                   free; Pro adds the print-ready PDF. See{' '}
@@ -578,8 +579,8 @@ export default function FaqPage() {
               <div className="faq__qa">
                 <h3 className="faq__question">Is there a yearly plan?</h3>
                 <p className="legal__text">
-                  On the website, Pro is £4.99 a month. The iPhone app also offers a yearly plan
-                  when you subscribe there.
+                  On the website, Pro is £4.99 a month. The iPhone and Android apps also offer a yearly plan
+                  (£44.99 a year) when you subscribe there.
                 </p>
               </div>
 

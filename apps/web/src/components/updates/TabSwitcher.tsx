@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { PLAY_LIVE } from "@/data/android";
 import {
   getAllReleaseNotes,
   getAllAndroidReleaseNotes,
@@ -143,8 +144,10 @@ export default function TabSwitcher({
         className="updates__content"
       >
         <p className="updates__panel-intro">
-          MileClear for Android is in testing, with its public release waiting on
-          Google. It shares a codebase and an account with the iPhone app, but
+          {PLAY_LIVE
+            ? "MileClear for Android is on Google Play in the UK. New builds are tested in closed testing first."
+            : "MileClear for Android is in testing, with its public release waiting on Google."}{" "}
+          It shares a codebase and an account with the iPhone app, but
           not a release history, so its builds are listed separately.
         </p>
         <ReleaseList notes={androidReleaseNotes} label="Android release notes" />
