@@ -106,6 +106,22 @@ const faqSchema = {
         text: "No. Trip tracking is unlimited and free forever. That is a real difference for Flex drivers - a single four-hour block can be 40 to 70 individual stops, more than MileIQ's whole free-tier monthly cap (40 drives) or Driversnote (15 trips) in one shift. MileClear has no cap, no time limit, no per-trip fee. Pro (£4.99/month) only unlocks the HMRC Self Assessment PDF, CSV earnings import, and business insights.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Started delivery driving for Christmas: do I need to record my miles?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, from your first day. If you are self-employed, your business miles are what you claim at the mileage rate, and a log made at the time is much easier to rely on than one rebuilt later. Seasonal drivers employed through an agency are not self-employed, so see mileclear.com/mileage-allowance-relief instead of Self Assessment.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I claim parking on top of the mileage rate in peak season?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. If you use the mileage rate, you can still claim parking for work on top of it. Fuel, insurance and repairs are already covered by the rate, so you cannot claim those as well.",
+      },
+    },
   ],
 };
 
@@ -602,6 +618,48 @@ export default function AmazonFlexMileageTracker() {
             </p>
           </section>
 
+          {/* Peak season */}
+          <section
+            aria-labelledby="peak-heading"
+            style={{ maxWidth: 760, marginBottom: "3.5rem" }}
+          >
+            <h2
+              id="peak-heading"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: "#f9fafb",
+                marginBottom: "1.25rem",
+              }}
+            >
+              Peak Season: Christmas Delivery Mileage
+            </h2>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Flex blocks fill up fast in November and December, so you do more blocks and more miles in less time. Record from day one. A log made at the time is far easier to rely on than one rebuilt in January.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Sort each trip as business or personal. The short hops between drops are business miles, even when they are only a few hundred metres. A trip to the shops or a lift for a friend is personal.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Whether your drive from home to the Flex depot counts depends on how your work is set up. Self-employed drivers generally cannot claim ordinary home-to-work travel, so check the GOV.UK guidance before you claim it.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              If you use the mileage rate (55p a mile for the first 10,000 business miles in 2026-27, then 25p), you cannot also claim fuel, insurance or repairs. Parking for work can be claimed on top.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
+              Taken on for Christmas through an agency? Then you are probably employed, not self-employed. Read{" "}
+              <a href="/mileage-allowance-relief" style={{ color: "#fbbf24", textDecoration: "underline" }}>
+                Mileage Allowance Relief
+              </a>{" "}
+              instead of Self Assessment. New to all this? See{" "}
+              <a href="/started-delivery-driving-for-christmas" style={{ color: "#fbbf24", textDecoration: "underline" }}>
+                what to record for tax if you started delivery driving for Christmas
+              </a>
+              .
+            </p>
+          </section>
+
           {/* FAQ */}
           <section style={{ maxWidth: 760, marginBottom: "4rem" }}>
             <h2
@@ -639,6 +697,14 @@ export default function AmazonFlexMileageTracker() {
               {
                 q: "What format should a mileage log be in for Amazon Flex?",
                 a: "HMRC requires a record of each journey's date, start and end point, purpose, and distance. MileClear's Pro export produces a PDF mileage log in an accepted format, suitable for attaching to your self-assessment return or sharing with an accountant.",
+              },
+              {
+                q: "Started delivery driving for Christmas: do I need to record my miles?",
+                a: "Yes, from your first day. If you are self-employed, your business miles are what you claim at the mileage rate, and a log made at the time is much easier to rely on than one rebuilt later. Seasonal drivers employed through an agency are not self-employed, so see mileclear.com/mileage-allowance-relief instead of Self Assessment.",
+              },
+              {
+                q: "Can I claim parking on top of the mileage rate in peak season?",
+                a: "Yes. If you use the mileage rate, you can still claim parking for work on top of it. Fuel, insurance and repairs are already covered by the rate, so you cannot claim those as well.",
               },
             ].map(({ q, a }, i, arr) => (
               <div

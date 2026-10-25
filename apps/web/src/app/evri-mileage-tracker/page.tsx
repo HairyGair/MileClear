@@ -122,6 +122,22 @@ const faqSchema = {
         text: "No. MileClear's tracking is unlimited and free forever. That matters more for Evri couriers than for almost any other gig role: an urban round is 150-250 parcels in a single day, and even a quieter suburban round is 100+. MileIQ caps its free tier at 40 drives a month and Driversnote at 15 - either would run out before lunchtime on day one. MileClear has no cap, no time limit, no surprise paywall on the tracker. Pro (£4.99/month) only unlocks the HMRC PDF, CSV export, Accountant Portal, and business insights.",
       },
     },
+    {
+      "@type": "Question",
+      name: "Started delivery driving for Christmas: do I need to record my miles?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, from your first day. If you are self-employed, your business miles are what you claim at the mileage rate, and a log made at the time is much easier to rely on than one rebuilt later. Seasonal drivers employed through an agency are not self-employed, so see mileclear.com/mileage-allowance-relief instead of Self Assessment.",
+      },
+    },
+    {
+      "@type": "Question",
+      name: "Can I claim parking on top of the mileage rate in peak season?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes. If you use the mileage rate, you can still claim parking for work on top of it. Fuel, insurance and repairs are already covered by the rate, so you cannot claim those as well.",
+      },
+    },
   ],
 };
 
@@ -623,6 +639,48 @@ export default function EvriMileageTracker() {
             </p>
           </section>
 
+          {/* Peak season */}
+          <section
+            aria-labelledby="peak-heading"
+            style={{ maxWidth: 760, marginBottom: "3.5rem" }}
+          >
+            <h2
+              id="peak-heading"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "1.5rem",
+                fontWeight: 700,
+                color: "#f9fafb",
+                marginBottom: "1.25rem",
+              }}
+            >
+              Peak Season: Christmas Delivery Mileage
+            </h2>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Evri rounds get heavier in November and December, and extra rounds and longer days push your miles up. Record from day one. A log made at the time is far easier to rely on than one rebuilt in January.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Sort each trip as business or personal. The short hops between drops are business miles, even when they are only a few hundred metres. A trip to the shops or a lift for a friend is personal.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              Whether your drive from home to the delivery unit counts depends on how your work is set up. Self-employed drivers generally cannot claim ordinary home-to-work travel, so check the GOV.UK guidance before you claim it.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
+              If you use the mileage rate (55p a mile for the first 10,000 business miles in 2026-27, then 25p), you cannot also claim fuel, insurance or repairs. Parking for work can be claimed on top.
+            </p>
+            <p style={{ color: "#94a3b8", lineHeight: 1.8 }}>
+              Taken on for Christmas through an agency? Then you are probably employed, not self-employed. Read{" "}
+              <a href="/mileage-allowance-relief" style={{ color: "#fbbf24", textDecoration: "underline" }}>
+                Mileage Allowance Relief
+              </a>{" "}
+              instead of Self Assessment. New to all this? See{" "}
+              <a href="/started-delivery-driving-for-christmas" style={{ color: "#fbbf24", textDecoration: "underline" }}>
+                what to record for tax if you started delivery driving for Christmas
+              </a>
+              .
+            </p>
+          </section>
+
           {/* FAQ */}
           <section style={{ maxWidth: 760, marginBottom: "4rem" }}>
             <h2
@@ -676,6 +734,14 @@ export default function EvriMileageTracker() {
               {
                 q: "Does the home-to-delivery-unit drive count as a business mile?",
                 a: "Generally no. HMRC treats travel from home to your regular place of work as ordinary commuting, even if the 'place of work' is a sortation depot you only spend 30 minutes at each morning. Miles from the delivery unit onwards - through your round and back - are business miles.",
+              },
+              {
+                q: "Started delivery driving for Christmas: do I need to record my miles?",
+                a: "Yes, from your first day. If you are self-employed, your business miles are what you claim at the mileage rate, and a log made at the time is much easier to rely on than one rebuilt later. Seasonal drivers employed through an agency are not self-employed, so see mileclear.com/mileage-allowance-relief instead of Self Assessment.",
+              },
+              {
+                q: "Can I claim parking on top of the mileage rate in peak season?",
+                a: "Yes. If you use the mileage rate, you can still claim parking for work on top of it. Fuel, insurance and repairs are already covered by the rate, so you cannot claim those as well.",
               },
             ].map(({ q, a }, i, arr) => (
               <div
