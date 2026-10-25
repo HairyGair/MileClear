@@ -76,10 +76,34 @@ export interface SiteAnnouncement {
 // surfacing site-wide.
 export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
-// The 1.4.0 entries (iOS and Android) were taken out on 25 Oct 2026: their
-// only item was car Bluetooth, which is tester-only until release. Add the
-// entries back, with real public items, when 1.4.0 ships.
+// Car Bluetooth is tester-only (CAR_BLUETOOTH_ROLLOUT), so it is not listed in
+// 1.4.0 below; add it here and to the Android list when it goes to everyone.
 export const RELEASE_NOTES: ReleaseNote[] = [
+  {
+    // Build 97, cut 24 Oct 2026 from main 551855a2, submitted to Apple 25 Oct
+    // (docs/apple-submission-1.4.0-build-97.md). Most of this already reached
+    // 1.3.13 phones by OTA and is listed there too; this is the App Store's
+    // What's New. "Pending Review" now, "Latest" on approval in the same edit
+    // that drops 1.3.13 to "App Store".
+    version: "1.4.0",
+    date: "October 2026",
+    label: "Pending Review",
+    items: [
+      "Only record in work hours: a switch on the Work hours screen. Outside your hours nothing records, and Record now covers the rest of the day",
+      "Distances in kilometres if you prefer: Settings > Distances. Tax figures and downloads stay in miles",
+      "Add a whole past shift in one go, with its trips and earnings",
+      "More than one car? Trips the app records on its own go on your primary car, and you can download a trip report or CSV for just one car",
+      "Filter trips by client, and download a trip report or CSV for one client",
+      "Your car's running odometer reading shows on Home",
+      "Fuel prices: choose your fuel and sort nearby stations by nearest or cheapest",
+      "A recorded trip lists the roadworks it drove through",
+      "Linked a bank? Mark an app that pays you a week behind, and its payouts count in the week you did the work",
+      "Paused recording? Drives during the pause are no longer saved",
+      "New drivers see their first trips and what they could claim on Home",
+    ],
+    ctaUrl: "https://mileclear.com/releases",
+    ctaLabel: "Read the release notes",
+  },
   {
     // Build 95, cut 11 Oct 2026 from ui-set-oct (main @ 37ecd2f3), submitted to
     // Apple the same evening. Everything below also reached every older build by
