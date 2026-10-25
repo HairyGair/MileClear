@@ -554,11 +554,13 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "mileclear-on-android-closed-beta",
     title: "MileClear on Android: what is in the closed beta",
     excerpt:
-      "MileClear for Android is in closed testing on Google Play. Same account, same trips, and the same background tracking engine as the iPhone app. Here is what works today, what does not yet, and why a port of a mileage tracker is harder than it sounds.",
+      "What was in the Android closed test in August 2026. MileClear has been on Google Play for everyone in the UK since 21 September 2026, with Pro on sale inside the app. Same account, same trips, and the same background tracking engine as the iPhone app.",
     date: "28 August 2026",
     author: "Gair",
     category: "announcement",
     content: `
+<p><em>Update, October 2026: MileClear is now on <a href="https://play.google.com/store/apps/details?id=com.mileclear.app">Google Play</a> for everyone in the UK, since 21 September 2026. You no longer need to ask to join, and you can buy Pro inside the Android app through Google Play, monthly or yearly. The post below describes the closed test as it was in August.</em></p>
+
 <p>MileClear has been an iPhone app for its whole life. It is now also an Android app, in closed testing on Google Play.</p>
 
 <p>This is not a re-skin or a web page in a wrapper. It is the same codebase, signing in to the same account, reading the same trips. If you have been tracking on an iPhone and you switch, your mileage is already there.</p>
@@ -752,7 +754,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The rule is that your income and expenses have to be recorded and kept digitally, and the quarterly updates have to reach HMRC from software rather than by typing figures into a website.</p>
 
-<p>A photo of a receipt is not a digital record on its own. Nor is a shoebox you tip out in January. A spreadsheet can count, provided it can talk to HMRC through bridging software. Most people will find it easier to use an app that keeps the records and does the submitting in one place.</p>
+<p>A photo of a receipt is not a digital record on its own. Nor is a shoebox you tip out in January. A spreadsheet can count, provided it can talk to HMRC through bridging software. Most people will find it easier to use software that keeps the records and sends the updates in one place.</p>
 
 <h2>Where mileage fits into Making Tax Digital</h2>
 
@@ -773,9 +775,9 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>We will be straight with you, because there is a lot of marketing about MTD readiness that does not survive contact with the detail.</p>
 
-<p>MileClear has the full Making Tax Digital journey built. You can connect a HMRC account, see your obligations, preview the figures and walk through a submission. It currently runs against HMRC's test service, and it is labelled as beta on every screen inside the app, because we are still waiting for HMRC's production credentials. Until they are granted, submissions do not reach your real tax record, and your live tax position is unaffected.</p>
+<p>MileClear has the full Making Tax Digital journey built. You can connect a HMRC account, see your obligations, preview the figures and walk through a quarterly update. It currently runs against HMRC's test service only, and it is labelled as beta on every screen inside the app, because we are still waiting for HMRC's production credentials. Until they are granted, submissions do not reach your real tax record, and your live tax position is unaffected.</p>
 
-<p>Two limits worth knowing even once it is live. MileClear submits <strong>self-employment income only</strong>, so if you also have UK or foreign property income you will need MTD-compatible software for that as well. And it handles your in-year quarterly updates, not the year-end Final Declaration, which you will finish with HMRC or other compatible software.</p>
+<p>Two limits worth knowing even once it is live. MileClear will send <strong>self-employment income only</strong>, so if you also have UK or foreign property income you will need MTD-compatible software for that as well. And the quarterly updates are the main job. We are also testing an end-of-year step on HMRC's test service, but until that is live you will finish the Final Declaration with HMRC or other compatible software.</p>
 
 <p>We will say plainly when that changes. No dates promised until they are real.</p>
 
@@ -811,12 +813,12 @@ export const BLOG_POSTS: BlogPost[] = [
       {
         question: "Do I need an app for Making Tax Digital, or will a spreadsheet do?",
         answer:
-          "A spreadsheet can be acceptable, because the requirement is that records are kept digitally and that updates reach HMRC from software rather than being typed into a website. A spreadsheet therefore needs bridging software to submit. Many self-employed people find it simpler to use one app that keeps the records and submits them, particularly where mileage is the largest deduction and needs capturing throughout the quarter.",
+          "A spreadsheet can be acceptable, because the requirement is that records are kept digitally and that updates reach HMRC from software rather than being typed into a website. A spreadsheet therefore needs bridging software to submit. Many self-employed people find it simpler to use one piece of software that keeps the records and sends the updates, particularly where mileage is the largest deduction and needs capturing throughout the quarter.",
       },
       {
         question: "Is MileClear MTD compatible?",
         answer:
-          "The full Making Tax Digital journey is built into MileClear, but it currently runs against HMRC's test service while we wait for HMRC's production credentials, and it is labelled as beta on every screen in the app. Until that finishes, submissions do not reach your real tax record. MileClear covers self-employment income only, so property income needs separate MTD-compatible software, and it handles in-year quarterly updates rather than the year-end Final Declaration. Mileage and expense tracking are free and available today, so your records will be ready whichever software you eventually file with.",
+          "The full Making Tax Digital journey is built into MileClear, but it currently runs against HMRC's test service while we wait for HMRC's production credentials, and it is labelled as beta on every screen in the app. Until that finishes, submissions do not reach your real tax record. MileClear covers self-employment income only, so property income needs separate MTD-compatible software, and until its end-of-year step is live the Final Declaration is finished with HMRC or other compatible software. Mileage and expense tracking are free and available today, so your records will be ready whichever software you eventually file with.",
       },
     ],
   },
@@ -1143,7 +1145,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>MileClear is built for this</h2>
 
-<p>MileClear is a free <a href="/mileage-tracker-uk">UK mileage tracker</a> built around HMRC's AMAP rates and the 6-April tax year. Background GPS captures every drive, you classify each trip with a tap (or set Auto-Classify Rules so you never need to), and the Self Assessment PDF is ready when you are. <a href="/free-mileage-tracker-uk">Free forever</a> for the tracking - Pro (£4.99/mo) only covers the tax-export PDF, business insights, and a few power-user extras.</p>
+<p>MileClear is a free <a href="/mileage-tracker-uk">UK mileage tracker</a> built around HMRC's AMAP rates and the 6-April tax year. Background GPS captures every drive, you classify each trip with a tap (or let it sort trips for you by place and regular journeys, free, or by your work hours on Pro), and the Self Assessment PDF is ready when you are. <a href="/free-mileage-tracker-uk">Free forever</a> for the tracking - Pro (£4.99/mo) only covers the tax-export PDF, business insights, and a few power-user extras.</p>
 
 <p>It works for <a href="/self-employed-mileage-tracker">self-employed sole traders</a>, <a href="/delivery-driver-mileage-tracker">gig delivery drivers</a>, and <a href="/employee-mileage-tracker">PAYE employees</a> claiming Mileage Allowance Relief.</p>
 
@@ -1269,7 +1271,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>MileClear's approach</h2>
 
-<p>MileClear is a free <a href="/mileage-tracker-uk">UK mileage tracker</a> built specifically for HMRC compliance. Every trip is GPS-recorded contemporaneously, classified business or personal with a tap (or auto-classified via saved locations or work schedule), and the AMAP calculation runs in real time as you drive. The Self Assessment PDF export (Pro, £4.99/mo) gives you per-trip detail + summary + attestation cover sheet - drop it onto your SA103 or hand it to your accountant. The tracking itself is <a href="/free-mileage-tracker-uk">free forever</a>.</p>
+<p>MileClear is a free <a href="/mileage-tracker-uk">UK mileage tracker</a> built around HMRC's mileage rules. Every trip is GPS-recorded as it happens, classified business or personal with a tap (or sorted for you by saved place, or by your work hours on Pro), and the AMAP calculation runs in real time as you drive. The Self Assessment PDF export (Pro, £4.99/mo) gives you per-trip detail + summary + attestation cover sheet - drop it onto your SA103 or hand it to your accountant. The tracking itself is <a href="/free-mileage-tracker-uk">free forever</a>.</p>
 
 <p><a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear on the App Store</a>.</p>
 
@@ -1470,17 +1472,18 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>MOT + tax expiry reminders</li>
 <li>Manual expense tracking (15 SA103-mapped categories)</li>
 <li>Push notifications, profile, feedback voting</li>
+<li>Sharing your records with an accountant whose practice uses MileClear</li>
 </ul>
 
-<p>Pro (£4.99/month) covers:</p>
+<p>Pro (£4.99/month or £44.99/year) covers:</p>
 <ul>
 <li>Printable Self Assessment PDF export</li>
 <li>CSV export + import</li>
 <li>Open Banking earnings sync</li>
-<li>Auto-Classify Rules</li>
+<li>Sort by work hours (sorting by place and regular journeys is free)</li>
 <li>Business Insights (£/mile, £/hour, platform comparison)</li>
 <li>Multi-month analytics</li>
-<li>Accountant sharing</li>
+<li>Emailing your accountant a read-only link from the website</li>
 <li>Journey Map (full-route visualisation)</li>
 <li>Unlimited vehicles + saved locations</li>
 </ul>
@@ -1498,24 +1501,26 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "whats-new-in-version-1-2-0",
     title: "What's New in Version 1.2.0",
     excerpt:
-      "The biggest MileClear update since launch. Quarterly HMRC submissions, road-accurate trip distances, a Lock Screen that earns its keep while you drive, and every sole-trader feature the community has been asking for. Thirty-odd things in total.",
+      "The biggest MileClear update since launch. Quarterly Making Tax Digital updates (on HMRC's test service only), road-accurate trip distances, a Lock Screen that earns its keep while you drive, and every sole-trader feature the community has been asking for. Thirty-odd things in total.",
     date: "14 May 2026",
     author: "Gair",
     category: "announcement",
     content: `
+<p><em>Update, October 2026: Making Tax Digital quarterly updates in MileClear are still tested with HMRC's test service only. Nothing is sent to HMRC yet, and your real tax record is not affected. Link your bank now works with real UK banks (still in beta, Pro). If you need to file, do it on GOV.UK or through your accountant.</em></p>
+
 <p>Version 1.2.0 has just been approved by Apple. This is the biggest update MileClear has shipped since launch, and it is the first release where I genuinely feel the app has caught up to the idea behind it.</p>
 
 <p>I am going to walk you through the big stuff. Some of it is a brand-new feature that did not exist last week. Some of it is foundational work you will never see because it is the kind of bug that vanishes once it is fixed. All of it ships in the same install.</p>
 
 <h2>Quarterly Self Assessment updates (beta)</h2>
 
-<p>From April 2026, sole traders earning over GBP 50,000 a year have to submit four quarterly returns to HMRC plus a year-end statement. No more single January 31 Self Assessment for that group - it is now five touchpoints with HMRC a year, every year, with deadlines in August, November, February, and May, and a final declaration the following January. It is called MTD ITSA (Making Tax Digital for Income Tax Self Assessment) and for a lot of drivers it is going to be the difference between knowing what they owe and getting an unwelcome surprise.</p>
+<p>From April 2026, sole traders with qualifying income over £50,000 a year have to send HMRC four quarterly updates plus a year-end declaration. No more single January 31 Self Assessment for that group - it is now five touchpoints with HMRC a year, every year, with deadlines in August, November, February, and May, and a final declaration the following January. It is called MTD ITSA (Making Tax Digital for Income Tax Self Assessment) and for a lot of drivers it is going to be the difference between knowing what they owe and getting an unwelcome surprise.</p>
 
-<p>MileClear Pro now does the whole thing.</p>
+<p>MileClear Pro now walks through the whole thing, on HMRC's test service.</p>
 
-<p>Avatar menu, Work and Tax, MTD ITSA. Connect your HMRC account once. Enter your National Insurance Number. Confirm your trade. From that moment on, every open obligation HMRC has for you shows up in MileClear, populated with the figures the app has been building all quarter from your trips, earnings, mileage, and expenses. The preview screen shows exactly what is about to be sent before you tap Submit, broken down per platform, with the AMAP tier crossover called out, and expenses bucketed so there are no surprises. After submission, MileClear asks HMRC's own calculation engine for the tax due and shows you their number alongside ours so you can sanity-check the marginal-rate breakdown before it is locked in.</p>
+<p>Avatar menu, Work and Tax, MTD ITSA. Connect your HMRC account once. Enter your National Insurance Number. Confirm your trade. From that moment on, every open obligation HMRC has for you shows up in MileClear, populated with the figures the app has been building all quarter from your trips, earnings, mileage, and expenses. The preview screen shows exactly what would be sent before you tap Submit, broken down per platform, with the AMAP tier crossover called out, and expenses bucketed so there are no surprises. After submission, MileClear asks HMRC's own calculation engine for the tax due and shows you their number alongside ours so you can sanity-check the marginal-rate breakdown before it is locked in.</p>
 
-<p>This is the feature that took the longest. Sandbox integration with HMRC required 18 separate API services, fraud-prevention header compliance, encrypted token storage, replay-detection on every request, and three rounds of spec-conformance fixes before the validator returned zero errors. Our request for production credentials is still in HMRC's review queue (reference 2026-IBW598). Until they sign off, every submission goes to HMRC's sandbox environment - a banner inside the app makes that explicit so nobody accidentally relies on a sandbox return for their real tax. The moment HMRC grants production credentials, the same flow flips to production and your submissions count.</p>
+<p>This is the feature that took the longest. Sandbox integration with HMRC required 18 separate API services, fraud-prevention header compliance, encrypted token storage, replay-detection on every request, and three rounds of spec-conformance fixes before the validator returned zero errors. Our request for production credentials is still in HMRC's review queue (reference 2026-IBW598). Until they sign off, every submission goes to HMRC's sandbox environment - a banner inside the app makes that explicit so nobody accidentally relies on a sandbox return for their real tax. Until HMRC grants production credentials, nothing reaches your real tax record.</p>
 
 <h2>Trip distances that are actually accurate</h2>
 
@@ -1555,7 +1560,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p><strong>PAYE deductions counted properly.</strong> If you have a salaried day job alongside gig work, you can now tell MileClear what your employer has already deducted in PAYE this year. The "still owed" figure on Tax Readiness becomes honest instead of double-counting tax that has already been collected via your payslip. NI is still calculated separately on your gig profits because Class 4 NI is per-source.</p>
 
-<p><strong>Confidence indicator on every trip.</strong> High, medium, or low badge with tap-to-expand reasons. HMRC-defence material - every claimed mile is now individually auditable. A trip with a Low confidence badge gets a one-tap Recalculate button in case the GPS quality was poor.</p>
+<p><strong>Confidence indicator on every trip.</strong> High, medium, or low badge with tap-to-expand reasons. Useful evidence if HMRC ever asks: every claimed mile can be checked on its own. A trip with a Low confidence badge gets a one-tap Recalculate button in case the GPS quality was poor.</p>
 
 <h2>Rock-solid foundations</h2>
 
@@ -1573,7 +1578,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>In-app help and onboarding</h2>
 
-<p>First-time users land on a 5-card Quick Start tour the first time they open the app. Covers the value loop in plain English: automatic trip tracking, Work and Personal classification, the Tax Readiness card, and how HMRC quarterly submissions work. Skippable from the top right, and you can replay it any time from Avatar, Help and Tutorials.</p>
+<p>First-time users land on a 5-card Quick Start tour the first time they open the app. Covers the value loop in plain English: automatic trip tracking, Work and Personal classification, the Tax Readiness card, and how HMRC quarterly updates work. Skippable from the top right, and you can replay it any time from Avatar, Help and Tutorials.</p>
 
 <p>The Help and Tutorials screen itself is a categorised FAQ with about 28 topics across Getting started, Tax and HMRC, Trips, Money, Privacy and data, and Troubleshooting. Tap a topic to expand the answer or jump straight to the relevant settings screen.</p>
 
@@ -1583,7 +1588,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Two notes for transparency.</p>
 
-<p>MTD ITSA submissions still go to HMRC's sandbox because our request for production credentials is in their review queue. The Sandbox banner inside the app makes that explicit. The moment HMRC sign off (reference 2026-IBW598), submissions flip to production with no further work needed from you.</p>
+<p>MTD ITSA submissions still go to HMRC's sandbox because our request for production credentials is in their review queue. The Sandbox banner inside the app makes that explicit. Until HMRC sign off (reference 2026-IBW598), nothing is sent to your real tax record.</p>
 
 <p>Open Banking auto-import (Pro) is currently on TrueLayer's sandbox credentials. Same pattern - banner inside the app makes it clear, the flow itself is fully wired, the flip to production happens server-side when we promote the keys.</p>
 
@@ -1605,6 +1610,8 @@ export const BLOG_POSTS: BlogPost[] = [
     author: "Gair",
     category: "announcement",
     content: `
+<p><em>Update, October 2026: the plans at the end of this post have moved on. Making Tax Digital quarterly updates are built but still tested with HMRC's test service only, so nothing is sent to HMRC yet. Expenses shipped with no limit on the free plan.</em></p>
+
 <p>Version 1.1.4 has just been approved by Apple. It is the fifth submission of this version line, which is more rounds than any previous release, and the result is a build that is materially more reliable, more accurate at tax time, and easier to navigate than 1.1.1 was.</p>
 
 <p>This is a different shape of release to 1.1.0. There are no new pillars - the four pillars 1.1.0 introduced (Tax Readiness, Anonymous Benchmarking, HMRC Reconciliation, Vehicle compliance) are intact and unchanged. What 1.1.4 does is sharpen every existing pillar, fix the foundation underneath them, and address two driver segments that 1.1.x had been silently under-serving.</p>
@@ -1761,7 +1768,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Bottom line</h2>
 
-<p>Amazon Flex does not track mileage. If you are claiming AMAP on Self Assessment, that gap is yours to fill. Track every mile contemporaneously with a tool built for HMRC compliance, or accept that you will under-claim by hundreds or thousands of pounds a year.</p>
+<p>Amazon Flex does not track mileage. If you are claiming AMAP on Self Assessment, that gap is yours to fill. Track every mile as you drive with a tool that keeps the record HMRC asks for, or accept that you will under-claim by hundreds or thousands of pounds a year.</p>
 
 <p><a href="https://apps.apple.com/app/mileclear/id6759671005">Install MileClear free on the App Store</a>.</p>
 `,
@@ -1891,6 +1898,8 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>For now, this is just personal data collection - your own waits. A future version will use the aggregated data to surface community insights: "this McDonald's averages 12-minute waits", "Uber pickups in this zone average 4 minutes". You will be able to avoid the slow ones. The infrastructure is in 1.1.0; the community surface comes once enough drivers are contributing.</p>
 
+<p><em>Update, October 2026: the community wait-time view described here did not ship. The wait timer still records your own waits.</em></p>
+
 <h2>First-time Self Assessment guide</h2>
 
 <p>Plain-English walkthrough for drivers filing Self Assessment for the first time. Covers UTR registration, the UK tax year (6 April to 5 April), what you actually pay (income tax + Class 4 NI + Class 2 NI), the AMAP mileage deduction at 55p/25p (raised from 45p on 6 April 2026; or 24p flat for mopeds), and the 31 January deadline.</p>
@@ -1924,11 +1933,13 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "whats-coming-next",
     title: "What's Coming Next",
     excerpt:
-      "1.2.0 is MTD ITSA: HMRC quarterly submissions in time for the first practical deadline of 7 August 2026. Plus community wait-time insights, deeper Anonymous Benchmarking, and longer-term strategic plays.",
+      "Our roadmap as it stood in April 2026: Making Tax Digital quarterly updates (built, and still tested with HMRC's test service only), community wait-time insights, deeper Anonymous Benchmarking, and longer-term plans.",
     date: "26 April 2026",
     author: "Gair",
     category: "announcement",
     content: `
+<p><em>Update, October 2026: this is a plan from April, and some of it changed. Making Tax Digital quarterly updates are built but still tested with HMRC's test service only. No quarterly updates have been sent to HMRC through MileClear, and nothing is sent to HMRC yet. MileClear has been on <a href="https://play.google.com/store/apps/details?id=com.mileclear.app">Google Play</a> for Android since 21 September 2026. The community wait-time view did not ship.</em></p>
+
 <p>Version 1.1.0 is a substantial step. The natural question is: what comes next? Here is the rough shape of where MileClear is heading, organised by when each piece is realistic.</p>
 
 <p>None of this is a hard commitment. Solo development moves with the data, and the data sometimes says "do this thing instead". But the direction is set.</p>
@@ -1937,7 +1948,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>This is the big one, and it is happening sooner than originally planned. Build starts the week of 5 May 2026.</p>
 
-<p>The April 2026 MTD ITSA threshold of £50,000 is already in effect. The first practical deadline that matters is <strong>7 August 2026</strong> - the close of the Q1 2026-27 quarterly submission window for self-employed drivers crossing that threshold. That is full-time DPD ODFs, full-time Amazon Flex drivers, full-time Uber drivers, and any multi-app driver running 60+ hour weeks. They need MTD-compliant software now, and whichever app they pick first becomes their default.</p>
+<p>The April 2026 MTD ITSA threshold of £50,000 is already in effect. The first practical deadline that matters is <strong>7 August 2026</strong> - the close of the Q1 2026-27 quarterly submission window for self-employed drivers crossing that threshold. That is full-time DPD ODFs, full-time Amazon Flex drivers, full-time Uber drivers, and any multi-app driver running 60+ hour weeks. They need MTD-compatible software now, and whichever app they pick first becomes their default.</p>
 
 <p>So MileClear is shipping it as 1.2.0, on a tight ~12-week timeline:</p>
 
@@ -2079,7 +2090,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>Get it</h2>
 
-<p>Version 1.0.10 (build 50) is live on <a href="https://testflight.apple.com/join/SGrmnaaH">TestFlight</a> today. The Self Assessment wizard and accountant sharing are already live on the <a href="/dashboard/self-assessment">web dashboard</a> if you want to try them now.</p>
+<p>Version 1.0.10 (build 50) went out to TestFlight testers today. The Self Assessment wizard and accountant sharing are already live on the <a href="/dashboard/self-assessment">web dashboard</a> if you want to try them now.</p>
 
 <p>As always, feedback goes straight to us - use the feedback screen in the app or email <a href="mailto:support@mileclear.com">support@mileclear.com</a>.</p>
 
@@ -2389,7 +2400,7 @@ export const BLOG_POSTS: BlogPost[] = [
 <li>If the road data lookup fails for any reason (no signal, server blip), we fall back to the GPS sum. Your trip is still saved and still accurate to within a few percent.</li>
 </ul>
 
-<p>In testing we saw trips that were previously reading 10-11% short now matching the odometer within 2-3%. For HMRC purposes that is the difference between a defensible mileage claim and one that looks suspiciously round.</p>
+<p>In testing we saw trips that were previously reading 10-11% short now matching the odometer within 2-3%. If HMRC ever asks, that is the difference between a mileage claim you can explain and one that looks suspiciously round.</p>
 
 <h2>The other complaint: trips not starting at all</h2>
 
@@ -2470,9 +2481,9 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>If you're starting fresh for 2026-27, you're in a great position. Every trip from tomorrow is a clean slate. Set up your vehicle, save your regular locations, and let MileClear learn your routes over the first few weeks. By the end of April, most of your trips will classify themselves.</p>
 
-<p>HMRC rates for 2026-27 remain the same: 45p per mile for the first 10,000 business miles (cars and vans), 25p after that, and 24p flat for motorbikes.</p>
+<p>HMRC rates for 2026-27: 55p per mile for the first 10,000 business miles (cars and vans), up from 45p, then 25p after that, and 24p flat for motorbikes.</p>
 
-<p><em>Editor's note (May 2026): HMRC subsequently raised the first-tier car/van rate from 45p to 55p per mile for the 2026-27 tax year, effective from 6 April 2026. The 25p second-tier and 24p motorbike rates are unchanged. See our <a href="/hmrc-mileage-rates">HMRC mileage rates page</a> for the current figures.</em></p>
+<p><em>Editor's note (May 2026): this post first said the 2026-27 rates would stay at 45p. HMRC raised the first-tier car/van rate from 45p to 55p per mile for the 2026-27 tax year, effective from 6 April 2026, and the line above now says so. The 25p second-tier and 24p motorbike rates are unchanged. See our <a href="/hmrc-mileage-rates">HMRC mileage rates page</a> for the current figures.</em></p>
 
 <h2>What's next</h2>
 
@@ -2492,6 +2503,8 @@ export const BLOG_POSTS: BlogPost[] = [
     author: "Gair",
     category: "engineering",
     content: `
+<p><em>Update, October 2026: since version 1.3.13 you can also swipe a trip right in the To sort list to mark it Business, with Undo. It is there for the trips the app cannot sort for you. Everything below about sorting trips automatically still applies.</em></p>
+
 <p>Every mileage tracking app has the same problem: you drive somewhere, the app records the trip, and then you have to tell it whether it was business or personal. Every. Single. Time.</p>
 
 <p>Some competitors solve this with a swipe gesture. Left for business, right for personal. It's satisfying the first few times. It's tedious by trip number fifty. And by trip number two hundred, most people stop doing it altogether. Their mileage log fills up with unclassified trips, their HMRC deduction is wrong, and the whole point of tracking is undermined.</p>
@@ -2566,13 +2579,13 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>1. Check your trip classifications</h2>
 
-<p>Open MileClear and go to your Trips tab. Filter by "Unclassified" - these are trips the app recorded but you haven't confirmed as business or personal yet. Go through them and classify each one. It only takes a tap per trip, but it makes a big difference to your deduction total.</p>
+<p>Open MileClear and go to your Trips tab. Open the "To sort" list - these are trips the app recorded but you haven't confirmed as business or personal yet. Go through them and classify each one. It only takes a tap per trip, but it makes a big difference to your deduction total.</p>
 
 <p>If you're not sure whether a trip counts as business, the general rule is: if you were driving to earn money (heading to a pickup, driving between deliveries, going to a depot), it's business. Driving from home to your first job of the day is commuting and doesn't count - but once you're "on the clock", everything in between does.</p>
 
 <h2>2. Check your vehicle details</h2>
 
-<p>HMRC rates differ by vehicle type. Cars and vans get 45p/25p, motorbikes get 24p flat. Make sure your vehicle in MileClear is set to the right type - it affects every calculation.</p>
+<p>HMRC rates differ by vehicle type. For 2025-26, cars and vans get 45p/25p (55p/25p from 6 April 2026), motorbikes get 24p flat. Make sure your vehicle in MileClear is set to the right type - it affects every calculation.</p>
 
 <p>If you changed vehicles during the year, make sure both are in the app and trips are assigned to the correct one.</p>
 
@@ -2736,6 +2749,8 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>MileClear is live on the App Store now, in early access. The core loop  - track trips, see your HMRC deduction, export when you need to  - works well. I'm adding an annual plan, improving the auto-trip detection, and listening carefully to what beta testers actually want before I build anything else.</p>
 
+<p><em>Update, October 2026: the annual plan is out. Pro is £4.99 a month or £44.99 a year, on iPhone and Android.</em></p>
+
 <p>If you're a UK driver of any kind  - gig worker, sole trader, employee who uses their personal car for work  - and you're not tracking your mileage, you're leaving money with HMRC that's legally yours. MileClear is free to try. Give it a go.</p>
     `.trim(),
   },
@@ -2792,6 +2807,8 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>Train journeys are a known issue. A fast train exceeds the speed threshold and looks exactly like motorway driving from GPS. We're experimenting with CoreMotion activity recognition (the API that knows whether you're walking, cycling, or in a vehicle) to filter these out. It's not in the app yet, but it's coming.</p>
 
+<p><em>Update, October 2026: since version 1.3.11 MileClear reads your phone's motion sensor, the same activity recognition described above, to tell a walk from a drive and to help spot the start of a drive.</em></p>
+
 <p>If you spot a false positive, long-press the trip in your inbox and delete it. It takes two seconds and helps me understand where the thresholds need tuning.</p>
     `.trim(),
   },
@@ -2799,7 +2816,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "hmrc-mileage-deduction-guide",
     title: "Understanding Your HMRC Mileage Deduction",
     excerpt:
-      "If you drive for work in the UK  - whether that's gig work, visiting clients, or using your personal car for your employer  - you can claim up to 45p per mile back from HMRC. Here's exactly how it works.",
+      "If you drive for work in the UK  - whether that's gig work, visiting clients, or using your personal car for your employer  - you can claim tax relief on business miles at 55p a mile for the first 10,000 from 6 April 2026 (45p for 2025-26). Here's exactly how it works.",
     date: "20 March 2026",
     author: "Gair",
     category: "guide",
@@ -2838,7 +2855,7 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <p>The mileage deduction reduces your taxable profit, not your tax bill directly. If you're a basic rate taxpayer (20%), a £4,500 mileage deduction reduces your tax bill by £900. If you're a higher rate taxpayer (40%), it's £1,800.</p>
 
-<p>On your Self Assessment return, you enter your total business miles on the Self-employment pages. HMRC applies the approved rates automatically. You don't need to show your calculations  - you just need to have records if they ask.</p>
+<p>HMRC does not work this out for you. You multiply your business miles by the rates yourself and include the total in your car, van and travel expenses on the self-employment pages of your Self Assessment return. You don't need to send your calculations  - you just need to have records if they ask.</p>
 
 <h2>What records do you need to keep?</h2>
 
@@ -2861,13 +2878,13 @@ export const BLOG_POSTS: BlogPost[] = [
 
 <h2>How MileClear calculates it</h2>
 
-<p>Every trip you classify as "business" in MileClear gets counted towards your annual total. The app tracks your cumulative business mileage per tax year across all your vehicles, applies the 45p rate until you hit 10,000 miles, then switches to 25p automatically. You can see your running deduction total on the Work dashboard at any time.</p>
+<p>Every trip you classify as "business" in MileClear gets counted towards your annual total. The app tracks your cumulative business mileage per tax year across all your vehicles, applies 55p a mile (45p for trips before 6 April 2026) until you hit 10,000 miles, then switches to 25p automatically. You can see your running deduction total on the Work dashboard at any time.</p>
 
 <p>When you export at the end of the year, the PDF includes a vehicle-by-vehicle breakdown of your business miles, the deduction calculations, and the tax year totals  - everything you need for your Self Assessment return in one document.</p>
 
 <h2>One more thing</h2>
 
-<p>If you haven't been tracking your mileage but you do drive for work, it's worth going back and estimating what you might have been owed for previous tax years. You can amend a Self Assessment return up to four years after the original filing deadline. Just something worth knowing.</p>
+<p>If you haven't been tracking your mileage but you do drive for work, it's worth going back and estimating what you might have been owed for previous tax years. You can correct a Self Assessment return within 12 months of the 31 January deadline. After that, you can write to HMRC to claim overpayment relief, up to four years after the end of the tax year it relates to. Just something worth knowing.</p>
     `.trim(),
   },
 ];
