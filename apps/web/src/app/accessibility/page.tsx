@@ -119,7 +119,7 @@ export default function AccessibilityStatement() {
                 We use Apple's on-device APIs for receipt OCR and Live Activities. Both are designed by Apple to work with assistive technologies and we do not interfere with that.
               </p>
               <p className="legal__text">
-                The Android app on Google Play is built from the same screens and labels and is designed to work with TalkBack. We have tested it with assistive technology less than the iPhone app, so please tell us about anything that does not work.
+                The Android app on Google Play is built from the same screens and labels as the iPhone app. We have not yet tested it with TalkBack in the way we have tested the iPhone app with VoiceOver, so please tell us about anything that does not work for you.
               </p>
             </section>
 
