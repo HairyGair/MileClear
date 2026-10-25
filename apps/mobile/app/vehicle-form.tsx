@@ -42,6 +42,7 @@ import {
   readConnectedOutputs,
   type CarAudioOutput,
 } from "../lib/vehicles/carBluetooth";
+import { offerEarlierTrips } from "../lib/vehicles/earlierTrips";
 import CarBluetoothArt from "../components/vehicles/CarBluetoothArt";
 
 // Local theme aliases — same pattern as the (tabs) screens.
@@ -550,11 +551,26 @@ export default function VehicleFormScreen() {
         }
       };
 
+      // Just linked: drives from the last three days in this car that are
+      // on another one are offered for moving. After going back, so a
+      // question iOS never shows can't hold the save up (offerEarlierTrips
+      // asks first, never throws).
+      let savedId: string | null = isEditing ? id ?? null : null;
+      const leave = () => {
+        router.back();
+        if (!(btChanged && btId && btName && savedId)) return;
+        const carId = savedId;
+        const out = { name: btName, id: btId };
+        const label = `${make.trim()} ${model.trim()}`;
+        setTimeout(() => void offerEarlierTrips(carId, label, out), 600);
+      };
+
       if (isEditing) {
         await updateVehicle(id, payload);
         await clearMovedLink();
       } else {
         const created = await createVehicle(payload);
+        savedId = created.data.id;
         await clearMovedLink();
         if (odometerMiles != null) {
           try {
@@ -570,7 +586,7 @@ export default function VehicleFormScreen() {
                 (moveFailedFor
                   ? ` We also couldn't unlink the Bluetooth from your ${moveFailedFor}. Open that car and tap Unlink.`
                   : ""),
-              [{ text: "OK", onPress: () => router.back() }]
+              [{ text: "OK", onPress: leave }]
             );
             return;
           }
@@ -580,11 +596,11 @@ export default function VehicleFormScreen() {
         Alert.alert(
           "Saved",
           `Linked here, but we couldn't unlink it from your ${moveFailedFor}. Open that car and tap Unlink.`,
-          [{ text: "OK", onPress: () => router.back() }]
+          [{ text: "OK", onPress: leave }]
         );
         return;
       }
-      router.back();
+      leave();
     } catch (err: unknown) {
       showSupportAlert("Couldn't save", err instanceof Error ? err.message : "Couldn't save the car.");
     } finally {

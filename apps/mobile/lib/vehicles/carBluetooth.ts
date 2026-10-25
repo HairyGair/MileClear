@@ -689,6 +689,140 @@ export function mergeOutcome(input: {
     : "merge";
 }
 
+// ── After linking: earlier drives in that car ───────────────────────────
+//
+// Anthony, 25 Oct 2026: drove to Kath's in the Toyota, linked it 11 minutes
+// later, and that drive stayed on the Astra. The sightings log still had the
+// drive (it is kept whether or not a car is linked), so linking a car looks
+// back over it and offers to move the recorded trips the phone was on that
+// car's Bluetooth for. The driver says yes first; nothing moves on its own.
+
+export interface EarlierTrip {
+  id: string;
+  startMs: number;
+  endMs: number;
+  startAddress: string | null;
+  endAddress: string | null;
+  distanceMiles: number;
+  /** On the server already (synced_at set), so the server can vouch for it. */
+  synced: boolean;
+}
+
+/** At most this many trips are offered in one go. */
+export const EARLIER_TRIPS_MAX = 20;
+/** Candidates passed on for the server check (copies included). */
+export const EARLIER_TRIPS_LOOKED_AT = 60;
+
+/**
+ * The links once vehicleId is linked to out: its old link goes, and so does
+ * any other car's link to the same output (the car screen and the question
+ * both move a link rather than share it).
+ */
+export function linksAfterLinking(
+  links: CarLink[],
+  vehicleId: string,
+  out: { name: string; id: string | null }
+): CarLink[] {
+  const link: CarLink = { vehicleId, name: out.name.trim(), id: realId(out.id) };
+  return [...links.filter((l) => l.vehicleId !== vehicleId && !matches(l, link)), link];
+}
+
+/**
+ * Of these recorded trips, the ones the phone was on vehicleId's Bluetooth
+ * for that are on some other car or none. Stricter than finalize: the finalize
+ * rule (carSeenDuring) must pick this car AND no other car may have been seen
+ * during the trip, so a trip merged across two cars is never offered. Newest
+ * first. Copies of one drive are all returned: the server check decides which
+ * is real before withoutOverlaps (earlierTrips.ts).
+ */
+export function tripsSeenInCar<T extends { vehicleId: string | null; startMs: number; endMs: number }>(
+  vehicleId: string,
+  links: CarLink[],
+  sightings: CarSighting[],
+  trips: T[]
+): T[] {
+  if (!links.some((l) => l.vehicleId === vehicleId)) return [];
+  const found = trips
+    .filter((t) => {
+      if (t.vehicleId === vehicleId) return false;
+      if (carSeenDuring(t.startMs, t.endMs, links, sightings) !== vehicleId) return false;
+      return tally(t.startMs, t.endMs, links, sightings).cars.size === 1;
+    })
+    .sort((a, b) => b.startMs - a.startMs);
+  return found;
+}
+
+/**
+ * Of trips that overlap in time (a doubled copy still on the phone), the
+ * first in the list only. Run after the server check, so a copy the server
+ * deleted never hides the real one.
+ */
+export function withoutOverlaps<T extends { startMs: number; endMs: number }>(trips: T[]): T[] {
+  const kept: T[] = [];
+  for (const t of trips) {
+    if (!kept.some((k) => t.startMs <= k.endMs && k.startMs <= t.endMs)) kept.push(t);
+  }
+  return kept;
+}
+
+/**
+ * Recorded trips from the sightings window (three days) that were in the car
+ * just linked to out, but are on another car. Read only; never throws, empty
+ * on any failure or when the feature is off.
+ */
+export async function earlierTripsInCar(
+  vehicleId: string,
+  out: { name: string; id: string | null },
+  nowMs: number = Date.now()
+): Promise<EarlierTrip[]> {
+  try {
+    if (!vehicleId || !isOutput(out)) return [];
+    if (!(await isCarBluetoothOn())) return [];
+    const links = linksAfterLinking((await readLinks()).links, vehicleId, out);
+    const fromMs = nowMs - SIGHTING_KEEP_MS;
+    const sightings = await readSightings(fromMs - SIGHTING_LEAD_MS, nowMs);
+    if (sightings.length === 0) return [];
+    const db = await getDatabase();
+    // Not shift trips: they keep the shift's car. Start Trip trips carry no
+    // shift on the phone, so they can be offered too; the driver is asked
+    // first either way. Times can be ISO or raw epoch text: SQL narrows the
+    // ISO ones, the exact window is applied below.
+    const rows = await db.getAllAsync<{
+      id: string;
+      vehicle_id: string | null;
+      started_at: string;
+      ended_at: string | null;
+      start_address: string | null;
+      end_address: string | null;
+      distance_miles: number | null;
+      synced_at: string | null;
+    }>(
+      "SELECT id, vehicle_id, started_at, ended_at, start_address, end_address, distance_miles, synced_at FROM trips " +
+        "WHERE is_manual_entry = 0 AND shift_id IS NULL AND ended_at IS NOT NULL AND (started_at >= ? OR started_at NOT LIKE '%-%')",
+      [new Date(fromMs).toISOString()]
+    );
+    const trips = [];
+    for (const r of rows) {
+      const w = tripWindowMs(r.started_at, r.ended_at);
+      if (!w || w.startMs < fromMs || w.endMs > nowMs) continue;
+      trips.push({ ...w, vehicleId: r.vehicle_id ?? null, row: r });
+    }
+    return tripsSeenInCar(vehicleId, links, sightings, trips)
+      .slice(0, EARLIER_TRIPS_LOOKED_AT)
+      .map((t) => ({
+        id: t.row.id,
+        startMs: t.startMs,
+        endMs: t.endMs,
+        startAddress: t.row.start_address ?? null,
+        endAddress: t.row.end_address ?? null,
+        distanceMiles: Number(t.row.distance_miles) || 0,
+        synced: !!t.row.synced_at,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 // ── "Which car is MY FORD?" ─────────────────────────────────────────────
 
 let questionSnoozed = false;

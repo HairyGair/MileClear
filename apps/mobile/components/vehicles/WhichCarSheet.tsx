@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { Vehicle } from "@mileclear/shared";
 import { AppModal } from "../AppModal";
 import { answerCarQuestion, linksFromCars, snoozeCarQuestion, type CarQuestion } from "../../lib/vehicles/carBluetooth";
+import { offerEarlierTrips } from "../../lib/vehicles/earlierTrips";
 import { haptic } from "../../lib/haptics";
 import { colors, fonts } from "../../lib/theme";
 import CarBluetoothArt from "./CarBluetoothArt";
@@ -51,6 +52,13 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
         await answerCarQuestion(question, vehicleId);
         busy.current = false;
         onDone();
+        // Linked: offer to move this car's earlier drives. After the sheet
+        // has gone, so the alert isn't lost behind the closing modal.
+        const car = vehicleId ? cars.find((c) => c.id === vehicleId) : undefined;
+        if (car) {
+          const linked = { name: question.name, id: question.id ?? null };
+          setTimeout(() => void offerEarlierTrips(car.id, `${car.make} ${car.model}`.trim(), linked), 600);
+        }
       } catch {
         // Not saved: stay open and say so; Close snoozes so we ask another day.
         await snoozeCarQuestion().catch(() => {});
@@ -64,7 +72,7 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
         }
       }
     },
-    [question, onDone]
+    [question, onDone, cars]
   );
 
   // Not now, Close and Android back: no answer, asked again another day.

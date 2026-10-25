@@ -9,6 +9,19 @@ let sightingsTable: Array<{
   kind: string | null;
   source?: string | null;
 }> = [];
+// Local trips, for the look-back after linking (earlierTripsInCar).
+let tripsTable: Array<{
+  id: string;
+  vehicle_id: string | null;
+  started_at: string;
+  ended_at: string | null;
+  start_address: string | null;
+  end_address: string | null;
+  distance_miles: number | null;
+  is_manual_entry: number;
+  shift_id: string | null;
+  synced_at: string | null;
+}> = [];
 let failDb = false;
 let hangDb = false;
 vi.mock("../../db/index", () => ({
@@ -18,8 +31,18 @@ vi.mock("../../db/index", () => ({
     return {
       getFirstAsync: async (_sql: string, params: string[]) =>
         state.has(params[0]) ? { value: state.get(params[0]) } : null,
-      getAllAsync: async (_sql: string, params: number[]) =>
-        sightingsTable.filter((r) => r.at_ms >= params[0] && r.at_ms <= params[1]),
+      getAllAsync: async (sql: string, params: number[] = []) =>
+        sql.includes("FROM trips")
+          ? // The WHERE clause, as SQLite would apply it (ISO text compares as text).
+            (expect(sql).toContain("is_manual_entry = 0 AND shift_id IS NULL AND ended_at IS NOT NULL"),
+            tripsTable.filter(
+              (t) =>
+                t.is_manual_entry === 0 &&
+                t.shift_id === null &&
+                t.ended_at !== null &&
+                (t.started_at >= (params[0] as unknown as string) || !t.started_at.includes("-"))
+            ))
+          : sightingsTable.filter((r) => r.at_ms >= params[0] && r.at_ms <= params[1]),
       runAsync: async (sql: string, params: unknown[] = []) => {
         if (sql.startsWith("INSERT INTO car_sightings")) {
           const [at_ms, name, device_id, kind, source] = params as [number, string, string | null, string | null, string];
@@ -48,6 +71,12 @@ import {
   cacheCarLinks,
   carSeenDuring,
   chooseRecordedTripCar,
+  earlierTripsInCar,
+  EARLIER_TRIPS_LOOKED_AT,
+  withoutOverlaps,
+  linksAfterLinking,
+  SIGHTING_KEEP_MS,
+  tripsSeenInCar,
   forgetCarBluetooth,
   maybeAskCarQuestion,
   mergeBlockedByCar,
@@ -760,5 +789,185 @@ describe("switched off (CAR_BLUETOOTH_ROLLOUT): completely inert", () => {
     expect(state.has("car_bluetooth_enabled")).toBe(false);
     sightingsTable.push({ at_ms: START + MIN, name: "MY FORD", device_id: "AA:01", kind: "bluetooth" });
     expect(await bluetoothCarForTrip(START, END)).toBeNull();
+  });
+});
+
+describe("after linking: earlier drives in that car", () => {
+  const toyota = { name: "Toyota Touch", id: "XX:XX:XX:XX:4C:62" };
+  const astra: CarLink = { vehicleId: "astra", name: "Gairs Car", id: "XX:XX:XX:XX:11:22" };
+
+  it("linksAfterLinking: replaces the car's old link and any other car's link to the same output", () => {
+    const links = [
+      { vehicleId: "yaris", name: "Old Name", id: null },
+      { vehicleId: "other", name: "Toyota Touch", id: "XX:XX:XX:XX:4C:62" },
+      astra,
+    ];
+    expect(linksAfterLinking(links, "yaris", toyota)).toEqual([
+      astra,
+      { vehicleId: "yaris", name: "Toyota Touch", id: "XX:XX:XX:XX:4C:62" },
+    ]);
+    // A name-only id ("name:...") is stored as no id.
+    expect(linksAfterLinking([], "yaris", { name: " Toyota Touch ", id: "name:Toyota Touch" })).toEqual([
+      { vehicleId: "yaris", name: "Toyota Touch", id: null },
+    ]);
+  });
+
+  it("tripsSeenInCar: the finalize rule, only trips on another car, newest first", () => {
+    const links = linksAfterLinking([astra], "yaris", toyota);
+    const inToyota = [seen(START + MIN, "Toyota Touch", toyota.id), seen(START + 2 * MIN, "Toyota Touch", toyota.id)];
+    const later = START + 60 * MIN;
+    const inToyotaLater = [seen(later + MIN, "Toyota Touch", toyota.id), seen(later + 2 * MIN, "Toyota Touch", toyota.id)];
+    const inAstra = [seen(START + 120 * MIN, "Gairs Car", astra.id), seen(START + 121 * MIN, "Gairs Car", astra.id)];
+    const trips = [
+      { id: "a", vehicleId: "astra", startMs: START, endMs: START + 5 * MIN },
+      { id: "b", vehicleId: null, startMs: later, endMs: later + 5 * MIN },
+      { id: "already", vehicleId: "yaris", startMs: later, endMs: later + 5 * MIN },
+      { id: "astra-drive", vehicleId: "astra", startMs: START + 119 * MIN, endMs: START + 125 * MIN },
+      { id: "nothing-seen", vehicleId: "astra", startMs: START + 200 * MIN, endMs: START + 205 * MIN },
+    ];
+    expect(tripsSeenInCar("yaris", links, [...inToyota, ...inToyotaLater, ...inAstra], trips).map((t) => t.id)).toEqual([
+      "b",
+      "a",
+    ]);
+    // No link for the car: nothing.
+    expect(tripsSeenInCar("yaris", [astra], inToyota, trips)).toEqual([]);
+  });
+
+  it("tripsSeenInCar: a drive mostly in the Toyota but partly in the Astra (merged) is not offered", () => {
+    const links = linksAfterLinking([astra], "yaris", toyota);
+    const merged = [
+      seen(START + 2 * MIN, "Toyota Touch", toyota.id),
+      seen(START + 3 * MIN, "Toyota Touch", toyota.id),
+      seen(START + 4 * MIN, "Toyota Touch", toyota.id),
+      seen(START + 8 * MIN, "Gairs Car", astra.id),
+    ];
+    const t = { id: "m", vehicleId: "astra", startMs: START, endMs: START + 10 * MIN };
+    // Finalize would pick the Toyota (3 of 4)...
+    expect(carSeenDuring(t.startMs, t.endMs, links, merged)).toBe("yaris");
+    // ...but the look-back only offers a drive seen in this car alone.
+    expect(tripsSeenInCar("yaris", links, merged, [t])).toEqual([]);
+  });
+
+  it("withoutOverlaps: the first of trips that overlap in time", () => {
+    const a = { id: "a", startMs: START + 10 * MIN, endMs: START + 20 * MIN };
+    const b = { id: "b", startMs: START + 11 * MIN, endMs: START + 19 * MIN };
+    const c = { id: "c", startMs: START, endMs: START + 5 * MIN };
+    expect(withoutOverlaps([a, b, c]).map((t) => t.id)).toEqual(["a", "c"]);
+    expect(withoutOverlaps([b, a, c]).map((t) => t.id)).toEqual(["b", "c"]);
+  });
+
+  it("tripsSeenInCar: a drive mostly in another (unlinked) car is not offered", () => {
+    const links = linksAfterLinking([], "yaris", toyota);
+    const mixed = [
+      seen(START + MIN, "Toyota Touch", toyota.id),
+      seen(START + 2 * MIN, "SEAT BT"),
+      seen(START + 3 * MIN, "SEAT BT"),
+      seen(START + 4 * MIN, "SEAT BT"),
+    ];
+    expect(tripsSeenInCar("yaris", links, mixed, [{ id: "a", vehicleId: "astra", startMs: START, endMs: START + 5 * MIN }])).toEqual([]);
+  });
+
+  describe("earlierTripsInCar (the phone's store)", () => {
+    const NOW = START + 2 * 60 * MIN;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const trip = (id: string, startMs: number, mins: number, extra: Partial<(typeof tripsTable)[number]> = {}) => ({
+      id,
+      vehicle_id: "astra",
+      started_at: iso(startMs),
+      ended_at: iso(startMs + mins * MIN),
+      start_address: "Home",
+      end_address: "Kaths",
+      distance_miles: 3.79,
+      is_manual_entry: 0,
+      shift_id: null,
+      synced_at: "2026-10-25T20:00:00.000Z",
+      ...extra,
+    });
+    const drive = (startMs: number) => {
+      sightingsTable.push({ at_ms: startMs + MIN, name: "Toyota Touch", device_id: toyota.id, kind: "bluetooth", source: "fix" });
+      sightingsTable.push({ at_ms: startMs + 2 * MIN, name: "Toyota Touch", device_id: toyota.id, kind: "bluetooth", source: "fix" });
+    };
+
+    beforeEach(async () => {
+      state.clear();
+      sightingsTable = [];
+      tripsTable = [];
+      failDb = false;
+      hangDb = false;
+      await rememberCarBluetoothFlag(true);
+      // The cache still shows one car and no links: linking hasn't reloaded it yet.
+      await cacheCarLinks([{ id: "astra" }]);
+    });
+
+    it("finds the drive taken before the car was linked (Anthony, 25 Oct)", async () => {
+      drive(START);
+      tripsTable.push(trip("kaths", START, 6));
+      const found = await earlierTripsInCar("yaris", toyota, NOW);
+      expect(found).toEqual([
+        {
+          id: "kaths",
+          startMs: START,
+          endMs: START + 6 * MIN,
+          startAddress: "Home",
+          endAddress: "Kaths",
+          distanceMiles: 3.79,
+          synced: true,
+        },
+      ]);
+    });
+
+    it("skips trips outside the window, manual and shift trips, and trips already on the car", async () => {
+      drive(START);
+      drive(NOW - SIGHTING_KEEP_MS - 10 * MIN);
+      tripsTable.push(trip("old", NOW - SIGHTING_KEEP_MS - 10 * MIN, 6));
+      tripsTable.push(trip("shift", START, 6, { shift_id: "s1" }));
+      tripsTable.push(trip("manual", START, 6, { id: "manual", is_manual_entry: 1 }));
+      tripsTable.push(trip("mine", START, 6, { vehicle_id: "yaris" }));
+      tripsTable.push(trip("unfinished", START, 6, { ended_at: null }));
+      expect(await earlierTripsInCar("yaris", toyota, NOW)).toEqual([]);
+    });
+
+    it("a trip not yet sent says so; a car-less trip is offered", async () => {
+      drive(START);
+      tripsTable.push(trip("pending", START, 6, { synced_at: null, vehicle_id: null }));
+      expect(await earlierTripsInCar("yaris", toyota, NOW)).toMatchObject([{ id: "pending", synced: false }]);
+    });
+
+    it("two copies of one drive on the phone: both passed on, for the server check to pick", async () => {
+      drive(START);
+      tripsTable.push(trip("copy-1", START, 6));
+      tripsTable.push(trip("copy-2", START + 30 * 1000, 6));
+      expect(await earlierTripsInCar("yaris", toyota, NOW)).toHaveLength(2);
+    });
+
+    it("reads raw epoch times too", async () => {
+      drive(START);
+      tripsTable.push(trip("epoch", START, 6, { started_at: String(START), ended_at: String(START + 6 * MIN) }));
+      expect((await earlierTripsInCar("yaris", toyota, NOW)).map((t) => t.id)).toEqual(["epoch"]);
+    });
+
+    it("passes on at most EARLIER_TRIPS_LOOKED_AT", async () => {
+      for (let i = 0; i < EARLIER_TRIPS_LOOKED_AT + 5; i++) {
+        const s = START - i * 10 * MIN;
+        drive(s);
+        tripsTable.push(trip(`t${i}`, s, 6));
+      }
+      const found = await earlierTripsInCar("yaris", toyota, NOW);
+      expect(found).toHaveLength(EARLIER_TRIPS_LOOKED_AT);
+      expect(found[0].id).toBe("t0");
+    });
+
+    it("off, failing or with nothing logged: empty, never throws", async () => {
+      tripsTable.push(trip("kaths", START, 6));
+      expect(await earlierTripsInCar("yaris", toyota, NOW)).toEqual([]); // no sightings
+      drive(START);
+      failDb = true;
+      expect(await earlierTripsInCar("yaris", toyota, NOW)).toEqual([]);
+      failDb = false;
+      expect(await earlierTripsInCar("", toyota, NOW)).toEqual([]);
+      expect(await earlierTripsInCar("yaris", { name: " ", id: null }, NOW)).toEqual([]);
+      await rememberCarBluetoothFlag(false);
+      expect(await earlierTripsInCar("yaris", toyota, NOW)).toEqual([]);
+    });
   });
 });

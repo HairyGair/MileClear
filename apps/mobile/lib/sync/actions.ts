@@ -237,6 +237,7 @@ export async function syncUpdateTrip(id: string, data: UpdateTripData) {
   if (data.endLng !== undefined) { setClauses.push("end_lng = ?"); values.push(data.endLng); }
   if (data.endedAt !== undefined) { setClauses.push("ended_at = ?"); values.push(data.endedAt); }
   if (data.distanceMiles !== undefined) { setClauses.push("distance_miles = ?"); values.push(data.distanceMiles); }
+  if (data.vehicleId !== undefined) { setClauses.push("vehicle_id = ?"); values.push(data.vehicleId); }
   if (setClauses.length > 0) {
     values.push(id);
     await db.runAsync(`UPDATE trips SET ${setClauses.join(", ")} WHERE id = ?`, values);
