@@ -20,6 +20,7 @@ import { planFromGoogleSubscription } from "../../services/googlePlayBilling.js"
 import { sendProWelcomeEmail } from "../../services/email.js";
 import { checkOrphanAfterGrace } from "../../services/googleOrphanCheck.js";
 import { discordUserLabel } from "../../services/discord.js";
+import { readPurchaseSource } from "./validateBody.js";
 
 /**
  * Google Play Billing routes — the Android counterpart to apple.ts.
@@ -97,6 +98,9 @@ export async function googleBillingRoutes(app: FastifyInstance) {
       logEvent("billing.google_play_validated", request.userId!, {
         orderId: sub.latestOrderId ?? null,
         state: sub.subscriptionState ?? null,
+        // See the Apple validate route for both fields.
+        source: readPurchaseSource(request.body),
+        newLink: !existingUser,
       });
       app.log.info(
         `User ${request.userId} validated Google Play purchase ${sub.latestOrderId ?? "(no order id)"}`,

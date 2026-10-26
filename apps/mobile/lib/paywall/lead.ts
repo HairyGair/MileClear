@@ -36,37 +36,45 @@ export interface PaywallFeature {
 }
 
 /**
- * Page 3, "Everything in Pro". Every entry must be Pro-only AND reachable in
- * the app. Removed 29 Sep 2026: Pickup Wait Insights (the app never calls the
- * insights endpoint) and Accountant Sharing (the invite only exists on the
- * website). Shift grades are free, so they are not listed.
+ * Page 3. Every entry must be Pro-only AND reachable in the app. Removed 29
+ * Sep 2026: Pickup Wait Insights (the app never calls the insights endpoint)
+ * and Accountant Sharing (the invite only exists on the website). Shift
+ * grades are free, so they are not listed.
+ *
+ * Ordered by what sells (26 Oct 2026, last 90 days): the downloads are what
+ * paying drivers use most and the second most common reason a free driver
+ * reaches the Pro screen; Journey Map came just before more purchases than
+ * any other feature; then the Mileage Certificate, saved places and cars.
+ * The first PAYWALL_MAIN_COUNT get a card; the rest are one "Also in Pro"
+ * line, so the long tail no longer buries the main reasons to pay.
  */
 export const PAYWALL_FEATURES: readonly PaywallFeature[] = [
   { id: "sa_pdf", icon: "document-text-outline", label: "Self Assessment PDF", desc: "Your SA103 figures as a print-ready PDF to file from" },
   { id: "mileage_exports", icon: "download-outline", label: "Mileage Exports", desc: "CSV and PDF mileage logs for your records or accountant" },
-  { id: "mileage_certificate", icon: "ribbon-outline", label: "Mileage Certificate", desc: "A record of your miles anyone can check, for an insurer, employer or buyer" },
-  { id: "invoices", icon: "receipt-outline", label: "Unlimited Invoices", desc: "Branded PDFs, email to clients and auto-chase (free plan: 3 a month)" },
-  { id: "csv_import", icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
-  { id: "snap_statement", icon: "camera-outline", label: "Snap a Statement", desc: "Read your earnings from a platform screenshot" },
-  { id: "ticket_defender", icon: "shield-checkmark-outline", label: "Ticket Defender", desc: "A PDF record of where your phone was when a fine says you were somewhere, plus Clean Air Zone pay-by dates" },
-  { id: "open_banking", icon: "card-outline", label: "Open Banking", desc: "Import earnings from your bank" },
-  { id: "business_insights", icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L and golden hours" },
-  { id: "driving_analytics", icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends and deeper efficiency metrics" },
-  { id: "auto_classify", icon: "calendar-outline", label: "Sort by work hours", desc: "Trips in your work hours marked as Business for you. Other sorting is free" },
   { id: "journey_map", icon: "map-outline", label: "Journey Map", desc: "See your recent routes together on one map" },
+  { id: "mileage_certificate", icon: "ribbon-outline", label: "Mileage Certificate", desc: "A record of your miles anyone can check, for an insurer, employer or buyer" },
   { id: "saved_locations", icon: "location-outline", label: "Unlimited Locations", desc: "Save as many depots as you need (free plan: 2)" },
   { id: "vehicles", icon: "car-outline", label: "Unlimited Vehicles", desc: "Add every car, van or motorbike you drive (free plan: 1)" },
+  { id: "auto_classify", icon: "calendar-outline", label: "Sort by work hours", desc: "Trips in your work hours marked as Business for you. Other sorting is free" },
+  { id: "invoices", icon: "receipt-outline", label: "Unlimited Invoices", desc: "Branded PDFs, email to clients and auto-chase (free plan: 3 a month)" },
+  { id: "snap_statement", icon: "camera-outline", label: "Snap a Statement", desc: "Read your earnings from a platform screenshot" },
+  { id: "open_banking", icon: "card-outline", label: "Open Banking", desc: "Import earnings from your bank" },
+  { id: "csv_import", icon: "cloud-upload-outline", label: "CSV Import", desc: "Bulk import platform earnings" },
+  { id: "business_insights", icon: "podium-outline", label: "Business Insights", desc: "Platform comparison, P&L and golden hours" },
+  { id: "driving_analytics", icon: "analytics-outline", label: "Driving Analytics", desc: "Weekly trends and deeper efficiency metrics" },
+  { id: "ticket_defender", icon: "shield-checkmark-outline", label: "Ticket Defender", desc: "A PDF record of where your phone was when a fine says you were somewhere, plus Clean Air Zone pay-by dates" },
 ];
 
-/** Page 4 checkmark list. Same rule: Pro-only and in the app. */
+/** How many of PAYWALL_FEATURES get a card on page 3. */
+export const PAYWALL_MAIN_COUNT = 6;
+
+/** Page 4 checklist, same order. Same rule: Pro-only and in the app. */
 export const PAYWALL_CHECKLIST: readonly string[] = [
-  "Self Assessment PDF and mileage log exports",
-  "Unlimited invoices, with PDFs and auto-chase",
-  "CSV earnings import",
-  "Business insights and platform P&L",
-  "Driving analytics and journey map",
-  "Unlimited vehicles and saved locations",
-  "Open Banking earnings import",
+  "Self Assessment PDF and mileage log downloads",
+  "Journey Map of your recent routes",
+  "Mileage Certificate anyone can check",
+  "Unlimited vehicles and saved places",
+  "Unlimited invoices, earnings imports, insights and more",
 ];
 
 export interface PaywallLead {
@@ -244,7 +252,23 @@ export function paywallLeadFor(source: string | null | undefined): PaywallLead |
   return null;
 }
 
-/** Page 3 order: the highlighted feature first, the rest as listed. */
+/**
+ * Page 3: the cards (the highlighted feature first, then the main ones) and
+ * the labels for the "Also in Pro" line. A highlighted feature from the long
+ * tail gets a card too: it is what the driver tapped.
+ */
+export function pageThreeFeatures(highlight?: PaywallFeatureId): {
+  cards: PaywallFeature[];
+  also: string[];
+} {
+  const ordered = orderedFeatures(highlight);
+  const main = new Set(PAYWALL_FEATURES.slice(0, PAYWALL_MAIN_COUNT).map((f) => f.id));
+  const cards = ordered.filter((f) => main.has(f.id) || f.id === highlight);
+  const also = ordered.filter((f) => !cards.includes(f)).map((f) => f.label);
+  return { cards, also };
+}
+
+/** The highlighted feature first, the rest as listed. */
 export function orderedFeatures(highlight?: PaywallFeatureId): PaywallFeature[] {
   if (!highlight) return [...PAYWALL_FEATURES];
   const first = PAYWALL_FEATURES.filter((f) => f.id === highlight);

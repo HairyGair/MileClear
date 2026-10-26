@@ -8,11 +8,11 @@ import { apiRequest } from "./index";
  * doesn't collide with the parked monetisation changes sitting uncommitted in
  * that file. Fold it in when monetisation unparks.
  */
-export function validateGooglePurchase(purchaseToken: string) {
+export function validateGooglePurchase(purchaseToken: string, source?: string) {
   return apiRequest<{
     data: { isPremium: boolean; premiumExpiresAt: string | null };
   }>("/billing/google/validate", {
     method: "POST",
-    body: JSON.stringify({ purchaseToken }),
+    body: JSON.stringify({ purchaseToken, source }),
   });
 }

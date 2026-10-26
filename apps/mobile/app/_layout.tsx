@@ -172,6 +172,7 @@ import { useScreenTracking } from "../lib/events/useScreenTracking";
 import { isIapAvailable, initializeIap, setupPurchaseListeners, endIapConnection, iapStore } from "../lib/iap/index";
 import { validateGooglePurchase } from "../lib/api/billingGoogle";
 import { validateApplePurchase } from "../lib/api/billing";
+import { clearPurchaseSource, purchaseSource } from "../lib/paywall/purchaseSource";
 import { PaywallProvider } from "../components/paywall";
 import { PromptProvider } from "../components/prompt";
 import { AppLockProvider } from "../lib/appLock/context";
@@ -725,11 +726,13 @@ function RootNavigator() {
         onPurchaseSuccess: async (token) => {
           // token is a StoreKit transaction ID on iOS, a Play purchase token
           // on Android — each store has its own validate endpoint.
+          const source = purchaseSource();
           if (iapStore() === "google") {
-            await validateGooglePurchase(token);
+            await validateGooglePurchase(token, source);
           } else {
-            await validateApplePurchase(token);
+            await validateApplePurchase(token, source);
           }
+          clearPurchaseSource();
           refreshUser();
         },
         onPurchaseError: (error) => {

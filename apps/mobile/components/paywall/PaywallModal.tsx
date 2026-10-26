@@ -34,7 +34,7 @@ import {
   PAYWALL_CHECKLIST,
   billingChannelFor,
   billingCopyFor,
-  orderedFeatures,
+  pageThreeFeatures,
   paywallLeadFor,
 } from "../../lib/paywall/lead";
 import { useUser } from "../../lib/user/context";
@@ -79,7 +79,7 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
 
   // Lead with what the person tapped (null = the generic mileage pitch).
   const lead = useMemo(() => paywallLeadFor(source), [source]);
-  const features = useMemo(() => orderedFeatures(lead?.highlightFeature), [lead]);
+  const features = useMemo(() => pageThreeFeatures(lead?.highlightFeature), [lead]);
   // Where they would pay decides where they cancel: App Store, Google Play,
   // or a card through Stripe Checkout when no in-app purchase is available.
   const billingCopy = billingCopyFor(billingChannelFor(iapStore(), Platform.OS));
@@ -169,9 +169,9 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
       const isGoogle = iapStore() === "google";
       for (const token of tokens) {
         if (isGoogle) {
-          await validateGooglePurchase(token);
+          await validateGooglePurchase(token, "restore");
         } else {
-          await validateApplePurchase(token);
+          await validateApplePurchase(token, "restore");
         }
       }
       await refreshUser();
@@ -340,10 +340,10 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
                   <Ionicons name="diamond" size={36} color={AMBER} />
                 </View>
 
-                <Text style={s.featuresHeading}>Everything in Pro</Text>
+                <Text style={s.featuresHeading}>What you get with Pro</Text>
 
                 <View style={s.featureGrid}>
-                  {features.map((f) => (
+                  {features.cards.map((f) => (
                     <View
                       key={f.id}
                       style={[s.featureItem, f.id === lead?.highlightFeature && s.featureItemHighlight]}
@@ -358,6 +358,13 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
                     </View>
                   ))}
                 </View>
+
+                {features.also.length > 0 && (
+                  <Text style={s.alsoInPro}>
+                    <Text style={s.alsoInProLead}>Also in Pro: </Text>
+                    {features.also.join(", ")}.
+                  </Text>
+                )}
 
                 <View style={s.socialProof}>
                   <Ionicons name="people" size={18} color={TEXT_3} />
@@ -720,6 +727,17 @@ const s = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.regular,
     color: TEXT_2,
+  },
+  alsoInPro: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: fonts.regular,
+    color: TEXT_2,
+    marginBottom: 16,
+  },
+  alsoInProLead: {
+    fontFamily: fonts.semibold,
+    color: TEXT_1,
   },
   socialProof: {
     flexDirection: "row",

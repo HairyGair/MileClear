@@ -99,9 +99,9 @@ export default function PlanSettings() {
       const isGoogle = iapStore() === "google";
       for (const token of tokens) {
         if (isGoogle) {
-          await validateGooglePurchase(token);
+          await validateGooglePurchase(token, "restore");
         } else {
-          await validateApplePurchase(token);
+          await validateApplePurchase(token, "restore");
         }
       }
       loadData();

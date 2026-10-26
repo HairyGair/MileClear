@@ -4815,6 +4815,18 @@ export default function TripFormScreen() {
                   matchedCoordinates={routeMatched.length >= 2 ? routeMatched : null}
                   height={160}
                 />
+                {/* Journey Map was only a bare icon on Trips; it sells Pro
+                    better than any other feature, so it is linked here too. */}
+                <TouchableOpacity
+                  style={styles.journeyMapLink}
+                  onPress={() => router.push("/journey-map" as never)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Journey map. Opens a map of your recent routes."
+                  hitSlop={{ top: 8, bottom: 8 }}
+                >
+                  <Ionicons name="map-outline" size={14} color={AMBER} accessible={false} />
+                  <Text style={styles.journeyMapLinkText}>See your recent routes on one map</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -5966,6 +5978,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     color: "#d4a053",
     flex: 1,
+  },
+  journeyMapLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    marginTop: 8,
+  },
+  journeyMapLinkText: {
+    fontSize: 13,
+    fontFamily: fonts.medium,
+    color: AMBER,
   },
   // ── Classification / platform chips ──────────────────
   addCard: {

@@ -3,6 +3,7 @@ import { PaywallModal } from "./PaywallModal";
 import { ChallengeModal } from "./ChallengeModal";
 import { useUser } from "../../lib/user/context";
 import { getDatabase } from "../../lib/db/index";
+import { notePaywallSource } from "../../lib/paywall/purchaseSource";
 
 interface PaywallContextValue {
   showPaywall: (source?: string) => void;
@@ -41,6 +42,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
 
   const showPaywall = useCallback((src?: string) => {
     if (!isFree) return;
+    notePaywallSource(src);
     setSource(src);
     setVisible(true);
     // Demand before the season (28 Sep 2026): which Pro feature a free user

@@ -36,6 +36,8 @@ vi.mock("../../services/appleIap.js", () => ({
 }));
 
 import { appleBillingRoutes, readTransactionId } from "../../routes/billing/apple.js";
+import { readPurchaseSource } from "../../routes/billing/validateBody.js";
+import { logEvent } from "../../services/appEvents.js";
 import { prisma } from "../../lib/prisma.js";
 import { fetchTransactionWithEnvFallback } from "../../services/appleIap.js";
 
@@ -60,6 +62,22 @@ describe("readTransactionId", () => {
     expect(readTransactionId({ transactionId: "" })).toBeUndefined();
     expect(readTransactionId({ transactionId: 42 })).toBeUndefined();
     expect(readTransactionId(Buffer.from("not json"))).toBeUndefined();
+  });
+});
+
+describe("readPurchaseSource", () => {
+  it("reads a short plain label from any body shape", () => {
+    expect(readPurchaseSource({ source: "Journey Map" })).toBe("Journey Map");
+    expect(readPurchaseSource(Buffer.from(JSON.stringify({ source: "5th_trip" })))).toBe("5th_trip");
+    expect(readPurchaseSource(JSON.stringify({ source: "self-assessment" }))).toBe("self-assessment");
+  });
+  it("drops missing, odd or long values", () => {
+    expect(readPurchaseSource({})).toBeNull();
+    expect(readPurchaseSource({ source: 7 })).toBeNull();
+    expect(readPurchaseSource({ source: "" })).toBeNull();
+    expect(readPurchaseSource({ source: "<script>" })).toBeNull();
+    expect(readPurchaseSource({ source: "x".repeat(65) })).toBeNull();
+    expect(readPurchaseSource(Buffer.from("not json"))).toBeNull();
   });
 });
 
@@ -106,6 +124,37 @@ describe("POST /billing/apple/validate", () => {
     });
     expect(res.statusCode).toBe(400);
     expect(fetchTransactionWithEnvFallback).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("logs what led to the purchase and whether the subscription is new to this account", async () => {
+    vi.mocked(logEvent).mockReset();
+    const app = await createTestApp();
+    await app.inject({
+      method: "POST",
+      url: "/billing/apple/validate",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: JSON.stringify({ transactionId: "txn-1", source: "exports" }),
+    });
+    expect(logEvent).toHaveBeenCalledWith("billing.apple_iap_validated", USER_ID, {
+      originalTransactionId: "orig-123",
+      source: "exports",
+      newLink: true,
+    });
+
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: USER_ID } as never);
+    vi.mocked(logEvent).mockReset();
+    await app.inject({
+      method: "POST",
+      url: "/billing/apple/validate",
+      headers: { ...auth, "content-type": "application/json" },
+      payload: JSON.stringify({ transactionId: "txn-1" }),
+    });
+    expect(logEvent).toHaveBeenCalledWith("billing.apple_iap_validated", USER_ID, {
+      originalTransactionId: "orig-123",
+      source: null,
+      newLink: false,
+    });
     await app.close();
   });
 });

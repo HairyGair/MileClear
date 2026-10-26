@@ -17,11 +17,12 @@ export function cancelSubscription() {
   });
 }
 
-export function validateApplePurchase(transactionId: string) {
+/** `source`: what led to the purchase (lib/paywall/purchaseSource.ts), or "restore". */
+export function validateApplePurchase(transactionId: string, source?: string) {
   return apiRequest<{
     data: { isPremium: boolean; premiumExpiresAt: string | null };
   }>("/billing/apple/validate", {
     method: "POST",
-    body: JSON.stringify({ transactionId }),
+    body: JSON.stringify({ transactionId, source }),
   });
 }

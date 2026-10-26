@@ -13,6 +13,7 @@ import {
   type AppleIapEnvironment,
 } from "../../services/appleIap.js";
 import { logEvent } from "../../services/appEvents.js";
+import { readPurchaseSource, readTransactionId } from "./validateBody.js";
 import { respondToConsumptionRequest } from "../../services/appleConsumption.js";
 import { notifyBillingEvent } from "../../services/billingAlerts.js";
 import { planFromAppleProductId } from "../../services/appleIap.js";
@@ -57,19 +58,7 @@ async function recordAppleWebhook(data: {
 
 /** The validate body's transactionId, whether Fastify parsed it as JSON or
  *  handed over the raw buffer/string (see the note in /validate). */
-export function readTransactionId(body: unknown): string | undefined {
-  let value: unknown = body;
-  if (Buffer.isBuffer(value)) value = value.toString("utf8");
-  if (typeof value === "string") {
-    try {
-      value = JSON.parse(value);
-    } catch {
-      return undefined;
-    }
-  }
-  const id = (value as { transactionId?: unknown } | null)?.transactionId;
-  return typeof id === "string" && id.length > 0 ? id : undefined;
-}
+export { readTransactionId };
 
 export async function appleBillingRoutes(app: FastifyInstance) {
   // --- Validate purchase (auth required) ---
@@ -160,7 +149,16 @@ export async function appleBillingRoutes(app: FastifyInstance) {
           },
         });
 
-        logEvent("billing.apple_iap_validated", request.userId!, { originalTransactionId });
+        // newLink: this account did not already hold this subscription. False
+        // for a restore or the app re-checking a purchase, but also for a
+        // lapsed driver buying again (Apple keeps the original transaction id)
+        // or a purchase Apple's webhook linked first. On Google a comeback or
+        // plan change is a new token, so true. Count buyers with care.
+        logEvent("billing.apple_iap_validated", request.userId!, {
+          originalTransactionId,
+          source: readPurchaseSource(request.body),
+          newLink: !existingUser,
+        });
         app.log.info(
           `User ${request.userId} validated Apple purchase ${originalTransactionId}`
         );

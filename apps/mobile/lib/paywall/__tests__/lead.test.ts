@@ -4,7 +4,9 @@ import {
   PAYWALL_FEATURES,
   billingChannelFor,
   billingCopyFor,
+  PAYWALL_MAIN_COUNT,
   orderedFeatures,
+  pageThreeFeatures,
   paywallLeadFor,
   type BillingChannel,
 } from "../lead";
@@ -115,6 +117,32 @@ describe("orderedFeatures", () => {
     expect(ordered[0].id).toBe("vehicles");
     expect(ordered).toHaveLength(PAYWALL_FEATURES.length);
     expect(new Set(ordered.map((f) => f.id)).size).toBe(PAYWALL_FEATURES.length);
+  });
+});
+
+describe("pageThreeFeatures", () => {
+  const MAIN = PAYWALL_FEATURES.slice(0, PAYWALL_MAIN_COUNT).map((f) => f.id);
+
+  it("leads with the downloads and Journey Map, and puts the rest on one line", () => {
+    const { cards, also } = pageThreeFeatures();
+    expect(cards.map((f) => f.id)).toEqual(MAIN);
+    expect(MAIN.slice(0, 3)).toEqual(["sa_pdf", "mileage_exports", "journey_map"]);
+    expect(also).toEqual(PAYWALL_FEATURES.slice(PAYWALL_MAIN_COUNT).map((f) => f.label));
+  });
+
+  it("puts a highlighted main feature first, still six cards", () => {
+    const { cards, also } = pageThreeFeatures("journey_map");
+    expect(cards[0].id).toBe("journey_map");
+    expect(cards).toHaveLength(PAYWALL_MAIN_COUNT);
+    expect(also).toHaveLength(PAYWALL_FEATURES.length - PAYWALL_MAIN_COUNT);
+  });
+
+  it("gives a highlighted long-tail feature its own card and leaves it off the line", () => {
+    const { cards, also } = pageThreeFeatures("ticket_defender");
+    expect(cards[0].id).toBe("ticket_defender");
+    expect(cards).toHaveLength(PAYWALL_MAIN_COUNT + 1);
+    expect(also).not.toContain("Ticket Defender");
+    expect(cards.length + also.length).toBe(PAYWALL_FEATURES.length);
   });
 });
 
