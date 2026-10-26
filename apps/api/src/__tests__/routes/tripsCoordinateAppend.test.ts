@@ -500,3 +500,85 @@ describe("PATCH /trips/:id — merge coordinate append", () => {
     });
   });
 });
+
+// 26 Oct 2026: the phone uploads a drive 30 seconds in (1.56 miles in 30
+// seconds, flagged as a teleport), then the rest of the drive arrives as this
+// merge. The flag used to stay, hiding a 43-mile drive from its driver.
+describe("PATCH /trips/:id — a trip flagged at its first upload", () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>;
+
+  const FIRST_UPLOAD = {
+    ...EXISTING_TRIP,
+    isPhantomTrip: true,
+    startedAt: new Date("2026-10-25T17:01:56Z"),
+    endedAt: new Date("2026-10-25T17:02:26Z"),
+    distanceMiles: 1.56,
+    coordinateCount: 4,
+    gpsQuality: { maxSpeedMph: 22, avgAccuracyM: 18 },
+  };
+  const WHOLE_DRIVE = {
+    ...FIRST_UPLOAD,
+    endedAt: new Date("2026-10-25T17:44:26Z"),
+    distanceMiles: 43.37,
+    coordinateCount: 354,
+  };
+  const BODY = { ...MERGE_BODY, endedAt: "2026-10-25T17:44:26.000Z", distanceMiles: 43.37 };
+
+  /** The re-check is the read that selects coordinateCount; every other read gets the trip as first uploaded. */
+  const isRecheck = (args: any) => args?.select?.coordinateCount === true;
+  function stored(first: object, now: object) {
+    vi.mocked(prisma.trip.findFirst).mockImplementation(((args: any) =>
+      Promise.resolve(isRecheck(args) ? now : first)) as any);
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.mocked(findSplitFamily).mockResolvedValue(null);
+    vi.mocked(prisma.trip.update).mockImplementation(({ data }: any) => Promise.resolve({ ...FIRST_UPLOAD, ...data }) as any);
+    app = await createTestApp();
+  });
+
+  it("shows the drive again once the whole of it has arrived", async () => {
+    stored(FIRST_UPLOAD, WHOLE_DRIVE);
+    wireTransaction([]);
+
+    const res = await app.inject({ method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: BODY });
+
+    expect(res.statusCode).toBe(200);
+    expect(prisma.trip.update).toHaveBeenCalledWith(expect.objectContaining({ data: { isPhantomTrip: false } }));
+    expect(res.json().data.isPhantomTrip).toBe(false);
+    expect(logEvent).toHaveBeenCalledWith(
+      "trip.phantom_cleared",
+      USER_ID,
+      expect.objectContaining({ tripId: TRIP_ID, distanceMiles: 43.37, firstMiles: 1.56 })
+    );
+  });
+
+  it("keeps a trip hidden when the whole of it still is not a drive", async () => {
+    // Still a mile and a half in 30 seconds: the merge added nothing real.
+    stored(FIRST_UPLOAD, { ...FIRST_UPLOAD, coordinateCount: 6 });
+    wireTransaction([]);
+
+    await app.inject({ method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: BODY });
+
+    expect(prisma.trip.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: { isPhantomTrip: false } }));
+    expect(logEvent).not.toHaveBeenCalledWith("trip.phantom_cleared", expect.anything(), expect.anything());
+  });
+
+  it("does not ask again for an edit that leaves the drive as it was", async () => {
+    stored(FIRST_UPLOAD, WHOLE_DRIVE);
+
+    await app.inject({ method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: { classification: "business" } });
+
+    expect(vi.mocked(prisma.trip.findFirst).mock.calls.some(([a]) => isRecheck(a))).toBe(false);
+  });
+
+  it("never asks about a trip that was already showing", async () => {
+    stored({ ...EXISTING_TRIP, isPhantomTrip: false }, WHOLE_DRIVE);
+    wireTransaction([]);
+
+    await app.inject({ method: "PATCH", url: `/trips/${TRIP_ID}`, headers: auth, payload: MERGE_BODY });
+
+    expect(vi.mocked(prisma.trip.findFirst).mock.calls.some(([a]) => isRecheck(a))).toBe(false);
+  });
+});

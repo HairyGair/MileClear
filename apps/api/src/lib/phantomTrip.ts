@@ -18,6 +18,7 @@
 // analytics aggregates.
 
 import {
+  hasRealMovementEvidence as sharedHasRealMovementEvidence,
   DRIVING_EVIDENCE_SPEED_MPH,
   WALK_MAX_SUSTAINED_MPH,
   WALK_MIN_MOTION_FIXES,
@@ -346,3 +347,43 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
 // guard and this server guard can never drift. Re-exported here so existing
 // imports from this module keep working.
 export { hasRealMovementEvidence } from "@mileclear/shared";
+
+/**
+ * The same check, asked of a trip as it is stored now.
+ *
+ * The create path decides with what the upload carried, and the phone often
+ * uploads a drive in its first 30 seconds: 1.5 miles in 30 seconds reads as a
+ * teleport. The rest of the drive then arrives as an update (more breadcrumbs,
+ * the real end and distance), which used to leave the flag where it was, so a
+ * 43-mile drive stayed hidden from its driver for good (26 Oct 2026: 220 such
+ * trips, 3,068 miles, 158 drivers). The update path asks again with this.
+ */
+export function storedTripLooksPhantom(t: {
+  distanceMiles: number;
+  startedAt: Date | string;
+  endedAt: Date | string | null;
+  isManualEntry: boolean;
+  coordinateCount: number;
+  gpsQuality: unknown;
+}): boolean {
+  const g =
+    t.gpsQuality && typeof t.gpsQuality === "object" && !Array.isArray(t.gpsQuality)
+      ? (t.gpsQuality as Record<string, unknown>)
+      : {};
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+  return looksLikePhantomTrip({
+    distanceMiles: t.distanceMiles,
+    startedAt: t.startedAt,
+    endedAt: t.endedAt,
+    isManualEntry: t.isManualEntry,
+    coordinateCount: t.coordinateCount,
+    hasRealMovementEvidence: sharedHasRealMovementEvidence(t.gpsQuality),
+    maxSpeedMph: num(g.maxSpeedMph),
+    lowConfidence: g.lowConfidence === true,
+    avgAccuracyM: num(g.avgAccuracyM),
+    sustainedSpeedMph: num(g.sustainedSpeedMph),
+    pctOnFoot: num(g.pctOnFoot),
+    motionFixes: num(g.motionFixes),
+    walkVerdict: typeof g.walkVerdict === "string" ? g.walkVerdict : null,
+  });
+}

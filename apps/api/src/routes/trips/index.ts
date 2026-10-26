@@ -74,7 +74,7 @@ import { archiveTripBeforeDelete, archiveDroppedUpload } from "../../services/tr
 import { latestEndingIndex, mergedDistanceMiles } from "../../services/tripMergeRule.js";
 import { SPARSE_MAX_POINTS, isSparseCandidate, judgeSparseRoute, routeThroughPoints, usablePoints, type SparseVerdict } from "../../services/sparseRoute.js";
 import { qualifyReferralOnFirstTrip } from "../../services/referral.js";
-import { looksLikePhantomTrip, hasRealMovementEvidence } from "../../lib/phantomTrip.js";
+import { looksLikePhantomTrip, hasRealMovementEvidence, storedTripLooksPhantom } from "../../lib/phantomTrip.js";
 import { parseReportedDate, formatReportedDate } from "../../lib/reportedDate.js";
 import { resolveRouteDistance } from "../../services/routing.js";
 import {
@@ -3944,6 +3944,35 @@ export async function tripRoutes(app: FastifyInstance) {
         data: tripUpdateData,
         include: { vehicle: true, shift: true },
       });
+    }
+
+    // A trip flagged at its first upload (often 30 seconds in, which reads as
+    // a teleport) is asked again once the rest of the drive lands. Only ever
+    // cleared here: an edit never newly hides a trip from its driver.
+    if (
+      existing.isPhantomTrip &&
+      (hasAppendCoordinates || updates.distanceMiles !== undefined || updates.endedAt !== undefined)
+    ) {
+      const now = await prisma.trip.findFirst({
+        where: { id, userId },
+        select: {
+          distanceMiles: true, startedAt: true, endedAt: true, isManualEntry: true,
+          coordinateCount: true, gpsQuality: true,
+        },
+      });
+      if (now && !storedTripLooksPhantom(now)) {
+        trip = await prisma.trip.update({
+          where: { id },
+          data: { isPhantomTrip: false },
+          include: { vehicle: true, shift: true },
+        });
+        logEvent("trip.phantom_cleared", userId, {
+          tripId: id,
+          distanceMiles: now.distanceMiles,
+          coordinateCount: now.coordinateCount,
+          firstMiles: existing.distanceMiles,
+        });
+      }
     }
 
     if (startEdit) {
