@@ -10,6 +10,7 @@ import { syncSeats } from "../../services/teamBilling.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { trialEndsAtForNewTeam } from "../../services/teamTrial.js";
 import { recordTeamApproval } from "../../services/teamApprovalWrite.js";
+import { notActiveElsewhere } from "../../services/teamDrivers.js";
 import { priceResponseSchema, recordPriceResponse, shouldAskPrice } from "../../services/teamPriceQuestion.js";
 import {
   MONTH_RE,
@@ -257,9 +258,17 @@ export async function teamRoutes(app: FastifyInstance) {
       // become real: activate every membership in this org that already
       // has a userId (i.e. was created by a nomination, not an admin
       // invite) and is still sitting at "invited".
+      // A nominating driver who has since joined another company stays
+      // "invited" here: activating them would put them in two teams at once
+      // (the one-team rule /me, /invites/accept and /nominate-manager rely on).
       if (acceptingRole === "admin") {
         await prisma.orgMembership.updateMany({
-          where: { orgId: membership.orgId, status: "invited", userId: { not: null } },
+          where: {
+            orgId: membership.orgId,
+            status: "invited",
+            userId: { not: null },
+            ...notActiveElsewhere(membership.orgId),
+          },
           data: { status: "active", acceptedAt: new Date() },
         });
       }

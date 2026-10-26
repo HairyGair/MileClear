@@ -14,6 +14,7 @@ vi.mock("../../lib/prisma.js", () => ({
       update: vi.fn().mockResolvedValue({}),
     },
     orgMembership: { findFirst: vi.fn(), count: vi.fn() },
+    user: { findUnique: vi.fn() },
   },
 }));
 
@@ -46,6 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   p.orgMembership.findFirst.mockResolvedValue({ status: "invited" });
   p.orgMembership.count.mockResolvedValue(0);
+  p.user.findUnique.mockResolvedValue(null);
 });
 
 describe("createApprovalLink", () => {
@@ -106,6 +108,7 @@ describe("resolveApprovalLink", () => {
         month: "2026-10",
         recipientEmail: "boss@firm.co.uk",
         recipientStatus: "invited",
+        account: "none",
         includeNominatingDrivers: true,
       },
     });
@@ -117,7 +120,21 @@ describe("resolveApprovalLink", () => {
     p.orgMembership.findFirst.mockResolvedValue({ status: "active" });
     p.orgMembership.count.mockResolvedValue(1);
     const res = await resolveApprovalLink(TOKEN, NOW);
-    expect(res.ok && res.link).toMatchObject({ recipientStatus: "active", includeNominatingDrivers: false });
+    expect(res.ok && res.link).toMatchObject({ recipientStatus: "active", account: "portal", includeNominatingDrivers: false });
+    expect(p.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("an invited manager whose address already has an account is told to sign in, not sent to register", async () => {
+    p.teamApprovalLink.findUnique.mockResolvedValue(row());
+    p.user.findUnique.mockResolvedValue({ id: "u-boss", orgMemberships: [] });
+    let res = await resolveApprovalLink(TOKEN, NOW);
+    expect(res.ok && res.link.account).toBe("exists");
+    expect(p.user.findUnique.mock.calls[0][0].where).toEqual({ email: "boss@firm.co.uk" });
+
+    // Active in another team: an invite here could never be accepted.
+    p.user.findUnique.mockResolvedValue({ id: "u-boss", orgMemberships: [{ id: "m-elsewhere" }] });
+    res = await resolveApprovalLink(TOKEN, NOW);
+    expect(res.ok && res.link.account).toBe("other_team");
   });
 
   it("a failed lastUsedAt write does not stop the manager", async () => {

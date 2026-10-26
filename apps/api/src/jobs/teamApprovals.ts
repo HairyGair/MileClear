@@ -22,12 +22,17 @@
 //       active ones plus the invited ones that already have a userId (the
 //       driver who nominated this manager). Dedup:
 //       team.month_link_<month> with {orgId, recipient fingerprint}, since
-//       there is no userId to hang it on.
+//       there is no userId to hang it on. A nominating driver who has since
+//       joined another company is never counted (services/teamDrivers.ts).
+//       Capped: no more once the two previous months' links went unopened
+//       (ignoredTwice), and the email carries a stop link plus one-click
+//       List-Unsubscribe that switch the invited manager off.
 
 import { prisma } from "../lib/prisma.js";
 import { sendTeamApprovalRequestEmail, sendTeamMonthReadyEmail } from "../services/email.js";
 import { computeTeamMonthSummary, currentLondonMonth, previousMonth } from "../services/teamExport.js";
-import { createApprovalLink, emailFingerprint } from "../services/teamApprovalLinks.js";
+import { createApprovalLink, emailFingerprint, hashLinkToken } from "../services/teamApprovalLinks.js";
+import { teamDriverMembershipWhere } from "../services/teamDrivers.js";
 
 function monthLabel(month: string): string {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
@@ -86,6 +91,46 @@ async function alreadyLinked(orgId: string, recipient: string, eventType: string
   return existing !== null;
 }
 
+/**
+ * The cap Anthony agreed (Oct 2026): an invited manager whose links for the
+ * two months before this one were both sent and never opened gets no more.
+ * Opening the page sets lastUsedAt, so one visit restarts the count.
+ */
+export async function ignoredTwice(orgId: string, email: string, month: string): Promise<boolean> {
+  const prev1 = previousMonth(month);
+  const prev2 = previousMonth(prev1);
+  const links = await prisma.teamApprovalLink.findMany({
+    where: { orgId, recipientEmail: email, month: { in: [prev1, prev2] } },
+    select: { month: true, lastUsedAt: true },
+  });
+  const unopened = (m: string) => {
+    const forMonth = links.filter((l) => l.month === m);
+    return forMonth.length > 0 && forMonth.every((l) => l.lastUsedAt === null);
+  };
+  return unopened(prev1) && unopened(prev2);
+}
+
+/**
+ * Creates the link, sends the email with it, and removes the link again if
+ * the send fails, so a retry on the next tick never leaves unused link rows
+ * behind (the raw token cannot be recovered from its hash to reuse it).
+ */
+async function sendWithLink(
+  orgId: string,
+  month: string,
+  email: string,
+  now: Date,
+  send: (token: string) => Promise<void>
+): Promise<void> {
+  const token = await createApprovalLink(orgId, month, email, now);
+  try {
+    await send(token);
+  } catch (err) {
+    await prisma.teamApprovalLink.deleteMany({ where: { tokenHash: hashLinkToken(token) } }).catch(() => undefined);
+    throw err;
+  }
+}
+
 /** "Sam", "Sam and Jo", "Sam, Jo and 2 others". Unnamed drivers are counted, never invented. */
 export function joinDriverNames(names: Array<string | null>): string {
   const total = names.length;
@@ -119,6 +164,7 @@ export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void
 
   let sent = 0;
   let invitedSent = 0;
+  let cappedInvited = 0;
   let skippedOrgs = 0;
 
   for (const org of orgs) {
@@ -139,6 +185,10 @@ export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void
         const email = m.invitedEmail.trim().toLowerCase();
         if (!email) continue;
         if (await alreadyLinked(org.id, emailFingerprint(email), linkEventType)) continue;
+        if (await ignoredTwice(org.id, email, month)) {
+          cappedInvited++;
+          continue;
+        }
         pendingInvited.push(email);
       }
       if (pendingInvited.length === 0) {
@@ -148,8 +198,10 @@ export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void
 
       // Active drivers plus the nominating driver(s): invited memberships
       // that already have a userId. Nobody else could ever approve them.
+      // Same rule as the summary: not a nominating driver who has since
+      // joined another company.
       const drivers = await prisma.orgMembership.count({
-        where: { orgId: org.id, role: "driver", status: { in: ["active", "invited"] }, userId: { not: null } },
+        where: teamDriverMembershipWhere(org.id, true),
       });
       if (drivers === 0) {
         skippedOrgs++;
@@ -169,16 +221,17 @@ export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void
           continue;
         }
         try {
-          const token = await createApprovalLink(org.id, month, email, now);
-          await sendTeamApprovalRequestEmail(email, {
-            orgName: org.name,
-            monthLabel: label,
-            driverNames: joinDriverNames(withMiles.map((d) => d.displayName)),
-            driverCount: withMiles.length,
-            totalMiles: summary.totalMiles,
-            totalAmountPence: summary.totalAmountPence,
-            approveToken: token,
-          });
+          await sendWithLink(org.id, month, email, now, (token) =>
+            sendTeamApprovalRequestEmail(email, {
+              orgName: org.name,
+              monthLabel: label,
+              driverNames: joinDriverNames(withMiles.map((d) => d.displayName)),
+              driverCount: withMiles.length,
+              totalMiles: summary.totalMiles,
+              totalAmountPence: summary.totalAmountPence,
+              approveToken: token,
+            })
+          );
           // Awaited and direct, for the same reason as below.
           await prisma.appEvent.create({
             data: { type: linkEventType, userId: null, metadata: { orgId: org.id, month, recipient: emailFingerprint(email) } },
@@ -231,8 +284,9 @@ export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void
       }
 
       try {
-        const token = await createApprovalLink(org.id, month, admin.email, now);
-        await sendTeamMonthReadyEmail(admin.email, org.name, label, token);
+        await sendWithLink(org.id, month, admin.email, now, (token) =>
+          sendTeamMonthReadyEmail(admin.email, org.name, label, token)
+        );
         // AWAITED, and written directly rather than via logEvent(): logEvent
         // is fire-and-forget and swallows its own errors, so a failed write
         // would leave no dedup record and this admin would be emailed again
@@ -248,6 +302,6 @@ export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void
   }
 
   console.log(
-    `[jobs/teamApprovals] Month-ready job: ${sent} admin email(s), ${invitedSent} invited-manager email(s) sent, ${skippedOrgs} org(s) skipped (month=${month}, dryRun=${dryRun})`
+    `[jobs/teamApprovals] Month-ready job: ${sent} admin email(s), ${invitedSent} invited-manager email(s) sent, ${cappedInvited} invited manager(s) stopped after two unopened months, ${skippedOrgs} org(s) skipped (month=${month}, dryRun=${dryRun})`
   );
 }

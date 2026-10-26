@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma.js";
 import { sendPushToUser } from "../lib/push.js";
 import { logEvent } from "./appEvents.js";
+import { teamDriverMembershipWhere } from "./teamDrivers.js";
 import { computeTeamMonthSummary, isMonthFinished, monthEndsLabel } from "./teamExport.js";
 
 // Milesheet: approve or query one driver's month. Shared by the portal
@@ -49,9 +50,7 @@ export async function recordTeamApproval(input: RecordTeamApprovalInput): Promis
   // THIS org before touching anything. This is the one check standing
   // between "approve my team" and reading someone else's.
   const membership = await prisma.orgMembership.findFirst({
-    where: nominating
-      ? { orgId, userId: driverUserId, role: "driver", status: { in: ["active", "invited"] } }
-      : { orgId, userId: driverUserId, role: "driver", status: "active" },
+    where: { ...teamDriverMembershipWhere(orgId, nominating), userId: driverUserId },
     select: { id: true },
   });
   if (!membership) return { ok: false, statusCode: 404, error: "Driver not found in your team." };

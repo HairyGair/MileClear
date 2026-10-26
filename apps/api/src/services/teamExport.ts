@@ -7,6 +7,7 @@ import {
 import type { TeamApprovalStatus, TeamDrivingDay, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
+import { teamDriverMembershipWhere } from "./teamDrivers.js";
 import { DRIVING_TIMES_LABEL, formatSpan, loadTeamDrivingDays } from "./drivingTimes.js";
 
 // Milesheet Phase 2 (24 Aug 2026).
@@ -214,9 +215,7 @@ export async function computeTeamMonthSummary(
   });
 
   const memberships = await prisma.orgMembership.findMany({
-    where: options.includeNominatingDrivers
-      ? { orgId, role: "driver", status: { in: ["active", "invited"] }, userId: { not: null } }
-      : { orgId, role: "driver", status: "active", userId: { not: null } },
+    where: teamDriverMembershipWhere(orgId, options.includeNominatingDrivers === true),
     select: { id: true, userId: true },
   });
   const driverUserIds = memberships.map((m) => m.userId!).filter(Boolean);

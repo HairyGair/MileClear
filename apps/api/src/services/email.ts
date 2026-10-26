@@ -3516,6 +3516,9 @@ export async function sendTeamApprovalRequestEmail(
   }
 ): Promise<void> {
   const approveUrl = `${WEB_BASE_URL}/milesheet/approve/${args.approveToken}`;
+  // A page with a button, not a GET that acts: mail scanners open every
+  // link, and this one switches the manager off.
+  const stopUrl = `${WEB_BASE_URL}/milesheet/stop/${args.approveToken}`;
   const safeOrg = escapeHtml(args.orgName);
   const safeMonth = escapeHtml(args.monthLabel);
   const safeNames = escapeHtml(args.driverNames);
@@ -3542,7 +3545,8 @@ export async function sendTeamApprovalRequestEmail(
         <a href="${approveUrl}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Review and approve ${safeMonth}</a>
       </p>
       <p style="color: #333; font-size: 14px; line-height: 1.6;">If you'd like the full portal (invite the rest of the team, download one file for payroll), you can create a free account from the same page.</p>
-      <p style="color: #888; font-size: 12px;">The link works for 30 days and only for ${safeOrg}'s ${safeMonth} mileage, so please do not forward it. If you weren't expecting this, you can ignore it, or reply and we'll stop sending these.</p>
+      <p style="color: #888; font-size: 12px;">The link works for 30 days and only for ${safeOrg}'s ${safeMonth} mileage, so please do not forward it.</p>
+      <p style="color: #888; font-size: 12px;">Not your team, or don't want these? <a href="${stopUrl}" style="color: #888;">Stop these emails</a>. We'll also stop on our own if two months go by without the link being opened.</p>
     </div>
   `;
 
@@ -3553,7 +3557,19 @@ export async function sendTeamApprovalRequestEmail(
     console.log(`[EMAIL] Milesheet approval request (${args.monthLabel}) for ${args.orgName} -> ${email}: ${approveUrl} (dev only)`);
     return;
   }
-  await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
+  await transporter.sendMail({
+    from: FROM,
+    to: email,
+    replyTo: SUPPORT_INBOX,
+    subject,
+    html,
+    // RFC 8058 one-click: the mail client POSTs here and the invited
+    // manager's membership is switched off at once (routes/team/approvalLink.ts).
+    headers: {
+      "List-Unsubscribe": `<${API_BASE_URL}/team/approval-links/${args.approveToken}/stop>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  });
 }
 
 /**

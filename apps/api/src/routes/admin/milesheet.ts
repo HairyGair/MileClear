@@ -204,34 +204,40 @@ async function actorEmails(ids: string[]): Promise<Map<string, string>> {
 /**
  * The price question managers see after approving (services/teamPriceQuestion.ts):
  * one answer per org, newest first, plus counts. Skips are counted, not listed.
+ * Read straight from app_events rather than the capped loadTeamEvents(), so
+ * an old answer never drops out of the read-out.
  */
-function summarisePriceAnswers(events: TeamEventRow[], orgs: Array<{ id: string; name: string }>) {
+async function summarisePriceAnswers(orgs: Array<{ id: string; name: string }>) {
+  const [rows, skips] = await Promise.all([
+    prisma.appEvent.findMany({
+      where: { type: PRICE_ANSWER_EVENT },
+      select: { metadata: true, createdAt: true },
+      orderBy: { createdAt: "asc" },
+    }),
+    prisma.appEvent.count({ where: { type: PRICE_SKIPPED_EVENT } }),
+  ]);
   const nameById = new Map(orgs.map((o) => [o.id, o.name]));
   const seen = new Set<string>();
   const answers: Array<{ orgId: string; orgName: string | null; answer: string; comment: string | null; via: string | null; at: string }> = [];
-  // Events arrive newest first; keep each org's first-ever answer, which is
-  // the one that closed the question.
-  for (const e of [...events].reverse()) {
-    if (e.type !== PRICE_ANSWER_EVENT || !e.orgId || seen.has(e.orgId)) continue;
-    const answer = typeof e.metadata?.answer === "string" ? e.metadata.answer : null;
-    if (!answer) continue;
-    seen.add(e.orgId);
+  // Oldest first: keep each org's first answer, the one that closed the question.
+  for (const r of rows) {
+    const meta = metaOf(r.metadata);
+    const orgId = typeof meta?.orgId === "string" ? meta.orgId : null;
+    const answer = typeof meta?.answer === "string" ? meta.answer : null;
+    if (!orgId || !answer || seen.has(orgId)) continue;
+    seen.add(orgId);
     answers.push({
-      orgId: e.orgId,
-      orgName: nameById.get(e.orgId) ?? null,
+      orgId,
+      orgName: nameById.get(orgId) ?? null,
       answer,
-      comment: typeof e.metadata?.comment === "string" ? e.metadata.comment : null,
-      via: typeof e.metadata?.via === "string" ? e.metadata.via : null,
-      at: e.createdAt.toISOString(),
+      comment: typeof meta?.comment === "string" ? meta.comment : null,
+      via: typeof meta?.via === "string" ? meta.via : null,
+      at: r.createdAt.toISOString(),
     });
   }
   const counts: Record<string, number> = Object.fromEntries(PRICE_ANSWERS.map((a) => [a, 0]));
   for (const a of answers) counts[a.answer] = (counts[a.answer] ?? 0) + 1;
-  return {
-    counts,
-    skips: events.filter((e) => e.type === PRICE_SKIPPED_EVENT).length,
-    answers: answers.reverse(),
-  };
+  return { counts, skips, answers: answers.reverse() };
 }
 
 export async function adminMilesheetRoutes(app: FastifyInstance): Promise<void> {
@@ -278,7 +284,7 @@ export async function adminMilesheetRoutes(app: FastifyInstance): Promise<void> 
         },
         proThroughTeams: teamProUsers.size,
         proThroughTeamsOnly: teamProOnly,
-        priceAnswers: summarisePriceAnswers(events, orgs),
+        priceAnswers: await summarisePriceAnswers(orgs),
       },
     });
   });

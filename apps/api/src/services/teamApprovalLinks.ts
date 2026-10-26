@@ -43,6 +43,14 @@ export async function createApprovalLink(
   return token;
 }
 
+/**
+ * portal: an active admin of this org, signs in to the portal.
+ * none: no account with this address yet, so a fresh invite works.
+ * exists: has an account, in no team: signs in, then accepts a fresh invite.
+ * other_team: active in another team, so this invite could never be accepted.
+ */
+export type RecipientAccount = "portal" | "none" | "exists" | "other_team";
+
 export interface ResolvedApprovalLink {
   id: string;
   orgId: string;
@@ -51,6 +59,8 @@ export interface ResolvedApprovalLink {
   recipientEmail: string;
   /** The recipient's own admin membership: "active" has an account, "invited" does not yet. */
   recipientStatus: "active" | "invited";
+  /** See resolveApprovalLink. */
+  account: RecipientAccount;
   /**
    * True while nobody in the org has accepted the manager role: the
    * nominating driver (an "invited" membership with a userId) is counted,
@@ -106,6 +116,19 @@ export async function resolveApprovalLink(token: string, now: Date = new Date())
     where: { orgId: row.orgId, role: "admin", status: "active" },
   });
 
+  // Whether "Create your free account" can work. An invited manager whose
+  // address already has an account must sign in rather than register, and
+  // one who is active in another team can never accept this invite (one
+  // team per person), so they are not sent one.
+  let account: RecipientAccount = "portal";
+  if (standing.status !== "active") {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: { id: true, orgMemberships: { where: { status: "active" }, select: { id: true }, take: 1 } },
+    });
+    account = !user ? "none" : user.orgMemberships.length > 0 ? "other_team" : "exists";
+  }
+
   // Best effort: a failed write must not stop the manager approving.
   await prisma.teamApprovalLink
     .update({ where: { id: row.id }, data: { lastUsedAt: now } })
@@ -120,6 +143,7 @@ export async function resolveApprovalLink(token: string, now: Date = new Date())
       month: row.month,
       recipientEmail: email,
       recipientStatus: standing.status === "active" ? "active" : "invited",
+      account,
       includeNominatingDrivers: activeAdmins === 0,
     },
   };

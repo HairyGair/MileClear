@@ -14,7 +14,11 @@ vi.mock("../../lib/prisma.js", () => ({
     organisation: { findMany: vi.fn() },
     orgMembership: { findMany: vi.fn(), count: vi.fn() },
     appEvent: { findFirst: vi.fn(), create: vi.fn() },
-    teamApprovalLink: { create: vi.fn().mockResolvedValue({}) },
+    teamApprovalLink: {
+      create: vi.fn().mockResolvedValue({}),
+      findMany: vi.fn(),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   },
 }));
 vi.mock("../../services/email.js", () => ({
@@ -46,14 +50,22 @@ function statusOk(where: any, status: string) {
   if (where.status?.in) return where.status.in.includes(status);
   return true;
 }
+// Users active in some other company (the notActiveElsewhere filter).
+let activeElsewhere = new Set<string>();
+
 function memberMatch(where: any, m: M) {
-  return (
-    m.orgId === where.orgId &&
-    m.role === where.role &&
-    statusOk(where, m.status) &&
-    (where.userId === undefined || m.userId !== null)
-  );
+  if (m.orgId !== where.orgId || m.role !== where.role) return false;
+  if (where.userId !== undefined && m.userId === null) return false;
+  if (where.OR) {
+    return where.OR.some(
+      (b: any) => statusOk(b, m.status) && (!b.user || !(m.userId && activeElsewhere.has(m.userId)))
+    );
+  }
+  return statusOk(where, m.status);
 }
+
+// Links already sent in earlier months: { month, recipientEmail, lastUsedAt }.
+let pastLinks: Array<{ orgId: string; month: string; recipientEmail: string; lastUsedAt: Date | null }> = [];
 
 function driverRow(userId: string, displayName: string | null, miles: number) {
   return { membershipId: `m-${userId}`, userId, displayName, email: `${userId}@x.com`, businessMiles: miles, amountPence: Math.round(miles * 55) };
@@ -66,6 +78,13 @@ beforeEach(() => {
   delete process.env.TEAM_MONTH_READY_DRY_RUN;
 
   events = [];
+  activeElsewhere = new Set();
+  pastLinks = [];
+  p.teamApprovalLink.findMany.mockImplementation(async ({ where }: any) =>
+    pastLinks.filter(
+      (l) => l.orgId === where.orgId && l.recipientEmail === where.recipientEmail && where.month.in.includes(l.month)
+    )
+  );
   memberships = [
     // org-active: a manager who signed up, one active driver.
     { orgId: "org-active", role: "admin", status: "active", userId: "u-boss", invitedEmail: "boss@a.com", email: "boss@a.com" },
@@ -222,14 +241,53 @@ describe("runTeamMonthReadyJob", () => {
     delete process.env.TEAM_MONTH_READY_DRY_RUN;
   });
 
-  it("a failed send leaves no dedup record, so the next tick tries again", async () => {
+  it("a failed send leaves no dedup record and no unused link, so the next tick tries again cleanly", async () => {
     (sendTeamApprovalRequestEmail as any).mockRejectedValueOnce(new Error("smtp"));
     const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     await runTeamMonthReadyJob(NOW);
     expect(events.some((e) => e.type === "team.month_link_2026-10")).toBe(false);
+    // The link made for the failed email is removed again, by its hash.
+    const failedHash = p.teamApprovalLink.create.mock.calls.find((c: any[]) => c[0].data.orgId === "org-nominated")[0].data.tokenHash;
+    expect(p.teamApprovalLink.deleteMany).toHaveBeenCalledWith({ where: { tokenHash: failedHash } });
     await runTeamMonthReadyJob(NOW);
     expect(sendTeamApprovalRequestEmail).toHaveBeenCalledTimes(2);
     spy.mockRestore();
+  });
+
+  it("a nominating driver who has joined another company is not counted, so their old manager is not emailed", async () => {
+    activeElsewhere.add("u-nia");
+    await runTeamMonthReadyJob(NOW);
+    expect(sendTeamApprovalRequestEmail).not.toHaveBeenCalled();
+    expect(computeTeamMonthSummary).not.toHaveBeenCalledWith("org-nominated", expect.anything(), expect.anything());
+    // The count used the shared rule.
+    const countWhere = p.orgMembership.count.mock.calls.map((c: any[]) => c[0].where).find((w: any) => w.orgId === "org-nominated");
+    expect(JSON.stringify(countWhere)).toContain('"none":{"status":"active","orgId":{"not":"org-nominated"}}');
+  });
+
+  it("stops after two months in a row whose links were never opened", async () => {
+    pastLinks = [
+      { orgId: "org-nominated", month: "2026-09", recipientEmail: "manager@b.com", lastUsedAt: null },
+      { orgId: "org-nominated", month: "2026-08", recipientEmail: "manager@b.com", lastUsedAt: null },
+    ];
+    await runTeamMonthReadyJob(NOW);
+    expect(sendTeamApprovalRequestEmail).not.toHaveBeenCalled();
+    // The active admin is unaffected by the cap.
+    expect(sendTeamMonthReadyEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps sending when one of the two months was opened, or only one month went unopened", async () => {
+    pastLinks = [
+      { orgId: "org-nominated", month: "2026-09", recipientEmail: "manager@b.com", lastUsedAt: null },
+      { orgId: "org-nominated", month: "2026-08", recipientEmail: "manager@b.com", lastUsedAt: new Date("2026-08-02") },
+    ];
+    await runTeamMonthReadyJob(NOW);
+    expect(sendTeamApprovalRequestEmail).toHaveBeenCalledTimes(1);
+
+    vi.clearAllMocks();
+    events = [];
+    pastLinks = [{ orgId: "org-nominated", month: "2026-09", recipientEmail: "manager@b.com", lastUsedAt: null }];
+    await runTeamMonthReadyJob(NOW);
+    expect(sendTeamApprovalRequestEmail).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -84,7 +84,8 @@ export async function teamApprovalLinkRoutes(app: FastifyInstance) {
           monthLabel: monthName(link.month),
           monthFinished: finished,
           approvableFrom: finished ? null : monthEndsLabel(link.month).reopens,
-          hasAccount: link.recipientStatus === "active",
+          hasAccount: link.account !== "none",
+          account: link.account,
           askPrice: await shouldAskPrice(link.orgId),
           totalMiles: summary.totalMiles,
           totalAmountPence: summary.totalAmountPence,
@@ -164,8 +165,14 @@ export async function teamApprovalLinkRoutes(app: FastifyInstance) {
     async (request, reply) => {
       const link = await linkOr404(request, reply);
       if (!link) return;
-      if (link.recipientStatus === "active") {
+      if (link.account === "portal") {
         return reply.status(409).send({ error: "You already have an account. Sign in to open the portal." });
+      }
+      // /invites/accept would refuse them (one team per person).
+      if (link.account === "other_team") {
+        return reply.status(409).send({
+          error: "This email address is already in another team on Milesheet, so it can't join this one as well. You can still approve from this page.",
+        });
       }
 
       const membership = await prisma.orgMembership.findFirst({
@@ -187,6 +194,43 @@ export async function teamApprovalLinkRoutes(app: FastifyInstance) {
       }
       logEvent("team.invite_refreshed", null, { orgId: link.orgId, via: "email_link" });
       return reply.send({ data: { sent: true } });
+    }
+  );
+
+  // ── Stop: "This isn't my team" / "Stop these emails" ───────────────────
+  // For an invited manager (no account), from the web stop page's buttons
+  // and from the mail client's one-click unsubscribe (RFC 8058, which POSTs
+  // "List-Unsubscribe=One-Click" as a form body). Switches their invited
+  // membership off, which also ends the monthly emails and kills every link
+  // they were sent. Never a GET: mail scanners open links.
+  app.addContentTypeParser("application/x-www-form-urlencoded", { parseAs: "string" }, (_req, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(String(body))));
+  });
+  app.post(
+    "/approval-links/:token/stop",
+    { config: { rateLimit: { max: 10, timeWindow: "1 hour", keyGenerator: byToken("appr-link-stop") } } },
+    async (request, reply) => {
+      const link = await linkOr404(request, reply);
+      if (!link) return;
+      if (link.recipientStatus !== "invited") {
+        return reply.status(409).send({ error: "You manage this team on Milesheet. Sign in to change your settings." });
+      }
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const oneClick = body["List-Unsubscribe"] === "One-Click";
+      const reason = body.reason === "not_my_team" ? "not_my_team" : "stop_emails";
+
+      const result = await prisma.orgMembership.updateMany({
+        where: { orgId: link.orgId, role: "admin", status: "invited", invitedEmail: link.recipientEmail },
+        data: { status: "disabled", disabledAt: new Date(), inviteTokenHash: null, inviteExpiresAt: null },
+      });
+      // No address in the event: the org id and the reason are enough.
+      logEvent("team.manager_opted_out", null, {
+        orgId: link.orgId,
+        reason,
+        via: oneClick ? "one_click" : "stop_page",
+        memberships: result.count,
+      });
+      return reply.send({ data: { stopped: true } });
     }
   );
 

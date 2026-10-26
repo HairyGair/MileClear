@@ -14,7 +14,8 @@ import { makeAccessToken } from "../helpers/tokens.js";
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
     teamApprovalLink: { findUnique: vi.fn(), update: vi.fn().mockResolvedValue({}) },
-    orgMembership: { findFirst: vi.fn(), count: vi.fn(), update: vi.fn().mockResolvedValue({}) },
+    orgMembership: { findFirst: vi.fn(), count: vi.fn(), update: vi.fn().mockResolvedValue({}), updateMany: vi.fn() },
+    user: { findUnique: vi.fn() },
     teamApproval: { upsert: vi.fn() },
     appEvent: { findFirst: vi.fn().mockResolvedValue(null), create: vi.fn().mockResolvedValue({}) },
   },
@@ -97,7 +98,13 @@ const drivers = [
   { id: "m-other", orgId: "org-2", userId: "u-other", role: "driver", status: "active" },
 ];
 
-function statusOk(where: any, status: string) {
+// Users active in another company (the notActiveElsewhere filter).
+let activeElsewhere = new Set<string>();
+
+function statusOk(where: any, status: string, userId?: string | null) {
+  if (where.OR) {
+    return where.OR.some((b: any) => statusOk(b, status) && (!b.user || !(userId && activeElsewhere.has(userId))));
+  }
   if (!where.status) return true;
   if (typeof where.status === "string") return where.status === status;
   return where.status.in.includes(status);
@@ -116,6 +123,13 @@ beforeEach(() => {
   linkMonth = "2026-10";
   recipientStatus = "invited";
   activeAdmins = 0;
+  activeElsewhere = new Set();
+  p.user.findUnique.mockResolvedValue(null);
+  p.orgMembership.updateMany.mockImplementation(async () => {
+    // Switching the invited manager off: the link stops working with it.
+    recipientStatus = "disabled" as any;
+    return { count: 1 };
+  });
 
   p.teamApprovalLink.findUnique.mockImplementation(async ({ where }: any) =>
     where.tokenHash === hashLinkToken(TOKEN)
@@ -133,14 +147,17 @@ beforeEach(() => {
   p.orgMembership.count.mockImplementation(async () => activeAdmins);
   p.orgMembership.findFirst.mockImplementation(async ({ where }: any) => {
     if (where.role === "admin") {
-      return where.orgId === "org-1" && statusOk(where, recipientStatus) ? { id: "m-boss", status: recipientStatus } : null;
+      // (Its OR is the email match, not a status rule.)
+      return where.orgId === "org-1" && statusOk({ status: where.status }, recipientStatus)
+        ? { id: "m-boss", status: recipientStatus }
+        : null;
     }
     const m = drivers.find(
       (d) =>
         d.orgId === where.orgId &&
         (where.id === undefined || d.id === where.id) &&
         (where.userId === undefined || typeof where.userId === "object" || d.userId === where.userId) &&
-        statusOk(where, d.status)
+        statusOk(where, d.status, d.userId)
     );
     return m ? { id: m.id, userId: m.userId } : null;
   });
@@ -354,5 +371,88 @@ describe("POST /team/approval-links/:token/price-answer", () => {
   it("rejects an answer that is not on the list", async () => {
     const res = await (await app()).inject({ method: "POST", url: url("/price-answer"), payload: { answer: "free" } });
     expect(res.statusCode).toBe(400);
+  });
+});
+
+describe("nominating drivers who have joined another company", () => {
+  it("cannot be approved through their old manager's link", async () => {
+    activeElsewhere.add("u-nia");
+    const res = await (await app()).inject({ method: "POST", url: url("/approvals"), payload: { driverId: "m-nia", status: "approved" } });
+    expect(res.statusCode).toBe(404);
+    expect(p.teamApproval.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("account state for the invited manager", () => {
+  it("an address with an account gets an invite to accept after signing in", async () => {
+    p.user.findUnique.mockResolvedValue({ id: "u-boss", orgMemberships: [] });
+    const a = await app();
+    const get = await a.inject({ method: "GET", url: url() });
+    expect(get.json().data).toMatchObject({ hasAccount: true, account: "exists" });
+    const res = await a.inject({ method: "POST", url: url("/invite") });
+    expect(res.statusCode).toBe(200);
+    expect(sendTeamInviteEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("an address already active in another team is not sent an invite it could never accept", async () => {
+    p.user.findUnique.mockResolvedValue({ id: "u-boss", orgMemberships: [{ id: "m-elsewhere" }] });
+    const a = await app();
+    const get = await a.inject({ method: "GET", url: url() });
+    expect(get.json().data).toMatchObject({ hasAccount: true, account: "other_team" });
+    const res = await a.inject({ method: "POST", url: url("/invite") });
+    expect(res.statusCode).toBe(409);
+    expect(p.orgMembership.update).not.toHaveBeenCalled();
+    expect(sendTeamInviteEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("POST /team/approval-links/:token/stop", () => {
+  it("switches the invited manager off, logs it without the address, and the link dies", async () => {
+    const a = await app();
+    const res = await a.inject({ method: "POST", url: url("/stop"), payload: { reason: "not_my_team" } });
+    expect(res.statusCode).toBe(200);
+    expect(p.orgMembership.updateMany).toHaveBeenCalledWith({
+      where: { orgId: "org-1", role: "admin", status: "invited", invitedEmail: "boss@firm.co.uk" },
+      data: { status: "disabled", disabledAt: expect.any(Date), inviteTokenHash: null, inviteExpiresAt: null },
+    });
+    expect(logEvent).toHaveBeenCalledWith("team.manager_opted_out", null, {
+      orgId: "org-1",
+      reason: "not_my_team",
+      via: "stop_page",
+      memberships: 1,
+    });
+    expect(JSON.stringify((logEvent as any).mock.calls)).not.toContain("boss@firm.co.uk");
+
+    const after = await a.inject({ method: "GET", url: url() });
+    expect(after.statusCode).toBe(404);
+  });
+
+  it("accepts the mail client's RFC 8058 one-click POST", async () => {
+    const res = await (await app()).inject({
+      method: "POST",
+      url: url("/stop"),
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      payload: "List-Unsubscribe=One-Click",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(logEvent).toHaveBeenCalledWith(
+      "team.manager_opted_out",
+      null,
+      expect.objectContaining({ via: "one_click", reason: "stop_emails" })
+    );
+  });
+
+  it("does not let an active admin's link switch anyone off", async () => {
+    recipientStatus = "active";
+    activeAdmins = 1;
+    const res = await (await app()).inject({ method: "POST", url: url("/stop") });
+    expect(res.statusCode).toBe(409);
+    expect(p.orgMembership.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("is never a GET", async () => {
+    const res = await (await app()).inject({ method: "GET", url: url("/stop") });
+    expect(res.statusCode).toBe(404);
+    expect(p.orgMembership.updateMany).not.toHaveBeenCalled();
   });
 });
