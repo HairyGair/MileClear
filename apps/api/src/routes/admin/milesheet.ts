@@ -12,6 +12,7 @@ import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { recordWaitlistRequest } from "../../services/milesheetTeams.js";
 import { TEAM_TRIAL_DAYS, TEAM_TRIAL_SEAT_CAP, isOrgEntitled } from "../../services/teamTrial.js";
 import { TEAM_DRIVER_BANDS } from "../teamInterest/index.js";
+import { PRICE_ANSWERS, PRICE_ANSWER_EVENT, PRICE_SKIPPED_EVENT } from "../../services/teamPriceQuestion.js";
 import {
   computeTeamMonthSummary,
   currentLondonMonth,
@@ -200,6 +201,39 @@ async function actorEmails(ids: string[]): Promise<Map<string, string>> {
   return new Map(rows.map((r) => [r.id, r.email]));
 }
 
+/**
+ * The price question managers see after approving (services/teamPriceQuestion.ts):
+ * one answer per org, newest first, plus counts. Skips are counted, not listed.
+ */
+function summarisePriceAnswers(events: TeamEventRow[], orgs: Array<{ id: string; name: string }>) {
+  const nameById = new Map(orgs.map((o) => [o.id, o.name]));
+  const seen = new Set<string>();
+  const answers: Array<{ orgId: string; orgName: string | null; answer: string; comment: string | null; via: string | null; at: string }> = [];
+  // Events arrive newest first; keep each org's first-ever answer, which is
+  // the one that closed the question.
+  for (const e of [...events].reverse()) {
+    if (e.type !== PRICE_ANSWER_EVENT || !e.orgId || seen.has(e.orgId)) continue;
+    const answer = typeof e.metadata?.answer === "string" ? e.metadata.answer : null;
+    if (!answer) continue;
+    seen.add(e.orgId);
+    answers.push({
+      orgId: e.orgId,
+      orgName: nameById.get(e.orgId) ?? null,
+      answer,
+      comment: typeof e.metadata?.comment === "string" ? e.metadata.comment : null,
+      via: typeof e.metadata?.via === "string" ? e.metadata.via : null,
+      at: e.createdAt.toISOString(),
+    });
+  }
+  const counts: Record<string, number> = Object.fromEntries(PRICE_ANSWERS.map((a) => [a, 0]));
+  for (const a of answers) counts[a.answer] = (counts[a.answer] ?? 0) + 1;
+  return {
+    counts,
+    skips: events.filter((e) => e.type === PRICE_SKIPPED_EVENT).length,
+    answers: answers.reverse(),
+  };
+}
+
 export async function adminMilesheetRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /admin/milesheet/overview ──────────────────────────────────────
   app.get("/milesheet/overview", async (_request, reply) => {
@@ -244,6 +278,7 @@ export async function adminMilesheetRoutes(app: FastifyInstance): Promise<void> 
         },
         proThroughTeams: teamProUsers.size,
         proThroughTeamsOnly: teamProOnly,
+        priceAnswers: summarisePriceAnswers(events, orgs),
       },
     });
   });

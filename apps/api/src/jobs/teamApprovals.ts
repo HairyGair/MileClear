@@ -9,10 +9,25 @@
 // every send is guarded by an AppEvent so a given admin is never emailed
 // twice for the same org+month, mirroring the dedup pattern already used
 // by jobs/activation.ts and jobs/notifications.ts.
+//
+// Oct 2026: approve from the email. The 26 Oct pilot numbers showed most
+// driver-started teams stalled because the nominated manager never created
+// an account. Two recipients now, per org:
+//   (a) ACTIVE admins: the same email, now with an "Approve from this
+//       email" link next to the portal link. Dedup: team.month_ready_<month>
+//       per admin userId, as before.
+//   (b) Orgs with NO active admin whose manager is still INVITED: the
+//       invited address gets "<drivers> asked you to approve their <month>
+//       mileage" with the totals and a link. Drivers counted here are the
+//       active ones plus the invited ones that already have a userId (the
+//       driver who nominated this manager). Dedup:
+//       team.month_link_<month> with {orgId, recipient fingerprint}, since
+//       there is no userId to hang it on.
 
 import { prisma } from "../lib/prisma.js";
-import { sendTeamMonthReadyEmail } from "../services/email.js";
+import { sendTeamApprovalRequestEmail, sendTeamMonthReadyEmail } from "../services/email.js";
 import { computeTeamMonthSummary, currentLondonMonth, previousMonth } from "../services/teamExport.js";
+import { createApprovalLink, emailFingerprint } from "../services/teamApprovalLinks.js";
 
 function monthLabel(month: string): string {
   const match = /^(\d{4})-(\d{2})$/.exec(month);
@@ -33,9 +48,19 @@ function monthLabel(month: string): string {
 // times a day, forever.
 const MONTH_READY_WINDOW_DAYS = 4;
 
+// The invited-manager email goes to someone with no account, often for the
+// first time in weeks: not at half past midnight on the 1st.
+const INVITED_EARLIEST_LONDON_HOUR = 8;
+
 function londonDayOfMonth(now: Date): number {
   return Number(
     new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "numeric" }).format(now)
+  );
+}
+
+function londonHour(now: Date): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "numeric", hourCycle: "h23" }).format(now)
   );
 }
 
@@ -47,21 +72,53 @@ async function alreadyNotified(userId: string, eventType: string): Promise<boole
   return existing !== null;
 }
 
-export async function runTeamMonthReadyJob(): Promise<void> {
+async function alreadyLinked(orgId: string, recipient: string, eventType: string): Promise<boolean> {
+  const existing = await prisma.appEvent.findFirst({
+    where: {
+      type: eventType,
+      AND: [
+        { metadata: { path: "$.orgId", equals: orgId } },
+        { metadata: { path: "$.recipient", equals: recipient } },
+      ],
+    },
+    select: { id: true },
+  });
+  return existing !== null;
+}
+
+/** "Sam", "Sam and Jo", "Sam, Jo and 2 others". Unnamed drivers are counted, never invented. */
+export function joinDriverNames(names: Array<string | null>): string {
+  const total = names.length;
+  const named = names.map((n) => n?.trim()).filter((n): n is string => !!n);
+  if (named.length === 0) return total === 1 ? "Your driver" : "Your drivers";
+  if (named.length === total && total <= 3) {
+    return total === 1 ? named[0] : `${named.slice(0, -1).join(", ")} and ${named[total - 1]}`;
+  }
+  const shown = named.slice(0, 2);
+  const rest = total - shown.length;
+  return `${shown.join(", ")} and ${rest} other${rest === 1 ? "" : "s"}`;
+}
+
+export async function runTeamMonthReadyJob(now: Date = new Date()): Promise<void> {
   // TEAM_MONTH_READY_DRY_RUN=1 logs who WOULD be emailed and sends
-  // nothing, so it can be run on demand before letting it loose on real
-  // admins. Mirrors ACTIVATION_LAPSED_DRY_RUN / INVOICE_CHASE_DRY_RUN.
+  // nothing (and creates no links), so it can be run on demand before
+  // letting it loose on real admins. Mirrors ACTIVATION_LAPSED_DRY_RUN /
+  // INVOICE_CHASE_DRY_RUN. Covers both the active-admin and the
+  // invited-manager emails.
   const dryRun = process.env.TEAM_MONTH_READY_DRY_RUN === "1";
   const month = previousMonth(currentLondonMonth());
   const label = monthLabel(month);
   const eventType = `team.month_ready_${month}`;
+  const linkEventType = `team.month_link_${month}`;
 
-  const day = londonDayOfMonth(new Date());
+  const day = londonDayOfMonth(now);
   if (day > MONTH_READY_WINDOW_DAYS && !dryRun) return;
+  const invitedWindowOpen = dryRun || londonHour(now) >= INVITED_EARLIEST_LONDON_HOUR;
 
   const orgs = await prisma.organisation.findMany({ select: { id: true, name: true } });
 
   let sent = 0;
+  let invitedSent = 0;
   let skippedOrgs = 0;
 
   for (const org of orgs) {
@@ -70,6 +127,71 @@ export async function runTeamMonthReadyJob(): Promise<void> {
       select: { userId: true, user: { select: { email: true } } },
     });
 
+    // ── (b) Nobody has accepted the manager role yet ──────────────────────
+    if (admins.length === 0) {
+      if (!invitedWindowOpen) continue;
+      const invited = await prisma.orgMembership.findMany({
+        where: { orgId: org.id, role: "admin", status: "invited" },
+        select: { invitedEmail: true },
+      });
+      const pendingInvited: string[] = [];
+      for (const m of invited) {
+        const email = m.invitedEmail.trim().toLowerCase();
+        if (!email) continue;
+        if (await alreadyLinked(org.id, emailFingerprint(email), linkEventType)) continue;
+        pendingInvited.push(email);
+      }
+      if (pendingInvited.length === 0) {
+        skippedOrgs++;
+        continue;
+      }
+
+      // Active drivers plus the nominating driver(s): invited memberships
+      // that already have a userId. Nobody else could ever approve them.
+      const drivers = await prisma.orgMembership.count({
+        where: { orgId: org.id, role: "driver", status: { in: ["active", "invited"] }, userId: { not: null } },
+      });
+      if (drivers === 0) {
+        skippedOrgs++;
+        continue;
+      }
+      const summary = await computeTeamMonthSummary(org.id, month, { includeNominatingDrivers: true });
+      const withMiles = summary.drivers.filter((d) => d.businessMiles > 0);
+      if (withMiles.length === 0) {
+        skippedOrgs++;
+        continue;
+      }
+
+      for (const email of pendingInvited) {
+        if (dryRun) {
+          // No address in the log: the org id is enough to find it.
+          console.log(`[jobs/teamApprovals] DRY RUN would email the invited manager of org ${org.id} for ${label}`);
+          continue;
+        }
+        try {
+          const token = await createApprovalLink(org.id, month, email, now);
+          await sendTeamApprovalRequestEmail(email, {
+            orgName: org.name,
+            monthLabel: label,
+            driverNames: joinDriverNames(withMiles.map((d) => d.displayName)),
+            driverCount: withMiles.length,
+            totalMiles: summary.totalMiles,
+            totalAmountPence: summary.totalAmountPence,
+            approveToken: token,
+          });
+          // Awaited and direct, for the same reason as below.
+          await prisma.appEvent.create({
+            data: { type: linkEventType, userId: null, metadata: { orgId: org.id, month, recipient: emailFingerprint(email) } },
+          });
+          invitedSent++;
+        } catch (err) {
+          console.error(`[jobs/teamApprovals] Failed to email the invited manager of org ${org.id}:`, err);
+        }
+      }
+      continue;
+    }
+
+    // ── (a) Active admins ────────────────────────────────────────────────
     // Work out who still needs telling BEFORE doing any expensive work. Once
     // an org's admins have all been emailed, this costs two cheap queries per
     // tick instead of a full month computation.
@@ -109,7 +231,8 @@ export async function runTeamMonthReadyJob(): Promise<void> {
       }
 
       try {
-        await sendTeamMonthReadyEmail(admin.email, org.name, label);
+        const token = await createApprovalLink(org.id, month, admin.email, now);
+        await sendTeamMonthReadyEmail(admin.email, org.name, label, token);
         // AWAITED, and written directly rather than via logEvent(): logEvent
         // is fire-and-forget and swallows its own errors, so a failed write
         // would leave no dedup record and this admin would be emailed again
@@ -125,6 +248,6 @@ export async function runTeamMonthReadyJob(): Promise<void> {
   }
 
   console.log(
-    `[jobs/teamApprovals] Month-ready job: ${sent} email(s) sent, ${skippedOrgs} org(s) skipped (month=${month}, dryRun=${dryRun})`
+    `[jobs/teamApprovals] Month-ready job: ${sent} admin email(s), ${invitedSent} invited-manager email(s) sent, ${skippedOrgs} org(s) skipped (month=${month}, dryRun=${dryRun})`
   );
 }

@@ -9,12 +9,11 @@ import { sendTeamInviteEmail } from "../../services/email.js";
 import { syncSeats } from "../../services/teamBilling.js";
 import { newTeamsMode } from "../../services/milesheetNewTeams.js";
 import { trialEndsAtForNewTeam } from "../../services/teamTrial.js";
-import { sendPushToUser } from "../../lib/push.js";
+import { recordTeamApproval } from "../../services/teamApprovalWrite.js";
+import { priceResponseSchema, recordPriceResponse, shouldAskPrice } from "../../services/teamPriceQuestion.js";
 import {
   MONTH_RE,
   currentLondonMonth,
-  isMonthFinished,
-  monthEndsLabel,
   computeTeamMonthSummary,
   loadTeamMonthExportData,
   generateTeamMonthCsv,
@@ -472,85 +471,42 @@ export async function teamRoutes(app: FastifyInstance) {
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
     const { userId, month, status, note } = parsed.data;
 
-    if (status === "queried" && !note) {
-      return reply.status(400).send({ error: "A note is required when querying a driver's month." });
-    }
-
-    // Approving snapshots the miles, so a month still running would leave
-    // its remaining trips out of payroll. Querying early is still allowed.
-    if (status === "approved" && !isMonthFinished(month)) {
-      const { name, reopens } = monthEndsLabel(month);
-      return reply.status(400).send({ error: `${name} hasn't finished yet. You can approve it from ${reopens}.` });
-    }
-
-    // Never trust a userId from the body - confirm it is an ACTIVE driver
-    // in the caller's own org before touching anything. This is the one
-    // check standing between "approve my team" and reading someone else's.
-    const membership = await prisma.orgMembership.findFirst({
-      where: { orgId: admin.orgId, userId, role: "driver", status: "active" },
-      select: { id: true },
-    });
-    if (!membership) return reply.status(404).send({ error: "Driver not found in your team." });
-
-    // Reuse the exact same maths GET /month uses, so what gets snapshotted
-    // is what the manager was just looking at - no separate calculation
-    // that could silently disagree.
-    let milesAtApproval: number | null = null;
-    let amountPenceAtApproval: number | null = null;
-    if (status === "approved") {
-      const summary = await computeTeamMonthSummary(admin.orgId, month);
-      const driverRow = summary.drivers.find((d) => d.userId === userId);
-      milesAtApproval = driverRow?.businessMiles ?? 0;
-      amountPenceAtApproval = driverRow?.amountPence ?? 0;
-    }
-
-    const approval = await prisma.teamApproval.upsert({
-      where: { orgId_userId_month: { orgId: admin.orgId, userId, month } },
-      create: {
-        orgId: admin.orgId,
-        userId,
-        month,
-        status,
-        note: note ?? null,
-        milesAtApproval,
-        amountPenceAtApproval,
-        approvedByUserId: status === "approved" ? request.userId! : null,
-        approvedAt: status === "approved" ? new Date() : null,
-      },
-      update: {
-        status,
-        note: note ?? null,
-        milesAtApproval,
-        amountPenceAtApproval,
-        approvedByUserId: status === "approved" ? request.userId! : null,
-        approvedAt: status === "approved" ? new Date() : null,
-      },
-      select: { id: true, status: true },
-    });
-
-    logEvent(status === "approved" ? "team.month_approved" : "team.month_queried", request.userId!, {
+    // Shared with the emailed approval link (services/teamApprovalWrite.ts):
+    // note rule, unfinished-month refusal, active-driver check, snapshot,
+    // events and the driver's push all live there.
+    const result = await recordTeamApproval({
       orgId: admin.orgId,
-      driverUserId: userId,
       month,
-      note: note ?? null,
+      driverUserId: userId,
+      status,
+      note,
+      actor: { kind: "user", userId: request.userId! },
     });
+    if (!result.ok) return reply.status(result.statusCode).send({ error: result.error });
+    return reply.status(201).send({ data: result.approval });
+  });
 
-    if (status === "queried") {
-      const body = note!.length > 300 ? `${note!.slice(0, 297)}...` : note!;
-      // Skips silently if the driver has no push token - a user with no
-      // token cannot be pinged, and that is not this endpoint's problem.
-      // A person's message sent just now, and never re-sent, so it is not
-      // held for quiet hours (lib/push.ts).
-      await sendPushToUser(
-        userId,
-        "Your manager queried this month's mileage",
-        body,
-        { type: "team_month_queried", action: "open_trips" },
-        { ignoreQuietHours: true }
-      );
-    }
+  // ── Org admin: the one price question, shown after approving ──────────
+  // Asked once per org; a skip lets it come back next month
+  // (services/teamPriceQuestion.ts).
+  app.get("/price-question", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+    return reply.send({ data: { ask: await shouldAskPrice(admin.orgId) } });
+  });
 
-    return reply.status(201).send({ data: approval });
+  app.post("/price-question", { preHandler: [authMiddleware] }, async (request, reply) => {
+    const admin = await requireOrgAdmin(request.userId!);
+    if (!admin) return reply.status(403).send({ error: "You are not a team admin." });
+    const parsed = priceResponseSchema.safeParse(request.body);
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
+    const outcome = await recordPriceResponse({
+      orgId: admin.orgId,
+      userId: request.userId!,
+      via: "portal",
+      ...parsed.data,
+    });
+    return reply.send({ data: { outcome } });
   });
 
   // ── Org admin: consolidated export for payroll (approved drivers only) ─
