@@ -40,6 +40,15 @@ async function applyOptIn(userId: string, source: string): Promise<boolean> {
 }
 
 export async function unsubscribeRoutes(app: FastifyInstance) {
+  // Mail clients send the RFC 8058 one-click POST as a form body
+  // ("List-Unsubscribe=One-Click"), urlencoded or multipart. Without a parser
+  // Fastify answered 415 before the handler ran, so the inbox Unsubscribe
+  // button failed silently and the driver stayed subscribed (found 26 Oct
+  // 2026). The token is in the query; the body is never read.
+  for (const type of ["application/x-www-form-urlencoded", "multipart/form-data"]) {
+    app.addContentTypeParser(type, { parseAs: "string" }, (_req, _body, done) => done(null, {}));
+  }
+
   // GET /unsubscribe?token=...
   // For human clicks from email body links. Flips the opt-out flag and
   // redirects to the web confirmation page so the user sees a branded
