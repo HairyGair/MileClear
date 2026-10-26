@@ -11,6 +11,7 @@ import { Button } from "../../../components/ui/Button";
 import { Badge } from "../../../components/ui/Badge";
 import { LoadingSkeleton } from "../../../components/ui/LoadingSkeleton";
 import { EmptyState } from "../../../components/ui/EmptyState";
+import { PriceQuestion } from "../../../components/milesheet/PriceQuestion";
 
 // Phase 2: the manager works through one calendar month at a time, approving
 // or querying each driver's business mileage, then downloads a single
@@ -149,6 +150,30 @@ export function MonthView() {
     });
   };
 
+  // The one price question, after the first approval of this visit. The
+  // server says whether this org still needs asking (answered never, a skip
+  // not this month).
+  const priceChecked = useRef(false);
+  const [priceOpen, setPriceOpen] = useState(false);
+  const [priceAnswered, setPriceAnswered] = useState(false);
+
+  const maybeAskPrice = () => {
+    if (priceChecked.current) return;
+    priceChecked.current = true;
+    api
+      .get<{ data: { ask: boolean } }>("/team/price-question")
+      .then((res) => {
+        if (res.data.ask) setPriceOpen(true);
+      })
+      .catch(() => undefined);
+  };
+
+  const closePrice = () => {
+    setPriceOpen(false);
+    // Closing without answering counts as a skip, so it comes back next month.
+    if (!priceAnswered) void api.post("/team/price-question", { skip: true }).catch(() => undefined);
+  };
+
   const handleApprove = async (driver: TeamMonthDriver) => {
     const previous = { ...driver };
     setBusyUserId(driver.userId);
@@ -162,6 +187,7 @@ export function MonthView() {
     try {
       await api.post("/team/approvals", { userId: driver.userId, month, status: "approved" });
       toast(`Approved ${monthLabel(month)} for ${driver.displayName || driver.email}`, "success");
+      maybeAskPrice();
     } catch (err) {
       updateDriver(driver.userId, previous);
       toast(err instanceof Error ? err.message : "Couldn't approve that month", "error");
@@ -570,6 +596,27 @@ export function MonthView() {
             </table>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={priceOpen}
+        onClose={closePrice}
+        title="One quick question"
+        footer={
+          priceAnswered ? (
+            <Button variant="ghost" size="sm" onClick={closePrice}>
+              Close
+            </Button>
+          ) : undefined
+        }
+      >
+        <PriceQuestion
+          onAnswer={async (answer, comment) => {
+            await api.post("/team/price-question", { answer, comment: comment || undefined });
+            setPriceAnswered(true);
+          }}
+          onSkip={closePrice}
+        />
       </Modal>
 
       <Modal
