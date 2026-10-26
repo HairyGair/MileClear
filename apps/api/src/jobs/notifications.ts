@@ -1,4 +1,5 @@
 import { runTeamMonthReadyJob } from "./teamApprovals.js";
+import { runTeamMonthEndNudgeJob } from "./teamMonthEndNudge.js";
 import { runMilesheetAlarmJob } from "./milesheetAlarm.js";
 import { runMilesheetTrialRemindersJob } from "./milesheetTrial.js";
 import { runPracticeLinksJob } from "./practiceLinks.js";
@@ -1808,6 +1809,9 @@ export function startNotificationJobs(): void {
     // loop for the reason above: it only fires in the first days of the
     // month, and self-gates to near-zero cost once its emails have gone.
     void runJob("team_month_ready", runTeamMonthReadyJob);
+    // Team drivers with trips to sort, from 18:00 UK two days before the
+    // month ends. Dry run unless TEAM_MONTH_END_NUDGE=1.
+    void runJob("team_month_end_nudge", runTeamMonthEndNudgeJob);
     // Triggered lifecycle emails (30 Aug 2026). Each self-gates to a UK
     // local-time window and to TRIGGERED_EMAILS_ENABLED=1.
     void runJob("email_unclassified_nudge", runUnclassifiedNudgeEmailJob);
