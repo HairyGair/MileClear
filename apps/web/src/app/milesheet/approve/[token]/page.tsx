@@ -39,6 +39,8 @@ interface LinkMonth {
   monthFinished: boolean;
   approvableFrom: string | null;
   hasAccount: boolean;
+  /** portal: manages this team already. none: no account. exists: has one. other_team: in another team. */
+  account: "portal" | "none" | "exists" | "other_team";
   askPrice: boolean;
   totalMiles: number;
   totalAmountPence: number;
@@ -299,7 +301,7 @@ export default function MilesheetApprovePage() {
                           </p>
                         )}
                         {d.status === "queried" && d.note && (
-                          <p style={{ fontSize: "0.8125rem", margin: "0.5rem 0 0", ...muted }}>Your query: &ldquo;{d.note}&rdquo;</p>
+                          <p style={{ fontSize: "0.8125rem", margin: "0.5rem 0 0", ...muted }}>Query: &ldquo;{d.note}&rdquo;</p>
                         )}
 
                         {queryId === d.id ? (
@@ -375,7 +377,7 @@ export default function MilesheetApprovePage() {
               )}
 
               <div className="card" style={{ padding: "1.25rem", marginTop: "1.5rem", lineHeight: 1.6 }}>
-                {data.hasAccount ? (
+                {data.account === "portal" ? (
                   <p style={{ margin: 0, ...muted }}>
                     To download the report for payroll or see other months,{" "}
                     <Link href="/milesheet/portal" style={link}>
@@ -383,15 +385,23 @@ export default function MilesheetApprovePage() {
                     </Link>
                     .
                   </p>
+                ) : data.account === "other_team" ? (
+                  <p style={{ margin: 0, ...muted }}>
+                    Your email address is already in another team on Milesheet, so it can&rsquo;t join{" "}
+                    {data.orgName} as well. You can still approve from this page.
+                  </p>
                 ) : invite === "sent" ? (
                   <p style={{ margin: 0, ...muted }}>
-                    We&rsquo;ve emailed you a link to set up your free account. It works for 7 days.
+                    {data.account === "exists"
+                      ? "We've emailed you an invitation. Open it, sign in with your MileClear account and accept it. It works for 7 days."
+                      : "We've emailed you a link to set up your free account. It works for 7 days."}
                   </p>
                 ) : (
                   <>
                     <p style={{ margin: "0 0 0.75rem", ...muted }}>
-                      You don&rsquo;t need an account to approve. With a free account you can also invite the rest of
-                      the team, see every month, and download one file for payroll.
+                      {data.account === "exists"
+                        ? `You already have a MileClear account with this email. Sign in and accept an invitation to manage ${data.orgName} in the portal: invite the rest of the team, see every month, and download one file for payroll.`
+                        : "You don't need an account to approve. With a free account you can also invite the rest of the team, see every month, and download one file for payroll."}
                     </p>
                     <button
                       type="button"
@@ -399,7 +409,11 @@ export default function MilesheetApprovePage() {
                       disabled={invite === "sending"}
                       onClick={requestInvite}
                     >
-                      {invite === "sending" ? "Sending..." : "Create your free account"}
+                      {invite === "sending"
+                        ? "Sending..."
+                        : data.account === "exists"
+                          ? "Email me the invitation to sign in"
+                          : "Create your free account"}
                     </button>
                     {invite === "error" && (
                       <p style={{ fontSize: "0.8125rem", color: "var(--dash-red, #ef4444)", margin: "0.5rem 0 0" }}>
@@ -413,6 +427,16 @@ export default function MilesheetApprovePage() {
               <p style={{ ...muted, fontSize: "0.75rem", marginTop: "1rem" }}>
                 This page only shows {data.orgName}&rsquo;s {data.monthLabel} mileage. Please don&rsquo;t forward the
                 link.
+                {data.account !== "portal" && (
+                  <>
+                    {" "}
+                    Not your team?{" "}
+                    <Link href={`/milesheet/stop/${encodeURIComponent(token)}`} style={link}>
+                      Stop these emails
+                    </Link>
+                    .
+                  </>
+                )}
               </p>
             </>
           )}
