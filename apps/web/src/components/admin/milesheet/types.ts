@@ -24,6 +24,16 @@ export interface MilesheetOverview {
   invites: { last30d: InviteCounts; allTime: InviteCounts; pending: number; expired: number; waitingOnManager: number };
   proThroughTeams: number;
   proThroughTeamsOnly: number;
+  priceAnswers: PriceAnswers;
+}
+
+/** The price question asked after a manager approves a month: one answer per team. */
+export interface PriceAnswers {
+  counts: Record<string, number>;
+  /** Teams that skipped it (it comes back the next month). */
+  skips: number;
+  /** Newest first. */
+  answers: Array<{ orgId: string; orgName: string | null; answer: string; comment: string | null; via: string | null; at: string }>;
 }
 
 export interface FunnelStep {

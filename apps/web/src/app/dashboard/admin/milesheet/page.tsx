@@ -6,6 +6,7 @@
 
 import Link from "next/link";
 import {
+  BarList,
   Grid,
   KpiCard,
   PageHeader,
@@ -16,8 +17,9 @@ import {
   useAdminData,
 } from "@/components/admin/ui";
 import { AttentionPanel, JourneyPanel } from "@/components/admin/milesheet/panels";
-import { MILESHEET_ROOT, formatRate } from "@/components/admin/milesheet/labels";
-import type { MilesheetOverview } from "@/components/admin/milesheet/types";
+import { MILESHEET_ROOT, formatRate, shortDate } from "@/components/admin/milesheet/labels";
+import type { MilesheetOverview, PriceAnswers } from "@/components/admin/milesheet/types";
+import { PRICE_QUESTION } from "@/components/milesheet/PriceQuestion";
 
 export default function MilesheetOverviewPage() {
   const { data: d, error, loading } = useAdminData<MilesheetOverview>("/admin/milesheet/overview");
@@ -108,7 +110,55 @@ export default function MilesheetOverviewPage() {
         <JourneyPanel compact />
       </div>
 
+      <PricePanel data={d?.priceAnswers} error={error} />
+
       <AttentionPanel limit={6} />
     </>
+  );
+}
+
+const PRICE_LABELS: Record<string, string> = {
+  gbp_2: "£2",
+  gbp_4: "£4",
+  gbp_6_plus: "£6 or more",
+  would_not_pay: "Wouldn't pay",
+};
+
+// What managers said they'd pay, asked once per team after they approve a
+// month (services/teamPriceQuestion.ts). The first answer from a team stands.
+function PricePanel({ data, error }: { data?: PriceAnswers; error: unknown }) {
+  const total = data?.answers.length ?? 0;
+  return (
+    <Panel
+      title="What managers would pay"
+      subtitle={`"${PRICE_QUESTION}"`}
+      footer={data ? `${total} ${total === 1 ? "team has" : "teams have"} answered. Skipped ${data.skips} ${data.skips === 1 ? "time" : "times"}; a skip asks again the next month.` : undefined}
+    >
+      {error ? (
+        <p className="adm-note">Couldn&apos;t load the price answers.</p>
+      ) : !data ? (
+        <p className="adm-note">Loading…</p>
+      ) : total === 0 ? (
+        <p className="adm-note">No answers yet. Managers are asked after they approve a month, so the first ones come after 1 November.</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--adm-s4)" }}>
+          <BarList
+            label="Price answers"
+            items={Object.entries(PRICE_LABELS).map(([key, label]) => ({ key, label, value: data.counts[key] ?? 0 }))}
+          />
+          <ul aria-label="Answers by team" style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "var(--adm-s2)" }}>
+            {data.answers.map((a) => (
+              <li key={a.orgId}>
+                <Link href={`${MILESHEET_ROOT}/${a.orgId}`}>{a.orgName ?? "Removed team"}</Link>
+                {": "}
+                <strong>{PRICE_LABELS[a.answer] ?? a.answer}</strong>
+                <span className="adm-note">{` · ${shortDate(a.at)}${a.via === "email_link" ? " · from the email" : a.via === "portal" ? " · in the portal" : ""}`}</span>
+                {a.comment ? <p className="adm-note" style={{ margin: "2px 0 0" }}>&ldquo;{a.comment}&rdquo;</p> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Panel>
   );
 }
