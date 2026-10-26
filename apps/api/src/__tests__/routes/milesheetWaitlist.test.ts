@@ -11,7 +11,7 @@ import { makeAccessToken } from "../helpers/tokens.js";
 vi.mock("../../lib/prisma.js", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
-    orgMembership: { findFirst: vi.fn(), create: vi.fn() },
+    orgMembership: { findFirst: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), create: vi.fn() },
     organisation: { create: vi.fn(), count: vi.fn(), delete: vi.fn() },
     teamInterest: { findMany: vi.fn(), create: vi.fn() },
     appEvent: { create: vi.fn().mockResolvedValue({}) },
@@ -24,7 +24,7 @@ vi.mock("../../services/email.js", () => ({
   sendMilesheetWaitlistEmail: vi.fn(),
 }));
 
-import { nominateManagerRoutes } from "../../routes/team/nominate.js";
+import { nominateManagerRoutes, splitWaitingNominations } from "../../routes/team/nominate.js";
 import { teamSelfServeRoutes } from "../../routes/team/selfServe.js";
 import { prisma } from "../../lib/prisma.js";
 import { sendManagerNominationEmail, sendMilesheetWaitlistEmail } from "../../services/email.js";
@@ -47,6 +47,8 @@ beforeEach(() => {
   delete process.env.MILESHEET_NEW_TEAMS;
   p.user.findUnique.mockResolvedValue({ email: "driver@example.com", displayName: "Dee" });
   p.orgMembership.findFirst.mockResolvedValue(null);
+  p.orgMembership.findMany.mockResolvedValue([]);
+  p.orgMembership.updateMany.mockResolvedValue({ count: 0 });
   p.teamInterest.findMany.mockResolvedValue([]);
   p.teamInterest.create.mockResolvedValue({ id: "ti-1" });
   p.organisation.count.mockResolvedValue(0);
@@ -146,6 +148,58 @@ describe("POST /team/nominate-manager when new teams are open", () => {
     expect(days).toBeLessThanOrEqual(30);
     expect(sendManagerNominationEmail).toHaveBeenCalledTimes(1);
     expect(p.teamInterest.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("a nomination that is over no longer blocks a new one", () => {
+  const NOW = new Date("2026-10-26T12:00:00Z");
+  const row = (id: string, admins: { status: string; inviteExpiresAt: Date | null }[]) => ({ id, org: { memberships: admins } });
+
+  it("waiting only while a manager invite is live; expired, stopped or removed is stale; an active manager is neither", () => {
+    const out = splitWaitingNominations(
+      [
+        row("live", [{ status: "invited", inviteExpiresAt: new Date("2026-10-30T00:00:00Z") }]),
+        row("expired", [{ status: "invited", inviteExpiresAt: new Date("2026-10-01T00:00:00Z") }]),
+        row("stopped", [{ status: "disabled", inviteExpiresAt: null }]),
+        row("no-manager", []),
+        row("managed", [{ status: "active", inviteExpiresAt: null }]),
+      ],
+      NOW
+    );
+    expect(out).toEqual({ waiting: ["live"], stale: ["expired", "stopped", "no-manager"] });
+  });
+
+  it("refuses while the manager's invite is live", async () => {
+    p.orgMembership.findMany.mockResolvedValue([row("m1", [{ status: "invited", inviteExpiresAt: new Date(Date.now() + 86400e3) }])]);
+    const a = await app();
+    const res = await a.inject({
+      method: "POST",
+      url: "/team/nominate-manager",
+      headers: auth,
+      payload: { managerEmail: "boss@firm.co.uk", companyName: "Firm Ltd" },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error).toContain("already have a nomination waiting");
+    expect(p.orgMembership.updateMany).not.toHaveBeenCalled();
+    await a.close();
+  });
+
+  it("closes an expired one and lets the driver ask again", async () => {
+    p.orgMembership.findMany.mockResolvedValue([row("old", [{ status: "invited", inviteExpiresAt: new Date(Date.now() - 86400e3) }])]);
+    const a = await app();
+    const res = await a.inject({
+      method: "POST",
+      url: "/team/nominate-manager",
+      headers: auth,
+      payload: { managerEmail: "boss@firm.co.uk", companyName: "Firm Ltd" },
+    });
+    // Waiting list (the default): the request is stored, not refused as "already waiting".
+    expect(res.json().error?.code ?? res.json().error).not.toContain("already have a nomination");
+    expect(p.orgMembership.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ["old"] }, userId: USER_ID, status: "invited" },
+      data: expect.objectContaining({ status: "disabled" }),
+    });
+    await a.close();
   });
 });
 

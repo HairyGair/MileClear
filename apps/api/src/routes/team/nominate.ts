@@ -116,17 +116,32 @@ export async function nominateManagerRoutes(app: FastifyInstance) {
       }
 
       // One outstanding nomination per driver - this is also the second
-      // abuse limiter alongside the rate limit above. "Pending" means an
-      // org this driver's own nomination created, still waiting on the
-      // manager's accept.
-      const pending = await prisma.orgMembership.findFirst({
-        where: { userId, status: "invited", org: { createdByUserId: userId } },
-        select: { id: true },
+      // abuse limiter alongside the rate limit above. "Waiting" means a team
+      // this driver is waiting to join whose manager still has a live invite.
+      // A nomination the manager let expire, stopped ("Stop these emails",
+      // "This isn't my team") or was removed from is over: until 26 Oct 2026
+      // it still counted as waiting forever, so the driver could never ask
+      // anyone else. Its leftover driver row is closed here, so the driver's
+      // miles never go to that old manager or count in two teams.
+      const waitingRows = await prisma.orgMembership.findMany({
+        where: { userId, role: "driver", status: "invited" },
+        select: {
+          id: true,
+          org: { select: { memberships: { where: { role: "admin" }, select: { status: true, inviteExpiresAt: true } } } },
+        },
       });
-      if (pending) {
+      const { waiting, stale } = splitWaitingNominations(waitingRows, new Date());
+      if (waiting.length > 0) {
         return reply.status(409).send({
           error: "You already have a nomination waiting on a reply. Wait for it or let it expire before sending another.",
         });
+      }
+      if (stale.length > 0) {
+        await prisma.orgMembership.updateMany({
+          where: { id: { in: stale }, userId, status: "invited" },
+          data: { status: "disabled", disabledAt: new Date() },
+        });
+        logEvent("team.nomination_closed", userId, { memberships: stale.length });
       }
 
       const mode = newTeamsMode();
@@ -236,4 +251,30 @@ export async function nominateManagerRoutes(app: FastifyInstance) {
       return reply.send({ data: { ok: true } });
     }
   );
+}
+
+type WaitingRow = {
+  id: string;
+  org: { memberships: { status: string; inviteExpiresAt: Date | null }[] };
+};
+
+/**
+ * A driver's invited driver rows, split into nominations still waiting on a
+ * manager (some manager holds an unexpired invite) and stale ones (no live
+ * invite and no active manager: expired, stopped or removed). A row whose
+ * team has an active manager is neither: that driver joins through the
+ * normal invite rules and is left alone.
+ */
+export function splitWaitingNominations(rows: WaitingRow[], now: Date): { waiting: string[]; stale: string[] } {
+  const waiting: string[] = [];
+  const stale: string[] = [];
+  for (const r of rows) {
+    const admins = r.org.memberships;
+    if (admins.some((a) => a.status === "invited" && a.inviteExpiresAt !== null && a.inviteExpiresAt > now)) {
+      waiting.push(r.id);
+    } else if (!admins.some((a) => a.status === "active")) {
+      stale.push(r.id);
+    }
+  }
+  return { waiting, stale };
 }
