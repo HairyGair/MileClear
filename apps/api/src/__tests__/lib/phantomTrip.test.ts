@@ -453,3 +453,35 @@ describe("looksLikePhantomTrip - a past shift's typed total", () => {
     expect(looksLikePhantomTrip({ ...total, distanceMiles: 0.4, maxSpeedMph: 0 })).toBe(false);
   });
 });
+
+describe("the sparse flight (26 Oct 2026)", () => {
+  // 198.7 miles in 112 minutes on 3 coordinates, a reading of 308 mph.
+  const flight = {
+    distanceMiles: 198.7,
+    startedAt: "2026-09-28T10:00:00.000Z",
+    endedAt: "2026-09-28T11:52:00.000Z",
+    isManualEntry: false,
+    coordinateCount: 3,
+    maxSpeedMph: 308,
+  };
+
+  it("hides it", () => {
+    expect(looksLikePhantomTrip(flight)).toBe(true);
+  });
+
+  it("keeps a fast sparse drive with no reading beyond a car", () => {
+    expect(looksLikePhantomTrip({ ...flight, maxSpeedMph: 95 })).toBe(false);
+  });
+
+  it("keeps a trip whose trace geometry held a driving pace", () => {
+    expect(looksLikePhantomTrip({ ...flight, sustainedSpeedMph: 71.5 })).toBe(false);
+  });
+
+  it("keeps a well-recorded trip with one wild reading", () => {
+    expect(looksLikePhantomTrip({ ...flight, coordinateCount: 867, distanceMiles: 60.2, endedAt: "2026-09-28T12:00:00.000Z", maxSpeedMph: 777 })).toBe(false);
+  });
+
+  it("keeps a trip at a believable average whatever the reading", () => {
+    expect(looksLikePhantomTrip({ ...flight, distanceMiles: 150, maxSpeedMph: 308 })).toBe(false);
+  });
+});

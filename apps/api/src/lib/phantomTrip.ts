@@ -177,6 +177,32 @@ function looksLikeImpossibleChord(args: PhantomCheckInput): boolean {
   return args.distanceMiles / hours > SPARSE_MAX_IMPLIED_MPH;
 }
 
+// Sparse flight (26 Oct 2026). A plane or a fast train seen by a phone that
+// woke a few times: 198.7 miles in under two hours on 3 coordinates, a
+// reading of 308 mph. The teleport rule wants a whole-trip average over 120
+// and the impossible chord wants under 3 coordinates, so it slipped between
+// them and counted as a drive. Over 90 mph across the whole trip on a thin
+// trace is suspect; the device having read a speed no car reaches makes it
+// certain. A single wild reading on its own proves nothing (plenty of real
+// short drives carry one), hence both, and a trace whose geometry held a
+// driving pace keeps the trip.
+export const SPARSE_FLIGHT_MAX_COORDS = 10;
+export const SPARSE_FLIGHT_MIN_MAX_MPH = 150;
+const SPARSE_FLIGHT_MAX_SUSTAINED_MPH = 100;
+
+function looksLikeSparseFlight(args: PhantomCheckInput): boolean {
+  if (args.coordinateCount === undefined || args.coordinateCount >= SPARSE_FLIGHT_MAX_COORDS) return false;
+  if (args.distanceMiles < CELL_TOWER_MIN_MILES) return false;
+  if ((args.maxSpeedMph ?? 0) < SPARSE_FLIGHT_MIN_MAX_MPH) return false;
+  if (typeof args.sustainedSpeedMph === "number" && args.sustainedSpeedMph < SPARSE_FLIGHT_MAX_SUSTAINED_MPH) {
+    return false;
+  }
+  if (!args.endedAt) return false;
+  const hours = (new Date(args.endedAt).getTime() - new Date(args.startedAt).getTime()) / 3600000;
+  if (!Number.isFinite(hours) || hours <= 0) return false;
+  return args.distanceMiles / hours > SPARSE_MAX_IMPLIED_MPH;
+}
+
 function looksLikeCellTowerChord(args: PhantomCheckInput): boolean {
   if (args.coordinateCount === undefined || args.coordinateCount >= CROW_FLIES_MIN_COORDS) {
     return false;
@@ -302,6 +328,7 @@ export function looksLikePhantomTrip(args: PhantomCheckInput): boolean {
   if (looksLikeTeleport(args)) return true;
   if (looksLikeCellTowerChord(args)) return true;
   if (looksLikeImpossibleChord(args)) return true;
+  if (looksLikeSparseFlight(args)) return true;
 
   // On-foot evidence, ABOVE the speed reprieve. The reprieve fires on a single
   // sample, and one spurious 18 mph fix in a half-hour walk was enough to buy
