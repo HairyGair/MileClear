@@ -34,6 +34,7 @@ import { teamInterestRoutes } from "./routes/teamInterest/index.js";
 import { teamRoutes } from "./routes/team/index.js";
 import { teamSelfServeRoutes } from "./routes/team/selfServe.js";
 import { nominateManagerRoutes } from "./routes/team/nominate.js";
+import { teamApprovalLinkRoutes } from "./routes/team/approvalLink.js";
 import { adminRoutes } from "./routes/admin/index.js";
 import { feedbackRoutes } from "./routes/feedback/index.js";
 import { supportRoutes } from "./routes/support/index.js";
@@ -278,6 +279,9 @@ await app.register(teamSelfServeRoutes, { prefix: "/team" });
 // Driver names their manager. Same prefix, its own path, its own file: the
 // primary acquisition route should not share a file with membership admin.
 await app.register(nominateManagerRoutes, { prefix: "/team" });
+// Approve the month from an email link: public, token in the path, paths
+// all under /approval-links.
+await app.register(teamApprovalLinkRoutes, { prefix: "/team" });
 await app.register(adminRoutes, { prefix: "/admin" });
 await app.register(feedbackRoutes, { prefix: "/feedback" });
 await app.register(supportRoutes, { prefix: "/support" });

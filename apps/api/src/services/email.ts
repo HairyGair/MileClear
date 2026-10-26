@@ -3455,20 +3455,36 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
 export async function sendTeamMonthReadyEmail(
   email: string,
   orgName: string,
-  monthLabel: string
+  monthLabel: string,
+  /** Oct 2026: raw approval-link token (services/teamApprovalLinks.ts). */
+  approveToken?: string
 ): Promise<void> {
   const url = `${WEB_BASE_URL}/milesheet/portal`;
+  const approveUrl = approveToken ? `${WEB_BASE_URL}/milesheet/approve/${approveToken}` : null;
   const safeOrg = escapeHtml(orgName);
   const safeMonth = escapeHtml(monthLabel);
   const subject = `${monthLabel} is ready to approve for ${orgName}`;
   const html = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
       <h2 style="color: #1a1a1a; margin-bottom: 8px;">${safeMonth} is ready to approve</h2>
-      <p style="color: #333; font-size: 15px; line-height: 1.6;">${safeOrg}'s drivers have logged their mileage for ${safeMonth}. Open the team portal to review each driver's month, approve or query, and download the consolidated report when you are ready.</p>
-      <p style="margin: 24px 0;">
-        <a href="${url}" style="background: #f5a623; color: #030712; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Open team portal</a>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">${safeOrg}'s drivers have logged their mileage for ${safeMonth}. ${
+        approveUrl
+          ? "You can approve or query each driver's month straight from this email, without signing in. Open the team portal when you want to download the report for payroll."
+          : "Open the team portal to review each driver's month, approve or query, and download the consolidated report when you are ready."
+      }</p>
+      ${
+        approveUrl
+          ? `<p style="margin: 24px 0 12px;">
+        <a href="${approveUrl}" style="background: #f5a623; color: #030712; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Approve from this email</a>
       </p>
-      <p style="color: #888; font-size: 12px;">You are getting this because you are an admin for ${safeOrg} on MileClear.</p>
+      <p style="margin: 0 0 24px; font-size: 14px;"><a href="${url}" style="color: #6366f1;">Open team portal</a></p>`
+          : `<p style="margin: 24px 0;">
+        <a href="${url}" style="background: #f5a623; color: #030712; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Open team portal</a>
+      </p>`
+      }
+      <p style="color: #888; font-size: 12px;">You are getting this because you are an admin for ${safeOrg} on MileClear.${
+        approveUrl ? ` The approve link works for 30 days and only for ${safeMonth}, so please do not forward it.` : ""
+      }</p>
     </div>
   `;
 
@@ -3477,6 +3493,83 @@ export async function sendTeamMonthReadyEmail(
     return;
   }
   await transporter.sendMail({ from: FROM, to: email, replyTo: SUPPORT_INBOX, subject, html });
+}
+
+/**
+ * Milesheet (Oct 2026): the monthly "approve their mileage" email to a
+ * manager a driver nominated who has not created an account yet. Carries
+ * the month's totals and an approval link (services/teamApprovalLinks.ts)
+ * that works without signing in. Driver names and the company name come
+ * from user input, so all are escaped.
+ */
+export async function sendTeamApprovalRequestEmail(
+  email: string,
+  args: {
+    orgName: string;
+    monthLabel: string;
+    /** Already joined for reading, e.g. "Sam and Jo". */
+    driverNames: string;
+    driverCount: number;
+    totalMiles: number;
+    totalAmountPence: number;
+    approveToken: string;
+  }
+): Promise<void> {
+  const approveUrl = `${WEB_BASE_URL}/milesheet/approve/${args.approveToken}`;
+  // A page with a button, not a GET that acts: mail scanners open every
+  // link, and this one switches the manager off.
+  const stopUrl = `${WEB_BASE_URL}/milesheet/stop/${args.approveToken}`;
+  const safeOrg = escapeHtml(args.orgName);
+  const safeMonth = escapeHtml(args.monthLabel);
+  const safeNames = escapeHtml(args.driverNames);
+  const miles = args.totalMiles.toLocaleString("en-GB", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const subject = `${args.driverNames} asked you to approve their ${args.monthLabel} mileage on Milesheet`;
+  const html = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="color: #1a1a1a; margin-bottom: 8px;">${safeMonth} mileage for ${safeOrg} is ready to approve</h2>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;"><strong>${safeNames}</strong> at <strong>${safeOrg}</strong> record${args.driverCount === 1 ? "s" : ""} business mileage with MileClear and asked you to approve it each month.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 16px 0; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 8px 24px 8px 0; font-size: 22px; font-weight: 700; color: #1a1a1a;">${miles}</td>
+          <td style="padding: 8px 24px 8px 0; font-size: 22px; font-weight: 700; color: #1a1a1a;">${gbp(args.totalAmountPence)}</td>
+          <td style="padding: 8px 0; font-size: 22px; font-weight: 700; color: #1a1a1a;">${args.driverCount}</td>
+        </tr>
+        <tr>
+          <td style="padding: 0 24px 0 0; font-size: 12px; color: #666;">business miles</td>
+          <td style="padding: 0 24px 0 0; font-size: 12px; color: #666;">to reimburse</td>
+          <td style="padding: 0; font-size: 12px; color: #666;">driver${args.driverCount === 1 ? "" : "s"}</td>
+        </tr>
+      </table>
+      <p style="color: #333; font-size: 15px; line-height: 1.6;">You don't need an account. Open the link to see each driver's miles, trips and amount, then approve it or send a query back to the driver.</p>
+      <p style="margin: 24px 0;">
+        <a href="${approveUrl}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Review and approve ${safeMonth}</a>
+      </p>
+      <p style="color: #333; font-size: 14px; line-height: 1.6;">If you'd like the full portal (invite the rest of the team, download one file for payroll), you can create a free account from the same page.</p>
+      <p style="color: #888; font-size: 12px;">The link works for 30 days and only for ${safeOrg}'s ${safeMonth} mileage, so please do not forward it.</p>
+      <p style="color: #888; font-size: 12px;">Not your team, or don't want these? <a href="${stopUrl}" style="color: #888;">Stop these emails</a>. We'll also stop on our own if two months go by without the link being opened.</p>
+    </div>
+  `;
+
+  if (!transporter) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SMTP not configured - cannot send Milesheet approval request in production");
+    }
+    console.log(`[EMAIL] Milesheet approval request (${args.monthLabel}) for ${args.orgName} -> ${email}: ${approveUrl} (dev only)`);
+    return;
+  }
+  await transporter.sendMail({
+    from: FROM,
+    to: email,
+    replyTo: SUPPORT_INBOX,
+    subject,
+    html,
+    // RFC 8058 one-click: the mail client POSTs here and the invited
+    // manager's membership is switched off at once (routes/team/approvalLink.ts).
+    headers: {
+      "List-Unsubscribe": `<${API_BASE_URL}/team/approval-links/${args.approveToken}/stop>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    },
+  });
 }
 
 /**

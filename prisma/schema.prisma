@@ -1273,6 +1273,7 @@ model Organisation {
   createdBy   User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
   memberships OrgMembership[]
   approvals   TeamApproval[]
+  approvalLinks TeamApprovalLink[]
 
   @@map("organisations")
 }
@@ -1294,6 +1295,9 @@ model TeamApproval {
   amountPenceAtApproval Int?
   note       String?  @db.Text
   approvedByUserId String?
+  /// Set instead of approvedByUserId when a manager approved or queried
+  /// from an emailed link without signing in (TeamApprovalLink, Oct 2026).
+  approvedByEmail String? @db.VarChar(255)
   approvedAt DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -1304,6 +1308,27 @@ model TeamApproval {
   @@unique([orgId, userId, month])
   @@index([orgId, month])
   @@map("team_approvals")
+}
+
+/// Milesheet (Oct 2026): a link emailed to a manager that lets them approve
+/// or query one org's drivers for one month without signing in. It grants
+/// that org + month and nothing else. sha256 of the token at rest; the raw
+/// token exists only in the email.
+model TeamApprovalLink {
+  id             String    @id @default(uuid())
+  orgId          String
+  /// "YYYY-MM", UK local terms.
+  month          String    @db.VarChar(7)
+  recipientEmail String    @db.VarChar(255)
+  tokenHash      String    @unique @db.VarChar(64)
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime?
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, month])
+  @@map("team_approval_links")
 }
 
 model OrgMembership {

@@ -7,6 +7,7 @@ import {
 import type { TeamApprovalStatus, TeamDrivingDay, TeamMonthDriver, TeamMonthSummary } from "@mileclear/shared";
 import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
+import { teamDriverMembershipWhere } from "./teamDrivers.js";
 import { DRIVING_TIMES_LABEL, formatSpan, loadTeamDrivingDays } from "./drivingTimes.js";
 
 // Milesheet Phase 2 (24 Aug 2026).
@@ -190,7 +191,22 @@ function resolveDriverRate(
 
 // ── Live month computation ───────────────────────────────────────────────
 
-export async function computeTeamMonthSummary(orgId: string, month: string): Promise<TeamMonthSummary> {
+export interface TeamMonthSummaryOptions {
+  /**
+   * Also count drivers whose membership is still "invited" but already has
+   * a userId: the driver who nominated a manager who has not signed up yet.
+   * Only the emailed approval link sets this, and only while the org has no
+   * active admin (services/teamApprovalLinks.ts). Once a manager accepts,
+   * those memberships turn active and the two paths give the same list.
+   */
+  includeNominatingDrivers?: boolean;
+}
+
+export async function computeTeamMonthSummary(
+  orgId: string,
+  month: string,
+  options: TeamMonthSummaryOptions = {}
+): Promise<TeamMonthSummary> {
   const { start, end } = londonMonthBounds(month);
 
   const org = await prisma.organisation.findUniqueOrThrow({
@@ -199,7 +215,7 @@ export async function computeTeamMonthSummary(orgId: string, month: string): Pro
   });
 
   const memberships = await prisma.orgMembership.findMany({
-    where: { orgId, role: "driver", status: "active", userId: { not: null } },
+    where: teamDriverMembershipWhere(orgId, options.includeNominatingDrivers === true),
     select: { id: true, userId: true },
   });
   const driverUserIds = memberships.map((m) => m.userId!).filter(Boolean);
@@ -346,7 +362,9 @@ export async function computeTeamMonthSummary(orgId: string, month: string): Pro
       status,
       note: approval?.note ?? null,
       approvedAt: approval?.approvedAt?.toISOString() ?? null,
-      approvedByName: approval?.approvedByUserId ? (approverNameById.get(approval.approvedByUserId) ?? null) : null,
+      approvedByName: approval?.approvedByUserId
+        ? (approverNameById.get(approval.approvedByUserId) ?? null)
+        : (approval?.approvedByEmail ?? null),
       driftMiles,
       unclassifiedTrips: unclassifiedByUser.get(uid) ?? 0,
     };
@@ -417,6 +435,7 @@ export async function loadTeamMonthExportData(orgId: string, month: string): Pro
       amountPenceAtApproval: true,
       approvedAt: true,
       approvedByUserId: true,
+      approvedByEmail: true,
       userId: true,
       user: { select: { displayName: true, email: true } },
     },
@@ -442,7 +461,9 @@ export async function loadTeamMonthExportData(orgId: string, month: string): Pro
       ratePence: miles > 0 ? Math.round(amount / miles) : 0,
       amountPence: amount,
       approvedAt: a.approvedAt ?? new Date(),
-      approvedByName: a.approvedByUserId ? (approverNameById.get(a.approvedByUserId) ?? "-") : "-",
+      approvedByName: a.approvedByUserId
+        ? (approverNameById.get(a.approvedByUserId) ?? "-")
+        : (a.approvedByEmail ?? "-"),
     };
   });
 
