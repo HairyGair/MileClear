@@ -51,6 +51,48 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "two-million-miles",
+    title: "Two million miles",
+    excerpt:
+      "Just before ten on Monday night, MileClear drivers passed two million miles between them. The first million took seven months. The second took five weeks.",
+    date: "27 October 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p><img src="/og/updates/two-million-miles.png" alt="2,000,000 miles recorded by MileClear drivers: 176,910 journeys, 1,603 drivers, 80 times round the Earth" width="1200" height="628" /></p>
+
+<p>At about a quarter to ten on Monday night, somebody finished a drive, their phone sent it in, and the total for everyone using MileClear went past <strong>2,000,000 miles</strong>.</p>
+
+<p>The first million took seven months, from the first sign-ups in February to 22 September. The second million took five weeks.</p>
+
+<h2>What two million miles looks like</h2>
+
+<ul>
+<li><strong>176,910 journeys</strong>, recorded by <strong>1,603 drivers</strong>.</li>
+<li><strong>96%</strong> of those journeys recorded themselves. Nobody pressed start.</li>
+<li><strong>940,742</strong> of the miles were business miles. At HMRC's mileage rates, that is close to half a million pounds of mileage claims that drivers can now back up with a dated log.</li>
+<li>In the last 30 days alone, drivers recorded <strong>867,330 miles</strong> over 84,670 journeys.</li>
+<li>Two million miles is about <strong>80 times round the Earth</strong>, or to the Moon and back four times.</li>
+</ul>
+
+<h2>Only real drives count</h2>
+
+<p>I wanted this number to be honest, so before writing this I went through the trips that should not be in it.</p>
+
+<p>Phones are good at recording drives and occasionally good at recording other things. A phone that wakes up a few times on a plane can produce a "trip" of a thousand miles at 500 miles an hour. Those flights are now taken out, and the app stops counting new ones.</p>
+
+<p>Going the other way, I found 217 real drives that had been hidden by mistake. A phone sends a drive in about 30 seconds after it starts, and that first piece can look like the phone jumped from one place to another. The rest of the drive arrived later, but the trip stayed hidden. Those drives are back, on the right driver's log, and the same thing will not happen again.</p>
+
+<p>So the two million counts drives. Flights, duplicates and anything else that is not a journey by road are left out.</p>
+
+<h2>Thank you</h2>
+
+<p>MileClear is built by one person, and most of what has improved this year started with a driver taking the time to say something was wrong. A missing trip, a figure that did not add up, a button in the wrong place. Every one of those messages has made the app better for the next driver. Thank you.</p>
+
+<p>If you drive for work, or you just want to know where your miles go, MileClear is free on iPhone and Android. Search for MileClear in the App Store or Google Play.</p>
+`,
+  },
+  {
     slug: "self-assessment-delivery-drivers-checklist",
     title: "Self Assessment for delivery drivers: a 2025-26 checklist before 31 January",
     excerpt:
