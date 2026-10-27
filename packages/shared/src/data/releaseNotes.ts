@@ -103,6 +103,18 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     ],
     ctaUrl: "https://mileclear.com/releases",
     ctaLabel: "Read the release notes",
+    emailSubject: "What's new in MileClear 1.4.0",
+    emailTagline:
+      "MileClear 1.4.0 is on the App Store, and between you, you've now recorded more than 2 million miles. Here's what's new.",
+    emailHighlights: [
+      "**Only record in work hours** - a switch on the Work hours screen. Outside your hours nothing records, and Record now covers the rest of the day.",
+      "**Add a whole past shift** - in one go, with its trips and earnings.",
+      "**More than one car?** - trips the app records on its own go on your primary car, and you can download a trip report or CSV for just one car.",
+      "**Kilometres if you prefer** - Settings > Distances. Tax figures and downloads stay in miles.",
+      "**Fuel prices your way** - choose your fuel and sort nearby stations by nearest or cheapest.",
+      "**Paid a week behind?** - if you've linked a bank, mark that app and its payouts count in the week you did the work.",
+      "**Your odometer on Home** - and a recorded trip lists the roadworks it drove through.",
+    ],
   },
   {
     // Build 95, cut 11 Oct 2026 from ui-set-oct (main @ 37ecd2f3), submitted to
