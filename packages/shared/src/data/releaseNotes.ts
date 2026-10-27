@@ -83,11 +83,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // Build 97, cut 24 Oct 2026 from main 551855a2, submitted to Apple 25 Oct
     // (docs/apple-submission-1.4.0-build-97.md). Most of this already reached
     // 1.3.13 phones by OTA and is listed there too; this is the App Store's
-    // What's New. "Pending Review" now, "Latest" on approval in the same edit
-    // that drops 1.3.13 to "App Store".
+    // What's New. Approved 27 Oct 2026 (build 98, after the build 97
+    // rejection), so "Latest", and 1.3.13 dropped to "App Store".
     version: "1.4.0",
     date: "October 2026",
-    label: "Pending Review",
+    label: "Latest",
     items: [
       "Only record in work hours: a switch on the Work hours screen. Outside your hours nothing records, and Record now covers the rest of the day",
       "Distances in kilometres if you prefer: Settings > Distances. Tax figures and downloads stay in miles",
@@ -116,7 +116,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     // the "Trip still recording" fix is server-side, so all three are listed.
     version: "1.3.13",
     date: "October 2026",
-    label: "Latest",
+    label: "App Store",
     items: [
       "Trips: \"To sort\" replaces Inbox. Each trip leads with its route, like \"Home to Work\", and each day shows its miles",
       "Swipe a trip right to mark it Business, with Undo",
