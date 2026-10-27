@@ -106,13 +106,18 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     emailSubject: "What's new in MileClear 1.4.0",
     emailTagline:
       "MileClear 1.4.0 is on the App Store, and between you, you've now recorded more than 2 million miles. Here's what's new.",
+    // Directions went to every Pro driver the same day (NAVIGATION_ROLLOUT=pro,
+    // 27 Oct), so it is in the email though not in items: it needs 1.4.0.
     emailHighlights: [
+      "**A simpler app** - four tabs (Home, Trips, Tax or Insights, More). Tap a trip to see its route and mark it Business or Personal in one tap.",
+      "**Directions (Pro)** - spoken turn-by-turn directions inside MileClear. Tap Where to? under Start Trip on Home. It's new, so it's marked Test: tell us how it goes.",
       "**Only record in work hours** - a switch on the Work hours screen. Outside your hours nothing records, and Record now covers the rest of the day.",
-      "**Add a whole past shift** - in one go, with its trips and earnings.",
-      "**More than one car?** - trips the app records on its own go on your primary car, and you can download a trip report or CSV for just one car.",
+      "**Add a whole past shift** - in one go, with its trips and earnings, or just the totals.",
+      "**More than one car?** - trips the app records on its own go on your primary car, and with Pro you can download a trip report or CSV for just one car.",
+      "**Work for clients?** - filter your trips by client, and with Pro download a trip report or CSV for one client.",
       "**Kilometres if you prefer** - Settings > Distances. Tax figures and downloads stay in miles.",
       "**Fuel prices your way** - choose your fuel and sort nearby stations by nearest or cheapest.",
-      "**Paid a week behind?** - if you've linked a bank, mark that app and its payouts count in the week you did the work.",
+      "**Paid a week behind? (Pro)** - if you've linked your bank, mark that app and its payouts count in the week you did the work.",
       "**Your odometer on Home** - and a recorded trip lists the roadworks it drove through.",
     ],
   },
