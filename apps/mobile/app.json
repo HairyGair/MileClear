@@ -16,8 +16,8 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.mileclear.app",
-      "buildNumber": "97",
-      "runtimeVersion": "1.4.0-build97",
+      "buildNumber": "98",
+      "runtimeVersion": "1.4.0-build98",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationAlwaysAndWhenInUseUsageDescription": "MileClear needs location access to track your mileage during shifts and detect when you start driving.",
@@ -28,8 +28,7 @@
         "UIBackgroundModes": [
           "location",
           "fetch",
-          "remote-notification",
-          "audio"
+          "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
