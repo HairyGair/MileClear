@@ -82,10 +82,11 @@ import { recordLastSavedTrip } from "../lib/events/lastTrip";
 import {
   dropArriveRequest,
   hasArriveRequest,
+  recordingStartTripScreens,
   registerRecordingStartTripScreen,
   takeArriveRequest,
 } from "../lib/home/startTripRequest";
-import type { StackStateLike } from "../lib/home/startTripCard";
+import { resumeSecondCopyPlan, type StackStateLike } from "../lib/home/startTripCard";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -715,6 +716,8 @@ export default function TripFormScreen() {
   // For the exit guard: usePreventRemove hands back the navigation action it
   // blocked, and this is what re-dispatches it once the driver has decided.
   const navigation = useNavigation();
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
 
   // "Save as place" under a trip's start/end address: open the saved-location
   // form with the pin and address already filled, so the driver only names it.
@@ -756,6 +759,10 @@ export default function TripFormScreen() {
   // This screen's own key in the root stack, so Home goes back to this very
   // screen while it records (lib/home/openStartTrip.ts).
   const routeKey = useRoute().key;
+  // The same, plus the navigator, for the mount-time set-up (which must not
+  // re-run when they change identity).
+  const routeKeyRef = useRef(routeKey);
+  routeKeyRef.current = routeKey;
   const {
     id,
     mode: modeParam,
@@ -1340,6 +1347,29 @@ export default function TripFormScreen() {
             // Malformed row - clear and start fresh
             await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [QUICK_TRIP_KEY]);
             resumeRow = null;
+          }
+        }
+
+        // Another screen in the stack is already recording this trip: a
+        // second copy must not resume it too, or both could save the drive.
+        // A past-trip form stays a past-trip form; anything else gives way.
+        if (resumeRow) {
+          let copy: ReturnType<typeof resumeSecondCopyPlan> = { kind: "resume" };
+          try {
+            copy = resumeSecondCopyPlan(
+              navigationRef.current.getState() as unknown as StackStateLike,
+              recordingStartTripScreens().map((s) => s.key),
+              routeKeyRef.current,
+              modeParam === "manual"
+            );
+          } catch {
+            // the stack could not be read: resume as before
+          }
+          if (copy.kind === "stay_manual") {
+            resumeRow = null;
+          } else if (copy.kind === "pop") {
+            navigationRef.current.dispatch(StackActions.pop(copy.count));
+            return; // finally sets loading=false
           }
         }
 

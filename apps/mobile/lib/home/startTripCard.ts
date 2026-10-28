@@ -15,19 +15,32 @@ import { durationText } from "./statusLine";
 
 /**
  * Mirrors the Start Trip screen's resume guard (app/trip-form.tsx): a start
- * row older than this is cleared as stale when the screen opens, so the card
- * must not send the driver there to "finish" it.
+ * row older than this is cleared as stale when the screen opens, deleting the
+ * trip's start row and its route.
  */
 export const START_TRIP_RESUME_MAX_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * The card stops this far short of that guard, and a tap is checked again
+ * against it with the time of the tap, so the card can never lead into it.
+ */
+export const START_TRIP_CARD_MAX_MS = START_TRIP_RESUME_MAX_MS - 10 * 60 * 1000;
+
+/** A tap on the card may open the trip: started, and well inside the resume guard. */
+export function startTripCardTapAllowed(startedAtMs: number | null, nowMs: number): boolean {
+  if (startedAtMs == null || !Number.isFinite(startedAtMs)) return false;
+  const age = nowMs - startedAtMs;
+  return age >= 0 && age < START_TRIP_CARD_MAX_MS;
+}
+
 export interface StartTripCardInputs {
   /**
-   * active_shift_id: the Start Trip's own lock, none, or anything else (a
-   * shift, an Arrived waiting to be saved).
+   * active_shift_id is the Start Trip's own lock. Anything else hides the
+   * card: no lock (a self-heal stopped the GPS on purpose, and resuming from
+   * here would end at the wrong place and could clear a later automatic
+   * drive), a shift, or an Arrived waiting to be saved.
    */
-  lock: "quick" | "none" | "other";
-  /** An automatic recording is open (auto_recording_active). */
-  autoRecording: boolean;
+  quickLockHeld: boolean;
   /** quick_trip_start's startedAt, or null when the row is missing or unreadable. */
   startedAtMs: number | null;
   /** GPS distance so far. */
@@ -44,20 +57,15 @@ export interface StartTripCardModel {
 }
 
 /**
- * The card, or null when there is no Start Trip the screen would resume. The
- * screen resumes from the start row alone, so the card follows the row: shown
- * with the Start Trip's lock, or with no lock at all (a self-heal can let the
- * lock go while the row stays, and the screen still resumes it), but never
- * over a shift, an Arrived waiting to be saved or an automatic recording.
- * Hidden with no start row (the screen would open a fresh Start Trip) or one
- * the screen would clear as stale.
+ * The card, or null when there is no Start Trip recording that the screen
+ * would resume: no Start Trip lock, no readable start row (the screen would
+ * open a fresh Start Trip), or a start row near or past the screen's resume
+ * guard.
  */
 export function startTripCardModel(i: StartTripCardInputs): StartTripCardModel | null {
-  if (i.lock === "other") return null;
-  if (i.lock === "none" && i.autoRecording) return null;
-  if (i.startedAtMs == null || !Number.isFinite(i.startedAtMs)) return null;
-  const age = i.now - i.startedAtMs;
-  if (age < 0 || age > START_TRIP_RESUME_MAX_MS) return null;
+  if (!i.quickLockHeld) return null;
+  if (!startTripCardTapAllowed(i.startedAtMs, i.now)) return null;
+  const age = i.now - (i.startedAtMs as number);
   const unit = i.unit ?? "miles";
   const d = Math.max(0, distanceIn(i.miles, unit));
   const distance = `${d < 100 ? d.toFixed(1) : String(Math.round(d))} ${distanceUnitLabel(unit)}`;
@@ -87,7 +95,7 @@ export interface StackStateLike {
 
 export type OpenStartTripPlan =
   | { kind: "here" } // the recording screen is already on top
-  | { kind: "pop"; count: number } // pop exactly this many screens to reach it
+  | { kind: "pop"; count: number; key: string } // pop exactly this many screens to reach it
   | { kind: "open" }; // none in the stack: open a fresh one, which resumes the trip
 
 /**
@@ -106,10 +114,38 @@ export function openStartTripPlan(state: StackStateLike | null | undefined, reco
   const keys = new Set(recordingKeys);
   for (let i = top; i >= 0; i--) {
     if (keys.has(state.routes[i].key)) {
-      return i === top ? { kind: "here" } : { kind: "pop", count: top - i };
+      return i === top ? { kind: "here" } : { kind: "pop", count: top - i, key: state.routes[i].key };
     }
   }
   return { kind: "open" };
+}
+
+/**
+ * A Start Trip screen opening finds a running trip to resume. If another
+ * screen in the stack is already recording it, a second copy must not resume
+ * it too (both could save the drive): a past-trip form stays a past-trip form,
+ * and anything else gives way to the recording screen by popping back to it.
+ * Many places open the screen (Trips, the last-trip card, notifications), so
+ * the check lives here rather than in each of them.
+ */
+export function resumeSecondCopyPlan(
+  state: StackStateLike | null | undefined,
+  recordingKeys: string[],
+  ownKey: string,
+  openedForPastTrip: boolean
+): { kind: "resume" } | { kind: "stay_manual" } | { kind: "pop"; count: number; key: string } {
+  const others = recordingKeys.filter((k) => k !== ownKey);
+  if (others.length === 0) return { kind: "resume" };
+  const plan = openStartTripPlan(state, others);
+  if (plan.kind !== "pop") return { kind: "resume" };
+  return openedForPastTrip ? { kind: "stay_manual" } : plan;
+}
+
+/** After a pop: it went through when the screen it aimed at is now on top. */
+export function popLanded(state: StackStateLike | null | undefined, key: string): boolean {
+  if (!state || !Array.isArray(state.routes) || state.routes.length === 0) return false;
+  const top = Math.min(Math.max(0, state.index), state.routes.length - 1);
+  return state.routes[top].key === key;
 }
 
 /** Two taps this close together are one: the second must not open a second screen. */

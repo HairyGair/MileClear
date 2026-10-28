@@ -78,14 +78,13 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
     [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.pausedForWorkHours, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
   );
 
-  // `recording` re-renders every 15 s while a trip runs, so the card's time moves.
+  // The hook ticks every 15 s while a Start Trip records, so the card's time moves.
   const card = startTrip
     ? startTripCardModel({
-        lock: startTrip.lock,
-        autoRecording: startTrip.autoRecording,
+        quickLockHeld: true,
         startedAtMs: startTrip.startedAtMs,
         miles: startTrip.miles,
-        now,
+        now: startTrip.now,
         unit,
       })
     : null;
@@ -135,11 +134,11 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
           model={card}
           onOpen={() => {
             trackHomeTap("start_trip_card", a.mode, status.kind);
-            openStartTrip();
+            openStartTrip({ fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
           }}
           onArrived={() => {
             trackHomeTap("start_trip_card_arrived", a.mode, status.kind);
-            openStartTrip({ arrive: true });
+            openStartTrip({ arrive: true, fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
           }}
         />
       ) : null}

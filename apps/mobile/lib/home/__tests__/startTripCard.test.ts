@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   ARRIVE_REQUEST_TTL_MS,
   OPEN_START_TRIP_DEBOUNCE_MS,
+  START_TRIP_CARD_MAX_MS,
   START_TRIP_RESUME_MAX_MS,
   arriveRequestLive,
   openStartTripDue,
   openStartTripPlan,
+  popLanded,
+  resumeSecondCopyPlan,
   startTripCardModel,
+  startTripCardTapAllowed,
   type StartTripCardInputs,
 } from "../startTripCard";
 import {
@@ -23,8 +27,7 @@ const now = 1_800_000_000_000;
 const min = 60_000;
 
 const base = (over: Partial<StartTripCardInputs> = {}): StartTripCardInputs => ({
-  lock: "quick",
-  autoRecording: false,
+  quickLockHeld: true,
   startedAtMs: now - 24 * min,
   miles: 12.44,
   now,
@@ -46,14 +49,8 @@ describe("startTripCardModel", () => {
   });
 
   it("never shows over a shift or an Arrived waiting to be saved", () => {
-    expect(startTripCardModel(base({ lock: "other" }))).toBeNull();
-  });
-
-  it("shows with no lock when the start row remains (the screen still resumes it), unless an automatic recording is open", () => {
-    expect(startTripCardModel(base({ lock: "none" }))).not.toBeNull();
-    expect(startTripCardModel(base({ lock: "none", autoRecording: true }))).toBeNull();
-    // With the Start Trip's own lock an auto flag does not hide it.
-    expect(startTripCardModel(base({ lock: "quick", autoRecording: true }))).not.toBeNull();
+    // No lock (a self-heal stopped the GPS), a shift, or an Arrived pending.
+    expect(startTripCardModel(base({ quickLockHeld: false }))).toBeNull();
   });
 
   it("is hidden without a readable start row: the screen would open a fresh trip", () => {
@@ -62,8 +59,10 @@ describe("startTripCardModel", () => {
   });
 
   it("is hidden for a start row the screen would clear as stale, or one in the future", () => {
-    expect(startTripCardModel(base({ startedAtMs: now - START_TRIP_RESUME_MAX_MS - 1 }))).toBeNull();
-    expect(startTripCardModel(base({ startedAtMs: now - START_TRIP_RESUME_MAX_MS }))).not.toBeNull();
+    expect(START_TRIP_CARD_MAX_MS).toBeLessThan(START_TRIP_RESUME_MAX_MS);
+    expect(startTripCardModel(base({ startedAtMs: now - START_TRIP_CARD_MAX_MS }))).toBeNull();
+    expect(startTripCardModel(base({ startedAtMs: now - START_TRIP_CARD_MAX_MS + 1 }))).not.toBeNull();
+    expect(startTripCardModel(base({ startedAtMs: now - START_TRIP_RESUME_MAX_MS }))).toBeNull();
     expect(startTripCardModel(base({ startedAtMs: now + min }))).toBeNull();
   });
 });
@@ -83,7 +82,7 @@ describe("openStartTripPlan", () => {
 
   it("pops exactly to the recording screen below the tabs a notification opened", () => {
     const state = { index: 2, routes: [r("tabs-1", "(tabs)"), r("form-A", "trip-form"), r("tabs-2", "(tabs)")] };
-    expect(openStartTripPlan(state, ["form-A"])).toEqual({ kind: "pop", count: 1 });
+    expect(openStartTripPlan(state, ["form-A"])).toEqual({ kind: "pop", count: 1, key: "form-A" });
   });
 
   it("skips a different trip screen nearer the top (one being viewed or typed in)", () => {
@@ -91,7 +90,7 @@ describe("openStartTripPlan", () => {
       index: 4,
       routes: [r("tabs-1", "(tabs)"), r("form-A", "trip-form"), r("tabs-2", "(tabs)"), r("form-B", "trip-form"), r("tabs-3", "(tabs)")],
     };
-    expect(openStartTripPlan(state, ["form-A"])).toEqual({ kind: "pop", count: 3 });
+    expect(openStartTripPlan(state, ["form-A"])).toEqual({ kind: "pop", count: 3, key: "form-A" });
   });
 
   it("opens a fresh screen when the registered one has left the stack (still closing)", () => {
@@ -111,7 +110,51 @@ describe("openStartTripPlan", () => {
 
   it("goes to the nearest of two recording screens", () => {
     const state = { index: 3, routes: [r("tabs-1", "(tabs)"), r("form-A", "trip-form"), r("form-C", "trip-form"), r("tabs-2", "(tabs)")] };
-    expect(openStartTripPlan(state, ["form-A", "form-C"])).toEqual({ kind: "pop", count: 1 });
+    expect(openStartTripPlan(state, ["form-A", "form-C"])).toEqual({ kind: "pop", count: 1, key: "form-C" });
+  });
+});
+
+describe("startTripCardTapAllowed", () => {
+  it("allows a tap only well inside the resume guard, checked at the tap", () => {
+    expect(startTripCardTapAllowed(now - min, now)).toBe(true);
+    expect(startTripCardTapAllowed(now - START_TRIP_CARD_MAX_MS + 1, now)).toBe(true);
+    expect(startTripCardTapAllowed(now - START_TRIP_CARD_MAX_MS, now)).toBe(false);
+    expect(startTripCardTapAllowed(null, now)).toBe(false);
+    expect(startTripCardTapAllowed(now + min, now)).toBe(false);
+  });
+});
+
+describe("resumeSecondCopyPlan", () => {
+  const r = (key: string, name: string) => ({ key, name });
+  // A trip screen (B) opened from Trips while A records below.
+  const state = { index: 3, routes: [r("tabs-1", "(tabs)"), r("A", "trip-form"), r("tabs-2", "(tabs)"), r("B", "trip-form")] };
+
+  it("resumes when no other screen is recording", () => {
+    expect(resumeSecondCopyPlan(state, [], "B", false)).toEqual({ kind: "resume" });
+    expect(resumeSecondCopyPlan(state, ["B"], "B", false)).toEqual({ kind: "resume" });
+  });
+
+  it("gives way to the recording screen by popping back to it", () => {
+    expect(resumeSecondCopyPlan(state, ["A"], "B", false)).toEqual({ kind: "pop", count: 2, key: "A" });
+  });
+
+  it("a past-trip form stays a past-trip form", () => {
+    expect(resumeSecondCopyPlan(state, ["A"], "B", true)).toEqual({ kind: "stay_manual" });
+  });
+
+  it("resumes when the registered screen is no longer in the stack", () => {
+    const gone = { index: 1, routes: [r("tabs-1", "(tabs)"), r("B", "trip-form")] };
+    expect(resumeSecondCopyPlan(gone, ["A"], "B", false)).toEqual({ kind: "resume" });
+  });
+});
+
+describe("popLanded", () => {
+  const r = (key: string, name: string) => ({ key, name });
+  it("is true only when the aimed-at screen is on top", () => {
+    expect(popLanded({ index: 1, routes: [r("t", "(tabs)"), r("A", "trip-form")] }, "A")).toBe(true);
+    // "Keep editing": the screen in between stayed.
+    expect(popLanded({ index: 2, routes: [r("t", "(tabs)"), r("A", "trip-form"), r("B", "trip-form")] }, "A")).toBe(false);
+    expect(popLanded(null, "A")).toBe(false);
   });
 
   it("ignores routes above the focused index, and a missing or empty state", () => {

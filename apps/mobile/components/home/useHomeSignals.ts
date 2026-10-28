@@ -106,64 +106,54 @@ export function useRecordingNow(): RecordingNow | null {
   };
 }
 
-// ── A Start Trip the screen would resume (Home's card) ────────────────
+// ── A Start Trip recording now (Home's card) ──────────────────────────
 
 export interface RunningStartTrip {
-  lock: "quick" | "none" | "other";
-  autoRecording: boolean;
   /** quick_trip_start's startedAt, or null with no readable row. */
   startedAtMs: number | null;
   miles: number;
+  /** Ticks every 15 s, so the card's time moves on its own. */
+  now: number;
 }
 
-/** What lib/home/startTripCard.ts needs, polled like useRecordingNow. */
+/**
+ * What lib/home/startTripCard.ts needs, polled like useRecordingNow. Only
+ * while active_shift_id is the Start Trip's own lock: without it nothing is
+ * recording, whatever rows are left behind.
+ */
 export function useRunningStartTrip(): RunningStartTrip | null {
-  const [state, setState] = useState<RunningStartTrip | null>(null);
+  const [raw, setRaw] = useState<{ startedAtMs: number | null; miles: number } | null>(null);
+  const [now, setNow] = useState(Date.now());
   const mounted = useRef(true);
 
   const refresh = useCallback(async () => {
     try {
       const db = await getDatabase();
-      const qts = await db.getFirstAsync<{ value: string }>(
-        "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+      const lockRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
       );
-      let next: RunningStartTrip | null = null;
-      if (qts) {
+      let next: { startedAtMs: number | null; miles: number } | null = null;
+      if (lockRow?.value === QUICK_TRIP_SHIFT_ID) {
         let startedAtMs: number | null = null;
         try {
-          const ms = new Date(JSON.parse(qts.value).startedAt).getTime();
+          const qts = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+          );
+          const ms = qts ? new Date(JSON.parse(qts.value).startedAt).getTime() : NaN;
           startedAtMs = Number.isFinite(ms) ? ms : null;
         } catch {
           // unreadable row: no card
         }
-        const lockRow = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-        );
-        const autoRow = await db.getFirstAsync<{ value: string }>(
-          "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
-        );
         const coords = await db.getAllAsync<{ lat: number; lng: number }>(
           "SELECT lat, lng FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
           [QUICK_TRIP_SHIFT_ID]
         );
-        next = {
-          lock: !lockRow?.value ? "none" : lockRow.value === QUICK_TRIP_SHIFT_ID ? "quick" : "other",
-          autoRecording: autoRow?.value === "1",
-          startedAtMs,
-          miles: sumMiles(coords),
-        };
+        next = { startedAtMs, miles: sumMiles(coords) };
       }
       if (!mounted.current) return;
-      setState((prev) => {
+      setRaw((prev) => {
         if (!next && !prev) return prev;
-        if (
-          next &&
-          prev &&
-          prev.lock === next.lock &&
-          prev.autoRecording === next.autoRecording &&
-          prev.startedAtMs === next.startedAtMs &&
-          Math.abs(prev.miles - next.miles) < 0.05
-        ) {
+        if (next && prev && prev.startedAtMs === next.startedAtMs && Math.abs(prev.miles - next.miles) < 0.05) {
           return prev;
         }
         return next;
@@ -183,7 +173,15 @@ export function useRunningStartTrip(): RunningStartTrip | null {
     };
   }, [refresh]);
 
-  return state;
+  const active = raw !== null;
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return raw ? { ...raw, now } : null;
 }
 
 // ── Trips that failed to upload ───────────────────────────────────────
