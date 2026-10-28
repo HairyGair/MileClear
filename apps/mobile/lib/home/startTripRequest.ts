@@ -1,5 +1,5 @@
 // What Home and the Start Trip screen tell each other (rules in startTripCard.ts):
-// which Start Trip screens are mounted in driving mode, and an I've Arrived
+// which Start Trip screens are recording (in driving mode), and an I've Arrived
 // tapped on Home's card waiting for that screen to run its own Arrived.
 //
 // The card never finishes the trip itself. The screen's Arrived is the one
@@ -7,34 +7,32 @@
 // teardown, and stands aside for the notification's Arrived. A second path
 // here would risk saving the drive twice.
 
-import { arriveRequestLive } from "./startTripCard";
+import { arriveRequestLive, type StackStateLike } from "./startTripCard";
 
-export type ScreenParams = Record<string, string>;
+/** What a recording screen hands over: its route key and its navigator. */
+export interface RecordingScreen {
+  key: string;
+  /** The root stack's state, live. */
+  getState: () => StackStateLike | null | undefined;
+  /** Pops `count` screens off the root stack. */
+  pop: (count: number) => void;
+}
 
+const recordingScreens: { id: number; screen: RecordingScreen }[] = [];
 let nextId = 1;
-const drivingScreens: { id: number; params: ScreenParams }[] = [];
 
-/**
- * The Start Trip screen calls this while it is in driving mode, with its route
- * params: going back to it must hand the same params back, because the screen
- * re-runs its set-up when they change. Returns the unregister.
- */
-export function registerDrivingStartTripScreen(params: ScreenParams = {}): () => void {
+/** The Start Trip screen calls this while it is in driving mode. Returns the unregister. */
+export function registerRecordingStartTripScreen(screen: RecordingScreen): () => void {
   const id = nextId++;
-  drivingScreens.push({ id, params: { ...params } });
+  recordingScreens.push({ id, screen });
   return () => {
-    const i = drivingScreens.findIndex((s) => s.id === id);
-    if (i >= 0) drivingScreens.splice(i, 1);
+    const i = recordingScreens.findIndex((s) => s.id === id);
+    if (i >= 0) recordingScreens.splice(i, 1);
   };
 }
 
-export function drivingStartTripScreens(): number {
-  return drivingScreens.length;
-}
-
-/** The params of the newest driving screen, the one going back reaches first. */
-export function newestDrivingScreenParams(): ScreenParams {
-  return drivingScreens.length > 0 ? { ...drivingScreens[drivingScreens.length - 1].params } : {};
+export function recordingStartTripScreens(): RecordingScreen[] {
+  return recordingScreens.map((s) => s.screen);
 }
 
 let arriveRequestedAt: number | null = null;
@@ -60,17 +58,8 @@ export function hasArriveRequest(): boolean {
   return arriveRequestedAt !== null;
 }
 
-/** Only string params survive a route change; arrays and the rest are left out. */
-export function stringParams(raw: Record<string, unknown>): ScreenParams {
-  const out: ScreenParams = {};
-  for (const [k, v] of Object.entries(raw)) {
-    if (typeof v === "string") out[k] = v;
-  }
-  return out;
-}
-
 /** Tests only. */
 export function __resetStartTripRequest(): void {
-  drivingScreens.length = 0;
+  recordingScreens.length = 0;
   arriveRequestedAt = null;
 }

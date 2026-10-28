@@ -21,8 +21,13 @@ import { durationText } from "./statusLine";
 export const START_TRIP_RESUME_MAX_MS = 12 * 60 * 60 * 1000;
 
 export interface StartTripCardInputs {
-  /** The lock is the Start Trip's own (active_shift_id = __quick_trip__). */
-  quickLockHeld: boolean;
+  /**
+   * active_shift_id: the Start Trip's own lock, none, or anything else (a
+   * shift, an Arrived waiting to be saved).
+   */
+  lock: "quick" | "none" | "other";
+  /** An automatic recording is open (auto_recording_active). */
+  autoRecording: boolean;
   /** quick_trip_start's startedAt, or null when the row is missing or unreadable. */
   startedAtMs: number | null;
   /** GPS distance so far. */
@@ -39,13 +44,18 @@ export interface StartTripCardModel {
 }
 
 /**
- * The card, or null when there is no Start Trip the screen could resume: no
- * lock (none running, Arrived pending, an auto recording or a shift), no start
- * row (the screen would open a fresh Start Trip), or a start row the screen
- * would clear as stale.
+ * The card, or null when there is no Start Trip the screen would resume. The
+ * screen resumes from the start row alone, so the card follows the row: shown
+ * with the Start Trip's lock, or with no lock at all (a self-heal can let the
+ * lock go while the row stays, and the screen still resumes it), but never
+ * over a shift, an Arrived waiting to be saved or an automatic recording.
+ * Hidden with no start row (the screen would open a fresh Start Trip) or one
+ * the screen would clear as stale.
  */
 export function startTripCardModel(i: StartTripCardInputs): StartTripCardModel | null {
-  if (!i.quickLockHeld || i.startedAtMs == null || !Number.isFinite(i.startedAtMs)) return null;
+  if (i.lock === "other") return null;
+  if (i.lock === "none" && i.autoRecording) return null;
+  if (i.startedAtMs == null || !Number.isFinite(i.startedAtMs)) return null;
   const age = i.now - i.startedAtMs;
   if (age < 0 || age > START_TRIP_RESUME_MAX_MS) return null;
   const unit = i.unit ?? "miles";
@@ -69,14 +79,37 @@ export function arriveRequestLive(requestedAtMs: number | null, nowMs: number): 
   return age >= 0 && age <= ARRIVE_REQUEST_TTL_MS;
 }
 
+/** The parts of the root stack's navigation state the check below reads. */
+export interface StackStateLike {
+  index: number;
+  routes: { key: string; name: string }[];
+}
+
+export type OpenStartTripPlan =
+  | { kind: "here" } // the recording screen is already on top
+  | { kind: "pop"; count: number } // pop exactly this many screens to reach it
+  | { kind: "open" }; // none in the stack: open a fresh one, which resumes the trip
+
 /**
  * Where a tap on the running trip goes. A notification tap from the Start Trip
  * screen opens its screen on top and leaves the trip's screen mounted below,
  * still holding its route; opening another copy would give two screens that
- * can each save the drive. So go back to the one that is there.
+ * can each save the drive. So go back to that very screen, found by its route
+ * key in the live stack, never by name: the nearest "trip-form" can be a
+ * different one (a trip being viewed or typed in) and would then resume the
+ * same trip as a second copy. A registered key no longer in the stack (a
+ * screen still closing, its view not yet gone) counts as no screen.
  */
-export function openStartTripAction(drivingScreensMounted: number): "back_to_screen" | "open_screen" {
-  return drivingScreensMounted > 0 ? "back_to_screen" : "open_screen";
+export function openStartTripPlan(state: StackStateLike | null | undefined, recordingKeys: string[]): OpenStartTripPlan {
+  if (!state || !Array.isArray(state.routes) || state.routes.length === 0) return { kind: "open" };
+  const top = Math.min(Math.max(0, state.index), state.routes.length - 1);
+  const keys = new Set(recordingKeys);
+  for (let i = top; i >= 0; i--) {
+    if (keys.has(state.routes[i].key)) {
+      return i === top ? { kind: "here" } : { kind: "pop", count: top - i };
+    }
+  }
+  return { kind: "open" };
 }
 
 /** Two taps this close together are one: the second must not open a second screen. */

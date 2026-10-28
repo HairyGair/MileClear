@@ -13,7 +13,7 @@ import { RecordingSheet } from "./RecordingSheet";
 import { HomeSheet } from "./HomeSheet";
 import { SetupChecklistCard, type SetupChecklistRow } from "../SetupChecklistCard";
 import { StartTripCard } from "./StartTripCard";
-import { useFailedSyncCount, useRecordingNow } from "./useHomeSignals";
+import { useFailedSyncCount, useRecordingNow, useRunningStartTrip } from "./useHomeSignals";
 import { selectStatusLine, type StatusLine as StatusLineModel } from "../../lib/home/statusLine";
 import { startTripCardModel } from "../../lib/home/startTripCard";
 import { openStartTrip } from "../../lib/home/openStartTrip";
@@ -50,6 +50,7 @@ type Sheet = "recording" | "setup" | "low_power" | null;
 export function useHomeStatus(a: Args): { status: StatusLineModel; element: ReactElement } {
   const router = useRouter();
   const recording = useRecordingNow();
+  const startTrip = useRunningStartTrip();
   const failed = useFailedSyncCount();
   const [sheet, setSheet] = useState<Sheet>(null);
   const { unit } = useDistanceUnit();
@@ -78,13 +79,16 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
   );
 
   // `recording` re-renders every 15 s while a trip runs, so the card's time moves.
-  const card = startTripCardModel({
-    quickLockHeld: recording?.mode === "quick",
-    startedAtMs: recording?.tripStartedAtMs ?? null,
-    miles: recording?.miles ?? 0,
-    now,
-    unit,
-  });
+  const card = startTrip
+    ? startTripCardModel({
+        lock: startTrip.lock,
+        autoRecording: startTrip.autoRecording,
+        startedAtMs: startTrip.startedAtMs,
+        miles: startTrip.miles,
+        now,
+        unit,
+      })
+    : null;
 
   const onPress = useCallback(() => {
     trackHomeTap("status_line", a.mode, status.kind);

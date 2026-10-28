@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect, Stack } from "expo-router";
-import { usePreventRemove } from "@react-navigation/native";
+import { StackActions, usePreventRemove, useRoute } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
 import {
@@ -82,10 +82,10 @@ import { recordLastSavedTrip } from "../lib/events/lastTrip";
 import {
   dropArriveRequest,
   hasArriveRequest,
-  registerDrivingStartTripScreen,
-  stringParams,
+  registerRecordingStartTripScreen,
   takeArriveRequest,
 } from "../lib/home/startTripRequest";
+import type { StackStateLike } from "../lib/home/startTripCard";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -753,8 +753,9 @@ export default function TripFormScreen() {
     [router]
   );
 
-  // All of them, for Home going back to this screen (lib/home/openStartTrip.ts).
-  const rawParams = useLocalSearchParams();
+  // This screen's own key in the root stack, so Home goes back to this very
+  // screen while it records (lib/home/openStartTrip.ts).
+  const routeKey = useRoute().key;
   const {
     id,
     mode: modeParam,
@@ -995,7 +996,8 @@ export default function TripFormScreen() {
   // The arrived-but-unsaved trip as written to SQLite, so a discard can offer
   // it back as a missed journey without reconstructing it from screen state.
   const pendingArrivedRef = useRef<PendingArrivedFacts | null>(null);
-  // The Start Trip's tracking start (fresh or resumed), still running or done.
+  // The Start Trip's tracking start (fresh, or a resume's restart and trail
+  // load), still running or done. Arrived waits for it.
   const resumeTrackingRef = useRef<Promise<void> | null>(null);
   // Set the moment the trip is saved or genuinely discarded, so the exit
   // guard stops asking. A ref, not state: leaving happens in the same tick as
@@ -1350,11 +1352,13 @@ export default function TripFormScreen() {
           setStartedAt(new Date(saved.startedAt));
           setMode("driving");
           // Re-start background tracking if it was killed. Arrived waits for
-          // it: it writes the lock, and landing after Arrived's teardown would
-          // leave a lock with no trip behind it.
-          resumeTrackingRef.current = startQuickTripTracking().catch(() => {});
+          // it and for the peek below: the restart writes the lock and the
+          // peek writes breadcrumbsRef and can rewrite the start row, so either
+          // landing after Arrived's teardown would leave a lock or a start row
+          // with no trip behind it, or swap in an older trail.
+          const resumeTracking = startQuickTripTracking().catch(() => {});
           // Load any background coordinates already collected (e.g. from auto-detection transfer)
-          peekBackgroundCoordinates().then((bgCoords) => {
+          const resumePeek = peekBackgroundCoordinates().then((bgCoords) => {
             if (bgCoords.length >= 2) {
               const crumbs: Breadcrumb[] = bgCoords.map((c) => ({
                 lat: c.lat,
@@ -1407,6 +1411,7 @@ export default function TripFormScreen() {
               setUserLng(latest.lng);
             }
           }).catch(() => {});
+          resumeTrackingRef.current = Promise.all([resumeTracking, resumePeek]).then(() => undefined);
         } else if (modeParam === "manual") {
           // A new past trip: From starts empty with place chips (P5: the
           // phone's position was the default start of a trip typed in weeks
@@ -2302,9 +2307,10 @@ export default function TripFormScreen() {
     setLoading(true);
     try {
       await waitForParkedReminderFinish();
-      // The tracking start (a fresh Start Trip's or a resume's) writes the
-      // lock; let it land first so the teardown below is the last word.
-      // Home's card can ask for Arrived the moment the screen has resumed.
+      // The tracking start (a fresh Start Trip's, or a resume's restart and
+      // trail load) writes the lock, the trail and the start row; let it land
+      // first so the teardown below is the last word. Home's card can ask for
+      // Arrived the moment the screen has resumed.
       // Capped, so a stuck restart can never hold Arrived up.
       if (resumeTrackingRef.current) {
         await Promise.race([resumeTrackingRef.current, new Promise((r) => setTimeout(r, 5000))]);
@@ -2600,10 +2606,12 @@ export default function TripFormScreen() {
   // above: the one save path, with its own route and its own guards.
   useEffect(() => {
     if (mode !== "driving") return;
-    return registerDrivingStartTripScreen(stringParams(rawParams));
-    // The params are the screen's own for its lifetime; only the mode matters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+    return registerRecordingStartTripScreen({
+      key: routeKey,
+      getState: () => navigation.getState() as unknown as StackStateLike,
+      pop: (count) => navigation.dispatch(StackActions.pop(count)),
+    });
+  }, [mode, routeKey, navigation]);
 
   useFocusEffect(
     useCallback(() => {
