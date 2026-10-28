@@ -22,6 +22,25 @@ import {
 } from "./lockGpsRule";
 
 export const LOCATION_TASK_NAME = "mileclear-background-location";
+
+// Set while a shift or Start Trip is starting. Its housekeeping can meet an
+// old lock's self-heal, which stops the shared task; while this is set the
+// stops below leave the new start's task alone.
+let lockStarting = 0;
+
+/** Wrap a shift or Start Trip start: self-heal stops are held off until it ends. */
+export async function withLockStarting<T>(run: () => Promise<T>): Promise<T> {
+  lockStarting++;
+  try {
+    return await run();
+  } finally {
+    lockStarting--;
+  }
+}
+
+export function isLockStarting(): boolean {
+  return lockStarting > 0;
+}
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__"; // mirrors lib/tracking/index.ts
 const WARNED_AT_KEY = "lock_gps_warned_at";
 
@@ -131,6 +150,8 @@ export async function startLockGpsIfStopped(kind: LockKind, reason: string): Pro
 /** Stop the task when no lock owns it; it would only drain the battery. Never throws. */
 export async function stopLockGpsWithoutLock(reason: string): Promise<void> {
   try {
+    if (isLockStarting()) return;
+    if ((await readLock()) != null) return; // a new lock owns it now
     if (!(await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME))) return;
     await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
     await report("trip.lock_gps_stopped_no_lock", { reason, platform: Platform.OS });
@@ -177,7 +198,7 @@ export async function ensureLockGps(reason: string): Promise<void> {
     if (!(await startLockGps(kind, reason))) return;
     // Released while the start was out (a self-heal on the same foreground):
     // nothing would store its fixes, so stop it again.
-    if ((await readLock()) !== lock) {
+    if ((await readLock()) == null) {
       await stopLockGpsWithoutLock(`${reason}_lock_released`);
       return;
     }

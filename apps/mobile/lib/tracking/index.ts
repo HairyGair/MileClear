@@ -23,7 +23,7 @@ import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 import { segmentsToSave } from "./shiftSegments";
-import { LOCATION_TASK_NAME, startLockGps, startLockGpsIfStopped } from "./lockGps";
+import { LOCATION_TASK_NAME, isLockStarting, startLockGps, startLockGpsIfStopped, withLockStarting } from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
@@ -168,7 +168,8 @@ export async function isTrackingActive(): Promise<boolean> {
  */
 export async function stopQuickTripLocationTask(): Promise<void> {
   try {
-    if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
+    // A shift or Start Trip starting right now owns the task (lockGps.ts).
+    if (!isLockStarting() && (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME))) {
       await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
     }
   } catch {
@@ -182,10 +183,11 @@ export async function stopQuickTripLocationTask(): Promise<void> {
   await applyNativeEnginePower("quick_trip_lock_released");
 }
 
-export async function startShiftTracking(
-  shiftId: string,
-  options: { fresh?: boolean } = {}
-): Promise<void> {
+export function startShiftTracking(shiftId: string, options: { fresh?: boolean } = {}): Promise<void> {
+  return withLockStarting(() => startShiftTrackingOnce(shiftId, options));
+}
+
+async function startShiftTrackingOnce(shiftId: string, options: { fresh?: boolean }): Promise<void> {
   // The GPS goes on first (lockGps.ts): Android only allows it while the app
   // is on screen, and the housekeeping below can take long enough for the
   // driver to lock the phone. Fixes that arrive before the lock is written
@@ -258,7 +260,11 @@ export async function stopShiftTracking(): Promise<void> {
 // Uses the same background location task as shift tracking, but with a
 // pseudo-shift ID. Ensures GPS breadcrumbs continue when the app is backgrounded.
 
-export async function startQuickTripTracking(options: { fresh?: boolean } = {}): Promise<void> {
+export function startQuickTripTracking(options: { fresh?: boolean } = {}): Promise<void> {
+  return withLockStarting(() => startQuickTripTrackingOnce(options));
+}
+
+async function startQuickTripTrackingOnce(options: { fresh?: boolean }): Promise<void> {
   // The GPS goes on first, while the app is still on screen (see
   // startShiftTracking). Already running means a resume after background.
   if (!(await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME))) {

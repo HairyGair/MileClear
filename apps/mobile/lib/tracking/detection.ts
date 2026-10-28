@@ -1008,15 +1008,21 @@ export async function shiftSuppressesAutoDetection(
         activeShift.value,
       ]);
     }
-    await db.runAsync(
-      "DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')"
+    // Only this ghost's lock: a new shift or Start Trip may have taken the
+    // lock since it was read above.
+    const released = await db.runAsync(
+      "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+      [activeShift.value]
     );
-    // The shift's own GPS task has no lock to store under now; left running it
-    // only drains the battery under a "tracking your shift" notification.
-    try {
-      const { stopLockGpsWithoutLock } = await import("./lockGps");
-      await stopLockGpsWithoutLock("stale_shift_cleared");
-    } catch {}
+    if (released.changes > 0) {
+      await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_started_at'");
+      // The shift's own GPS task has no lock to store under now; left running
+      // it only drains the battery under a "tracking your shift" notification.
+      try {
+        const { stopLockGpsWithoutLock } = await import("./lockGps");
+        await stopLockGpsWithoutLock("stale_shift_cleared");
+      } catch {}
+    }
     await applyNativeEnginePower("stale_shift_cleared");
     logDetectionEvent("stale_active_shift_cleared", {
       shiftId: activeShift.value,
