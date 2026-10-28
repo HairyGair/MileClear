@@ -23,6 +23,7 @@ import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 import { segmentsToSave } from "./shiftSegments";
+import { LOCATION_TASK_NAME, startLockGps } from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
@@ -39,7 +40,6 @@ import {
   type PendingArrivedFacts,
 } from "./arrivedRecovery";
 
-const LOCATION_TASK_NAME = "mileclear-background-location";
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
 const MIN_TRIP_DISTANCE_MILES = 0.1;
 
@@ -186,6 +186,11 @@ export async function startShiftTracking(
   shiftId: string,
   options: { fresh?: boolean } = {}
 ): Promise<void> {
+  // The GPS goes on first (lockGps.ts): Android only allows it while the app
+  // is on screen, and the housekeeping below can take long enough for the
+  // driver to lock the phone. Fixes that arrive before the lock is written
+  // are not stored, as before.
+  await startLockGps("shift", options.fresh ? "shift_start" : "shift_resume");
   // Starting a shift is an explicit "I am driving" signal. Clear any
   // pending not-driving cooldown so the shift records normally.
   await clearNotDrivingCooldown();
@@ -212,26 +217,6 @@ export async function startShiftTracking(
   );
   await applyNativeEnginePower("shift_started");
   await keepEngineAwakeForLock("shift_started_switch_off");
-
-  try {
-    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.BestForNavigation,
-      distanceInterval: 50,
-      deferredUpdatesInterval: 10000,
-      activityType: Location.ActivityType.AutomotiveNavigation,
-      pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: false,
-      foregroundService: {
-        notificationTitle: "MileClear is tracking your shift",
-        notificationBody: "Tap to open the app",
-        killServiceOnDestroy: false,
-      },
-    });
-  } catch {
-    // Background location updates not available (e.g. Expo Go) -
-    // shift still runs, GPS just won't record in background
-    console.warn("Background location updates unavailable - foreground only");
-  }
 }
 
 export async function stopShiftTracking(): Promise<void> {
@@ -271,6 +256,11 @@ export async function stopShiftTracking(): Promise<void> {
 // pseudo-shift ID. Ensures GPS breadcrumbs continue when the app is backgrounded.
 
 export async function startQuickTripTracking(options: { fresh?: boolean } = {}): Promise<void> {
+  // The GPS goes on first, while the app is still on screen (see
+  // startShiftTracking). Already running means a resume after background.
+  if (!(await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME))) {
+    await startLockGps("quick_trip", options.fresh ? "start_trip" : "start_trip_resume");
+  }
   // A NEW Start Trip (not a resume, not a promoted detection): an automatic
   // drive still open or buffered is an earlier drive. Save it as its own trip
   // before the lock suppresses detection, or the cleanup at Arrived deletes it
@@ -303,27 +293,6 @@ export async function startQuickTripTracking(options: { fresh?: boolean } = {}):
   // Trip is covered too.
   await applyNativeEnginePower("quick_trip_started");
   await keepEngineAwakeForLock("quick_trip_started_switch_off");
-
-  const isRunning = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-  if (isRunning) return; // Already running (e.g. resumed after background)
-
-  try {
-    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-      accuracy: Location.Accuracy.BestForNavigation,
-      distanceInterval: 50,
-      deferredUpdatesInterval: 10000,
-      activityType: Location.ActivityType.AutomotiveNavigation,
-      pausesUpdatesAutomatically: false,
-      showsBackgroundLocationIndicator: false,
-      foregroundService: {
-        notificationTitle: "MileClear is tracking your trip",
-        notificationBody: "Tap to open the app",
-        killServiceOnDestroy: false,
-      },
-    });
-  } catch {
-    console.warn("Background location updates unavailable - foreground only");
-  }
 }
 
 export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {

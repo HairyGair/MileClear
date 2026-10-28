@@ -375,6 +375,11 @@ function RootNavigator() {
       checkUnclassifiedTripsNudge().catch(() => {});
       checkStreakAtRisk().catch(() => {});
       checkLongRunningShift().catch(() => {});
+      // A cold start is on screen too: restart a shift's or Start Trip's GPS
+      // that is not running (lib/tracking/lockGps.ts).
+      import("../lib/tracking/lockGps")
+        .then((m) => m.ensureLockGps("launch"))
+        .catch(() => {});
       // Mount BEFORE uploading the diagnostic so the first dump after a
       // cold start already has the current AppState snapshot. Idempotent
       // — the tracker no-ops if already mounted.
@@ -391,6 +396,11 @@ function RootNavigator() {
     if (!isAuthenticated || isLoading) return;
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
+        // A shift or Start Trip whose GPS Android refused to start while the
+        // app was off screen gets it now (lib/tracking/lockGps.ts).
+        import("../lib/tracking/lockGps")
+          .then((m) => m.ensureLockGps("foreground"))
+          .catch(() => {});
         finalizeStaleAutoRecordings()
           .catch(() => {})
           .finally(() =>
