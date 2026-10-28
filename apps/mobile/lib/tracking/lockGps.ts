@@ -101,16 +101,48 @@ export async function startLockGps(kind: LockKind, reason: string): Promise<bool
     await clearWarning();
     return true;
   } catch (err) {
+    const error = gpsStartErrorText(err);
     await report("trip.lock_gps_start_failed", {
       kind,
       reason,
-      error: gpsStartErrorText(err),
+      error,
       appState: AppState.currentState,
       platform: Platform.OS,
     });
-    await showWarning(kind);
+    // Only the off-screen refusal is fixed by opening the app; for anything
+    // else (Expo Go, a missing permission) the warning would be a false promise.
+    if (error === "not_on_screen") await showWarning(kind);
     return false;
   }
+}
+
+/**
+ * After the lock is written: start the task if the housekeeping in between
+ * stopped it (a stranded Start Trip's self-heal stops the shared task) or
+ * the first start was refused. Never throws.
+ */
+export async function startLockGpsIfStopped(kind: LockKind, reason: string): Promise<void> {
+  try {
+    if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) return;
+    await startLockGps(kind, reason);
+  } catch {}
+}
+
+/** Stop the task when no lock owns it; it would only drain the battery. Never throws. */
+export async function stopLockGpsWithoutLock(reason: string): Promise<void> {
+  try {
+    if (!(await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME))) return;
+    await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
+    await report("trip.lock_gps_stopped_no_lock", { reason, platform: Platform.OS });
+  } catch {}
+}
+
+async function readLock(): Promise<string | null> {
+  const db = await getDatabase();
+  const row = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  return row?.value ?? null;
 }
 
 /**
@@ -119,31 +151,42 @@ export async function startLockGps(kind: LockKind, reason: string): Promise<bool
  */
 export async function ensureLockGps(reason: string): Promise<void> {
   try {
-    const db = await getDatabase();
-    const lock = await db.getFirstAsync<{ value: string }>(
-      "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
-    );
-    const kind = lockKindOf(lock?.value, QUICK_TRIP_SHIFT_ID, ARRIVED_PENDING_SHIFT_ID);
-    if (!kind) {
-      await clearWarning();
-      return;
-    }
     if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) {
       await clearWarning();
       return;
     }
+    // Let the lock's own checks run first: they end a shift that is over
+    // (ended elsewhere, 18 hours old, no local row) and release a stranded
+    // Start Trip, and GPS must not be restarted for either.
+    const db = await getDatabase();
+    try {
+      const { shiftSuppressesAutoDetection } = await import("./detection");
+      await shiftSuppressesAutoDetection(db);
+    } catch {}
+    const lock = await readLock();
+    const kind = lockKindOf(lock, QUICK_TRIP_SHIFT_ID, ARRIVED_PENDING_SHIFT_ID);
+    if (!kind) {
+      await clearWarning();
+      return;
+    }
+    if (await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME)) return;
     const started = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'active_shift_started_at'"
     );
     const lockMs = started ? Number(started.value) : NaN;
-    if (await startLockGps(kind, reason)) {
-      await report("trip.lock_gps_restarted", {
-        kind,
-        reason,
-        minutesSinceLock: Number.isFinite(lockMs) ? Math.round((Date.now() - lockMs) / 60000) : null,
-        platform: Platform.OS,
-      });
+    if (!(await startLockGps(kind, reason))) return;
+    // Released while the start was out (a self-heal on the same foreground):
+    // nothing would store its fixes, so stop it again.
+    if ((await readLock()) !== lock) {
+      await stopLockGpsWithoutLock(`${reason}_lock_released`);
+      return;
     }
+    await report("trip.lock_gps_restarted", {
+      kind,
+      reason,
+      minutesSinceLock: Number.isFinite(lockMs) ? Math.round((Date.now() - lockMs) / 60000) : null,
+      platform: Platform.OS,
+    });
   } catch {
     // best effort: the next foreground tries again
   }

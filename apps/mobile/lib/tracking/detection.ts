@@ -1011,6 +1011,12 @@ export async function shiftSuppressesAutoDetection(
     await db.runAsync(
       "DELETE FROM tracking_state WHERE key IN ('active_shift_id', 'active_shift_started_at')"
     );
+    // The shift's own GPS task has no lock to store under now; left running it
+    // only drains the battery under a "tracking your shift" notification.
+    try {
+      const { stopLockGpsWithoutLock } = await import("./lockGps");
+      await stopLockGpsWithoutLock("stale_shift_cleared");
+    } catch {}
     await applyNativeEnginePower("stale_shift_cleared");
     logDetectionEvent("stale_active_shift_cleared", {
       shiftId: activeShift.value,

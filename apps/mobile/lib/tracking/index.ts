@@ -23,7 +23,7 @@ import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 import { segmentsToSave } from "./shiftSegments";
-import { LOCATION_TASK_NAME, startLockGps } from "./lockGps";
+import { LOCATION_TASK_NAME, startLockGps, startLockGpsIfStopped } from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
@@ -217,6 +217,9 @@ export async function startShiftTracking(
   );
   await applyNativeEnginePower("shift_started");
   await keepEngineAwakeForLock("shift_started_switch_off");
+  // The housekeeping above can stop the task just started: a stranded Start
+  // Trip lock's self-heal stops the shared task. Now the lock is this shift's.
+  await startLockGpsIfStopped("shift", options.fresh ? "shift_start_recheck" : "shift_resume_recheck");
 }
 
 export async function stopShiftTracking(): Promise<void> {
@@ -293,6 +296,8 @@ export async function startQuickTripTracking(options: { fresh?: boolean } = {}):
   // Trip is covered too.
   await applyNativeEnginePower("quick_trip_started");
   await keepEngineAwakeForLock("quick_trip_started_switch_off");
+  // As in startShiftTracking: start it again if the housekeeping stopped it.
+  await startLockGpsIfStopped("quick_trip", options.fresh ? "start_trip_recheck" : "start_trip_resume_recheck");
 }
 
 export async function stopQuickTripTracking(): Promise<StoredCoordinate[]> {
