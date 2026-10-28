@@ -79,6 +79,13 @@ import {
   type PendingArrivedFacts,
 } from "../lib/tracking/arrivedRecovery";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
+import {
+  dropArriveRequest,
+  hasArriveRequest,
+  registerDrivingStartTripScreen,
+  stringParams,
+  takeArriveRequest,
+} from "../lib/home/startTripRequest";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -746,6 +753,8 @@ export default function TripFormScreen() {
     [router]
   );
 
+  // All of them, for Home going back to this screen (lib/home/openStartTrip.ts).
+  const rawParams = useLocalSearchParams();
   const {
     id,
     mode: modeParam,
@@ -986,6 +995,8 @@ export default function TripFormScreen() {
   // The arrived-but-unsaved trip as written to SQLite, so a discard can offer
   // it back as a missed journey without reconstructing it from screen state.
   const pendingArrivedRef = useRef<PendingArrivedFacts | null>(null);
+  // The Start Trip's tracking start (fresh or resumed), still running or done.
+  const resumeTrackingRef = useRef<Promise<void> | null>(null);
   // Set the moment the trip is saved or genuinely discarded, so the exit
   // guard stops asking. A ref, not state: leaving happens in the same tick as
   // the save finishing, and a re-render would not have landed in time.
@@ -1338,8 +1349,10 @@ export default function TripFormScreen() {
           setStartAddress(saved.address);
           setStartedAt(new Date(saved.startedAt));
           setMode("driving");
-          // Re-start background tracking if it was killed
-          startQuickTripTracking().catch(() => {});
+          // Re-start background tracking if it was killed. Arrived waits for
+          // it: it writes the lock, and landing after Arrived's teardown would
+          // leave a lock with no trip behind it.
+          resumeTrackingRef.current = startQuickTripTracking().catch(() => {});
           // Load any background coordinates already collected (e.g. from auto-detection transfer)
           peekBackgroundCoordinates().then((bgCoords) => {
             if (bgCoords.length >= 2) {
@@ -2270,7 +2283,7 @@ export default function TripFormScreen() {
       );
 
       // Start background location tracking so GPS continues when app is backgrounded
-      startQuickTripTracking({ fresh: true }).catch(() => {});
+      resumeTrackingRef.current = startQuickTripTracking({ fresh: true }).catch(() => {});
 
       // Start Dynamic Island live activity
       startLiveActivity({ activityType: "trip", isBusinessMode: isWork });
@@ -2289,6 +2302,13 @@ export default function TripFormScreen() {
     setLoading(true);
     try {
       await waitForParkedReminderFinish();
+      // The tracking start (a fresh Start Trip's or a resume's) writes the
+      // lock; let it land first so the teardown below is the last word.
+      // Home's card can ask for Arrived the moment the screen has resumed.
+      // Capped, so a stuck restart can never hold Arrived up.
+      if (resumeTrackingRef.current) {
+        await Promise.race([resumeTrackingRef.current, new Promise((r) => setTimeout(r, 5000))]);
+      }
       if (await letGoIfFinishedElsewhere().catch(() => false)) return;
       const loc = await getCurrentLocation();
       if (!loc) {
@@ -2573,6 +2593,30 @@ export default function TripFormScreen() {
       setLoading(false);
     }
   }, [startLat, startLng, startAddress, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim, letGoIfFinishedElsewhere]);
+
+  // Home's "Trip in progress" card (lib/home/startTripCard.ts). While this
+  // screen is in driving mode Home goes back to it rather than opening a
+  // second copy, and the card's I've Arrived runs this screen's own Arrived
+  // above: the one save path, with its own route and its own guards.
+  useEffect(() => {
+    if (mode !== "driving") return;
+    return registerDrivingStartTripScreen(stringParams(rawParams));
+    // The params are the screen's own for its lifetime; only the mode matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (loading || !hasArriveRequest()) return;
+      // Resumed into anything but a running trip (an arrived trip waiting to
+      // be saved, a fresh Start Trip, an edit): nothing here to arrive.
+      if (mode !== "driving") {
+        dropArriveRequest();
+        return;
+      }
+      if (takeArriveRequest(Date.now())) handleArrived().catch(() => {});
+    }, [mode, loading, handleArrived])
+  );
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);

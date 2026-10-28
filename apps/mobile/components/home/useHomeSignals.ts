@@ -28,11 +28,15 @@ export interface RecordingNow {
   miles: number;
   elapsedMs: number;
   mode: "auto" | "quick";
+  /** A Start Trip's quick_trip_start time, or null (auto, or no readable row). */
+  tripStartedAtMs: number | null;
 }
+
+type RawRecording = { miles: number; startedAt: number | null; mode: "auto" | "quick"; tripStartedAtMs: number | null };
 
 /** Auto-detected recording or a manual Start Trip in progress, else null. */
 export function useRecordingNow(): RecordingNow | null {
-  const [raw, setRaw] = useState<{ miles: number; startedAt: number | null; mode: "auto" | "quick" } | null>(null);
+  const [raw, setRaw] = useState<RawRecording | null>(null);
   const [now, setNow] = useState(Date.now());
   const mounted = useRef(true);
 
@@ -42,7 +46,7 @@ export function useRecordingNow(): RecordingNow | null {
       const autoRow = await db.getFirstAsync<{ value: string }>(
         "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
       );
-      let next: { miles: number; startedAt: number | null; mode: "auto" | "quick" } | null = null;
+      let next: RawRecording | null = null;
       if (autoRow?.value === "1") {
         const coords = await db.getAllAsync<{ lat: number; lng: number; recorded_at: string }>(
           "SELECT lat, lng, recorded_at FROM detection_coordinates ORDER BY recorded_at ASC"
@@ -51,6 +55,7 @@ export function useRecordingNow(): RecordingNow | null {
           mode: "auto",
           miles: sumMiles(coords),
           startedAt: coords.length > 0 ? new Date(coords[0].recorded_at).getTime() : null,
+          tripStartedAtMs: null,
         };
       } else {
         const shiftRow = await db.getFirstAsync<{ value: string }>(
@@ -61,17 +66,37 @@ export function useRecordingNow(): RecordingNow | null {
             "SELECT lat, lng, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
             [QUICK_TRIP_SHIFT_ID]
           );
+          // The Start Trip screen resumes from this row; without it the
+          // screen would open a fresh trip, so Home's card is not shown.
+          let tripStartedAtMs: number | null = null;
+          try {
+            const qts = await db.getFirstAsync<{ value: string }>(
+              "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+            );
+            const ms = qts ? new Date(JSON.parse(qts.value).startedAt).getTime() : NaN;
+            tripStartedAtMs = Number.isFinite(ms) ? ms : null;
+          } catch {
+            // unreadable row: no card
+          }
           next = {
             mode: "quick",
             miles: sumMiles(coords),
             startedAt: coords.length > 0 ? new Date(coords[0].recorded_at).getTime() : null,
+            tripStartedAtMs,
           };
         }
       }
       if (!mounted.current) return;
       setRaw((prev) => {
         if (!next && !prev) return prev;
-        if (next && prev && prev.mode === next.mode && prev.startedAt === next.startedAt && Math.abs(prev.miles - next.miles) < 0.05) {
+        if (
+          next &&
+          prev &&
+          prev.mode === next.mode &&
+          prev.startedAt === next.startedAt &&
+          prev.tripStartedAtMs === next.tripStartedAtMs &&
+          Math.abs(prev.miles - next.miles) < 0.05
+        ) {
           return prev;
         }
         return next;
@@ -103,6 +128,7 @@ export function useRecordingNow(): RecordingNow | null {
     miles: raw.miles,
     mode: raw.mode,
     elapsedMs: raw.startedAt != null ? Math.max(0, now - raw.startedAt) : 0,
+    tripStartedAtMs: raw.tripStartedAtMs,
   };
 }
 

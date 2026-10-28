@@ -70,6 +70,7 @@ import { homePersona, showsStartShift } from "../../lib/home/persona";
 import { describeSuggestion } from "../../lib/home/shiftSuggestion";
 import type { StatusLine } from "../../lib/home/statusLine";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
+import { openStartTrip } from "../../lib/home/openStartTrip";
 import { requestAskTitle, shortDay } from "../../lib/practice/logic";
 import { firstSortHint } from "../../lib/tutorial/rule";
 import type { HeroYearFigure } from "../../lib/heroFigure";
@@ -473,7 +474,8 @@ export function HomeIdle(p: Props) {
               starting={p.starting}
               onStartTrip={() => {
                 trackHomeTap("start_trip", mode, p.status.kind);
-                router.push("/trip-form" as never);
+                // Back to a Start Trip screen already open below, not a second copy.
+                openStartTrip();
               }}
               onStartShift={() => {
                 trackHomeTap("start_shift", mode, p.status.kind);

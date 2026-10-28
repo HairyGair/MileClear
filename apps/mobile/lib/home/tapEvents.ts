@@ -16,6 +16,8 @@ export type HomeTapTarget =
   | "status_line"
   | "status_action"
   | "start_trip"
+  | "start_trip_card"
+  | "start_trip_card_arrived"
   | "start_shift"
   | "mode_pill"
   | "door_road"
