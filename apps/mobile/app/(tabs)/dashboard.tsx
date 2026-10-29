@@ -41,6 +41,7 @@ import {
   isTrackingActive,
   peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
+import { isLockStarting } from "../../lib/tracking/lockGps";
 import {
   loadingIsStuck,
   loadingStuckEvent,
@@ -48,6 +49,7 @@ import {
   resumeMayTakeLock,
   afterResume,
   tierBecameUsable,
+  stepUpShouldResume,
   shouldResumeShiftGps,
   HOME_LOADING_STUCK_MS,
   type HomeLoadStage,
@@ -1109,6 +1111,8 @@ export default function DashboardScreen() {
   const shiftGpsResumingRef = useRef<number | null>(null);
   // Whether the load found an open shift, for the stuck report.
   const loadHadShiftRef = useRef(false);
+  // Set for the whole of a Start Shift (handleStartShift).
+  const startingShiftRef = useRef(false);
   // The shift Home shows now, for checks that finish long after they start.
   const activeShiftRef = useRef<ShiftWithVehicle | null>(activeShift);
   useEffect(() => {
@@ -1149,16 +1153,24 @@ export default function DashboardScreen() {
               )?.value ?? null;
             // A Start Trip's lock, or another shift's, is not Home's to take.
             if (!resumeMayTakeLock(await readLock(), active.id)) return;
+            // Ended or replaced while the checks above ran: nothing to give back.
+            if (activeShiftRef.current?.id !== active.id) return;
             await startShiftTracking(active.id);
             // This can return long after it started. If the driver ended the
             // shift (or started another) meanwhile, the lock just written is
             // a ghost: release it while it is still this shift's.
             const current = activeShiftRef.current;
-            const after = afterResume(await readLock(), active.id, current?.id ?? null);
+            const localRow = await db.getFirstAsync<{ status: string }>(
+              "SELECT status FROM shifts WHERE id = ?",
+              [active.id]
+            );
+            const after = afterResume(await readLock(), active.id, current?.id ?? null, localRow?.status === "active");
             if (after === "release" || after === "release_and_resume_current") {
-              await releaseGhostShiftLock(active.id, "home_resume_after_shift_end");
+              const released = await releaseGhostShiftLock(active.id, "home_resume_after_shift_end");
               // A's late write replaced the newer shift's lock: give it back.
-              if (after === "release_and_resume_current" && current) await startShiftTracking(current.id);
+              if (released && after === "release_and_resume_current" && current) {
+                await startShiftTracking(current.id);
+              }
               return;
             }
           }
@@ -1265,7 +1277,17 @@ export default function DashboardScreen() {
     const prev = prevLocationTierRef.current;
     prevLocationTierRef.current = locationTier;
     const shift = activeShiftRef.current;
-    if (shift && tierBecameUsable(prev, locationTier)) {
+    if (
+      shift &&
+      stepUpShouldResume({
+        tierBecameUsable: tierBecameUsable(prev, locationTier),
+        hasOpenShift: true,
+        // Start Shift asks for location itself and then does its own fresh
+        // start (with the earlier-drive save); a give-back must not race it.
+        startingShift: startingShiftRef.current,
+        lockStarting: isLockStarting(),
+      })
+    ) {
       void resumeOpenShift(shift, vehicles).catch(() => {});
     }
   }, [locationTier, resumeOpenShift, vehicles]);
@@ -1603,6 +1625,7 @@ export default function DashboardScreen() {
 
   const handleStartShift = useCallback(async () => {
     setStarting(true);
+    startingShiftRef.current = true;
     try {
       // A running pause is offered back once; the shift starts either way.
       const pause = await askAboutPauseBeforeStart("shift");
@@ -1636,6 +1659,7 @@ export default function DashboardScreen() {
       const { title, message } = describeError(err, "Couldn't start the shift");
       Alert.alert(title, message);
     } finally {
+      startingShiftRef.current = false;
       setStarting(false);
     }
   }, [selectedVehicleId, isWork, selectedVehicle, refreshPauseState]);

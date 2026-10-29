@@ -62,10 +62,24 @@ export type AfterResume = "keep" | "leave" | "release" | "release_and_resume_cur
  * a ghost: release it, but only while it still holds this shift (anything
  * else belongs to someone else), and give a newer open shift its own back.
  */
-export function afterResume(lockAfter: string | null, resumedId: string, currentShiftId: string | null): AfterResume {
+export function afterResume(
+  lockAfter: string | null,
+  resumedId: string,
+  currentShiftId: string | null,
+  /** The phone's own shifts row for resumedId still says active. */
+  localStillActive: boolean
+): AfterResume {
   if (currentShiftId === resumedId) return "keep";
   if (lockAfter !== resumedId) return "leave";
-  return currentShiftId ? "release_and_resume_current" : "release";
+  if (currentShiftId) return "release_and_resume_current";
+  // Home stopped showing it, but the phone still has it open (a shift started
+  // offline that a refresh briefly missed): it is live, keep it.
+  return localStillActive ? "keep" : "release";
+}
+
+/** The location step-up should give the open shift its GPS: not while a Start Shift is under way (it does its own, fresh, start). */
+export function stepUpShouldResume(i: { tierBecameUsable: boolean; hasOpenShift: boolean; startingShift: boolean; lockStarting: boolean }): boolean {
+  return i.tierBecameUsable && i.hasOpenShift && !i.startingShift && !i.lockStarting;
 }
 
 /** Location went from nothing to usable (the blocker card or the primer fixed it). */

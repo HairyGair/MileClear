@@ -22,6 +22,7 @@ import {
   isItemForbidden,
 } from "./errors";
 import { ApiError } from "../api/apiError";
+import { shiftRekeySteps } from "./shiftRekey";
 
 export type SyncState = "idle" | "syncing" | "error";
 
@@ -238,11 +239,11 @@ export async function processSyncQueue(): Promise<void> {
             }
           }
           // Cascade shift ID changes to related tables
+          // (and the tracking lock: lib/sync/shiftRekey.ts)
           if (item.entity_type === "shift") {
-            await db.execAsync(`
-              UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-              UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-            `);
+            for (const step of shiftRekeySteps(localId, serverId)) {
+              await db.runAsync(step.sql, step.params);
+            }
           }
         } else if (item.action === "delete") {
           // Clean up local row on successful delete

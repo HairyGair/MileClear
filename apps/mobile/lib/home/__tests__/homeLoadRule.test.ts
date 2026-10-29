@@ -7,6 +7,7 @@ import {
   resumeMayTakeLock,
   afterResume,
   tierBecameUsable,
+  stepUpShouldResume,
   loadingStuckEvent,
   renderErrorEvent,
   shouldResumeShiftGps,
@@ -50,18 +51,36 @@ describe("resumeMayTakeLock", () => {
 
 describe("afterResume", () => {
   it("keeps the lock while the shift is still the open one", () => {
-    expect(afterResume("A", "A", "A")).toBe("keep");
+    expect(afterResume("A", "A", "A", true)).toBe("keep");
   });
   it("releases a ghost lock written after End Shift", () => {
-    expect(afterResume("A", "A", null)).toBe("release");
+    expect(afterResume("A", "A", null, false)).toBe("release");
+  });
+  it("keeps a shift the phone still has open even if Home briefly lost it", () => {
+    expect(afterResume("A", "A", null, true)).toBe("keep");
   });
   it("releases and gives a newer shift its GPS back when A overwrote B's lock", () => {
-    expect(afterResume("A", "A", "B")).toBe("release_and_resume_current");
+    expect(afterResume("A", "A", "B", false)).toBe("release_and_resume_current");
   });
   it("leaves a lock that is not this shift's alone", () => {
-    expect(afterResume("B", "A", "B")).toBe("leave");
-    expect(afterResume(null, "A", null)).toBe("leave");
-    expect(afterResume("__quick_trip__", "A", null)).toBe("leave");
+    expect(afterResume("B", "A", "B", false)).toBe("leave");
+    expect(afterResume(null, "A", null, false)).toBe("leave");
+    expect(afterResume("__quick_trip__", "A", null, false)).toBe("leave");
+  });
+});
+
+describe("stepUpShouldResume", () => {
+  const base = { tierBecameUsable: true, hasOpenShift: true, startingShift: false, lockStarting: false };
+  it("resumes an open shift once location becomes usable", () => {
+    expect(stepUpShouldResume(base)).toBe(true);
+  });
+  it("stands aside while Start Shift is under way", () => {
+    expect(stepUpShouldResume({ ...base, startingShift: true })).toBe(false);
+    expect(stepUpShouldResume({ ...base, lockStarting: true })).toBe(false);
+  });
+  it("needs both the step-up and an open shift", () => {
+    expect(stepUpShouldResume({ ...base, tierBecameUsable: false })).toBe(false);
+    expect(stepUpShouldResume({ ...base, hasOpenShift: false })).toBe(false);
   });
 });
 

@@ -32,6 +32,7 @@ import {
   withLockStarting,
 } from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
+import { aliasedShiftIdsSql, localIdFromAliasKey } from "../sync/shiftRekey";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
@@ -739,6 +740,20 @@ async function processShiftTripsOnce(
   options?: ProcessShiftTripsOptions
 ): Promise<number> {
   const db = await getDatabase();
+
+  // A shift started offline: fixes stored under its old local id after it got
+  // its server id (lib/sync/shiftRekey.ts) are this shift's too.
+  try {
+    const aliases = await db.getAllAsync<{ key: string }>(aliasedShiftIdsSql, [shiftId]);
+    for (const a of aliases) {
+      const localId = localIdFromAliasKey(a.key);
+      if (!localId) continue;
+      await db.runAsync("UPDATE shift_coordinates SET shift_id = ? WHERE shift_id = ?", [shiftId, localId]);
+      await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [a.key]);
+    }
+  } catch {
+    // best-effort: the shift's own rows are read below either way
+  }
 
   const coords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",

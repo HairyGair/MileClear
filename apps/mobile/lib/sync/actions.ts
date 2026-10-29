@@ -38,6 +38,7 @@ import {
   deleteSavedLocation as apiDeleteSavedLocation,
 } from "../api/savedLocations";
 import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/savedLocations";
+import { shiftRekeySteps } from "./shiftRekey";
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
@@ -591,11 +592,11 @@ export async function syncStartShift(
     const syncNow = new Date().toISOString();
 
     // Reconcile local ID → server ID + cascade to related tables
-    await db.execAsync(`
-      UPDATE shifts SET id = '${serverId}', synced_at = '${syncNow}' WHERE id = '${localId}';
-      UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-      UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-    `);
+    await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
+    // Breadcrumbs, trips and the tracking lock (lib/sync/shiftRekey.ts).
+    for (const step of shiftRekeySteps(localId, serverId)) {
+      await db.runAsync(step.sql, step.params);
+    }
 
     return result;
   } catch (err) {
