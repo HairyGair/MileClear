@@ -67,11 +67,16 @@ export function afterResume(
   resumedId: string,
   currentShiftId: string | null,
   /** The phone's own shifts row for resumedId still says active. */
-  localStillActive: boolean
+  localStillActive: boolean,
+  /** End Shift (button or automatic) is under way for resumedId. */
+  beingEnded = false
 ): AfterResume {
-  if (currentShiftId === resumedId) return "keep";
+  if (currentShiftId === resumedId && !beingEnded) return "keep";
   if (lockAfter !== resumedId) return "leave";
-  if (currentShiftId) return "release_and_resume_current";
+  if (currentShiftId && currentShiftId !== resumedId) return "release_and_resume_current";
+  // Its row only says completed once End Shift has built the trips, so a
+  // shift being ended is over whatever the row says.
+  if (beingEnded) return "release";
   // Home stopped showing it, but the phone still has it open (a shift started
   // offline that a refresh briefly missed): it is live, keep it.
   return localStillActive ? "keep" : "release";

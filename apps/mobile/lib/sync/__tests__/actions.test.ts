@@ -237,3 +237,23 @@ describe("syncCreateTrip with queueOnly (a refused recording kept for a retry)",
     expect(mocks.enqueueSync).not.toHaveBeenCalled();
   });
 });
+
+describe("syncStartShift re-key", () => {
+  it("moves the tracking lock with the shift, and a local failure never queues a second create", async () => {
+    const { startShift } = await import("../../api/shifts");
+    const { syncStartShift } = await import("../actions");
+    (startShift as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: "server-1" } });
+    const calls: string[] = [];
+    mocks.db.runAsync.mockImplementation(async (sql: string) => {
+      calls.push(sql);
+      if (/UPDATE trips SET shift_id/.test(sql)) throw new Error("disk full");
+      return { changes: 1 };
+    });
+    const res = await syncStartShift();
+    expect(res.data.id).toBe("server-1");
+    expect(
+      calls.some((s) => /UPDATE tracking_state SET value = \? WHERE key = 'active_shift_id' AND value = \?/.test(s))
+    ).toBe(true);
+    expect(mocks.enqueueSync).not.toHaveBeenCalled();
+  });
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localIdFromAliasKey, shiftIdAliasKey, shiftRekeySteps } from "../shiftRekey";
+import { currentShiftId, localIdFromAliasKey, runInTransaction, shiftIdAliasKey, shiftRekeySteps } from "../shiftRekey";
 
 describe("shiftRekeySteps", () => {
   const steps = shiftRekeySteps("local-1", "server-9");
@@ -19,6 +19,37 @@ describe("shiftRekeySteps", () => {
     expect(steps[2].params).toEqual(["server-9", "local-1"]);
     expect(steps[3].sql).toContain("UPDATE trips");
     expect(steps[3].params).toEqual(["server-9", "local-1"]);
+  });
+});
+
+describe("currentShiftId", () => {
+  const dbWith = (rows: Record<string, string>) => ({
+    getFirstAsync: async <T,>(_sql: string, params: string[]) =>
+      (params[0] in rows ? { value: rows[params[0]] } : null) as T | null,
+  });
+  it("follows the alias to the server id", async () => {
+    expect(await currentShiftId(dbWith({ [shiftIdAliasKey("L")]: "S" }), "L")).toBe("S");
+  });
+  it("keeps an id with no alias", async () => {
+    expect(await currentShiftId(dbWith({}), "S")).toBe("S");
+  });
+  it("keeps the id if the read fails", async () => {
+    const broken = { getFirstAsync: async () => { throw new Error("db"); } };
+    expect(await currentShiftId(broken, "L")).toBe("L");
+  });
+});
+
+describe("runInTransaction", () => {
+  it("uses the database's transaction when it has one", async () => {
+    const calls: string[] = [];
+    const db = { withTransactionAsync: async (t: () => Promise<void>) => { calls.push("begin"); await t(); calls.push("commit"); } };
+    await runInTransaction(db, async () => { calls.push("work"); });
+    expect(calls).toEqual(["begin", "work", "commit"]);
+  });
+  it("still runs without one", async () => {
+    let ran = false;
+    await runInTransaction({}, async () => { ran = true; });
+    expect(ran).toBe(true);
   });
 });
 

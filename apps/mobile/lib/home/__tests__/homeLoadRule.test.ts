@@ -59,6 +59,16 @@ describe("afterResume", () => {
   it("keeps a shift the phone still has open even if Home briefly lost it", () => {
     expect(afterResume("A", "A", null, true)).toBe("keep");
   });
+  it("releases a shift End Shift is ending, though its row still says active", () => {
+    expect(afterResume("A", "A", null, true, true)).toBe("release");
+    expect(afterResume("A", "A", "A", true, true)).toBe("release");
+  });
+  it("still restores a newer shift while the old one is being ended", () => {
+    expect(afterResume("A", "A", "B", true, true)).toBe("release_and_resume_current");
+  });
+  it("leaves someone else's lock even while ending", () => {
+    expect(afterResume(null, "A", null, true, true)).toBe("leave");
+  });
   it("releases and gives a newer shift its GPS back when A overwrote B's lock", () => {
     expect(afterResume("A", "A", "B", false)).toBe("release_and_resume_current");
   });

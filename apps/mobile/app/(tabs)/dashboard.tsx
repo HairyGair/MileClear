@@ -30,6 +30,7 @@ import {
   checkActiveShiftForAutoEnd,
   wasShiftAutoEnded,
   onShiftAutoEnded,
+  isShiftEnding,
 } from "../../lib/tracking/shiftEnd";
 import { getDatabase } from "../../lib/db/index";
 import { fetchGamificationStats } from "../../lib/api/gamification";
@@ -1154,7 +1155,7 @@ export default function DashboardScreen() {
             // A Start Trip's lock, or another shift's, is not Home's to take.
             if (!resumeMayTakeLock(await readLock(), active.id)) return;
             // Ended or replaced while the checks above ran: nothing to give back.
-            if (activeShiftRef.current?.id !== active.id) return;
+            if (activeShiftRef.current?.id !== active.id || isShiftEnding(active.id)) return;
             await startShiftTracking(active.id);
             // This can return long after it started. If the driver ended the
             // shift (or started another) meanwhile, the lock just written is
@@ -1164,7 +1165,13 @@ export default function DashboardScreen() {
               "SELECT status FROM shifts WHERE id = ?",
               [active.id]
             );
-            const after = afterResume(await readLock(), active.id, current?.id ?? null, localRow?.status === "active");
+            const after = afterResume(
+              await readLock(),
+              active.id,
+              current?.id ?? null,
+              localRow?.status === "active",
+              isShiftEnding(active.id)
+            );
             if (after === "release" || after === "release_and_resume_current") {
               const released = await releaseGhostShiftLock(active.id, "home_resume_after_shift_end");
               // A's late write replaced the newer shift's lock: give it back.

@@ -38,7 +38,7 @@ import {
   deleteSavedLocation as apiDeleteSavedLocation,
 } from "../api/savedLocations";
 import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/savedLocations";
-import { shiftRekeySteps } from "./shiftRekey";
+import { runInTransaction, shiftRekeySteps } from "./shiftRekey";
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
@@ -586,19 +586,9 @@ export async function syncStartShift(
     vehicle: null,
   };
 
+  let result: Awaited<ReturnType<typeof apiStartShift>>;
   try {
-    const result = await apiStartShift(data);
-    const serverId = result.data.id;
-    const syncNow = new Date().toISOString();
-
-    // Reconcile local ID → server ID + cascade to related tables
-    await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
-    // Breadcrumbs, trips and the tracking lock (lib/sync/shiftRekey.ts).
-    for (const step of shiftRekeySteps(localId, serverId)) {
-      await db.runAsync(step.sql, step.params);
-    }
-
-    return result;
+    result = await apiStartShift(data);
   } catch (err) {
     // Same rule as syncCreateTrip: keep what the user captured by DEFAULT and
     // discard only when the server definitively rejected the payload (a real
@@ -613,6 +603,28 @@ export async function syncStartShift(
     await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
     return { data: localShift };
   }
+
+  // The server has the shift now. A local failure from here must never queue
+  // a second create, so it is caught on its own.
+  const serverId = result.data.id;
+  const syncNow = new Date().toISOString();
+  try {
+    // Reconcile local ID → server ID + cascade to related tables, together
+    // (the breadcrumbs, trips and tracking lock: lib/sync/shiftRekey.ts).
+    await runInTransaction(db, async () => {
+      await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
+      for (const step of shiftRekeySteps(localId, serverId)) {
+        await db.runAsync(step.sql, step.params);
+      }
+    });
+  } catch (err) {
+    console.warn("[sync] shift re-key after start failed", err instanceof Error ? err.message : err);
+    // At least the row itself, so End Shift (by the server id) closes it.
+    await db
+      .runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId])
+      .catch(() => {});
+  }
+  return result;
 }
 
 export async function syncEndShift(id: string) {

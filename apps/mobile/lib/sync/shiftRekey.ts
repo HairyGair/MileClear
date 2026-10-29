@@ -40,9 +40,39 @@ export function shiftRekeySteps(localId: string, serverId: string): SqlStep[] {
   ];
 }
 
-/** The old local ids recorded for a shift's server id. */
+/** The old local ids recorded for a shift's server id ("_" escaped: LIKE treats it as any character). */
 export const aliasedShiftIdsSql =
-  "SELECT key FROM tracking_state WHERE key LIKE 'shift_id_alias:%' AND value = ?";
+  "SELECT key FROM tracking_state WHERE key LIKE 'shift\\_id\\_alias:%' ESCAPE '\\' AND value = ?";
+
+interface AliasDb {
+  getFirstAsync<T>(sql: string, params: string[]): Promise<T | null>;
+}
+
+/**
+ * The id to end a shift by. Home (or an old screen) can still hold the local
+ * id of a shift started offline after the sync moved everything to the server
+ * id; ending by the old id would read no breadcrumbs and end nothing.
+ */
+export async function currentShiftId(db: AliasDb, shiftId: string): Promise<string> {
+  try {
+    const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM tracking_state WHERE key = ?", [
+      shiftIdAliasKey(shiftId),
+    ]);
+    return row?.value || shiftId;
+  } catch {
+    return shiftId;
+  }
+}
+
+interface TxDb {
+  withTransactionAsync?: (task: () => Promise<void>) => Promise<void>;
+}
+
+/** Run the rename and re-key together, so a kill part way can't leave the lock on the old id. */
+export async function runInTransaction(db: TxDb, task: () => Promise<void>): Promise<void> {
+  if (typeof db.withTransactionAsync === "function") await db.withTransactionAsync(task);
+  else await task();
+}
 
 export function localIdFromAliasKey(key: string): string | null {
   return key.startsWith(SHIFT_ID_ALIAS_PREFIX) && key.length > SHIFT_ID_ALIAS_PREFIX.length

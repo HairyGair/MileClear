@@ -32,7 +32,7 @@ import {
   withLockStarting,
 } from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
-import { aliasedShiftIdsSql, localIdFromAliasKey } from "../sync/shiftRekey";
+import { aliasedShiftIdsSql, localIdFromAliasKey, shiftIdAliasKey } from "../sync/shiftRekey";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
@@ -718,6 +718,15 @@ export async function processLeftoverShiftBreadcrumbs(reason: string): Promise<v
     );
     for (const row of rows) {
       if (row.shift_id === active?.value) continue;
+      // Fixes left under an offline shift's old local id while that shift is
+      // still open under its server id: End Shift folds them in, not this.
+      if (active?.value) {
+        const alias = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = ?",
+          [shiftIdAliasKey(row.shift_id)]
+        );
+        if (alias?.value === active.value) continue;
+      }
       const shift = await db.getFirstAsync<{ vehicle_id: string | null }>(
         "SELECT vehicle_id FROM shifts WHERE id = ?",
         [row.shift_id]

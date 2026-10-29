@@ -22,7 +22,7 @@ import {
   isItemForbidden,
 } from "./errors";
 import { ApiError } from "../api/apiError";
-import { shiftRekeySteps } from "./shiftRekey";
+import { runInTransaction, shiftRekeySteps } from "./shiftRekey";
 
 export type SyncState = "idle" | "syncing" | "error";
 
@@ -189,6 +189,9 @@ export async function processSyncQueue(): Promise<void> {
           const localId = item.entity_id;
           remapped.set(localId, serverId);
           unfinishedCreates.delete(localId);
+          // The rename and every cascade below go together: a kill part way
+          // must not leave the tracking lock on the old id (shiftRekey.ts).
+          await runInTransaction(db, async () => {
           const existingServer = await db.getFirstAsync<{ id: string }>(
             `SELECT id FROM ${table} WHERE id = ?`, [serverId]
           );
@@ -245,6 +248,7 @@ export async function processSyncQueue(): Promise<void> {
               await db.runAsync(step.sql, step.params);
             }
           }
+          });
         } else if (item.action === "delete") {
           // Clean up local row on successful delete
           await db.execAsync(`
