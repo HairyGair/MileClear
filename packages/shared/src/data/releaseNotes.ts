@@ -76,8 +76,8 @@ export interface SiteAnnouncement {
 // surfacing site-wide.
 export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
-// Car Bluetooth is tester-only (CAR_BLUETOOTH_ROLLOUT), so it is not listed in
-// 1.4.0 below; add it here and to the Android list when it goes to everyone.
+// Car Bluetooth went to everyone on 29 Oct 2026 (CAR_BLUETOOTH_ROLLOUT=all),
+// so it is listed in 1.4.0 below; add it to the Android 1.4.0 entry too.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     // Build 97, cut 24 Oct 2026 from main 551855a2, submitted to Apple 25 Oct
@@ -93,6 +93,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       "Distances in kilometres if you prefer: Settings > Distances. Tax figures and downloads stay in miles",
       "Add a whole past shift in one go, with its trips and earnings",
       "More than one car? Trips the app records on its own go on your primary car, and you can download a trip report or CSV for just one car",
+      "Link each car's Bluetooth on its screen, and trips the app records on its own go on the car your phone is connected to",
       "Filter trips by client, and download a trip report or CSV for one client",
       "Your car's running odometer reading shows on Home",
       "Fuel prices: choose your fuel and sort nearby stations by nearest or cheapest",
