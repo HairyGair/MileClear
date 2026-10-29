@@ -213,6 +213,40 @@ const API_BASE_URL = process.env.API_BASE_URL || "https://api.mileclear.com";
  *  (api.mileclear.com in production), and links built from it 404'd: Rob
  *  Lyons' driver invite, 4 Oct 2026. */
 const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
+
+// The signature and company line every MileClear email carries. UK law wants a
+// company's business emails to show its name, number, place of registration
+// and registered office.
+const COMPANY_LINE =
+  "MileClear is a trading name of SOYO Studios Ltd, registered in England and Wales, company number 17214932. Registered office: 1 Top Street, Doncaster, DN10 6TF.";
+
+/** Under "Gair" on the dark branded emails. */
+const SIGNATURE_DARK = `
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 18px 0 0; border-top: 1px solid rgba(245,166,35,0.18); padding-top: 16px;">
+          <tr>
+            <td style="vertical-align: top; padding: 16px 14px 0 0;"><img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="40" height="40" style="display: block; border: 0; border-radius: 10px;" /></td>
+            <td style="vertical-align: top; padding-top: 16px;">
+              <p style="margin: 0; color: #f0f2f5; font-size: 14px; font-weight: 700; line-height: 1.4;">Anthony Gair</p>
+              <p style="margin: 0; color: #8b95a7; font-size: 13px; line-height: 1.5;">Founder, Mile<span style="color: #f5a623;">Clear</span></p>
+              <p style="margin: 2px 0 0; font-size: 13px; line-height: 1.5;"><a href="https://mileclear.com" style="color: #f5a623; text-decoration: none;">mileclear.com</a> <span style="color: #4a5568;">&middot;</span> <a href="mailto:support@mileclear.com" style="color: #f5a623; text-decoration: none;">support@mileclear.com</a></p>
+            </td>
+          </tr>
+        </table>`;
+
+/** Under the plain light emails (support replies). */
+const SIGNATURE_LIGHT = `<table role="presentation" cellpadding="0" cellspacing="0" style="margin: 20px 0 0; border-top: 1px solid #e5e7eb;">
+  <tr>
+    <td style="vertical-align: top; padding: 14px 12px 0 0;"><img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="36" height="36" style="display: block; border: 0; border-radius: 9px;" /></td>
+    <td style="vertical-align: top; padding-top: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <p style="margin: 0; color: #111827; font-size: 14px; font-weight: 700; line-height: 1.4;">Anthony Gair</p>
+      <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">Founder, MileClear</p>
+      <p style="margin: 2px 0 0; font-size: 13px; line-height: 1.5;"><a href="https://mileclear.com" style="color: #b7791f; text-decoration: none;">mileclear.com</a> &middot; <a href="mailto:support@mileclear.com" style="color: #b7791f; text-decoration: none;">support@mileclear.com</a></p>
+    </td>
+  </tr>
+</table>
+<p style="margin: 14px 0 0; color: #9ca3af; font-size: 11px; line-height: 1.5;">${COMPANY_LINE}</p>`;
+
+const SIGNATURE_TEXT = `\n\n--\nAnthony Gair\nFounder, MileClear\nmileclear.com | support@mileclear.com\n\n${COMPANY_LINE}`;
 const SUPPORT_INBOX = process.env.SUPPORT_INBOX || "support@mileclear.com";
 const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear/id6759671005";
 // The Play listing is a closed test and returns "not found" to anyone not on
@@ -296,6 +330,7 @@ export async function sendVerificationEmail(
         <span style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1a1a1a;">${code}</span>
       </div>
       <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't create a MileClear account, you can ignore this email.</p>
+      <p style="color: #aaa; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -416,6 +451,7 @@ export async function sendPasswordResetEmail(
         <span style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1a1a1a;">${code}</span>
       </div>
       <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't request a password reset, you can ignore this email.</p>
+      <p style="color: #aaa; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -606,7 +642,7 @@ ${ctaButton("Get the app", APP_STORE_URL)}
                   </table>
 
                   <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-                  <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+                  <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
 
                 </td></tr>
               </table>
@@ -615,6 +651,7 @@ ${ctaButton("Get the app", APP_STORE_URL)}
             <!-- Footer -->
             <tr><td align="center" style="padding: 28px 0 8px;">
               <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you created a MileClear account.<br/>If that wasn't you, you can safely ignore this email.</p>
+              <p style="color: #3a4553; font-size: 11px; line-height: 1.5; margin: 10px 0 0;">${COMPANY_LINE}</p>
             </td></tr>
 
           </table>
@@ -714,6 +751,7 @@ export async function sendProWelcomeEmail(
             <!-- Footer -->
             <tr><td style="padding: 24px 16px 0;">
               <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you upgraded to MileClear Pro. Reply to this email if you need help.</p>
+              <p style="color: #3a4553; font-size: 11px; line-height: 1.5; margin: 10px 0 0;">${COMPANY_LINE}</p>
             </td></tr>
 
           </table>
@@ -817,6 +855,7 @@ ${opts.bodyHtml}
   <tr><td align="center" style="padding:28px 12px 8px;">
     <p style="color:#6b7689;font-size:14px;line-height:1.6;margin:0 0 10px;font-weight:700;">Mile<span style="color:${accent};">Clear</span> &nbsp;&middot;&nbsp; UK mileage tracking, built for drivers</p>
     <p style="color:#42505f;font-size:12px;line-height:1.5;margin:0;">${opts.footerHtml}</p>
+    <p style="color:#3a4553;font-size:11px;line-height:1.5;margin:12px 0 0;">${COMPANY_LINE}</p>
   </td></tr>
 
 </table>
@@ -935,7 +974,7 @@ ${ctaButton("Open MileClear", APP_STORE_URL)}
 
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Got a question or something not working? Just reply to this email - I read every message.</p>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
 
   const html = emailShell({
     preheader: hasUsed
@@ -1029,7 +1068,7 @@ ${ctaButton(release.ctaLabel ?? "See what's new", release.ctaUrl ?? blogUrl)}
 ${replyCard("Something not working? Got ideas? Reply to this email - I read every message and I'll get back to you personally. Several of the features above came directly from messages exactly like that.")}
 
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
 
   return emailShell({
     preheader: tagline,
@@ -1144,7 +1183,7 @@ ${ctaButton("Open MileClear", APP_STORE_URL)}
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Sorry for the inconvenience, and thanks for your patience. If anything still seems off, just reply to this email.</p>
 
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
 
   const html = emailShell({
     preheader: "The earlier sign-in and sync issue is fixed. No data was lost - everything is back to normal.",
@@ -1183,7 +1222,7 @@ function gbp(pence: number): string {
 }
 
 const SIGN_OFF = `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
 
 function para(text: string, mb = 16): string {
   return `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 ${mb}px;">${text}</p>`;
@@ -1367,7 +1406,7 @@ export async function sendSupportReply(opts: {
   const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 15px; line-height: 1.6; color: #1a1a1a;">${opts.text
     .split(/\n{2,}/)
     .map((p) => `<p style="margin: 0 0 14px;">${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`)
-    .join("")}</div>`;
+    .join("")}${SIGNATURE_LIGHT}</div>`;
   if (!transporter) {
     console.log(`[EMAIL] support reply to ${opts.to}: ${opts.subject} (dev only)`);
     return messageId;
@@ -1378,7 +1417,7 @@ export async function sendSupportReply(opts: {
     replyTo: SUPPORT_INBOX,
     subject: opts.subject,
     html,
-    text: opts.text,
+    text: opts.text + SIGNATURE_TEXT,
     headers,
   });
   return messageId;
@@ -2767,7 +2806,7 @@ export async function sendCheckinEmail(
         ${!hasTrips ? `<p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">If you haven't had a chance to try tracking yet, just open the app and drive. MileClear detects your trips automatically in the background - no buttons to press.</p>` : ""}
 
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
       </td></tr>
     </table>
   </td></tr>
@@ -2817,7 +2856,7 @@ export async function sendActivationNudgeEmail(
     `        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
   const signoff = `${p("Reply to this email if anything is in the way. I read every message.")}
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
 
   let subject: string;
   let title: string;
@@ -2909,7 +2948,7 @@ ${p("After that, keep your phone with you in the car and each drive records by i
 ${opts.platform === "android" ? p(ANDROID_NEW_NOTE) : ""}
 ${p("Reply to this email if anything is in the way. I read every message.")}
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>`;
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
 
   const html = emailShell({
     preheader: "One setting on your phone lets MileClear record drives by itself.",
@@ -2955,7 +2994,7 @@ export async function sendFeedbackAcknowledgement(
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I've received your submission${titleRef} and I'll take a look. Your input directly shapes what gets built next in MileClear.</p>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">If you want to add more detail or have follow-up thoughts, just reply to this email.</p>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
       </td></tr>
     </table>
   </td></tr>
@@ -3005,7 +3044,7 @@ export async function sendFeedbackReplyNotification(
         </div>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Open the app to see the full thread, or just reply to this email if you have more thoughts.</p>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
       </td></tr>
     </table>
   </td></tr>
@@ -3061,7 +3100,7 @@ export async function sendFeedbackShippedNotification(
         ${note}
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Update the app to get it, and thanks for taking the time to suggest it. If it isn't quite what you had in mind, just reply to this email.</p>
         <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>
+        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
       </td></tr>
     </table>
   </td></tr>
