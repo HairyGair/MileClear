@@ -141,6 +141,15 @@ export function resumeSecondCopyPlan(
   return openedForPastTrip ? { kind: "stay_manual" } : plan;
 }
 
+/**
+ * Start Trip tapped on a screen in Ready while a Start Trip is already
+ * recording (its lock and start row both there): starting would wipe that
+ * trip's route and start row. Send the driver to it instead.
+ */
+export function startTripWouldReplaceRunning(lockValue: string | null | undefined, hasStartRow: boolean): boolean {
+  return lockValue === "__quick_trip__" && hasStartRow;
+}
+
 /** After a pop: it went through when the screen it aimed at is now on top. */
 export function popLanded(state: StackStateLike | null | undefined, key: string): boolean {
   if (!state || !Array.isArray(state.routes) || state.routes.length === 0) return false;

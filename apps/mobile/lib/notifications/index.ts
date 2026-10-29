@@ -699,7 +699,10 @@ export function setupNotificationResponseHandler(): void {
         // Specific trip needing review (e.g. low GPS quality, possible split).
         const tripId = data?.tripId as string | undefined;
         if (tripId) {
-          router.navigate(`/trip-form?id=${tripId}` as any);
+          // Push, never navigate: navigate reuses the top screen when it is
+          // also the trip screen, which would turn a Start Trip being
+          // recorded into a view of this trip.
+          router.push(`/trip-form?id=${tripId}` as any);
         } else {
           router.navigate("/(tabs)/trips");
         }

@@ -68,6 +68,7 @@ import { AppModal } from "../../components/AppModal";
 import { Swipeable, RectButton } from "react-native-gesture-handler";
 import AppHeader from "../../components/AppHeader";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
+import { openStartTrip } from "../../lib/home/openStartTrip";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -2133,7 +2134,8 @@ export default function TripsScreen() {
                 style={styles.sheetRow}
                 onPress={() => {
                   setShowAddSheet(false);
-                  router.push("/trip-form" as never);
+                  // Back to a Start Trip screen already recording, not a second copy.
+                  openStartTrip();
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Start a trip now. Records this drive until you arrive."

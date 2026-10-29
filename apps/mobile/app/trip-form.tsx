@@ -86,7 +86,13 @@ import {
   registerRecordingStartTripScreen,
   takeArriveRequest,
 } from "../lib/home/startTripRequest";
-import { resumeSecondCopyPlan, type StackStateLike } from "../lib/home/startTripCard";
+import {
+  popLanded,
+  resumeSecondCopyPlan,
+  startTripWouldReplaceRunning,
+  type StackStateLike,
+} from "../lib/home/startTripCard";
+import { openStartTrip } from "../lib/home/openStartTrip";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -1368,7 +1374,24 @@ export default function TripFormScreen() {
           if (copy.kind === "stay_manual") {
             resumeRow = null;
           } else if (copy.kind === "pop") {
+            const target = copy.key;
             navigationRef.current.dispatch(StackActions.pop(copy.count));
+            // A screen in between can refuse to go ("Keep editing"). Then
+            // this copy must not sit here on Ready over a running trip: step
+            // back off it to the screen the driver chose to keep.
+            setTimeout(() => {
+              try {
+                const nav = navigationRef.current;
+                const st = nav.getState() as unknown as StackStateLike;
+                // Only while this copy is still the top screen: a back
+                // dispatched here pops whatever is on top.
+                if (!popLanded(st, target) && popLanded(st, routeKeyRef.current) && nav.canGoBack()) {
+                  nav.goBack();
+                }
+              } catch {
+                // the Start Trip guard still stops this copy wiping the trip
+              }
+            }, 250);
             return; // finally sets loading=false
           }
         }
@@ -2234,6 +2257,29 @@ export default function TripFormScreen() {
   };
 
   const handleStartTrip = useCallback(async (skipChecks = false) => {
+    // A Start Trip already recording (on another screen, or one this screen
+    // let go of): starting here would delete its route and start row while it
+    // still runs. Always checked, whatever skipChecks says.
+    try {
+      const db = await getDatabase();
+      const lockRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+      );
+      const startRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = ?",
+        [QUICK_TRIP_KEY]
+      );
+      if (startTripWouldReplaceRunning(lockRow?.value, !!startRow)) {
+        Alert.alert("A trip is already recording", "Finish that trip first. It's still recording.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Go to it", onPress: () => openStartTrip() },
+        ]);
+        return;
+      }
+    } catch {
+      // best-effort guard, as below
+    }
+
     // Two-recordings guard (audit point 9): don't start a manual trip while a
     // real shift is already recording — that's two trackers writing at once.
     if (!skipChecks) {

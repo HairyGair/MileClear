@@ -11,6 +11,7 @@ import {
   resumeSecondCopyPlan,
   startTripCardModel,
   startTripCardTapAllowed,
+  startTripWouldReplaceRunning,
   type StartTripCardInputs,
 } from "../startTripCard";
 import {
@@ -145,6 +146,16 @@ describe("resumeSecondCopyPlan", () => {
   it("resumes when the registered screen is no longer in the stack", () => {
     const gone = { index: 1, routes: [r("tabs-1", "(tabs)"), r("B", "trip-form")] };
     expect(resumeSecondCopyPlan(gone, ["A"], "B", false)).toEqual({ kind: "resume" });
+  });
+});
+
+describe("startTripWouldReplaceRunning", () => {
+  it("blocks a Start Trip only while one is recording (lock and start row)", () => {
+    expect(startTripWouldReplaceRunning("__quick_trip__", true)).toBe(true);
+    expect(startTripWouldReplaceRunning("__quick_trip__", false)).toBe(false);
+    expect(startTripWouldReplaceRunning(null, true)).toBe(false);
+    expect(startTripWouldReplaceRunning("3f2a-shift", true)).toBe(false);
+    expect(startTripWouldReplaceRunning("__arrived_pending__", true)).toBe(false);
   });
 });
 
