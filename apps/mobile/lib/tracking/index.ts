@@ -151,6 +151,20 @@ export async function requestLocationPermissions(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Foreground location is already granted. Never shows a prompt: for checks
+ * that run without the driver asking for anything (Home's load), where a
+ * prompt chain that never answers left Home stuck (see lib/home/homeLoadRule.ts).
+ */
+export async function hasForegroundLocationPermission(): Promise<boolean> {
+  try {
+    const fg = await Location.getForegroundPermissionsAsync();
+    return fg.status === "granted";
+  } catch {
+    return false;
+  }
+}
+
 export async function isTrackingActive(): Promise<boolean> {
   return TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
 }

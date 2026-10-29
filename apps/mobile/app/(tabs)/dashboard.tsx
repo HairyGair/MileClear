@@ -35,10 +35,19 @@ import { getDatabase } from "../../lib/db/index";
 import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
   requestLocationPermissions,
+  hasForegroundLocationPermission,
   startShiftTracking,
   isTrackingActive,
   peekBackgroundCoordinates,
 } from "../../lib/tracking/index";
+import {
+  loadingIsStuck,
+  loadingStuckEvent,
+  resumeMayStart,
+  shouldResumeShiftGps,
+  HOME_LOADING_STUCK_MS,
+  type HomeLoadStage,
+} from "../../lib/home/homeLoadRule";
 import { watchLowPowerMode } from "../../lib/tracking/batteryAware";
 import { fetchDataQualityImprovement } from "../../lib/api/user";
 import { apiRequest } from "../../lib/api/index";
@@ -1088,13 +1097,58 @@ export default function DashboardScreen() {
     }
   }, [showScorecard]);
 
+  // Where loadData has got to, for the stuck-load report, and whether an open
+  // shift's GPS is being given back right now (one at a time: loadData runs on
+  // every focus and on a shift's auto-end).
+  const loadStageRef = useRef<HomeLoadStage>("start");
+  // Epoch ms the running one began, or null.
+  const shiftGpsResumingRef = useRef<number | null>(null);
+  // Whether the load found an open shift, for the stuck report.
+  const loadHadShiftRef = useRef(false);
+
+  // Give an open shift its GPS back if the app was killed or updated during
+  // it, then its Live Activity. Runs on its own so Home never waits for it
+  // (lib/home/homeLoadRule.ts), and never asks for permission.
+  const resumeOpenShift = useCallback(
+    async (active: ShiftWithVehicle, vehicleList: Vehicle[]) => {
+      const runningSince = shiftGpsResumingRef.current;
+      if (!resumeMayStart(runningSince, Date.now())) return;
+      const mine = Date.now();
+      shiftGpsResumingRef.current = mine;
+      try {
+        const tracking = await isTrackingActive();
+        if (!tracking) {
+          const foregroundGranted = await hasForegroundLocationPermission();
+          if (shouldResumeShiftGps({ trackingActive: tracking, foregroundGranted })) {
+            await startShiftTracking(active.id);
+          }
+        }
+        // Recover Live Activity if it's still running after app restart
+        const startMs = new Date(active.startedAt).getTime();
+        const recovered = await recoverLiveActivity(startMs);
+        if (!recovered) {
+          // Live Activity expired or was dismissed - start a fresh one
+          const v = vehicleList.find((veh) => veh.id === active.vehicleId);
+          const vehicleName = v ? `${v.make} ${v.model}` : "";
+          startLiveActivity({ activityType: "shift", vehicleName, isBusinessMode: isWork });
+        }
+      } finally {
+        // A newer run that took over from a stuck one owns the flag now.
+        if (shiftGpsResumingRef.current === mine) shiftGpsResumingRef.current = null;
+      }
+    },
+    [isWork]
+  );
+
   const loadData = useCallback(async () => {
     try {
+      loadStageRef.current = "auto_end_check";
       // A shift left running with no driving ends itself (see
       // lib/tracking/shiftEnd.ts). The engine usually does this in the
       // background; checking here too covers a phone whose engine hasn't
       // woken since, so the dashboard never shows a shift that should be over.
       await checkActiveShiftForAutoEnd("dashboard").catch(() => "kept");
+      loadStageRef.current = "fetch";
       const [shiftRes, vehicleRes, statsRes] = await Promise.all([
         fetchActiveShift().catch(async () => {
           // Offline fallback: check local SQLite for active shift
@@ -1125,11 +1179,13 @@ export default function DashboardScreen() {
         fetchGamificationStats().catch(() => null),
       ]);
 
+      loadStageRef.current = "auto_ended_check";
       let active = shiftRes.data.length > 0 ? shiftRes.data[0] : null;
       // Ended on its own here, but the server hasn't heard yet (sync still
       // running or queued offline). Don't re-attach GPS to it below, which
       // would switch automatic tracking off again.
       if (active && (await wasShiftAutoEnded(active.id))) active = null;
+      loadHadShiftRef.current = active != null;
       setActiveShift(active);
       if (vehicleRes) {
         setVehicles(vehicleRes.data);
@@ -1137,36 +1193,49 @@ export default function DashboardScreen() {
       }
       const vehicleList = vehicleRes?.data ?? [];
       if (statsRes) setStats(statsRes.data);
+      // Everything Home shows is in: show it now, End Shift included, before
+      // anything that waits on the phone's location or the native engine.
+      loadStageRef.current = "shown";
+      setLoading(false);
+      setRefreshing(false);
 
       if (active) {
-        // Resume GPS tracking if app was killed/backgrounded during a shift
-        const tracking = await isTrackingActive();
-        if (!tracking) {
-          const hasPermission = await requestLocationPermissions();
-          if (hasPermission) {
-            await startShiftTracking(active.id);
-          }
-        }
-        // Recover Live Activity if it's still running after app restart
-        const startMs = new Date(active.startedAt).getTime();
-        const recovered = await recoverLiveActivity(startMs);
-        if (!recovered) {
-          // Live Activity expired or was dismissed - start a fresh one
-          const v = vehicleList.find((veh) => veh.id === active.vehicleId);
-          const vehicleName = v ? `${v.make} ${v.model}` : "";
-          startLiveActivity({ activityType: "shift", vehicleName, isBusinessMode: isWork });
-        }
+        void resumeOpenShift(active, vehicleList).catch(() => {});
       } else if (vehicleRes) {
         const primary = vehicleList.find((v) => v.isPrimary);
         setSelectedVehicleId(primary?.id);
       }
+      loadStageRef.current = "done";
     } catch {
       // Silently fail
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isWork]);
+  }, [resumeOpenShift]);
+
+  // Backstop: Home still on its skeleton well after it started loading means
+  // something loadData waits on never answered. Show Home anyway and report
+  // where it got to, so the next one is found (Rich, 29 Oct 2026).
+  const loadingNowRef = useRef(loading);
+  loadingNowRef.current = loading;
+  useEffect(() => {
+    const startedAt = Date.now();
+    const id = setTimeout(() => {
+      if (!loadingIsStuck(loadingNowRef.current, Date.now() - startedAt)) return;
+      setLoading(false);
+      setRefreshing(false);
+      import("../../lib/tracking/recordingDrops")
+        .then((m) =>
+          m.queueAppEvent(
+            "home.loading_stuck",
+            loadingStuckEvent(loadStageRef.current, loadHadShiftRef.current === true, Platform.OS)
+          )
+        )
+        .catch(() => {});
+    }, HOME_LOADING_STUCK_MS);
+    return () => clearTimeout(id);
+  }, []);
 
   // A shift that ends on its own while the dashboard is open: drop the timer
   // straight away and reload once the trips and server end have gone through.
