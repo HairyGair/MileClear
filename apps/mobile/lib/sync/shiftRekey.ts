@@ -64,14 +64,26 @@ export async function currentShiftId(db: AliasDb, shiftId: string): Promise<stri
   }
 }
 
-interface TxDb {
-  withTransactionAsync?: (task: () => Promise<void>) => Promise<void>;
-}
+// No transaction here on purpose: expo-sqlite shares one connection, so a
+// BEGIN here can fail inside another caller's open transaction, and its
+// rollback would undo that caller's work (the native fix refill, a pending
+// Arrived save) and any GPS fix written meanwhile. Every step is safe to run
+// again instead.
 
-/** Run the rename and re-key together, so a kill part way can't leave the lock on the old id. */
-export async function runInTransaction(db: TxDb, task: () => Promise<void>): Promise<void> {
-  if (typeof db.withTransactionAsync === "function") await db.withTransactionAsync(task);
-  else await task();
+const SAFE_ID = /^[A-Za-z0-9-]{1,64}$/;
+
+/**
+ * The lock move and the alias as SQL text, to go in the same execAsync call as
+ * the shift row's rename and its queue row's "synced" mark (lib/sync/index.ts),
+ * so the one moment that matters can't be split by a kill. Null when an id is
+ * not a plain uuid-like string (never interpolate anything else).
+ */
+export function shiftLockMoveSql(localId: string, serverId: string): string | null {
+  if (!SAFE_ID.test(localId) || !SAFE_ID.test(serverId)) return null;
+  return [
+    `UPDATE tracking_state SET value = '${serverId}' WHERE key = 'active_shift_id' AND value = '${localId}';`,
+    `INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('${shiftIdAliasKey(localId)}', '${serverId}');`,
+  ].join("\n");
 }
 
 export function localIdFromAliasKey(key: string): string | null {

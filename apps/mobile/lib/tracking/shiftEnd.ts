@@ -42,7 +42,11 @@ export async function finishShift(params: {
   vehicleId?: string | null;
   liveDistanceMiles?: number;
 }): Promise<Awaited<ReturnType<typeof syncEndShift>>> {
+  // Both ids are marked before the GPS is released, so a give-back still
+  // running on Home can't take the GPS back in the gap (it checks either).
+  const resolvedId = await currentShiftId(await getDatabase(), params.shiftId);
   markEnding(params.shiftId);
+  if (resolvedId !== params.shiftId) markEnding(resolvedId);
   try {
     await releaseShiftTracking();
     // stopShiftTracking arms the 20-minute "Not driving" cooldown, so a drive
@@ -50,9 +54,10 @@ export async function finishShift(params: {
     // automatic end already lifted it; the button now does too (Anthony,
     // 23 Sep 2026).
     await clearNotDrivingCooldown().catch(() => {});
-    return await closeShift(params);
+    return await closeShift({ ...params, shiftId: resolvedId });
   } finally {
     unmarkEnding(params.shiftId);
+    if (resolvedId !== params.shiftId) unmarkEnding(resolvedId);
   }
 }
 

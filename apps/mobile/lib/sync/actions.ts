@@ -38,7 +38,7 @@ import {
   deleteSavedLocation as apiDeleteSavedLocation,
 } from "../api/savedLocations";
 import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/savedLocations";
-import { runInTransaction, shiftRekeySteps } from "./shiftRekey";
+import { shiftRekeySteps } from "./shiftRekey";
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
@@ -609,22 +609,35 @@ export async function syncStartShift(
   const serverId = result.data.id;
   const syncNow = new Date().toISOString();
   try {
-    // Reconcile local ID → server ID + cascade to related tables, together
-    // (the breadcrumbs, trips and tracking lock: lib/sync/shiftRekey.ts).
-    await runInTransaction(db, async () => {
-      await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
-      for (const step of shiftRekeySteps(localId, serverId)) {
-        await db.runAsync(step.sql, step.params);
-      }
-    });
+    // Reconcile local ID → server ID + cascade to related tables (the
+    // breadcrumbs, trips and tracking lock: lib/sync/shiftRekey.ts). No
+    // transaction: see shiftRekey.ts. Every step is safe to run again.
+    await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
+    for (const step of shiftRekeySteps(localId, serverId)) {
+      await db.runAsync(step.sql, step.params);
+    }
   } catch (err) {
-    console.warn("[sync] shift re-key after start failed", err instanceof Error ? err.message : err);
+    reportShiftEvent("sync.shift_rekey_failed", { error: errorText(err) });
     // At least the row itself, so End Shift (by the server id) closes it.
-    await db
-      .runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId])
-      .catch(() => {});
+    try {
+      await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
+    } catch (again) {
+      // The phone is left with an open shift row the server never heard of.
+      reportShiftEvent("sync.shift_orphan_local_row", { error: errorText(again) });
+    }
   }
   return result;
+}
+
+function errorText(err: unknown): string {
+  return (err instanceof Error ? err.message : String(err)).slice(0, 120);
+}
+
+/** Telemetry only; never throws, never blocks the shift. */
+function reportShiftEvent(type: string, data: Record<string, unknown>): void {
+  import("../tracking/recordingDrops")
+    .then((m) => m.queueAppEvent(type, data))
+    .catch(() => {});
 }
 
 export async function syncEndShift(id: string) {
