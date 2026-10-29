@@ -71,7 +71,7 @@ export default function TermsOfService() {
                 By downloading, installing, or using the MileClear mobile application and website (collectively, the "Service"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use the Service.
               </p>
               <p className="legal__text">
-                <strong>Service Provider:</strong> Anthony Gair, trading as MileClear. Part of SOYOStudios (parent brand).
+                <strong>Service Provider:</strong> SOYO Studios Ltd (company number 17214932), trading as MileClear.
               </p>
               <p className="legal__text">
                 <strong>Effective Date:</strong> 22 April 2026

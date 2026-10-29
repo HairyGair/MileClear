@@ -70,7 +70,7 @@ export default function PrivacyPolicy() {
                 MileClear (&ldquo;we,&rdquo; &ldquo;us,&rdquo; &ldquo;our,&rdquo; or &ldquo;Service&rdquo;) is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application and website (collectively, the &ldquo;Service&rdquo;).
               </p>
               <p className="legal__text">
-                <strong>Service Provider:</strong> Anthony Gair, trading as MileClear. Part of SOYOStudios (parent brand).
+                <strong>Service Provider:</strong> SOYO Studios Ltd (company number 17214932), trading as MileClear.
               </p>
               <p className="legal__text">
                 <strong>Location:</strong> UK-based (North East England). All data hosted on UK servers.
