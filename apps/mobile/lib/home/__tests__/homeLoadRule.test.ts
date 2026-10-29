@@ -4,6 +4,9 @@ import {
   SHIFT_GPS_RESUME_STUCK_MS,
   loadingIsStuck,
   resumeMayStart,
+  resumeMayTakeLock,
+  afterResume,
+  tierBecameUsable,
   loadingStuckEvent,
   renderErrorEvent,
   shouldResumeShiftGps,
@@ -31,6 +34,44 @@ describe("resumeMayStart", () => {
   });
   it("takes over from one that never finished", () => {
     expect(resumeMayStart(now - SHIFT_GPS_RESUME_STUCK_MS, now)).toBe(true);
+  });
+});
+
+describe("resumeMayTakeLock", () => {
+  it("takes a free lock or its own", () => {
+    expect(resumeMayTakeLock(null, "A")).toBe(true);
+    expect(resumeMayTakeLock("A", "A")).toBe(true);
+  });
+  it("never takes a Start Trip's or another shift's", () => {
+    expect(resumeMayTakeLock("__quick_trip__", "A")).toBe(false);
+    expect(resumeMayTakeLock("B", "A")).toBe(false);
+  });
+});
+
+describe("afterResume", () => {
+  it("keeps the lock while the shift is still the open one", () => {
+    expect(afterResume("A", "A", "A")).toBe("keep");
+  });
+  it("releases a ghost lock written after End Shift", () => {
+    expect(afterResume("A", "A", null)).toBe("release");
+  });
+  it("releases and gives a newer shift its GPS back when A overwrote B's lock", () => {
+    expect(afterResume("A", "A", "B")).toBe("release_and_resume_current");
+  });
+  it("leaves a lock that is not this shift's alone", () => {
+    expect(afterResume("B", "A", "B")).toBe("leave");
+    expect(afterResume(null, "A", null)).toBe("leave");
+    expect(afterResume("__quick_trip__", "A", null)).toBe("leave");
+  });
+});
+
+describe("tierBecameUsable", () => {
+  it("only on the step from none", () => {
+    expect(tierBecameUsable("none", "foreground")).toBe(true);
+    expect(tierBecameUsable("none", "always")).toBe(true);
+    expect(tierBecameUsable("foreground", "always")).toBe(false);
+    expect(tierBecameUsable(null, "always")).toBe(false);
+    expect(tierBecameUsable("none", "none")).toBe(false);
   });
 });
 

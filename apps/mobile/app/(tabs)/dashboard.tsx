@@ -36,6 +36,7 @@ import { fetchGamificationStats } from "../../lib/api/gamification";
 import {
   requestLocationPermissions,
   hasForegroundLocationPermission,
+  releaseGhostShiftLock,
   startShiftTracking,
   isTrackingActive,
   peekBackgroundCoordinates,
@@ -44,6 +45,9 @@ import {
   loadingIsStuck,
   loadingStuckEvent,
   resumeMayStart,
+  resumeMayTakeLock,
+  afterResume,
+  tierBecameUsable,
   shouldResumeShiftGps,
   HOME_LOADING_STUCK_MS,
   type HomeLoadStage,
@@ -1105,6 +1109,11 @@ export default function DashboardScreen() {
   const shiftGpsResumingRef = useRef<number | null>(null);
   // Whether the load found an open shift, for the stuck report.
   const loadHadShiftRef = useRef(false);
+  // The shift Home shows now, for checks that finish long after they start.
+  const activeShiftRef = useRef<ShiftWithVehicle | null>(activeShift);
+  useEffect(() => {
+    activeShiftRef.current = activeShift;
+  }, [activeShift]);
 
   // Give an open shift its GPS back if the app was killed or updated during
   // it, then its Live Activity. Runs on its own so Home never waits for it
@@ -1113,6 +1122,17 @@ export default function DashboardScreen() {
     async (active: ShiftWithVehicle, vehicleList: Vehicle[]) => {
       const runningSince = shiftGpsResumingRef.current;
       if (!resumeMayStart(runningSince, Date.now())) return;
+      if (runningSince != null) {
+        // The last one never finished: make that visible.
+        import("../../lib/tracking/recordingDrops")
+          .then((m) =>
+            m.queueAppEvent("home.shift_gps_resume_slow", {
+              runningSeconds: Math.round((Date.now() - runningSince) / 1000),
+              platform: Platform.OS,
+            })
+          )
+          .catch(() => {});
+      }
       const mine = Date.now();
       shiftGpsResumingRef.current = mine;
       try {
@@ -1120,9 +1140,30 @@ export default function DashboardScreen() {
         if (!tracking) {
           const foregroundGranted = await hasForegroundLocationPermission();
           if (shouldResumeShiftGps({ trackingActive: tracking, foregroundGranted })) {
+            const db = await getDatabase();
+            const readLock = async () =>
+              (
+                await db.getFirstAsync<{ value: string }>(
+                  "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+                )
+              )?.value ?? null;
+            // A Start Trip's lock, or another shift's, is not Home's to take.
+            if (!resumeMayTakeLock(await readLock(), active.id)) return;
             await startShiftTracking(active.id);
+            // This can return long after it started. If the driver ended the
+            // shift (or started another) meanwhile, the lock just written is
+            // a ghost: release it while it is still this shift's.
+            const current = activeShiftRef.current;
+            const after = afterResume(await readLock(), active.id, current?.id ?? null);
+            if (after === "release" || after === "release_and_resume_current") {
+              await releaseGhostShiftLock(active.id, "home_resume_after_shift_end");
+              // A's late write replaced the newer shift's lock: give it back.
+              if (after === "release_and_resume_current" && current) await startShiftTracking(current.id);
+              return;
+            }
           }
         }
+        if (activeShiftRef.current?.id !== active.id) return;
         // Recover Live Activity if it's still running after app restart
         const startMs = new Date(active.startedAt).getTime();
         const recovered = await recoverLiveActivity(startMs);
@@ -1186,6 +1227,7 @@ export default function DashboardScreen() {
       // would switch automatic tracking off again.
       if (active && (await wasShiftAutoEnded(active.id))) active = null;
       loadHadShiftRef.current = active != null;
+      activeShiftRef.current = active;
       setActiveShift(active);
       if (vehicleRes) {
         setVehicles(vehicleRes.data);
@@ -1214,11 +1256,27 @@ export default function DashboardScreen() {
     }
   }, [resumeOpenShift]);
 
+  // Location fixed from the blocker card or the primer while a shift is open:
+  // give the shift its GPS now. Home no longer prompts during its load, so a
+  // reinstall mid-shift (permissions and the lock both gone) would otherwise
+  // show the shift running and record nothing until the next tab change.
+  const prevLocationTierRef = useRef<LocationPermissionTier | null>(null);
+  useEffect(() => {
+    const prev = prevLocationTierRef.current;
+    prevLocationTierRef.current = locationTier;
+    const shift = activeShiftRef.current;
+    if (shift && tierBecameUsable(prev, locationTier)) {
+      void resumeOpenShift(shift, vehicles).catch(() => {});
+    }
+  }, [locationTier, resumeOpenShift, vehicles]);
+
   // Backstop: Home still on its skeleton well after it started loading means
   // something loadData waits on never answered. Show Home anyway and report
   // where it got to, so the next one is found (Rich, 29 Oct 2026).
   const loadingNowRef = useRef(loading);
-  loadingNowRef.current = loading;
+  useEffect(() => {
+    loadingNowRef.current = loading;
+  }, [loading]);
   useEffect(() => {
     const startedAt = Date.now();
     const id = setTimeout(() => {
@@ -1241,6 +1299,7 @@ export default function DashboardScreen() {
   // straight away and reload once the trips and server end have gone through.
   useEffect(() => {
     return onShiftAutoEnded((shiftId) => {
+      if (activeShiftRef.current?.id === shiftId) activeShiftRef.current = null;
       setActiveShift((cur) => (cur?.id === shiftId ? null : cur));
       loadData();
     });
@@ -1551,6 +1610,7 @@ export default function DashboardScreen() {
       const res = await syncStartShift(
         selectedVehicleId ? { vehicleId: selectedVehicleId } : undefined
       );
+      activeShiftRef.current = res.data;
       setActiveShift(res.data);
       haptic("success");
 
@@ -1589,6 +1649,10 @@ export default function DashboardScreen() {
         style: "destructive",
         onPress: async () => {
           setEnding(true);
+          // From now on this shift is over for a GPS give-back still running
+          // (resumeOpenShift): it must release, not keep, what it writes.
+          const endingShift = activeShift;
+          activeShiftRef.current = null;
           try {
             // Stop GPS + Live Activity, turn breadcrumbs into trips, end the
             // shift offline-aware. Shared with the automatic end so both
@@ -1643,6 +1707,7 @@ export default function DashboardScreen() {
             }
             loadData();
           } catch (err: any) {
+            activeShiftRef.current = endingShift;
             Alert.alert("Couldn't end the shift", err.message || "Try again in a moment.");
           } finally {
             setEnding(false);

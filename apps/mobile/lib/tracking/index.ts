@@ -23,7 +23,14 @@ import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 import { segmentsToSave } from "./shiftSegments";
-import { LOCATION_TASK_NAME, isLockStarting, startLockGps, startLockGpsIfStopped, withLockStarting } from "./lockGps";
+import {
+  LOCATION_TASK_NAME,
+  isLockStarting,
+  startLockGps,
+  startLockGpsIfStopped,
+  stopLockGpsWithoutLock,
+  withLockStarting,
+} from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
@@ -236,6 +243,31 @@ async function startShiftTrackingOnce(shiftId: string, options: { fresh?: boolea
   // The housekeeping above can stop the task just started: a stranded Start
   // Trip lock's self-heal stops the shared task. Now the lock is this shift's.
   await startLockGpsIfStopped("shift", options.fresh ? "shift_start_recheck" : "shift_resume_recheck");
+}
+
+/**
+ * Undo a shift lock written after its shift was over: Home's GPS give-back
+ * (dashboard.tsx resumeOpenShift) can return after the driver tapped End
+ * Shift. Releases only while the lock still holds `shiftId`, never another
+ * lock, and then puts back what stopShiftTracking would have: the task off
+ * (unless something else holds or is taking a lock), the engine's power, and
+ * automatic detection. Returns whether it released anything.
+ */
+export async function releaseGhostShiftLock(shiftId: string, reason: string): Promise<boolean> {
+  const db = await getDatabase();
+  const released = await db.runAsync(
+    "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+    [shiftId]
+  );
+  if (released.changes === 0) return false;
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_started_at'");
+  await stopLockGpsWithoutLock(reason);
+  await applyNativeEnginePower("shift_ghost_released");
+  const lockNow = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  if (!lockNow && !isLockStarting()) await startDriveDetection();
+  return true;
 }
 
 export async function stopShiftTracking(): Promise<void> {

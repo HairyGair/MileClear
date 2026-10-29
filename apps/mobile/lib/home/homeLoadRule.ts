@@ -45,6 +45,34 @@ export function resumeMayStart(runningSinceMs: number | null, nowMs: number): bo
   return runningSinceMs == null || nowMs - runningSinceMs >= SHIFT_GPS_RESUME_STUCK_MS;
 }
 
+/**
+ * Before giving shift `shiftId` its GPS back: the tracking lock must be free
+ * or already this shift's. A Start Trip's lock, or another shift's, is never
+ * taken over from Home.
+ */
+export function resumeMayTakeLock(lockBefore: string | null, shiftId: string): boolean {
+  return lockBefore == null || lockBefore === shiftId;
+}
+
+export type AfterResume = "keep" | "leave" | "release" | "release_and_resume_current";
+
+/**
+ * After the give-back returns, which can be long after it started. If the
+ * driver ended the shift meanwhile, or started another, the lock it wrote is
+ * a ghost: release it, but only while it still holds this shift (anything
+ * else belongs to someone else), and give a newer open shift its own back.
+ */
+export function afterResume(lockAfter: string | null, resumedId: string, currentShiftId: string | null): AfterResume {
+  if (currentShiftId === resumedId) return "keep";
+  if (lockAfter !== resumedId) return "leave";
+  return currentShiftId ? "release_and_resume_current" : "release";
+}
+
+/** Location went from nothing to usable (the blocker card or the primer fixed it). */
+export function tierBecameUsable(prev: string | null, next: string): boolean {
+  return prev === "none" && next !== "none";
+}
+
 /** Whether the backstop should step in: still loading when the timer fires. */
 export function loadingIsStuck(stillLoading: boolean, elapsedMs: number): boolean {
   return stillLoading && elapsedMs >= HOME_LOADING_STUCK_MS;
