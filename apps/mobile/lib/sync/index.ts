@@ -22,6 +22,7 @@ import {
   isItemForbidden,
 } from "./errors";
 import { ApiError } from "../api/apiError";
+import { shiftLockMoveSql, shiftRekeySteps } from "./shiftRekey";
 
 export type SyncState = "idle" | "syncing" | "error";
 
@@ -188,17 +189,24 @@ export async function processSyncQueue(): Promise<void> {
           const localId = item.entity_id;
           remapped.set(localId, serverId);
           unfinishedCreates.delete(localId);
+          // A shift's tracking lock moves in the same call as its rename and
+          // the "synced" mark (which stays last), so a kill can't leave the
+          // lock on the old id once the create is recorded as done. The
+          // re-key below repeats it; every step is safe to run again.
+          const lockMove = item.entity_type === "shift" ? shiftLockMoveSql(localId, serverId) ?? "" : "";
           const existingServer = await db.getFirstAsync<{ id: string }>(
             `SELECT id FROM ${table} WHERE id = ?`, [serverId]
           );
           if (existingServer) {
             await db.execAsync(`
               DELETE FROM ${table} WHERE id = '${localId}';
+              ${lockMove}
               UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
             `);
           } else {
             await db.execAsync(`
               UPDATE ${table} SET id = '${serverId}', synced_at = '${now}' WHERE id = '${localId}';
+              ${lockMove}
               UPDATE sync_queue SET entity_id = '${serverId}', status = 'synced', updated_at = '${now}' WHERE id = '${item.id}';
             `);
           }
@@ -238,11 +246,11 @@ export async function processSyncQueue(): Promise<void> {
             }
           }
           // Cascade shift ID changes to related tables
+          // (and the tracking lock: lib/sync/shiftRekey.ts)
           if (item.entity_type === "shift") {
-            await db.execAsync(`
-              UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-              UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-            `);
+            for (const step of shiftRekeySteps(localId, serverId)) {
+              await db.runAsync(step.sql, step.params);
+            }
           }
         } else if (item.action === "delete") {
           // Clean up local row on successful delete

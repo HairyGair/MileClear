@@ -23,8 +23,16 @@ import { getScheduleClassification } from "../schedule/index";
 import { setDepartureAnchor } from "../geofencing/index";
 import { bestTraceDistance, computeSustainedSpeedMph, computeTripQuality, filterTraceOutliers } from "@mileclear/shared";
 import { segmentsToSave } from "./shiftSegments";
-import { LOCATION_TASK_NAME, isLockStarting, startLockGps, startLockGpsIfStopped, withLockStarting } from "./lockGps";
+import {
+  LOCATION_TASK_NAME,
+  isLockStarting,
+  startLockGps,
+  startLockGpsIfStopped,
+  stopLockGpsWithoutLock,
+  withLockStarting,
+} from "./lockGps";
 import { lastDrivingFixMs, type ShiftFix } from "./staleShiftRule";
+import { aliasedShiftIdsSql, localIdFromAliasKey, shiftIdAliasKey } from "../sync/shiftRekey";
 import { cancelParkedReminder, reconcileParkedReminder } from "./parkedReminder";
 import { shiftTripClassification } from "./shiftClassificationRule";
 import { journeyBoundaryMs } from "./journeyBoundary";
@@ -151,6 +159,20 @@ export async function requestLocationPermissions(): Promise<boolean> {
   return true;
 }
 
+/**
+ * Foreground location is already granted. Never shows a prompt: for checks
+ * that run without the driver asking for anything (Home's load), where a
+ * prompt chain that never answers left Home stuck (see lib/home/homeLoadRule.ts).
+ */
+export async function hasForegroundLocationPermission(): Promise<boolean> {
+  try {
+    const fg = await Location.getForegroundPermissionsAsync();
+    return fg.status === "granted";
+  } catch {
+    return false;
+  }
+}
+
 export async function isTrackingActive(): Promise<boolean> {
   return TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
 }
@@ -222,6 +244,31 @@ async function startShiftTrackingOnce(shiftId: string, options: { fresh?: boolea
   // The housekeeping above can stop the task just started: a stranded Start
   // Trip lock's self-heal stops the shared task. Now the lock is this shift's.
   await startLockGpsIfStopped("shift", options.fresh ? "shift_start_recheck" : "shift_resume_recheck");
+}
+
+/**
+ * Undo a shift lock written after its shift was over: Home's GPS give-back
+ * (dashboard.tsx resumeOpenShift) can return after the driver tapped End
+ * Shift. Releases only while the lock still holds `shiftId`, never another
+ * lock, and then puts back what stopShiftTracking would have: the task off
+ * (unless something else holds or is taking a lock), the engine's power, and
+ * automatic detection. Returns whether it released anything.
+ */
+export async function releaseGhostShiftLock(shiftId: string, reason: string): Promise<boolean> {
+  const db = await getDatabase();
+  const released = await db.runAsync(
+    "DELETE FROM tracking_state WHERE key = 'active_shift_id' AND value = ?",
+    [shiftId]
+  );
+  if (released.changes === 0) return false;
+  await db.runAsync("DELETE FROM tracking_state WHERE key = 'active_shift_started_at'");
+  await stopLockGpsWithoutLock(reason);
+  await applyNativeEnginePower("shift_ghost_released");
+  const lockNow = await db.getFirstAsync<{ value: string }>(
+    "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+  );
+  if (!lockNow && !isLockStarting()) await startDriveDetection();
+  return true;
 }
 
 export async function stopShiftTracking(): Promise<void> {
@@ -671,6 +718,15 @@ export async function processLeftoverShiftBreadcrumbs(reason: string): Promise<v
     );
     for (const row of rows) {
       if (row.shift_id === active?.value) continue;
+      // Fixes left under an offline shift's old local id while that shift is
+      // still open under its server id: End Shift folds them in, not this.
+      if (active?.value) {
+        const alias = await db.getFirstAsync<{ value: string }>(
+          "SELECT value FROM tracking_state WHERE key = ?",
+          [shiftIdAliasKey(row.shift_id)]
+        );
+        if (alias?.value === active.value) continue;
+      }
       const shift = await db.getFirstAsync<{ vehicle_id: string | null }>(
         "SELECT vehicle_id FROM shifts WHERE id = ?",
         [row.shift_id]
@@ -693,6 +749,20 @@ async function processShiftTripsOnce(
   options?: ProcessShiftTripsOptions
 ): Promise<number> {
   const db = await getDatabase();
+
+  // A shift started offline: fixes stored under its old local id after it got
+  // its server id (lib/sync/shiftRekey.ts) are this shift's too.
+  try {
+    const aliases = await db.getAllAsync<{ key: string }>(aliasedShiftIdsSql, [shiftId]);
+    for (const a of aliases) {
+      const localId = localIdFromAliasKey(a.key);
+      if (!localId) continue;
+      await db.runAsync("UPDATE shift_coordinates SET shift_id = ? WHERE shift_id = ?", [shiftId, localId]);
+      await db.runAsync("DELETE FROM tracking_state WHERE key = ?", [a.key]);
+    }
+  } catch {
+    // best-effort: the shift's own rows are read below either way
+  }
 
   const coords = await db.getAllAsync<StoredCoordinate>(
     "SELECT lat, lng, speed, accuracy, recorded_at FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",

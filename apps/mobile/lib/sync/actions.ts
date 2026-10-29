@@ -38,6 +38,7 @@ import {
   deleteSavedLocation as apiDeleteSavedLocation,
 } from "../api/savedLocations";
 import type { CreateSavedLocationData, UpdateSavedLocationData } from "../api/savedLocations";
+import { shiftRekeySteps } from "./shiftRekey";
 
 // ─── Trips ───────────────────────────────────────────────────────────────────
 
@@ -585,19 +586,9 @@ export async function syncStartShift(
     vehicle: null,
   };
 
+  let result: Awaited<ReturnType<typeof apiStartShift>>;
   try {
-    const result = await apiStartShift(data);
-    const serverId = result.data.id;
-    const syncNow = new Date().toISOString();
-
-    // Reconcile local ID → server ID + cascade to related tables
-    await db.execAsync(`
-      UPDATE shifts SET id = '${serverId}', synced_at = '${syncNow}' WHERE id = '${localId}';
-      UPDATE shift_coordinates SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-      UPDATE trips SET shift_id = '${serverId}' WHERE shift_id = '${localId}';
-    `);
-
-    return result;
+    result = await apiStartShift(data);
   } catch (err) {
     // Same rule as syncCreateTrip: keep what the user captured by DEFAULT and
     // discard only when the server definitively rejected the payload (a real
@@ -612,6 +603,41 @@ export async function syncStartShift(
     await enqueueSync("shift", localId, "create", (data ?? {}) as Record<string, unknown>);
     return { data: localShift };
   }
+
+  // The server has the shift now. A local failure from here must never queue
+  // a second create, so it is caught on its own.
+  const serverId = result.data.id;
+  const syncNow = new Date().toISOString();
+  try {
+    // Reconcile local ID → server ID + cascade to related tables (the
+    // breadcrumbs, trips and tracking lock: lib/sync/shiftRekey.ts). No
+    // transaction: see shiftRekey.ts. Every step is safe to run again.
+    await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
+    for (const step of shiftRekeySteps(localId, serverId)) {
+      await db.runAsync(step.sql, step.params);
+    }
+  } catch (err) {
+    reportShiftEvent("sync.shift_rekey_failed", { error: errorText(err) });
+    // At least the row itself, so End Shift (by the server id) closes it.
+    try {
+      await db.runAsync("UPDATE shifts SET id = ?, synced_at = ? WHERE id = ?", [serverId, syncNow, localId]);
+    } catch (again) {
+      // The phone is left with an open shift row the server never heard of.
+      reportShiftEvent("sync.shift_orphan_local_row", { error: errorText(again) });
+    }
+  }
+  return result;
+}
+
+function errorText(err: unknown): string {
+  return (err instanceof Error ? err.message : String(err)).slice(0, 120);
+}
+
+/** Telemetry only; never throws, never blocks the shift. */
+function reportShiftEvent(type: string, data: Record<string, unknown>): void {
+  import("../tracking/recordingDrops")
+    .then((m) => m.queueAppEvent(type, data))
+    .catch(() => {});
 }
 
 export async function syncEndShift(id: string) {

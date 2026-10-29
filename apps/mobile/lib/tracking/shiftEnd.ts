@@ -18,6 +18,7 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { getDatabase } from "../db/index";
 import { syncEndShift } from "../sync/actions";
+import { currentShiftId } from "../sync/shiftRekey";
 import { endLiveActivityWithSummary } from "../liveActivity";
 import { stopShiftTracking, processShiftTrips } from "./index";
 import { clearNotDrivingCooldown, logDetectionEvent } from "./detection";
@@ -41,13 +42,44 @@ export async function finishShift(params: {
   vehicleId?: string | null;
   liveDistanceMiles?: number;
 }): Promise<Awaited<ReturnType<typeof syncEndShift>>> {
-  await releaseShiftTracking();
-  // stopShiftTracking arms the 20-minute "Not driving" cooldown, so a drive
-  // straight after tapping End Shift was never recorded automatically. The
-  // automatic end already lifted it; the button now does too (Anthony,
-  // 23 Sep 2026).
-  await clearNotDrivingCooldown().catch(() => {});
-  return closeShift(params);
+  // Both ids are marked before the GPS is released, so a give-back still
+  // running on Home can't take the GPS back in the gap (it checks either).
+  const resolvedId = await currentShiftId(await getDatabase(), params.shiftId);
+  markEnding(params.shiftId);
+  if (resolvedId !== params.shiftId) markEnding(resolvedId);
+  try {
+    await releaseShiftTracking();
+    // stopShiftTracking arms the 20-minute "Not driving" cooldown, so a drive
+    // straight after tapping End Shift was never recorded automatically. The
+    // automatic end already lifted it; the button now does too (Anthony,
+    // 23 Sep 2026).
+    await clearNotDrivingCooldown().catch(() => {});
+    return await closeShift({ ...params, shiftId: resolvedId });
+  } finally {
+    unmarkEnding(params.shiftId);
+    if (resolvedId !== params.shiftId) unmarkEnding(resolvedId);
+  }
+}
+
+// Shifts being ended right now, by the button or on their own. The phone's
+// shifts row only says completed at the very end (syncEndShift, after the
+// trips are built), so anything that asks "is this shift still live?" in the
+// meantime (Home's GPS give-back) must check here first.
+const endingShiftIds = new Map<string, number>();
+
+function markEnding(shiftId: string): void {
+  endingShiftIds.set(shiftId, (endingShiftIds.get(shiftId) ?? 0) + 1);
+}
+
+function unmarkEnding(shiftId: string): void {
+  const n = (endingShiftIds.get(shiftId) ?? 0) - 1;
+  if (n > 0) endingShiftIds.set(shiftId, n);
+  else endingShiftIds.delete(shiftId);
+}
+
+/** A shift is being ended right now. */
+export function isShiftEnding(shiftId: string): boolean {
+  return endingShiftIds.has(shiftId);
 }
 
 // Split so the automatic path can release the GPS lock (fast, must finish
@@ -66,11 +98,19 @@ async function closeShift(params: {
   endLiveActivityWithSummary({ distanceMiles: params.liveDistanceMiles ?? 0, tripCount: 0 }).catch(
     () => {}
   );
-  // 2. Process GPS coordinates into trips (before ending the shift so the
-  //    scorecard counts them).
-  await processShiftTrips(params.shiftId, params.vehicleId ?? undefined);
-  // 3. End shift (offline-aware - syncs when online).
-  return syncEndShift(params.shiftId);
+  // A shift started offline may have been given its server id since the
+  // screen read it: end it by that id (lib/sync/shiftRekey.ts).
+  const shiftId = await currentShiftId(await getDatabase(), params.shiftId);
+  if (shiftId !== params.shiftId) markEnding(shiftId);
+  try {
+    // 2. Process GPS coordinates into trips (before ending the shift so the
+    //    scorecard counts them).
+    await processShiftTrips(shiftId, params.vehicleId ?? undefined);
+    // 3. End shift (offline-aware - syncs when online).
+    return await syncEndShift(shiftId);
+  } finally {
+    if (shiftId !== params.shiftId) unmarkEnding(shiftId);
+  }
 }
 
 // ── Automatic end ────────────────────────────────────────────────────────────
@@ -171,6 +211,7 @@ export async function autoEndShiftIfStale(
   lastCheck = { shiftId, atMs: nowMs };
   inFlight = true;
   let released = false;
+  let endingMarked = false;
   try {
     const db = await getDatabase();
     const row = await db.getFirstAsync<{
@@ -197,6 +238,8 @@ export async function autoEndShiftIfStale(
       "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
     );
     if (lock?.value !== shiftId) return "kept";
+    markEnding(shiftId);
+    endingMarked = true;
     await releaseShiftTracking();
     // stopShiftTracking arms the 20-minute "Not driving" cooldown (it goes
     // through cancelAutoRecording(true)). Nobody said "not driving" here, and
@@ -241,6 +284,7 @@ export async function autoEndShiftIfStale(
         }).catch(() => {});
       })
       .finally(() => {
+        unmarkEnding(shiftId);
         for (const l of listeners) {
           try {
             l(shiftId);
@@ -249,8 +293,10 @@ export async function autoEndShiftIfStale(
           }
         }
       });
+    endingMarked = false; // the detached close above unmarks it
     return "ended";
   } catch (err) {
+    if (endingMarked) unmarkEnding(shiftId);
     logDetectionEvent("shift_auto_end_error", {
       error: err instanceof Error ? err.message.slice(0, 120) : String(err),
     }).catch(() => {});

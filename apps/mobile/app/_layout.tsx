@@ -34,6 +34,18 @@ class ErrorBoundary extends React.Component<
   }
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error("Root ErrorBoundary caught:", error, info.componentStack);
+    // Until 29 Oct 2026 a crash here reached nobody, so a driver's "the app
+    // went blank" could not be told apart from Home stuck loading. Message
+    // and component stack only, both cut short; no coordinates, no user data.
+    try {
+      Promise.all([import("../lib/home/homeLoadRule"), import("../lib/tracking/recordingDrops")])
+        .then(([rule, drops]) =>
+          drops.queueAppEvent("app.render_error", rule.renderErrorEvent(error, info.componentStack, null))
+        )
+        .catch(() => {});
+    } catch {
+      // telemetry must never make a crash worse
+    }
   }
   render() {
     if (this.state.hasError) {
