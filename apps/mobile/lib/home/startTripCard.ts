@@ -150,6 +150,14 @@ export function startTripWouldReplaceRunning(lockValue: string | null | undefine
   return lockValue === "__quick_trip__" && hasStartRow;
 }
 
+/**
+ * A second copy giving way pops itself first, then this many more screens
+ * towards the recording one (see resumeSecondCopyPlan's caller).
+ */
+export function popsAfterSelf(count: number): number {
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count) - 1) : 0;
+}
+
 /** After a pop: it went through when the screen it aimed at is now on top. */
 export function popLanded(state: StackStateLike | null | undefined, key: string): boolean {
   if (!state || !Array.isArray(state.routes) || state.routes.length === 0) return false;

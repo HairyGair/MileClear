@@ -125,6 +125,7 @@ export function useRunningStartTrip(): RunningStartTrip | null {
   const [raw, setRaw] = useState<{ startedAtMs: number | null; miles: number } | null>(null);
   const [now, setNow] = useState(Date.now());
   const mounted = useRef(true);
+  const milesCache = useRef<{ key: string; miles: number } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -144,11 +145,23 @@ export function useRunningStartTrip(): RunningStartTrip | null {
         } catch {
           // unreadable row: no card
         }
-        const coords = await db.getAllAsync<{ lat: number; lng: number }>(
-          "SELECT lat, lng FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+        // The whole route is read only when it has changed since the last
+        // poll (a long drive is hundreds of rows every 2 s otherwise).
+        const sig = await db.getFirstAsync<{ n: number; last: string | null }>(
+          "SELECT COUNT(*) AS n, MAX(recorded_at) AS last FROM shift_coordinates WHERE shift_id = ?",
           [QUICK_TRIP_SHIFT_ID]
         );
-        next = { startedAtMs, miles: sumMiles(coords) };
+        const key = `${sig?.n ?? 0}|${sig?.last ?? ""}`;
+        let miles = milesCache.current?.key === key ? milesCache.current.miles : null;
+        if (miles == null) {
+          const coords = await db.getAllAsync<{ lat: number; lng: number }>(
+            "SELECT lat, lng FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+            [QUICK_TRIP_SHIFT_ID]
+          );
+          miles = sumMiles(coords);
+          milesCache.current = { key, miles };
+        }
+        next = { startedAtMs, miles };
       }
       if (!mounted.current) return;
       setRaw((prev) => {

@@ -8,6 +8,7 @@ import {
   openStartTripDue,
   openStartTripPlan,
   popLanded,
+  popsAfterSelf,
   resumeSecondCopyPlan,
   startTripCardModel,
   startTripCardTapAllowed,
@@ -146,6 +147,18 @@ describe("resumeSecondCopyPlan", () => {
   it("resumes when the registered screen is no longer in the stack", () => {
     const gone = { index: 1, routes: [r("tabs-1", "(tabs)"), r("B", "trip-form")] };
     expect(resumeSecondCopyPlan(gone, ["A"], "B", false)).toEqual({ kind: "resume" });
+  });
+});
+
+describe("popsAfterSelf", () => {
+  // [tabs, R recording, X past-trip form, C copy]: C pops itself, then 1 more
+  // towards R. If X refuses and the driver then discards, X re-sends pop(1),
+  // which from X stops exactly at R.
+  it("leaves one fewer pop once the copy has taken itself off", () => {
+    expect(popsAfterSelf(2)).toBe(1);
+    expect(popsAfterSelf(1)).toBe(0);
+    expect(popsAfterSelf(0)).toBe(0);
+    expect(popsAfterSelf(NaN)).toBe(0);
   });
 });
 

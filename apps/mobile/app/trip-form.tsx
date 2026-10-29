@@ -88,6 +88,7 @@ import {
 } from "../lib/home/startTripRequest";
 import {
   popLanded,
+  popsAfterSelf,
   resumeSecondCopyPlan,
   startTripWouldReplaceRunning,
   type StackStateLike,
@@ -1374,24 +1375,25 @@ export default function TripFormScreen() {
           if (copy.kind === "stay_manual") {
             resumeRow = null;
           } else if (copy.kind === "pop") {
-            const target = copy.key;
-            navigationRef.current.dispatch(StackActions.pop(copy.count));
-            // A screen in between can refuse to go ("Keep editing"). Then
-            // this copy must not sit here on Ready over a running trip: step
-            // back off it to the screen the driver chose to keep.
-            setTimeout(() => {
-              try {
-                const nav = navigationRef.current;
-                const st = nav.getState() as unknown as StackStateLike;
-                // Only while this copy is still the top screen: a back
-                // dispatched here pops whatever is on top.
-                if (!popLanded(st, target) && popLanded(st, routeKeyRef.current) && nav.canGoBack()) {
-                  nav.goBack();
-                }
-              } catch {
-                // the Start Trip guard still stops this copy wiping the trip
+            // This copy takes itself off first, then pops the rest towards
+            // the recording screen. A screen in between that refuses
+            // ("Keep editing") holds that second pop and re-sends it if the
+            // driver then discards; counted from that screen, it then stops
+            // exactly at the recording screen. One pop for everything would
+            // count from the wrong place on the re-send and close the
+            // recording screen too. If refused, the driver is left on the
+            // screen they chose to keep, never on this copy's Ready.
+            try {
+              const nav = navigationRef.current;
+              // Both pops act on whatever is on top, so only while this copy is.
+              if (popLanded(nav.getState() as unknown as StackStateLike, routeKeyRef.current)) {
+                nav.goBack();
+                const rest = popsAfterSelf(copy.count);
+                if (rest > 0) nav.dispatch(StackActions.pop(rest));
               }
-            }, 250);
+            } catch {
+              // the Start Trip guard still stops this copy wiping the trip
+            }
             return; // finally sets loading=false
           }
         }
