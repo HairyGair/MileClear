@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { AppState, Linking, Platform } from "react-native";
 import { cancelAutoRecording, clearNotDrivingCooldown, upgradeDetectionAccuracy, logDetectionEvent } from "../tracking/detection";
 import { canPlatformRunJsEngine } from "../tracking/jsEngineRule";
+import { openStartTrip } from "../home/openStartTrip";
 import {
   PARKED_ACTION_ARRIVED,
   PARKED_ACTION_KEEP_GOING,
@@ -698,7 +699,10 @@ export function setupNotificationResponseHandler(): void {
         // Specific trip needing review (e.g. low GPS quality, possible split).
         const tripId = data?.tripId as string | undefined;
         if (tripId) {
-          router.navigate(`/trip-form?id=${tripId}` as any);
+          // Push, never navigate: navigate reuses the top screen when it is
+          // also the trip screen, which would turn a Start Trip being
+          // recorded into a view of this trip.
+          router.push(`/trip-form?id=${tripId}` as any);
         } else {
           router.navigate("/(tabs)/trips");
         }
@@ -709,7 +713,9 @@ export function setupNotificationResponseHandler(): void {
         // The reminder's body tap (and its "still recording" follow-up): the
         // Start Trip screen resumes from quick_trip_start and has Arrived.
         if (data?.type === "start_trip_parked") noteParkedReminderOpened();
-        router.push("/trip-form" as never);
+        // Back to the screen already recording it when there is one: a second
+        // copy would resume the same trip and could save it twice.
+        openStartTrip();
         break;
 
       case "open_active_recording":

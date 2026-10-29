@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect, Stack } from "expo-router";
-import { usePreventRemove } from "@react-navigation/native";
+import { StackActions, usePreventRemove, useRoute } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { getCurrentLocation, reverseGeocode } from "../lib/location/geocoding";
 import {
@@ -79,6 +79,21 @@ import {
   type PendingArrivedFacts,
 } from "../lib/tracking/arrivedRecovery";
 import { recordLastSavedTrip } from "../lib/events/lastTrip";
+import {
+  dropArriveRequest,
+  hasArriveRequest,
+  recordingStartTripScreens,
+  registerRecordingStartTripScreen,
+  takeArriveRequest,
+} from "../lib/home/startTripRequest";
+import {
+  popLanded,
+  popsAfterSelf,
+  resumeSecondCopyPlan,
+  startTripWouldReplaceRunning,
+  type StackStateLike,
+} from "../lib/home/startTripCard";
+import { openStartTrip } from "../lib/home/openStartTrip";
 import { maybeOfferAlwaysAfterCapture } from "../lib/permissions/location";
 import { maybeRequestReview } from "../lib/rating/index";
 import { LocationPickerField } from "../components/LocationPickerField";
@@ -708,6 +723,8 @@ export default function TripFormScreen() {
   // For the exit guard: usePreventRemove hands back the navigation action it
   // blocked, and this is what re-dispatches it once the driver has decided.
   const navigation = useNavigation();
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
 
   // "Save as place" under a trip's start/end address: open the saved-location
   // form with the pin and address already filled, so the driver only names it.
@@ -746,6 +763,13 @@ export default function TripFormScreen() {
     [router]
   );
 
+  // This screen's own key in the root stack, so Home goes back to this very
+  // screen while it records (lib/home/openStartTrip.ts).
+  const routeKey = useRoute().key;
+  // The same, plus the navigator, for the mount-time set-up (which must not
+  // re-run when they change identity).
+  const routeKeyRef = useRef(routeKey);
+  routeKeyRef.current = routeKey;
   const {
     id,
     mode: modeParam,
@@ -986,6 +1010,9 @@ export default function TripFormScreen() {
   // The arrived-but-unsaved trip as written to SQLite, so a discard can offer
   // it back as a missed journey without reconstructing it from screen state.
   const pendingArrivedRef = useRef<PendingArrivedFacts | null>(null);
+  // The Start Trip's tracking start (fresh, or a resume's restart and trail
+  // load), still running or done. Arrived waits for it.
+  const resumeTrackingRef = useRef<Promise<void> | null>(null);
   // Set the moment the trip is saved or genuinely discarded, so the exit
   // guard stops asking. A ref, not state: leaving happens in the same tick as
   // the save finishing, and a re-render would not have landed in time.
@@ -1330,6 +1357,47 @@ export default function TripFormScreen() {
           }
         }
 
+        // Another screen in the stack is already recording this trip: a
+        // second copy must not resume it too, or both could save the drive.
+        // A past-trip form stays a past-trip form; anything else gives way.
+        if (resumeRow) {
+          let copy: ReturnType<typeof resumeSecondCopyPlan> = { kind: "resume" };
+          try {
+            copy = resumeSecondCopyPlan(
+              navigationRef.current.getState() as unknown as StackStateLike,
+              recordingStartTripScreens().map((s) => s.key),
+              routeKeyRef.current,
+              modeParam === "manual"
+            );
+          } catch {
+            // the stack could not be read: resume as before
+          }
+          if (copy.kind === "stay_manual") {
+            resumeRow = null;
+          } else if (copy.kind === "pop") {
+            // This copy takes itself off first, then pops the rest towards
+            // the recording screen. A screen in between that refuses
+            // ("Keep editing") holds that second pop and re-sends it if the
+            // driver then discards; counted from that screen, it then stops
+            // exactly at the recording screen. One pop for everything would
+            // count from the wrong place on the re-send and close the
+            // recording screen too. If refused, the driver is left on the
+            // screen they chose to keep, never on this copy's Ready.
+            try {
+              const nav = navigationRef.current;
+              // Both pops act on whatever is on top, so only while this copy is.
+              if (popLanded(nav.getState() as unknown as StackStateLike, routeKeyRef.current)) {
+                nav.goBack();
+                const rest = popsAfterSelf(copy.count);
+                if (rest > 0) nav.dispatch(StackActions.pop(rest));
+              }
+            } catch {
+              // the Start Trip guard still stops this copy wiping the trip
+            }
+            return; // finally sets loading=false
+          }
+        }
+
         if (resumeRow) {
           // Resume in-progress trip
           const saved: QuickTripStart = JSON.parse(resumeRow.value);
@@ -1338,10 +1406,14 @@ export default function TripFormScreen() {
           setStartAddress(saved.address);
           setStartedAt(new Date(saved.startedAt));
           setMode("driving");
-          // Re-start background tracking if it was killed
-          startQuickTripTracking().catch(() => {});
+          // Re-start background tracking if it was killed. Arrived waits for
+          // it and for the peek below: the restart writes the lock and the
+          // peek writes breadcrumbsRef and can rewrite the start row, so either
+          // landing after Arrived's teardown would leave a lock or a start row
+          // with no trip behind it, or swap in an older trail.
+          const resumeTracking = startQuickTripTracking().catch(() => {});
           // Load any background coordinates already collected (e.g. from auto-detection transfer)
-          peekBackgroundCoordinates().then((bgCoords) => {
+          const resumePeek = peekBackgroundCoordinates().then((bgCoords) => {
             if (bgCoords.length >= 2) {
               const crumbs: Breadcrumb[] = bgCoords.map((c) => ({
                 lat: c.lat,
@@ -1394,6 +1466,7 @@ export default function TripFormScreen() {
               setUserLng(latest.lng);
             }
           }).catch(() => {});
+          resumeTrackingRef.current = Promise.all([resumeTracking, resumePeek]).then(() => undefined);
         } else if (modeParam === "manual") {
           // A new past trip: From starts empty with place chips (P5: the
           // phone's position was the default start of a trip typed in weeks
@@ -2186,6 +2259,29 @@ export default function TripFormScreen() {
   };
 
   const handleStartTrip = useCallback(async (skipChecks = false) => {
+    // A Start Trip already recording (on another screen, or one this screen
+    // let go of): starting here would delete its route and start row while it
+    // still runs. Always checked, whatever skipChecks says.
+    try {
+      const db = await getDatabase();
+      const lockRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+      );
+      const startRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = ?",
+        [QUICK_TRIP_KEY]
+      );
+      if (startTripWouldReplaceRunning(lockRow?.value, !!startRow)) {
+        Alert.alert("A trip is already recording", "Finish that trip first. It's still recording.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Go to it", onPress: () => openStartTrip() },
+        ]);
+        return;
+      }
+    } catch {
+      // best-effort guard, as below
+    }
+
     // Two-recordings guard (audit point 9): don't start a manual trip while a
     // real shift is already recording — that's two trackers writing at once.
     if (!skipChecks) {
@@ -2270,7 +2366,7 @@ export default function TripFormScreen() {
       );
 
       // Start background location tracking so GPS continues when app is backgrounded
-      startQuickTripTracking({ fresh: true }).catch(() => {});
+      resumeTrackingRef.current = startQuickTripTracking({ fresh: true }).catch(() => {});
 
       // Start Dynamic Island live activity
       startLiveActivity({ activityType: "trip", isBusinessMode: isWork });
@@ -2289,6 +2385,14 @@ export default function TripFormScreen() {
     setLoading(true);
     try {
       await waitForParkedReminderFinish();
+      // The tracking start (a fresh Start Trip's, or a resume's restart and
+      // trail load) writes the lock, the trail and the start row; let it land
+      // first so the teardown below is the last word. Home's card can ask for
+      // Arrived the moment the screen has resumed.
+      // Capped, so a stuck restart can never hold Arrived up.
+      if (resumeTrackingRef.current) {
+        await Promise.race([resumeTrackingRef.current, new Promise((r) => setTimeout(r, 5000))]);
+      }
       if (await letGoIfFinishedElsewhere().catch(() => false)) return;
       const loc = await getCurrentLocation();
       if (!loc) {
@@ -2573,6 +2677,32 @@ export default function TripFormScreen() {
       setLoading(false);
     }
   }, [startLat, startLng, startAddress, startedAt, celebHeaderAnim, celebStatsAnim, celebInsightsAnim, celebSlideAnim, letGoIfFinishedElsewhere]);
+
+  // Home's "Trip in progress" card (lib/home/startTripCard.ts). While this
+  // screen is in driving mode Home goes back to it rather than opening a
+  // second copy, and the card's I've Arrived runs this screen's own Arrived
+  // above: the one save path, with its own route and its own guards.
+  useEffect(() => {
+    if (mode !== "driving") return;
+    return registerRecordingStartTripScreen({
+      key: routeKey,
+      getState: () => navigation.getState() as unknown as StackStateLike,
+      pop: (count) => navigation.dispatch(StackActions.pop(count)),
+    });
+  }, [mode, routeKey, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (loading || !hasArriveRequest()) return;
+      // Resumed into anything but a running trip (an arrived trip waiting to
+      // be saved, a fresh Start Trip, an edit): nothing here to arrive.
+      if (mode !== "driving") {
+        dropArriveRequest();
+        return;
+      }
+      if (takeArriveRequest(Date.now())) handleArrived().catch(() => {});
+    }, [mode, loading, handleArrived])
+  );
 
   const handleRecenter = useCallback(() => {
     setFollowUser(true);

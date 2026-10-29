@@ -106,6 +106,97 @@ export function useRecordingNow(): RecordingNow | null {
   };
 }
 
+// ── A Start Trip recording now (Home's card) ──────────────────────────
+
+export interface RunningStartTrip {
+  /** quick_trip_start's startedAt, or null with no readable row. */
+  startedAtMs: number | null;
+  miles: number;
+  /** Ticks every 15 s, so the card's time moves on its own. */
+  now: number;
+}
+
+/**
+ * What lib/home/startTripCard.ts needs, polled like useRecordingNow. Only
+ * while active_shift_id is the Start Trip's own lock: without it nothing is
+ * recording, whatever rows are left behind.
+ */
+export function useRunningStartTrip(): RunningStartTrip | null {
+  const [raw, setRaw] = useState<{ startedAtMs: number | null; miles: number } | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const mounted = useRef(true);
+  const milesCache = useRef<{ key: string; miles: number } | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const db = await getDatabase();
+      const lockRow = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = 'active_shift_id'"
+      );
+      let next: { startedAtMs: number | null; miles: number } | null = null;
+      if (lockRow?.value === QUICK_TRIP_SHIFT_ID) {
+        let startedAtMs: number | null = null;
+        try {
+          const qts = await db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = 'quick_trip_start'"
+          );
+          const ms = qts ? new Date(JSON.parse(qts.value).startedAt).getTime() : NaN;
+          startedAtMs = Number.isFinite(ms) ? ms : null;
+        } catch {
+          // unreadable row: no card
+        }
+        // The whole route is read only when it has changed since the last
+        // poll (a long drive is hundreds of rows every 2 s otherwise).
+        const sig = await db.getFirstAsync<{ n: number; last: string | null }>(
+          "SELECT COUNT(*) AS n, MAX(recorded_at) AS last FROM shift_coordinates WHERE shift_id = ?",
+          [QUICK_TRIP_SHIFT_ID]
+        );
+        const key = `${sig?.n ?? 0}|${sig?.last ?? ""}`;
+        let miles = milesCache.current?.key === key ? milesCache.current.miles : null;
+        if (miles == null) {
+          const coords = await db.getAllAsync<{ lat: number; lng: number }>(
+            "SELECT lat, lng FROM shift_coordinates WHERE shift_id = ? ORDER BY recorded_at ASC",
+            [QUICK_TRIP_SHIFT_ID]
+          );
+          miles = sumMiles(coords);
+          milesCache.current = { key, miles };
+        }
+        next = { startedAtMs, miles };
+      }
+      if (!mounted.current) return;
+      setRaw((prev) => {
+        if (!next && !prev) return prev;
+        if (next && prev && prev.startedAtMs === next.startedAtMs && Math.abs(prev.miles - next.miles) < 0.05) {
+          return prev;
+        }
+        return next;
+      });
+    } catch {
+      // best-effort
+    }
+  }, []);
+
+  useEffect(() => {
+    mounted.current = true;
+    refresh();
+    const id = setInterval(refresh, 2000);
+    return () => {
+      mounted.current = false;
+      clearInterval(id);
+    };
+  }, [refresh]);
+
+  const active = raw !== null;
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(id);
+  }, [active]);
+
+  return raw ? { ...raw, now } : null;
+}
+
 // ── Trips that failed to upload ───────────────────────────────────────
 
 /** Trips stuck for good in the sync queue (they need the driver). */

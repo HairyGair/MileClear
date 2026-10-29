@@ -12,8 +12,11 @@ import { StatusLine } from "./StatusLine";
 import { RecordingSheet } from "./RecordingSheet";
 import { HomeSheet } from "./HomeSheet";
 import { SetupChecklistCard, type SetupChecklistRow } from "../SetupChecklistCard";
-import { useFailedSyncCount, useRecordingNow } from "./useHomeSignals";
+import { StartTripCard } from "./StartTripCard";
+import { useFailedSyncCount, useRecordingNow, useRunningStartTrip } from "./useHomeSignals";
 import { selectStatusLine, type StatusLine as StatusLineModel } from "../../lib/home/statusLine";
+import { startTripCardModel } from "../../lib/home/startTripCard";
+import { openStartTrip } from "../../lib/home/openStartTrip";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { trackHomeTap } from "../../lib/home/trackHomeTap";
 import type { BlockerId } from "../../lib/dashboardMessages";
@@ -47,6 +50,7 @@ type Sheet = "recording" | "setup" | "low_power" | null;
 export function useHomeStatus(a: Args): { status: StatusLineModel; element: ReactElement } {
   const router = useRouter();
   const recording = useRecordingNow();
+  const startTrip = useRunningStartTrip();
   const failed = useFailedSyncCount();
   const [sheet, setSheet] = useState<Sheet>(null);
   const { unit } = useDistanceUnit();
@@ -74,11 +78,23 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
     [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.pausedForWorkHours, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
   );
 
+  // The hook ticks every 15 s while a Start Trip records, so the card's time moves.
+  const card = startTrip
+    ? startTripCardModel({
+        quickLockHeld: true,
+        startedAtMs: startTrip.startedAtMs,
+        miles: startTrip.miles,
+        now: startTrip.now,
+        unit,
+      })
+    : null;
+
   const onPress = useCallback(() => {
     trackHomeTap("status_line", a.mode, status.kind);
     switch (status.tap) {
       case "live_trip":
-        router.push((recording?.mode === "quick" ? "/trip-form" : "/active-recording") as never);
+        if (recording?.mode === "quick") openStartTrip();
+        else router.push("/active-recording" as never);
         break;
       case "fix":
         if (a.blocker === "bg_refresh_off") Linking.openSettings().catch(() => {});
@@ -113,6 +129,19 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
   const element = (
     <>
       <StatusLine model={status} onPress={onPress} onAction={onAction} />
+      {card ? (
+        <StartTripCard
+          model={card}
+          onOpen={() => {
+            trackHomeTap("start_trip_card", a.mode, status.kind);
+            openStartTrip({ fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
+          }}
+          onArrived={() => {
+            trackHomeTap("start_trip_card_arrived", a.mode, status.kind);
+            openStartTrip({ arrive: true, fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
+          }}
+        />
+      ) : null}
       <RecordingSheet
         visible={sheet === "recording"}
         onClose={closeSheet}
