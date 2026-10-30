@@ -77,3 +77,20 @@ describe("HMRC connections from the other service", () => {
     fetchSpy.mockRestore();
   });
 });
+
+describe("HMRC's not-signed-up refusal", () => {
+  it("is passed on with its code and a plain explanation", async () => {
+    const { handleHmrcError, NOT_SIGNED_UP_MESSAGE } = await import("../../routes/hmrc/index.js");
+    const { HmrcError } = await import("../../services/hmrc/client.js");
+    let status = 0;
+    let body: unknown = null;
+    const reply = {
+      status(code: number) { status = code; return this; },
+      send(b: unknown) { body = b; return this; },
+    };
+    handleHmrcError(reply as never, new HmrcError("The client and/or agent is not authorised", 403, "CLIENT_OR_AGENT_NOT_AUTHORISED", null));
+    expect(status).toBe(403);
+    expect(body).toEqual({ error: { code: "CLIENT_OR_AGENT_NOT_AUTHORISED", message: NOT_SIGNED_UP_MESSAGE, retryable: false } });
+    expect(NOT_SIGNED_UP_MESSAGE).not.toMatch(/[–—]/);
+  });
+});

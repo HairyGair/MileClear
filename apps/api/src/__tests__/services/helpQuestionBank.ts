@@ -135,6 +135,8 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Uber sent my earnings to HMRC, how do I check them?", area: "tax_and_claims", id: "hmrc-check", expect: [/check your platform figures/i] },
   { q: "How can I show my insurer proof of my business miles?", area: "tax_and_claims", id: "certificate", expect: [/mileage certificate/i] },
   { q: "Is MileClear HMRC approved?", area: "tax_and_claims", id: "hmrc-approved", expect: [/\bno\b|isn't|not/i], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },
+  { q: "How do I sign up for Making Tax Digital?", area: "tax_and_claims", id: "mtd-sign-up", expect: [/GOV\.UK/, /Government Gateway/, /Self Assessment/] },
+  { q: "MileClear says HMRC doesn't have me signed up", area: "tax_and_claims", id: "mtd-sign-up", expect: [/National Insurance Number/] },
   { q: "Does it do Making Tax Digital?", area: "tax_and_claims", id: "mtd", expect: [/quarterly updates to HMRC/i, /end-of-year tax return isn't in MileClear/i], reject: [/test (version|service)/i, /files? your tax return/i] },
   { q: "Can I send real quarterly updates to HMRC yet?", area: "tax_and_claims", id: "mtd", expect: [/send their quarterly updates to HMRC/i], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },
   { q: "Do I have to do Making Tax Digital?", area: "tax_and_claims", id: "mtd-who", expect: [/50,000/, /30,000/, /20,000/], reject: [/hmrc[- ](approved|compliant|ready|recognised)/i] },

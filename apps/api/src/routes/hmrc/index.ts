@@ -986,6 +986,11 @@ export async function loadConnectionWithNino(
  * source of truth for "what does each HmrcError class become on the
  * wire" so every route handles them identically.
  */
+/** HMRC's code when the signed-in person has no Making Tax Digital for Income Tax sign-up for this NINO. */
+export const NOT_SIGNED_UP_CODE = "CLIENT_OR_AGENT_NOT_AUTHORISED";
+export const NOT_SIGNED_UP_MESSAGE =
+  "HMRC doesn't have this National Insurance Number signed up for Making Tax Digital for Income Tax under the HMRC account you signed in with. If you haven't signed up yet, do that on GOV.UK. If you have, check the National Insurance Number you entered.";
+
 export function handleHmrcError(reply: import("fastify").FastifyReply, err: unknown) {
   if (err instanceof HmrcNotConnectedError) {
     return reply.status(400).send({
@@ -1012,7 +1017,9 @@ export function handleHmrcError(reply: import("fastify").FastifyReply, err: unkn
     return reply.status(err.httpStatus >= 500 ? 502 : err.httpStatus).send({
       error: {
         code: err.hmrcCode ?? "HMRC_API_ERROR",
-        message: err.message,
+        // HMRC's own words for "not signed up" read as a permissions fault.
+        // It also comes back when the NINO entered isn't the signed-in person's.
+        message: err.hmrcCode === NOT_SIGNED_UP_CODE ? NOT_SIGNED_UP_MESSAGE : err.message,
         retryable: err.httpStatus >= 500,
       },
     });

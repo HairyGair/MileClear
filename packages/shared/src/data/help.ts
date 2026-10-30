@@ -652,6 +652,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["connect", "link", "sign in", "government gateway", "nino", "national insurance", "authorise", "trade", "business", "disconnect"],
   },
   {
+    id: "mtd-sign-up",
+    area: "tax_and_claims",
+    q: "How do I sign up for Making Tax Digital with HMRC?",
+    a: "You sign up once, for free, on GOV.UK: search \"Sign up your business for Making Tax Digital for Income Tax\", or tap Not yet > Sign up on GOV.UK on Tax > Your tax details > Quarterly updates. HMRC asks for your Government Gateway user ID and password and your National Insurance Number, and you need to be registered for Self Assessment with a tax return sent in the last 2 years. Once you've signed up, come back to Quarterly updates and connect. If MileClear says HMRC doesn't have you signed up, check the National Insurance Number you entered is yours (Disconnect, then connect again to change it).",
+    goTo: "/tax-mtd",
+    keywords: ["sign up", "signup", "register", "enrol", "enroll", "gov.uk", "not signed up", "not authorised", "not authorized", "client or agent", "government gateway", "join"],
+  },
+  {
     id: "mtd-quarterly-update",
     area: "tax_and_claims",
     q: "What does quarterly reporting mean?",

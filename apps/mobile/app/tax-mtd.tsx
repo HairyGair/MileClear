@@ -1,4 +1,4 @@
-import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv } from "../lib/tax/mtdCopy";
+import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -19,6 +19,9 @@ import { PremiumGate } from "../components/PremiumGate";
 import { BetaBanner } from "../components/BetaBanner";
 import { MtdSignpost } from "../components/MtdSignpost";
 import { MtdScopeCheck } from "../components/MtdScopeCheck";
+import { MtdSignUpCard } from "../components/MtdSignUpCard";
+import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
+import { useUser } from "../lib/user/context";
 import {
   fetchHmrcStatus,
   fetchHmrcBusinesses,
@@ -78,6 +81,8 @@ interface ScreenState {
    */
   obligationsError: { message: string; canRetry: boolean } | null;
   businesses: HmrcBusinessSummary[];
+  /** HMRC refused because this driver hasn't signed up for Making Tax Digital. */
+  notSignedUp: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -91,6 +96,7 @@ const INITIAL_STATE: ScreenState = {
   obligationsUnavailable: false,
   obligationsError: null,
   businesses: [],
+  notSignedUp: false,
   loading: true,
   error: null,
 };
@@ -114,6 +120,9 @@ function TaxMtdContent() {
   const fallbackEnv = useHmrcEnvironment();
   const env: HmrcEnv = state.status?.environment ?? fallbackEnv;
   const test = isMtdTest(env);
+  const live = isMtdLive(env);
+  const { user } = useUser();
+  const userId = user?.id ?? null;
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
@@ -132,6 +141,7 @@ function TaxMtdContent() {
           obligationsUnavailable: false,
           obligationsError: null,
           businesses: [],
+          notSignedUp: false,
           loading: false,
           error: null,
         });
@@ -144,6 +154,7 @@ function TaxMtdContent() {
       let obligations: HmrcObligation[] = [];
       let obligationsUnavailable = false;
       let obligationsError: ScreenState["obligationsError"] = null;
+      let notSignedUp = false;
 
       if (status.hasNino && !status.hasBusinessId) {
         // NINO set, business not — load the business list so the picker
@@ -152,7 +163,8 @@ function TaxMtdContent() {
           const businessesRes = await fetchHmrcBusinesses();
           businesses = businessesRes.data.businesses;
         } catch (err) {
-          if (!(isApiError(err) && err.statusCode === 400)) throw err;
+          if (isNotSignedUpError(err)) notSignedUp = true;
+          else if (!(isApiError(err) && err.statusCode === 400)) throw err;
         }
       }
 
@@ -163,6 +175,7 @@ function TaxMtdContent() {
         } catch (err) {
           // An expired HMRC connection has its own screen (outer catch).
           if (isApiError(err) && err.code === "HMRC_REAUTH_REQUIRED") throw err;
+          if (isNotSignedUpError(err)) notSignedUp = true;
           // Any failure here means we could not ask HMRC, not that there is
           // nothing due. Say so rather than implying the user is clear, and
           // use the server's reason so "update the app" isn't hidden behind
@@ -201,6 +214,7 @@ function TaxMtdContent() {
         obligationsUnavailable,
         obligationsError,
         businesses,
+        notSignedUp,
         loading: false,
         error: null,
       });
@@ -218,6 +232,7 @@ function TaxMtdContent() {
           obligationsUnavailable: false,
           obligationsError: null,
           businesses: [],
+          notSignedUp: false,
           loading: false,
           error: "expired",
         });
@@ -340,6 +355,10 @@ function TaxMtdContent() {
 
       {/* Before connecting: does MTD apply to this driver yet? */}
       {state.step === "connect" && <MtdScopeCheck />}
+      {/* Only the real service needs a GOV.UK sign-up; test logins don't. */}
+      {live && (state.step === "connect" || state.notSignedUp) && (
+        <MtdSignUpCard userId={userId} notSignedUp={state.notSignedUp} />
+      )}
       {state.step === "connect" && <ConnectStep test={test} onConnect={onConnect} />}
       {state.step === "nino" && <NinoStep test={test} onDone={load} />}
       {state.step === "business" && <BusinessStep businesses={state.businesses} onDone={load} />}
