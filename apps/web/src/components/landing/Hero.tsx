@@ -1,15 +1,13 @@
 import StoreButtons from "@/components/StoreButtons";
 import HeroDemo from "./HeroDemo";
+import HeroOdometer from "./HeroOdometer";
 
-export default function Hero() {
+export default function Hero({ miles }: { miles: number }) {
   return (
     <section className="hero">
       <div className="container hero__grid">
         <div className="hero__text">
-          <div className="hero__badge">
-            <span className="hero__badge-dot" />
-            Unlimited tracking. Free, forever.
-          </div>
+          <HeroOdometer miles={miles} />
           <h1 className="hero__h1">
             <span className="hero__h1-kicker">
               Free mileage tracker app for UK drivers

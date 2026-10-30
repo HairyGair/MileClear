@@ -320,22 +320,6 @@ body::after {
   animation: heroIn .9s cubic-bezier(.22,.61,.36,1) both;
 }
 
-.hero__badge {
-  display: inline-flex; align-items: center; gap: 0.5rem;
-  font-size: 0.75rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--amber-400);
-  background: var(--amber-glow);
-  border: 1px solid rgba(234,179,8,0.18);
-  padding: 0.35rem 0.9rem;
-  border-radius: var(--r-full);
-  margin-bottom: 1.75rem;
-}
-.hero__badge-dot {
-  width: 6px; height: 6px;
-  background: var(--amber-400); border-radius: 50%;
-  animation: blink 2.4s ease infinite;
-}
 
 .hero__h1 {
   font-family: var(--font-display);

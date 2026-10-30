@@ -1,0 +1,109 @@
+/* Hero odometer: drums in a recessed window, like the one on a dashboard. */
+.odo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 1.75rem;
+  padding: 0.45rem 0.9rem 0.45rem 0.55rem;
+  border-radius: 0.9rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
+  border: 1px solid rgba(234, 179, 8, 0.22);
+  box-shadow: 0 0 2rem rgba(234, 179, 8, 0.06);
+  font-family: var(--font-display, inherit);
+}
+
+.odo__label {
+  font-size: 0.66rem;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber-400, #fbbf24);
+  text-align: right;
+  padding-left: 0.35rem;
+}
+
+.odo__window {
+  position: relative;
+  display: inline-flex;
+  padding: 0.25rem 0.3rem;
+  border-radius: 0.5rem;
+  background: #050608;
+  box-shadow:
+    inset 0 2px 6px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.odo__drum {
+  position: relative;
+  display: block;
+  width: 1.25rem;
+  height: 1.9rem;
+  margin: 0 1px;
+  overflow: hidden;
+  border-radius: 0.2rem;
+  background: linear-gradient(180deg, #0c0e12 0%, #1d2129 50%, #0c0e12 100%);
+}
+.odo__drum--gap { margin-right: 0.3rem; }
+
+/* The curve of the drum: darker at the top and bottom edges. */
+.odo__drum::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0) 32%, rgba(0, 0, 0, 0) 68%, rgba(0, 0, 0, 0.75) 100%);
+}
+
+.odo__strip {
+  display: flex;
+  flex-direction: column;
+  transform: translateY(calc(var(--to, 0) * -1.9rem));
+  transition: transform var(--dur, 1.4s) cubic-bezier(0.25, 0.85, 0.25, 1) var(--delay, 0s);
+}
+.odo--zero .odo__strip { transition: none; }
+
+.odo__digit {
+  display: block;
+  height: 1.9rem;
+  line-height: 1.9rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #f4f1ea;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The last drum is amber, like the tenths on a real odometer. */
+.odo__drum--last { background: linear-gradient(180deg, #a86d06 0%, #f5a623 50%, #a86d06 100%); }
+.odo__drum--last .odo__digit { color: #1a1205; }
+
+.odo__plus {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--amber-400, #fbbf24);
+  margin-left: -0.35rem;
+}
+
+.odo__free {
+  font-size: 0.8rem;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.62);
+  letter-spacing: 0.02em;
+  padding-left: 0.7rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+.odo__free strong { color: var(--amber-400, #fbbf24); font-weight: 700; }
+
+@media (max-width: 420px) {
+  .odo { gap: 0.5rem; padding-right: 0.7rem; }
+  .odo__drum { width: 0.95rem; height: 1.45rem; }
+  .odo__digit { height: 1.45rem; line-height: 1.45rem; font-size: 0.95rem; }
+  .odo__strip { transform: translateY(calc(var(--to, 0) * -1.45rem)); }
+  .odo__free { padding-left: 0.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .odo__strip { transition: none; }
+}

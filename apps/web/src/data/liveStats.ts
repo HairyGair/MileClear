@@ -14,6 +14,8 @@ export const LIVE_STATS_REVALIDATE_SECONDS = 3600;
 export interface LiveStats {
   /** "1.3 million+" / "980,000+". Always present. */
   milesDisplay: string;
+  /** The same figure as a number (already rounded down), for the hero odometer. */
+  miles: number;
   /** "800+", or null when there is no trustworthy live figure. */
   activeDriversDisplay: string | null;
 }
@@ -30,6 +32,7 @@ export function formatMilesPlus(miles: number): string {
 export async function getLiveStats(): Promise<LiveStats> {
   const fallback: LiveStats = {
     milesDisplay: formatMilesPlus(MILES_TRACKED_FLOOR),
+    miles: MILES_TRACKED_FLOOR,
     activeDriversDisplay: null,
   };
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
@@ -42,7 +45,10 @@ export async function getLiveStats(): Promise<LiveStats> {
     const body = (await res.json()) as { data?: Partial<CommunityTotals> };
     const miles = body.data?.milesAllTime;
     const drivers = body.data?.activeDrivers30d;
+    const milesFloor =
+      typeof miles === "number" && Number.isFinite(miles) ? Math.max(Math.floor(miles), MILES_TRACKED_FLOOR) : MILES_TRACKED_FLOOR;
     return {
+      miles: milesFloor,
       // Never below the checked floor: a lower reading means the API is
       // pointed at the wrong database, not that miles went backwards.
       milesDisplay: formatMilesPlus(

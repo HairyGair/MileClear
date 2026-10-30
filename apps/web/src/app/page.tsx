@@ -138,7 +138,7 @@ export default async function LandingPage() {
       <StructuredData />
       <Navbar />
       <main id="main-content" tabIndex={-1}>
-        <Hero />
+        <Hero miles={stats.miles} />
         <SocialProof stats={stats} />
         <Problem />
         <ClearTrack />
