@@ -220,17 +220,19 @@ const WEB_BASE_URL = process.env.WEB_BASE_URL || "https://mileclear.com";
 const COMPANY_LINE =
   "MileClear is a trading name of SOYO Studios Ltd, registered in England and Wales, company number 17214932. Registered office: 1 Top Street, Doncaster, DN10 6TF.";
 
-/** Under "Gair" on the dark branded emails. */
-const SIGNATURE_DARK = `
-        <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 18px 0 0; border-top: 1px solid rgba(245,166,35,0.18); padding-top: 16px;">
-          <tr>
-            <td style="vertical-align: top; padding: 16px 14px 0 0;"><img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="40" height="40" style="display: block; border: 0; border-radius: 10px;" /></td>
-            <td style="vertical-align: top; padding-top: 16px;">
-              <p style="margin: 0; color: #f0f2f5; font-size: 14px; font-weight: 700; line-height: 1.4;">Anthony Gair</p>
-              <p style="margin: 0; color: #8b95a7; font-size: 13px; line-height: 1.5;">Founder, Mile<span style="color: #f5a623;">Clear</span></p>
-              <p style="margin: 2px 0 0; font-size: 13px; line-height: 1.5;"><a href="https://mileclear.com" style="color: #f5a623; text-decoration: none;">mileclear.com</a> <span style="color: #4a5568;">&middot;</span> <a href="mailto:support@mileclear.com" style="color: #f5a623; text-decoration: none;">support@mileclear.com</a></p>
-            </td>
-          </tr>
+/** The signature under "Cheers, Gair": logo, name, role, website. */
+const SIGNATURE_BLOCK = `
+        <table role="presentation" cellpadding="0" cellspacing="0" class="mc-rule" style="margin: 22px 0 0; width: 100%; border-top: 1px solid #f1ece2;">
+          <tr><td style="padding-top: 18px;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="vertical-align: middle; padding-right: 12px;"><img src="https://mileclear.com/branding/signature-logo.png" alt="MileClear" width="46" height="46" style="display: block; border: 0; border-radius: 12px;" /></td>
+              <td style="vertical-align: middle;">
+                <p style="margin: 0; color:#111827; font-size: 15px; font-weight: 700; line-height: 1.4;">Anthony Gair</p>
+                <p style="margin: 0; color:#6b7280; font-size: 13px; line-height: 1.5;">Founder, <b style="color:#111827;">Mile</b><b style="color:#b45309;">Clear</b></p>
+                <p style="margin: 0; color:#6b7280; font-size: 13px; line-height: 1.5;"><a href="https://mileclear.com" style="color:#b45309; text-decoration: none; font-weight: 600;">mileclear.com</a> &middot; Drive safe</p>
+              </td>
+            </tr></table>
+          </td></tr>
         </table>`;
 
 /** Under the plain light emails (support replies). */
@@ -239,19 +241,16 @@ const SIGNATURE_LIGHT = `<table role="presentation" cellpadding="0" cellspacing=
     <td style="vertical-align: top; padding: 14px 12px 0 0;"><img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="36" height="36" style="display: block; border: 0; border-radius: 9px;" /></td>
     <td style="vertical-align: top; padding-top: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
       <p style="margin: 0; color: #111827; font-size: 14px; font-weight: 700; line-height: 1.4;">Anthony Gair</p>
-      <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">Founder, MileClear</p>
+      <p style="margin: 0; color:#6b7280; font-size: 13px; line-height: 1.5;">Founder, MileClear</p>
       <p style="margin: 2px 0 0; font-size: 13px; line-height: 1.5;"><a href="https://mileclear.com" style="color: #b7791f; text-decoration: none;">mileclear.com</a> &middot; <a href="mailto:support@mileclear.com" style="color: #b7791f; text-decoration: none;">support@mileclear.com</a></p>
     </td>
   </tr>
 </table>
-<p style="margin: 14px 0 0; color: #9ca3af; font-size: 11px; line-height: 1.5;">${COMPANY_LINE}</p>`;
+<p style="margin: 14px 0 0; color:#6b7280; font-size: 11px; line-height: 1.5;">${COMPANY_LINE}</p>`;
 
 const SIGNATURE_TEXT = `\n\n--\nAnthony Gair\nFounder, MileClear\nmileclear.com | support@mileclear.com\n\n${COMPANY_LINE}`;
 const SUPPORT_INBOX = process.env.SUPPORT_INBOX || "support@mileclear.com";
 const APP_STORE_URL = "https://apps.apple.com/gb/app/mileclear/id6759671005";
-// The Play listing is a closed test and returns "not found" to anyone not on
-// the tester list, so Android goes via the page that collects the email.
-const ANDROID_PAGE_URL = `${WEB_BASE_URL}/android`;
 const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.mileclear.app";
 
 function escapeHtml(str: string): string {
@@ -314,7 +313,7 @@ function unsubscribeHeaders(userId: string): Record<string, string> {
 function unsubscribeFooterHtml(userId: string): string {
   const token = signUnsubscribeToken(userId);
   const url = `${WEB_BASE_URL}/unsubscribe?token=${token}`;
-  return `You're receiving this because you have a MileClear account.<br/><a href="${url}" style="color: #6b7280; text-decoration: underline;">Unsubscribe</a> &nbsp;&middot;&nbsp; <a href="${WEB_BASE_URL}/dashboard/settings" style="color: #6b7280; text-decoration: underline;">Email preferences</a>`;
+  return `You're receiving this because you have a MileClear account.<br/><a href="${url}" style="color:#6b7280; text-decoration: underline;">Unsubscribe</a> &nbsp;&middot;&nbsp; <a href="${WEB_BASE_URL}/dashboard/settings" style="color:#6b7280; text-decoration: underline;">Email preferences</a>`;
 }
 
 export async function sendVerificationEmail(
@@ -322,17 +321,21 @@ export async function sendVerificationEmail(
   code: string
 ): Promise<void> {
   const subject = "Verify your MileClear account";
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-      <h2 style="color: #1a1a1a; margin-bottom: 8px;">Verify your email</h2>
-      <p style="color: #555; font-size: 15px; line-height: 1.5;">Enter this code in the MileClear app to verify your account:</p>
-      <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-        <span style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1a1a1a;">${code}</span>
-      </div>
-      <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't create a MileClear account, you can ignore this email.</p>
-      <p style="color: #aaa; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
-    </div>
-  `;
+  const html = emailShell({
+    preheader: `Your MileClear code: ${code}`,
+    title: "Verify your email",
+    bodyHtml: [
+      para("Enter this code in the MileClear app to verify your account:"),
+      `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 6px 0 22px;">
+          <tr><td align="center" class="mc-outline" style="border: 2px solid #f5a623; border-radius: 16px; padding: 22px 12px;">
+            <p style="margin: 0; color:#111827; font-size: 36px; font-weight: 800; letter-spacing: 8px; line-height: 1;">${code}</p>
+          </td></tr>
+        </table>`,
+      para("This code expires in 10 minutes. If you didn't create a MileClear account, you can ignore this email.", 0),
+    ].join("\n"),
+    footerHtml: plainFooterHtml(),
+  });
 
   if (!transporter) {
     if (process.env.NODE_ENV === "production") {
@@ -443,17 +446,21 @@ export async function sendPasswordResetEmail(
   code: string
 ): Promise<void> {
   const subject = "Reset your MileClear password";
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-      <h2 style="color: #1a1a1a; margin-bottom: 8px;">Reset your password</h2>
-      <p style="color: #555; font-size: 15px; line-height: 1.5;">Enter this code in the MileClear app to reset your password:</p>
-      <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-        <span style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1a1a1a;">${code}</span>
-      </div>
-      <p style="color: #888; font-size: 13px;">This code expires in 10 minutes. If you didn't request a password reset, you can ignore this email.</p>
-      <p style="color: #aaa; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
-    </div>
-  `;
+  const html = emailShell({
+    preheader: `Your MileClear reset code: ${code}`,
+    title: "Reset your password",
+    bodyHtml: [
+      para("Enter this code in the MileClear app to reset your password:"),
+      `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 6px 0 22px;">
+          <tr><td align="center" class="mc-outline" style="border: 2px solid #f5a623; border-radius: 16px; padding: 22px 12px;">
+            <p style="margin: 0; color:#111827; font-size: 36px; font-weight: 800; letter-spacing: 8px; line-height: 1;">${code}</p>
+          </td></tr>
+        </table>`,
+      para("This code expires in 10 minutes. If you didn't ask to reset your password, you can ignore this email. Your password hasn't changed.", 0),
+    ].join("\n"),
+    footerHtml: plainFooterHtml(),
+  });
 
   if (!transporter) {
     if (process.env.NODE_ENV === "production") {
@@ -472,194 +479,45 @@ export async function sendWelcomeEmail(
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const subject = "Welcome to MileClear";
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-        <tr><td align="center" style="padding: 32px 16px;">
-          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-
-            <!-- Header with logo -->
-            <tr><td align="center" style="padding: 24px 0 32px;">
-              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-            </td></tr>
-
-            <!-- Main card -->
-            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-
-                <!-- Amber top accent bar -->
-                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-
-                <!-- Content -->
-                <tr><td style="padding: 36px 32px 32px;">
-
-                  <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">Welcome to <span style="color: #f5a623;">MileClear</span></h1>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Thanks for signing up! MileClear is built for UK gig workers, delivery drivers, and anyone who drives for work. Here's everything that's included:</p>
-
-                  <!-- Free features -->
-                  <p style="color: #f5a623; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Free for everyone</p>
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Automatic trip recording</strong> - just drive and MileClear detects your trips in the background. No buttons to press.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax Readiness card</strong> - live tax + NI estimate, weekly set-aside calculated from your real numbers, and a countdown to the 31 January deadline.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC tax deductions</strong> - 55p/mile (24p for mopeds, was 45p before 6 April 2026) calculated automatically per vehicle, with your running total on the dashboard.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Anonymous Benchmarking</strong> - see how your weekly miles, trips, and platform mix compare to other UK MileClear drivers. Privacy-floored at 5 contributors per cell.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">HMRC Reconciliation</strong> - see what HMRC has on file for each platform versus what MileClear tracked, fix gaps before they become a problem.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Activity Heatmap</strong> - 7 days &times; 24 hours of when you drive and earn most, filtered by platform.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">MOT &amp; tax expiry reminders</strong> - your vehicle's DVLA data refreshes weekly. Push notification 14 days before expiry. Plus the full DVSA MOT history including advisories on every test.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Smart classification</strong> - trips near your saved work locations are auto-tagged as business. Platform tags suggested from your history.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Shift management</strong> - start a shift, group your trips, see your scorecard with honest A-F grades based on real profit.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Earnings &amp; pickup-wait tracking</strong> - log per-platform earnings and tap-to-time waits at restaurants and depots.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Fuel prices</strong> - cheapest fuel near you from 8,300+ UK stations, with full fuel-log support.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0;">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Achievements &amp; recaps</strong> - badges, personal records, weekly and monthly summaries you can share.</td>
-                      </tr></table>
-                    </td></tr>
-                  </table>
-
-                  <!-- Pro features -->
-                  <p style="color: #10b981; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Pro features &middot; &pound;4.99/mo</p>
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Self Assessment wizard</strong> - step-by-step mapping of your numbers to actual HMRC SA103 form boxes, with full income tax + NI breakdown.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Tax-ready exports</strong> - CSV, PDF mileage log, and Self Assessment PDF with a signed attestation cover sheet.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Accountant Portal</strong> - invite your accountant by email to a read-only dashboard with your trips, expenses, and earnings.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Receipt scanning</strong> - point your camera at a parking ticket, fuel receipt, or toll. On-device OCR, your images never leave your phone.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">CSV earnings import</strong> - bulk import from Uber, Deliveroo, Just Eat, Amazon Flex, Stuart.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Business analytics</strong> - earnings per mile, golden hours, platform comparison, weekly P&amp;L, shift grading.</td>
-                      </tr></table>
-                    </td></tr>
-                    <tr><td style="padding: 8px 0;">
-                      <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                        <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #10b981; font-size: 14px;">&#9672;</td>
-                        <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">Unlimited saved locations</strong> - save every depot, regular stop, and zone. Free tier capped at 2.</td>
-                      </tr></table>
-                    </td></tr>
-                  </table>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;"><strong style="color: #f0f2f5;">To get started:</strong> add a vehicle, set your home and work locations, then just drive. MileClear handles the rest.</p>
-
-                  <!-- The app is where drives get recorded. Until 8 Sep 2026
-                       this email had no link at all, so a website signup was
-                       never told where the app was. -->
-${ctaButton("Get the app", APP_STORE_URL)}
-                  <p style="color: #6b7689; font-size: 13px; line-height: 1.6; margin: 4px 0 28px; text-align: center;">On Android? The app is in closed testing. Leave your email at <a href="${ANDROID_PAGE_URL}" style="color: #f5a623; text-decoration: underline;">mileclear.com/android</a> and you get the link.</p>
-
-                  <!-- Support callout -->
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
-                    <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">Need help?</strong> Head to <strong style="color: #f5a623;">Help &amp; Support</strong> in your profile, or just reply to this email. I read every message and I'll get back to you personally.</p>
-                    </td></tr>
-                  </table>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-                  <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
-
-                </td></tr>
-              </table>
-            </td></tr>
-
-            <!-- Footer -->
-            <tr><td align="center" style="padding: 28px 0 8px;">
-              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you created a MileClear account.<br/>If that wasn't you, you can safely ignore this email.</p>
-              <p style="color: #3a4553; font-size: 11px; line-height: 1.5; margin: 10px 0 0;">${COMPANY_LINE}</p>
-            </td></tr>
-
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>
-  `;
+  const free = [
+    `<strong style="color:#111827;">Automatic trip recording</strong>: just drive. MileClear spots your trips in the background, no buttons to press.`,
+    `<strong style="color:#111827;">Your mileage claim</strong>: 55p a mile for your first 10,000 business miles in a car or van, then 25p (24p a mile for motorbikes), with your running total on Home.`,
+    `<strong style="color:#111827;">Tax Readiness</strong>: a live tax and NI estimate, what to set aside each week, and a countdown to 31 January.`,
+    `<strong style="color:#111827;">Self Assessment wizard</strong>: your numbers mapped to the boxes on the SA103 form.`,
+    `<strong style="color:#111827;">Smart sorting</strong>: trips near your saved work places are marked as business for you.`,
+    `<strong style="color:#111827;">Shifts, earnings and fuel</strong>: shift scorecards, earnings by platform, and the cheapest fuel near you.`,
+    `<strong style="color:#111827;">MOT and tax reminders</strong>: a nudge 14 days before either runs out.`,
+  ];
+  const pro = [
+    `<strong style="color:#111827;">Downloads</strong>: CSV, a PDF mileage log, and the Self Assessment PDF.`,
+    `<strong style="color:#111827;">Accountant access</strong>: a read-only dashboard for your accountant.`,
+    `<strong style="color:#111827;">Bank link and CSV import</strong>: bring earnings in from your bank or platform statements.`,
+    `<strong style="color:#111827;">Business insights</strong>: earnings per mile, best hours, platform comparison and weekly profit.`,
+  ];
+  const html = emailShell({
+    preheader: "Just drive. MileClear counts every mile for you.",
+    title: "Welcome to MileClear",
+    subtitle: "Just drive. We'll count every mile.",
+    heroAvatars: HERO_CARS,
+    bodyHtml: [
+      para(greeting),
+      para("Thanks for joining. MileClear is built for UK drivers who drive for work, and it's free to use. Three steps and you're set:"),
+      stepsCard([
+        "Add your car or van",
+        "Save your home and work places",
+        "Drive. MileClear does the rest",
+      ]),
+      ctaButton("Get the app on iPhone", APP_STORE_URL),
+      `        <p style="color:#6b7280; font-size: 13px; line-height: 1.6; margin: 4px 0 26px; text-align: center;">On Android? <a href="${PLAY_STORE_URL}" style="color:#b45309; text-decoration: underline;">Get it on Google Play</a>.</p>`,
+      `        <p style="color:#b45309; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin: 0 0 6px;">Free for everyone</p>`,
+      bulletList(free),
+      `        <p style="color:#047857; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin: 0 0 6px;">With Pro &middot; &pound;4.99 a month</p>`,
+      bulletList(pro),
+      replyCard(`<strong style="color:#111827;">Need a hand?</strong> Just reply to this email. I read every message and get back to you myself.`),
+      SIGN_OFF,
+    ].join("\n"),
+    footerHtml: "You're getting this because you created a MileClear account. If that wasn't you, you can ignore this email.",
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Welcome email for ${email}`);
@@ -696,70 +554,31 @@ export async function sendProWelcomeEmail(
       : platform === "stripe"
         ? "on mileclear.com: sign in, then Settings, then Subscription"
         : "in your iPhone Settings: tap your name, then Subscriptions";
-  const P = 'style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"';
-  const LI = 'style="margin-bottom: 12px;"';
-  const B = 'style="color: #f0f2f5;"';
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-        <tr><td align="center" style="padding: 32px 16px;">
-          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-
-            <!-- Header with logo -->
-            <tr><td align="center" style="padding: 24px 0 32px;">
-              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-            </td></tr>
-
-            <!-- Main card -->
-            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-                <tr><td style="padding: 36px 32px 32px;">
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-
-                  <p ${P}>Anthony here, the founder of MileClear. Thank you for upgrading to Pro. MileClear is built by a very small team, so every subscriber really does keep it going.</p>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 12px;">Here's what Pro gives you, and where to find it. Tap your picture in the top right of the app to open the menu:</p>
-
-                  <ol style="color: #c0c8d4; font-size: 14px; line-height: 1.7; margin: 0 0 20px; padding-left: 20px;">
-                    <li ${LI}><strong ${B}>Tax Exports</strong> (under Tax): your Self Assessment summary, a trip-by-trip report and a spreadsheet of every journey, for your accountant or an employer. Business trips only, unless you choose otherwise.</li>
-                    <li ${LI}><strong ${B}>EmSee</strong> (under Tools): ask about your own records, like "How much did I earn on Uber in September?" or "How many business miles have I done this tax year?". You can also tell it a suggestion or a problem and it passes it to me.</li>
-                    <li ${LI}><strong ${B}>Ticket Defender</strong> (under Tools): got a parking or traffic fine you don't recognise? It shows where MileClear recorded you at that time, as a PDF you can send with an appeal, and lists Clean Air Zone charges with the date to pay by.</li>
-                    <li ${LI}><strong ${B}>Mileage Certificate</strong> (under Tax): a record of your miles with a link anyone can check, for an insurer, employer or accountant.</li>
-                    <li ${LI}><strong ${B}>Insights</strong>: what you earn per mile and per hour, which platform pays best, and your best hours to drive.</li>
-                    <li style="margin-bottom: 0;"><strong ${B}>Snap a statement</strong> (on the Earnings tab): take a screenshot of a platform earnings statement and MileClear reads the earnings off it for you to check and save.</li>
-                  </ol>
-
-                  <p ${P}>Everything you record is yours. If you ever stop Pro, every mile you've tracked stays in your account.</p>
-
-                  <p ${P}>If anything looks wrong, doesn't make sense, or you'd like the app to do something it doesn't, just reply to this email. I read every message and will get back to you personally.</p>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">You can cancel any time ${cancelHow}.</p>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 4px;">Welcome aboard,</p>
-                  <p style="color: #f0f2f5; font-size: 15px; line-height: 1.7; margin: 0; font-weight: 600;">Anthony</p>
-                  <p style="color: #8494a7; font-size: 13px; line-height: 1.5; margin: 0;">Founder, MileClear</p>
-
-                </td></tr>
-              </table>
-            </td></tr>
-
-            <!-- Footer -->
-            <tr><td style="padding: 24px 16px 0;">
-              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">You're receiving this because you upgraded to MileClear Pro. Reply to this email if you need help.</p>
-              <p style="color: #3a4553; font-size: 11px; line-height: 1.5; margin: 10px 0 0;">${COMPANY_LINE}</p>
-            </td></tr>
-
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>
-  `;
+  const B = 'style="color:#111827;"';
+  const html = emailShell({
+    preheader: "Thank you for upgrading. Here's what Pro gives you and where to find it.",
+    eyebrow: "Pro",
+    title: "Welcome to MileClear Pro",
+    subtitle: "Thank you for backing MileClear.",
+    bodyHtml: [
+      para(greeting),
+      para("Anthony here, the founder of MileClear. Thank you for upgrading to Pro. MileClear is built by a very small team, so every subscriber really does keep it going."),
+      para("Here's what Pro gives you, and where to find it. Tap your picture in the top right of the app to open the menu:", 8),
+      bulletList([
+        `<strong ${B}>Tax Exports</strong> (under Tax): your Self Assessment summary, a trip-by-trip report and a spreadsheet of every journey, for your accountant or an employer. Business trips only, unless you choose otherwise.`,
+        `<strong ${B}>EmSee</strong> (under Tools): ask about your own records, like "How much did I earn on Uber in September?" or "How many business miles have I done this tax year?". You can also tell it a suggestion or a problem and it passes it to me.`,
+        `<strong ${B}>Ticket Defender</strong> (under Tools): got a parking or traffic fine you don't recognise? It shows where MileClear recorded you at that time, as a PDF you can send with an appeal, and lists Clean Air Zone charges with the date to pay by.`,
+        `<strong ${B}>Mileage Certificate</strong> (under Tax): a record of your miles with a link anyone can check, for an insurer, employer or accountant.`,
+        `<strong ${B}>Insights</strong>: what you earn per mile and per hour, which platform pays best, and your best hours to drive.`,
+        `<strong ${B}>Snap a statement</strong> (on the Earnings tab): take a screenshot of a platform earnings statement and MileClear reads the earnings off it for you to check and save.`,
+      ]),
+      successCard("Everything you record is yours. If you ever stop Pro, every mile you've tracked stays in your account."),
+      para("If anything looks wrong, doesn't make sense, or you'd like the app to do something it doesn't, just reply to this email. I read every message and will get back to you personally."),
+      para(`You can cancel any time ${cancelHow}.`, 0),
+      SIGN_OFF,
+    ].join("\n"),
+    footerHtml: "You're getting this because you upgraded to MileClear Pro. Reply to this email if you need help.",
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Pro welcome email for ${email}`);
@@ -775,28 +594,86 @@ export async function sendProWelcomeEmail(
   });
 }
 
-// ── Shared branded email shell ────────────────────────────────────────
-// One polished, consistent wrapper for the campaign emails (re-engagement,
-// product update, service status). Dark navy (#030712) canvas, glass card,
-// amber accent, "MileClear" wordmark header, bulletproof CTA button.
-/** Bulletproof amber CTA button (table-based, dark text for contrast). */
-function ctaButton(label: string, url: string, accent = "#f5a623"): string {
+// ── Shared email design (C3 "Sunny", 29 Oct 2026) ──────────────────────
+// Light first: warm cream page, white card, amber header with sun shapes,
+// navy text. Every colour is inline (Gmail and Outlook keep only inline
+// styles). Mail apps that honour prefers-color-scheme (Apple Mail, iOS
+// Mail, Outlook for Mac) switch to dark through EMAIL_DARK_CSS, which
+// matches the inline text colours by value. So the text colours below are
+// used ONLY as text colours, never as backgrounds, or the dark-mode rules
+// would hit `background-color:` too. Text: #111827 strong, #374151 body,
+// #6b7280 muted, #b45309 amber, #047857 green, #b91c1c red.
+const AVATAR_BASE = "https://mileclear.com/avatars/email";
+/** Two of the app's car avatars, for headers about drivers joining. */
+const HERO_CARS = [`${AVATAR_BASE}/avatar-05.png`, `${AVATAR_BASE}/avatar-01.png`];
+
+const EMAIL_DARK_CSS = `
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  @media (max-width: 480px) {
+    .mc-body { padding: 24px 20px !important; }
+    .mc-hero { padding: 22px 20px 26px !important; }
+  }
+  @media (prefers-color-scheme: dark) {
+    .mc-page { background-color: #05080f !important; }
+    .mc-card { background-color: #111725 !important; }
+    .mc-body [style*="color:#111827"] { color: #f3f4f6 !important; }
+    .mc-body [style*="color:#374151"] { color: #c6cbd4 !important; }
+    .mc-body [style*="color:#6b7280"], .mc-foot [style*="color:#6b7280"], .mc-foot a { color: #9aa3b2 !important; }
+    .mc-body [style*="color:#b45309"] { color: #f5a623 !important; }
+    .mc-body [style*="color:#047857"] { color: #34d399 !important; }
+    .mc-body [style*="color:#b91c1c"] { color: #fca5a5 !important; }
+    .mc-tint { background-color: #1a2131 !important; border-color: #273044 !important; }
+    .mc-tint-amber { background-color: #2a2110 !important; border-color: #4a3a17 !important; }
+    .mc-tint-green { background-color: #0f2a20 !important; border-color: #1d4a38 !important; }
+    .mc-tint-red { background-color: #2a1414 !important; border-color: #4a2020 !important; }
+    .mc-outline { border-color: #f5a623 !important; }
+    .mc-rule { border-color: #273044 !important; }
+    .mc-btn { background-color: #f5a623 !important; }
+    .mc-btn a { color: #1a1205 !important; }
+  }`;
+
+/** Navy pill button (amber in dark mode). */
+function ctaButton(label: string, url: string, _accent?: string): string {
   return `
-        <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin: 10px auto 8px;">
-          <tr><td align="center" style="border-radius: 14px; background-color: ${accent}; background: linear-gradient(135deg, #ffc04d, ${accent} 55%, #e8950f); box-shadow: 0 10px 28px rgba(245,166,35,0.38);">
-            <a href="${url}" style="display: inline-block; padding: 16px 46px; font-size: 15px; font-weight: 800; color: #1a1205; text-decoration: none; border-radius: 14px; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing: 0.3px;">${label}&nbsp;&nbsp;&rarr;</a>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 8px 0 10px;">
+          <tr><td align="center" class="mc-btn" style="background-color: #0b1220; border-radius: 14px;">
+            <a href="${url}" style="display: block; padding: 16px 24px; font-size: 16px; font-weight: 800; color: #ffffff; text-decoration: none; border-radius: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">${label}&nbsp;&rarr;</a>
           </td></tr>
         </table>`;
 }
 
-/** Reply-to-me callout card (amber-tinted). */
+/** Reply-to-me note (warm amber tint). */
 function replyCard(message: string): string {
   return `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
-          <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px; padding: 18px 20px;">
-            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">${message}</p>
+          <tr><td class="mc-tint-amber" style="background-color: #fff4df; border: 1px solid #f6d79a; border-radius: 14px; padding: 16px 18px;">
+            <p style="color:#374151; font-size: 14px; line-height: 1.65; margin: 0;">${message}</p>
           </td></tr>
         </table>`;
+}
+
+/** Round car avatar for the header row or a "you + them" pair. */
+function avatarImg(url: string, size = 44): string {
+  return `<img src="${url}" alt="" width="${size}" height="${size}" style="display: block; border: 3px solid #f5a623; border-radius: 50%;" />`;
+}
+
+/** Two drivers side by side, each with what they get ("You + them"). */
+function pairCard(
+  left: { avatar: string; label: string; value: string },
+  right: { avatar: string; label: string; value: string },
+  note?: string
+): string {
+  const side = (s: { avatar: string; label: string; value: string }) => `
+              <td align="center" style="vertical-align: top; width: 42%;">
+                <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td>${avatarImg(s.avatar, 64)}</td></tr></table>
+                <p style="margin: 8px 0 0; color:#6b7280; font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;">${s.label}</p>
+                <p style="margin: 2px 0 0; color:#111827; font-size: 18px; font-weight: 800; letter-spacing: -0.4px;">${s.value}</p>
+              </td>`;
+  return `
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 6px 0 ${note ? 6 : 24}px;"><tr>${side(left)}
+              <td align="center" style="vertical-align: top; padding-top: 18px; color:#b45309; font-size: 26px; font-weight: 800;">+</td>${side(right)}
+        </tr></table>${note ? `
+        <p style="margin: 0 0 24px; text-align: center; color:#6b7280; font-size: 13px;">${note}</p>` : ""}`;
 }
 
 function emailShell(opts: {
@@ -804,60 +681,59 @@ function emailShell(opts: {
   eyebrow?: string;
   eyebrowColor?: string;
   title: string;
+  /** One line under the headline, in the amber header. */
+  subtitle?: string;
+  /** Car avatars in a row under the headline (with a "+" after them). */
+  heroAvatars?: string[];
   accentColor?: string;
   bodyHtml: string;
   footerHtml: string;
 }): string {
-  const accent = opts.accentColor ?? "#f5a623";
-  const eyebrowColor = opts.eyebrowColor ?? accent;
-  const isGreen = opts.eyebrowColor === "#34d399";
-  const pillBg = isGreen ? "rgba(16,185,129,0.16)" : "rgba(245,166,35,0.16)";
-  const pillBorder = isGreen ? "rgba(16,185,129,0.42)" : "rgba(245,166,35,0.4)";
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  // The pill keeps its warning colours: red for payment problems, green
+  // for good news. Everything else is amber on navy.
+  const tone = opts.eyebrowColor?.toLowerCase();
+  const pillBg = tone === "#f87171" ? "#991b1b" : tone === "#34d399" ? "#065f46" : "#0b1220";
+  const pillText = tone === "#f87171" || tone === "#34d399" ? "#ffffff" : "#f5a623";
+  const avatars = opts.heroAvatars?.length
+    ? `
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 18px;"><tr>${opts.heroAvatars
+          .map((u) => `<td style="padding-right: 6px;">${avatarImg(u)}</td>`)
+          .join("")}<td><table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="width: 44px; height: 44px; background-color: #0b1220; border: 3px solid #f5a623; border-radius: 50%; color: #f5a623; font-size: 20px; font-weight: 800; line-height: 44px;">+</td></tr></table></td>
+        </tr></table>`
+    : "";
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"></head>
-<body style="margin:0;padding:0;background-color:#030712;font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;font-size:1px;line-height:1px;color:#030712;">${opts.preheader}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#030712;">
-<tr><td align="center" style="padding:32px 16px 40px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><style>${EMAIL_DARK_CSS}</style></head>
+<body class="mc-page" style="margin:0;padding:0;background-color:#fff8ec;font-family:${font};">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;font-size:1px;line-height:1px;color:#fff8ec;">${opts.preheader}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="mc-page" style="background-color:#fff8ec;">
+<tr><td align="center" style="padding:24px 12px 40px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="mc-card" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:24px;">
 
-  <!-- Wordmark header -->
-  <tr><td align="center" style="padding:8px 0 26px;">
-    <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-      <td style="vertical-align:middle;padding-right:12px;">
-        <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background-color:rgba(245,166,35,0.14);border:1px solid rgba(245,166,35,0.3);border-radius:13px;padding:7px;box-shadow:0 6px 18px rgba(245,166,35,0.22);">
-          <img src="https://mileclear.com/branding/logo-120x120.png" alt="" width="36" height="36" style="display:block;border:0;border-radius:9px;" />
-        </td></tr></table>
-      </td>
-      <td style="vertical-align:middle;">
-        <span style="font-size:25px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;">Mile<span style="color:${accent};">Clear</span></span>
-      </td>
+  <!-- Amber header -->
+  <tr><td class="mc-hero" style="background-color:#f5a623;background-image:url('https://mileclear.com/branding/email-hero-sun.png');background-repeat:no-repeat;background-position:right top;background-size:600px 220px;border-radius:24px 24px 0 0;padding:26px 30px 30px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr>
+      <td style="vertical-align:middle;padding-right:9px;"><img src="https://mileclear.com/branding/signature-logo.png" alt="" width="28" height="28" style="display:block;border:0;border-radius:7px;" /></td>
+      <td style="vertical-align:middle;font-size:16px;font-weight:800;color:#0b1220;letter-spacing:-0.2px;">MileClear</td>
     </tr></table>
+    ${opts.eyebrow ? `<p style="margin:0 0 12px;"><span style="display:inline-block;background-color:${pillBg};color:${pillText};font-size:11px;font-weight:800;letter-spacing:0.9px;text-transform:uppercase;padding:6px 12px;border-radius:999px;">${opts.eyebrow}</span></p>` : ""}
+    <h1 style="margin:0;font-size:32px;font-weight:800;color:#0b1220;letter-spacing:-1px;line-height:1.12;">${opts.title}</h1>
+    ${opts.subtitle ? `<p style="margin:10px 0 0;font-size:16px;line-height:1.5;font-weight:600;color:#3b2a07;">${opts.subtitle}</p>` : ""}${avatars}
   </td></tr>
 
-  <!-- Card -->
-  <tr><td style="background-color:#0a1120;border-radius:20px;border:1px solid rgba(245,166,35,0.14);box-shadow:0 24px 60px rgba(0,0,0,0.5);">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="height:6px;background-color:${accent};background:linear-gradient(90deg,#ffc04d,${accent} 50%,#e8950f);border-radius:20px 20px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
-      <!-- Hero zone with amber glow -->
-      <tr><td style="padding:34px 36px 4px;background:linear-gradient(180deg,rgba(245,166,35,0.17) 0%,rgba(245,166,35,0.04) 45%,rgba(245,166,35,0) 80%);">
-        ${opts.eyebrow ? `<p style="margin:0 0 16px;"><span style="display:inline-block;background-color:${pillBg};border:1px solid ${pillBorder};color:${eyebrowColor};font-size:11px;font-weight:800;letter-spacing:0.9px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">${opts.eyebrow}</span></p>` : ""}
-        <h1 style="margin:0 0 6px;font-size:28px;font-weight:800;color:#ffffff;letter-spacing:-0.6px;line-height:1.22;">${opts.title}</h1>
-      </td></tr>
-      <!-- Body -->
-      <tr><td style="padding:18px 36px 36px;">
+  <!-- Body -->
+  <tr><td class="mc-body" style="padding:30px 30px 30px;font-family:${font};">
 ${opts.bodyHtml}
-      </td></tr>
-    </table>
   </td></tr>
 
-  <!-- Footer -->
-  <tr><td align="center" style="padding:28px 12px 8px;">
-    <p style="color:#6b7689;font-size:14px;line-height:1.6;margin:0 0 10px;font-weight:700;">Mile<span style="color:${accent};">Clear</span> &nbsp;&middot;&nbsp; UK mileage tracking, built for drivers</p>
-    <p style="color:#42505f;font-size:12px;line-height:1.5;margin:0;">${opts.footerHtml}</p>
-    <p style="color:#3a4553;font-size:11px;line-height:1.5;margin:12px 0 0;">${COMPANY_LINE}</p>
-  </td></tr>
+</table>
 
+<!-- Footer -->
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" class="mc-foot" style="max-width:600px;width:100%;">
+  <tr><td align="center" style="padding:22px 16px 0;font-family:${font};">
+    <p style="color:#6b7280;font-size:12px;line-height:1.6;margin:0;">${opts.footerHtml}</p>
+    <p style="color:#6b7280;font-size:11px;line-height:1.5;margin:12px 0 0;">${COMPANY_LINE}</p>
+  </td></tr>
 </table>
 </td></tr>
 </table>
@@ -909,15 +785,15 @@ function renderReEngagement(
   const heroBlock = hasUsed
     ? `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">
-          <tr><td style="background-color: #0d1424; background: linear-gradient(135deg, rgba(245,166,35,0.16) 0%, rgba(245,166,35,0.03) 60%, rgba(245,166,35,0.07) 100%); border: 1px solid rgba(245,166,35,0.34); border-radius: 16px; padding: 26px 20px; box-shadow: 0 8px 26px rgba(245,166,35,0.12);">
+          <tr><td class="mc-tint-amber" style="background-color: #fff4df; border: 1px solid #f6d79a; border-radius: 16px; padding: 24px 20px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
               <td width="50%" align="center" style="border-right: 1px solid rgba(245,166,35,0.14);">
-                <p style="margin: 0; font-size: 38px; font-weight: 800; color: #f5a623; letter-spacing: -1.2px; line-height: 1;">${tripCount.toLocaleString("en-GB")}</p>
-                <p style="margin: 8px 0 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #b89a6a;">Trip${tripCount !== 1 ? "s" : ""} tracked</p>
+                <p style="margin: 0; font-size: 38px; font-weight: 800; color:#b45309; letter-spacing: -1.2px; line-height: 1;">${tripCount.toLocaleString("en-GB")}</p>
+                <p style="margin: 8px 0 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color:#6b7280;">Trip${tripCount !== 1 ? "s" : ""} tracked</p>
               </td>
               <td width="50%" align="center">
-                <p style="margin: 0; font-size: 38px; font-weight: 800; color: #f5a623; letter-spacing: -1.2px; line-height: 1;">${milesLabel}</p>
-                <p style="margin: 8px 0 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: #b89a6a;">Miles logged</p>
+                <p style="margin: 0; font-size: 38px; font-weight: 800; color:#b45309; letter-spacing: -1.2px; line-height: 1;">${milesLabel}</p>
+                <p style="margin: 8px 0 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color:#6b7280;">Miles logged</p>
               </td>
             </tr></table>
           </td></tr>
@@ -925,12 +801,12 @@ function renderReEngagement(
     : `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">
           <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px; padding: 18px 20px;">
-            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">One-time setup:</strong> set background location to "Always" in your phone settings, then open MileClear once. After that it detects and logs your drives automatically - you don't have to press a thing.</p>
+            <p style="color:#374151; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color:#b45309;">One-time setup:</strong> set background location to "Always" in your phone settings, then open MileClear once. After that it detects and logs your drives automatically - you don't have to press a thing.</p>
           </td></tr>
         </table>`;
 
   const introLine = hasUsed
-    ? `You've already tracked <strong style="color: #f5a623;">${tripCount.toLocaleString("en-GB")} trip${tripCount !== 1 ? "s" : ""}</strong> and <strong style="color: #f5a623;">${milesLabel} miles</strong> - nice work. Here's what's waiting for you in the app, all free:`
+    ? `You've already tracked <strong style="color:#b45309;">${tripCount.toLocaleString("en-GB")} trip${tripCount !== 1 ? "s" : ""}</strong> and <strong style="color:#b45309;">${milesLabel} miles</strong> - nice work. Here's what's waiting for you in the app, all free:`
     : "You're all set up, but you haven't recorded your first trip yet. Here's what MileClear does for you the moment you do - all free:";
 
   const featureRows = [
@@ -953,28 +829,28 @@ function renderReEngagement(
   ]
     .map(
       ([t, b], i, arr) => `
-            <tr><td style="padding: 11px 0;${i < arr.length - 1 ? " border-bottom: 1px solid rgba(255,255,255,0.05);" : ""}">
+            <tr><td class="mc-rule" style="padding: 11px 0;${i < arr.length - 1 ? " border-bottom: 1px solid #f1ece2;" : ""}">
               <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                <td style="width: 30px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 15px;">&#9672;</td>
-                <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;"><strong style="color: #f0f2f5;">${t}</strong> - ${b}</td>
+                <td style="width: 30px; vertical-align: top; padding-top: 1px; color:#b45309; font-size: 15px;">&#9672;</td>
+                <td style="color:#374151; font-size: 14px; line-height: 1.6;"><strong style="color:#111827;">${t}</strong> - ${b}</td>
               </tr></table>
             </td></tr>`
     )
     .join("");
 
   const bodyHtml = `
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
 ${heroBlock}
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">${introLine}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 8px;">${introLine}</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 4px 0 28px;">${featureRows}
         </table>
 
 ${ctaButton("Open MileClear", APP_STORE_URL)}
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Got a question or something not working? Just reply to this email - I read every message.</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Got a question or something not working? Just reply to this email - I read every message.</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
+        <p style="color:#111827; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_BLOCK}`;
 
   const html = emailShell({
     preheader: hasUsed
@@ -1008,7 +884,7 @@ function renderHighlightBullet(highlight: string): string {
   // Convert **Title** at the start (followed by " - " or " — ") to <strong>Title</strong>.
   const m = /^\*\*([^*]+)\*\*\s*[-–—]\s*(.*)$/.exec(highlight);
   if (m) {
-    return `<strong style="color: #f0f2f5;">${escapeHtml(m[1])}</strong> - ${escapeHtml(m[2])}`;
+    return `<strong style="color:#111827;">${escapeHtml(m[1])}</strong> - ${escapeHtml(m[2])}`;
   }
   return escaped;
 }
@@ -1036,10 +912,10 @@ function renderUpdateEmailHtml(args: {
   const bulletRows = highlights
     .map(
       (h) => `
-          <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+          <tr><td class="mc-rule" style="padding: 10px 0; border-bottom: 1px solid #f1ece2;">
             <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-              <td style="width: 28px; vertical-align: top; padding-top: 1px; color: #f5a623; font-size: 14px;">&#9672;</td>
-              <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;">${renderHighlightBullet(h)}</td>
+              <td style="width: 28px; vertical-align: top; padding-top: 1px; color:#b45309; font-size: 14px;">&#9672;</td>
+              <td style="color:#374151; font-size: 14px; line-height: 1.6;">${renderHighlightBullet(h)}</td>
             </tr></table>
           </td></tr>`
     )
@@ -1049,26 +925,26 @@ function renderUpdateEmailHtml(args: {
     ? `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">
           <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px; padding: 18px 20px;">
-            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">${escapeHtml(release.emailApology)}</p>
+            <p style="color:#374151; font-size: 14px; line-height: 1.65; margin: 0;">${escapeHtml(release.emailApology)}</p>
           </td></tr>
         </table>`
     : "";
 
   const bodyHtml = `
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">${escapeHtml(tagline)}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 24px;">${escapeHtml(tagline)}</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">${bulletRows}
         </table>
 ${apologyHtml}
 ${ctaButton(release.ctaLabel ?? "See what's new", release.ctaUrl ?? blogUrl)}
 
-        <p style="color: #8a94a6; font-size: 13px; line-height: 1.6; margin: 22px 0 24px; text-align: center;">Or read the full release notes: <a href="${release.ctaUrl ?? blogUrl}" style="color: #f5a623; text-decoration: none; font-weight: 600;">What's new in ${escapeHtml(release.version)}</a></p>
+        <p style="color:#6b7280; font-size: 13px; line-height: 1.6; margin: 22px 0 24px; text-align: center;">Or read the full release notes: <a href="${release.ctaUrl ?? blogUrl}" style="color:#b45309; text-decoration: none; font-weight: 600;">What's new in ${escapeHtml(release.version)}</a></p>
 
 ${replyCard("Something not working? Got ideas? Reply to this email - I read every message and I'll get back to you personally. Several of the features above came directly from messages exactly like that.")}
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color:#111827; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_BLOCK}`;
 
   return emailShell({
     preheader: tagline,
@@ -1162,28 +1038,28 @@ function renderServiceStatus(
   const bodyHtml = `
         <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
           <tr><td style="background-color: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.32); border-radius: 999px; padding: 9px 18px;">
-            <span style="color: #34d399; font-size: 13px; font-weight: 700; letter-spacing: 0.2px;">&#9679;&nbsp; All systems operational</span>
+            <span style="color:#047857; font-size: 13px; font-weight: 700; letter-spacing: 0.2px;">&#9679;&nbsp; All systems operational</span>
           </td></tr>
         </table>
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Just a quick heads-up - you may have run into trouble signing in or syncing earlier today. Our server had a brief hiccup, but everything is now back up and running as normal.</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Just a quick heads-up - you may have run into trouble signing in or syncing earlier today. Our server had a brief hiccup, but everything is now back up and running as normal.</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 20px;">
-          <tr><td style="background-color: #070d18; border: 1px solid rgba(16,185,129,0.2); border-radius: 12px; padding: 18px 20px;">
-            <p style="color: #d4f3e6; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #34d399;">No data was lost.</strong> Every trip, earning, and record is safe. If you were mid-trip when it happened, anything recorded on your phone will sync automatically the next time you open the app.</p>
+          <tr><td class="mc-tint-green" style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 14px; padding: 18px 20px;">
+            <p style="color:#047857; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color:#047857;">No data was lost.</strong> Every trip, earning, and record is safe. If you were mid-trip when it happened, anything recorded on your phone will sync automatically the next time you open the app.</p>
           </td></tr>
         </table>
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 22px;">Just open the app and you're good to go.</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 22px;">Just open the app and you're good to go.</p>
 
 ${ctaButton("Open MileClear", APP_STORE_URL)}
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Sorry for the inconvenience, and thanks for your patience. If anything still seems off, just reply to this email.</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Sorry for the inconvenience, and thanks for your patience. If anything still seems off, just reply to this email.</p>
 
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 16px 0 0;">Cheers,</p>
+        <p style="color:#111827; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_BLOCK}`;
 
   const html = emailShell({
     preheader: "The earlier sign-in and sync issue is fixed. No data was lost - everything is back to normal.",
@@ -1221,61 +1097,55 @@ function gbp(pence: number): string {
   );
 }
 
-const SIGN_OFF = `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 22px 0 8px;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
+const SIGN_OFF = `        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 24px 0 2px;">Cheers,</p>
+        <p style="color:#111827; font-size: 15px; font-weight: 700; margin: 0;">Gair</p>${SIGNATURE_BLOCK}`;
 
 function para(text: string, mb = 16): string {
-  return `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 ${mb}px;">${text}</p>`;
+  return `        <p style="color:#374151; font-size: 16px; line-height: 1.65; margin: 0 0 ${mb}px;">${text}</p>`;
 }
 
 /** Minimal footer for transactional/account emails (no marketing unsubscribe). */
 function plainFooterHtml(): string {
-  return `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#5a6678;text-decoration:underline;">Support</a> &middot; Automated account notification.`;
+  return `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#6b7280;text-decoration:underline;">Support</a> &middot; Automated account notification.`;
 }
 
-/** Equal-column stat card (2 or 3 cells). */
+/** Figures in amber-outlined cards (2 or 3), side by side. */
 function statGrid(
   cells: { value: string; label: string }[],
-  accent = "#f5a623"
+  _accent?: string
 ): string {
   const w = Math.floor(100 / Math.max(cells.length, 1));
   const tds = cells
     .map(
       (c, i) => `
-              <td width="${w}%" align="center"${i < cells.length - 1 ? ' style="border-right: 1px solid rgba(255,255,255,0.06);"' : ""}>
-                <p style="margin: 0; font-size: 30px; font-weight: 800; color: ${accent}; letter-spacing: -1px; line-height: 1;">${c.value}</p>
-                <p style="margin: 8px 0 0; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #8a94a6;">${c.label}</p>
+              <td width="${w}%" style="vertical-align: top;${i < cells.length - 1 ? " padding-right: 8px;" : ""}">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td class="mc-outline" style="border: 1.5px solid #f5a623; border-radius: 16px; padding: ${cells.length > 2 ? "12px 10px" : "14px 12px"};">
+                  <p style="margin: 0; font-size: ${cells.length > 2 ? 18 : 24}px; font-weight: 800; color:#111827; letter-spacing: -0.5px; line-height: 1.15; white-space: nowrap;">${c.value}</p>
+                  <p style="margin: 4px 0 0; font-size: 12px; color:#6b7280; line-height: 1.35;">${c.label}</p>
+                </td></tr></table>
               </td>`
     )
     .join("");
   return `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 26px;">
-          <tr><td style="background-color: #0d1424; background: linear-gradient(135deg, rgba(245,166,35,0.14) 0%, rgba(245,166,35,0.03) 60%, rgba(245,166,35,0.06) 100%); border: 1px solid rgba(245,166,35,0.32); border-radius: 16px; padding: 26px 14px; box-shadow: 0 8px 26px rgba(245,166,35,0.1);">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>${tds}
-            </tr></table>
-          </td></tr>
-        </table>`;
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 6px 0 24px;"><tr>${tds}
+        </tr></table>`;
 }
 
-/** Numbered steps card. */
-function stepsCard(steps: string[], accent = "#f5a623"): string {
+/** Numbered steps. */
+function stepsCard(steps: string[], _accent?: string): string {
   const rows = steps
     .map(
       (s, i) => `
-              <tr><td style="padding: 7px 0; vertical-align: top;">
-                <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                  <td style="width: 28px; vertical-align: top;"><span style="display:inline-block;width:20px;height:20px;background-color:${accent};color:#0a0e1a;border-radius:50%;font-size:12px;font-weight:800;text-align:center;line-height:20px;">${i + 1}</span></td>
-                  <td style="color:#c0c8d4;font-size:14px;line-height:1.6;padding-left:8px;">${s}</td>
-                </tr></table>
-              </td></tr>`
+          <tr><td style="padding: 6px 0; vertical-align: top;">
+            <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+              <td style="width: 26px; vertical-align: top;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="width: 24px; height: 24px; background-color: #f5a623; border-radius: 50%; color: #1a1205; font-size: 12px; font-weight: 800; line-height: 24px;">${i + 1}</td></tr></table></td>
+              <td style="color:#374151; font-size: 15px; line-height: 1.55; padding-left: 10px;">${s}</td>
+            </tr></table>
+          </td></tr>`
     )
     .join("");
   return `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 4px 0 22px;">
-          <tr><td style="background-color:#070d18;border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:14px 20px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
-            </table>
-          </td></tr>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 4px 0 22px;">${rows}
         </table>`;
 }
 
@@ -1284,17 +1154,17 @@ function detailCard(rows: [string, string][]): string {
   const trs = rows
     .map(
       ([k, v], i) => `
-              <tr><td style="padding:11px 0;${i > 0 ? "border-top:1px solid rgba(255,255,255,0.06);" : ""}">
+              <tr><td class="mc-rule" style="padding: 11px 0;${i > 0 ? " border-top: 1px solid #ece7dc;" : ""}">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-                  <td align="left" style="color:#7a8699;font-size:13px;">${k}</td>
-                  <td align="right" style="color:#f0f2f5;font-size:14px;font-weight:600;">${v}</td>
+                  <td align="left" style="color:#6b7280; font-size: 13px;">${k}</td>
+                  <td align="right" style="color:#111827; font-size: 14px; font-weight: 600;">${v}</td>
                 </tr></table>
               </td></tr>`
     )
     .join("");
   return `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 4px 0 22px;">
-          <tr><td style="background-color:#070d18;border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:4px 18px;">
+          <tr><td class="mc-tint" style="background-color: #f8f6f1; border: 1px solid #ece7dc; border-radius: 14px; padding: 4px 18px;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${trs}
             </table>
           </td></tr>
@@ -1304,8 +1174,8 @@ function detailCard(rows: [string, string][]): string {
 function warningCard(message: string): string {
   return `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 22px;">
-          <tr><td style="background-color: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); border-radius: 12px; padding: 16px 18px;">
-            <p style="color: #fca5a5; font-size: 14px; line-height: 1.6; margin: 0;">${message}</p>
+          <tr><td class="mc-tint-red" style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 14px; padding: 16px 18px;">
+            <p style="color:#b91c1c; font-size: 14px; line-height: 1.6; margin: 0;">${message}</p>
           </td></tr>
         </table>`;
 }
@@ -1313,26 +1183,26 @@ function warningCard(message: string): string {
 function successCard(message: string): string {
   return `
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 22px;">
-          <tr><td style="background-color: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.28); border-radius: 12px; padding: 16px 18px;">
-            <p style="color: #d4f3e6; font-size: 14px; line-height: 1.6; margin: 0;">${message}</p>
+          <tr><td class="mc-tint-green" style="background-color: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 14px; padding: 16px 18px;">
+            <p style="color:#047857; font-size: 14px; line-height: 1.6; margin: 0;">${message}</p>
           </td></tr>
         </table>`;
 }
 
-function bulletList(items: string[], accent = "#f5a623"): string {
+function bulletList(items: string[], _accent?: string): string {
   const rows = items
     .map(
-      (it, i, a) => `
-            <tr><td style="padding: 9px 0;${i < a.length - 1 ? " border-bottom: 1px solid rgba(255,255,255,0.05);" : ""}">
+      (it) => `
+            <tr><td style="padding: 6px 0;">
               <table role="presentation" cellpadding="0" cellspacing="0"><tr>
-                <td style="width: 28px; vertical-align: top; padding-top: 1px; color: ${accent}; font-size: 15px;">&#9672;</td>
-                <td style="color: #c0c8d4; font-size: 14px; line-height: 1.6;">${it}</td>
+                <td style="width: 22px; vertical-align: top; padding-top: 8px;"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="width: 8px; height: 8px; background-color: #f5a623; border-radius: 50%; font-size: 0; line-height: 0;">&nbsp;</td></tr></table></td>
+                <td style="color:#374151; font-size: 15px; line-height: 1.6;">${it}</td>
               </tr></table>
             </td></tr>`
     )
     .join("");
   return `
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 4px 0 24px;">${rows}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 4px 0 22px;">${rows}
         </table>`;
 }
 
@@ -1458,11 +1328,11 @@ export async function sendAdminEmail(opts: {
 function inlineMd(escaped: string): string {
   let s = escaped.replace(
     /\*\*([^*]+)\*\*/g,
-    '<strong style="color:#f0f2f5;">$1</strong>'
+    '<strong style="color:#111827;">$1</strong>'
   );
   s = s.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" style="color:#f5a623;text-decoration:none;font-weight:600;">$1</a>'
+    '<a href="$2" style="color:#b45309;text-decoration:none;font-weight:600;">$1</a>'
   );
   return s;
 }
@@ -1566,12 +1436,12 @@ export async function sendLocationPermissionEmail(
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const bodyHtml = `
 ${para(greeting)}
-${para('MileClear is set up, but it can only log your drives automatically when location access is set to <strong style="color:#f0f2f5;">Always</strong>. It looks like yours is on "While Using" right now, which means trips you take with the app closed aren\'t being recorded.')}
+${para('MileClear is set up, but it can only log your drives automatically when location access is set to <strong style="color:#111827;">Always</strong>. It looks like yours is on "While Using" right now, which means trips you take with the app closed aren\'t being recorded.')}
 ${para("Here's the one-time fix:")}
 ${stepsCard([
-    'Open <strong style="color:#f0f2f5;">Settings</strong> on your phone',
+    'Open <strong style="color:#111827;">Settings</strong> on your phone',
     "Tap <strong>MileClear</strong>, then <strong>Location</strong>",
-    'Choose <strong style="color:#f5a623;">Always</strong>',
+    'Choose <strong style="color:#b45309;">Always</strong>',
     "Switch on <strong>Precise Location</strong>",
   ])}
 ${para("That's it. From then on, MileClear detects and logs every drive in the background. You'll never have to press start.")}
@@ -1617,8 +1487,8 @@ ${statGrid([
 ${para("That drive is saved, mapped, and counted - and you didn't have to lift a finger. That's exactly how every trip works from here.")}
 ${para("Two quick wins to get the most out of MileClear:")}
 ${bulletList([
-    "<strong style=\"color:#f0f2f5;\">Classify it</strong> - mark trips as business or personal so the right ones count towards your tax.",
-    '<strong style="color:#f0f2f5;">Set Home &amp; Work</strong> - saved locations make auto-detection even sharper.',
+    "<strong style=\"color:#111827;\">Classify it</strong> - mark trips as business or personal so the right ones count towards your tax.",
+    '<strong style="color:#111827;">Set Home &amp; Work</strong> - saved locations make auto-detection even sharper.',
   ])}
 ${ctaButton("See your trip", DASHBOARD_URL)}
 ${SIGN_OFF}`;
@@ -1730,7 +1600,7 @@ export async function sendTaxMilestoneEmail(
   });
   const bodyHtml = `
 ${para(greeting)}
-${para(`Your mileage claim for ${escapeHtml(data.taxYear)} has just passed <strong style="color:#f5a623;">${gbp(data.milestonePence)}</strong>.`)}
+${para(`Your mileage claim for ${escapeHtml(data.taxYear)} has just passed <strong style="color:#b45309;">${gbp(data.milestonePence)}</strong>.`)}
 ${statGrid([
     { value: gbp(data.claimPence), label: "Mileage claim so far" },
     { value: miles, label: "Business miles" },
@@ -1782,7 +1652,7 @@ export async function sendTaxYearEndSummaryEmail(
   });
   const bodyHtml = `
 ${para(greeting)}
-${para(`The <strong style="color:#f0f2f5;">${escapeHtml(data.taxYear)}</strong> tax year has closed. Here's what you tracked:`)}
+${para(`The <strong style="color:#111827;">${escapeHtml(data.taxYear)}</strong> tax year has closed. Here's what you tracked:`)}
 ${statGrid([
     { value: miles, label: "Business miles" },
     { value: data.trips.toLocaleString("en-GB"), label: "Business trips" },
@@ -1833,7 +1703,7 @@ export async function sendMtdQuarterlyReminderEmail(
   const when = data.daysLeft <= 1 ? "tomorrow" : `in ${data.daysLeft} days`;
   const bodyHtml = `
 ${para(greeting)}
-${warningCard(`Your quarterly update for <strong style="color:#fca5a5;">${escapeHtml(data.periodLabel)}</strong> is due by <strong style="color:#fca5a5;">${escapeHtml(data.dueLabel)}</strong>. HMRC still shows it as not sent.`)}
+${warningCard(`Your quarterly update for <strong style="color:#b91c1c;">${escapeHtml(data.periodLabel)}</strong> is due by <strong style="color:#b91c1c;">${escapeHtml(data.dueLabel)}</strong>. HMRC still shows it as not sent.`)}
 ${stepsCard([
     "Open MileClear, tap More, then Drive for work?, then Quarterly updates.",
     "Tap the quarter and check the figures against your records.",
@@ -1884,9 +1754,9 @@ export async function sendSelfAssessmentDeadlineEmail(
   const days = `${data.daysLeft} day${data.daysLeft !== 1 ? "s" : ""}`;
   const bodyHtml = `
 ${para(greeting)}
-${warningCard(`<strong style="color:#fca5a5;">${escapeHtml(data.dateLabel)}</strong> is the deadline to ${escapeHtml(data.actionLine)}. That's ${days} away.`)}
+${warningCard(`<strong style="color:#b91c1c;">${escapeHtml(data.dateLabel)}</strong> is the deadline to ${escapeHtml(data.actionLine)}. That's ${days} away.`)}
 ${data.claimPence
-    ? para(`Your mileage claim for ${escapeHtml(data.returnYear)} is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>. ${
+    ? para(`Your mileage claim for ${escapeHtml(data.returnYear)} is <strong style="color:#b45309;">${gbp(data.claimPence)}</strong>. ${
         data.audience === "self_employed"
           ? "It counts as a business expense, so it lowers the profit you pay tax on."
           : "The Tax tab in MileClear shows how much of it goes on your return."
@@ -1929,7 +1799,7 @@ ${statGrid([
     { value: data.count.toLocaleString("en-GB"), label: "Trips to sort" },
     { value: gbp(data.potentialClaimPence), label: "Up to" },
   ])}
-${para(`Trips only count towards your mileage claim once they're marked as Business. You've got <strong style="color:#f0f2f5;">${trips}</strong> waiting, worth up to <strong style="color:#f5a623;">${gbp(data.potentialClaimPence)}</strong>.`)}
+${para(`Trips only count towards your mileage claim once they're marked as Business. You've got <strong style="color:#111827;">${trips}</strong> waiting, worth up to <strong style="color:#b45309;">${gbp(data.potentialClaimPence)}</strong>.`)}
 ${para("In the MileClear app, go to Trips, then To sort, and tap Business or Personal on each. After a few, MileClear learns your regular journeys and sorts them for you. You can also sort them on the website.")}
 ${ctaButton("Sort them on the website", `${DASHBOARD_URL}/trips`)}
 ${SIGN_OFF}`;
@@ -1985,7 +1855,7 @@ ${statGrid([
     ...(showClaim ? [{ value: gbp(data.claimPence!), label: "Mileage claim" }] : []),
   ])}
 ${data.toSort > 0
-    ? para(`<strong style="color:#f0f2f5;">${data.toSort}</strong> of them ${data.toSort === 1 ? "is" : "are"} still waiting to be sorted. In the app, go to Trips, then To sort, and tap Business or Personal. Business trips count towards your mileage claim, and after a few MileClear starts sorting your regular journeys for you.`)
+    ? para(`<strong style="color:#111827;">${data.toSort}</strong> of them ${data.toSort === 1 ? "is" : "are"} still waiting to be sorted. In the app, go to Trips, then To sort, and tap Business or Personal. Business trips count towards your mileage claim, and after a few MileClear starts sorting your regular journeys for you.`)
     : para("MileClear keeps recording in the background, so there's nothing to press before you drive.")}
 ${para(RECORDING_SETTINGS_LINE)}
 ${ctaButton("Open your dashboard", DASHBOARD_URL)}
@@ -2027,15 +1897,15 @@ export async function sendWinBackEmail(
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const token = signStopReasonToken(data.group, userId);
-  const reasons = `<p style="color:#c0c8d4;font-size:15px;line-height:1.7;margin:8px 0 6px;">${
+  const reasons = `<p style="color:#374151;font-size:15px;line-height:1.7;margin:8px 0 6px;">${
     data.group === "stopped" ? "Or tap the reason you stopped:" : "Or tap what got in the way:"
   }</p><p style="font-size:14px;line-height:2.1;margin:0 0 16px;">${STOP_REASONS[data.group]
     .map(
       (r) =>
-        `<a href="${API_BASE_URL}/why-stopped?t=${encodeURIComponent(token)}&amp;r=${r.code}" style="color:#f5a623;text-decoration:underline;">${escapeHtml(r.label)}</a>`
+        `<a href="${API_BASE_URL}/why-stopped?t=${encodeURIComponent(token)}&amp;r=${r.code}" style="color:#b45309;text-decoration:underline;">${escapeHtml(r.label)}</a>`
     )
     .join("<br/>")}</p>`;
-  const list = `<ul style="color:#c0c8d4;font-size:15px;line-height:1.7;margin:0 0 16px;padding-left:20px;">${data.changes
+  const list = `<ul style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 16px;padding-left:20px;">${data.changes
     .map((c) => `<li style="margin:0 0 6px;">${escapeHtml(c)}</li>`)
     .join("")}</ul>`;
   const since = escapeHtml(data.sinceLabel);
@@ -2043,7 +1913,7 @@ export async function sendWinBackEmail(
     data.group === "stopped"
       ? `
 ${para(greeting)}
-${para(`You haven't used MileClear since <strong style="color:#f0f2f5;">${since}</strong>, and a lot has changed since then:`)}
+${para(`You haven't used MileClear since <strong style="color:#111827;">${since}</strong>, and a lot has changed since then:`)}
 ${list}
 ${para(
         data.appDeleted
@@ -2051,16 +1921,16 @@ ${para(
           : "Open MileClear to pick them up."
       )}
 ${data.claimPence != null && data.claimPence > 0
-    ? para(`Your mileage claim so far this tax year is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>, and every drive from here adds to it.`)
+    ? para(`Your mileage claim so far this tax year is <strong style="color:#b45309;">${gbp(data.claimPence)}</strong>, and every drive from here adds to it.`)
     : ""}
 ${para("If something put you off, just reply and tell me what it was.", 8)}
 ${reasons}
 ${SIGN_OFF}`
       : `
 ${para(greeting)}
-${para(`You signed up to MileClear in <strong style="color:#f0f2f5;">${since}</strong>, but it hasn't recorded a drive for you yet. Since then we've made getting started easier:`)}
+${para(`You signed up to MileClear in <strong style="color:#111827;">${since}</strong>, but it hasn't recorded a drive for you yet. Since then we've made getting started easier:`)}
 ${list}
-${para('To record drives on its own, MileClear needs Location set to <strong style="color:#f0f2f5;">Always</strong> (iPhone) or <strong style="color:#f0f2f5;">Allow all the time</strong> (Android).')}
+${para('To record drives on its own, MileClear needs Location set to <strong style="color:#111827;">Always</strong> (iPhone) or <strong style="color:#111827;">Allow all the time</strong> (Android).')}
 ${para("If something stopped you, just reply and tell me what it was.", 8)}
 ${reasons}
 ${SIGN_OFF}`;
@@ -2104,11 +1974,11 @@ export async function sendGoneQuietEmail(
   ];
   const bodyHtml = `
 ${para(greeting)}
-${para(`MileClear hasn't recorded a drive since <strong style="color:#f0f2f5;">${escapeHtml(data.lastTripLabel)}</strong>. If you haven't been driving, that's fine, you can ignore this.`)}
+${para(`MileClear hasn't recorded a drive since <strong style="color:#111827;">${escapeHtml(data.lastTripLabel)}</strong>. If you haven't been driving, that's fine, you can ignore this.`)}
 ${para("If you have, recording may have stopped. Two quick checks:")}
 ${stepsCard(steps)}
 ${data.claimPence != null && data.claimPence > 0
-    ? para(`Your mileage claim so far this tax year is <strong style="color:#f5a623;">${gbp(data.claimPence)}</strong>, so it's worth catching the rest of the year's drives too.`)
+    ? para(`Your mileage claim so far this tax year is <strong style="color:#b45309;">${gbp(data.claimPence)}</strong>, so it's worth catching the rest of the year's drives too.`)
     : ""}
 ${para("If it still isn't recording, just reply and I'll take a look.", 8)}
 ${SIGN_OFF}`;
@@ -2141,7 +2011,7 @@ export async function sendPaymentFailedEmail(
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const bodyHtml = `
 ${para(greeting)}
-${para(`We tried to charge <strong style="color:#f0f2f5;">${gbp(data.amountPence)}</strong> for your MileClear Pro subscription, but the payment didn't go through - usually an expired or blocked card.`)}
+${para(`We tried to charge <strong style="color:#111827;">${gbp(data.amountPence)}</strong> for your MileClear Pro subscription, but the payment didn't go through - usually an expired or blocked card.`)}
 ${warningCard("Your Pro features are still active for now. We'll retry automatically, but updating your card makes sure nothing lapses.")}
 ${ctaButton("Update payment method", data.manageUrl)}
 ${para("Already sorted it? You can safely ignore this email.", 8)}
@@ -2215,10 +2085,10 @@ export async function sendCancellationEmail(
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const bodyHtml = `
 ${para(greeting)}
-${para(`Your MileClear Pro subscription is cancelled. You'll keep full access until <strong style="color:#f0f2f5;">${escapeHtml(data.accessUntilLabel)}</strong>, then your account moves to the free plan.`)}
+${para(`Your MileClear Pro subscription is cancelled. You'll keep full access until <strong style="color:#111827;">${escapeHtml(data.accessUntilLabel)}</strong>, then your account moves to the free plan.`)}
 ${para("Here's what goes quiet when it does:")}
 ${bulletList([
-    "Self Assessment <strong style=\"color:#f0f2f5;\">PDF export</strong>",
+    "Self Assessment <strong style=\"color:#111827;\">PDF export</strong>",
     "CSV earnings import &amp; Open Banking sync",
     "Business Insights &amp; Driving Analytics",
     "Unlimited vehicles &amp; saved locations",
@@ -2264,7 +2134,7 @@ ${para(greeting)}
 ${para("Your MileClear account was just signed in to on a new device:")}
 ${detailCard(rows)}
 ${para("If this was you, you're all set - no need to do anything.")}
-${warningCard('Don\'t recognise this? <strong style="color:#fca5a5;">Change your password right away</strong> to keep your account secure.')}
+${warningCard('Don\'t recognise this? <strong style="color:#b91c1c;">Change your password right away</strong> to keep your account secure.')}
 ${ctaButton("Secure my account", LOGIN_URL)}
 ${SIGN_OFF}`;
   const html = emailShell({
@@ -2294,9 +2164,9 @@ export async function sendPasswordChangedEmail(
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const bodyHtml = `
 ${para(greeting)}
-${para(`This confirms your MileClear password was changed on <strong style="color:#f0f2f5;">${escapeHtml(data.timeLabel)}</strong>.`)}
+${para(`This confirms your MileClear password was changed on <strong style="color:#111827;">${escapeHtml(data.timeLabel)}</strong>.`)}
 ${para("If that was you, there's nothing more to do.")}
-${warningCard('If you didn\'t change it, <strong style="color:#fca5a5;">reset your password now</strong> and email support@mileclear.com straight away.')}
+${warningCard('If you didn\'t change it, <strong style="color:#b91c1c;">reset your password now</strong> and email support@mileclear.com straight away.')}
 ${ctaButton("Reset password", LOGIN_URL)}
 ${SIGN_OFF}`;
   const html = emailShell({
@@ -2326,7 +2196,7 @@ export async function sendEmailChangedEmail(
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const bodyHtml = `
 ${para(greeting)}
-${para(`The email address on your MileClear account was changed to <strong style="color:#f0f2f5;">${escapeHtml(data.newEmail)}</strong> on ${escapeHtml(data.timeLabel)}.`)}
+${para(`The email address on your MileClear account was changed to <strong style="color:#111827;">${escapeHtml(data.newEmail)}</strong> on ${escapeHtml(data.timeLabel)}.`)}
 ${para("If you made this change, you're all set.")}
 ${warningCard("Didn't do this? Email support@mileclear.com immediately so we can secure your account.")}
 ${ctaButton("Contact support", SUPPORT_URL)}
@@ -2360,7 +2230,7 @@ export async function sendDataExportReadyEmail(
 ${para(greeting)}
 ${para("As requested, we've packaged up all of your MileClear data - trips, earnings, vehicles, fuel logs and account details - into a single file.")}
 ${ctaButton("Download my data", data.downloadUrl)}
-${para(`For your security, this link expires on <strong style="color:#f0f2f5;">${escapeHtml(data.expiresLabel)}</strong>. After that, just request a fresh export from your settings.`)}
+${para(`For your security, this link expires on <strong style="color:#111827;">${escapeHtml(data.expiresLabel)}</strong>. After that, just request a fresh export from your settings.`)}
 ${para("Didn't request this? Let us know at support@mileclear.com.", 8)}
 ${SIGN_OFF}`;
   const html = emailShell({
@@ -2426,15 +2296,21 @@ export async function sendReferralRewardEmail(
     : "Someone you invited";
   const bodyHtml = `
 ${para(greeting)}
-${para(`${friend} just took their first trip with MileClear - which means your referral counts. You've earned a <strong style="color:#f5a623;">free month of Pro</strong>, on the house.`)}
-${successCard(`Your Pro access is now active until <strong style="color:#34d399;">${escapeHtml(data.proUntilLabel)}</strong>.`)}
-${para("Want more free months? You can refer up to three friends - every one who starts tracking earns you another month of Pro.")}
+${para(`${friend} just took their first trip with MileClear, which means your referral counts. You've earned a <strong style="color:#b45309;">free month of Pro</strong>, on the house.`)}
+${pairCard(
+  { avatar: HERO_CARS[0], label: "You", value: "+1 month Pro" },
+  { avatar: HERO_CARS[1], label: data.friendName?.trim() ? escapeHtml(data.friendName.trim().split(/\s+/)[0]) : "Them", value: "+1 month Pro" }
+)}
+${successCard(`Your Pro access is now active until <strong style="color:#047857;">${escapeHtml(data.proUntilLabel)}</strong>.`)}
+${para("Want more free months? You can invite up to three drivers, and every one who records their first drive earns you another month of Pro.")}
 ${ctaButton("Invite more friends", "https://mileclear.com/dashboard/settings")}
 ${SIGN_OFF}`;
   const html = emailShell({
     preheader: `You've earned a free month of Pro - active until ${data.proUntilLabel}.`,
     eyebrow: "Reward unlocked",
     title: "You've earned a free month of Pro",
+    subtitle: "Thanks for telling another driver about MileClear.",
+    heroAvatars: HERO_CARS,
     bodyHtml,
     footerHtml: unsubscribeFooterHtml(userId),
   });
@@ -2772,51 +2648,31 @@ export async function sendCheckinEmail(
 
   const hasTrips = stats && stats.totalTrips > 0;
   const heroLine = hasTrips
-    ? `You've already logged <strong style="color: #f5a623;">${stats!.totalTrips} trip${stats!.totalTrips !== 1 ? "s" : ""}</strong> and <strong style="color: #f5a623;">${stats!.totalMiles.toFixed(1)} miles</strong>. Nice start!`
+    ? `You've already logged <strong style="color:#b45309;">${stats!.totalTrips} trip${stats!.totalTrips !== 1 ? "s" : ""}</strong> and <strong style="color:#b45309;">${stats!.totalMiles.toFixed(1)} miles</strong>. Nice start!`
     : "Just checking in to see how things are going with MileClear.";
 
   const subject = hasTrips
     ? "Quick check-in from MileClear"
     : "How's it going with MileClear?";
 
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-<tr><td align="center" style="padding: 32px 16px;">
-<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-  <tr><td align="center" style="padding: 24px 0 32px;">
-    <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-  </td></tr>
-  <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-      <tr><td style="padding: 36px 32px 32px;">
-        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">Quick check-in</h1>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${heroLine}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I wanted to check in and make sure everything's working well for you. If anything's confusing, broken, or could be better, I genuinely want to hear about it.</p>
+  const html = emailShell({
+    preheader: `Quick check-in`,
+    title: `Quick check-in`,
+    bodyHtml: `
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${heroLine}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I wanted to check in and make sure everything's working well for you. If anything's confusing, broken, or could be better, I genuinely want to hear about it.</p>
 
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
           <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-            <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color: #f5a623;">Got a question?</strong> Just hit reply. I read every email and I'll get back to you personally. No support tickets, no bots.</p>
+            <p style="color:#374151; font-size: 14px; line-height: 1.65; margin: 0;"><strong style="color:#b45309;">Got a question?</strong> Just hit reply. I read every email and I'll get back to you personally. No support tickets, no bots.</p>
           </td></tr>
         </table>
 
-        ${!hasTrips ? `<p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">If you haven't had a chance to try tracking yet, just open the app and drive. MileClear detects your trips automatically in the background - no buttons to press.</p>` : ""}
-
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
-      </td></tr>
-    </table>
-  </td></tr>
-  <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">${unsubscribeFooterHtml(userId)}</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+        ${!hasTrips ? `<p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">If you haven't had a chance to try tracking yet, just open the app and drive. MileClear detects your trips automatically in the background - no buttons to press.</p>` : ""}
+${SIGN_OFF}`,
+    footerHtml: `${unsubscribeFooterHtml(userId)}`,
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Check-in email for ${email}`);
@@ -2851,12 +2707,12 @@ export async function sendActivationNudgeEmail(
   const isAndroid = opts.platform === "android";
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const p = (text: string) =>
-    `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
+    `        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
   const steps = (text: string) =>
-    `        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
+    `        <p style="color:#111827; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
   const signoff = `${p("Reply to this email if anything is in the way. I read every message.")}
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color:#111827; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_BLOCK}`;
 
   let subject: string;
   let title: string;
@@ -2871,7 +2727,7 @@ export async function sendActivationNudgeEmail(
 ${p("You signed up on the website, and the website only shows what the app on your phone has recorded. Without the app there is nothing to show yet.")}
 ${p("Install it, sign in with the same email, and your next drive records by itself.")}
 ${ctaButton("Get the app", APP_STORE_URL)}
-${p(`On Android? MileClear is on <a href="${PLAY_STORE_URL}" style="color: #f5a623; text-decoration: underline;">Google Play</a>. It is brand new there, and we're still working on making it as reliable as the iPhone app.`)}
+${p(`On Android? MileClear is on <a href="${PLAY_STORE_URL}" style="color:#b45309; text-decoration: underline;">Google Play</a>. It is brand new there, and we're still working on making it as reliable as the iPhone app.`)}
 ${signoff}`;
   } else if (opts.reason === "no_permission") {
     subject = "One setting and MileClear starts recording";
@@ -2932,9 +2788,9 @@ export async function sendBgLocationNudgeEmail(
   if (!(await isMarketingAllowed(userId))) return;
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const p = (text: string) =>
-    `        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
+    `        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${text}</p>`;
   const steps = (text: string) =>
-    `        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
+    `        <p style="color:#111827; font-size: 15px; font-weight: 600; line-height: 1.7; margin: 0 0 20px; padding: 14px 18px; background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.18); border-radius: 12px;">${text}</p>`;
   const path = bgLocationSettingsPath(opts.platform)
     .map((line) => escapeHtml(line))
     .join("<br />");
@@ -2947,8 +2803,8 @@ ${steps(path)}
 ${p("After that, keep your phone with you in the car and each drive records by itself. You don't need to open the app.")}
 ${opts.platform === "android" ? p(ANDROID_NEW_NOTE) : ""}
 ${p("Reply to this email if anything is in the way. I read every message.")}
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
+        <p style="color:#111827; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_BLOCK}`;
 
   const html = emailShell({
     preheader: "One setting on your phone lets MileClear record drives by itself.",
@@ -2976,35 +2832,16 @@ export async function sendFeedbackAcknowledgement(
   const titleRef = feedbackTitle ? ` - "<em>${escapeHtml(feedbackTitle)}</em>"` : "";
 
   const subject = "Got your feedback - thanks!";
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-<tr><td align="center" style="padding: 32px 16px;">
-<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-  <tr><td align="center" style="padding: 24px 0 32px;">
-    <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-  </td></tr>
-  <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="height: 3px; background: linear-gradient(90deg, #10b981, #059669); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-      <tr><td style="padding: 36px 32px 32px;">
-        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">Thanks for the feedback!</h1>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I've received your submission${titleRef} and I'll take a look. Your input directly shapes what gets built next in MileClear.</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">If you want to add more detail or have follow-up thoughts, just reply to this email.</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
-      </td></tr>
-    </table>
-  </td></tr>
-  <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">MileClear Feedback Acknowledgement</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+  const html = emailShell({
+    preheader: `Thanks for the feedback!`,
+    title: `Thanks for the feedback!`,
+    bodyHtml: `
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I've received your submission${titleRef} and I'll take a look. Your input directly shapes what gets built next in MileClear.</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">If you want to add more detail or have follow-up thoughts, just reply to this email.</p>
+${SIGN_OFF}`,
+    footerHtml: `You're getting this because you sent feedback in the MileClear app.`,
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Feedback acknowledgement for ${email}`);
@@ -3023,38 +2860,19 @@ export async function sendFeedbackReplyNotification(
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
 
   const subject = `Reply to your feedback - "${feedbackTitle.slice(0, 60)}"`;
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-<tr><td align="center" style="padding: 32px 16px;">
-<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-  <tr><td align="center" style="padding: 24px 0 32px;">
-    <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-  </td></tr>
-  <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #ca8a04); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-      <tr><td style="padding: 36px 32px 32px;">
-        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">You got a reply!</h1>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I've replied to your feedback: "<em>${escapeHtml(feedbackTitle)}</em>"</p>
+  const html = emailShell({
+    preheader: `You got a reply!`,
+    title: `You got a reply!`,
+    bodyHtml: `
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">I've replied to your feedback: "<em>${escapeHtml(feedbackTitle)}</em>"</p>
         <div style="background-color: rgba(245,166,35,0.08); border-left: 3px solid #f5a623; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 0 0 20px;">
-          <p style="color: #f0f2f5; font-size: 15px; line-height: 1.7; margin: 0;">${escapeHtml(replyBody)}</p>
+          <p style="color:#111827; font-size: 15px; line-height: 1.7; margin: 0;">${escapeHtml(replyBody)}</p>
         </div>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Open the app to see the full thread, or just reply to this email if you have more thoughts.</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
-      </td></tr>
-    </table>
-  </td></tr>
-  <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">MileClear Feedback Reply</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Open the app to see the full thread, or just reply to this email if you have more thoughts.</p>
+${SIGN_OFF}`,
+    footerHtml: `You're getting this because you sent feedback in the MileClear app.`,
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Feedback reply notification for ${email}`);
@@ -3078,39 +2896,20 @@ export async function sendFeedbackShippedNotification(
   const subject = `Your idea is in MileClear: "${feedbackTitle.slice(0, 60)}"`;
   const note = shippedNote?.trim()
     ? `<div style="background-color: rgba(245,166,35,0.08); border-left: 3px solid #f5a623; border-radius: 0 8px 8px 0; padding: 16px 20px; margin: 0 0 20px;">
-          <p style="color: #f0f2f5; font-size: 15px; line-height: 1.7; margin: 0;">${escapeHtml(shippedNote.trim())}</p>
+          <p style="color:#111827; font-size: 15px; line-height: 1.7; margin: 0;">${escapeHtml(shippedNote.trim())}</p>
         </div>`
     : "";
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-<tr><td align="center" style="padding: 32px 16px;">
-<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-  <tr><td align="center" style="padding: 24px 0 32px;">
-    <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-  </td></tr>
-  <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-      <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #ca8a04); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-      <tr><td style="padding: 36px 32px 32px;">
-        <h1 style="margin: 0 0 24px; font-size: 22px; font-weight: 700; color: #f0f2f5;">You asked, we built it</h1>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Your idea "<em>${escapeHtml(feedbackTitle)}</em>" is now in MileClear.</p>
+  const html = emailShell({
+    preheader: `You asked, we built it`,
+    title: `You asked, we built it`,
+    bodyHtml: `
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">${greeting}</p>
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Your idea "<em>${escapeHtml(feedbackTitle)}</em>" is now in MileClear.</p>
         ${note}
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Update the app to get it, and thanks for taking the time to suggest it. If it isn't quite what you had in mind, just reply to this email.</p>
-        <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0;">Cheers,</p>
-        <p style="color: #f0f2f5; font-size: 15px; font-weight: 600; margin: 4px 0 0;">Gair</p>${SIGNATURE_DARK}
-      </td></tr>
-    </table>
-  </td></tr>
-  <tr><td align="center" style="padding: 28px 0 8px;">
-    <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">MileClear Feedback</p>
-  </td></tr>
-</table>
-</td></tr>
-</table>
-</body></html>`;
+        <p style="color:#374151; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">Update the app to get it, and thanks for taking the time to suggest it. If it isn't quite what you had in mind, just reply to this email.</p>
+${SIGN_OFF}`,
+    footerHtml: `You're getting this because you asked for this in the MileClear app.`,
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Feedback shipped notification for ${email}`);
@@ -3163,8 +2962,8 @@ export function renderWaitlistConfirmation(opts: { android?: boolean } = {}): {
     title: opts.android ? "We will tell you the day it lands" : "You are on the list",
     bodyHtml: body,
     footerHtml: opts.android
-      ? `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#5a6678;text-decoration:underline;">Support</a> &middot; You asked us to tell you when Android lands. One email, then nothing.`
-      : `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#5a6678;text-decoration:underline;">Support</a> &middot; You joined the MileClear waitlist.`,
+      ? `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#6b7280;text-decoration:underline;">Support</a> &middot; You asked us to tell you when Android lands. One email, then nothing.`
+      : `&copy; MileClear &middot; <a href="${SUPPORT_URL}" style="color:#6b7280;text-decoration:underline;">Support</a> &middot; You joined the MileClear waitlist.`,
   });
 
   return { subject, html };
@@ -3211,7 +3010,7 @@ export function renderDrivingTimesNotice(
     : "";
   const bodyHtml = `
 ${para(greeting)}
-${para(`A quick note about your account. Your manager at <strong style="color:#f0f2f5;">${safeOrg}</strong> can now see your driving times in Milesheet, as well as your business mileage. Times are shown from the day you joined the team${joined}, including drives you have already recorded.`)}
+${para(`A quick note about your account. Your manager at <strong style="color:#111827;">${safeOrg}</strong> can now see your driving times in Milesheet, as well as your business mileage. Times are shown from the day you joined the team${joined}, including drives you have already recorded.`)}
 ${para("Here's exactly what they see:")}
 ${bulletList([
     "When your first business drive of each day started, and when your last business drive that day finished.",
@@ -3289,6 +3088,7 @@ export async function sendTeamInviteEmail(
           : `<p style="color: #333; font-size: 14px; line-height: 1.6;">Milesheet is the company side of <strong>MileClear</strong>. Install the MileClear app on your phone and sign in with this email address, and your journeys start recording.</p>`
       }
       <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have an account yet you can create one on the same page.</p>
+      <p style="color: #999; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -3312,65 +3112,18 @@ export async function sendAccountantInviteEmail(
   // and then shows the records, so this one link is the whole journey.
   const dashboardUrl = `${WEB_BASE_URL}/accountant/${token}`;
   const subject = `${inviterName} shared their MileClear data with you`;
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-    <body style="margin: 0; padding: 0; background-color: #030712; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #030712;">
-        <tr><td align="center" style="padding: 32px 16px;">
-          <table role="presentation" width="520" cellpadding="0" cellspacing="0" style="max-width: 520px; width: 100%;">
-
-            <!-- Header with logo -->
-            <tr><td align="center" style="padding: 24px 0 32px;">
-              <img src="https://mileclear.com/branding/logo-120x120.png" alt="MileClear" width="56" height="56" style="display: block; border: 0; border-radius: 12px;" />
-            </td></tr>
-
-            <!-- Main card -->
-            <tr><td style="background-color: #0a1120; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06);">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-
-                <!-- Amber top accent bar -->
-                <tr><td style="height: 3px; background: linear-gradient(90deg, #f5a623, #e8950f); border-radius: 16px 16px 0 0; font-size: 0; line-height: 0;">&nbsp;</td></tr>
-
-                <!-- Content -->
-                <tr><td style="padding: 36px 32px 32px;">
-
-                  <h1 style="margin: 0 0 20px; font-size: 22px; font-weight: 700; color: #f0f2f5;"><span style="color: #f5a623;">${safeInviterName}</span> shared their mileage data with you</h1>
-
-                  <p style="color: #c0c8d4; font-size: 15px; line-height: 1.7; margin: 0 0 20px;">${safeInviterName} has invited you to see their business mileage, earnings and expenses on MileClear. Personal trips are not shared.</p>
-
-                  <!-- CTA button -->
-                  <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 0 28px;">
-                    <tr><td style="border-radius: 8px; background: linear-gradient(135deg, #f5a623, #e8950f);">
-                      <a href="${dashboardUrl}" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 700; color: #030712; text-decoration: none; border-radius: 8px;">Open their records</a>
-                    </td></tr>
-                  </table>
-
-                  <!-- Info callout -->
-                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">
-                    <tr><td style="background-color: rgba(245,166,35,0.08); border: 1px solid rgba(245,166,35,0.15); border-radius: 10px; padding: 18px 20px;">
-                      <p style="color: #d4b87a; font-size: 14px; line-height: 1.65; margin: 0;">Read only, and no account needed. Pick a tax year to see their business trips, mileage claim and expenses, and download them as CSV or PDF. Anyone with this link can see the same, so please do not forward it.</p>
-                    </td></tr>
-                  </table>
-
-                  <p style="color: #6b7280; font-size: 13px; line-height: 1.6; margin: 0;">Open the link within 7 days. Once opened, it keeps working for 12 months unless ${safeInviterName} removes your access. If you were not expecting this, you can ignore this email.</p>
-
-                </td></tr>
-              </table>
-            </td></tr>
-
-            <!-- Footer -->
-            <tr><td align="center" style="padding: 28px 0 8px;">
-              <p style="color: #4a5568; font-size: 12px; line-height: 1.5; margin: 0;">Sent via <a href="https://mileclear.com" style="color: #f5a623; text-decoration: none;">MileClear</a> - mileage tracking for UK drivers.</p>
-            </td></tr>
-
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>
-  `;
+  const html = emailShell({
+    preheader: `${safeInviterName} has shared their business mileage, earnings and expenses with you.`,
+    title: `${safeInviterName} shared their mileage records with you`,
+    subtitle: "Read only, and no account needed.",
+    bodyHtml: [
+      para(`${safeInviterName} has invited you to see their business mileage, earnings and expenses on MileClear. Personal trips are not shared.`),
+      ctaButton("Open their records", dashboardUrl),
+      replyCard("Pick a tax year to see their business trips, mileage claim and expenses, and download them as CSV or PDF. Anyone with this link can see the same, so please don't forward it."),
+      `        <p style="color:#6b7280; font-size: 13px; line-height: 1.6; margin: 0;">Open the link within 7 days. Once opened, it keeps working for 12 months unless ${safeInviterName} removes your access. If you weren't expecting this, you can ignore this email.</p>`,
+    ].join("\n"),
+    footerHtml: `Sent via <a href="https://mileclear.com" style="color:#6b7280; text-decoration: underline;">MileClear</a>, mileage tracking for UK drivers.`,
+  });
 
   if (!transporter) {
     console.log(`[EMAIL] Accountant invite for ${email} from ${inviterName} (dev only)`);
@@ -3428,14 +3181,14 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
     bodyHtml = [
       para(`Hi,`),
       para(
-        `Please find attached invoice <strong style="color:#f0f2f5;">${ref}</strong> from <strong style="color:#f0f2f5;">${escapeHtml(senderName)}</strong> for <strong style="color:#f0f2f5;">${amount}</strong>${invoice.reference ? ` (your reference: ${escapeHtml(invoice.reference)})` : ""}.`
+        `Please find attached invoice <strong style="color:#111827;">${ref}</strong> from <strong style="color:#111827;">${escapeHtml(senderName)}</strong> for <strong style="color:#111827;">${amount}</strong>${invoice.reference ? ` (your reference: ${escapeHtml(invoice.reference)})` : ""}.`
       ),
       statGrid([
         { value: amount, label: "Amount due" },
         { value: dueText, label: "Payment due" },
       ]),
       para(
-        `Payment details are on the attached PDF - please use the payment reference <strong style="color:#f0f2f5;">${ref}</strong> so your payment is easy to identify.`
+        `Payment details are on the attached PDF - please use the payment reference <strong style="color:#111827;">${ref}</strong> so your payment is easy to identify.`
       ),
       para(`Any questions, just reply to this email and it will reach ${escapeHtml(senderName)} directly.`),
     ].join("\n");
@@ -3464,7 +3217,7 @@ export async function sendInvoiceEmail(args: InvoiceEmailArgs): Promise<{ subjec
     eyebrow: kind === "send" ? "Invoice" : "Payment reminder",
     title: `Invoice ${ref}`,
     bodyHtml,
-    footerHtml: `Sent via MileClear on behalf of ${escapeHtml(senderName)} &middot; <a href="https://mileclear.com" style="color:#5a6678;text-decoration:underline;">mileclear.com</a>`,
+    footerHtml: `Sent via MileClear on behalf of ${escapeHtml(senderName)} &middot; <a href="https://mileclear.com" style="color:#6b7280;text-decoration:underline;">mileclear.com</a>`,
   });
 
   await deliver({
@@ -3524,6 +3277,7 @@ export async function sendTeamMonthReadyEmail(
       <p style="color: #888; font-size: 12px;">You are getting this because you are an admin for ${safeOrg} on MileClear.${
         approveUrl ? ` The approve link works for 30 days and only for ${safeMonth}, so please do not forward it.` : ""
       }</p>
+      <p style="color: #999; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -3586,6 +3340,7 @@ export async function sendTeamApprovalRequestEmail(
       <p style="color: #333; font-size: 14px; line-height: 1.6;">If you'd like the full portal (invite the rest of the team, download one file for payroll), you can create a free account from the same page.</p>
       <p style="color: #888; font-size: 12px;">The link works for 30 days and only for ${safeOrg}'s ${safeMonth} mileage, so please do not forward it.</p>
       <p style="color: #888; font-size: 12px;">Not your team, or don't want these? <a href="${stopUrl}" style="color: #888;">Stop these emails</a>. We'll also stop on our own if two months go by without the link being opened.</p>
+      <p style="color: #999; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -3639,6 +3394,7 @@ export async function sendManagerNominationEmail(
         <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Accept and set up ${safeCompany}</a>
       </p>
       <p style="color: #888; font-size: 12px;">The link is valid for 7 days. If you don't have a MileClear account yet, you can create one on the same page. If you weren't expecting this, you can ignore it and nothing will be set up.</p>
+      <p style="color: #999; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -3672,6 +3428,7 @@ export async function sendMilesheetWaitlistEmail(
       <p style="color: #333; font-size: 15px; line-height: 1.6;">Thanks for asking about Milesheet for <strong>${safeCompany}</strong>. Milesheet is in a small pilot at the moment, so we're not setting up new companies just yet. You're on the waiting list, and we'll email you at this address when there's a place.</p>
       <p style="color: #333; font-size: 15px; line-height: 1.6;">There's nothing you need to do in the meantime. If you have a question, just reply to this email.</p>
       <p style="color: #333; font-size: 15px; line-height: 1.6;">Thanks,<br />MileClear</p>
+      <p style="color: #999; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -3715,6 +3472,7 @@ export async function sendMilesheetTrialEndingEmail(
         <a href="${url}" style="background: #6366f1; color: #ffffff; font-weight: 700; padding: 12px 28px; border-radius: 9999px; text-decoration: none; display: inline-block;">Open the portal</a>
       </p>
       <p style="color: #888; font-size: 12px;">Questions about billing? Reply to this email.</p>
+      <p style="color: #999; font-size: 11px; line-height: 1.5; margin-top: 24px;">${COMPANY_LINE}</p>
     </div>
   `;
 
@@ -3755,7 +3513,7 @@ async function sendPracticeMail(opts: {
 }
 
 function smallPrint(text: string): string {
-  return `        <p style="color: #6b7689; font-size: 12px; line-height: 1.6; margin: 18px 0 0;">${text}</p>`;
+  return `        <p style="color:#6b7280; font-size: 12px; line-height: 1.6; margin: 18px 0 0;">${text}</p>`;
 }
 
 /** A practice asks a driver to share (practice-started link). */
