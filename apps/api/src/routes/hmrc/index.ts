@@ -23,6 +23,7 @@ import {
   expiryFromExpiresIn,
   HMRC_SCOPES,
   fetchObligations,
+  fetchBalance,
   buildClientContext,
   buildServerContext,
   HmrcNotConnectedError,
@@ -333,6 +334,30 @@ export async function hmrcRoutes(app: FastifyInstance) {
       });
 
       return reply.send({ data: { obligations } });
+    } catch (err) {
+      return handleHmrcError(reply, err);
+    }
+  });
+
+  // GET /hmrc/balance: what the driver owes HMRC (overdue, due now, coming
+  // up), from the Self Assessment Accounts API. Off until HMRC approves that
+  // API on the production app (HMRC_BALANCE=on): before then every call
+  // would be refused and alert #founder. Off reads as { available: false }
+  // and the app hides the card.
+  app.get("/balance", { preHandler: authMiddleware }, async (request, reply) => {
+    if (process.env.HMRC_BALANCE !== "on") {
+      return reply.send({ data: { available: false, balance: null } });
+    }
+    const ctx = await loadConnectionWithNino(request.userId!);
+    if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
+    try {
+      const balance = await fetchBalance({
+        userId: request.userId!,
+        nino: ctx.nino,
+        client: buildClientContext(request),
+        server: await buildServerContext(),
+      });
+      return reply.send({ data: { available: true, balance } });
     } catch (err) {
       return handleHmrcError(reply, err);
     }

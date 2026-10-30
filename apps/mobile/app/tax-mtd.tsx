@@ -20,6 +20,7 @@ import { BetaBanner } from "../components/BetaBanner";
 import { MtdSignpost } from "../components/MtdSignpost";
 import { MtdScopeCheck } from "../components/MtdScopeCheck";
 import { MtdSignUpCard } from "../components/MtdSignUpCard";
+import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
 import { useUser } from "../lib/user/context";
 import {
@@ -115,6 +116,8 @@ export default function TaxMtdScreen() {
 function TaxMtdContent() {
   const [state, setState] = useState<ScreenState>(INITIAL_STATE);
   const [refreshing, setRefreshing] = useState(false);
+  // Bumped on pull-to-refresh so the "What you owe HMRC" card asks again.
+  const [balanceKey, setBalanceKey] = useState(0);
   // Which HMRC service the server uses. The status this screen loads says;
   // the shared hook covers the moments it doesn't (an expired connection).
   const fallbackEnv = useHmrcEnvironment();
@@ -252,6 +255,7 @@ function TaxMtdContent() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    setBalanceKey((k) => k + 1);
     await load();
     setRefreshing(false);
   }, [load]);
@@ -371,6 +375,9 @@ function TaxMtdContent() {
           test={test}
           onConnect={onConnect}
         />
+      )}
+      {state.step === "ready" && !state.notSignedUp && !isConnectionExpired(state.status?.expiresAt) && (
+        <MtdBalanceCard refreshKey={balanceKey} />
       )}
 
       {/* Scope signposts (in-year, self-employment-only product). On HMRC's

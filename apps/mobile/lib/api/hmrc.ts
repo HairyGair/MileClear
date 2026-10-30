@@ -197,6 +197,27 @@ export function fetchHmrcObligations(args?: {
   );
 }
 
+// ── What you owe HMRC (Self Assessment Accounts) ─────────────────────
+
+/** Pence. Only covers tax years since the driver joined Making Tax Digital. */
+export interface HmrcBalance {
+  overduePence: number;
+  overdueSince: string | null;
+  dueNowPence: number;
+  dueNowDate: string | null;
+  comingUpPence: number;
+  comingUpDate: string | null;
+  totalPence: number;
+  creditPence: number;
+  /** HMRC holds no charges yet. */
+  nothingYet: boolean;
+}
+
+/** `available: false` while the server has this switched off. */
+export function fetchHmrcBalance() {
+  return apiRequest<{ data: { available: boolean; balance: HmrcBalance | null } }>("/hmrc/balance");
+}
+
 // ── Period summaries ─────────────────────────────────────────────────
 
 export function fetchHmrcPeriods(businessId: string, taxYear: string) {

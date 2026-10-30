@@ -63,6 +63,13 @@ export {
 } from "./obligations.js";
 
 export {
+  fetchBalance,
+  summariseBalance,
+  type HmrcBalance,
+  type RawBalanceDetails,
+} from "./accounts.js";
+
+export {
   listBusinesses,
   retrieveBusiness,
   pickPrimarySelfEmployment,
