@@ -1,93 +1,81 @@
 "use client";
 
-// The hero is the app's own Work dashboard, playing one drive end to end: it
-// notices you set off, records the route while the miles climb, saves the trip
-// at the kerb, and puts the miles on the year's claim once it is classified.
-// The layout follows the real dashboard (mode toggle, the week's nudge, the
-// claim card, Start Trip and Start Shift, the weekly set-aside, today's row),
-// so what a visitor sees here is what they get after installing.
+// The hero is the app's Home screen (Work mode, the Oct 2026 "calm list"
+// layout) playing one real drive: the status line notices you set off, the
+// trip card draws the route with the car on it while the miles count up, the
+// trip saves itself at the kerb, and the one tap the app asks of a driver,
+// Business or Personal, is the visitor's to make. Business sends the trip's
+// claim up into the year's figure; Personal claims nothing.
 //
-// The one tap the app asks of a driver is the one thing a visitor can do: the
-// Business and Personal buttons are live, and Personal claims nothing.
+// Nothing jumps: the screen is one fixed-size phone, sized in em from its
+// own width (container query units), and every change is a cross-fade or a
+// slide inside a slot that keeps its height. The claim never resets between
+// loops either; each drive adds to it, the way the real figure grows.
 //
-// Reduced motion holds the last frame with nothing moving, and without
-// JavaScript the first frame renders on the server. Same markup and the same
-// height in every case, so the hero never jumps.
+// Motion is opt in twice over: it only plays while the phone is on screen in
+// a visible tab, and reduced motion holds the finished frame with nothing
+// moving. Without JavaScript the first frame renders on the server.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
 import { HERO_ROUTE } from "@/data/heroRoute";
+import "./hero-demo.css";
 
-type Step =
-  | "waiting"
-  | "detected"
-  | "recording"
-  | "arrived"
-  | "classified"
-  | "learned"
-  | "filed";
+type Step = "idle" | "detected" | "recording" | "arrived" | "sorted" | "rest";
 
 /** The real drive in data/heroRoute.ts, priced at the 2026-27 AMAP rate. */
 const TRIP_MILES = HERO_ROUTE.miles;
 const TRIP_SECONDS = HERO_ROUTE.seconds;
 const AMAP_RATE = 0.55;
-const CLAIM_BEFORE = 39.72;
-const MILES_TODAY = 11.9;
-const TRIPS_TODAY = 19;
+const CLAIM_START = 39.72;
+const TRIP_CLAIM = Math.round(TRIP_MILES * AMAP_RATE * 100) / 100;
 
-/** What a given number of business miles adds to the claim, in pounds. */
-const claimFor = (miles: number) => Math.round(miles * AMAP_RATE * 100) / 100;
-
+/** How long each step lasts before the next, in ms. Arrived waits for a tap. */
 const BEATS: Record<Step, number> = {
-  waiting: 2400,
-  detected: 2200,
-  recording: 6000,
-  arrived: 3600,
-  classified: 3400,
-  learned: 3000,
-  filed: 3800,
+  idle: 2600,
+  detected: 1300,
+  recording: 6400,
+  arrived: 5200,
+  sorted: 3600,
+  rest: 2200,
 };
-
-const ORDER: Step[] = [
-  "waiting",
-  "detected",
-  "recording",
-  "arrived",
-  "classified",
-  "learned",
-  "filed",
-];
+const ORDER: Step[] = ["idle", "detected", "recording", "arrived", "sorted", "rest"];
 
 const clock = (totalSeconds: number) => {
   const mins = Math.floor(totalSeconds / 60);
   const secs = Math.floor(totalSeconds % 60);
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 };
+const money = (n: number) => `£${n.toFixed(2)}`;
+const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 export default function HeroDemo() {
-  const [step, setStep] = useState<Step>("waiting");
-  const [miles, setMiles] = useState(0);
-  const [seconds, setSeconds] = useState(0);
-  const [claim, setClaim] = useState(CLAIM_BEFORE);
+  const [step, setStep] = useState<Step>("idle");
+  const [progress, setProgress] = useState(0);
+  const [claim, setClaim] = useState(CLAIM_START);
   const [choice, setChoice] = useState<"business" | "personal" | null>(null);
-  /** Miles on the clock when the trip stopped. Whole route unless a visitor stops it early. */
-  const [banked, setBanked] = useState<number>(TRIP_MILES);
-  const [shiftFrom, setShiftFrom] = useState<number | null>(null);
-  const [shiftSeconds, setShiftSeconds] = useState(0);
-  const [shiftTrips, setShiftTrips] = useState(0);
+  const [trips, setTrips] = useState(19);
+  /** The trip card's resting state: a morning trip, then the drive just played. */
+  const [lastTrip, setLastTrip] = useState<{ when: string; miles: number; route: string; as: "business" | "personal"; real: boolean }>({
+    when: "Today 08:12",
+    miles: 4.2,
+    route: "Home to Gosforth",
+    as: "business",
+    real: false,
+  });
   const [playing, setPlaying] = useState(false);
   const [held, setHeld] = useState(false);
-  const frame = useRef<number | undefined>(undefined);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const root = useRef<HTMLDivElement>(null);
+  const tilt = useRef<HTMLDivElement>(null);
+  const routeRef = useRef<SVGPathElement>(null);
+  const carRef = useRef<SVGGElement>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const claimFrom = useRef(CLAIM_START);
 
   const recording = step === "recording";
-  const settled = step === "classified" || step === "learned" || step === "filed";
-  const saved = step === "arrived" || settled;
-  const counted = settled && choice === "business";
-  const added = claimFor(banked);
-  const filed = step === "filed";
-  const milesToday = counted ? MILES_TODAY + banked : MILES_TODAY;
-  const tripCount = saved ? TRIPS_TODAY + 1 : TRIPS_TODAY;
+  const saved = step === "arrived" || step === "sorted";
+  const miles = TRIP_MILES * progress;
+  const seconds = TRIP_SECONDS * progress;
 
   useEffect(() => {
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -97,8 +85,6 @@ export default function HeroDemo() {
     return () => motion.removeEventListener("change", apply);
   }, []);
 
-  // Motion is opt in twice over: the viewer has not asked for reduced motion,
-  // and the panel is on screen in a visible tab.
   useEffect(() => {
     if (held || !root.current) return;
     const el = root.current;
@@ -107,7 +93,13 @@ export default function HeroDemo() {
       { threshold: 0.3 }
     );
     io.observe(el);
-    const onVisibility = () => setPlaying(document.visibilityState === "visible");
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") setPlaying(false);
+      else {
+        const r = el.getBoundingClientRect();
+        setPlaying(r.bottom > 0 && r.top < window.innerHeight);
+      }
+    };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       io.disconnect();
@@ -115,331 +107,377 @@ export default function HeroDemo() {
     };
   }, [held]);
 
-  const advance = useCallback((next: Step) => {
+  const go = useCallback((next: Step) => {
     setStep(next);
-    if (next === "waiting") {
-      setMiles(0);
-      setSeconds(0);
-      setBanked(TRIP_MILES);
-      setClaim(CLAIM_BEFORE);
+    if (next === "idle") {
+      setProgress(0);
       setChoice(null);
     }
-    if (next === "arrived") setBanked(TRIP_MILES);
   }, []);
 
+  // The beat clock. Arrived falls through to Business if nobody taps.
   useEffect(() => {
     if (!playing || held) return;
-    const idx = ORDER.indexOf(step);
-    timer.current = setTimeout(() => advance(ORDER[(idx + 1) % ORDER.length]), BEATS[step]);
+    const next = ORDER[(ORDER.indexOf(step) + 1) % ORDER.length];
+    timer.current = setTimeout(() => {
+      if (step === "arrived") {
+        setChoice((c) => c ?? "business");
+      }
+      go(next);
+    }, BEATS[step]);
     return () => clearTimeout(timer.current);
-  }, [step, playing, held, advance]);
+  }, [step, playing, held, go]);
 
+  // The drive: one eased progress value moves the line, the car and the counters.
   useEffect(() => {
     if (step !== "recording" || held) return;
     const started = performance.now();
+    let frame = 0;
     const run = (now: number) => {
-      const progress = Math.min(1, (now - started) / BEATS.recording);
-      setMiles(TRIP_MILES * progress);
-      setSeconds(TRIP_SECONDS * progress);
-      if (progress < 1) frame.current = requestAnimationFrame(run);
+      const t = Math.min(1, (now - started) / BEATS.recording);
+      setProgress(easeInOut(t));
+      if (t < 1) frame = requestAnimationFrame(run);
     };
-    frame.current = requestAnimationFrame(run);
-    return () => {
-      if (frame.current) cancelAnimationFrame(frame.current);
-    };
+    frame = requestAnimationFrame(run);
+    return () => cancelAnimationFrame(frame);
   }, [step, held]);
 
-  // The claim only moves for business miles. That is what classifying decides.
+  // Keep the car on the line. Reads the drawn path, so it can never drift off it.
   useEffect(() => {
-    if (!settled || choice !== "business" || held) {
-      // Not settled yet, or the viewer said personal: either way the claim
-      // sits where it was. Personal miles are recorded and claim nothing,
-      // which is the whole point of being asked.
-      setClaim(CLAIM_BEFORE);
-      return;
-    }
+    const path = routeRef.current;
+    const car = carRef.current;
+    if (!path || !car) return;
+    const total = path.getTotalLength();
+    const p = path.getPointAtLength(total * progress);
+    car.setAttribute("transform", `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`);
+  }, [progress]);
+
+  // The trip is saved: count it, and for Business add its claim to the year.
+  useEffect(() => {
+    if (step !== "sorted") return;
+    setTrips((n) => n + 1);
+    setLastTrip({
+      when: "Just now",
+      miles: TRIP_MILES,
+      route: "Newcastle City Centre to Quayside",
+      as: choice ?? "business",
+      real: true,
+    });
+    if (choice !== "business" || held) return;
+    const from = claimFrom.current;
+    const to = Math.round((from + TRIP_CLAIM) * 100) / 100;
+    claimFrom.current = to;
     const started = performance.now();
+    let frame = 0;
     const run = (now: number) => {
-      const progress = Math.min(1, (now - started) / 900);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setClaim(CLAIM_BEFORE + added * eased);
-      if (progress < 1) frame.current = requestAnimationFrame(run);
+      const t = Math.min(1, (now - started) / 1100);
+      setClaim(from + (to - from) * easeOut(t));
+      if (t < 1) frame = requestAnimationFrame(run);
     };
-    frame.current = requestAnimationFrame(run);
+    // Let the "+£1.47" float up first, then count.
+    const wait = setTimeout(() => (frame = requestAnimationFrame(run)), 450);
     return () => {
-      if (frame.current) cancelAnimationFrame(frame.current);
+      clearTimeout(wait);
+      cancelAnimationFrame(frame);
     };
-  }, [settled, choice, held, added]);
+    // choice is fixed once sorted; step is the trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
-  useEffect(() => {
-    if (settled && choice === null) setChoice("business");
-  }, [settled, choice]);
-
-  useEffect(() => {
-    if (step !== "arrived" || shiftFrom === null) return;
-    setShiftTrips((n) => (n === 0 ? 1 : n));
-  }, [step, shiftFrom]);
-
-  // The shift clock, which is the only thing here that runs on real time.
-  useEffect(() => {
-    if (shiftFrom === null) return;
-    const tick = () => setShiftSeconds(Math.floor((Date.now() - shiftFrom) / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [shiftFrom]);
-
-  // Reduced motion: hold the finished frame rather than animate towards it.
+  // Reduced motion: the finished frame, still.
   useEffect(() => {
     if (!held) return;
-    setStep("filed");
+    setStep("sorted");
     setChoice("business");
-    setMiles(TRIP_MILES);
-    setSeconds(TRIP_SECONDS);
-    setClaim(CLAIM_BEFORE + claimFor(TRIP_MILES));
+    setProgress(1);
+    setClaim(CLAIM_START + TRIP_CLAIM);
   }, [held]);
 
   function classify(as: "business" | "personal") {
+    if (step !== "arrived") return;
     clearTimeout(timer.current);
     setChoice(as);
-    setStep("classified");
+    go("sorted");
   }
 
-  /** Start Trip, and Stop Trip once it is running. Both are the real buttons. */
-  function toggleTrip() {
+  /** Start Trip and Start Shift both start recording, like the real buttons. */
+  function start() {
+    if (step !== "idle" && step !== "rest") return;
     clearTimeout(timer.current);
-    if (recording) {
-      setBanked(Math.round(miles * 100) / 100);
-      setStep("arrived");
-      if (shiftFrom !== null) setShiftTrips((n) => n + 1);
-      return;
-    }
-    setMiles(0);
-    setSeconds(0);
+    setProgress(0);
     setChoice(null);
-    setClaim(CLAIM_BEFORE);
-    setStep("recording");
+    go("detected");
   }
 
-  /** Start Shift, and End Shift once one is running. */
-  function toggleShift() {
-    if (shiftFrom === null) {
-      setShiftFrom(Date.now());
-      setShiftSeconds(0);
-      setShiftTrips(0);
-      return;
-    }
-    setShiftFrom(null);
+  // A gentle tilt towards the pointer, on devices with a real pointer.
+  function onMove(e: PointerEvent<HTMLDivElement>) {
+    if (held || e.pointerType !== "mouse" || !tilt.current) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    tilt.current.style.setProperty("--ry", `${(x * 9).toFixed(2)}deg`);
+    tilt.current.style.setProperty("--rx", `${(-y * 7).toFixed(2)}deg`);
+  }
+  function onLeave() {
+    tilt.current?.style.setProperty("--ry", "-4deg");
+    tilt.current?.style.setProperty("--rx", "2deg");
   }
 
+  const status =
+    step === "detected"
+      ? { tone: "amber", text: "Driving detected" }
+      : recording
+        ? { tone: "amber", text: `Recording · ${miles.toFixed(1)} mi · ${Math.max(1, Math.round(seconds / 60))} min` }
+        : step === "arrived"
+          ? { tone: "green", text: "Trip saved on its own" }
+          : { tone: "green", text: "Recording automatically" };
+
+  const heroLine =
+    step === "sorted" && choice === "business"
+      ? `+${money(TRIP_CLAIM)} from this trip`
+      : step === "sorted" && choice === "personal"
+        ? "Personal trips claim nothing"
+        : `Since 6 April · ${trips} trips this week`;
+
+  const caption =
+    step === "arrived"
+      ? "Your turn: tap Business or Personal."
+      : step === "sorted" || step === "rest"
+        ? "That's the only tap a trip needs."
+        : "Nothing tapped. MileClear is doing this on its own.";
 
   return (
     <div
       ref={root}
-      className={`demo demo--${step}`}
-      role="img"
-      aria-label="The MileClear dashboard records a 3.1 mile drive from Newcastle city centre to the Quayside on its own, then adds it to the year's mileage claim once it is marked as business."
+      className={`md md--${step}${held ? " md--held" : ""}`}
+      onPointerMove={onMove}
+      onPointerLeave={onLeave}
     >
-      <div className="demo__phone">
-        <div className="demo__bar" aria-hidden="true">
-          <span>09:41</span>
-          <span className="demo__notch" />
-          <span className="demo__bar-right">
-            <i className="demo__signal" />
-            <i className="demo__battery" />
-          </span>
-        </div>
-
-        <div className="demo__head" aria-hidden="true">
-          <span className="demo__wordmark">
-            Mile<span>Clear</span>
-          </span>
-          <span className="demo__avatar" />
-        </div>
-
-        <div className="demo__modes" aria-hidden="true">
-          <span className="demo__mode demo__mode--on">Work</span>
-          <span className="demo__mode">Personal</span>
-          {shiftFrom !== null && (
-            <span className="demo__shift">
-              On shift {clock(shiftSeconds)} · {shiftTrips} {shiftTrips === 1 ? "trip" : "trips"}
+      <div className="md__glow" aria-hidden="true" />
+      <div ref={tilt} className="md__tilt">
+        <div
+          className="md__phone"
+          role="group"
+          aria-label={`The MileClear Home screen records a ${TRIP_MILES} mile drive across Newcastle on its own, then adds ${money(TRIP_CLAIM)} to the year's mileage claim once it is marked as business.`}
+        >
+          <div className="md__bar" aria-hidden="true">
+            <span>09:41</span>
+            <span className="md__island" />
+            <span className="md__bar-right">
+              <i className="md__signal" />
+              <i className="md__battery" />
             </span>
-          )}
-        </div>
-
-        {/* The middle swaps between the dashboard and the live trip. Fixed
-            height, so nothing below it moves while the drive plays. */}
-        <div className="demo__stage" aria-hidden="true">
-          <div className="demo__layer demo__layer--home">
-            <div className="demo__nudge">
-              <strong>Great week so far</strong>
-              <span>You have driven 57.8 miles this week. Above your usual pace.</span>
-            </div>
-            <div className="demo__claim">
-              <span className="demo__claim-label">
-                {filed ? "Self Assessment · SA103S box 12" : "Mileage claim · 2026-27"}
-              </span>
-              <strong className="demo__claim-value">£{claim.toFixed(2)}</strong>
-              <span className="demo__claim-sub">
-                {choice === "personal" && settled
-                  ? "Personal trip, nothing claimed"
-                  : filed
-                    ? "Your mileage, in the box it belongs in"
-                    : counted
-                      ? `+£${added.toFixed(2)} from this trip`
-                      : "at 55p a mile, first 10,000"}
-              </span>
-              <span className="demo__claim-stats">
-                {milesToday.toFixed(1)} mi today · 57.8 mi this week · {tripCount} trips
-              </span>
-            </div>
           </div>
 
-          <div className="demo__layer demo__layer--trip">
-            <div className="demo__map">
-              {/* Real OpenStreetMap tiles, positioned by percentage inside the
-                  same frame the route is drawn in, so they scale together. */}
-              <div className="demo__tiles">
-                {HERO_ROUTE.tiles.map((t) => (
-                  <img
-                    key={`${t.x}-${t.y}`}
-                    src={`https://tile.openstreetmap.org/${HERO_ROUTE.zoom}/${t.x}/${t.y}.png`}
-                    alt=""
-                    width={256}
-                    height={256}
-                    loading="lazy"
-                    style={{
-                      left: `${t.left}%`,
-                      top: `${t.top}%`,
-                      width: `${t.w}%`,
-                      height: `${t.h}%`,
-                    }}
-                  />
-                ))}
-              </div>
-              <svg
-                className="demo__overlay"
-                viewBox={`0 0 ${HERO_ROUTE.w} ${HERO_ROUTE.h}`}
-                preserveAspectRatio="xMidYMid slice"
-                role="presentation"
-              >
-                <defs>
-                  <linearGradient id="demoRoute" x1="0" y1="1" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#fcd34d" />
-                    <stop offset="100%" stopColor="#eab308" />
-                  </linearGradient>
-                </defs>
-                <path
-                  className="demo__route"
-                  d={HERO_ROUTE.path}
-                  fill="none"
-                  stroke="url(#demoRoute)"
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle className="demo__car" r="4.5">
-                  <animateMotion dur="6s" repeatCount="1" path={HERO_ROUTE.path} />
-                </circle>
-                <circle
-                  className="demo__pin demo__pin--start"
-                  cx={HERO_ROUTE.start.x}
-                  cy={HERO_ROUTE.start.y}
-                  r="5.5"
-                />
-                <circle
-                  className="demo__pin demo__pin--end"
-                  cx={HERO_ROUTE.end.x}
-                  cy={HERO_ROUTE.end.y}
-                  r="5.5"
-                />
+          <div className="md__head" aria-hidden="true">
+            <span className="md__wordmark">
+              Mile<span>Clear</span>
+            </span>
+            <span className="md__modes">
+              <span className="md__mode md__mode--on">Work</span>
+              <span className="md__mode">Personal</span>
+            </span>
+            <span className="md__avatar" />
+          </div>
+
+          <div className={`md__status md__status--${status.tone}`} aria-hidden="true">
+            <i />
+            <span key={status.text.split(" ·")[0]} className="md__status-text">
+              {status.text}
+            </span>
+          </div>
+
+          <div className="md__hero" aria-hidden="true">
+            <span className="md__hero-label">Mileage claim · 2026-27</span>
+            <strong className="md__hero-figure">{money(claim)}</strong>
+            <span key={heroLine.slice(0, 6)} className="md__hero-line">
+              {heroLine}
+            </span>
+          </div>
+
+          <div className="md__buttons">
+            <button type="button" className="md__btn md__btn--primary" onClick={start}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 11l18-8-8 18-2-8-8-2z" />
               </svg>
-              <span className="demo__live">
-                <i />
-                {recording ? "Recording" : "Trip saved"}
-              </span>
-              <span className="demo__osm">
-                &copy;{" "}
-                <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
-                  OpenStreetMap
-                </a>
-              </span>
-            </div>
-            <div className="demo__readout">
-              <div className="demo__figure">
-                <strong>{(saved ? banked : miles).toFixed(1)}</strong>
-                <span>miles</span>
-              </div>
-              <div className="demo__figure">
-                <strong>{clock(saved ? Math.round((banked / TRIP_MILES) * TRIP_SECONDS) : seconds)}</strong>
-                <span>duration</span>
-              </div>
-              <div className="demo__figure">
-                <strong>Deliveroo</strong>
-                <span>platform</span>
-              </div>
-            </div>
+              {recording || step === "detected" ? "Recording" : "Start Trip"}
+            </button>
+            <button type="button" className="md__btn" onClick={start}>
+              Start Shift
+            </button>
           </div>
 
-          <span className="demo__toast">Driving detected. Recording this trip.</span>
-        </div>
+          {/* The trip card. One slot, fixed height: the last trip, then the
+              live map, then the saved trip asking for its one tap. */}
+          <div className="md__card">
+            <div className="md__layer md__layer--last" aria-hidden="true">
+              <div className="md__card-top">
+                <span className="md__card-when">
+                  {lastTrip.when} · {lastTrip.miles.toFixed(1)} mi
+                </span>
+                <span className={`md__chip md__chip--${lastTrip.as}`}>
+                  {lastTrip.as === "business" ? "Business" : "Personal"}
+                </span>
+              </div>
+              <p className="md__card-route">{lastTrip.route}</p>
+              {lastTrip.real ? (
+                <div className="md__thumb" aria-hidden="true">
+                  <div className="md__tiles">
+                    {HERO_ROUTE.tiles.map((t) => (
+                      <img
+                        key={`${t.x}-${t.y}`}
+                        src={`https://tile.openstreetmap.org/${HERO_ROUTE.zoom}/${t.x}/${t.y}.png`}
+                        alt=""
+                        width={256}
+                        height={256}
+                        loading="lazy"
+                        style={{ left: `${t.left}%`, top: `${t.top}%`, width: `${t.w}%`, height: `${t.h}%` }}
+                      />
+                    ))}
+                  </div>
+                  <svg className="md__overlay" viewBox={`0 0 ${HERO_ROUTE.w} ${HERO_ROUTE.h}`} preserveAspectRatio="xMidYMid slice">
+                    <path className="md__thumb-route" d={HERO_ROUTE.path} />
+                    <circle className="md__pin" cx={HERO_ROUTE.start.x} cy={HERO_ROUTE.start.y} r="5" />
+                    <circle className="md__pin md__pin--end md__pin--on" cx={HERO_ROUTE.end.x} cy={HERO_ROUTE.end.y} r="5" />
+                  </svg>
+                </div>
+              ) : (
+                <svg className="md__mini" viewBox="0 0 120 40" aria-hidden="true">
+                  <path d="M6 32 C 26 30, 30 12, 52 14 S 84 30, 114 8" />
+                  <circle cx="6" cy="32" r="3" className="md__mini-start" />
+                  <circle cx="114" cy="8" r="3" className="md__mini-end" />
+                </svg>
+              )}
+              <span className="md__card-foot">See all trips ›</span>
+            </div>
 
-        <div className="demo__classify">
-          <p className="demo__route-line" aria-hidden="true">
-            {step === "learned" || filed ? (
-              <>
-                Learned: this route files itself as{" "}
-                {choice === "personal" ? "personal" : "business"} from now on
-              </>
-            ) : saved ? (
-              <>
-                Newcastle City Centre <span>to</span> Quayside
-              </>
-            ) : (
-              <>Where this one ends is not known yet</>
+            <div className="md__layer md__layer--trip">
+              <div className="md__map" aria-hidden="true">
+                <div className="md__tiles">
+                  {HERO_ROUTE.tiles.map((t) => (
+                    <img
+                      key={`${t.x}-${t.y}`}
+                      src={`https://tile.openstreetmap.org/${HERO_ROUTE.zoom}/${t.x}/${t.y}.png`}
+                      alt=""
+                      width={256}
+                      height={256}
+                      loading="lazy"
+                      style={{ left: `${t.left}%`, top: `${t.top}%`, width: `${t.w}%`, height: `${t.h}%` }}
+                    />
+                  ))}
+                </div>
+                <svg
+                  className="md__overlay"
+                  viewBox={`0 0 ${HERO_ROUTE.w} ${HERO_ROUTE.h}`}
+                  preserveAspectRatio="xMidYMid slice"
+                >
+                  <path className="md__route-shadow" d={HERO_ROUTE.path} pathLength={1} />
+                  <path
+                    ref={routeRef}
+                    className="md__route"
+                    d={HERO_ROUTE.path}
+                    pathLength={1}
+                    style={{ strokeDashoffset: 1 - progress }}
+                  />
+                  <circle className="md__pin" cx={HERO_ROUTE.start.x} cy={HERO_ROUTE.start.y} r="5" />
+                  <circle
+                    className={`md__pin md__pin--end${saved ? " md__pin--on" : ""}`}
+                    cx={HERO_ROUTE.end.x}
+                    cy={HERO_ROUTE.end.y}
+                    r="5"
+                  />
+                  <g ref={carRef} className={`md__car${saved ? " md__car--parked" : ""}`}>
+                    <circle className="md__car-ring" r="12" />
+                    <circle className="md__car-dot" r="6" />
+                  </g>
+                </svg>
+                <span className={`md__live${saved ? " md__live--saved" : ""}`}>
+                  <i />
+                  {saved ? "Trip saved" : "Recording"}
+                </span>
+                <span className="md__osm">
+                  &copy;{" "}
+                  <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+                    OpenStreetMap
+                  </a>
+                </span>
+              </div>
+
+              <div className="md__trip-row" aria-hidden="true">
+                <span className="md__trip-miles">
+                  <strong>{(saved ? TRIP_MILES : miles).toFixed(1)}</strong> mi
+                </span>
+                <span className="md__trip-time">{clock(saved ? TRIP_SECONDS : seconds)}</span>
+                <span className="md__trip-place">{saved ? "Newcastle City Centre to Quayside" : "Driving now"}</span>
+              </div>
+
+              <div className={`md__sort${saved ? " md__sort--on" : ""}`}>
+                <button
+                  type="button"
+                  className={`md__pick md__pick--business${choice === "business" ? " md__pick--chosen" : ""}`}
+                  onClick={() => classify("business")}
+                  disabled={step !== "arrived"}
+                >
+                  Business
+                </button>
+                <button
+                  type="button"
+                  className={`md__pick${choice === "personal" ? " md__pick--chosen" : ""}`}
+                  onClick={() => classify("personal")}
+                  disabled={step !== "arrived"}
+                >
+                  Personal
+                </button>
+                <span className="md__ask" aria-hidden="true">
+                  Tap one
+                </span>
+              </div>
+            </div>
+
+            {step === "sorted" && choice === "business" && !held && (
+              <span className="md__float" aria-hidden="true">
+                +{money(TRIP_CLAIM)}
+              </span>
             )}
-          </p>
-          <div className="demo__choice">
-            <button
-              type="button"
-              className={`demo__btn${choice === "business" ? " demo__btn--on" : ""}`}
-              onClick={() => classify("business")}
-              disabled={!saved}
-            >
-              Business
-            </button>
-            <button
-              type="button"
-              className={`demo__btn demo__btn--alt${choice === "personal" ? " demo__btn--on" : ""}`}
-              onClick={() => classify("personal")}
-              disabled={!saved}
-            >
-              Personal
-            </button>
+            <span className="md__learned" aria-hidden="true">
+              Learned: this route files itself as {choice === "personal" ? "personal" : "business"} from now on
+            </span>
           </div>
-        </div>
 
-        <div className="demo__actions">
-          <button type="button" className="demo__action demo__action--primary" onClick={toggleTrip}>
-            {recording ? "Stop Trip" : "Start Trip"}
-          </button>
-          <button type="button" className="demo__action" onClick={toggleShift}>
-            {shiftFrom !== null ? "End Shift" : "Start Shift"}
-          </button>
-        </div>
+          <div className="md__doors" aria-hidden="true">
+            <div className="md__door">
+              <span className="md__door-name">Tax</span>
+              <span className="md__door-text">£107.96 set aside this week</span>
+              <span className="md__door-arrow">›</span>
+            </div>
+            <div className="md__door">
+              <span className="md__door-name">Insights</span>
+              <span className="md__door-text">Busiest day: Saturday</span>
+              <span className="md__door-arrow">›</span>
+            </div>
+          </div>
 
-        <div className="demo__today" aria-hidden="true">
-          <span className="demo__today-label">Set aside this week</span>
-          <span className="demo__today-figures">
-            <strong>£107.96</strong> of £391.45
-          </span>
+          <nav className="md__tabs" aria-hidden="true">
+            {[
+              { name: "Home", d: "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" },
+              { name: "Trips", d: "M5 17h14M7 13l2-5h6l2 5M6 17v2M18 17v2M5 13h14v4H5z" },
+              { name: "Tax", d: "M6 3h9l3 3v15H6zM9 10h6M9 14h6M9 18h4" },
+              { name: "Insights", d: "M5 20V11M10 20V5M15 20v-7M20 20V8" },
+              { name: "More", d: "M6 12h.01M12 12h.01M18 12h.01" },
+            ].map((t) => (
+              <span key={t.name} className={`md__tab${t.name === "Home" ? " md__tab--on" : ""}`}>
+                <svg viewBox="0 0 24 24">
+                  <path d={t.d} />
+                </svg>
+                {t.name}
+              </span>
+            ))}
+          </nav>
         </div>
       </div>
 
-      <p className="demo__hint">
-        {saved
-          ? "Your turn: pick Business or Personal."
-          : "Nothing tapped. That is the app doing the work."}
+      <p key={caption} className="md__caption">
+        {caption}
       </p>
     </div>
   );
