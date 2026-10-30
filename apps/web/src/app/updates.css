@@ -628,6 +628,38 @@
   font-style: italic;
 }
 
+.post__body .post__table-wrap {
+  overflow-x: auto;
+  margin: 0 0 1.375rem;
+}
+
+.post__body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+  min-width: 460px;
+}
+
+.post__body th,
+.post__body td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: top;
+}
+
+.post__body thead th {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.post__body td.num,
+.post__body th.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
 /* ----------------------------------------------------------------
    Post footer CTA
    ---------------------------------------------------------------- */

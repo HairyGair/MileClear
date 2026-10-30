@@ -51,6 +51,102 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "autumn-budget-2026-drivers",
+    title: "Autumn Budget 2026: what it means for drivers",
+    excerpt:
+      "The mileage rate after your first 10,000 business miles goes up from 25p to 35p, the trading allowance triples to £3,000, and the fuel duty cut lasts until June. Here's what this week's Budget means if you drive for work.",
+    date: "30 October 2026",
+    author: "Gair",
+    category: "guide",
+    content: `
+<p>The Chancellor delivered the Autumn Budget on Wednesday 28 October. Most of the headlines were about savings, property and pensions, but a few changes matter if you drive for a living. Here they are, with what they mean in pounds.</p>
+
+<h2>The big one: 35p a mile after your first 10,000</h2>
+
+<p>From <strong>6 April 2027</strong>, the mileage rate for business miles after your first 10,000 in a tax year goes up from <strong>25p to 35p</strong>. The first 10,000 miles stay at 55p.</p>
+
+<p>It applies to both ways of claiming:</p>
+
+<ul>
+<li><strong>Self-employed:</strong> the simplified mileage rate you use on your Self Assessment.</li>
+<li><strong>Employees:</strong> the approved rate your employer can pay you tax-free, and the Mileage Allowance Relief you can claim if they pay less.</li>
+</ul>
+
+<p>Motorbikes stay at 24p a mile, bicycles at 20p and passengers at 5p.</p>
+
+<p>What it's worth in a full year from April 2027:</p>
+
+<div class="post__table-wrap"><table>
+<thead><tr><th>Business miles a year</th><th class="num">Claim now</th><th class="num">From April 2027</th><th class="num">Extra claim</th><th class="num">Less tax and NI (basic rate)</th></tr></thead>
+<tbody>
+<tr><td>15,600 (300 a week)</td><td class="num">£6,900</td><td class="num">£7,460</td><td class="num">£560</td><td class="num">about £146</td></tr>
+<tr><td>25,000 (480 a week)</td><td class="num">£9,250</td><td class="num">£10,750</td><td class="num">£1,500</td><td class="num">about £390</td></tr>
+</tbody>
+</table></div>
+
+<p>That last column assumes you pay 20% income tax and 6% Class 4 National Insurance. Higher-rate taxpayers save more.</p>
+
+<p>Nothing changes for the return you're filing by 31 January. That's for 2025-26, which uses 45p for the first 10,000 miles and 25p after.</p>
+
+<h2>The trading allowance triples to £3,000</h2>
+
+<p>Also from 6 April 2027, the <strong>trading allowance goes up from £1,000 to £3,000</strong>, and so does the point at which you have to tell HMRC about self-employed income.</p>
+
+<ul>
+<li>If you earn <strong>under £3,000</strong> a year from a bit of driving on the side, you won't need to report it through Self Assessment (unless you have another reason to file).</li>
+<li>If you earn more, you choose <strong>either</strong> the £3,000 allowance <strong>or</strong> your actual costs, including your mileage claim. You can't have both.</li>
+</ul>
+
+<p>For most full-time drivers the mileage claim is far bigger than £3,000, so nothing changes. For someone doing a few evening shifts a week it's worth checking which comes out higher. Your mileage record is what lets you compare.</p>
+
+<h2>Fuel: the 5p cut lasts until June</h2>
+
+<p>The temporary <strong>5p a litre cut in fuel duty</strong> has been extended to <strong>30 June 2027</strong>. From 1 July 2027 the duty on petrol and diesel is due to rise from 52.95p to 60.59p a litre, so expect pump prices to go up then.</p>
+
+<p>If you drive an electric car, the government has confirmed that charging at <strong>public and workplace chargers carries 20% VAT</strong> from 1 November 2026.</p>
+
+<h2>Uber and the big ride-hailing firms</h2>
+
+<p>From <strong>2 January 2028</strong>, the largest private hire operators will have to charge <strong>20% VAT on the full fare</strong>. The government is consulting on where the line sits, with £50 million of fares a year as the main option, so this is aimed at the biggest apps rather than local firms. It's too early to say whether it ends up in higher fares, lower pay per trip or both, but it's one to watch if you drive private hire.</p>
+
+<h2>Employees: claiming expenses without a tax return</h2>
+
+<p>At the moment, if your job expenses come to more than £2,500 in a year, you have to file a Self Assessment return to claim the tax back. From <strong>April 2028</strong> that limit goes, and you can claim any amount through PAYE, with evidence. For employees who drive a lot for work and get a low mileage rate from their employer, that makes claiming the difference much simpler.</p>
+
+<h2>What hasn't changed</h2>
+
+<ul>
+<li>The personal allowance stays at £12,570 and the higher-rate threshold at £50,270 for 2027-28.</li>
+<li>Class 4 National Insurance stays at 6%, and 2% above £50,270.</li>
+</ul>
+
+<h2>What MileClear will do</h2>
+
+<p>MileClear already works out your claim at the right rate for each tax year: 45p for 2025-26 and 55p for 2026-27. On 6 April 2027 it will switch to 35p for miles after your first 10,000, so your running total on Home stays right without you doing anything.</p>
+
+<p>Most of these changes start in April 2027, and Parliament still has to pass them in the Finance Bill. We'll update this post if anything changes along the way.</p>
+
+<p><em>Source: <a href="https://www.gov.uk/government/publications/budget-2026-overview-of-tax-legislation-and-rates-ootlar">HMRC, Budget 2026: overview of tax legislation and rates</a> (sections 1.5, 2.7 and 2.9, and Annex A).</em></p>
+`,
+    faqs: [
+      {
+        question: "Is the HMRC mileage rate changing in 2027?",
+        answer:
+          "Yes. From 6 April 2027 the rate for cars and vans above 10,000 business miles in a tax year goes up from 25p to 35p a mile, for both employees and the self-employed. The first 10,000 miles stay at 55p, and motorbikes stay at 24p. It was announced in the Autumn Budget on 28 October 2026 and still has to pass in the Finance Bill.",
+      },
+      {
+        question: "Does the 35p rate apply to my January 2027 tax return?",
+        answer:
+          "No. The return due by 31 January 2027 is for the 2025-26 tax year, which uses 45p a mile for the first 10,000 business miles and 25p after. The 35p rate starts on 6 April 2027.",
+      },
+      {
+        question: "What is the trading allowance from April 2027?",
+        answer:
+          "£3,000, up from £1,000, from the 2027-28 tax year. Self-employed income under £3,000 won't need reporting through Self Assessment unless you have another reason to file. Above that, you can deduct either the £3,000 allowance or your actual costs, such as your mileage claim, but not both.",
+      },
+    ],
+  },
+  {
     slug: "two-million-miles",
     title: "Two million miles",
     excerpt:
