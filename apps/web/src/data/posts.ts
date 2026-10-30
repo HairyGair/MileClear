@@ -51,6 +51,76 @@ export interface Guide {
 // ----------------------------------------------------------------
 export const BLOG_POSTS: BlogPost[] = [
   {
+    slug: "quarterly-updates-to-hmrc",
+    title: "Send your quarterly updates to HMRC from MileClear",
+    excerpt:
+      "Self-employed drivers with Pro can now send their Making Tax Digital quarterly updates to HMRC from the app. Here's who needs to, and how to send your first one before 7 November.",
+    date: "30 October 2026",
+    author: "Gair",
+    category: "announcement",
+    content: `
+<p>You can now send your Making Tax Digital quarterly updates to HMRC from MileClear. Your income, expenses and mileage claim are already worked out from what the app records, so you check the figures and send them.</p>
+
+<p>The next deadline is <strong>7 November</strong>, for 6 July to 5 October.</p>
+
+<h2>Do you need to send them?</h2>
+
+<p>It depends on your self-employed income before expenses, plus any rent you get:</p>
+
+<ul>
+<li><strong>Over £50,000 in 2024-25:</strong> you send quarterly updates from 6 April 2026, so you're in now.</li>
+<li><strong>Over £30,000 in 2025-26:</strong> from 6 April 2027.</li>
+<li><strong>Over £20,000 in 2026-27:</strong> from 6 April 2028.</li>
+</ul>
+
+<p>If you're under those, nothing is due yet. MileClear checks your earnings against these limits before you connect, so it will tell you.</p>
+
+<h2>How to send your first update</h2>
+
+<ol>
+<li><strong>Sign up with HMRC first.</strong> Do this once on GOV.UK: search "Sign up for Making Tax Digital for Income Tax". HMRC won't take updates from any software until you have.</li>
+<li><strong>Open Quarterly updates.</strong> In MileClear, go to Tax &gt; Your tax details &gt; Quarterly updates.</li>
+<li><strong>Connect to HMRC.</strong> Tap Continue and sign in on HMRC's own page with your Government Gateway details.</li>
+<li><strong>Confirm it's you.</strong> Enter your National Insurance Number and confirm your trade.</li>
+<li><strong>Check the figures.</strong> Open the quarter that's due. You'll see your income, expenses and mileage claim for the year so far. If anything's wrong, fix the trip, earning or expense in MileClear first.</li>
+<li><strong>Send it.</strong> HMRC replies straight away, and MileClear shows it arrived along with HMRC's estimate of your tax so far.</li>
+</ol>
+
+<p>The first time, it's worth signing in to your HMRC online account to see the update there.</p>
+
+<h2>Good to know</h2>
+
+<ul>
+<li><strong>Each update is a running total from 6 April.</strong> Got a figure wrong? Fix it in MileClear and send the quarter again: the new figures replace the old ones.</li>
+<li><strong>Deadlines:</strong> 7 August, 7 November, 7 February and 7 May.</li>
+<li><strong>It needs Pro and the phone app.</strong> HMRC needs your phone's details with every update, so updates can't be sent from the website.</li>
+<li><strong>Self-employment income only.</strong> If you also have rent or other untaxed income, you'll need other compatible software for that.</li>
+<li><strong>The end-of-year tax return isn't in MileClear yet.</strong> Send that on GOV.UK, through other compatible software or through your accountant.</li>
+</ul>
+
+<p>It's new, so if anything doesn't look right, tell us from More &gt; Tell us about a problem or idea, or reply to any MileClear email. We'll help.</p>
+
+<p>There's more detail in our <a href="/mtd-itsa-software-for-sole-traders">Making Tax Digital guide</a>.</p>
+`,
+    faqs: [
+      {
+        question: "Can I send my Making Tax Digital quarterly update from MileClear?",
+        answer:
+          "Yes. Self-employed drivers with MileClear Pro can connect their HMRC account in the app, check the figures for the quarter and send the update for their self-employment income to HMRC. You need to have signed up for Making Tax Digital on GOV.UK first.",
+      },
+      {
+        question: "When is the next quarterly update due?",
+        answer:
+          "7 November 2026, for 6 July to 5 October 2026. The quarterly deadlines are 7 August, 7 November, 7 February and 7 May.",
+      },
+      {
+        question: "Does MileClear send my end-of-year tax return?",
+        answer:
+          "Not yet. MileClear sends quarterly updates for self-employment income only. Send your end-of-year tax return on GOV.UK, through other compatible software or through your accountant.",
+      },
+    ],
+  },
+  {
     slug: "autumn-budget-2026-drivers",
     title: "Autumn Budget 2026: what it means for drivers",
     excerpt:
