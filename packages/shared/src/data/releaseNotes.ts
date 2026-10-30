@@ -77,7 +77,7 @@ export interface SiteAnnouncement {
 export const ACTIVE_ANNOUNCEMENT: SiteAnnouncement | null = null;
 
 // Car Bluetooth went to everyone on 29 Oct 2026 (CAR_BLUETOOTH_ROLLOUT=all),
-// so it is listed in 1.4.0 below; add it to the Android 1.4.0 entry too.
+// so it is listed in 1.4.0 below and in the Android 1.4.0 entry.
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
     // Build 97, cut 24 Oct 2026 from main 551855a2, submitted to Apple 25 Oct
@@ -1081,6 +1081,28 @@ export function blogUrlForRelease(version: string): string {
 // email, which goes to the whole fleet and is overwhelmingly iPhone users.
 export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
   {
+    // versionCode 9, sent for Play production review 27 Oct 2026 and live on
+    // Google Play 30 Oct; the update email went to 341 Android drivers that day.
+    version: "1.4.0",
+    build: "9",
+    date: "October 2026",
+    label: "Latest",
+    items: [
+      "Only record in work hours: a switch on the Work hours screen. Outside your hours nothing records, and Record now covers the rest of the day",
+      "Distances in kilometres if you prefer: Settings > Distances. Tax figures and downloads stay in miles",
+      "Add a whole past shift in one go, with its trips and earnings",
+      "More than one car? Trips the app records on its own go on your primary car, and you can download a trip report or CSV for just one car",
+      "Link each car's Bluetooth on its screen, and trips the app records on its own go on the car your phone is connected to",
+      "Filter trips by client, and download a trip report or CSV for one client",
+      "Your car's running odometer reading shows on Home",
+      "Fuel prices: choose your fuel and sort nearby stations by nearest or cheapest",
+      "A recorded trip lists the roadworks it drove through",
+      "Linked a bank? Mark an app that pays you a week behind, and its payouts count in the week you did the work",
+      "Paused recording? Drives during the pause are no longer saved",
+      "New drivers see their first trips and what they could claim on Home",
+    ],
+  },
+  {
     // Build 8 (runtime 1.3.13-build8), cut 11 Oct 2026, Play closed testing.
     // Every change below also reached the Play public build 6 by OTA between
     // 28 Sep and 19 Oct, so the first line says so. Items already in the
@@ -1089,7 +1111,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
     version: "1.3.13",
     build: "8",
     date: "October 2026",
-    label: "In Testing",
+    label: "Superseded",
     items: [
       "Everything below has also reached the Google Play version of MileClear by update, so you don't need the test build to get it",
       "Trips: \"To sort\" lists new trips, each led by its route, like \"Home to Work\", and each day shows its miles",
@@ -1136,7 +1158,7 @@ export const ANDROID_RELEASE_NOTES: ReleaseNote[] = [
     version: "1.3.11",
     build: "6",
     date: "September 2026",
-    label: "Latest",
+    label: "Superseded",
     items: [
       "The build submitted to Google Play for the public UK release",
       "A trip now finishes where you stop, not the next time you open the app",
