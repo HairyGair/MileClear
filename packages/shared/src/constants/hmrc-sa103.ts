@@ -274,7 +274,8 @@ export const SA103_GUIDANCE: Sa103Guidance = {
     "lets you claim a set pence-per-mile rate instead of working out your actual " +
     "vehicle running costs. From the 2026-27 tax year onwards (6 April 2026), cars " +
     "and vans use 55p per mile for the first 10,000 business miles, then 25p per mile " +
-    "above 10,000 (the rate was 45p/25p up to and including 2025-26). Motorcycles " +
+    "above 10,000 (the rate was 45p/25p up to and including 2025-26). From 2027-28 " +
+    "(6 April 2027) the rate above 10,000 miles goes up to 35p. Motorcycles " +
     "use a flat 24p per mile. On the short self-employment pages (SA103S) the amount " +
     "goes in box 12, car, van and travel expenses. You cannot also claim the vehicle's " +
     "actual running costs for the same vehicle in the same year. Parking, tolls and " +

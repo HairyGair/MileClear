@@ -7,7 +7,7 @@ import {
   formatPence,
   formatInvoiceNumber,
   GIG_PLATFORMS,
-  HMRC_RATES,
+  getHmrcRatesForTaxYear,
   HMRC_THRESHOLD_MILES,
   parseTaxYear,
   projectLabelKey,
@@ -1276,13 +1276,13 @@ export async function generateSelfAssessmentPdf(
     .fontSize(8)
     .fillColor(GREY_600)
     .text(
-      `Cars & Vans: ${HMRC_RATES.car.first10000}p per mile for the first ${HMRC_THRESHOLD_MILES.toLocaleString()} miles, then ${HMRC_RATES.car.after10000}p per mile thereafter.`,
+      `Cars & Vans: ${getHmrcRatesForTaxYear(taxYear).car.first10000}p per mile for the first ${HMRC_THRESHOLD_MILES.toLocaleString()} miles, then ${getHmrcRatesForTaxYear(taxYear).car.after10000}p per mile thereafter.`,
       margin + 14,
       infoBoxY + 26,
       { width: contentWidth - 28 }
     )
     .text(
-      `Motorcycles: ${HMRC_RATES.motorbike.flat}p per mile (flat rate, all miles).`,
+      `Motorcycles: ${getHmrcRatesForTaxYear(taxYear).motorbike.flat}p per mile (flat rate, all miles).`,
       margin + 14,
       infoBoxY + 42,
       { width: contentWidth - 28 }

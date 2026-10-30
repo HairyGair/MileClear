@@ -37,10 +37,25 @@ export const HMRC_RATES_BY_TAX_YEAR = {
     van: { first10000: 55, after10000: 25 },
     motorbike: { flat: 24 },
   },
+  // Autumn Budget 28 Oct 2026 (OOTLAR 2.7): the rate after 10,000 business
+  // miles rises from 25p to 35p from 6 April 2027, for AMAPs and the
+  // self-employed simplified mileage rate. Motorbikes unchanged.
+  "2027-28": {
+    car: { first10000: 55, after10000: 35 },
+    van: { first10000: 55, after10000: 35 },
+    motorbike: { flat: 24 },
+  },
 } as const;
 
-/** Latest known tax year. Update when HMRC publish new rates. */
+/**
+ * The tax year HMRC_RATES (the no-tax-year default) points at: the current
+ * one. Bump it each 6 April. Years already announced for the future sit in
+ * the table above; getHmrcRatesForTaxYear() reaches them by tax year.
+ */
 export const HMRC_LATEST_TAX_YEAR = "2026-27" as const;
+
+/** The newest tax year in the table, for years beyond it. */
+const HMRC_NEWEST_TABLE_YEAR = "2027-28" as const;
 
 /**
  * Look up the AMAP rate set for a UK tax year. Falls back to the latest
@@ -54,10 +69,10 @@ export function getHmrcRatesForTaxYear(
   const known = HMRC_RATES_BY_TAX_YEAR[taxYear as keyof typeof HMRC_RATES_BY_TAX_YEAR];
   if (known) return known;
   // Any year before 2025-26 uses the 2011-12 rates (unchanged until the
-  // 2026-27 rise); an uncatalogued FUTURE year uses the latest.
+  // 2026-27 rise); an uncatalogued FUTURE year uses the newest we know.
   const startYear = parseInt(taxYear.slice(0, 4), 10);
   if (Number.isFinite(startYear) && startYear < 2025) return HMRC_RATES_BY_TAX_YEAR["2011-12"];
-  return HMRC_RATES_BY_TAX_YEAR[HMRC_LATEST_TAX_YEAR];
+  return HMRC_RATES_BY_TAX_YEAR[HMRC_NEWEST_TABLE_YEAR];
 }
 
 /**

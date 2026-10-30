@@ -474,8 +474,8 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "rates",
     area: "tax_and_claims",
     q: "What mileage rates does MileClear use?",
-    a: "Cars and vans: 55p a mile for the first 10,000 business miles in a tax year and 25p after that, for trips from 6 April 2026. Trips before then use 45p and 25p. Motorbikes: 24p a mile. MileClear uses the rate for the date of each trip, and cars and vans share one 10,000-mile count. The rate doesn't depend on engine size.",
-    keywords: ["rate", "rates", "per mile", "55p", "45p", "25p", "24p", "pence", "amap", "this year"],
+    a: "Cars and vans: 55p a mile for the first 10,000 business miles in a tax year and 25p after that, for trips from 6 April 2026. Trips before then use 45p and 25p. From 6 April 2027 the rate after 10,000 miles goes up to 35p, and MileClear switches over on that date. Motorbikes: 24p a mile. MileClear uses the rate for the date of each trip, and cars and vans share one 10,000-mile count. The rate doesn't depend on engine size.",
+    keywords: ["rate", "rates", "per mile", "55p", "45p", "25p", "35p", "24p", "pence", "amap", "this year"],
   },
   {
     id: "claim-meaning",

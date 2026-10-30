@@ -11,6 +11,7 @@ type Vehicle = "car" | "motorbike" | "bicycle";
 const BICYCLE_PENCE = 20;
 
 const TAX_YEARS: { value: TaxYear; label: string }[] = [
+  { value: "2027-28", label: "2027/28 (from 6 Apr 2027, announced)" },
   { value: "2026-27", label: "2026/27 (6 Apr 2026 to 5 Apr 2027)" },
   { value: "2025-26", label: "2025/26 (6 Apr 2025 to 5 Apr 2026)" },
 ];

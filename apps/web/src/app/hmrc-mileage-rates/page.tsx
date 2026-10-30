@@ -7,11 +7,11 @@ import "./rates.css";
 
 const PAGE_URL = "https://mileclear.com/hmrc-mileage-rates";
 const DATE_PUBLISHED = "2026-04-21";
-const DATE_MODIFIED = "2026-10-02";
+const DATE_MODIFIED = "2026-10-30";
 
 const TITLE = "HMRC Mileage Rates 2026/27: 55p a Mile";
 const DESCRIPTION =
-  "HMRC mileage rates: cars and vans 55p a mile for the first 10,000 business miles from 6 April 2026 (45p in 2025/26), then 25p. Motorcycles 24p, bikes 20p.";
+  "HMRC mileage rates: cars and vans 55p a mile for the first 10,000 business miles from 6 April 2026 (45p in 2025/26), then 25p, rising to 35p from 6 April 2027. Motorcycles 24p, bikes 20p.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -46,6 +46,7 @@ const SOURCES = {
   eim31410: "https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim31410",
   sa103s: "https://www.gov.uk/government/publications/self-assessment-self-employment-short-sa103s",
   s94f: "https://www.legislation.gov.uk/ukpga/2005/5/section/94F",
+  budget2026: "https://www.gov.uk/government/publications/budget-2026-overview-of-tax-legislation-and-rates-ootlar",
 };
 
 const faqs: { q: string; a: string }[] = [
@@ -60,6 +61,10 @@ const faqs: { q: string; a: string }[] = [
   {
     q: "When did the mileage rate go up to 55p?",
     a: "On 6 April 2026, the first day of the 2026/27 tax year. Only the first 10,000 business miles in a car or van went up (45p to 55p). The 25p rate above 10,000 miles, the 24p motorcycle rate, the 20p bicycle rate and the 5p passenger rate did not change. Miles driven up to 5 April 2026 stay at 45p.",
+  },
+  {
+    q: "Is the mileage rate changing in 2027?",
+    a: "Yes. The Autumn Budget on 28 October 2026 announced that from 6 April 2027 the rate for cars and vans above 10,000 business miles goes up from 25p to 35p a mile, for both employees and the self-employed. The first 10,000 miles stay at 55p, and the motorcycle, bicycle and passenger rates do not change. It still has to be passed in the Finance Bill.",
   },
   {
     q: "Is the 10,000 mile limit per car or per tax year?",
@@ -145,8 +150,9 @@ export default function HmrcRatesPage() {
             <p className="hr-lead">
               For cars and vans, HMRC&apos;s rate is <strong>55p a mile</strong> for the first
               10,000 business miles from 6 April 2026, then <strong>25p</strong>. For the
-              2025/26 tax year it was <strong>45p</strong>, then 25p. Motorcycles are 24p and
-              bicycles 20p in both years.
+              2025/26 tax year it was <strong>45p</strong>, then 25p. From 6 April 2027 the rate
+              over 10,000 miles goes up to <strong>35p</strong>. Motorcycles are 24p and bicycles
+              20p throughout.
             </p>
             <p className="hr-meta">
               Last updated: <time dateTime={DATE_MODIFIED}>October 2026</time>. Figures checked
@@ -162,6 +168,7 @@ export default function HmrcRatesPage() {
                       <th scope="col">Vehicle</th>
                       <th scope="col" className="hr-num">2025/26</th>
                       <th scope="col" className="hr-num">2026/27</th>
+                      <th scope="col" className="hr-num">2027/28*</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -169,14 +176,17 @@ export default function HmrcRatesPage() {
                       <th scope="row">Cars and vans, first 10,000 miles</th>
                       <td className="hr-num">45p</td>
                       <td className="hr-num hr-new">55p</td>
+                      <td className="hr-num">55p</td>
                     </tr>
                     <tr>
                       <th scope="row">Cars and vans, over 10,000 miles</th>
                       <td className="hr-num">25p</td>
                       <td className="hr-num">25p</td>
+                      <td className="hr-num hr-new">35p</td>
                     </tr>
                     <tr>
                       <th scope="row">Motorcycles</th>
+                      <td className="hr-num">24p</td>
                       <td className="hr-num">24p</td>
                       <td className="hr-num">24p</td>
                     </tr>
@@ -186,11 +196,13 @@ export default function HmrcRatesPage() {
                       </th>
                       <td className="hr-num">20p</td>
                       <td className="hr-num">20p</td>
+                      <td className="hr-num">20p</td>
                     </tr>
                     <tr>
                       <th scope="row">
                         Passengers, per passenger <span className="hr-tag">employees</span>
                       </th>
+                      <td className="hr-num">5p</td>
                       <td className="hr-num">5p</td>
                       <td className="hr-num">5p</td>
                     </tr>
@@ -199,7 +211,9 @@ export default function HmrcRatesPage() {
               </div>
               <p className="hr-small">
                 Tax year 2025/26 runs 6 April 2025 to 5 April 2026; 2026/27 runs 6 April 2026 to
-                5 April 2027. Employees: these are the Approved Mileage Allowance Payment (AMAP)
+                5 April 2027. *2027/28 (from 6 April 2027) was announced in the{" "}
+                <a href={SOURCES.budget2026}>Autumn Budget 2026</a> and still has to pass in the
+                Finance Bill. Employees: these are the Approved Mileage Allowance Payment (AMAP)
                 rates. Self-employed: the same car, van and motorcycle figures are the simplified
                 expenses flat rates (HMRC says &quot;cars and goods vehicles&quot;). Bicycle and
                 passenger rates apply to employees only.
@@ -233,6 +247,30 @@ export default function HmrcRatesPage() {
                   self-employed (simplified expenses). For the self-employed the 55p figure is in
                   the legislation, <a href={SOURCES.s94f}>section 94F of ITTOIA 2005</a>, for 2026/27
                   and later years.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* Coming next */}
+        <section className="section hr-block">
+          <div className="container hr-wrap">
+            <div className="hr-change">
+              <div className="hr-change__kicker">6 April 2027</div>
+              <h2 className="hr-h2">What changes on 6 April 2027</h2>
+              <ul className="hr-list">
+                <li>
+                  The car and van rate for business miles <strong>over 10,000</strong> goes from{" "}
+                  <strong>25p to 35p</strong>, announced in the{" "}
+                  <a href={SOURCES.budget2026}>Autumn Budget on 28 October 2026</a>.
+                </li>
+                <li>
+                  It covers employees (AMAP and Mileage Allowance Relief) and the self-employed
+                  (simplified expenses). The first 10,000 miles stay at 55p.
+                </li>
+                <li>
+                  A driver doing 15,600 business miles a year claims £7,460 instead of £6,900.
                 </li>
               </ul>
             </div>
@@ -472,6 +510,10 @@ export default function HmrcRatesPage() {
               <li>
                 <a href={SOURCES.bim75005}>BIM75005: simplified expenses, motor vehicles</a> (rates by
                 tax year, worked examples, sticking with the method)
+              </li>
+              <li>
+                <a href={SOURCES.budget2026}>Budget 2026: overview of tax legislation and rates</a>{" "}
+                (section 2.7, the 35p rate over 10,000 miles from 6 April 2027)
               </li>
               <li>
                 <a href={SOURCES.eim31240}>EIM31240</a> and <a href={SOURCES.eim31280}>EIM31280</a>{" "}

@@ -481,7 +481,7 @@ export async function sendWelcomeEmail(
   const subject = "Welcome to MileClear";
   const free = [
     `<strong style="color:#111827;">Automatic trip recording</strong>: just drive. MileClear spots your trips in the background, no buttons to press.`,
-    `<strong style="color:#111827;">Your mileage claim</strong>: 55p a mile for your first 10,000 business miles in a car or van, then 25p (24p a mile for motorbikes), with your running total on Home.`,
+    `<strong style="color:#111827;">Your mileage claim</strong>: 55p a mile for your first 10,000 business miles in a car or van, then 25p, rising to 35p from 6 April 2027 (24p a mile for motorbikes), with your running total on Home.`,
     `<strong style="color:#111827;">Tax Readiness</strong>: a live tax and NI estimate, what to set aside each week, and a countdown to 31 January.`,
     `<strong style="color:#111827;">Self Assessment wizard</strong>: your numbers mapped to the boxes on the SA103 form.`,
     `<strong style="color:#111827;">Smart sorting</strong>: trips near your saved work places are marked as business for you.`,
@@ -2942,7 +2942,7 @@ export function renderWaitlistConfirmation(opts: { android?: boolean } = {}): {
           "If you would rather not wait, reply to this email and I will add you to the test track. It is the same app, and once the public release lands it updates from Google Play like any other."
         ),
         replyCard(
-          "While you are here: MileClear records your trips on its own, prices your business miles at HMRC's 55p and 25p rates, and never caps how much you track. All free."
+          "While you are here: MileClear records your trips on its own, prices your business miles at HMRC's mileage rates, and never caps how much you track. All free."
         ),
         SIGN_OFF,
       ].join("\n")

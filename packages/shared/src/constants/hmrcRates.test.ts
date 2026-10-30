@@ -14,8 +14,19 @@ describe("getHmrcRatesForTaxYear", () => {
     expect(getHmrcRatesForTaxYear("2025-26").car.first10000).toBe(45);
     expect(getHmrcRatesForTaxYear("2026-27").car.first10000).toBe(55);
   });
-  it("an uncatalogued future year uses the latest rates", () => {
+  it("35p after 10,000 miles from 2027-28 (Autumn Budget 2026), 25p before", () => {
+    expect(getHmrcRatesForTaxYear("2026-27").car.after10000).toBe(25);
+    expect(getHmrcRatesForTaxYear("2027-28").car.after10000).toBe(35);
+    expect(getHmrcRatesForTaxYear("2027-28").van.after10000).toBe(35);
+    expect(getHmrcRatesForTaxYear("2027-28").motorbike.flat).toBe(24);
+  });
+  it("an uncatalogued future year uses the newest rates", () => {
     expect(getHmrcRatesForTaxYear("2030-31").car.first10000).toBe(55);
+    expect(getHmrcRatesForTaxYear("2030-31").car.after10000).toBe(35);
+  });
+  it("300 business miles a week: £6,900 in 2026-27, £7,460 in 2027-28", () => {
+    expect(calculateMileageDeduction("car", 15_600, { taxYear: "2026-27" }).deductionPence).toBe(690_000);
+    expect(calculateMileageDeduction("car", 15_600, { taxYear: "2027-28" }).deductionPence).toBe(746_000);
   });
   it("a 2024-25 deduction is priced at 45p", () => {
     expect(calculateMileageDeduction("car", 1000, { taxYear: "2024-25" }).deductionPence).toBe(45000);

@@ -1,5 +1,5 @@
 import type { GamificationStats, Vehicle } from "@mileclear/shared";
-import { HMRC_THRESHOLD_MILES, MILESTONE_MILES } from "@mileclear/shared";
+import { HMRC_THRESHOLD_MILES, MILESTONE_MILES, getHmrcRatesForTaxYear, getTaxYear } from "@mileclear/shared";
 import { getDatabase } from "../db/index";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ function generateInsights(input: InsightInput): Insight[] {
       icon: "trending-up-outline",
       iconColor: "#f59e0b",
       title: `${remaining.toFixed(0)} miles to the HMRC threshold`,
-      body: "After 10,000 business miles the rate drops from 55p to 25p per mile. Plan ahead.",
+      body: `After 10,000 business miles the rate drops from ${getHmrcRatesForTaxYear(getTaxYear(new Date())).car.first10000}p to ${getHmrcRatesForTaxYear(getTaxYear(new Date())).car.after10000}p per mile. Plan ahead.`,
       priority: "urgent",
     });
   }
@@ -110,7 +110,7 @@ function generateInsights(input: InsightInput): Insight[] {
       icon: "checkmark-circle-outline",
       iconColor: "#10b981",
       title: "You've passed 10,000 business miles",
-      body: "The HMRC rate is now 25p per mile. Well done. Your deduction keeps growing.",
+      body: `The HMRC rate is now ${getHmrcRatesForTaxYear(getTaxYear(new Date())).car.after10000}p per mile. Well done. Your deduction keeps growing.`,
       priority: "positive",
     });
   }

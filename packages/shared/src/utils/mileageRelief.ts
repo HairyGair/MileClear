@@ -77,7 +77,9 @@ export interface AmapRates {
 /**
  * Statutory rates, EIM31240 (updated 21 May 2026) and the GOV.UK rates page:
  *   2011-12 to 2025-26: car/van 45p then 25p, motorcycle 24p, cycle 20p
- *   2026-27 onwards:    car/van 55p then 25p, motorcycle 24p, cycle 20p
+ *   2026-27:            car/van 55p then 25p, motorcycle 24p, cycle 20p
+ *   2027-28 onwards:    car/van 55p then 35p, motorcycle 24p, cycle 20p
+ *     (Autumn Budget 28 Oct 2026, OOTLAR 2.7; not yet on the rates page)
  * https://www.gov.uk/hmrc-internal-manuals/employment-income-manual/eim31240
  * https://www.gov.uk/government/publications/rates-and-allowances-travel-mileage-and-fuel-allowances/travel-mileage-and-fuel-rates-and-allowances
  */
@@ -90,6 +92,12 @@ const AMAP_FROM_2011_12: AmapRates = {
 const AMAP_FROM_2026_27: AmapRates = {
   carVanFirst10kPence: 55,
   carVanAfter10kPence: 25,
+  motorcyclePence: 24,
+  cyclePence: 20,
+};
+const AMAP_FROM_2027_28: AmapRates = {
+  carVanFirst10kPence: 55,
+  carVanAfter10kPence: 35,
   motorcyclePence: 24,
   cyclePence: 20,
 };
@@ -130,7 +138,8 @@ export function amapRatesForTaxYear(
   const start = startYearOf(taxYear);
   if (start < 2011) return null;
   const published = start <= startYearOf(AMAP_LATEST_PUBLISHED_TAX_YEAR);
-  return { rates: start >= 2026 ? AMAP_FROM_2026_27 : AMAP_FROM_2011_12, published };
+  const rates = start >= 2027 ? AMAP_FROM_2027_28 : start >= 2026 ? AMAP_FROM_2026_27 : AMAP_FROM_2011_12;
+  return { rates, published };
 }
 
 // ── Income Tax rates, for the "tax back" estimate ──────────────────

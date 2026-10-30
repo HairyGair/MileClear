@@ -38,10 +38,10 @@ describe("amapRatesForTaxYear (EIM31240)", () => {
     expect(r.published).toBe(true);
     expect(r.rates).toEqual({ carVanFirst10kPence: 55, carVanAfter10kPence: 25, motorcyclePence: 24, cyclePence: 20 });
   });
-  it("carries 2026-27 rates forward but flags them unpublished", () => {
+  it("2027-28 is 55p then 35p (Autumn Budget 2026), flagged unpublished", () => {
     const r = amapRatesForTaxYear("2027-28")!;
     expect(r.published).toBe(false);
-    expect(r.rates.carVanFirst10kPence).toBe(55);
+    expect(r.rates).toEqual({ carVanFirst10kPence: 55, carVanAfter10kPence: 35, motorcyclePence: 24, cyclePence: 20 });
   });
   it("returns null before 2011-12", () => {
     expect(amapRatesForTaxYear("2010-11")).toBeNull();
@@ -130,6 +130,11 @@ describe("calculateMileageAllowanceRelief", () => {
   it("2026-27 over 10,000 miles: 55p then 25p", () => {
     const r = calc({ taxYear: "2026-27", carVanMiles: 12_500, employerPaid: rates(0) });
     expect(r.approvedPence).toBe(10_000 * 55 + 2_500 * 25);
+  });
+
+  it("2027-28 over 10,000 miles: 55p then 35p", () => {
+    const r = calc({ taxYear: "2027-28", carVanMiles: 12_500, employerPaid: rates(0) });
+    expect(r.approvedPence).toBe(10_000 * 55 + 2_500 * 35);
   });
 
   it("exactly 10,000 miles is all at the first rate", () => {

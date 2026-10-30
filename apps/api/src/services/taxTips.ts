@@ -224,14 +224,14 @@ export const TAX_TIPS: TaxTip[] = [
     id: "sa-capital-allowances",
     title: "🚗 Capital allowances vs simplified expenses",
     body:
-      "Once you pick simplified expenses (the AMAP rate - 55p/25p for cars and vans from 2026-27, 45p/25p before) for a vehicle, you can't switch to capital allowances on the same one. Make the decision once, stick with it.",
+      "Once you pick simplified expenses (the AMAP rate: 55p/25p for cars and vans in 2026-27, 55p/35p from 2027-28, 45p/25p before) for a vehicle, you can't switch to capital allowances on the same one. Make the decision once, stick with it.",
     category: "self-assessment",
   },
   {
     id: "sa-amap-vs-actual",
     title: "🚗 AMAP rates vs actual costs - which?",
     body:
-      "Cars + vans (2026-27 onwards): 55p per mile for the first 10k, 25p after - up from 45p/25p in earlier years. For most drivers covering 8-15k business miles this is more generous than tracking actual fuel/wear/insurance. Switch only if you have an expensive vehicle and low mileage.",
+      "Cars + vans (2026-27): 55p per mile for the first 10k, 25p after, up from 45p/25p in earlier years. From 6 April 2027 the rate after 10k goes up to 35p. For most drivers covering 8-15k business miles this is more generous than tracking actual fuel/wear/insurance. Switch only if you have an expensive vehicle and low mileage.",
     category: "self-assessment",
   },
   {

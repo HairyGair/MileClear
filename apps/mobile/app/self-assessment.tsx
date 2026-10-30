@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES } from "@mileclear/shared";
+import { formatPence, formatMiles, SA103_BOXES, SA103_GUIDANCE, EXPENSE_CATEGORIES, getHmrcRatesForTaxYear } from "@mileclear/shared";
 import { fetchSelfAssessmentSummary, type SelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { downloadAndShareExport } from "../lib/api/exports";
 import { fetchProfile, updateProfile } from "../lib/api/user";
@@ -164,15 +164,15 @@ function StepIncome({ summary }: { summary: SelfAssessmentSummary }) {
 
 function StepMileage({ summary }: { summary: SelfAssessmentSummary }) {
   // The rate depends on the tax year being filed: the 2025-26 return (due
-  // 31 Jan 2027) is still at 45p. Same rule as the web walkthrough.
-  const isPost2026 = summary.taxYear >= "2026-27";
-  const firstTier = isPost2026 ? "55p" : "45p";
+  // 31 Jan 2027) is still at 45p/25p, 2026-27 is 55p/25p, 2027-28 55p/35p.
+  const rates = getHmrcRatesForTaxYear(summary.taxYear).car;
+  const firstTier = `${rates.first10000}p`;
   return (
     <>
       <SectionCard>
         <Text style={styles.stepTitle}>Mileage on your tax return</Text>
         <Text style={styles.stepDesc}>
-          For {summary.taxYear}: {firstTier} a mile for the first 10,000 business miles, then 25p. It goes in box 12 with your other travel costs.
+          For {summary.taxYear}: {firstTier} a mile for the first 10,000 business miles, then {rates.after10000}p. It goes in box 12 with your other travel costs.
         </Text>
         <HeroValue label="Part of box 12" value={formatPence(summary.mileageDeductionPence)} />
       </SectionCard>

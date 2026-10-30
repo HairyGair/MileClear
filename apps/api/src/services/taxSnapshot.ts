@@ -560,8 +560,10 @@ function buildMileageDeductionDerivation(input: DerivationInput): NumberDerivati
       },
     }] : undefined,
     notes: [
-      taxYear >= "2026-27"
-        ? "AMAP rates (cars and vans, 2026-27 onwards): 55p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Previous rate was 45p/25p — rate rose on 6 April 2026."
+      taxYear >= "2027-28"
+        ? "AMAP rates (cars and vans, 2027-28 onwards): 55p per mile for the first 10,000 business miles, 35p per mile thereafter. Motorbikes are 24p flat. The rate after 10,000 miles rose from 25p on 6 April 2027."
+        : taxYear >= "2026-27"
+        ? "AMAP rates (cars and vans, 2026-27): 55p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Previous rate was 45p/25p; the rate rose on 6 April 2026, and the rate after 10,000 miles rises to 35p from 6 April 2027."
         : "AMAP rates (cars and vans, up to 2025-26): 45p per mile for the first 10,000 business miles, 25p per mile thereafter. Motorbikes are 24p flat. Rate rose to 55p/25p from 6 April 2026.",
       `Trips without a linked vehicle use ${fallbackVehicleType} rates. Add or assign a vehicle on the Trip detail screen if a trip used a different vehicle type.`,
     ],
