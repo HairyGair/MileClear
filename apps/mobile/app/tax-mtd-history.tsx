@@ -20,7 +20,8 @@ import {
   type HmrcPeriodSummaryListItem,
   type HmrcCalculationListItem,
 } from "../lib/api/hmrc";
-import { describeMtdLoadError, isNothingSubmittedError } from "../lib/tax/mtdCopy";
+import { describeMtdLoadError, isNothingSubmittedError, isMtdTest, isMtdLive } from "../lib/tax/mtdCopy";
+import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -50,6 +51,9 @@ export default function TaxMtdHistoryScreen() {
   const [error, setError] = useState<string | null>(null);
   // False for "connect first", where trying again can't change anything.
   const [canRetry, setCanRetry] = useState(false);
+  const env = useHmrcEnvironment();
+  const test = isMtdTest(env);
+  const live = isMtdLive(env);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,8 +61,13 @@ export default function TaxMtdHistoryScreen() {
     setCanRetry(false);
     try {
       const status = await fetchHmrcStatus();
+      rememberHmrcEnvironment(status.data.environment);
       if (!status.data.connected || !status.data.businessId) {
-        setError("Connect to the test service and confirm your trade to see your update history.");
+        setError(
+          status.data.environment === "production"
+            ? "Connect to HMRC and confirm your trade to see your update history."
+            : "Connect to the test service and confirm your trade to see your update history.",
+        );
         setPeriods([]);
         setCalculations([]);
         setLoading(false);
@@ -109,11 +118,15 @@ export default function TaxMtdHistoryScreen() {
     >
       <Stack.Screen options={{ title: "Update history", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
 
-      <BetaBanner
-        label="Test version"
-        title="Test updates"
-        body="These updates went to HMRC's test service. They are not on your real HMRC tax record."
-      />
+      {test ? (
+        <BetaBanner
+          label="Test version"
+          title="Test updates"
+          body="These updates went to HMRC's test service. They are not on your real HMRC tax record."
+        />
+      ) : live ? (
+        <Text style={styles.liveIntro}>Your updates sent to HMRC</Text>
+      ) : null}
 
       <View style={styles.tabs}>
         {taxYears.map((y) => (
@@ -202,7 +215,11 @@ export default function TaxMtdHistoryScreen() {
               ))
             )}
             <MtdSignpost
-              text="In this test version these figures come from HMRC's test service, not your real tax record. Once it is live, they will only be an estimate and may change as more is reported about you during the tax year."
+              text={
+                test
+                  ? "In this test version these figures come from HMRC's test service, not your real tax record. Once it is live, they will only be an estimate and may change as more is reported about you during the tax year."
+                  : "HMRC's estimate of your tax so far. It changes as you send more updates. Your full tax account is in your HMRC online account on GOV.UK."
+              }
               showLink={false}
             />
             <MtdSignpost
@@ -252,6 +269,12 @@ function formatCalcType(t: string): string {
 
 const styles = StyleSheet.create({
   center: { padding: 32, alignItems: "center" },
+  liveIntro: {
+    color: TEXT_2,
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    marginBottom: 12,
+  },
 
   tabs: {
     flexDirection: "row",

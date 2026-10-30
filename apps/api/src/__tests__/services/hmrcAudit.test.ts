@@ -139,6 +139,9 @@ describe("submission trail", () => {
   });
 
   it("records a successful update as ok", async () => {
+    // A sandbox connection only works while the server is on the test service.
+    process.env.HMRC_ENVIRONMENT = "sandbox";
+    resetHmrcConfig();
     vi.mocked(prisma.hmrcConnection.findUnique).mockResolvedValue(connection("sandbox") as never);
     respond(204, undefined, "corr-ok");
 

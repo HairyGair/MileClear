@@ -1,10 +1,13 @@
 // Shared bits for the end-of-year tax return screens (tax-mtd-year-end*.tsx).
 
 import type { ReactNode } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
+import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BetaBanner } from "../BetaBanner";
 import { colors, fonts } from "../../lib/theme";
+import { isMtdTest } from "../../lib/tax/mtdCopy";
+import { useHmrcEnvironmentState } from "../../lib/tax/useHmrcEnvironment";
 
 /** The "Test version" banner every tax return screen carries until HMRC lets us go live. */
 export function TaxReturnTestBanner({ title, body }: { title?: string; body?: string }) {
@@ -17,6 +20,37 @@ export function TaxReturnTestBanner({ title, body }: { title?: string; body?: st
         "This works with HMRC's test service while we wait to be allowed to send real returns. Nothing you do here reaches HMRC and your tax account is not changed. You still need to send your real tax return."
       }
     />
+  );
+}
+
+/**
+ * The end-of-year tax return only runs on HMRC's test service: the final
+ * declaration isn't built, so on the real service these screens say so
+ * instead of starting the flow (a deep link or an old notification can still
+ * open them). The server refuses the year-end writes there too.
+ */
+export function YearEndLiveGate({ children }: { children: ReactNode }) {
+  const { env, loading } = useHmrcEnvironmentState();
+  // Only the test service runs the flow. While asking, show nothing that could
+  // start it; if the answer never comes, treat it as the real service.
+  if (isMtdTest(env)) return <>{children}</>;
+  if (loading) {
+    return (
+      <View style={partStyles.center}>
+        <ActivityIndicator color={colors.amber} />
+      </View>
+    );
+  }
+  return (
+    <View style={partStyles.center}>
+      {/* The done screen is registered without a back button; give this one a way out. */}
+      <Stack.Screen options={{ title: "End of year", headerBackVisible: true, gestureEnabled: true }} />
+      <Ionicons name="calendar-outline" size={40} color={colors.amber} />
+      <Text style={[partStyles.body, { textAlign: "center" }]}>
+        The end-of-year tax return isn't in MileClear yet. Send it with HMRC or other compatible software.
+      </Text>
+      <SecondaryButton label="Back to quarterly updates" onPress={() => router.replace("/tax-mtd" as never)} />
+    </View>
   );
 }
 

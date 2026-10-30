@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { connectionLine, describeMtdLoadError, isConnectionExpired, isNothingSubmittedError, obligationsErrorText } from "./mtdCopy";
+import { connectionLine, describeMtdLoadError, isConnectionExpired, isMtdLive, isMtdTest, isNothingSubmittedError, obligationsErrorText } from "./mtdCopy";
 import { ApiError } from "../api/apiError";
 
 const now = new Date("2026-10-10T12:00:00Z");
@@ -48,5 +48,20 @@ describe("mtdCopy", () => {
   it("words the line", () => {
     expect(connectionLine("2026-10-09T23:28:00Z", "x", now)).toBe("Your test connection has expired. Connect again to carry on.");
     expect(connectionLine("2026-10-11T00:00:00Z", "11 Oct 2026, 01:00", now)).toBe("Your test connection renews by itself while you use it.");
+  });
+  it("never says test on HMRC's real service", () => {
+    expect(connectionLine("2026-10-09T23:28:00Z", "x", now, "production")).toBe("Your connection to HMRC has expired. Connect again to carry on.");
+    expect(connectionLine("2026-10-11T00:00:00Z", "x", now, "production")).toBe("Your connection renews by itself while you use it.");
+    expect(connectionLine("2026-10-11T00:00:00Z", "x", now, "sandbox")).toBe("Your test connection renews by itself while you use it.");
+  });
+  it("only calls it live or test when the server has said which", () => {
+    expect(isMtdLive("production")).toBe(true);
+    expect(isMtdTest("production")).toBe(false);
+    expect(isMtdLive("sandbox")).toBe(false);
+    expect(isMtdTest("sandbox")).toBe(true);
+    for (const unknown of [null, undefined]) {
+      expect(isMtdLive(unknown)).toBe(false);
+      expect(isMtdTest(unknown)).toBe(false);
+    }
   });
 });

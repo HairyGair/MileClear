@@ -86,9 +86,13 @@ export async function hmrcRoutes(app: FastifyInstance) {
     // started /authorize and never completed the callback. Treat as not
     // connected — otherwise the mobile client renders "Token expires
     // 1 Jan 1970" which looks like a broken integration.
+    // A connection made on the other HMRC service (sandbox tokens after the
+    // server moved to production) can't be used here, so it reads as not
+    // connected and the screens word themselves for this server's service.
     const hasValidTokens =
       connection &&
       !connection.disconnectedAt &&
+      connection.environment === config.environment &&
       connection.expiresAt.getTime() > 86_400_000; // > 2 Jan 1970
 
     if (!connection || connection.disconnectedAt || !hasValidTokens) {

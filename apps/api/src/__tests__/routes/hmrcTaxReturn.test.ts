@@ -56,6 +56,7 @@ vi.mock("../../services/hmrc/periodMapping.js", async (importOriginal) => {
 });
 
 import { hmrcRoutes } from "../../routes/hmrc/index.js";
+import { resetHmrcConfig } from "../../services/hmrc/config.js";
 import { prisma } from "../../lib/prisma.js";
 import { hmrcCall, HmrcError } from "../../services/hmrc/client.js";
 import { logEvent } from "../../services/appEvents.js";
@@ -355,5 +356,29 @@ describe("HMRC tax return routes", () => {
   it("rejects a malformed tax year", async () => {
     const res = await app.inject({ method: "GET", url: "/hmrc/tax-return/2025-27/status", headers: auth });
     expect(res.statusCode).toBe(400);
+  });
+
+  it("refuses every year-end write on HMRC's real service, before calling HMRC", async () => {
+    process.env.HMRC_ENVIRONMENT = "production";
+    resetHmrcConfig();
+    try {
+      const writes = [
+        { method: "PUT", url: "/hmrc/tax-return/2025-26/annual", payload: {} },
+        { method: "DELETE", url: "/hmrc/tax-return/2025-26/annual", payload: { confirm: true } },
+        { method: "POST", url: "/hmrc/tax-return/2025-26/calculation", payload: { otherIncomeConfirmed: true } },
+        { method: "POST", url: "/hmrc/tax-return/2025-26/submit", payload: {} },
+        { method: "PUT", url: "/hmrc/tax-return/2025-26/accounting-type", payload: { accountingType: "CASH" } },
+        { method: "PUT", url: "/hmrc/tax-return/2025-26/periods-of-account", payload: { choice: "tax_year" } },
+      ] as const;
+      for (const w of writes) {
+        const res = await app.inject({ ...w, headers: auth });
+        expect(res.statusCode, `${w.method} ${w.url}`).toBe(403);
+        expect(res.json().code).toBe("YEAR_END_NOT_LIVE");
+      }
+      expect(mockCall).not.toHaveBeenCalled();
+    } finally {
+      process.env.HMRC_ENVIRONMENT = "sandbox";
+      resetHmrcConfig();
+    }
   });
 });

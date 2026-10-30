@@ -1,4 +1,5 @@
-import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText } from "../lib/tax/mtdCopy";
+import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv } from "../lib/tax/mtdCopy";
+import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { useCallback, useMemo, useState } from "react";
 import {
   View,
@@ -108,12 +109,18 @@ export default function TaxMtdScreen() {
 function TaxMtdContent() {
   const [state, setState] = useState<ScreenState>(INITIAL_STATE);
   const [refreshing, setRefreshing] = useState(false);
+  // Which HMRC service the server uses. The status this screen loads says;
+  // the shared hook covers the moments it doesn't (an expired connection).
+  const fallbackEnv = useHmrcEnvironment();
+  const env: HmrcEnv = state.status?.environment ?? fallbackEnv;
+  const test = isMtdTest(env);
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const statusRes = await fetchHmrcStatus();
       let status = statusRes.data;
+      rememberHmrcEnvironment(status.environment);
 
       if (!status.connected) {
         setState({
@@ -212,7 +219,7 @@ function TaxMtdContent() {
           obligationsError: null,
           businesses: [],
           loading: false,
-          error: "Your test connection has expired. Connect again to carry on.",
+          error: "expired",
         });
         return;
       }
@@ -269,8 +276,10 @@ function TaxMtdContent() {
 
   const onDisconnect = useCallback(() => {
     Alert.alert(
-      "Disconnect the test connection?",
-      "You'll need to connect again to carry on with the test version.",
+      test ? "Disconnect the test connection?" : "Disconnect from HMRC?",
+      test
+        ? "You'll need to connect again to carry on with the test version."
+        : "You'll need to connect again to send updates.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -290,7 +299,7 @@ function TaxMtdContent() {
         },
       ]
     );
-  }, [load]);
+  }, [load, test]);
 
   if (state.loading) {
     return (
@@ -306,25 +315,33 @@ function TaxMtdContent() {
       contentContainerStyle={{ padding: 16, paddingBottom: 64 }}
       refreshControl={<RefreshControl tintColor={AMBER} refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <BetaBanner
-        label="Test version"
-        title="Quarterly updates are a test version"
-        body="This works with HMRC's test service while we wait to be allowed to send real updates. You can connect, preview and walk through an update, but nothing reaches HMRC and your tax account is not changed."
-      />
+      {test && (
+        <BetaBanner
+          label="Test version"
+          title="Quarterly updates are a test version"
+          body="This works with HMRC's test service while we wait to be allowed to send real updates. You can connect, preview and walk through an update, but nothing reaches HMRC and your tax account is not changed."
+        />
+      )}
 
-      <Header status={state.status} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
+      <Header status={state.status} test={test} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
 
       {state.error && (
         <View style={styles.errorCard}>
           <Ionicons name="alert-circle" size={20} color={RED} />
-          <Text style={styles.errorText}>{state.error}</Text>
+          <Text style={styles.errorText}>
+            {state.error === "expired"
+              ? (test
+                  ? "Your test connection has expired. Connect again to carry on."
+                  : "Your connection to HMRC has expired. Connect again to carry on.")
+              : state.error}
+          </Text>
         </View>
       )}
 
       {/* Before connecting: does MTD apply to this driver yet? */}
       {state.step === "connect" && <MtdScopeCheck />}
-      {state.step === "connect" && <ConnectStep onConnect={onConnect} />}
-      {state.step === "nino" && <NinoStep onDone={load} />}
+      {state.step === "connect" && <ConnectStep test={test} onConnect={onConnect} />}
+      {state.step === "nino" && <NinoStep test={test} onDone={load} />}
       {state.step === "business" && <BusinessStep businesses={state.businesses} onDone={load} />}
       {state.step === "ready" && (
         <ReadyStep
@@ -332,12 +349,18 @@ function TaxMtdContent() {
           unavailable={state.obligationsUnavailable}
           unavailableReason={state.obligationsError}
           expired={isConnectionExpired(state.status?.expiresAt)}
+          test={test}
           onConnect={onConnect}
         />
       )}
 
-      {/* Scope signposts (in-year, self-employment-only product). Future tense: nothing is live yet. */}
-      {state.step === "ready" && (
+      {/* Scope signposts (in-year, self-employment-only product). On HMRC's
+          real service the end-of-year return is not offered: the final
+          declaration isn't built, so the card only shows on the test service. */}
+      {state.step === "ready" && !test && (
+        <MtdSignpost text="MileClear sends your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return isn't in MileClear yet, so send it with HMRC or other compatible software." />
+      )}
+      {state.step === "ready" && test && (
         <>
           <MtdSignpost text="When it goes live, MileClear will send your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return below is a test version only, so for now send your real tax return with HMRC or other compatible software." />
           <TouchableOpacity
@@ -363,16 +386,18 @@ function TaxMtdContent() {
 
 function Header({
   status,
+  test,
   onDisconnect,
 }: {
   status: HmrcStatus | null;
+  test: boolean;
   onDisconnect?: () => void;
 }) {
   const isConnected = status?.connected === true;
   const sandbox = status?.environment !== "production";
   const expired = isConnected && isConnectionExpired(status?.expiresAt);
   const title = expired
-    ? "Test connection expired"
+    ? (test ? "Test connection expired" : "Connection expired")
     : isConnected
       ? (sandbox ? "Connected to HMRC's test service" : "Connected to HMRC")
       : "Not connected";
@@ -388,14 +413,14 @@ function Header({
           <Text style={styles.headerTitle}>{title}</Text>
         </View>
         {onDisconnect && (
-          <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel="Disconnect the test connection">
+          <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel={test ? "Disconnect the test connection" : "Disconnect from HMRC"}>
             <Text style={styles.disconnectLink}>Disconnect</Text>
           </TouchableOpacity>
         )}
       </View>
       {isConnected && status?.environment && (
         <Text style={styles.headerSub}>
-          {connectionLine(status.expiresAt, formatExpiry(status.expiresAt))}
+          {connectionLine(status.expiresAt, formatExpiry(status.expiresAt), undefined, status.environment)}
         </Text>
       )}
     </View>
@@ -404,7 +429,34 @@ function Header({
 
 // ── Step: Connect ────────────────────────────────────────────────────
 
-function ConnectStep({ onConnect }: { onConnect: () => void }) {
+function ConnectStep({ test, onConnect }: { test: boolean; onConnect: () => void }) {
+  if (!test) {
+    return (
+      <View style={styles.stepCard}>
+        <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
+        <Text style={styles.stepTitle}>Connect to HMRC</Text>
+        <Text style={styles.stepBody}>
+          Sign in with your HMRC (Government Gateway) details and agree to let
+          MileClear send your quarterly updates.
+        </Text>
+        <Bullets
+          items={[
+            "MileClear works out the figures from your trips and earnings",
+            "Preview each quarter before you send it",
+            "HMRC shows you an estimate of your tax so far",
+          ]}
+        />
+        <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Continue to HMRC">
+          <Text style={styles.primaryButtonText}>Continue</Text>
+          <Ionicons name="arrow-forward" size={18} color="#000" />
+        </TouchableOpacity>
+        <Text style={styles.fineprint}>
+          You'll be taken to HMRC's own sign-in page. The connection lasts a
+          limited time, so you may need to connect again. You can disconnect any time.
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.stepCard}>
       <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
@@ -434,14 +486,15 @@ function ConnectStep({ onConnect }: { onConnect: () => void }) {
 
 // ── Step: NINO ───────────────────────────────────────────────────────
 
-function NinoStep({ onDone: _onDone }: { onDone: () => void }) {
+function NinoStep({ test, onDone: _onDone }: { test: boolean; onDone: () => void }) {
   return (
     <View style={styles.stepCard}>
       <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
       <Text style={styles.stepTitle}>Enter your NINO</Text>
       <Text style={styles.stepBody}>
-        We need your National Insurance Number to set up the test connection. It's stored
-        encrypted and only used for quarterly updates.
+        {test
+          ? "We need your National Insurance Number to set up the test connection. It's stored encrypted and only used for quarterly updates."
+          : "HMRC needs your National Insurance Number to find your tax record. It's stored encrypted and only used for quarterly updates."}
       </Text>
       <TouchableOpacity
         style={styles.primaryButton}
@@ -519,12 +572,14 @@ function ReadyStep({
   unavailable,
   unavailableReason,
   expired,
+  test,
   onConnect,
 }: {
   obligations: HmrcObligation[];
   unavailable: boolean;
   unavailableReason: { message: string; canRetry: boolean } | null;
   expired: boolean;
+  test: boolean;
   onConnect: () => void;
 }) {
   const sorted = useMemo(
@@ -542,11 +597,13 @@ function ReadyStep({
       <View style={styles.stepCard}>
         <Ionicons name="alert-circle-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
         <Text style={styles.stepTitle}>
-          {expired ? "Your test connection has expired" : "Couldn't load your updates"}
+          {expired ? (test ? "Your test connection has expired" : "Your connection to HMRC has expired") : "Couldn't load your updates"}
         </Text>
         <Text style={styles.stepBody}>
           {expired
-            ? "Connect again to carry on. Your past test updates stay in your history."
+            ? (test
+                ? "Connect again to carry on. Your past test updates stay in your history."
+                : "Connect again to carry on. Your past updates stay in your history.")
             : obligationsErrorText(unavailableReason)}
         </Text>
         {expired && (

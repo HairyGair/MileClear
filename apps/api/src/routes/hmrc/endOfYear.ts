@@ -18,7 +18,7 @@
 //
 // HMRC's journey and wording: docs/hmrc-end-of-year-oct2026.md
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { TAX_RETURN_DECLARATION_VERSION } from "@mileclear/shared";
 import { authMiddleware } from "../../middleware/auth.js";
@@ -123,8 +123,23 @@ async function yearTotals(userId: string, taxYear: string) {
   };
 }
 
+/**
+ * The end-of-year tax return only runs on HMRC's test service. On the real
+ * service the final declaration isn't built and the adjustable-summary API
+ * isn't subscribed, so every year-end write is refused there; reads stay open.
+ */
+export const YEAR_END_NOT_LIVE_MESSAGE =
+  "The end-of-year tax return isn't in MileClear yet. Send it with HMRC or other compatible software.";
+
+async function yearEndWritesOpen(_request: FastifyRequest, reply: FastifyReply) {
+  if (getHmrcConfig()?.environment === "production") {
+    return reply.status(403).send({ error: YEAR_END_NOT_LIVE_MESSAGE, code: "YEAR_END_NOT_LIVE" });
+  }
+}
+
 export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
   const pre = { preHandler: [authMiddleware, premiumMiddleware] };
+  const preWrite = { preHandler: [authMiddleware, premiumMiddleware, yearEndWritesOpen] };
 
   // ── Status: quarters sent, tax return already submitted ──────────────
   app.get("/tax-return/:taxYear/status", pre, async (request, reply) => {
@@ -199,7 +214,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
     }
   });
 
-  app.put("/tax-return/:taxYear/annual", pre, async (request, reply) => {
+  app.put("/tax-return/:taxYear/annual", preWrite, async (request, reply) => {
     const params = taxYearParam.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
     const { taxYear } = params.data;
@@ -242,7 +257,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
   });
 
   const deleteBody = z.object({ confirm: z.literal(true) });
-  app.delete("/tax-return/:taxYear/annual", pre, async (request, reply) => {
+  app.delete("/tax-return/:taxYear/annual", preWrite, async (request, reply) => {
     const params = taxYearParam.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
     if (!deleteBody.safeParse(request.body).success) {
@@ -273,7 +288,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
   // already sent it elsewhere. HMRC's guide: software must make sure the
   // customer "has already provided their entire income" before this step.
   const triggerBody = z.object({ otherIncomeConfirmed: z.literal(true) });
-  app.post("/tax-return/:taxYear/calculation", pre, async (request, reply) => {
+  app.post("/tax-return/:taxYear/calculation", preWrite, async (request, reply) => {
     const params = taxYearParam.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
     if (!triggerBody.safeParse(request.body).success) {
@@ -332,7 +347,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
     otherIncomeConfirmed: z.literal(true),
     declarationVersion: z.string().min(1).max(64),
   });
-  app.post("/tax-return/:taxYear/submit", pre, async (request, reply) => {
+  app.post("/tax-return/:taxYear/submit", preWrite, async (request, reply) => {
     const params = taxYearParam.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
     const body = submitBody.safeParse(request.body);
@@ -449,7 +464,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
   });
 
   const accountingTypeBody = z.object({ accountingType: z.enum(["CASH", "ACCRUAL"]) });
-  app.put("/tax-return/:taxYear/accounting-type", pre, async (request, reply) => {
+  app.put("/tax-return/:taxYear/accounting-type", preWrite, async (request, reply) => {
     const params = taxYearParam.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
     const body = accountingTypeBody.safeParse(request.body);
@@ -502,7 +517,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
     startDate: z.string().optional(),
     endDate: z.string().optional(),
   });
-  app.put("/tax-return/:taxYear/periods-of-account", pre, async (request, reply) => {
+  app.put("/tax-return/:taxYear/periods-of-account", preWrite, async (request, reply) => {
     const params = taxYearParam.safeParse(request.params);
     if (!params.success) return reply.status(400).send({ error: params.error.issues[0].message });
     const body = periodsBody.safeParse(request.body);

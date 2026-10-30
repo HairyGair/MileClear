@@ -12,6 +12,8 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, formatPence } from "@mileclear/shared";
 import { BetaBanner } from "../components/BetaBanner";
+import { isMtdTest, isMtdLive, type HmrcEnv } from "../lib/tax/mtdCopy";
+import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import {
   fetchHmrcStatus,
   previewPeriodSubmission,
@@ -45,6 +47,12 @@ export default function TaxMtdPreviewScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fetchedEnv, setFetchedEnv] = useState<HmrcEnv>(null);
+  const fallbackEnv = useHmrcEnvironment();
+  const env = fetchedEnv ?? fallbackEnv;
+  const test = isMtdTest(env);
+  const live = isMtdLive(env);
+  const sendLabel = test ? "Send test update" : "Send update";
 
   const taxYear = from ? deriveTaxYear(from) : getTaxYear(new Date());
 
@@ -58,8 +66,14 @@ export default function TaxMtdPreviewScreen() {
         // refetch in case the user disconnected mid-navigation.
         const status = await fetchHmrcStatus();
         if (cancelled) return;
+        setFetchedEnv(status.data.environment ?? null);
+        rememberHmrcEnvironment(status.data.environment);
         if (!status.data.connected || !status.data.businessId) {
-          setError("Connect again to the test service and confirm your trade first.");
+          setError(
+            status.data.environment === "production"
+              ? "Connect to HMRC again and confirm your trade first."
+              : "Connect again to the test service and confirm your trade first.",
+          );
           setLoading(false);
           return;
         }
@@ -91,13 +105,18 @@ export default function TaxMtdPreviewScreen() {
 
   const onSubmit = useCallback(() => {
     if (!preview || !businessId) return;
+    const period = formatPeriodLabel(preview.periodDates.periodStartDate, preview.periodDates.periodEndDate);
     Alert.alert(
-      "Send test update",
-      `This sends ${formatPeriodLabel(preview.periodDates.periodStartDate, preview.periodDates.periodEndDate)} to HMRC's test service. Nothing reaches HMRC and your tax account is not changed.`,
+      sendLabel,
+      test
+        ? `This sends ${period} to HMRC's test service. Nothing reaches HMRC and your tax account is not changed.`
+        : live
+          ? `This sends ${period} to HMRC. You can amend it later if a figure is wrong.`
+          : `This sends ${period}. You can amend it later if a figure is wrong.`,
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Send test update",
+          text: sendLabel,
           style: "default",
           onPress: async () => {
             setSubmitting(true);
@@ -123,7 +142,7 @@ export default function TaxMtdPreviewScreen() {
         },
       ]
     );
-  }, [preview, businessId, taxYear]);
+  }, [preview, businessId, taxYear, sendLabel, test, live]);
 
   if (loading) {
     return (
@@ -159,11 +178,13 @@ export default function TaxMtdPreviewScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 96 }}>
       <Stack.Screen options={{ title: "Review update", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
 
-      <BetaBanner
-        label="Test version"
-        title="This is a test update"
-        body="Your figures are worked out from your real trips and earnings, but the update only goes to HMRC's test service. Nothing is sent to HMRC and your tax account is not changed."
-      />
+      {test && (
+        <BetaBanner
+          label="Test version"
+          title="This is a test update"
+          body="Your figures are worked out from your real trips and earnings, but the update only goes to HMRC's test service. Nothing is sent to HMRC and your tax account is not changed."
+        />
+      )}
 
       <View style={styles.headerCard}>
         <Text style={styles.headerLabel}>QUARTERLY UPDATE</Text>
@@ -290,14 +311,14 @@ export default function TaxMtdPreviewScreen() {
           onPress={onSubmit}
           disabled={submitting}
           accessibilityRole="button"
-          accessibilityLabel="Send test update"
+          accessibilityLabel={sendLabel}
           accessibilityState={{ disabled: submitting }}
         >
           {submitting ? (
             <ActivityIndicator color="#000" />
           ) : (
             <>
-              <Text style={styles.primaryButtonText}>Send test update</Text>
+              <Text style={styles.primaryButtonText}>{sendLabel}</Text>
               <Ionicons name="cloud-upload-outline" size={18} color="#000" />
             </>
           )}

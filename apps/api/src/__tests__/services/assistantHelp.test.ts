@@ -103,7 +103,9 @@ describe("help knowledge", () => {
     expect(text).toMatch(/24p a mile/);
     expect(text).toMatch(/£4\.99 a month/);
     expect(text).toMatch(/1 vehicle and 2 saved places/);
-    expect(text).toMatch(/HMRC's test service only: nothing is sent to HMRC/); // MTD is sandbox only
+    expect(text).toMatch(/send their quarterly updates to HMRC from Tax > Your tax details > Quarterly updates/); // MTD quarterly updates are live
+    expect(text).toMatch(/end-of-year tax return isn't in MileClear yet/); // the final declaration is not built
+    expect(text).not.toMatch(/\btest (version|service)\b/i);
     expect(text).not.toMatch(/Show Phantom|Data Quality|avatar menu|Work & Tax|Tax exports/i); // retired screens
   });
 });

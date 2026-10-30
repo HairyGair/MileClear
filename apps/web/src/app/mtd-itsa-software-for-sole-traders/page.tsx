@@ -8,7 +8,7 @@ import StoreButtons from "@/components/StoreButtons";
 export const metadata: Metadata = {
   title: "MTD for Income Tax: What Sole Traders & Self-Employed Drivers Need (2026-27)",
   description:
-    "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders with qualifying income over £50,000. The next quarterly update deadlines are 7 November 2026 and 7 February 2027. Here's what it requires, who has to comply, and where MileClear's own build stands (tested with HMRC's test service only).",
+    "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders with qualifying income over £50,000. The next quarterly update deadlines are 7 November 2026 and 7 February 2027. Here's what it requires, who has to comply, and how to send your quarterly updates from MileClear.",
   alternates: {
     canonical: "https://mileclear.com/mtd-itsa-software-for-sole-traders",
   },
@@ -51,7 +51,7 @@ const faqs = [
   },
   {
     q: "Can I keep using my existing mileage tracker and submit elsewhere?",
-    a: "Yes, but you will use at least two pieces of software. Your tracker gives you a mileage figure or an export; separate MTD-compatible accounting software sends the quarterly update to HMRC. Most accountancy packages (Xero, FreeAgent, QuickBooks, Sage) support MTD for Income Tax but do not track mileage natively. MileClear tracks and totals your mileage and deduction. Nothing from MileClear is sent to HMRC yet, so use your accounting software or accountant for real quarterly updates.",
+    a: "Yes, but you will use at least two pieces of software. Your tracker gives you a mileage figure or an export; separate MTD-compatible accounting software sends the quarterly update to HMRC. Most accountancy packages (Xero, FreeAgent, QuickBooks, Sage) support MTD for Income Tax but do not track mileage natively. MileClear tracks and totals your mileage and deduction, and Pro drivers can also send their quarterly updates for self-employment income to HMRC from the app, so one app can do both.",
   },
   {
     q: "What if I miss a quarterly deadline?",
@@ -59,11 +59,42 @@ const faqs = [
   },
   {
     q: "Do I still need to do a Self Assessment return?",
-    a: "For the 2025-26 tax year, yes: that Self Assessment return is still due by 31 January 2027. From 2026-27, if you are in MTD, the four quarterly updates plus a final declaration take the place of the annual return, and the final declaration is due by 31 January 2028. If you have other income (salary, dividends, capital gains) it goes in the final declaration. Either way, you file on GOV.UK or through your accountant, not through MileClear.",
+    a: "For the 2025-26 tax year, yes: that Self Assessment return is still due by 31 January 2027. From 2026-27, if you are in MTD, the four quarterly updates plus a final declaration take the place of the annual return, and the final declaration is due by 31 January 2028. If you have other income (salary, dividends, capital gains) it goes in the final declaration. MileClear sends quarterly updates only. The end-of-year tax return isn't in MileClear yet, so file that on GOV.UK, through other compatible software or through your accountant.",
   },
   {
     q: "Does MileClear send my quarterly update to HMRC?",
-    a: "Not yet. The MTD journey is built into MileClear and labelled beta: connect your HMRC account, see your obligations, preview your figures and walk through an update. It is tested with HMRC's test service only, so nothing is sent to HMRC and your real tax record does not change. For real quarterly updates and your Self Assessment, use your accountant or MTD-compatible accounting software, or file on GOV.UK.",
+    a: "Yes. Pro drivers can connect their HMRC account in the MileClear app, see which quarters are due, check every figure and send the quarterly update for their self-employment income to HMRC. You need to have signed up for Making Tax Digital with HMRC first. It is self-employment income only: if you also have rental or other untaxed income, you need other compatible software for that. The end-of-year tax return isn't in MileClear yet, so file that on GOV.UK, through other software or through your accountant.",
+  },
+];
+
+const MTD_STEPS: { title: string; body: string }[] = [
+  {
+    title: "Sign up for Making Tax Digital with HMRC.",
+    body: "Do this once on GOV.UK (search \"Sign up for Making Tax Digital for Income Tax\"). HMRC won't take updates from any software until you have.",
+  },
+  {
+    title: "Open Quarterly updates in MileClear.",
+    body: "In the app, go to Tax > Your tax details > Quarterly updates. It checks your MileClear earnings against HMRC's income limits first, so you can see whether you need to do this yet.",
+  },
+  {
+    title: "Connect to HMRC.",
+    body: "Tap Continue. You go to HMRC's own sign-in page: sign in with your Government Gateway user ID and password, and agree to let MileClear send your updates.",
+  },
+  {
+    title: "Confirm who you are and your trade.",
+    body: "Enter your National Insurance Number (stored encrypted) and confirm the self-employment trade HMRC has for you.",
+  },
+  {
+    title: "Check the quarter's figures.",
+    body: "Open the quarter that's due. MileClear shows your income, your expenses and your mileage claim for the year so far. If anything is wrong, fix the trip, earning or expense in MileClear first and the figures update.",
+  },
+  {
+    title: "Send it.",
+    body: "Tap send and confirm. HMRC replies straight away, and MileClear shows that it arrived and HMRC's estimate of your tax so far.",
+  },
+  {
+    title: "Check your HMRC online account.",
+    body: "The first time, sign in on GOV.UK and check the update is there. If a figure turns out to be wrong, correct it in MileClear and send the quarter again.",
   },
 ];
 
@@ -134,8 +165,8 @@ export default function MtdItsaSoftwarePage() {
                 £50,000 in 2024-25. The next quarterly update deadlines are
                 7 November 2026 and 7 February 2027. A mileage app does not
                 replace MTD software on its own. MileClear tracks and totals
-                your mileage and is testing quarterly updates with HMRC&apos;s
-                test service; nothing is sent to HMRC yet.
+                your mileage, and Pro drivers can send their quarterly updates
+                for self-employment income to HMRC from the app.
               </p>
             </div>
 
@@ -439,9 +470,9 @@ export default function MtdItsaSoftwarePage() {
               </li>
               <li style={{ marginBottom: "0.5rem" }}>
                 <strong style={{ color: "var(--text-white)" }}>Mileage-first apps with MTD bolted on</strong>.
-                A small but growing category. MileClear is building towards
-                this, UK-first, and tests it with HMRC&apos;s test service. It is
-                not live yet, so do not rely on it for a real update.
+                A small but growing category. MileClear is one: it tracks
+                your miles and sends your quarterly updates for
+                self-employment income from the same app.
               </li>
             </ul>
 
@@ -459,7 +490,7 @@ export default function MtdItsaSoftwarePage() {
         <section className="section">
           <div className="container" style={{ maxWidth: 820, margin: "0 auto" }}>
             <h2 className="heading" style={{ fontSize: "1.75rem", marginBottom: "1.25rem" }}>
-              Where MileClear&apos;s MTD build stands
+              How to send your first quarterly update from MileClear
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
               MileClear is being built so the UK gig driver journey is
@@ -467,9 +498,8 @@ export default function MtdItsaSoftwarePage() {
               platform (Uber, Deliveroo, Just Eat, Amazon Flex, DPD, Evri,
               Stuart, Gophr, Yodel), capture earnings via Open Banking or
               CSV import, log allowable expenses, and prepare the quarterly
-              figures. The update journey is built and running against
-              HMRC&apos;s test service while we wait on production credentials.
-              Nothing is sent to HMRC yet.
+              figures, then send them to HMRC. Here is the whole journey, step
+              by step.
             </p>
 
             <div
@@ -490,9 +520,9 @@ export default function MtdItsaSoftwarePage() {
                   marginBottom: "1rem",
                 }}
               >
-                Where MileClear&apos;s MTD ITSA build is today
+                Send your first quarterly update
               </h3>
-              <ul
+              <ol
                 style={{
                   color: "var(--text-secondary)",
                   lineHeight: 1.7,
@@ -500,32 +530,26 @@ export default function MtdItsaSoftwarePage() {
                   margin: 0,
                 }}
               >
-                <li style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "var(--text-white)" }}>Built:</strong>{" "}
-                  Connect your HMRC account, see your quarterly obligations, preview every figure and walk through an update. It is in the app now, labelled beta.
-                </li>
-                <li style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "var(--text-white)" }}>Running against HMRC&apos;s test service:</strong>{" "}
-                  until HMRC grants production credentials, updates go to HMRC&apos;s test service only. Nothing is sent to HMRC and your real tax record does not change.
-                </li>
-                <li style={{ marginBottom: 0 }}>
-                  <strong style={{ color: "var(--text-white)" }}>With HMRC now:</strong>{" "}
-                  our request for production credentials is under HMRC&apos;s review.
-                </li>
-              </ul>
+                {MTD_STEPS.map((step, i) => (
+                  <li key={step.title} style={{ marginBottom: i === MTD_STEPS.length - 1 ? 0 : "0.6rem" }}>
+                    <strong style={{ color: "var(--text-white)" }}>{step.title}</strong>{" "}
+                    {step.body}
+                  </li>
+                ))}
+              </ol>
             </div>
 
             <p style={{ color: "var(--text-secondary)", marginBottom: "1rem" }}>
-              We&apos;re publishing live progress in our{" "}
+              Quarterly updates need a Pro subscription and the phone app
+              (HMRC needs your phone&apos;s details with every update, so they
+              can&apos;t be sent from the website). We post every change in our{" "}
               <Link
                 href="/updates"
                 style={{ color: "var(--amber-400)", textDecoration: "none" }}
               >
                 release notes
               </Link>
-              {" "}because the deadline is real and you deserve to know
-              what state the software is actually in, not just
-              what the marketing claims.
+              .
             </p>
           </div>
         </section>
@@ -537,10 +561,8 @@ export default function MtdItsaSoftwarePage() {
               What MileClear prepares for your MTD ITSA figures
             </h2>
             <p style={{ color: "var(--text-secondary)", marginBottom: "1.5rem" }}>
-              Here&apos;s what the MTD ITSA feature (built, in beta on
-              HMRC&apos;s test service until production credentials are
-              granted) prepares from your records once your quarterly window
-              opens. Nothing is sent to HMRC yet:
+              Here&apos;s what MileClear prepares from your records for each
+              quarterly update, so you can check it before you send it:
             </p>
 
             <div
@@ -684,9 +706,8 @@ export default function MtdItsaSoftwarePage() {
               Start tracking your mileage and platform earnings now so
               your mileage and income figures are ready when a quarterly
               deadline arrives. MileClear is free for tracking,
-              classification, and tax-readiness tooling. MTD ITSA quarterly
-              updates are in the app in beta, tested with HMRC&apos;s test
-              service only.
+              classification, and tax-readiness tooling. Pro drivers can send
+              their quarterly updates to HMRC from the app.
             </p>
             <StoreButtons align="center" page="tax" />
             <div style={{ marginTop: "0.5rem" }}>

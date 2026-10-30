@@ -11,6 +11,8 @@ import { useUser } from "../../lib/user/context";
 import { colors, fonts, fontScaleCap, radii, spacing } from "../../lib/theme";
 import { useIsPremium } from "../../components/PremiumGate";
 import { usePrompt } from "../../components/prompt";
+import { isMtdLive, isMtdTest } from "../../lib/tax/mtdCopy";
+import { useHmrcEnvironment } from "../../lib/tax/useHmrcEnvironment";
 
 /**
  * "Your tax details" sub-screen. Owns the settings that feed the Tax tab
@@ -25,6 +27,9 @@ import { usePrompt } from "../../components/prompt";
 export default function WorkTaxSettings() {
   const { refreshUser } = useUser();
   const isPremium = useIsPremium();
+  const hmrcEnv = useHmrcEnvironment();
+  const mtdTest = isMtdTest(hmrcEnv);
+  const mtdLive = isMtdLive(hmrcEnv);
   const { prompt } = usePrompt();
   const [driveFor, setDriveFor] = useState<DriveFor>("gig");
   const [dashboardMode, setDashboardMode] = useState<string | null>(null);
@@ -417,8 +422,14 @@ export default function WorkTaxSettings() {
         <SettingsGroup title="If you work for yourself">
           <SettingsRow
             icon="cloud-upload-outline"
-            label="Quarterly updates (test version)"
-            hint="Test version: works with HMRC's test service, nothing reaches your tax account."
+            label={mtdTest ? "Quarterly updates (test version)" : "Quarterly updates"}
+            hint={
+              mtdTest
+                ? "Test version: works with HMRC's test service, nothing reaches your tax account."
+                : mtdLive
+                  ? "Send your quarterly updates to HMRC"
+                  : undefined
+            }
             badge={isPremium ? undefined : "Pro"}
             onPress={() => router.push("/tax-mtd")}
             helpTopicId="mtd"

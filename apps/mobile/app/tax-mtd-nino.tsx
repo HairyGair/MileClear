@@ -16,6 +16,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { setHmrcNino } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
+import { isMtdTest } from "../lib/tax/mtdCopy";
+import { useHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -44,6 +46,7 @@ function formatForDisplay(raw: string): string {
 export default function TaxMtdNinoScreen() {
   const [nino, setNino] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const test = isMtdTest(useHmrcEnvironment());
 
   const normalised = normalise(nino);
   const isValid = NINO_REGEX.test(normalised);
@@ -72,17 +75,20 @@ export default function TaxMtdNinoScreen() {
     >
       <Stack.Screen options={{ title: "National Insurance Number", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
       <ScrollView contentContainerStyle={styles.container}>
-        <BetaBanner
-          label="Test version"
-          title="Quarterly updates are a test version"
-          body="Nothing reaches your real tax account. This uses HMRC's test service while we wait to be allowed to send real updates. Your National Insurance Number is stored encrypted either way."
-        />
+        {test && (
+          <BetaBanner
+            label="Test version"
+            title="Quarterly updates are a test version"
+            body="Nothing reaches your real tax account. This uses HMRC's test service while we wait to be allowed to send real updates. Your National Insurance Number is stored encrypted either way."
+          />
+        )}
         <View style={styles.card}>
           <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
           <Text style={styles.title}>Your NINO</Text>
           <Text style={styles.body}>
-            HMRC uses your National Insurance Number to identify your tax record. It's
-            stored encrypted on MileClear's server and only used for the test connection.
+            {test
+              ? "HMRC uses your National Insurance Number to identify your tax record. It's stored encrypted on MileClear's server and only used for the test connection."
+              : "HMRC uses your National Insurance Number to identify your tax record. It's stored encrypted on MileClear's server and only used for your quarterly updates."}
           </Text>
 
           <Text style={styles.label}>NATIONAL INSURANCE NUMBER</Text>

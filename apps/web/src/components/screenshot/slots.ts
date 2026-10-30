@@ -117,7 +117,7 @@ export const SLOTS: ScreenshotSlot[] = [
     slug: "mtd-itsa",
     eyebrow: "Making Tax Digital",
     headline: "Quarterly updates,\nbuilt in.",
-    subline: "Connect HMRC, see your deadlines, preview every figure. In beta on HMRC's test service until production credentials are granted.",
+    subline: "Connect HMRC, see your deadlines, check every figure, then send it.",
     iphoneSrc: "/screenshot-source/iphone/02-hmrc.png",
     ipadSrc: "/screenshot-source/ipad/02-hmrc.png",
     accent: "emerald",

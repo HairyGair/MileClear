@@ -9,6 +9,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   TaxReturnTestBanner,
+  YearEndLiveGate,
   Section,
   Body,
   Row,
@@ -20,6 +21,14 @@ import { totalDueLine } from "../lib/tax/taxReturnCopy";
 import { colors, fonts } from "../lib/theme";
 
 export default function TaxMtdYearEndDoneScreen() {
+  return (
+    <YearEndLiveGate>
+      <Done />
+    </YearEndLiveGate>
+  );
+}
+
+function Done() {
   const p = useLocalSearchParams<{
     taxYear: string;
     calculationId: string;

@@ -69,7 +69,7 @@ export default function MtdPage() {
               <ul className="mc-tax-kv mc-tax-pad">
                 <li>
                   <span className="mc-tax-kv__label">Service</span>
-                  <span className="mc-tax-kv__value">{status.environment === "sandbox" ? "Test service" : (status.environment ?? "Unknown")}</span>
+                  <span className="mc-tax-kv__value">{status.environment === "sandbox" ? "Test service" : status.environment === "production" ? "HMRC" : "Unknown"}</span>
                 </li>
                 {status.connectedAt && (
                   <li>
@@ -125,7 +125,11 @@ export default function MtdPage() {
       <ConfirmDialog
         open={confirm}
         title="Disconnect?"
-        body="This removes the connection to the test service. You can connect again in the app."
+        body={
+          status?.environment === "sandbox"
+            ? "This removes the connection to the test service. You can connect again in the app."
+            : "This removes MileClear's connection to HMRC. You can connect again in the app."
+        }
         confirmLabel="Disconnect"
         destructive
         onClose={() => setConfirm(false)}

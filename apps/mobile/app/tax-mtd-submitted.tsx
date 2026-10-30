@@ -16,6 +16,8 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
+import { isMtdTest, isMtdLive } from "../lib/tax/mtdCopy";
+import { useHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { MtdSignpost, GOVUK_PERSONAL_TAX_ACCOUNT } from "../components/MtdSignpost";
 import { colors, fonts } from "../lib/theme";
 
@@ -36,6 +38,10 @@ type CalcState =
 export default function TaxMtdSubmittedScreen() {
   const { taxYear } = useLocalSearchParams<{ taxYear: string; periodId: string }>();
   const [calc, setCalc] = useState<CalcState>({ status: "triggering" });
+  const env = useHmrcEnvironment();
+  const test = isMtdTest(env);
+  // Unknown env: say it went through without claiming where.
+  const live = isMtdLive(env);
 
   useEffect(() => {
     if (!taxYear) return;
@@ -78,37 +84,47 @@ export default function TaxMtdSubmittedScreen() {
         }}
       />
 
-      <BetaBanner
-        label="Test version"
-        title="Sent to HMRC's test service"
-        body="You've completed a test update. Nothing reached HMRC and your real tax record is not changed. There's nothing more you need to do."
-      />
+      {test && (
+        <BetaBanner
+          label="Test version"
+          title="Sent to HMRC's test service"
+          body="You've completed a test update. Nothing reached HMRC and your real tax record is not changed. There's nothing more you need to do."
+        />
+      )}
 
       <View style={styles.successCard}>
         <View style={styles.successIconWrap}>
           <Ionicons name="checkmark" size={42} color="#000" />
         </View>
-        <Text style={styles.successTitle}>Test update complete</Text>
+        <Text style={styles.successTitle}>{test ? "Test update complete" : live ? "Sent to HMRC" : "Update sent"}</Text>
         <Text style={styles.successBody}>
-          Your test update went through the full flow. We'll keep it on file.
+          {test
+            ? "Your test update went through the full flow. We'll keep it on file."
+            : live
+              ? "HMRC has your update. You'll see it under Update history, and you can amend it there if a figure is wrong."
+              : "Your update went through. You'll see it under Update history, and you can amend it there if a figure is wrong."}
         </Text>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Test calculation</Text>
+        <Text style={styles.sectionTitle}>{test ? "Test calculation" : "Your tax so far"}</Text>
 
         {calc.status === "triggering" && (
           <View style={styles.calcPlaceholder}>
             <ActivityIndicator color={AMBER} />
-            <Text style={styles.calcPlaceholderText}>Asking the test service for a calculation...</Text>
+            <Text style={styles.calcPlaceholderText}>
+              {test ? "Asking the test service for a calculation..." : "Asking HMRC for a calculation..."}
+            </Text>
           </View>
         )}
 
         {calc.status === "polling" && (
           <View style={styles.calcPlaceholder}>
             <ActivityIndicator color={AMBER} />
-            <Text style={styles.calcPlaceholderText}>The test service is calculating your tax...</Text>
-            <Text style={styles.calcPlaceholderHint}>Usually takes 10–30 seconds.</Text>
+            <Text style={styles.calcPlaceholderText}>
+              {test ? "The test service is calculating your tax..." : "HMRC is calculating your tax..."}
+            </Text>
+            <Text style={styles.calcPlaceholderHint}>Usually takes 10 to 30 seconds.</Text>
           </View>
         )}
 
@@ -117,15 +133,21 @@ export default function TaxMtdSubmittedScreen() {
             <Ionicons name="alert-circle-outline" size={32} color={TEXT_3} />
             <Text style={styles.calcPlaceholderText}>{calc.message}</Text>
             <Text style={styles.calcPlaceholderHint}>
-              You can re-trigger the calc later. Your test update isn't affected.
+              {test
+                ? "You can re-trigger the calc later. Your test update isn't affected."
+                : "You can ask for the calculation again later. Your update isn't affected."}
             </Text>
           </View>
         )}
 
-        {calc.status === "ready" && <CalcSummary summary={calc.result} />}
+        {calc.status === "ready" && <CalcSummary summary={calc.result} test={test} />}
 
         <MtdSignpost
-          text="This came from HMRC's test service. Your real tax calculation is in your HMRC Personal Tax Account on GOV.UK."
+          text={
+            test
+              ? "This came from HMRC's test service. Your real tax calculation is in your HMRC Personal Tax Account on GOV.UK."
+              : "HMRC's estimate of your tax so far. It changes as you send more updates. Your full tax account is in your HMRC online account on GOV.UK."
+          }
           linkUrl={GOVUK_PERSONAL_TAX_ACCOUNT}
           linkLabel="View your HMRC Personal Tax Account ›"
         />
@@ -143,7 +165,7 @@ export default function TaxMtdSubmittedScreen() {
   );
 }
 
-function CalcSummary({ summary }: { summary: HmrcCalculationSummary }) {
+function CalcSummary({ summary, test }: { summary: HmrcCalculationSummary; test: boolean }) {
   const fmt = (v: number | undefined) =>
     v === undefined ? "Not set" : `£${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -152,7 +174,7 @@ function CalcSummary({ summary }: { summary: HmrcCalculationSummary }) {
       <View style={styles.headlineCard}>
         <Text style={styles.headlineLabel}>Total tax + NIC due</Text>
         <Text style={styles.headlineValue}>{fmt(summary.totalIncomeTaxAndNicsDue)}</Text>
-        <Text style={styles.headlineSubLabel}>Test estimate · tax year {summary.taxYear}</Text>
+        <Text style={styles.headlineSubLabel}>{test ? "Test estimate" : "HMRC estimate"} · tax year {summary.taxYear}</Text>
       </View>
 
       <View style={styles.breakdownGrid}>
@@ -174,8 +196,9 @@ function CalcSummary({ summary }: { summary: HmrcCalculationSummary }) {
       )}
 
       <Text style={styles.disclaimerText}>
-        These are the test service's figures: what you'd owe at year-end if your earning
-        pattern stays the same. They update each time you send a test update.
+        {test
+          ? "These are the test service's figures: what you'd owe at year-end if your earning pattern stays the same. They update each time you send a test update."
+          : "These are HMRC's figures: what you'd owe at year-end if your earning pattern stays the same. They update each time you send an update."}
       </Text>
     </View>
   );

@@ -307,9 +307,9 @@ export default function MileageTrackerUk() {
                     "GPS keeps working in tunnels, basements, rural blackspots. Trips stored locally, synced when you have signal. Your data is yours.",
                 },
                 {
-                  title: "MTD ITSA tools in beta",
+                  title: "MTD ITSA quarterly updates",
                   body:
-                    "Quarterly updates for Making Tax Digital are built and tested with HMRC's test service only. Nothing is sent to HMRC yet. Your mileage rolls straight into the figures.",
+                    "Send your Making Tax Digital quarterly updates to HMRC from the app with Pro. Your mileage rolls straight into the figures.",
                 },
               ].map(({ title, body }) => (
                 <div

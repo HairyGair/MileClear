@@ -134,7 +134,9 @@ const FEATURE_GATES: Record<
   "Quarterly updates": {
     headline: "Quarterly updates are part of Pro",
     subline:
-      "Connect with HMRC and walk through your quarterly updates. It is in beta, so for now it runs against HMRC's test service.",
+      // True on HMRC's test service and its real one, so it never needs to
+      // know which the server is on.
+      "Connect with HMRC and preview each quarterly update, worked out from your trips and earnings.",
     icon: "document-text-outline",
   },
 };

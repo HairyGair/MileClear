@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 18 October 2026</p>
+            <p className="legal__date">Last updated: 30 October 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -549,7 +549,7 @@ export default function PrivacyPolicy() {
                 <p className="legal__card-text"><strong>Accountants (Token-Based Read-Only Access)</strong></p>
                 <p className="legal__card-text legal__text--small">If you grant an accountant access via a token in Settings, they can view your trips, mileage deductions, HMRC calculations, earnings, and fuel logs. They cannot modify or export your data. You fully control access: generate, view, and revoke tokens anytime. Your accountant is your chosen representative, not a sub-processor of MileClear. You are responsible for their privacy practices and data handling.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>HMRC (Making Tax Digital)</strong></p>
-                <p className="legal__card-text legal__text--small">Quarterly updates are currently tested with HMRC&apos;s test service only, and nothing reaches your real tax account. If that changes, this applies only if you connect MileClear to your HMRC account and choose to submit. HMRC would receive your National Insurance number, your business ID and the income and expense figures you submit. HMRC&apos;s rules also require every request to carry fraud-prevention information: your device ID, device model, operating system and app version, your IP address and port, screen size, time zone and the email address you sign in to MileClear with. Nothing is sent to HMRC until you submit, and you can disconnect at any time.</p>
+                <p className="legal__card-text legal__text--small">This applies only if you connect MileClear to your HMRC account and choose to send a quarterly update. HMRC receives your National Insurance number, your business ID and the income and expense figures you submit. HMRC&apos;s rules also require every request to carry fraud-prevention information: your device ID, device model, operating system and app version, your IP address and port, screen size, time zone and the email address you sign in to MileClear with. Nothing is sent to HMRC until you submit, and you can disconnect at any time.</p>
                 <p className="legal__card-text" style={{marginTop: '0.75rem'}}><strong>Xero and QuickBooks (Accounting Software, if we add direct connections)</strong></p>
                 <p className="legal__card-text legal__text--small">MileClear has no direct Xero or QuickBooks connection today. If we add one, it will apply only if you connect one, and we would send the trips, mileage, earnings and expenses you choose to sync to your own Xero (Xero Limited) or QuickBooks (Intuit Inc., USA) account. Their access tokens are encrypted on our servers and you can disconnect at any time.</p>
               </div>

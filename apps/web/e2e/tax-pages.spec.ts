@@ -246,6 +246,19 @@ test.describe("Quarterly Self Assessment", () => {
     for (const banned of BANNED_COPY) expect(text).not.toMatch(banned);
     expect(text).not.toMatch(/approved|compliant|HMRC[- ]ready|recognised/i);
   });
+
+  test("on HMRC's real service nothing says test", async ({ page }) => {
+    await mockSession(page);
+    await mockTax(page, { hmrcStatus: { connected: true, environment: "production", connectedAt: "2026-09-01T00:00:00.000Z", hasNino: true, hasBusinessId: true } });
+    await page.goto("/dashboard/tax/mtd");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Quarterly Self Assessment");
+    await expect(page.getByText("HMRC", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Disconnect" }).click();
+    await expect(page.getByText("This removes MileClear's connection to HMRC. You can connect again in the app.")).toBeVisible();
+    const text = await page.locator("body").innerText();
+    expect(text).not.toMatch(/test version|test service|nothing (here )?is sent|nothing reaches/i);
+    expect(text).not.toMatch(/approved|compliant|HMRC[- ]ready|recognised/i);
+  });
 });
 
 test.describe("Every tax route passes the copy sweep", () => {

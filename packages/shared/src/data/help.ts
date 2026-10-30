@@ -13,9 +13,9 @@
 //
 // Rules for the text: UK English, plain words, no em dashes, never an
 // adjective next to HMRC about MileClear (ready, approved and the like), never a
-// claim that MileClear files or sends anything to HMRC (quarterly updates are a
-// test version on HMRC's test service only), and no promises about features
-// that are not live. Paths use " > " between steps.
+// claim that MileClear files a tax return (it sends quarterly updates only;
+// the end-of-year tax return isn't in MileClear), and no promises about
+// features that are not live. Paths use " > " between steps.
 
 export const HELP_AREAS = [
   "getting_started",
@@ -630,15 +630,15 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "mtd",
     area: "tax_and_claims",
     q: "Does MileClear do Making Tax Digital?",
-    a: "Only as a test. Quarterly updates (test version) is in Tax > Your tax details for self-employed Pro drivers, and works with HMRC's test service only: nothing is sent to HMRC and your tax account isn't changed. We're waiting for HMRC to let MileClear send real updates. When that happens, you'll be able to send your quarterly updates to HMRC from MileClear, and we'll say so in the app. Until then, keep filing your Self Assessment as normal.",
+    a: "Yes, for quarterly updates. Self-employed Pro drivers can send their quarterly updates to HMRC from Tax > Your tax details > Quarterly updates. MileClear works the figures out from your earnings, expenses and business miles, and you check them before anything is sent. It covers self-employment income only. The end-of-year tax return isn't in MileClear yet, so send that with HMRC or other compatible software.",
     goTo: "/settings/work-tax",
-    keywords: ["mtd", "making tax digital", "quarterly", "itsa", "test version", "real", "live", "when"],
+    keywords: ["mtd", "making tax digital", "quarterly", "itsa", "real", "live", "when", "send", "hmrc"],
   },
   {
     id: "mtd-who",
     area: "tax_and_claims",
     q: "Do I have to use Making Tax Digital, and from when?",
-    a: "It depends on your income before expenses from self-employment plus any rental (property) income, as on your Self Assessment. Over £50,000 in 2024-25: from 6 April 2026. Over £30,000 in 2025-26: from 6 April 2027. Over £20,000 in 2026-27: from 6 April 2028. Below that, you don't need to yet. Tax > Your tax details > Quarterly updates (test version) checks your MileClear earnings against these limits before you connect. MileClear doesn't hold rent, so add any you get yourself. GOV.UK has HMRC's own checker.",
+    a: "It depends on your income before expenses from self-employment plus any rental (property) income, as on your Self Assessment. Over £50,000 in 2024-25: from 6 April 2026. Over £30,000 in 2025-26: from 6 April 2027. Over £20,000 in 2026-27: from 6 April 2028. Below that, you don't need to yet. Tax > Your tax details > Quarterly updates checks your MileClear earnings against these limits before you connect. MileClear doesn't hold rent, so add any you get yourself. GOV.UK has HMRC's own checker.",
     goTo: "/tax-mtd",
     keywords: ["mtd", "start", "income", "who", "have to", "need to", "must", "threshold", "limit", "50,000", "30,000", "20,000", "2027", "2028", "in scope", "mandatory", "qualifying income"],
   },
@@ -646,7 +646,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "mtd-connect",
     area: "tax_and_claims",
     q: "How do I connect MileClear to HMRC?",
-    a: "Tax > Your tax details > Quarterly updates (test version) > Continue. You'll go to HMRC's sign-in page, sign in and agree. While it's a test version this is HMRC's test service, so you sign in with test details, not your own Government Gateway account. Then enter your National Insurance Number (stored encrypted) and choose your self-employment trade. It's for self-employed Pro drivers. The connection renews itself while you use it; if it runs out, tap Connect again. Disconnect is at the top of the screen.",
+    a: "Tax > Your tax details > Quarterly updates > Continue. You'll go to HMRC's own sign-in page: sign in with your Government Gateway user ID and password and agree to let MileClear send your updates. Then enter your National Insurance Number (stored encrypted) and choose your self-employment trade. You need to have signed up for Making Tax Digital with HMRC first (search GOV.UK for \"Sign up for Making Tax Digital for Income Tax\"). It's for self-employed Pro drivers. The connection renews itself while you use it; if it runs out, tap Connect again. Disconnect is at the top of the screen.",
     goTo: "/tax-mtd",
     appOnly: true,
     keywords: ["connect", "link", "sign in", "government gateway", "nino", "national insurance", "authorise", "trade", "business", "disconnect"],
@@ -655,7 +655,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "mtd-quarterly-update",
     area: "tax_and_claims",
     q: "What does quarterly reporting mean?",
-    a: "Under Making Tax Digital you tell HMRC your self-employment income and expenses every three months, instead of only once a year. Each update is a running total from 6 April. The quarters end on 5 July, 5 October, 5 January and 5 April, and the updates are due by 7 August, 7 November, 7 February and 7 May. MileClear works the figures out from your earnings, expenses and business miles, and you see them all before anything is sent. An update isn't a tax return: after the tax year you still need to finish the year. MileClear has a test version of End of year, but it only works with HMRC's test service for now, so until HMRC lets us send real ones, send your tax return with HMRC or other software.",
+    a: "Under Making Tax Digital you tell HMRC your self-employment income and expenses every three months, instead of only once a year. Each update is a running total from 6 April. The quarters end on 5 July, 5 October, 5 January and 5 April, and the updates are due by 7 August, 7 November, 7 February and 7 May. MileClear works the figures out from your earnings, expenses and business miles, and you see them all before anything is sent. An update isn't a tax return: after the tax year you still need to finish the year. The end-of-year tax return isn't in MileClear yet, so send it with HMRC or other compatible software.",
     goTo: "/tax-mtd",
     keywords: ["what is", "every three months", "deadline", "due", "quarter", "7 august", "7 november", "7 february", "7 may", "running total", "cumulative", "final declaration"],
   },

@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { PremiumGate } from "../components/PremiumGate";
 import {
   TaxReturnTestBanner,
+  YearEndLiveGate,
   Section,
   Body,
   Note,
@@ -50,7 +51,9 @@ export default function TaxMtdYearEndScreen() {
     <View style={s.screen}>
       <Stack.Screen options={{ title: "End of year", headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.text1 }} />
       <PremiumGate feature="End of year">
-        <YearEndChecks />
+        <YearEndLiveGate>
+          <YearEndChecks />
+        </YearEndLiveGate>
       </PremiumGate>
     </View>
   );

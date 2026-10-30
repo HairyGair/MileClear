@@ -18,6 +18,7 @@ import {
 import { PremiumGate } from "../components/PremiumGate";
 import {
   TaxReturnTestBanner,
+  YearEndLiveGate,
   Section,
   Body,
   Row,
@@ -49,7 +50,9 @@ export default function TaxMtdYearEndReviewScreen() {
     <View style={s.screen}>
       <Stack.Screen options={{ title: "Check and submit", headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.text1 }} />
       <PremiumGate feature="End of year">
-        <Review />
+        <YearEndLiveGate>
+          <Review />
+        </YearEndLiveGate>
       </PremiumGate>
     </View>
   );

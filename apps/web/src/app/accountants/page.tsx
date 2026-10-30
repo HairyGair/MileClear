@@ -96,7 +96,7 @@ export default function AccountantsPage() {
             </div>
 
             <p style={{ marginTop: "2rem", fontSize: "0.85rem", color: "var(--text-secondary)", lineHeight: 1.6 }}>
-              Quarterly updates in MileClear are tested with HMRC&apos;s test service only, and nothing is sent to HMRC yet. Your clients file their Self Assessment on GOV.UK or through you. Sending as your clients&apos; agent is planned and depends on HMRC; we will tell you when it is available.
+              Self-employed clients on Pro can send their own quarterly updates for self-employment income to HMRC from the app. The end-of-year tax return isn't in MileClear, so your clients file that on GOV.UK or through you. Sending as your clients&apos; agent is planned and depends on HMRC; we will tell you when it is available.
             </p>
           </div>
         </section>

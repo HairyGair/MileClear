@@ -17,6 +17,8 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
+import { isMtdTest } from "../lib/tax/mtdCopy";
+import { useHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { colors, fonts } from "../lib/theme";
 
 const AMBER = colors.amber;
@@ -27,6 +29,7 @@ const TEXT_3 = colors.text3;
 const BG = colors.bg;
 
 export default function TaxMtdBusinessScreen() {
+  const test = isMtdTest(useHmrcEnvironment());
   const { businessId } = useLocalSearchParams<{ businessId: string }>();
   const [details, setDetails] = useState<HmrcBusinessDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,11 +99,13 @@ export default function TaxMtdBusinessScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
       <Stack.Screen options={{ title: "Confirm trade", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
-      <BetaBanner
-        label="Test version"
-        title="Quarterly updates are a test version"
-        body="Nothing reaches your real tax account. This uses HMRC's test service while we wait to be allowed to send real updates."
-      />
+      {test && (
+        <BetaBanner
+          label="Test version"
+          title="Quarterly updates are a test version"
+          body="Nothing reaches your real tax account. This uses HMRC's test service while we wait to be allowed to send real updates."
+        />
+      )}
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
         <Text style={styles.title}>{details.tradingName ?? "Self-Employment"}</Text>
@@ -126,9 +131,9 @@ export default function TaxMtdBusinessScreen() {
 
         <Text style={styles.warningTitle}>Confirm before you continue</Text>
         <Text style={styles.warningBody}>
-          When it goes live, quarterly updates will be sent against this trade. If the
-          details don't match the work you do, change them in HMRC's Self Assessment
-          online before you continue.
+          {test
+            ? "When it goes live, quarterly updates will be sent against this trade. If the details don't match the work you do, change them in HMRC's Self Assessment online before you continue."
+            : "Your quarterly updates will be sent against this trade. If the details don't match the work you do, change them in HMRC's Self Assessment online before you continue."}
         </Text>
 
         <TouchableOpacity

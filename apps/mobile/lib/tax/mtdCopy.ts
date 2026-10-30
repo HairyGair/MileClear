@@ -59,14 +59,37 @@ export function isConnectionExpired(expiresAt: string | undefined | null, now: D
   return d.getTime() <= now.getTime();
 }
 
+/** The HMRC environment the server reports, or null while it isn't known yet. */
+export type HmrcEnv = "sandbox" | "production" | null | undefined;
+
+/**
+ * True only when the server is connected to HMRC's real service. Sandbox and
+ * "not known yet" both read false, so callers pick test wording only when
+ * they know it's sandbox (see isMtdTest) and neutral wording while unknown.
+ */
+export function isMtdLive(env: HmrcEnv): boolean {
+  return env === "production";
+}
+
+/** True only when the server is known to be on HMRC's test service. */
+export function isMtdTest(env: HmrcEnv): boolean {
+  return env === "sandbox";
+}
+
 /** One line on the quarterly updates header explaining the token. */
 export function connectionLine(
   expiresAt: string | undefined | null,
   _formatted: string,
   now: Date = new Date(),
+  env: HmrcEnv = "sandbox",
 ): string {
+  const live = isMtdLive(env);
   if (isConnectionExpired(expiresAt, now)) {
-    return "Your test connection has expired. Connect again to carry on.";
+    return live
+      ? "Your connection to HMRC has expired. Connect again to carry on."
+      : "Your test connection has expired. Connect again to carry on.";
   }
-  return "Your test connection renews by itself while you use it.";
+  return live
+    ? "Your connection renews by itself while you use it."
+    : "Your test connection renews by itself while you use it.";
 }

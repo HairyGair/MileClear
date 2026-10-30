@@ -150,7 +150,7 @@ export default function AboutPage() {
                 </li>
                 <li className="legal__list-item">
                   Deepening Making Tax Digital (MTD ITSA) support ahead of the quarterly
-                  reporting deadlines (quarterly updates are tested with HMRC&apos;s test service only)
+                  reporting deadlines (quarterly updates for self-employment income can be sent to HMRC from the app)
                 </li>
                 <li className="legal__list-item">
                   Direct accounting software integrations (not available yet, on the roadmap)

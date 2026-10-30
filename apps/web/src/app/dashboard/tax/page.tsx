@@ -7,6 +7,7 @@ import "@/components/dashboard/tax/tax.css";
 
 interface HmrcStatus {
   connected: boolean;
+  environment?: "sandbox" | "production";
 }
 
 /** Tax hub: the readiness card, then links grouped by what the driver needs. */
@@ -46,7 +47,7 @@ export default function TaxHubPage() {
             <SettingsRow icon="swap-vertical-outline" label="Check against HMRC's figures" hint="Compare what platforms reported" href="/dashboard/tax/reconciliation" />
             <SettingsRow icon="people-outline" label="Your accountant" hint="Details and sharing" href="/dashboard/tax/accountant" />
             {hmrc?.connected && (
-              <SettingsRow icon="document-text-outline" label="Quarterly Self Assessment" hint="Connected to the test service" href="/dashboard/tax/mtd" />
+              <SettingsRow icon="document-text-outline" label="Quarterly Self Assessment" hint={hmrc.environment === "sandbox" ? "Connected to the test service" : "Connected to HMRC"} href="/dashboard/tax/mtd" />
             )}
           </SettingsGroup>
 

@@ -108,6 +108,13 @@ async function loadActiveConnection(userId: string): Promise<ConnectionTokens> {
   if (conn.environment !== "sandbox" && conn.environment !== "production") {
     throw new Error(`Invalid HMRC environment on connection: ${conn.environment}`);
   }
+  // A connection made on the other HMRC service (test tokens after the server
+  // moved to the real one, or the reverse) can't work against this server's
+  // HMRC address, so it counts as not connected and the driver connects again.
+  const serverEnvironment = getHmrcConfig()?.environment;
+  if (serverEnvironment && conn.environment !== serverEnvironment) {
+    throw new HmrcNotConnectedError(userId);
+  }
   // Decrypt access/refresh tokens at the read boundary. Any row written
   // before the encryption migration is still in plaintext on disk —
   // decryptIfEncrypted handles both cases transparently. Once the
