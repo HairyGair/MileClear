@@ -2194,6 +2194,31 @@ export async function getNativeStoreCountAndMotion(): Promise<{ count: number | 
   }
 }
 
+/**
+ * How many fixes the SDK's native store holds, by its count call alone (not
+ * the fixes themselves), Android only, and never longer than `ms`. Null when
+ * unknown. The timer is cleared as soon as the count returns.
+ */
+export async function getNativeStoreCountBounded(ms: number): Promise<number | null> {
+  if (Platform.OS !== "android") return null;
+  const BGGeo = loadNativeModule();
+  if (!BGGeo || typeof BGGeo.getCount !== "function") return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const n = await Promise.race([
+      BGGeo.getCount() as Promise<number>,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), ms);
+      }),
+    ]);
+    return typeof n === "number" && Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /** Clear RNBG's native location store — post-finalize cleanup so a previous
  *  trip's fixes can never leak into the next recording's reconcile. */
 export async function destroyNativeLocations(): Promise<void> {

@@ -133,6 +133,9 @@ export interface DropInput {
   engineAtDrop?: EngineSnapshot | null;
   /** Age of the newest native fix the JS side saw, seconds, at the drop. */
   nativeFixAgeSec?: number | null;
+  /** Reported by the finalize itself: file it under the open that finalize
+   *  pinned. Never copied onto the event. */
+  pinned?: boolean;
 }
 
 export interface DropEvent extends Partial<OpenFields> {

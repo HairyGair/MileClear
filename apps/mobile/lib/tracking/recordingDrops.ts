@@ -15,6 +15,9 @@ import {
 } from "./recordingDropRule";
 
 export const RECORDING_DROPPED_EVENT = "trip.recording_dropped";
+/** Follow-up to an Android no_coords drop: the engine and OS state at the
+ *  drop, joined to it by openId. A separate event so the drop never waits. */
+export const RECORDING_ENGINE_EVENT = "trip.recording_engine_state";
 
 /**
  * Record one dropped recording: a `recording_dropped` line in the phone's
@@ -33,6 +36,7 @@ export async function noteRecordingDropped(input: DropInput): Promise<void> {
     try {
       open = await import("./recordingOpen");
       const { fields, closeId } = await open.resolveDropOpen(input);
+      // (fields stay null for fixes that are not this open's)
       enriched = { ...enriched, ...(fields ? { open: fields } : {}) };
       await open.markOpenOutcome(closeId, input.reason);
     } catch {}
@@ -53,15 +57,20 @@ export async function noteRecordingDropped(input: DropInput): Promise<void> {
       void flushEventOutbox();
     };
     if (input.reason === "no_coords" && Platform.OS === "android" && open) {
-      // The engine's state at the drop is read AFTER the caller has moved on
-      // (finalize clears its buffer next): one 2 s deadline for the whole
-      // snapshot, never in the way of consumeProcessedBuffer. The fix age is
-      // one cheap read, taken now so it is the age at the drop.
+      // The drop itself goes out NOW, with the fix age (one cheap read, so
+      // it is the age at the drop): a headless process can be killed at any
+      // moment and the event we are measuring must not wait for the SDK. The
+      // engine's state follows as a small second event keyed by the same
+      // openId, under one 2 s deadline, never in the way of the buffer clear.
       const fixAge = await open.nativeFixAgeSec();
+      await emit({ ...enriched, nativeFixAgeSec: fixAge });
       const o = open;
+      const openId = enriched.open?.openId ?? null;
+      const droppedAt = new Date().toISOString();
       void (async () => {
         const engineAtDrop = await o.collectEngineSnapshot();
-        await emit({ ...enriched, engineAtDrop, nativeFixAgeSec: fixAge });
+        if (!engineAtDrop || Object.keys(engineAtDrop).length === 0) return;
+        await queueAppEvent(RECORDING_ENGINE_EVENT, { openId, droppedAt, platform: Platform.OS, engineAtDrop });
       })().catch(() => {});
       return;
     }

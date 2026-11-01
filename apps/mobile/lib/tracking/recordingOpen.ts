@@ -30,6 +30,7 @@ import {
   OPEN_FIRST_KEY,
   OPEN_GATE_KEY,
   OPEN_KEYS_LIKE,
+  openKey,
   OPEN_SEEN_KEY,
   OPEN_SNAP_KEY,
   openFields,
@@ -95,6 +96,24 @@ export function finalizeScopeContext(): OpenContext | null {
   return scope;
 }
 
+/**
+ * Is a finalize running anywhere? The headless task and the app are separate
+ * JS runtimes, so the in-process flag cannot see the other one; the row
+ * finalize writes can. Fresh (under two minutes) means "still being saved".
+ */
+export async function finalizeRecentlyStarted(now: number): Promise<boolean> {
+  try {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ value: string }>(
+      "SELECT value FROM tracking_state WHERE key = 'finalizing_trip_at'"
+    );
+    const at = row ? Number(row.value) : 0;
+    return Number.isFinite(at) && at > 0 && now - at < 2 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
 // ── Begin / end ────────────────────────────────────────────────────────────
 
 interface CountCache {
@@ -123,7 +142,8 @@ export async function beginOpenContext(input: {
 }): Promise<OpenContext | null> {
   try {
     const now = Date.now();
-    const prev = input.previousStillOwned ? null : await readOpenContext();
+    const owned = input.previousStillOwned || (await finalizeRecentlyStarted(now));
+    const prev = owned ? null : await readOpenContext();
     const lost = unaccountedDrop(prev);
     if (lost && prev) {
       // Not awaited: it is ~8 SQLite operations and the recording must not
@@ -184,7 +204,7 @@ async function captureOpenSnapshot(id: string): Promise<void> {
     // writer can be overwritten.
     await db.runAsync(
       "INSERT OR REPLACE INTO tracking_state (key, value) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM tracking_state WHERE key = ? AND value LIKE ?)",
-      [OPEN_SNAP_KEY, JSON.stringify(snap), OPEN_CTX_KEY, `%"id":"${id}"%`]
+      [openKey(OPEN_SNAP_KEY, id), JSON.stringify(snap), OPEN_CTX_KEY, `%"id":"${id}"%`]
     );
   } catch {}
 }
@@ -219,6 +239,12 @@ export async function flushOpenCounts(): Promise<void> {
       pendingGate = null;
       return;
     }
+    const id = cache.id;
+    if (!id) {
+      pendingSeen = pendingBuffered = 0;
+      pendingGate = null;
+      return;
+    }
     const seen = Math.min(pendingSeen, Math.max(0, FIX_COUNT_CAP - cache.seenSent));
     const buffered = Math.min(pendingBuffered, FIX_COUNT_CAP);
     const gate = pendingGate;
@@ -227,16 +253,27 @@ export async function flushOpenCounts(): Promise<void> {
     const db = await getDatabase();
     const bump = `INSERT INTO tracking_state (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = CAST(value AS INTEGER) + CAST(excluded.value AS INTEGER)`;
     if (seen > 0) {
-      await db.runAsync(bump, [OPEN_SEEN_KEY, String(seen)]);
-      await db.runAsync("INSERT OR IGNORE INTO tracking_state (key, value) VALUES (?, ?)", [OPEN_FIRST_KEY, String(now)]);
+      await db.runAsync(bump, [openKey(OPEN_SEEN_KEY, id), String(seen)]);
+      await db.runAsync("INSERT OR IGNORE INTO tracking_state (key, value) VALUES (?, ?)", [
+        openKey(OPEN_FIRST_KEY, id),
+        String(now),
+      ]);
       cache.seenSent += seen;
     }
-    if (buffered > 0) await db.runAsync(bump, [OPEN_BUFFERED_KEY, String(buffered)]);
-    if (gate) await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [OPEN_GATE_KEY, gate]);
+    if (buffered > 0) await db.runAsync(bump, [openKey(OPEN_BUFFERED_KEY, id), String(buffered)]);
+    if (gate) {
+      await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
+        openKey(OPEN_GATE_KEY, id),
+        gate,
+      ]);
+    }
     if (cache.seenSent >= FIX_COUNT_CAP) cache.stop = true;
   } catch {
   } finally {
     flushing = false;
+    // A fix noted while this flush was writing (the last one of a recording
+    // has no later fix to carry it): write it now.
+    if (pendingSeen > 0 || pendingBuffered > 0 || pendingGate !== null) void flushOpenCounts();
   }
 }
 
@@ -270,7 +307,9 @@ export async function closeArmedOpen(outcome: string): Promise<void> {
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
     );
     if (armed?.value !== "1") return;
-    const cur = scope ?? (await readOpenContext());
+    // The CURRENT open, never the pinned one: a tap or takeover during an old
+    // drive's save is about the recording that is armed now.
+    const cur = await readOpenContext();
     await markOpenOutcome(cur?.id, outcome);
   } catch {}
 }
@@ -283,13 +322,19 @@ export async function closeArmedOpen(outcome: string): Promise<void> {
 export async function resolveDropOpen(input: {
   open?: OpenFields | null;
   startedAt?: string | null;
+  /** The finalize itself is reporting this: use the open it pinned. */
+  pinned?: boolean;
 }): Promise<{ fields: OpenFields | null; closeId: string | null }> {
   try {
     if (input.open) return { fields: input.open, closeId: input.open.openId };
-    const ctx = scope ?? (await readOpenContext());
+    // The pinned open only for the finalize's own reports; any other drop
+    // during a save (a tap, a takeover) is about the current recording. Either
+    // way the fixes must belong to the open: an orphan sweep's old fixes are
+    // not filed under, or closing, a recording they are not part of.
+    const ctx = input.pinned && scope ? scope : await readOpenContext();
     if (!ctx) return { fields: null, closeId: null };
     const startedMs = input.startedAt ? Date.parse(input.startedAt) : Number.NaN;
-    if (!dropBelongsToOpen(ctx, Number.isFinite(startedMs) ? startedMs : null, scope !== null)) {
+    if (!dropBelongsToOpen(ctx, Number.isFinite(startedMs) ? startedMs : null)) {
       return { fields: null, closeId: null };
     }
     return { fields: openFields(ctx, Date.now()), closeId: ctx.id };

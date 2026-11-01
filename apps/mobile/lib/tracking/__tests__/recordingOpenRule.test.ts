@@ -9,6 +9,7 @@ import {
   OPEN_GATE_KEY,
   OPEN_SEEN_KEY,
   OPEN_SNAP_KEY,
+  openKey,
   openFields,
   openIdForTrip,
   reasonClosesOpen,
@@ -62,9 +63,10 @@ describe("assembleOpenContext", () => {
   it("puts the rows back together", () => {
     const c = assembleOpenContext([
       { key: OPEN_CTX_KEY, value: base },
-      { key: OPEN_SEEN_KEY, value: "3" },
-      { key: OPEN_GATE_KEY, value: "paused" },
-      { key: OPEN_SNAP_KEY, value: JSON.stringify({ en: true }) },
+      { key: openKey(OPEN_SEEN_KEY, "oabc123def456"), value: "3" },
+      { key: openKey(OPEN_SEEN_KEY, "oother"), value: "9" },
+      { key: openKey(OPEN_GATE_KEY, "oabc123def456"), value: "paused" },
+      { key: openKey(OPEN_SNAP_KEY, "oabc123def456"), value: JSON.stringify({ en: true }) },
     ])!;
     expect(c).toMatchObject({ id: "oabc123def456", at: T0, reason: "speed", via: "headless", seen: 3, buffered: 0, gate: "paused", snap: { en: true } });
     expect(c.done).toBeUndefined();
@@ -83,17 +85,15 @@ describe("assembleOpenContext", () => {
 });
 
 describe("dropBelongsToOpen", () => {
-  it("always inside a finalize that pinned the open", () => {
-    expect(dropBelongsToOpen(ctx({ done: "saved" }), T0 - 5 * 3600_000, true)).toBe(true);
-  });
-  it("outside one, only when the fixes begin around the open", () => {
-    expect(dropBelongsToOpen(ctx(), T0 + 60_000, false)).toBe(true);
-    expect(dropBelongsToOpen(ctx(), T0 - 20 * 3600_000, false)).toBe(false);
-    expect(dropBelongsToOpen(ctx(), T0 + 30 * 3600_000, false)).toBe(false);
+  it("only when the fixes begin around the open", () => {
+    expect(dropBelongsToOpen(ctx(), T0 + 60_000)).toBe(true);
+    expect(dropBelongsToOpen(ctx({ done: "saved" }), T0 + 60_000)).toBe(true); // a second leg
+    expect(dropBelongsToOpen(ctx(), T0 - 20 * 3600_000)).toBe(false);
+    expect(dropBelongsToOpen(ctx(), T0 + 30 * 3600_000)).toBe(false);
   });
   it("a drop with no fixes belongs only to an open still pending", () => {
-    expect(dropBelongsToOpen(ctx(), null, false)).toBe(true);
-    expect(dropBelongsToOpen(ctx({ done: "saved" }), null, false)).toBe(false);
+    expect(dropBelongsToOpen(ctx(), null)).toBe(true);
+    expect(dropBelongsToOpen(ctx({ done: "saved" }), null)).toBe(false);
   });
 });
 

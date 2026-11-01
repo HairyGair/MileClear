@@ -23,11 +23,17 @@
 // one INSERT OR IGNORE keyed by the open's id.
 /** tracking_state key holding the open's fixed facts (JSON, written once). */
 export const OPEN_CTX_KEY = "recording_open_ctx";
+// Prefixes: the row is `<prefix>:<open id>`, so a write that races a newer open
+// lands on the old id's row and never on the new open's counts.
 export const OPEN_SEEN_KEY = "recording_open_seen";
 export const OPEN_BUFFERED_KEY = "recording_open_buffered";
 export const OPEN_FIRST_KEY = "recording_open_first";
 export const OPEN_GATE_KEY = "recording_open_gate";
 export const OPEN_SNAP_KEY = "recording_open_snap";
+/** The row for one open: `<prefix>:<id>`. */
+export function openKey(prefix: string, id: string): string {
+  return `${prefix}:${id}`;
+}
 /** Prefix of the outcome rows: `recording_open_done:<id>` = outcome. */
 export const OPEN_DONE_PREFIX = "recording_open_done:";
 /** Matches every row above, for the reset when a new recording opens. */
@@ -150,19 +156,21 @@ export function assembleOpenContext(rows: Array<{ key: string; value: string }>)
   if (!base || typeof base !== "object") return null;
   if (typeof base.id !== "string" || !base.id) return null;
   if (typeof base.at !== "number" || !Number.isFinite(base.at)) return null;
-  const int = (k: string): number | undefined => {
-    const n = Number(get(k));
-    return get(k) !== undefined && Number.isFinite(n) ? n : undefined;
+  const id = base.id;
+  const int = (prefix: string): number | undefined => {
+    const raw = get(openKey(prefix, id));
+    const n = Number(raw);
+    return raw !== undefined && Number.isFinite(n) ? n : undefined;
   };
   let snap: EngineSnapshot | undefined;
   try {
-    const raw = get(OPEN_SNAP_KEY);
+    const raw = get(openKey(OPEN_SNAP_KEY, id));
     const v = raw ? JSON.parse(raw) : null;
     if (v && typeof v === "object" && !Array.isArray(v)) snap = v as EngineSnapshot;
   } catch {}
   const done = get(OPEN_DONE_PREFIX + base.id);
   const first = int(OPEN_FIRST_KEY);
-  const gate = get(OPEN_GATE_KEY);
+  const gate = get(openKey(OPEN_GATE_KEY, id));
   return {
     id: base.id,
     at: base.at,
@@ -182,15 +190,13 @@ export function assembleOpenContext(rows: Array<{ key: string; value: string }>)
 export type OpenFixEvent = { kind: "seen" } | { kind: "buffered" } | { kind: "gate"; gate: string };
 
 /**
- * Does a drop belong to this open? Inside a finalize it always does (the
- * finalize captured the open when it started). Outside one (an orphan sweep, a
- * stale-state clear, a "Not driving" tap) it does only if the fixes it is
- * about begin around the open: an orphan sweep of yesterday's buffer must not
- * close, or be filed under, today's recording. A drop with no fixes to date
- * (a cleared flag) belongs to an open that is still pending.
+ * Does a drop belong to this open? Only if the fixes it is about begin around
+ * the open: an orphan sweep of yesterday's buffer must not close, or be filed
+ * under, today's recording (this holds inside a finalize too, which may be a
+ * sweep). A drop with no fixes to date (a cleared flag) belongs only to an
+ * open that is still pending.
  */
-export function dropBelongsToOpen(ctx: OpenContext, startedAtMs: number | null, inFinalize: boolean): boolean {
-  if (inFinalize) return true;
+export function dropBelongsToOpen(ctx: OpenContext, startedAtMs: number | null): boolean {
   if (startedAtMs == null || !Number.isFinite(startedAtMs)) return !ctx.done;
   return startedAtMs >= ctx.at - TRIP_BEFORE_OPEN_SLACK_MS && startedAtMs <= ctx.at + TRIP_AFTER_OPEN_MAX_MS;
 }

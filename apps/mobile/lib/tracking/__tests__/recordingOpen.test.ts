@@ -81,9 +81,76 @@ describe("a new recording opens while the old drive's save is running (blocker 1
     const a = (await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() }))!;
     await m.beginFinalizeScope();
     await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now(), previousStillOwned: true });
-    const r = await m.resolveDropOpen({ startedAt: null });
+    const r = await m.resolveDropOpen({ startedAt: null, pinned: true });
     expect(r.closeId).toBe(a.id);
     expect(r.fields?.openId).toBe(a.id);
+  });
+
+  it("a Not driving tap or takeover during the save is about the NEW recording (item 2)", async () => {
+    const m = await load();
+    const a = (await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() }))!;
+    await m.beginFinalizeScope();
+    const b = (await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now(), previousStillOwned: true }))!;
+    state.set("auto_recording_active", "1");
+    // The tap's own drop report is not pinned: it is the new open's.
+    const tap = await m.resolveDropOpen({ startedAt: null });
+    expect(tap.closeId).toBe(b.id);
+    await m.closeArmedOpen("cancelled");
+    expect((await m.readOpenContext())?.done).toBe("cancelled");
+    // The old drive's save still gets its own "saved".
+    await m.markOpenOutcome(a.id, "saved");
+    state.delete("auto_recording_active");
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    await settle();
+    expect(noteDropped).not.toHaveBeenCalled(); // neither is a false superseded
+  });
+
+  it("a finalize sweeping old fixes does not close a pending open it is not part of", async () => {
+    const m = await load();
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    await m.beginFinalizeScope();
+    const old = new Date(Date.now() - 20 * 3600_000).toISOString();
+    expect(await m.resolveDropOpen({ startedAt: old, pinned: true })).toEqual({ fields: null, closeId: null });
+  });
+
+  it("the pin ends when the finalize ends, however it ended (item 4)", async () => {
+    const m = await load();
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    await m.beginFinalizeScope();
+    expect(m.finalizeScopeContext()).not.toBeNull();
+    m.endFinalizeScope();
+    expect(m.finalizeScopeContext()).toBeNull();
+  });
+
+  it("finalize releases the pin in the OUTER finally (source check)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(`${process.cwd()}/lib/tracking/detection.ts`, "utf8");
+    const calls = src.match(/endFinalizeScope\(\)/g) ?? [];
+    expect(calls.length).toBe(1);
+    const end = src.indexOf("endFinalizeScope()");
+    const outerFinally = src.lastIndexOf("} finally {", src.indexOf("settleInFlight();\n  }\n}", end));
+    expect(outerFinally).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(outerFinally);
+    // ...and after the inner finally that deletes finalizing_trip_at.
+    expect(end).toBeGreaterThan(src.indexOf("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'"));
+  });
+
+  it("a finalize running in the OTHER runtime counts as owning the old drive (item 3)", async () => {
+    const m = await load();
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    state.set("finalizing_trip_at", String(Date.now() - 30_000));
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    await settle();
+    expect(noteDropped).not.toHaveBeenCalled();
+  });
+
+  it("a finalizing row left behind by a crash does not hide a silent open for ever", async () => {
+    const m = await load();
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    state.set("finalizing_trip_at", String(Date.now() - 10 * 60_000));
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    await settle();
+    expect(noteDropped).toHaveBeenCalledTimes(1);
   });
 
   it("without a save in flight, an open that never reported is called superseded, against its own id", async () => {
@@ -118,6 +185,34 @@ describe("writers do not wipe each other (2)", () => {
     const cur = await m.readOpenContext();
     expect(cur?.done).toBe("saved"); // first outcome sticks
     expect(cur?.seen).toBe(5);
+  });
+
+  it("counts are keyed by open id: a flush racing a new open cannot spill onto it (item 5)", async () => {
+    const m = await load();
+    const a = (await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() }))!;
+    m.noteOpenFix({ kind: "seen" });
+    m.noteOpenFix({ kind: "buffered" });
+    const flushing = m.flushOpenCounts();
+    const b = (await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now(), previousStillOwned: true }))!;
+    await flushing;
+    await settle();
+    const cur = await m.readOpenContext();
+    expect(cur?.id).toBe(b.id);
+    expect(cur?.seen).toBe(0);
+    expect(cur?.buffered).toBe(0);
+    expect(a.id).not.toBe(b.id);
+  });
+
+  it("a fix noted while a flush is writing is flushed afterwards (item 5)", async () => {
+    const m = await load();
+    await m.beginOpenContext({ reason: "motion", seedTimestampMs: Date.now() });
+    m.noteOpenFix({ kind: "seen" });
+    const first = m.flushOpenCounts();
+    m.noteOpenFix({ kind: "seen" }); // the last fix, while the flush is mid-write
+    await first;
+    await settle();
+    await settle();
+    expect((await m.readOpenContext())?.seen).toBe(2);
   });
 
   it("counts add up across flushes", async () => {

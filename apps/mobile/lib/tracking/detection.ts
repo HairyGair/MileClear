@@ -559,6 +559,15 @@ let finalizeSource: string | null = null;
  *  drop report so the server can see how often it happens. */
 let savedFixesSkippedThisRun = 0;
 
+/**
+ * A drop reported by the finalize itself: filed under the recording that
+ * finalize pinned when it started (recordingOpen.ts). Any other drop during a
+ * save (a tap, a takeover) is about the recording that is current.
+ */
+function noteFinalizeDrop(input: Parameters<typeof noteRecordingDropped>[0]): ReturnType<typeof noteRecordingDropped> {
+  return noteRecordingDropped({ ...input, pinned: true });
+}
+
 /** First and last time and size of a buffered route, for a drop event. */
 function dropSpan(coords: ReadonlyArray<{ recorded_at: string }>): {
   startedAt: string | null;
@@ -1648,10 +1657,6 @@ export async function finalizeAutoTrip(): Promise<void> {
     } finally {
       finalizingTrip = false;
       try {
-        const { endFinalizeScope } = await import("./recordingOpen");
-        endFinalizeScope();
-      } catch {}
-      try {
         const db = await getDatabase();
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'");
       } catch {}
@@ -1670,6 +1675,12 @@ export async function finalizeAutoTrip(): Promise<void> {
       await releaseStrandedQuickTripLock();
     }
   } finally {
+    // The pin ends with the whole call, whatever threw (a failed reconcile
+    // included), so it can never outlive this finalize.
+    try {
+      const { endFinalizeScope } = await import("./recordingOpen");
+      endFinalizeScope();
+    } catch {}
     // The guard drops before the cleanup above ends, so a new pass may have
     // started and set its own promise: leave that one in place.
     if (finalizingPromise === inFlight) finalizingPromise = null;
@@ -2135,7 +2146,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
               removedCoords: f.removedCount,
               totalCoords: before.length,
             }).catch(() => {});
-            await noteRecordingDropped({
+            await noteFinalizeDrop({
               reason: "flight",
               detail: `${f.kind}_peak_${f.peakMph}mph`,
               startedAt: before[f.startIdx].recorded_at,
@@ -2381,7 +2392,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // Everything in the buffer was a fix a saved trip already holds: that is
     // a copy refused, not a recording that produced nothing.
     if (allCoords.length === 0 && savedFixesSkippedThisRun > 0) {
-      await noteRecordingDropped({
+      await noteFinalizeDrop({
         reason: "deduped",
         detail: "saved_fixes_all",
         coords: savedFixesSkippedThisRun,
@@ -2397,14 +2408,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
       let noCoordsNative: number | null = null;
       if (Platform.OS === "android") {
         try {
-          const { getNativeStoreSummary } = await import("./nativeLocation");
-          noCoordsNative = await Promise.race([
-            getNativeStoreSummary().then((s) => s?.count ?? null),
-            new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
-          ]);
+          const { getNativeStoreCountBounded } = await import("./nativeLocation");
+          noCoordsNative = await getNativeStoreCountBounded(1000);
         } catch {}
       }
-      await noteRecordingDropped({ reason: "no_coords", ...dropSpan(allCoords), nativeCoords: noCoordsNative });
+      await noteFinalizeDrop({ reason: "no_coords", ...dropSpan(allCoords), nativeCoords: noCoordsNative });
     }
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
@@ -2458,7 +2466,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       distanceMiles: earlyDistMiles,
       nativeCount,
     }).catch(() => {});
-    await noteRecordingDropped({
+    await noteFinalizeDrop({
       reason: "phantom",
       detail: "momentary",
       ...dropSpan(allCoords),
@@ -2500,7 +2508,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       keptCoords: coords.length,
       endIdx,
     }).catch(() => {});
-    await noteRecordingDropped({ reason: "tail_trim", ...dropSpan(allCoords) });
+    await noteFinalizeDrop({ reason: "tail_trim", ...dropSpan(allCoords) });
     await consumeProcessedBuffer();
     return;
   }
@@ -2618,7 +2626,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       } else if (decision.kind === "duplicate") {
         logDetectionEvent("finalize_dedup_local_skip", { tripId: already.id }).catch(() => {});
         await rememberSaved(`trip:${already.id}`);
-        await noteRecordingDropped({ reason: "deduped", detail: "same_start_saved", ...dropSpan(filteredCoords) });
+        await noteFinalizeDrop({ reason: "deduped", detail: "same_start_saved", ...dropSpan(filteredCoords) });
         await consumeProcessedBuffer();
         endLiveActivity().catch(() => {});
         return;
@@ -2653,7 +2661,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       distance: totalDistance,
       coordCount: filteredCoords.length,
     }).catch(() => {});
-    await noteRecordingDropped({
+    await noteFinalizeDrop({
       reason: "implausible_distance",
       detail: `${Math.round(totalDistance)}_miles_before_send`,
       ...dropSpan(filteredCoords),
@@ -2723,7 +2731,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       gpsSumDistance,
       wasRealDriving,
     }).catch(() => {});
-    await noteRecordingDropped({
+    await noteFinalizeDrop({
       reason: "too_short",
       detail: wasRealDriving ? "driving_speed" : "no_driving_speed",
       ...dropSpan(filteredCoords),
@@ -2836,7 +2844,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       pctOnFoot: motion.pctOnFoot,
       steps,
     }).catch(() => {});
-    await noteRecordingDropped({
+    await noteFinalizeDrop({
       reason: "walk",
       detail: walk.reason,
       ...dropSpan(filteredCoords),
@@ -2880,7 +2888,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       durationSec: Math.round(durationSec),
       avgMph: Math.round(avgMph * 10) / 10,
     }).catch(() => {});
-    await noteRecordingDropped({
+    await noteFinalizeDrop({
       reason: "phantom",
       detail: "walking_shape",
       ...dropSpan(filteredCoords),
@@ -2949,7 +2957,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         coords: filteredCoords.length,
         reason: "implausible_distance",
       }).catch(() => {});
-      await noteRecordingDropped({
+      await noteFinalizeDrop({
         reason: "crow_flies",
         detail: "implausible_distance",
         ...dropSpan(filteredCoords),
@@ -3102,7 +3110,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
           kind: "merged",
         }).catch(() => {});
         await rememberSaved(`trip:${recentTrip.id}`);
-        await noteRecordingDropped({ reason: "deduped", detail: "already_merged", ...dropSpan(filteredCoords) });
+        await noteFinalizeDrop({ reason: "deduped", detail: "already_merged", ...dropSpan(filteredCoords) });
         await consumeProcessedBuffer();
         endLiveActivity().catch(() => {});
         return;
@@ -3241,7 +3249,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         // anything else): these fixes are saved.
         await rememberSaved(`trip:${recentTrip.id}`);
         logDetectionEvent("finalize_merged", { intoTripId: recentTrip.id, segmentMiles: totalDistance, mergedTotal: newDistance, ...(mergeQueuedDetail ? { updateQueued: mergeQueuedDetail.slice(0, 120) } : {}) }).catch(() => {});
-        await noteRecordingDropped(
+        await noteFinalizeDrop(
           mergeQueuedDetail
             ? { reason: "merge_queued", detail: mergeQueuedDetail, ...dropSpan(filteredCoords), distanceMiles: totalDistance }
             : { reason: "merged", ...dropSpan(filteredCoords), distanceMiles: totalDistance }
@@ -3412,8 +3420,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     pendingCreateBody = null;
     // The open that produced this drive has its outcome (recordingOpen.ts).
     try {
-      const { markOpenOutcome, finalizeScopeContext } = await import("./recordingOpen");
-      await markOpenOutcome(finalizeScopeContext()?.id, "saved");
+      const { markOpenOutcome } = await import("./recordingOpen");
+      await markOpenOutcome(tripQuality.openId, "saved");
     } catch {}
     // Saved (a local trip row plus the server copy or a queued create): the
     // fixes are remembered so a refill cannot save them again.
@@ -3491,7 +3499,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         queuedOffline,
       }).catch(() => {});
       if (!queuedOffline) {
-        await noteRecordingDropped({
+        await noteFinalizeDrop({
           reason: "deduped",
           detail: "saved_within_2_min",
           ...dropSpan(filteredCoords),
@@ -3663,7 +3671,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
         distance: totalDistance,
         verdict: "garbage",
       }).catch(() => {});
-      await noteRecordingDropped({
+      await noteFinalizeDrop({
         reason: "implausible_distance",
         detail: `server: ${errorMessage}`,
         ...dropSpan(allCoords),
@@ -3712,7 +3720,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
       }).catch(() => {});
       if (queued) {
         // Reported once: the queue does the retrying from here.
-        await noteRecordingDropped({
+        await noteFinalizeDrop({
           reason: "rejected",
           detail: `queued: ${errorMessage}`,
           ...dropSpan(allCoords),
@@ -3738,7 +3746,7 @@ async function _finalizeAutoTripInner(): Promise<void> {
     // The fixes stay on the phone and the next app open finalises again, so
     // this is not a loss yet, but it is a drive with no trip for now.
     lastFinalizeFailure = err;
-    await noteRecordingDropped({ reason: "error", detail: errorMessage, ...dropSpan(allCoords) });
+    await noteFinalizeDrop({ reason: "error", detail: errorMessage, ...dropSpan(allCoords) });
     // The recording is still open (its fixes are kept for the retry), so its
     // notification and Live Activity stay up instead of saying it has ended
     // (15 Oct 2026 review). Only when it is flagged open: an orphan sweep's
