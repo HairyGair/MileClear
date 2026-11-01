@@ -26,7 +26,7 @@ import { premiumMiddleware } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
 import {
-  getHmrcConfig,
+  getHmrcConfigForUser,
   buildClientContext,
   buildServerContext,
   fetchObligations,
@@ -131,8 +131,8 @@ async function yearTotals(userId: string, taxYear: string) {
 export const YEAR_END_NOT_LIVE_MESSAGE =
   "The end-of-year tax return isn't in MileClear yet. Send it with HMRC or other compatible software.";
 
-async function yearEndWritesOpen(_request: FastifyRequest, reply: FastifyReply) {
-  if (getHmrcConfig()?.environment === "production") {
+async function yearEndWritesOpen(request: FastifyRequest, reply: FastifyReply) {
+  if (getHmrcConfigForUser(request.userId)?.environment === "production") {
     return reply.status(403).send({ error: YEAR_END_NOT_LIVE_MESSAGE, code: "YEAR_END_NOT_LIVE" });
   }
 }
@@ -173,7 +173,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
       return reply.send({
         data: {
           taxYear,
-          environment: getHmrcConfig()?.environment ?? "sandbox",
+          environment: getHmrcConfigForUser(request.userId)?.environment ?? "sandbox",
           yearEnded: hasTaxYearEnded(taxYear),
           quarterly: summariseQuarterlyStatus(obligations, taxYear),
           submitted: findSubmittedTaxReturn(calcs),
@@ -418,7 +418,7 @@ export async function hmrcTaxReturnRoutes(app: FastifyInstance) {
         server,
       });
       const submittedAt = new Date().toISOString();
-      const environment = getHmrcConfig()?.environment ?? "sandbox";
+      const environment = getHmrcConfigForUser(request.userId)?.environment ?? "sandbox";
       logEvent("hmrc.tax_return_submitted", request.userId!, {
         taxYear,
         calculationId,

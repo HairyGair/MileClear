@@ -2,6 +2,8 @@
 
 export {
   getHmrcConfig,
+  getHmrcConfigForUser,
+  getHmrcSandboxConfig,
   resetHmrcConfig,
   readReleaseVersion,
   resolveServerVersion,

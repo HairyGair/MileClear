@@ -98,11 +98,37 @@ export function resolveServerVersion(
   return { version: "", source: "none" };
 }
 
+function buildConfig(
+  environment: HmrcEnvironment,
+  clientId: string,
+  clientSecret: string
+): HmrcConfig {
+  const apiBaseUrl = environment === "production" ? PRODUCTION_BASE : SANDBOX_BASE;
+  const apiBase = process.env.API_BASE_URL?.replace(/\/$/, "") ?? "https://api.mileclear.com";
+  const redirectUri = process.env.HMRC_REDIRECT_URI?.trim() || `${apiBase}/hmrc/callback`;
+  const serverVersion = resolveServerVersion();
+
+  return {
+    clientId,
+    clientSecret,
+    environment,
+    redirectUri,
+    vendorProductName: process.env.HMRC_VENDOR_PRODUCT_NAME?.trim() || "MileClear",
+    vendorVersion: serverVersion.version,
+    vendorVersionSource: serverVersion.source,
+    vendorLicenseIds: process.env.HMRC_VENDOR_LICENSE_IDS?.trim() || "",
+    apiBaseUrl,
+    authorizeUrl: `${apiBaseUrl}/oauth/authorize`,
+    tokenUrl: `${apiBaseUrl}/oauth/token`,
+  };
+}
+
 /**
- * Load + validate HMRC config. Returns null if the API isn't configured
- * yet (env vars empty during Phase 1 setup). Routes that need a real
- * config check this and return 503 with a clear error rather than
- * crashing on a missing var.
+ * Load + validate the server's HMRC config (the one everyone uses). Returns
+ * null if the API isn't configured yet (env vars empty during Phase 1 setup).
+ * Routes that need a real config check this and return 503 with a clear
+ * error rather than crashing on a missing var. For anything done on behalf of
+ * a driver use getHmrcConfigForUser, which honours the App Review exception.
  */
 export function getHmrcConfig(): HmrcConfig | null {
   if (cached) return cached;
@@ -117,33 +143,64 @@ export function getHmrcConfig(): HmrcConfig | null {
       `HMRC_ENVIRONMENT must be "sandbox" or "production", got "${envRaw}"`
     );
   }
-  const environment: HmrcEnvironment = envRaw;
 
-  const apiBaseUrl = environment === "production" ? PRODUCTION_BASE : SANDBOX_BASE;
-  const apiBase = process.env.API_BASE_URL?.replace(/\/$/, "") ?? "https://api.mileclear.com";
-  const redirectUri = process.env.HMRC_REDIRECT_URI?.trim() || `${apiBase}/hmrc/callback`;
-
-  const serverVersion = resolveServerVersion();
-
-  cached = {
-    clientId,
-    clientSecret,
-    environment,
-    redirectUri,
-    vendorProductName: process.env.HMRC_VENDOR_PRODUCT_NAME?.trim() || "MileClear",
-    vendorVersion: serverVersion.version,
-    vendorVersionSource: serverVersion.source,
-    vendorLicenseIds: process.env.HMRC_VENDOR_LICENSE_IDS?.trim() || "",
-    apiBaseUrl,
-    authorizeUrl: `${apiBaseUrl}/oauth/authorize`,
-    tokenUrl: `${apiBaseUrl}/oauth/token`,
-  };
+  cached = buildConfig(envRaw, clientId, clientSecret);
   return cached;
+}
+
+// Accounts (the App Review demo account) that use HMRC's test service while
+// everyone else uses the live one. HMRC_SANDBOX_USER_IDS is a comma separated
+// list of user ids; the test service has its own app, so it needs
+// HMRC_SANDBOX_CLIENT_ID / HMRC_SANDBOX_CLIENT_SECRET.
+let cachedSandbox: HmrcConfig | null = null;
+let warnedSandboxMissing = false;
+
+export function hmrcSandboxUserIds(): string[] {
+  return (process.env.HMRC_SANDBOX_USER_IDS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * The test-service config for the listed accounts, or null when no account is
+ * listed, the server already is on the test service, or the sandbox client is
+ * missing (logged once; listed accounts then use the normal service).
+ */
+export function getHmrcSandboxConfig(): HmrcConfig | null {
+  if (hmrcSandboxUserIds().length === 0) return null;
+  if (getHmrcConfig()?.environment === "sandbox") return null;
+  if (cachedSandbox) return cachedSandbox;
+
+  const clientId = process.env.HMRC_SANDBOX_CLIENT_ID?.trim();
+  const clientSecret = process.env.HMRC_SANDBOX_CLIENT_SECRET?.trim();
+  if (!clientId || !clientSecret) {
+    if (!warnedSandboxMissing) {
+      warnedSandboxMissing = true;
+      console.warn(
+        "[hmrc] HMRC_SANDBOX_USER_IDS is set but HMRC_SANDBOX_CLIENT_ID / HMRC_SANDBOX_CLIENT_SECRET are missing; listed accounts use the normal HMRC service"
+      );
+    }
+    return null;
+  }
+  cachedSandbox = buildConfig("sandbox", clientId, clientSecret);
+  return cachedSandbox;
+}
+
+/** The HMRC config for this driver: the test service for listed accounts, otherwise the server's own. */
+export function getHmrcConfigForUser(userId: string | null | undefined): HmrcConfig | null {
+  if (userId && hmrcSandboxUserIds().includes(userId)) {
+    const sandbox = getHmrcSandboxConfig();
+    if (sandbox) return sandbox;
+  }
+  return getHmrcConfig();
 }
 
 /** Reset the cached config. Test-only — never call in production. */
 export function resetHmrcConfig(): void {
   cached = null;
+  cachedSandbox = null;
+  warnedSandboxMissing = false;
 }
 
 /**

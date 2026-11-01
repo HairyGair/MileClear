@@ -16,7 +16,7 @@ import { premiumMiddleware } from "../../middleware/premium.js";
 import { prisma } from "../../lib/prisma.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import {
-  getHmrcConfig,
+  getHmrcConfigForUser,
   generateStateToken,
   buildAuthorizationUrl,
   exchangeCodeForTokens,
@@ -65,7 +65,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
   // machine off a single round-trip instead of probing several endpoints.
   // The actual NINO is never returned — only its presence.
   app.get("/status", { preHandler: authMiddleware }, async (request, reply) => {
-    const config = getHmrcConfig();
+    const config = getHmrcConfigForUser(request.userId);
     if (!config) {
       return reply.status(503).send({ error: "HMRC integration not configured" });
     }
@@ -123,7 +123,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
 
   // GET /hmrc/authorize — kicks off the OAuth handshake
   app.get("/authorize", { preHandler: authMiddleware }, async (request, reply) => {
-    const config = getHmrcConfig();
+    const config = getHmrcConfigForUser(request.userId);
     if (!config) {
       return reply.status(503).send({ error: "HMRC integration not configured" });
     }
@@ -166,11 +166,6 @@ export async function hmrcRoutes(app: FastifyInstance) {
   }>(
     "/callback",
     async (request, reply) => {
-      const config = getHmrcConfig();
-      if (!config) {
-        return reply.status(503).send({ error: "HMRC integration not configured" });
-      }
-
       const { code, state, error, error_description } = request.query;
 
       if (error) {
@@ -200,6 +195,14 @@ export async function hmrcRoutes(app: FastifyInstance) {
       if (!connection) {
         logEvent("hmrc.callback_state_mismatch", null, { state });
         return reply.status(400).send({ error: "Unknown or expired state token" });
+      }
+
+      // The client that built the authorize URL depends on the user (the App
+      // Review demo account uses HMRC's test service), so pick it from the
+      // user the state belongs to.
+      const config = getHmrcConfigForUser(connection.userId);
+      if (!config) {
+        return reply.status(503).send({ error: "HMRC integration not configured" });
       }
 
       let tokens;
@@ -345,7 +348,9 @@ export async function hmrcRoutes(app: FastifyInstance) {
   // would be refused and alert #founder. Off reads as { available: false }
   // and the app hides the card.
   app.get("/balance", { preHandler: authMiddleware }, async (request, reply) => {
-    if (process.env.HMRC_BALANCE !== "on") {
+    // The test service is already subscribed to that API, so it is open there.
+    const onTestService = getHmrcConfigForUser(request.userId)?.environment === "sandbox";
+    if (process.env.HMRC_BALANCE !== "on" && !onTestService) {
       return reply.send({ data: { available: false, balance: null } });
     }
     const ctx = await loadConnectionWithNino(request.userId!);

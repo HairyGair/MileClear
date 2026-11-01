@@ -40,6 +40,7 @@ import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { logEvent } from "../services/appEvents.js";
 import { sendMtdQuarterlyReminderEmail } from "../services/email.js";
 import { HMRC_SUBMISSION_EVENT } from "../services/hmrc/audit.js";
+import { hmrcSandboxUserIds } from "../services/hmrc/config.js";
 import { MTD_OBLIGATIONS_SEEN_EVENT } from "../services/hmrc/obligations.js";
 import { ukDateParts, type UkDateParts } from "@mileclear/shared";
 
@@ -221,6 +222,8 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
   const connections = await prisma.hmrcConnection.findMany({
     where: {
       environment: "production",
+      // Accounts on HMRC's test service (App Review) are never reminded.
+      userId: { notIn: hmrcSandboxUserIds() },
       disconnectedAt: null,
       businessId: { not: null },
       nino: { not: null },

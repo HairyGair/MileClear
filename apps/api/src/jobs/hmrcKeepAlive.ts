@@ -26,15 +26,19 @@
 // Disabled automatically when HMRC creds aren't configured (local dev).
 // Anthony 20 May 2026.
 
-import { getHmrcConfig } from "../services/hmrc/config.js";
+import { getHmrcConfig, getHmrcSandboxConfig, type HmrcConfig } from "../services/hmrc/config.js";
 import { getApplicationAccessToken } from "../services/hmrc/oauth.js";
 
 export async function runHmrcKeepAliveJob(): Promise<void> {
-  const config = getHmrcConfig();
-  if (!config) {
-    // No HMRC creds configured (typical local dev). Silently skip.
-    return;
+  // The App Review test-service app is a separate app on the dev hub, so it
+  // needs its own keep-alive call.
+  for (const config of [getHmrcConfig(), getHmrcSandboxConfig()]) {
+    // No HMRC creds configured (typical local dev): nothing to do.
+    if (config) await keepAlive(config);
   }
+}
+
+async function keepAlive(config: HmrcConfig): Promise<void> {
 
   let token: string;
   try {

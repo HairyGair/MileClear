@@ -16,7 +16,7 @@ import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../appEvents.js";
 import { redactNinoInPath } from "../../lib/redactUrl.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
-import { getHmrcConfig, type HmrcEnvironment } from "./config.js";
+import { getHmrcConfigForUser, type HmrcEnvironment } from "./config.js";
 import {
   refreshAccessToken,
   expiryFromExpiresIn,
@@ -111,7 +111,7 @@ async function loadActiveConnection(userId: string): Promise<ConnectionTokens> {
   // A connection made on the other HMRC service (test tokens after the server
   // moved to the real one, or the reverse) can't work against this server's
   // HMRC address, so it counts as not connected and the driver connects again.
-  const serverEnvironment = getHmrcConfig()?.environment;
+  const serverEnvironment = getHmrcConfigForUser(userId)?.environment;
   if (serverEnvironment && conn.environment !== serverEnvironment) {
     throw new HmrcNotConnectedError(userId);
   }
@@ -152,7 +152,7 @@ function refreshSingleFlight(conn: ConnectionTokens): Promise<ConnectionTokens> 
 async function refreshAndPersist(
   conn: ConnectionTokens
 ): Promise<ConnectionTokens> {
-  const config = getHmrcConfig();
+  const config = getHmrcConfigForUser(conn.userId);
   if (!config) throw new Error("HMRC integration not configured");
 
   let tokens;
@@ -220,7 +220,7 @@ async function performRequest(args: {
   conn: ConnectionTokens;
   options: HmrcCallOptions;
 }): Promise<Response> {
-  const config = getHmrcConfig();
+  const config = getHmrcConfigForUser(args.options.userId);
   if (!config) throw new Error("HMRC integration not configured");
 
   // Refuse callers we cannot describe truthfully in the fraud-prevention
@@ -456,8 +456,8 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     correlationId,
     // What went out as the server half of Gov-Vendor-Version, and where it
     // came from ("release" = the deployed app.json, "env" = the fallback).
-    vendorVersion: getHmrcConfig()?.vendorVersion ?? null,
-    vendorVersionSource: getHmrcConfig()?.vendorVersionSource ?? null,
+    vendorVersion: getHmrcConfigForUser(opts.userId)?.vendorVersion ?? null,
+    vendorVersionSource: getHmrcConfigForUser(opts.userId)?.vendorVersionSource ?? null,
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
     connectionMethod: opts.client.connectionMethod,
