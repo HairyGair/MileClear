@@ -834,6 +834,46 @@ describe("isValidCalculationType", () => {
   });
 });
 
+describe("summariseCalculation bands", () => {
+  it("passes HMRC's own income tax and Class 4 bands through", () => {
+    const result = summariseCalculation(
+      {
+        metadata: { calculationId: "c", taxYear: "2026-27" },
+        calculation: {
+          taxCalculation: {
+            totalIncomeTaxAndNicsDue: 1398.31,
+            incomeTax: {
+              totalTaxableIncome: 5378.1,
+              incomeTaxCharged: 1075.62,
+              payPensionsProfit: {
+                taxBands: [
+                  { name: "BRT", rate: 20, income: 5378.1, taxAmount: 1075.62, bandLimit: 37700 },
+                  { name: "bad", rate: "x" },
+                ],
+              },
+            },
+            nics: {
+              class4Nics: {
+                totalClass4Charge: 322.69,
+                class4NicBands: [{ name: "BRT", rate: 6, income: 5378.1, amount: 322.69 }],
+              },
+            },
+          },
+        },
+      },
+      "c"
+    );
+    expect(result.incomeTaxBands).toEqual([{ name: "BRT", rate: 20, income: 5378.1, amount: 1075.62 }]);
+    expect(result.class4Bands).toEqual([{ name: "BRT", rate: 6, income: 5378.1, amount: 322.69 }]);
+  });
+
+  it("leaves bands undefined when HMRC sent none", () => {
+    const result = summariseCalculation({ calculation: { taxCalculation: { totalIncomeTaxAndNicsDue: 5 } } }, "c");
+    expect(result.incomeTaxBands).toBeUndefined();
+    expect(result.class4Bands).toBeUndefined();
+  });
+});
+
 describe("summariseCalculation", () => {
   it("projects headline figures from endOfYearEstimate when present", () => {
     const result = summariseCalculation(

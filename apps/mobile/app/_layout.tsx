@@ -860,7 +860,7 @@ function RootNavigator() {
         <Stack.Screen name="tax-mtd" options={{ headerShown: true, title: "Quarterly updates" }} />
         <Stack.Screen name="tax-mtd-nino" options={{ headerShown: true, title: "National Insurance Number" }} />
         <Stack.Screen name="tax-mtd-business" options={{ headerShown: true, title: "Confirm trade" }} />
-        <Stack.Screen name="tax-mtd-preview" options={{ headerShown: true, title: "Review update" }} />
+        <Stack.Screen name="tax-mtd-preview" options={{ headerShown: true, title: "Check and send" }} />
         <Stack.Screen name="tax-mtd-submitted" options={{ headerShown: true, title: "Update sent", headerBackVisible: false }} />
         <Stack.Screen name="tax-mtd-history" options={{ headerShown: true, title: "Update history" }} />
         <Stack.Screen name="tax-mtd-year-end" options={{ headerShown: true, title: "End of year" }} />
