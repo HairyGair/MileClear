@@ -1,4 +1,4 @@
-import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
+import { UPDATES_THIS_YEAR_HEADING, NO_TRADE_COPY, isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { useCallback, useMemo, useState } from "react";
 import {
@@ -516,7 +516,7 @@ function NinoStep({ test, onDone: _onDone }: { test: boolean; onDone: () => void
   return (
     <View style={styles.stepCard}>
       <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-      <Text style={styles.stepTitle}>Enter your NINO</Text>
+      <Text style={styles.stepTitle}>Your National Insurance number</Text>
       <Text style={styles.stepBody}>
         {test
           ? "We need your National Insurance Number to set up the test connection. It's stored encrypted and only used for quarterly updates."
@@ -526,9 +526,9 @@ function NinoStep({ test, onDone: _onDone }: { test: boolean; onDone: () => void
         style={styles.primaryButton}
         onPress={() => router.push("/tax-mtd-nino" as never)}
         accessibilityRole="button"
-        accessibilityLabel="Enter NINO"
+        accessibilityLabel="Enter your National Insurance number"
       >
-        <Text style={styles.primaryButtonText}>Enter NINO</Text>
+        <Text style={styles.primaryButtonText}>Enter number</Text>
         <Ionicons name="arrow-forward" size={18} color="#000" />
       </TouchableOpacity>
     </View>
@@ -539,7 +539,7 @@ function NinoStep({ test, onDone: _onDone }: { test: boolean; onDone: () => void
 
 function BusinessStep({
   businesses,
-  onDone: _onDone,
+  onDone,
 }: {
   businesses: HmrcBusinessSummary[];
   onDone: () => void;
@@ -550,10 +550,13 @@ function BusinessStep({
     return (
       <View style={styles.stepCard}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>No self-employment trade on file</Text>
-        <Text style={styles.stepBody}>
-          HMRC has no self-employment business registered against your National Insurance
-          Number. Register your trade with HMRC first, then come back here.
+        <Text style={styles.stepTitle}>{NO_TRADE_COPY.title}</Text>
+        <Text style={styles.stepBody}>{NO_TRADE_COPY.body}</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={onDone} accessibilityRole="button" accessibilityLabel={NO_TRADE_COPY.retryLabel}>
+          <Text style={styles.primaryButtonText}>{NO_TRADE_COPY.retryLabel}</Text>
+        </TouchableOpacity>
+        <Text style={[styles.helperLink, { marginTop: 12, textAlign: "center" }]} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={NO_TRADE_COPY.backLabel}>
+          {NO_TRADE_COPY.backLabel}
         </Text>
       </View>
     );
@@ -582,7 +585,6 @@ function BusinessStep({
         >
           <View style={{ flex: 1 }}>
             <Text style={styles.businessName}>{b.tradingName ?? "Self-Employment"}</Text>
-            <Text style={styles.businessId}>{b.businessId}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
         </TouchableOpacity>
@@ -663,7 +665,7 @@ function ReadyStep({
 
   return (
     <View>
-      <Text style={styles.sectionLabel}>Open obligations · Tax year {taxYear}</Text>
+      <Text style={styles.sectionLabel}>{UPDATES_THIS_YEAR_HEADING} · {taxYear}</Text>
       {sorted.map((o, idx) => (
         <ObligationCard key={`${o.start}-${o.end}-${idx}`} obligation={o} />
       ))}

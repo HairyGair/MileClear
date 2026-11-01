@@ -93,3 +93,44 @@ export function connectionLine(
     ? "Your connection renews by itself while you use it."
     : "Your test connection renews by itself while you use it.";
 }
+
+// ── Words that depend on which HMRC service the server uses ──────────────
+// Unknown environment reads as the real-service wording (never "test"),
+// because isMtdTest is only true when the server says sandbox.
+
+/** Header title of the screen shown after an update is sent. */
+export function sentScreenTitle(env: HmrcEnv): string {
+  return isMtdTest(env) ? "Test update done" : "Update sent";
+}
+
+/** Alert title when sending an update fails. */
+export function updateFailedTitle(env: HmrcEnv): string {
+  return isMtdTest(env) ? "Test update failed" : "Update not sent";
+}
+
+/** Alert body when sending an update fails: the reason, then what to do next. */
+export function updateFailedBody(env: HmrcEnv, reason: string | null | undefined): string {
+  const lead = reason && reason.trim() ? reason.trim() : "Something went wrong.";
+  const stop = /[.!?]$/.test(lead) ? lead : `${lead}.`;
+  return isMtdTest(env)
+    ? `${stop} Try again in a moment.`
+    : `${stop} Check your figures and try again in a moment. If it keeps happening, tell us from More > Tell us about a problem or idea.`;
+}
+
+/** Small print under HMRC's tax estimate after an update. Not a projection. */
+export function estimateDisclaimer(env: HmrcEnv): string {
+  return isMtdTest(env)
+    ? "Worked out by HMRC's test service from what you've sent so far. It goes up as you send more test updates."
+    : "Worked out by HMRC from what you've sent so far. It goes up as you send the rest of the year.";
+}
+
+/** Heading for the list of updates on the hub. */
+export const UPDATES_THIS_YEAR_HEADING = "Your updates this tax year";
+
+/** Shown when HMRC has no self-employment business for the driver. No raw IDs. */
+export const NO_TRADE_COPY = {
+  title: "HMRC doesn't have a self-employed business for you yet",
+  body: "Quarterly updates are sent against your self-employed business on your HMRC record. HMRC doesn't show one for the National Insurance number you gave us. This usually means you haven't registered as self-employed with HMRC yet, or it's still being set up. Once HMRC shows your business, tap Check again. If you're sure you're registered, check the National Insurance number is yours.",
+  retryLabel: "Check again",
+  backLabel: "Back",
+} as const;

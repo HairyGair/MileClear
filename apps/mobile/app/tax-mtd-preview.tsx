@@ -12,7 +12,7 @@ import { Stack, router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getTaxYear, formatPence } from "@mileclear/shared";
 import { BetaBanner } from "../components/BetaBanner";
-import { isMtdTest, isMtdLive, type HmrcEnv } from "../lib/tax/mtdCopy";
+import { isMtdTest, isMtdLive, updateFailedTitle, updateFailedBody, type HmrcEnv } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import {
   fetchHmrcStatus,
@@ -133,8 +133,8 @@ export default function TaxMtdPreviewScreen() {
               });
             } catch (err) {
               Alert.alert(
-                "Test update failed",
-                isApiError(err) ? err.message : err instanceof Error ? err.message : "Try again."
+                updateFailedTitle(env),
+                updateFailedBody(env, isApiError(err) ? err.message : err instanceof Error ? err.message : null)
               );
               setSubmitting(false);
             }
@@ -142,7 +142,7 @@ export default function TaxMtdPreviewScreen() {
         },
       ]
     );
-  }, [preview, businessId, taxYear, sendLabel, test, live]);
+  }, [preview, businessId, taxYear, sendLabel, test, live, env]);
 
   if (loading) {
     return (
@@ -228,7 +228,7 @@ export default function TaxMtdPreviewScreen() {
       )}
 
       <Section title="Income">
-        <SectionRow label="Total turnover" value={`£${turnoverPounds}`} />
+        <SectionRow label="Total income" value={`£${turnoverPounds}`} />
         <SectionRow label="From" value={`${b.income.earningCount} earning${b.income.earningCount === 1 ? "" : "s"}`} muted />
         {b.income.perPlatform.map((p) => (
           <SectionRow
@@ -251,7 +251,7 @@ export default function TaxMtdPreviewScreen() {
           />
         )}
         <SectionRow
-          label="AMAP rate"
+          label="Mileage rate"
           value={
             b.mileage.rateFirst10kPence === b.mileage.rateAfter10kPence
               ? `${b.mileage.rateFirst10kPence}p / mile`

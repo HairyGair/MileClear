@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { connectionLine, describeMtdLoadError, isConnectionExpired, isMtdLive, isMtdTest, isNothingSubmittedError, obligationsErrorText } from "./mtdCopy";
+import { estimateDisclaimer, sentScreenTitle, updateFailedBody, updateFailedTitle, NO_TRADE_COPY, connectionLine, describeMtdLoadError, isConnectionExpired, isMtdLive, isMtdTest, isNothingSubmittedError, obligationsErrorText } from "./mtdCopy";
 import { ApiError } from "../api/apiError";
 
 const now = new Date("2026-10-10T12:00:00Z");
@@ -63,5 +63,34 @@ describe("mtdCopy", () => {
       expect(isMtdLive(unknown)).toBe(false);
       expect(isMtdTest(unknown)).toBe(false);
     }
+  });
+});
+
+describe("environment-dependent wording", () => {
+  it("never says test on the real service or while unknown", () => {
+    for (const env of ["production", null, undefined] as const) {
+      expect(sentScreenTitle(env)).toBe("Update sent");
+      expect(updateFailedTitle(env)).toBe("Update not sent");
+      expect(updateFailedBody(env, "HMRC is busy")).not.toMatch(/test/i);
+      expect(estimateDisclaimer(env)).not.toMatch(/test/i);
+    }
+  });
+  it("keeps test wording on the test service", () => {
+    expect(sentScreenTitle("sandbox")).toBe("Test update done");
+    expect(updateFailedTitle("sandbox")).toBe("Test update failed");
+    expect(estimateDisclaimer("sandbox")).toMatch(/test/i);
+  });
+  it("failure body says what to do next and handles missing reasons", () => {
+    expect(updateFailedBody("production", "HMRC is busy")).toMatch(/^HMRC is busy\. .*try again/);
+    expect(updateFailedBody("production", "Already ended.")).toMatch(/^Already ended\. [^.]*\./);
+    expect(updateFailedBody("production", "")).toMatch(/^Something went wrong\./);
+  });
+  it("estimate is not described as a projection", () => {
+    expect(estimateDisclaimer("production")).toContain("from what you've sent so far");
+    expect(estimateDisclaimer("production")).not.toMatch(/year-end|pattern/i);
+  });
+  it("no-trade copy has no em dashes or raw ids and offers a way on", () => {
+    expect(JSON.stringify(NO_TRADE_COPY)).not.toMatch(/—|XAIS/);
+    expect(NO_TRADE_COPY.retryLabel).toBe("Check again");
   });
 });
