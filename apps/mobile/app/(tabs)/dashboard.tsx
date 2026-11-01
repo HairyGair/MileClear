@@ -84,6 +84,7 @@ import {
 } from "../../lib/heroFigure";
 import { fetchSelfAssessmentSummary } from "../../lib/api/selfAssessment";
 import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
+import { oemGroupFor, oemBrandName } from "../../lib/tracking/oemBatteryGuide";
 import { askAboutPauseBeforeStart } from "../../lib/tracking/pausePrompt";
 import { type PauseChoice } from "../../lib/tracking/pauseRule";
 import { type SetupChecklistRow } from "../../components/SetupChecklistCard";
@@ -672,6 +673,14 @@ export default function DashboardScreen() {
     );
   }, [batteryNudge.screen, batteryOptState, SEVEN_DAYS_MS]);
   const openBatteryNudgeSettings = useCallback(async () => {
+    // OPPO, realme, OnePlus, Motorola, HONOR, Huawei, vivo: one screen of exact
+    // steps instead of a bare settings screen. Everyone else keeps the flow below.
+    const oemMaker = batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer;
+    if (oemGroupFor(oemMaker)) {
+      trackEvent("battery_opt_nudge.tapped", { screen: "oem_guide", manufacturer: oemMaker ?? null });
+      router.push("/oem-battery-guide");
+      return;
+    }
     const screen = batteryNudge.screen ?? "stock";
     trackEvent("battery_opt_nudge.tapped", {
       screen,
@@ -682,7 +691,7 @@ export default function DashboardScreen() {
     if (await openBatteryOptimisationSettings(screen)) return;
     if (screen === "vendor" && (await openBatteryOptimisationSettings("stock"))) return;
     Linking.openSettings().catch(() => {});
-  }, [batteryNudge.screen, batteryOptState]);
+  }, [batteryNudge.screen, batteryOptState, router]);
 
   // "Enable notifications" on the primer card: fires the system prompt, then
   // registers the push token exactly the way startup does for already-granted
@@ -871,9 +880,11 @@ export default function DashboardScreen() {
         const copy = batteryChecklistCopy(
           batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer
         );
+        const oemMaker = batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer;
         out.push({
           key: it.id, icon: "battery-half-outline",
-          label: copy.label, hint: copy.hint,
+          label: oemGroupFor(oemMaker) ? `Keep MileClear recording on your ${oemBrandName(oemMaker)}` : copy.label,
+          hint: oemGroupFor(oemMaker) ? "A few settings, with the steps for your phone" : copy.hint,
           done: it.done, actionable: it.actionable, onPress: openBatteryNudgeSettings,
         });
       }

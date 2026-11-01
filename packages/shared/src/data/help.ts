@@ -262,6 +262,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     keywords: ["battery", "drain", "kill", "low power", "battery saver", "save battery", "low battery"],
   },
   {
+    id: "battery-phone-maker",
+    area: "recording_trips",
+    q: "Drives are missing on my OPPO, realme, OnePlus, Motorola, HONOR or vivo phone",
+    a: "These phones close background apps harder than most, so a drive can go unrecorded. On Android, Home shows \"Keep MileClear recording on your phone\" with the exact steps for your phone, and a button that opens the right settings. By maker: OPPO and realme: Battery usage, Allow background activity and Allow auto launch, then lock MileClear in your recent apps. OnePlus: Battery usage, Allow background activity (or Unrestricted), Allow auto launch, and the recents lock. Motorola: Battery, Unrestricted for MileClear, and Adaptive battery off. HONOR and Huawei: Settings > Battery > App launch > MileClear, Manage automatically off, then Auto-launch, Secondary launch and Run in background on. vivo: Background power consumption management, Allow high background power consumption, and Autostart on. Menu names vary a little between versions.",
+    appOnly: true,
+    keywords: ["oppo", "realme", "oneplus", "motorola", "honor", "huawei", "vivo", "colorOS", "auto launch", "autostart", "background activity", "adaptive battery", "unrestricted", "app launch", "missing drives", "not recording"],
+  },
+  {
     id: "journey-end",
     area: "recording_trips",
     q: "How long does a stop have to be before a new trip starts?",
