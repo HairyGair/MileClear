@@ -84,6 +84,7 @@ import {
 } from "../../lib/heroFigure";
 import { fetchSelfAssessmentSummary } from "../../lib/api/selfAssessment";
 import { selectDashboardMessages, batteryChecklistCopy } from "../../lib/dashboardMessages";
+import { oemGroupFor, oemBrandName, batteryRowTap, BATTERY_SNOOZE_KEY } from "../../lib/tracking/oemBatteryGuide";
 import { askAboutPauseBeforeStart } from "../../lib/tracking/pausePrompt";
 import { type PauseChoice } from "../../lib/tracking/pauseRule";
 import { type SetupChecklistRow } from "../../components/SetupChecklistCard";
@@ -672,7 +673,15 @@ export default function DashboardScreen() {
     );
   }, [batteryNudge.screen, batteryOptState, SEVEN_DAYS_MS]);
   const openBatteryNudgeSettings = useCallback(async () => {
+    // OPPO, realme, OnePlus, Motorola, HONOR, Huawei, vivo: one screen of exact
+    // steps instead of a bare settings screen. Everyone else keeps the flow below.
+    const tap = batteryRowTap(batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer);
     const screen = batteryNudge.screen ?? "stock";
+    if (tap.kind === "oem_guide") {
+      trackEvent("battery_opt_nudge.tapped", { screen, guide: "oem", manufacturer: tap.maker });
+      router.push({ pathname: "/oem-battery-guide", params: { maker: tap.maker } });
+      return;
+    }
     trackEvent("battery_opt_nudge.tapped", {
       screen,
       manufacturer: (batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer) ?? null,
@@ -682,7 +691,7 @@ export default function DashboardScreen() {
     if (await openBatteryOptimisationSettings(screen)) return;
     if (screen === "vendor" && (await openBatteryOptimisationSettings("stock"))) return;
     Linking.openSettings().catch(() => {});
-  }, [batteryNudge.screen, batteryOptState]);
+  }, [batteryNudge.screen, batteryOptState, router]);
 
   // "Enable notifications" on the primer card: fires the system prompt, then
   // registers the push token exactly the way startup does for already-granted
@@ -871,9 +880,11 @@ export default function DashboardScreen() {
         const copy = batteryChecklistCopy(
           batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer
         );
+        const oemMaker = batteryOptState?.vendor?.manufacturer ?? batteryOptState?.manufacturer;
         out.push({
           key: it.id, icon: "battery-half-outline",
-          label: copy.label, hint: copy.hint,
+          label: oemGroupFor(oemMaker) ? `Keep MileClear recording on your ${oemBrandName(oemMaker)}` : copy.label,
+          hint: oemGroupFor(oemMaker) ? "A few settings, with the steps for your phone" : copy.hint,
           done: it.done, actionable: it.actionable, onPress: openBatteryNudgeSettings,
         });
       }
@@ -1411,6 +1422,20 @@ export default function DashboardScreen() {
       // the denied nudge - re-check on each focus.
       getNotificationPermissionStatus().then(setNotifPermission).catch(() => {});
       getBatteryOptimisationState().then(setBatteryOptState).catch(() => {});
+      // The battery guide writes its snooze on Done; re-read it so the row
+      // hides on return instead of at the next cold start.
+      getDatabase()
+        .then((db) =>
+          db.getFirstAsync<{ value: string }>(
+            "SELECT value FROM tracking_state WHERE key = ?",
+            [BATTERY_SNOOZE_KEY]
+          )
+        )
+        .then((row) => {
+          const at = row?.value ? parseInt(row.value, 10) : NaN;
+          if (Number.isFinite(at)) setBatteryNudgeDismissedAt(at);
+        })
+        .catch(() => {});
       // Check the full location permission tier on each focus.
       getLocationPermissionStatus().then(({ tier }) => {
         setLocationTier(tier);

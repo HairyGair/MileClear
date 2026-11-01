@@ -26,6 +26,8 @@ import { requestMotionPermission } from "../../lib/tracking/motionPermission";
 import { checkingRow, recordingCheck } from "../../lib/settings/checks";
 import { phoneRows, type PhoneRow } from "../../lib/settings/phoneChecks";
 import { Linking } from "react-native";
+import { batteryRowTap } from "../../lib/tracking/oemBatteryGuide";
+import { getDeviceManufacturer } from "../../lib/tracking/batteryOptimisation";
 import { driveForOf } from "@mileclear/shared";
 import { useUser } from "../../lib/user/context";
 
@@ -46,6 +48,9 @@ export default function RecordingSettings() {
   const phone = usePhoneState();
   const platform = Platform.OS === "ios" ? "ios" : "android";
   const msgs = recordingMessages(phone);
+  // Android makers that close background apps get a way back to the guide
+  // even after the Home row has gone green.
+  const oemTap = platform === "android" ? batteryRowTap(getDeviceManufacturer()) : ({ kind: "default" } as const);
   const now = Date.now();
   // Until the phone has answered, the inputs are optimistic defaults, so no
   // green ticks yet.
@@ -220,6 +225,19 @@ export default function RecordingSettings() {
           />
         ))}
       </SettingsGroup>
+
+      {oemTap.kind === "oem_guide" && (
+        <SettingsGroup title="Keep recording on">
+          <SettingsRow
+            icon="battery-charging-outline"
+            label={`Battery steps for your ${oemTap.maker}`}
+            hint="The settings that stop your phone closing MileClear between drives"
+            onPress={() =>
+              router.push({ pathname: "/oem-battery-guide", params: { maker: oemTap.maker } })
+            }
+          />
+        </SettingsGroup>
+      )}
 
       <SettingsGroup title="Your choices">
         <ToggleRow
