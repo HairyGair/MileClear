@@ -815,7 +815,7 @@ function RootNavigator() {
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add earnings" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="oem-battery-guide" options={{ headerShown: true, title: "Keep recording on" }} />
-        <Stack.Screen name="charging-nearby"options={{ headerShown: true, title: "Chargers near you" }} />
+        <Stack.Screen name="charging-nearby" options={{ headerShown: true, title: "Chargers near you" }} />
         <Stack.Screen name="road-alerts" options={{ headerShown: true, title: "Road alerts" }} />
         <Stack.Screen name="navigate" options={{ headerShown: false, presentation: "fullScreenModal", title: "Directions" }} />
         <Stack.Screen name="profile-edit" options={{ headerShown: true, title: "Your email" }} />

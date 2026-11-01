@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, Linking, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "../components/Button";
 import { apiRequest } from "../lib/api/index";
@@ -11,9 +11,10 @@ import {
   openBatteryOptimisationSettings,
 } from "../lib/tracking/batteryOptimisation";
 import {
-  OEM_GUIDE_DONE_KEY,
   OEM_GUIDE_EVENTS,
+  doneStateWrites,
   oemFirstScreen,
+  oemGroupFor,
   oemGuideFor,
   verificationMessage,
   type VerificationMessage,
@@ -36,10 +37,14 @@ function track(type: string, metadata: Record<string, unknown>): void {
  * Events: oem_battery_guide.shown / .opened_settings / .done / .verified.
  */
 export default function OemBatteryGuideScreen() {
-  const maker = getDeviceManufacturer();
+  // One source of truth: the row passes the maker it already resolved; the
+  // Settings row and a deep link fall back to the same helper.
+  const params = useLocalSearchParams<{ maker?: string }>();
+  const maker = params.maker?.trim() || getDeviceManufacturer();
   const guide = oemGuideFor(maker);
   const [verdict, setVerdict] = useState<VerificationMessage | null>(null);
   const awaitingReturn = useRef(false);
+  const verifying = useRef(false);
 
   useEffect(() => {
     if (Platform.OS !== "android" || !guide) {
@@ -51,10 +56,17 @@ export default function OemBatteryGuideScreen() {
   }, []);
 
   const verify = useCallback(async () => {
-    const state = await getBatteryOptimisationState();
-    const ignoring = state?.ignoring ?? null;
-    setVerdict(verificationMessage(ignoring));
-    track(OEM_GUIDE_EVENTS.verified, { maker, ignoringOptimizations: ignoring });
+    if (verifying.current) return;
+    verifying.current = true;
+    try {
+      const state = await getBatteryOptimisationState();
+      const ignoring = state?.ignoring ?? null;
+      const group = oemGroupFor(maker);
+      if (group) setVerdict(verificationMessage(ignoring, group));
+      track(OEM_GUIDE_EVENTS.verified, { maker, ignoringOptimizations: ignoring });
+    } finally {
+      verifying.current = false;
+    }
   }, [maker]);
 
   // Coming back from Settings: check once per trip out.
@@ -78,7 +90,9 @@ export default function OemBatteryGuideScreen() {
     } else if (first === "vendor" && (await openBatteryOptimisationSettings("stock"))) {
       opened = "stock";
     } else {
-      Linking.openSettings().catch(() => {});
+      Linking.openSettings().catch(() => {
+        awaitingReturn.current = false;
+      });
     }
     track(OEM_GUIDE_EVENTS.openedSettings, { maker, step: "steps", opened });
   }, [guide, maker]);
@@ -87,16 +101,17 @@ export default function OemBatteryGuideScreen() {
     track(OEM_GUIDE_EVENTS.done, { maker, step: "steps" });
     try {
       const db = await getDatabase();
-      const now = String(Date.now());
-      await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [
-        OEM_GUIDE_DONE_KEY,
-        now,
-      ]);
-      // Calm the Home battery row for a week, as "later" does.
-      await db.runAsync(
-        "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('battery_opt_nudge_dismissed_at', ?)",
-        [now]
-      );
+      const now = Date.now();
+      // The Done time, and the Home battery row's 7-day snooze, as "later" does.
+      for (const [key, value] of doneStateWrites(now)) {
+        await db.runAsync("INSERT OR REPLACE INTO tracking_state (key, value) VALUES (?, ?)", [key, value]);
+      }
+      track("battery_opt_nudge.snoozed", {
+        screen: "vendor",
+        guide: "oem",
+        until: now + 7 * 24 * 60 * 60 * 1000,
+        manufacturer: maker,
+      });
     } catch {
       // Never block leaving the screen on a local write.
     }

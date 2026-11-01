@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { oemGroupFor, oemGuideFor, oemBrandName, oemFirstScreen, verificationMessage } from "../oemBatteryGuide";
+import { oemGroupFor, oemGuideFor, oemBrandName, oemFirstScreen, verificationMessage, batteryRowTap, doneStateWrites, BATTERY_SNOOZE_KEY, OEM_GUIDE_DONE_KEY } from "../oemBatteryGuide";
 
 describe("oemGroupFor", () => {
   it("maps the makers with high silent-day rates", () => {
@@ -44,9 +44,59 @@ describe("oemGuideFor", () => {
 });
 
 describe("oemFirstScreen", () => {
-  it("starts Motorola at the app page and the rest at the vendor list", () => {
+  it("starts Motorola and ColorOS at the app page", () => {
     expect(oemFirstScreen("motorola")).toBe("app");
-    expect(oemFirstScreen("oppo_realme")).toBe("vendor");
+    expect(oemFirstScreen("oppo_realme")).toBe("app");
+  });
+});
+
+describe("first step matches the screen the button opens", () => {
+  const cases: Array<[string, RegExp]> = [
+    ["OPPO", /App info/],
+    ["realme", /App info/],
+    ["OnePlus", /App info/],
+    ["motorola", /App info/],
+    ["HONOR", /App launch/],
+    ["HUAWEI", /App launch/],
+    ["vivo", /background start-up list/],
+  ];
+  it.each(cases)("%s", (maker, re) => {
+    expect(oemGuideFor(maker)!.steps[0]).toMatch(re);
+  });
+  it("opens the vendor list only where the steps start there", () => {
+    expect(oemFirstScreen(oemGroupFor("OnePlus")!)).toBe("app");
+    expect(oemFirstScreen(oemGroupFor("HONOR")!)).toBe("vendor");
+    expect(oemFirstScreen(oemGroupFor("vivo")!)).toBe("vendor");
+  });
+});
+
+describe("per-group verification wording", () => {
+  it("HONOR points at Special access", () => {
+    expect(verificationMessage(false, "honor_huawei").detail).toContain("Special access");
+  });
+  it("Motorola mentions Adaptive battery on yes", () => {
+    expect(verificationMessage(true, "motorola").detail).toContain("Adaptive battery");
+    expect(verificationMessage(true, "motorola").detail).not.toContain("auto launch");
+  });
+});
+
+describe("batteryRowTap (the Home and Settings branch)", () => {
+  it("sends OEM makers to the guide with the maker", () => {
+    expect(batteryRowTap("OPPO")).toEqual({ kind: "oem_guide", maker: "OPPO" });
+  });
+  it("leaves everyone else on the default flow", () => {
+    for (const m of ["samsung", "Google", "Xiaomi", null, undefined, ""]) {
+      expect(batteryRowTap(m)).toEqual({ kind: "default" });
+    }
+  });
+});
+
+describe("Done", () => {
+  it("writes the done time and the Home snooze", () => {
+    const writes = doneStateWrites(1234);
+    expect(writes).toContainEqual([OEM_GUIDE_DONE_KEY, "1234"]);
+    expect(writes).toContainEqual([BATTERY_SNOOZE_KEY, "1234"]);
+    expect(BATTERY_SNOOZE_KEY).toBe("battery_opt_nudge_dismissed_at");
   });
 });
 

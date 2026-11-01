@@ -10,9 +10,9 @@
 // app/oem-battery-guide.tsx; the native side is batteryOptimisation.ts.
 //
 // Setting names follow dontkillmyapp.com and each maker's current skin
-// (ColorOS / realme UI / OxygenOS, My UX, MagicOS). Menu names drift between
-// versions, so each step names the setting the driver is looking for rather
-// than a long path.
+// (ColorOS / realme UI / OxygenOS, Hello UI, MagicOS, Funtouch/OriginOS).
+// Menu names drift between versions, so each step names the setting the
+// driver is looking for rather than a long path.
 
 export type OemGroup = "oppo_realme" | "oneplus" | "motorola" | "honor_huawei" | "vivo";
 
@@ -40,13 +40,14 @@ export function oemGroupFor(manufacturer: string | null | undefined): OemGroup |
 }
 
 /** Which settings screen the button opens first. "vendor" is the maker's
- *  auto-launch / power manager list (RNBG showPowerManager, falling back to the
- *  stock list, then the app's own page). "app" is the app info page, used where
- *  RNBG has no screen for the maker (Motorola) and the steps start at
- *  Battery > Unrestricted. Opening more exact screens needs native code, so
- *  it is not done here. */
+ *  start-up list (RNBG showPowerManager, falling back to the stock list, then
+ *  the app's own page). "app" is the app info page (Linking.openSettings).
+ *  ColorOS / OxygenOS: RNBG's vendor screen is the old start-up list, often
+ *  blocked on newer versions, and Allow background activity / Allow auto
+ *  launch live on App info > Battery usage. Motorola has no vendor screen.
+ *  Opening more exact screens needs native code, so it is not done here. */
 export function oemFirstScreen(group: OemGroup): "vendor" | "app" {
-  return group === "motorola" ? "app" : "vendor";
+  return group === "honor_huawei" || group === "vivo" ? "vendor" : "app";
 }
 
 /** "realme" and "OnePlus" keep their own casing; unknown is "Your phone". */
@@ -74,25 +75,14 @@ export function oemGuideFor(manufacturer: string | null | undefined): OemGuide |
   const done = "Tap Done when you've been through them.";
   switch (group) {
     case "oppo_realme":
+    case "oneplus":
       return {
         group, brand, title,
         intro: `${brand} closes apps in the background unless you allow them, and drives go unrecorded. Four quick settings fix it.`,
         steps: [
-          "Tap Open settings below and find MileClear.",
-          "Open Battery usage and turn on Allow background activity.",
-          "Turn on Allow auto launch (in some versions it sits under Settings > Apps > Auto launch).",
-          "If you see Unrestricted, choose it. " + LOCK,
-        ],
-        closing: done,
-      };
-    case "oneplus":
-      return {
-        group, brand, title,
-        intro: "OnePlus closes apps in the background unless you allow them, and drives go unrecorded. Four quick settings fix it.",
-        steps: [
-          "Tap Open settings below and find MileClear.",
-          "Open Battery usage and choose Allow background activity (or Unrestricted).",
-          "Turn on Allow auto launch if you see it.",
+          "Tap Open settings below. You land on MileClear's App info page.",
+          "Open Battery usage and turn on Allow background activity. If you see Unrestricted, choose it.",
+          "Turn on Allow auto launch (on App info, or in Settings > Apps > Auto launch).",
           LOCK,
         ],
         closing: done,
@@ -102,8 +92,8 @@ export function oemGuideFor(manufacturer: string | null | undefined): OemGuide |
         group, brand, title,
         intro: "Motorola's battery saving can close MileClear between drives, and drives go unrecorded. Two settings fix it.",
         steps: [
-          "Tap Open settings below. Open Battery (App battery usage) and choose Unrestricted for MileClear.",
-          "Go back to Settings > Battery and turn Adaptive battery off, so Android stops limiting apps you don't open every day.",
+          "Tap Open settings below. You land on MileClear's App info page. Open Battery (App battery usage) and turn on Allow background usage, or choose Unrestricted.",
+          "Go to Settings > Battery and turn Adaptive battery off (on some phones it sits under Adaptive preferences).",
         ],
         closing: "Tap Done when you've set both.",
       };
@@ -112,21 +102,22 @@ export function oemGuideFor(manufacturer: string | null | undefined): OemGuide |
         group, brand, title,
         intro: `${brand} closes apps in the background unless you manage them yourself, and drives go unrecorded. Four quick settings fix it.`,
         steps: [
-          "Tap Open settings below. In Settings > Battery > App launch, find MileClear.",
+          "Tap Open settings below. In the App launch list (Settings > Battery > App launch), find MileClear.",
           "Turn off Manage automatically.",
           "Turn on Auto-launch, Secondary launch and Run in background.",
-          "In Settings > Apps > MileClear > Battery, choose Unrestricted. " + LOCK,
+          "Then open Settings > Apps > Special access > Battery optimisation, show All apps, find MileClear and choose Don't allow. " + LOCK,
         ],
         closing: done,
       };
     case "vivo":
       return {
         group, brand, title,
-        intro: `${brand} closes apps in the background unless you allow them, and drives go unrecorded. Three quick settings fix it.`,
+        intro: `${brand} closes apps in the background unless you allow them, and drives go unrecorded. Four quick settings fix it.`,
         steps: [
-          "Tap Open settings below. Go to Battery > Background power consumption management and choose MileClear.",
-          "Choose Allow high background power consumption.",
-          "In Settings > Apps > Autostart, turn MileClear on. " + LOCK,
+          "Tap Open settings below. In the background start-up list, find MileClear and turn it on.",
+          "Go to Battery > Background power consumption management, choose MileClear and pick Allow high background power consumption.",
+          "Turn on Autostart for MileClear (Settings > Apps > Autostart, or i Manager > App manager > Autostart manager).",
+          LOCK,
         ],
         closing: done,
       };
@@ -143,27 +134,51 @@ export interface VerificationMessage {
   detail: string;
 }
 
+const OPPO_ONEPLUS_LIMITED =
+  "Open settings again, go to Battery usage and choose Unrestricted (or Allow background activity).";
+const OPPO_ONEPLUS_UNSEEN =
+  "The auto launch and lock switches can't be checked from the app, so make sure you turned those on too.";
+
+const STILL_LIMITED: Record<OemGroup, string> = {
+  oppo_realme: OPPO_ONEPLUS_LIMITED,
+  oneplus: OPPO_ONEPLUS_LIMITED,
+  motorola: "Open settings again, go to Battery and turn on Allow background usage, or choose Unrestricted.",
+  honor_huawei:
+    "Open Settings > Apps > Special access > Battery optimisation, show All apps, find MileClear and choose Don't allow.",
+  vivo: "Open Battery > Background power consumption management, choose MileClear and pick Allow high background power consumption.",
+};
+
+const STILL_TO_CHECK: Record<OemGroup, string> = {
+  oppo_realme: OPPO_ONEPLUS_UNSEEN,
+  oneplus: OPPO_ONEPLUS_UNSEEN,
+  motorola: "Adaptive battery can't be checked from the app, so make sure that is off too.",
+  honor_huawei:
+    "App launch (Auto-launch, Secondary launch, Run in background) can't be checked from the app, so make sure those are on too.",
+  vivo: "Autostart and the lock can't be checked from the app, so make sure those are on too.",
+};
+
 /**
  * What to tell the driver when they come back from settings. `ignoring` is
  * isIgnoringBatteryOptimizations(): it confirms only the stock Unrestricted
- * setting. The maker's own switches (auto launch, background activity) are
- * invisible to the app, so a "yes" says so rather than promising too much.
+ * setting. The maker's own switches are invisible to the app, so each "yes"
+ * names the ones it could not see.
  */
-export function verificationMessage(ignoring: boolean | null): VerificationMessage {
+export function verificationMessage(
+  ignoring: boolean | null,
+  group: OemGroup = "oppo_realme"
+): VerificationMessage {
   if (ignoring === true) {
     return {
       result: "yes",
       headline: "Battery use is now Unrestricted",
-      detail:
-        "That part worked. The auto launch and lock switches can't be checked from the app, so make sure you turned those on too.",
+      detail: "That part worked. " + STILL_TO_CHECK[group],
     };
   }
   if (ignoring === false) {
     return {
       result: "no",
       headline: "MileClear is still limited",
-      detail:
-        "Your phone still lists MileClear as Optimised. Open settings again and choose Unrestricted (or Allow background activity).",
+      detail: "Your phone still lists MileClear as Optimised. " + STILL_LIMITED[group],
     };
   }
   return {
@@ -173,7 +188,18 @@ export function verificationMessage(ignoring: boolean | null): VerificationMessa
   };
 }
 
-// ── Events ──────────────────────────────────────────────────────────────
+// ── Decisions shared by Home, Settings and the screen ───────────────────
+
+/** What tapping the battery row does. OEM makers go to the guide, passing the
+ *  maker along so the screen never re-derives it. */
+export type BatteryRowTap = { kind: "oem_guide"; maker: string } | { kind: "default" };
+
+export function batteryRowTap(manufacturer: string | null | undefined): BatteryRowTap {
+  const maker = (manufacturer ?? "").trim();
+  return maker && oemGroupFor(maker) ? { kind: "oem_guide", maker } : { kind: "default" };
+}
+
+// ── Events and stored state ─────────────────────────────────────────────
 
 export const OEM_GUIDE_EVENTS = {
   shown: "oem_battery_guide.shown",
@@ -184,3 +210,14 @@ export const OEM_GUIDE_EVENTS = {
 
 /** tracking_state key: epoch ms of the last Done tap. */
 export const OEM_GUIDE_DONE_KEY = "oem_battery_guide_done_at";
+
+/** tracking_state key the Home battery row reads for its 7-day snooze. */
+export const BATTERY_SNOOZE_KEY = "battery_opt_nudge_dismissed_at";
+
+/** What Done writes: the Done time, and the snooze so Home hides the row. */
+export function doneStateWrites(now: number): Array<[string, string]> {
+  return [
+    [OEM_GUIDE_DONE_KEY, String(now)],
+    [BATTERY_SNOOZE_KEY, String(now)],
+  ];
+}
