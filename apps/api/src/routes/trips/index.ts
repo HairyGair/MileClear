@@ -466,6 +466,11 @@ export async function tripRoutes(app: FastifyInstance) {
     // morning briefing can tell a phone that ran flat from one that's fine.
     batteryPercent: z.number().int().min(0).max(100).optional(),
     charging: z.boolean().optional(),
+    // The phone's id for the recording that just opened (1 Nov 2026). Rides on
+    // trip.signal_start, every trip.recording_dropped for the same recording
+    // and the saved trip's gpsQuality.openId, so each open can be followed to
+    // its end. Opaque to the server.
+    openId: z.string().regex(/^[a-z0-9]{6,24}$/).optional(),
   });
   app.post("/signal-start", async (request, reply) => {
     const userId = request.userId!;
@@ -501,6 +506,7 @@ export async function tripRoutes(app: FastifyInstance) {
       activityType: d.activityType,
       ...(d.batteryPercent !== undefined ? { batteryPercent: d.batteryPercent } : {}),
       ...(d.charging !== undefined ? { charging: d.charging } : {}),
+      ...(d.openId ? { openId: d.openId } : {}),
     });
 
     const user = await prisma.user.findUnique({

@@ -23,7 +23,23 @@ export const RECORDING_DROPPED_EVENT = "trip.recording_dropped";
  */
 export async function noteRecordingDropped(input: DropInput): Promise<void> {
   try {
-    const ev = buildDropEvent(input, Date.now(), Platform.OS);
+    // What the recording remembers about its own open (recordingOpen.ts): the
+    // id the server joins on, and for a recording that got no coordinates the
+    // engine's state right now. All best effort; a failure sends the thinner
+    // event it always sent.
+    let enriched: DropInput = input;
+    try {
+      const open = await import("./recordingOpen");
+      const fields = input.open ?? (await open.currentOpenFields());
+      enriched = { ...enriched, ...(fields ? { open: fields } : {}) };
+      if (input.reason === "no_coords" && Platform.OS === "android") {
+        const [engineAtDrop, fixAge] = await Promise.all([open.collectEngineSnapshot(), open.nativeFixAgeSec()]);
+        enriched = { ...enriched, engineAtDrop, nativeFixAgeSec: fixAge };
+      }
+      // Now that the drop is reported, the open has its outcome.
+      await open.markOpenOutcome(input.reason);
+    } catch {}
+    const ev = buildDropEvent(enriched, Date.now(), Platform.OS);
     // `detail` can carry a raw error message (reason "error"), and a geocode
     // or routing failure can quote the coordinates it was given. Unlike the
     // dump, /user/events stores metadata as sent. Only the string is

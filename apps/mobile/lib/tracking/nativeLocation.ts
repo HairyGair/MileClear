@@ -58,6 +58,7 @@ import {
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
 import { noteRecordingDropped } from "./recordingDrops";
+import { beginOpenContext, discardOpenContext, noteOpenFix } from "./recordingOpen";
 import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
 import { nativeFixesBeforeWindow, rowsAddedByOpen } from "./lockWindowRule";
@@ -362,6 +363,41 @@ export async function getNativeEngineDiagnostics(): Promise<NativeEngineDiagnost
     // log is best-effort
   }
   return out;
+}
+
+/**
+ * The SDK's own answers for a recording-open diagnostic (recordingOpen.ts):
+ * its state, the location provider state (permission level, precise or
+ * approximate, GPS and network on) and Android power-save mode. Android only,
+ * bounded to two seconds, never throws; any read that fails is left out.
+ */
+export async function readNativeEngineRaw(): Promise<{
+  state: Record<string, unknown> | null;
+  provider: Record<string, unknown> | null;
+  powerSave: boolean | null;
+} | null> {
+  if (Platform.OS !== "android") return null;
+  const mod = loadNativeModule();
+  if (!mod) return null;
+  const call = async <T,>(name: string): Promise<T | null> => {
+    try {
+      const fn = (mod as Record<string, unknown>)[name];
+      if (typeof fn !== "function") return null;
+      return (await (fn as () => Promise<T>).call(mod)) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const work = (async () => {
+    const [state, provider, powerSave] = await Promise.all([
+      call<Record<string, unknown>>("getState"),
+      call<Record<string, unknown>>("getProviderState"),
+      call<boolean>("isPowerSaveMode"),
+    ]);
+    return { state, provider, powerSave: typeof powerSave === "boolean" ? powerSave : null };
+  })();
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000));
+  return Promise.race([work, timeout]);
 }
 
 // ─── Configuration (tune on-device) ─────────────────────────────────────────
@@ -1334,6 +1370,14 @@ async function openNativeRecordingNow(
     logDetectionEvent("native_open_refused", { reason, refusal: gateAgain.refusal, stage: "arm" }).catch(() => {});
     return;
   }
+  // Give this open an id and a memory (recordingOpen.ts): the id rides on
+  // signal_start, every drop event and the saved trip, so the server can say
+  // what became of each open. Accounts for the previous open first if it
+  // never reported an outcome. Diagnostics only: a failure changes nothing.
+  const openCtx = await beginOpenContext({
+    reason,
+    seedTimestampMs: recordedAtMs(seed.timestamp) || null,
+  });
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
   );
@@ -1365,6 +1409,7 @@ async function openNativeRecordingNow(
   const gateLast = await mayOpenRecordingNow(db);
   if (!gateLast.open) {
     logDetectionEvent("native_open_refused", { reason, refusal: gateLast.refusal, stage: "announce" }).catch(() => {});
+    if (openCtx) await discardOpenContext(openCtx.id);
     try {
       await db.runAsync(
         "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
@@ -1487,6 +1532,11 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // never into the recorder
   }
   try {
+    // Count it against the open it belongs to (recordingOpen.ts): "fixes the
+    // engine delivered" versus "fixes buffered" is the answer to why an
+    // Android recording ends with no coordinates. One read, a write only for
+    // the first few fixes of an open.
+    await noteOpenFix({ kind: "seen" });
     // Same pause decision as the motion handler, because a fix can arrive
     // without a motionchange ever firing (46% of Android phones have never
     // granted motion at all). Silent: this runs per fix, and the motion path
@@ -1498,10 +1548,12 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       // build stops taking navigation fixes on its very next one.
       await applyEnginePower("fix_while_paused");
       await sleepNativeEngine("fix_while_paused", false);
+      await noteOpenFix({ kind: "gate", gate: "paused" });
       return;
     }
     if (!(await isDriveDetectionEnabled())) {
       await stopIfSwitchedOff("fix_while_off");
+      await noteOpenFix({ kind: "gate", gate: "detection_off" });
       return;
     }
     const db = await getDatabase();
@@ -1524,7 +1576,10 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // a ghost shift or an abandoned Start Trip; if it does, the engine goes
     // back to normal here and this fix carries on as usual.
     if ((await readEnginePower()).mode === "low") {
-      if (await shiftSuppressesAutoDetection(db)) return;
+      if (await shiftSuppressesAutoDetection(db)) {
+        await noteOpenFix({ kind: "gate", gate: "low_power_lock" });
+        return;
+      }
       await applyEnginePower("lock_gone_on_fix");
     }
 
@@ -1580,6 +1635,7 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
         }
       }
       await bufferCoord(db, loc, lastFix);
+      await noteOpenFix({ kind: "buffered" });
 
       // Parked and walked away: see footStop.ts. Closes the recording the
       // same way a gap-stop does. The walk is NOT removed from the buffer:

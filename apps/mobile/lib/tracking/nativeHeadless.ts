@@ -52,6 +52,7 @@ import { Platform } from "react-native";
 import { canStartConfirm, decideHeadlessWake, isConfirming, readHeadlessFix } from "./headlessSpeedRule";
 import { decideSpeedStart, isNearMiss, shouldConfirmCoarseFix } from "./speedStartRule";
 import { pickHeadlessLocation, readHeadlessIsMoving, routeHeadlessEvent } from "./headlessFinalizeRule";
+import { noteHeadlessEvent } from "./headlessMarker";
 
 type HeadlessEvent = { name?: string; params?: Record<string, unknown> };
 type BgGeoHeadless = {
@@ -523,6 +524,9 @@ export function registerNativeHeadlessTask(): void {
   BGGeo.registerHeadlessTask(async (event) => {
     const name = String(event?.name ?? "");
     try {
+      // So a recording opened from here says it was opened with no app on
+      // screen (recordingOpen.ts). A timestamp in memory, nothing awaited.
+      noteHeadlessEvent();
       // Log-only events for the 24-hour tracking log (trackingLog.ts), before
       // anything else so they are kept whatever the switch says: Android
       // ending the app, the phone restarting, a permission or location

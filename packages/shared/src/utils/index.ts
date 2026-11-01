@@ -552,6 +552,10 @@ export interface TripQuality {
    *  walk-pace verdict (15 Sep 2026). */
   sustainedSpeedP95Mph?: number | null;
   walkReason?: string;
+  // The phone's id for the recording this trip came from (1 Nov 2026), also on
+  // trip.signal_start and trip.recording_dropped, so each open can be followed
+  // to its end.
+  openId?: string;
 }
 
 /**

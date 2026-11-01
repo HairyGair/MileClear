@@ -617,6 +617,9 @@ export async function signalTripStart(data: {
   speedMph?: number;
   tripCount?: number;
   dailyTotalMiles?: number;
+  /** Id of the recording that just opened (lib/tracking/recordingOpenRule.ts),
+   *  so the drop events and the saved trip can be joined to this signal. */
+  openId?: string;
 }) {
   // The battery at the start of the drive (7 Oct 2026): the morning briefing
   // tells a phone that went quiet on a nearly flat battery to open the app

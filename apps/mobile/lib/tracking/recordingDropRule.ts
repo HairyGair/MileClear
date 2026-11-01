@@ -12,6 +12,8 @@
 // the reason (recordingDrops.ts). This file decides what the event says. No
 // React Native, no SQLite, so it runs under vitest.
 
+import type { EngineSnapshot, OpenFields } from "./recordingOpenRule";
+
 export type DropReason =
   /** Fewer than two fixes: nothing to draw. */
   | "no_coords"
@@ -61,7 +63,16 @@ export type DropReason =
    *  Not lost, and never an explanation for a missing trip. */
   | "duplicate_cleared"
   /** The save threw. The fixes are kept and retried at the next app open. */
-  | "error";
+  | "error"
+  /** A recording opened and the next one opened with the first never saying
+   *  how it ended (1 Nov 2026). Sent against the OLD open id, detail
+   *  "no_fixes_seen" or "no_outcome". Not known to be lost, so not counted as
+   *  lost: it is the marker that a silent exit exists, so find it. */
+  | "superseded"
+  /** The armed flag had no driving timestamp and was cleared (the stale-state
+   *  check, at launch or from the background fetch). The fixes are not
+   *  touched, the orphan sweep still finds them. Not lost. */
+  | "flag_cleared";
 
 /** Reasons that leave the drive's miles out of the trip list. Merged and
  *  deduped drives are in it already; an error is retried. */
@@ -115,9 +126,18 @@ export interface DropInput {
    *  (savedFixes.ts), so the server can see how often a refill brought back
    *  driving that was already saved. */
   savedFixesSkipped?: number | null;
+  /** What the recording remembers about its own open (recordingOpenRule.ts).
+   *  Filled in by noteRecordingDropped, not by the caller. */
+  open?: OpenFields | null;
+  /** Engine and OS state at the drop (Android, no_coords only). */
+  engineAtDrop?: EngineSnapshot | null;
+  /** Age of the newest native fix the JS side saw, seconds, at the drop. */
+  nativeFixAgeSec?: number | null;
 }
 
-export interface DropEvent {
+export interface DropEvent extends Partial<OpenFields> {
+  engineAtDrop?: EngineSnapshot;
+  nativeFixAgeSec?: number;
   reason: DropReason;
   lost: boolean;
   detail?: string;
@@ -165,6 +185,10 @@ export function buildDropEvent(input: DropInput, now: number, platform: string):
   if (input.source) ev.source = String(input.source).slice(0, 60);
   const skipped = finiteOrUndefined(input.savedFixesSkipped);
   if (skipped !== undefined && skipped > 0) ev.savedFixesSkipped = skipped;
+  if (input.open) Object.assign(ev, input.open);
+  if (input.engineAtDrop && Object.keys(input.engineAtDrop).length > 0) ev.engineAtDrop = input.engineAtDrop;
+  const fixAge = finiteOrUndefined(input.nativeFixAgeSec);
+  if (fixAge !== undefined) ev.nativeFixAgeSec = Math.max(0, Math.round(fixAge));
   return ev;
 }
 

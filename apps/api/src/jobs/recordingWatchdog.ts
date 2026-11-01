@@ -222,6 +222,45 @@ export interface ArmedSilentInput {
 }
 
 /**
+ * The recording a reaped flag belonged to: the openId the phone sent on its
+ * newest trip.signal_start, when that signal is not older than the flag by
+ * more than a few minutes (an older one is some earlier recording). Pure, so
+ * the choice is tested without a database.
+ */
+export function pickSignalOpen(
+  signals: Array<{ createdAt: Date; metadata: unknown }>,
+  recordingStartedAt: Date | null
+): { openId: string; signalAt: string } | null {
+  const slackMs = 10 * 60 * 1000;
+  for (const s of signals) {
+    const m = s.metadata;
+    if (!m || typeof m !== "object" || Array.isArray(m)) continue;
+    const id = (m as Record<string, unknown>).openId;
+    if (typeof id !== "string" || !id) continue;
+    if (recordingStartedAt && s.createdAt.getTime() < recordingStartedAt.getTime() - slackMs) return null;
+    return { openId: id, signalAt: s.createdAt.toISOString() };
+  }
+  return null;
+}
+
+async function latestSignalOpen(
+  userId: string,
+  recordingStartedAt: Date | null
+): Promise<{ openId: string; signalAt: string } | null> {
+  try {
+    const signals = await prisma.appEvent.findMany({
+      where: { userId, type: "trip.signal_start" },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: { createdAt: true, metadata: true },
+    });
+    return pickSignalOpen(signals, recordingStartedAt);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Check 3's selection rule, pulled out as a pure predicate so the judgement
  * ("does this phone look armed and dead") can be unit-tested without
  * touching Prisma. A user qualifies when all four hold:
@@ -443,7 +482,11 @@ export async function runRecordingWatchdogJob(): Promise<void> {
           data: { autoRecordingActive: false, recordingStartedAt: null },
         })
         .catch(() => {});
+      // Which recording the reaped flag belonged to, so the open it ends can
+      // be told apart from the ones that saved or dropped (1 Nov 2026).
+      const reapedOpen = await latestSignalOpen(user.id, user.recordingStartedAt);
       logEvent("watchdog.reaped", user.id, {
+        ...(reapedOpen ?? {}),
         stuckMs,
         recordingStartedAt: user.recordingStartedAt?.toISOString() ?? null,
         lastDrivingSpeedAt: user.lastDrivingSpeedAt?.toISOString() ?? null,

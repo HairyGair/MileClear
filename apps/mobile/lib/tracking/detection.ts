@@ -139,13 +139,20 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
   } catch {
     // default to business mode
   }
+  // The id of the recording that just opened (recordingOpen.ts), so the
+  // server can join this signal to the drop event or the saved trip.
+  let openId: string | undefined;
+  try {
+    const { readOpenContext } = await import("./recordingOpen");
+    openId = (await readOpenContext())?.id;
+  } catch {}
   // Live Activities are iOS only. Android phones were logging la_* events
   // and asking for a push-to-start they can never show (15 Sep 2026 audit),
   // noise in every fleet measurement. The signal-start itself must still go:
   // the server's recording watchdog reads trip.signal_start as "a recording
   // just opened" (Check 1b), for every platform.
   if (Platform.OS !== "ios") {
-    signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
+    signalTripStart({ activityType: "trip", isBusinessMode, ...(openId ? { openId } : {}) }).catch(() => {});
     return;
   }
   // The in-app switch (Settings > Notifications > "Live Activity") decides
@@ -193,7 +200,7 @@ export async function startNativeAutoTripLiveActivity(): Promise<void> {
       const { isLiveActivitySupported } = await import("../liveActivity");
       const osAllows = await isLiveActivitySupported().catch(() => true);
       if (osAllows) {
-        signalTripStart({ activityType: "trip", isBusinessMode }).catch(() => {});
+        signalTripStart({ activityType: "trip", isBusinessMode, ...(openId ? { openId } : {}) }).catch(() => {});
       } else {
         logDetectionEvent("la_push_skipped_os_disabled").catch(() => {});
       }
@@ -2371,7 +2378,15 @@ async function _finalizeAutoTripInner(): Promise<void> {
         ...(finalizeSource ? { source: finalizeSource } : {}),
       });
     } else {
-      await noteRecordingDropped({ reason: "no_coords", ...dropSpan(allCoords) });
+      // What the SDK's own store holds: a recording judged on a seed fix
+      // while the store holds a route is a starved JS buffer, not a quiet
+      // engine (the two readings the Android no_coords question turns on).
+      let noCoordsNative: number | null = null;
+      try {
+        const { getNativeStoreSummary } = await import("./nativeLocation");
+        noCoordsNative = (await getNativeStoreSummary())?.count ?? null;
+      } catch {}
+      await noteRecordingDropped({ reason: "no_coords", ...dropSpan(allCoords), nativeCoords: noCoordsNative });
     }
     await consumeProcessedBuffer();
     endLiveActivity().catch(() => {});
@@ -2782,6 +2797,15 @@ async function _finalizeAutoTripInner(): Promise<void> {
     steps,
   });
   tripQuality.walkVerdict = walk.verdict;
+  // The id of the recording this trip came from, when it clearly is one
+  // (recordingOpenRule.openIdForTrip), so the server can join the open
+  // (trip.signal_start), its drop events and the trip.
+  try {
+    const { readOpenContext } = await import("./recordingOpen");
+    const { openIdForTrip } = await import("./recordingOpenRule");
+    const tripOpenId = openIdForTrip(await readOpenContext(), firstTs);
+    if (tripOpenId) tripQuality.openId = tripOpenId;
+  } catch {}
   tripQuality.walkReason = walk.reason;
 
   if (walk.verdict === "walk") {
@@ -3368,6 +3392,11 @@ async function _finalizeAutoTripInner(): Promise<void> {
     const tripResult = await syncCreateTrip(createBody);
     // Saved: a later 4xx in this block must not queue the same drive again.
     pendingCreateBody = null;
+    // The open that produced this drive has its outcome (recordingOpen.ts).
+    try {
+      const { markOpenOutcome } = await import("./recordingOpen");
+      await markOpenOutcome("saved");
+    } catch {}
     // Saved (a local trip row plus the server copy or a queued create): the
     // fixes are remembered so a refill cannot save them again.
     await rememberSaved(tripResult?.data?.id ? `trip:${tripResult.data.id}` : `start:${wireStartedAt}`);
@@ -3719,6 +3748,7 @@ async function checkStaleAutoRecording(): Promise<void> {
     // Stale flag with no timestamp - clear it
     stopWatchdog();
     await db.runAsync("DELETE FROM tracking_state WHERE key = 'auto_recording_active'");
+    await noteRecordingDropped({ reason: "flag_cleared", detail: "no_timestamp", source: "stale_check" });
     return;
   }
 
@@ -5130,6 +5160,7 @@ try {
       if (!lastDriving) {
         // Recording active but no last-driving timestamp — stale state, clean it.
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'auto_recording_active'");
+        await noteRecordingDropped({ reason: "flag_cleared", detail: "no_timestamp", source: "background_fetch" });
         return BackgroundFetch.BackgroundFetchResult.NewData;
       }
 
