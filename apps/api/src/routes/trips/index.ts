@@ -470,7 +470,7 @@ export async function tripRoutes(app: FastifyInstance) {
     // trip.signal_start, every trip.recording_dropped for the same recording
     // and the saved trip's gpsQuality.openId, so each open can be followed to
     // its end. Opaque to the server.
-    openId: z.string().regex(/^[a-z0-9]{6,24}$/).optional(),
+    openId: z.string().regex(/^[a-z0-9]{6,24}$/).optional().catch(undefined),
   });
   app.post("/signal-start", async (request, reply) => {
     const userId = request.userId!;

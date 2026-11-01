@@ -249,7 +249,13 @@ async function latestSignalOpen(
 ): Promise<{ openId: string; signalAt: string } | null> {
   try {
     const signals = await prisma.appEvent.findMany({
-      where: { userId, type: "trip.signal_start" },
+      where: {
+        userId,
+        type: "trip.signal_start",
+        // Not an earlier recording's signal: only ones from about the time the
+        // flag was set (no migration; the existing userId index serves it).
+        ...(recordingStartedAt ? { createdAt: { gte: new Date(recordingStartedAt.getTime() - 10 * 60 * 1000) } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { createdAt: true, metadata: true },

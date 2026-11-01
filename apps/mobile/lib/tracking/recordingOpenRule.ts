@@ -16,8 +16,22 @@
 // carries its id (`openId`), so the server can join signal_start, the drop and
 // the saved trip (`gpsQuality.openId`). No coordinates anywhere in it.
 
-/** tracking_state key holding the current open's JSON. */
+// Storage (recordingOpen.ts). Every piece that changes while the recording
+// runs has its OWN row, so two writers never read-modify-write the same value
+// (the first version kept it all in one JSON and a fix landing during a save
+// could wipe the outcome): counters are atomic SQL increments, the outcome is
+// one INSERT OR IGNORE keyed by the open's id.
+/** tracking_state key holding the open's fixed facts (JSON, written once). */
 export const OPEN_CTX_KEY = "recording_open_ctx";
+export const OPEN_SEEN_KEY = "recording_open_seen";
+export const OPEN_BUFFERED_KEY = "recording_open_buffered";
+export const OPEN_FIRST_KEY = "recording_open_first";
+export const OPEN_GATE_KEY = "recording_open_gate";
+export const OPEN_SNAP_KEY = "recording_open_snap";
+/** Prefix of the outcome rows: `recording_open_done:<id>` = outcome. */
+export const OPEN_DONE_PREFIX = "recording_open_done:";
+/** Matches every row above, for the reset when a new recording opens. */
+export const OPEN_KEYS_LIKE = "recording_open_%";
 
 /** Fixes counted per open. The question is "did any arrive", so counting
  *  stops here and the per-fix cost stops with it. */
@@ -119,54 +133,66 @@ export function startOpenContext(input: {
   };
 }
 
-/** Read the stored JSON; anything unreadable is "no open". */
-export function parseOpenContext(raw: string | null | undefined): OpenContext | null {
-  if (!raw) return null;
+/**
+ * Put the rows back together. `rows` is every `recording_open_%` row. Null
+ * when there is no readable base row. The outcome counts only if it is the
+ * one written for this open's id.
+ */
+export function assembleOpenContext(rows: Array<{ key: string; value: string }>): OpenContext | null {
+  const get = (k: string) => rows.find((r) => r.key === k)?.value;
+  let base: Partial<OpenContext> | null = null;
   try {
-    const v = JSON.parse(raw) as Partial<OpenContext> | null;
-    if (!v || typeof v !== "object") return null;
-    if (typeof v.id !== "string" || !v.id) return null;
-    if (typeof v.at !== "number" || !Number.isFinite(v.at)) return null;
-    return {
-      id: v.id,
-      at: v.at,
-      reason: v.reason === "speed" ? "speed" : "motion",
-      via: v.via === "headless" ? "headless" : "live",
-      appState: typeof v.appState === "string" ? v.appState : null,
-      seedAgeMs: typeof v.seedAgeMs === "number" ? v.seedAgeMs : null,
-      seen: typeof v.seen === "number" ? v.seen : 0,
-      buffered: typeof v.buffered === "number" ? v.buffered : 0,
-      ...(typeof v.firstSeenAt === "number" ? { firstSeenAt: v.firstSeenAt } : {}),
-      ...(typeof v.gate === "string" ? { gate: v.gate } : {}),
-      ...(v.snap && typeof v.snap === "object" ? { snap: v.snap } : {}),
-      ...(typeof v.done === "string" ? { done: v.done } : {}),
-    };
+    const raw = get(OPEN_CTX_KEY);
+    base = raw ? (JSON.parse(raw) as Partial<OpenContext>) : null;
   } catch {
-    return null;
+    base = null;
   }
+  if (!base || typeof base !== "object") return null;
+  if (typeof base.id !== "string" || !base.id) return null;
+  if (typeof base.at !== "number" || !Number.isFinite(base.at)) return null;
+  const int = (k: string): number | undefined => {
+    const n = Number(get(k));
+    return get(k) !== undefined && Number.isFinite(n) ? n : undefined;
+  };
+  let snap: EngineSnapshot | undefined;
+  try {
+    const raw = get(OPEN_SNAP_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    if (v && typeof v === "object" && !Array.isArray(v)) snap = v as EngineSnapshot;
+  } catch {}
+  const done = get(OPEN_DONE_PREFIX + base.id);
+  const first = int(OPEN_FIRST_KEY);
+  const gate = get(OPEN_GATE_KEY);
+  return {
+    id: base.id,
+    at: base.at,
+    reason: base.reason === "speed" ? "speed" : "motion",
+    via: base.via === "headless" ? "headless" : "live",
+    appState: typeof base.appState === "string" ? base.appState : null,
+    seedAgeMs: typeof base.seedAgeMs === "number" ? base.seedAgeMs : null,
+    seen: int(OPEN_SEEN_KEY) ?? 0,
+    buffered: int(OPEN_BUFFERED_KEY) ?? 0,
+    ...(first !== undefined ? { firstSeenAt: first } : {}),
+    ...(gate ? { gate } : {}),
+    ...(snap ? { snap } : {}),
+    ...(done ? { done } : {}),
+  };
 }
 
 export type OpenFixEvent = { kind: "seen" } | { kind: "buffered" } | { kind: "gate"; gate: string };
 
 /**
- * Apply one fix event. Returns the new context, or null when nothing changed
- * (the cap is reached or the open already has its outcome), so the caller
- * skips the write.
+ * Does a drop belong to this open? Inside a finalize it always does (the
+ * finalize captured the open when it started). Outside one (an orphan sweep, a
+ * stale-state clear, a "Not driving" tap) it does only if the fixes it is
+ * about begin around the open: an orphan sweep of yesterday's buffer must not
+ * close, or be filed under, today's recording. A drop with no fixes to date
+ * (a cleared flag) belongs to an open that is still pending.
  */
-export function applyOpenFix(ctx: OpenContext, ev: OpenFixEvent, now: number): OpenContext | null {
-  if (ctx.done) return null;
-  if (ev.kind === "seen") {
-    if (ctx.seen >= FIX_COUNT_CAP) return null;
-    return { ...ctx, seen: ctx.seen + 1, firstSeenAt: ctx.firstSeenAt ?? now };
-  }
-  if (ev.kind === "buffered") {
-    if (ctx.buffered >= FIX_COUNT_CAP) return null;
-    return { ...ctx, buffered: ctx.buffered + 1 };
-  }
-  // A gate only matters while the open is young: it explains a recording that
-  // got no fixes, not one that has been going for an hour.
-  if (ctx.seen >= FIX_COUNT_CAP || ctx.gate === ev.gate) return null;
-  return { ...ctx, gate: ev.gate.slice(0, 30) };
+export function dropBelongsToOpen(ctx: OpenContext, startedAtMs: number | null, inFinalize: boolean): boolean {
+  if (inFinalize) return true;
+  if (startedAtMs == null || !Number.isFinite(startedAtMs)) return !ctx.done;
+  return startedAtMs >= ctx.at - TRIP_BEFORE_OPEN_SLACK_MS && startedAtMs <= ctx.at + TRIP_AFTER_OPEN_MAX_MS;
 }
 
 /** Drop reasons that are not the end of the recording: the fixes are kept and
@@ -183,7 +209,7 @@ export function reasonClosesOpen(reason: string): boolean {
  *  old it is and the reader can ignore it. We always attach; this only caps
  *  the age we trust for the trip join. */
 export function openIdForTrip(ctx: OpenContext | null, tripStartMs: number): string | null {
-  if (!ctx || !Number.isFinite(tripStartMs)) return null;
+  if (!ctx || ctx.done || !Number.isFinite(tripStartMs)) return null;
   if (tripStartMs < ctx.at - TRIP_BEFORE_OPEN_SLACK_MS) return null;
   if (tripStartMs > ctx.at + TRIP_AFTER_OPEN_MAX_MS) return null;
   return ctx.id;
@@ -198,11 +224,9 @@ export function openIdForTrip(ctx: OpenContext | null, tripStartMs: number): str
  */
 export function unaccountedDrop(
   prev: OpenContext | null,
-  now: number
+  _now?: number
 ): { reason: "superseded"; detail: string; source: string } | null {
   if (!prev || prev.done) return null;
-  // Under a minute old: the same open written twice, not an earlier recording.
-  if (now - prev.at < 60 * 1000) return null;
   return {
     reason: "superseded",
     detail: prev.seen === 0 ? "no_fixes_seen" : "no_outcome",

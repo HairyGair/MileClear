@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
-  applyOpenFix,
+  assembleOpenContext,
   buildEngineSnapshot,
-  FIX_COUNT_CAP,
+  dropBelongsToOpen,
   newOpenId,
+  OPEN_CTX_KEY,
+  OPEN_DONE_PREFIX,
+  OPEN_GATE_KEY,
+  OPEN_SEEN_KEY,
+  OPEN_SNAP_KEY,
   openFields,
   openIdForTrip,
-  parseOpenContext,
   reasonClosesOpen,
   startOpenContext,
   unaccountedDrop,
@@ -53,50 +57,43 @@ describe("startOpenContext", () => {
   });
 });
 
-describe("parseOpenContext", () => {
-  it("round-trips a stored context", () => {
-    const c = ctx({ seen: 3, buffered: 2, gate: "paused", firstSeenAt: T0 + 9000 });
-    expect(parseOpenContext(JSON.stringify(c))).toEqual(c);
+describe("assembleOpenContext", () => {
+  const base = JSON.stringify({ id: "oabc123def456", at: T0, reason: "speed", via: "headless", appState: "background", seedAgeMs: 4000 });
+  it("puts the rows back together", () => {
+    const c = assembleOpenContext([
+      { key: OPEN_CTX_KEY, value: base },
+      { key: OPEN_SEEN_KEY, value: "3" },
+      { key: OPEN_GATE_KEY, value: "paused" },
+      { key: OPEN_SNAP_KEY, value: JSON.stringify({ en: true }) },
+    ])!;
+    expect(c).toMatchObject({ id: "oabc123def456", at: T0, reason: "speed", via: "headless", seen: 3, buffered: 0, gate: "paused", snap: { en: true } });
+    expect(c.done).toBeUndefined();
+  });
+  it("takes the outcome only if it was written for this open's id", () => {
+    expect(assembleOpenContext([{ key: OPEN_CTX_KEY, value: base }, { key: OPEN_DONE_PREFIX + "oabc123def456", value: "saved" }])!.done).toBe("saved");
+    expect(assembleOpenContext([{ key: OPEN_CTX_KEY, value: base }, { key: OPEN_DONE_PREFIX + "oother", value: "saved" }])!.done).toBeUndefined();
   });
   it("treats junk as no open", () => {
-    expect(parseOpenContext(null)).toBeNull();
-    expect(parseOpenContext("")).toBeNull();
-    expect(parseOpenContext("not json")).toBeNull();
-    expect(parseOpenContext('{"id":"","at":1}')).toBeNull();
-    expect(parseOpenContext('{"id":"abc"}')).toBeNull();
-    expect(parseOpenContext("[]")).toBeNull();
+    expect(assembleOpenContext([])).toBeNull();
+    expect(assembleOpenContext([{ key: OPEN_CTX_KEY, value: "not json" }])).toBeNull();
+    expect(assembleOpenContext([{ key: OPEN_CTX_KEY, value: '{"id":"","at":1}' }])).toBeNull();
+    expect(assembleOpenContext([{ key: OPEN_CTX_KEY, value: '{"id":"abc"}' }])).toBeNull();
+    expect(assembleOpenContext([{ key: OPEN_CTX_KEY, value: "[]" }])).toBeNull();
   });
 });
 
-describe("applyOpenFix", () => {
-  it("counts fixes seen and remembers when the first came", () => {
-    const a = applyOpenFix(ctx(), { kind: "seen" }, T0 + 7000)!;
-    expect(a.seen).toBe(1);
-    expect(a.firstSeenAt).toBe(T0 + 7000);
-    const b = applyOpenFix(a, { kind: "seen" }, T0 + 9000)!;
-    expect(b.seen).toBe(2);
-    expect(b.firstSeenAt).toBe(T0 + 7000);
+describe("dropBelongsToOpen", () => {
+  it("always inside a finalize that pinned the open", () => {
+    expect(dropBelongsToOpen(ctx({ done: "saved" }), T0 - 5 * 3600_000, true)).toBe(true);
   });
-  it("counts buffered fixes separately from seen ones", () => {
-    const a = applyOpenFix(ctx({ seen: 2 }), { kind: "buffered" }, T0)!;
-    expect(a.seen).toBe(2);
-    expect(a.buffered).toBe(1);
+  it("outside one, only when the fixes begin around the open", () => {
+    expect(dropBelongsToOpen(ctx(), T0 + 60_000, false)).toBe(true);
+    expect(dropBelongsToOpen(ctx(), T0 - 20 * 3600_000, false)).toBe(false);
+    expect(dropBelongsToOpen(ctx(), T0 + 30 * 3600_000, false)).toBe(false);
   });
-  it("stops writing at the cap so a long drive costs nothing", () => {
-    expect(applyOpenFix(ctx({ seen: FIX_COUNT_CAP }), { kind: "seen" }, T0)).toBeNull();
-    expect(applyOpenFix(ctx({ buffered: FIX_COUNT_CAP }), { kind: "buffered" }, T0)).toBeNull();
-  });
-  it("writes nothing once the open has its outcome", () => {
-    const done = ctx({ done: "saved" });
-    expect(applyOpenFix(done, { kind: "seen" }, T0)).toBeNull();
-    expect(applyOpenFix(done, { kind: "buffered" }, T0)).toBeNull();
-    expect(applyOpenFix(done, { kind: "gate", gate: "paused" }, T0)).toBeNull();
-  });
-  it("keeps the last place a fix was set aside, once", () => {
-    const a = applyOpenFix(ctx(), { kind: "gate", gate: "paused" }, T0)!;
-    expect(a.gate).toBe("paused");
-    expect(applyOpenFix(a, { kind: "gate", gate: "paused" }, T0)).toBeNull();
-    expect(applyOpenFix(a, { kind: "gate", gate: "detection_off" }, T0)!.gate).toBe("detection_off");
+  it("a drop with no fixes belongs only to an open still pending", () => {
+    expect(dropBelongsToOpen(ctx(), null, false)).toBe(true);
+    expect(dropBelongsToOpen(ctx({ done: "saved" }), null, false)).toBe(false);
   });
 });
 
@@ -125,8 +122,8 @@ describe("unaccountedDrop (the silent exits)", () => {
   it("separates an open that never saw a fix from one that did", () => {
     expect(unaccountedDrop(ctx({ seen: 0 }), T0 + 3600_000)?.detail).toBe("no_fixes_seen");
   });
-  it("ignores an open written seconds ago (the same open twice)", () => {
-    expect(unaccountedDrop(ctx(), T0 + 20_000)).toBeNull();
+  it("reports an open overwritten within a minute too", () => {
+    expect(unaccountedDrop(ctx(), T0 + 20_000)?.reason).toBe("superseded");
   });
   it("is not counted as a lost drive on its own", () => {
     expect(isLostReason("superseded")).toBe(false);
@@ -138,6 +135,9 @@ describe("openIdForTrip", () => {
   it("joins a trip that starts around the open", () => {
     expect(openIdForTrip(ctx(), T0 - 5 * 60_000)).toBe("oabc123def456");
     expect(openIdForTrip(ctx(), T0 + 60_000)).toBe("oabc123def456");
+  });
+  it("does not claim a trip for an open that already has its outcome", () => {
+    expect(openIdForTrip(ctx({ done: "saved" }), T0 + 60_000)).toBeNull();
   });
   it("does not claim a trip from long before or long after", () => {
     expect(openIdForTrip(ctx(), T0 - 2 * 3600_000)).toBeNull();

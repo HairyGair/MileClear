@@ -24,35 +24,48 @@ export const RECORDING_DROPPED_EVENT = "trip.recording_dropped";
 export async function noteRecordingDropped(input: DropInput): Promise<void> {
   try {
     // What the recording remembers about its own open (recordingOpen.ts): the
-    // id the server joins on, and for a recording that got no coordinates the
-    // engine's state right now. All best effort; a failure sends the thinner
-    // event it always sent.
+    // id the server joins on. Only when the drop's fixes belong to the open
+    // (an orphan sweep of old fixes is not filed under today's recording), and
+    // the drop closes that open's accounting. Best effort; a failure sends the
+    // thinner event it always sent.
     let enriched: DropInput = input;
+    let open: typeof import("./recordingOpen") | null = null;
     try {
-      const open = await import("./recordingOpen");
-      const fields = input.open ?? (await open.currentOpenFields());
+      open = await import("./recordingOpen");
+      const { fields, closeId } = await open.resolveDropOpen(input);
       enriched = { ...enriched, ...(fields ? { open: fields } : {}) };
-      if (input.reason === "no_coords" && Platform.OS === "android") {
-        const [engineAtDrop, fixAge] = await Promise.all([open.collectEngineSnapshot(), open.nativeFixAgeSec()]);
-        enriched = { ...enriched, engineAtDrop, nativeFixAgeSec: fixAge };
-      }
-      // Now that the drop is reported, the open has its outcome.
-      await open.markOpenOutcome(input.reason);
+      await open.markOpenOutcome(closeId, input.reason);
     } catch {}
-    const ev = buildDropEvent(enriched, Date.now(), Platform.OS);
-    // `detail` can carry a raw error message (reason "error"), and a geocode
-    // or routing failure can quote the coordinates it was given. Unlike the
-    // dump, /user/events stores metadata as sent. Only the string is
-    // scrubbed: the whole-object scrub would also blank the fix counts
-    // (`coords`, `nativeCoords`), which are not locations.
-    if (ev.detail) ev.detail = scrubCoordinateString(ev.detail);
-    try {
-      // Lazy: detection imports this module.
-      const { logDetectionEvent } = await import("./detection");
-      await logDetectionEvent("recording_dropped", ev as unknown as Record<string, unknown>);
-    } catch {}
-    await enqueueOutboxEvent(RECORDING_DROPPED_EVENT, ev as unknown as Record<string, unknown>);
-    void flushEventOutbox();
+    const emit = async (event: DropInput): Promise<void> => {
+      const ev = buildDropEvent(event, Date.now(), Platform.OS);
+      // `detail` can carry a raw error message (reason "error"), and a geocode
+      // or routing failure can quote the coordinates it was given. Unlike the
+      // dump, /user/events stores metadata as sent. Only the string is
+      // scrubbed: the whole-object scrub would also blank the fix counts
+      // (`coords`, `nativeCoords`), which are not locations.
+      if (ev.detail) ev.detail = scrubCoordinateString(ev.detail);
+      try {
+        // Lazy: detection imports this module.
+        const { logDetectionEvent } = await import("./detection");
+        await logDetectionEvent("recording_dropped", ev as unknown as Record<string, unknown>);
+      } catch {}
+      await enqueueOutboxEvent(RECORDING_DROPPED_EVENT, ev as unknown as Record<string, unknown>);
+      void flushEventOutbox();
+    };
+    if (input.reason === "no_coords" && Platform.OS === "android" && open) {
+      // The engine's state at the drop is read AFTER the caller has moved on
+      // (finalize clears its buffer next): one 2 s deadline for the whole
+      // snapshot, never in the way of consumeProcessedBuffer. The fix age is
+      // one cheap read, taken now so it is the age at the drop.
+      const fixAge = await open.nativeFixAgeSec();
+      const o = open;
+      void (async () => {
+        const engineAtDrop = await o.collectEngineSnapshot();
+        await emit({ ...enriched, engineAtDrop, nativeFixAgeSec: fixAge });
+      })().catch(() => {});
+      return;
+    }
+    await emit(enriched);
   } catch {
     // Telemetry must never reach the trip pipeline.
   }

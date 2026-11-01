@@ -58,7 +58,7 @@ import {
 } from "./gapStop";
 import { orphanRouteDecision } from "./orphanRoute";
 import { noteRecordingDropped } from "./recordingDrops";
-import { beginOpenContext, discardOpenContext, noteOpenFix } from "./recordingOpen";
+import { beginOpenContext, discardOpenContext, flushOpenCounts, noteOpenFix } from "./recordingOpen";
 import { runBackgroundUpkeep } from "./backgroundUpkeep";
 import { decideMotionStart } from "./motionStartRule";
 import { nativeFixesBeforeWindow, rowsAddedByOpen } from "./lockWindowRule";
@@ -1230,6 +1230,10 @@ async function openNativeRecordingNow(
     return;
   }
   const BGGeo = loadNativeModule();
+  // A save of the PREVIOUS drive that is still running, or a buffer kept
+  // because it could not be saved yet, will report its own outcome: the
+  // previous open must not be called silent (recordingOpen.beginOpenContext).
+  let previousStillOwned = false;
   // Measures the cost of the foot-stop: a drive that resumes within minutes
   // of a walk closing the recording was probably one stop (a delivery drop)
   // split in two. Read on 26 Sep 2026 to decide whether two minutes is right.
@@ -1263,6 +1267,7 @@ async function openNativeRecordingNow(
     // deferral logic manage the buffer. Skip both the rescue and the hygiene
     // clear this once.
     logDetectionEvent("native_open_skipped_clear_finalize_inflight", {}).catch(() => {});
+    previousStillOwned = true;
   } else {
     const armed = await db.getFirstAsync<{ value: string }>(
       "SELECT value FROM tracking_state WHERE key = 'auto_recording_active'"
@@ -1309,6 +1314,7 @@ async function openNativeRecordingNow(
       }
     }
     if (rescue?.kind === "keep" || isFinalizeInFlight()) {
+      previousStillOwned = true;
       // The drive could not be saved OR queued (a local database error), or a
       // save started in the meantime and owns the buffer (15 Oct 2026 review:
       // clearing under it lost or doubled the drive). Do not clear: the new
@@ -1377,6 +1383,7 @@ async function openNativeRecordingNow(
   const openCtx = await beginOpenContext({
     reason,
     seedTimestampMs: recordedAtMs(seed.timestamp) || null,
+    previousStillOwned: previousStillOwned || isFinalizeInFlight(),
   });
   await db.runAsync(
     "INSERT OR REPLACE INTO tracking_state (key, value) VALUES ('auto_recording_active', '1')"
@@ -1536,7 +1543,7 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // engine delivered" versus "fixes buffered" is the answer to why an
     // Android recording ends with no coordinates. One read, a write only for
     // the first few fixes of an open.
-    await noteOpenFix({ kind: "seen" });
+    noteOpenFix({ kind: "seen" });
     // Same pause decision as the motion handler, because a fix can arrive
     // without a motionchange ever firing (46% of Android phones have never
     // granted motion at all). Silent: this runs per fix, and the motion path
@@ -1548,12 +1555,12 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
       // build stops taking navigation fixes on its very next one.
       await applyEnginePower("fix_while_paused");
       await sleepNativeEngine("fix_while_paused", false);
-      await noteOpenFix({ kind: "gate", gate: "paused" });
+      noteOpenFix({ kind: "gate", gate: "paused" });
       return;
     }
     if (!(await isDriveDetectionEnabled())) {
       await stopIfSwitchedOff("fix_while_off");
-      await noteOpenFix({ kind: "gate", gate: "detection_off" });
+      noteOpenFix({ kind: "gate", gate: "detection_off" });
       return;
     }
     const db = await getDatabase();
@@ -1577,7 +1584,7 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     // back to normal here and this fix carries on as usual.
     if ((await readEnginePower()).mode === "low") {
       if (await shiftSuppressesAutoDetection(db)) {
-        await noteOpenFix({ kind: "gate", gate: "low_power_lock" });
+        noteOpenFix({ kind: "gate", gate: "low_power_lock" });
         return;
       }
       await applyEnginePower("lock_gone_on_fix");
@@ -1635,7 +1642,7 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
         }
       }
       await bufferCoord(db, loc, lastFix);
-      await noteOpenFix({ kind: "buffered" });
+      noteOpenFix({ kind: "buffered" });
 
       // Parked and walked away: see footStop.ts. Closes the recording the
       // same way a gap-stop does. The walk is NOT removed from the buffer:
@@ -1745,6 +1752,10 @@ export async function handleNativeLocation(loc: NativeLocation): Promise<void> {
     }
   } catch {
     // never throw out of a native callback
+  } finally {
+    // After the fix has been stored (or set aside): write the open's fix
+    // counts. Not awaited, so it can never delay the next fix.
+    void flushOpenCounts();
   }
 }
 

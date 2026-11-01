@@ -1587,6 +1587,13 @@ export async function finalizeAutoTrip(): Promise<void> {
   finalizingPromise = inFlight;
   lastFinalizeFailure = null;
   savedFixesSkippedThisRun = 0;
+  // Pin the recording this finalize is about to save or drop (recordingOpen.ts).
+  // A new recording can open while this runs; its drive must not take this
+  // one's id or outcome, and this one's trip must carry the id it came from.
+  try {
+    const { beginFinalizeScope } = await import("./recordingOpen");
+    await beginFinalizeScope();
+  } catch {}
   try {
     // Surface "Saving trip…" on the dashboard status strip while finalize runs.
     // Best-effort both ways; the strip ignores a stale flag after 2 minutes.
@@ -1640,6 +1647,10 @@ export async function finalizeAutoTrip(): Promise<void> {
       }
     } finally {
       finalizingTrip = false;
+      try {
+        const { endFinalizeScope } = await import("./recordingOpen");
+        endFinalizeScope();
+      } catch {}
       try {
         const db = await getDatabase();
         await db.runAsync("DELETE FROM tracking_state WHERE key = 'finalizing_trip_at'");
@@ -2381,11 +2392,18 @@ async function _finalizeAutoTripInner(): Promise<void> {
       // What the SDK's own store holds: a recording judged on a seed fix
       // while the store holds a route is a starved JS buffer, not a quiet
       // engine (the two readings the Android no_coords question turns on).
+      // Android only, and bounded: a stuck SDK call must not hold the save
+      // path (and the buffer clear after it) for more than a second.
       let noCoordsNative: number | null = null;
-      try {
-        const { getNativeStoreSummary } = await import("./nativeLocation");
-        noCoordsNative = (await getNativeStoreSummary())?.count ?? null;
-      } catch {}
+      if (Platform.OS === "android") {
+        try {
+          const { getNativeStoreSummary } = await import("./nativeLocation");
+          noCoordsNative = await Promise.race([
+            getNativeStoreSummary().then((s) => s?.count ?? null),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000)),
+          ]);
+        } catch {}
+      }
       await noteRecordingDropped({ reason: "no_coords", ...dropSpan(allCoords), nativeCoords: noCoordsNative });
     }
     await consumeProcessedBuffer();
@@ -2801,9 +2819,9 @@ async function _finalizeAutoTripInner(): Promise<void> {
   // (recordingOpenRule.openIdForTrip), so the server can join the open
   // (trip.signal_start), its drop events and the trip.
   try {
-    const { readOpenContext } = await import("./recordingOpen");
+    const { finalizeScopeContext } = await import("./recordingOpen");
     const { openIdForTrip } = await import("./recordingOpenRule");
-    const tripOpenId = openIdForTrip(await readOpenContext(), firstTs);
+    const tripOpenId = openIdForTrip(finalizeScopeContext(), firstTs);
     if (tripOpenId) tripQuality.openId = tripOpenId;
   } catch {}
   tripQuality.walkReason = walk.reason;
@@ -3394,8 +3412,8 @@ async function _finalizeAutoTripInner(): Promise<void> {
     pendingCreateBody = null;
     // The open that produced this drive has its outcome (recordingOpen.ts).
     try {
-      const { markOpenOutcome } = await import("./recordingOpen");
-      await markOpenOutcome("saved");
+      const { markOpenOutcome, finalizeScopeContext } = await import("./recordingOpen");
+      await markOpenOutcome(finalizeScopeContext()?.id, "saved");
     } catch {}
     // Saved (a local trip row plus the server copy or a queued create): the
     // fixes are remembered so a refill cannot save them again.
@@ -4235,6 +4253,12 @@ export async function cancelAutoRecording(
       cancelled = { n: span?.n ?? 0, oldest: span?.oldest ?? null, newest: span?.newest ?? null, armed: armed?.value === "1" };
     } catch {}
   }
+  // The armed automatic recording ends here, by a tap or because a Start Trip
+  // or shift took over: that is its outcome (recordingOpen.ts), not silence.
+  try {
+    const { closeArmedOpen } = await import("./recordingOpen");
+    await closeArmedOpen(isNotDriving ? "cancelled" : cleanup ? "duplicate_cleared" : "taken_over");
+  } catch {}
   await db.runAsync(
     "DELETE FROM tracking_state WHERE key IN ('auto_recording_active', 'last_driving_speed_at', 'driving_detection_count', 'finalization_mode', 'stop_anchor')"
   );
