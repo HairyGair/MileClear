@@ -1309,8 +1309,10 @@ export default function TripFormScreen() {
             }
             if (arrivedCopy.kind === "stay_manual") {
               // A past-trip form stays one; the unsaved trip stays on the other screen.
+              // Same setup as any new past trip (see the modeParam === "manual" branch below).
               setMode("manual");
-              return;
+              await fillWhereIAmIfLikely();
+              return; // finally sets loading=false
             }
             const f = pending.facts;
             pendingArrivedRef.current = f;
