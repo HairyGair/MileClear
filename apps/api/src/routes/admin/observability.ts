@@ -5,7 +5,7 @@
 //   GET /admin/android-testers       every Android account with a one-word verdict
 //   GET /admin/live-activity-health  push-start / presence / progress rollup, 7 days
 //   GET /admin/trip-quality          stub-fix and phantom rates for captured trips, 7 days
-//   GET /admin/qr-scans              billboard QR scans (mileclear.com/app) by store and day
+//   GET /admin/qr-scans              clicks on mileclear.com/app by channel, store and day
 //   GET /admin/acquisition           "How did you hear about MileClear?" answers
 //   GET /admin/geography             where sign-ups are: nation/region/postcode area/district
 //   GET /admin/signups/daily         sign-ups per UK calendar day, last N days
@@ -453,7 +453,7 @@ export async function adminObservabilityRoutes(app: FastifyInstance): Promise<vo
     });
   });
 
-  // ── Billboard QR scans ────────────────────────────────────────────────────
+  // ── App link clicks (billboard QR + ?from= links) ────────────────────────────────────────────────────
   // Every hit on mileclear.com/app the website reported (routes/marketing).
   app.get("/qr-scans", async (_request, reply) => {
     const rows = await prisma.appEvent.findMany({

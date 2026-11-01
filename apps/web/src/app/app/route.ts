@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   const ua = request.headers.get("user-agent") ?? "";
   const store = storeFor(ua);
   // One link per channel: mileclear.com/app?from=press, ?from=flex-group...
-  // The billboard QR predates this and has no ?from.
+  // The billboard QR (1-8 Oct 2026) predates this and has no ?from.
   const params = request.nextUrl.searchParams;
   const from = sourceFrom(params.get("from"), ua, params.get("fbclid"));
   // Not counted: link previews and crawlers by user agent, and Meta's, Google's

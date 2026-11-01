@@ -163,7 +163,7 @@ function AvatarMenu() {
         { label: "Your plan", href: "/dashboard/settings/plan" },
         { label: "Settings", href: "/dashboard/settings" },
         { label: "Take the tour", onClick: () => tour.startFromMenu() },
-        { label: "Get the app", href: "/app", external: true },
+        { label: "Get the app", href: "/app?from=web-menu", external: true },
         ...(isPracticeMember ? [{ label: "Switch to your practice", href: "/practice" }] : []),
         ...(isAdmin ? [{ label: "Admin", href: "/dashboard/admin" }] : []),
         {

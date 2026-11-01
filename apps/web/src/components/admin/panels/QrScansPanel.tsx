@@ -5,16 +5,16 @@ import { BarChart, DataTable, Grid, KpiCard, LoadState, LoadingSkeleton, Panel, 
 import type { QrScans } from "./types";
 
 const NOTE =
-  "Clicks on mileclear.com/app: the Tyne Tunnel billboard QR (from 1 Oct 2026, 17:04) and every ?from= link since 2 Oct. Link previews are not counted.";
+  "Clicks on mileclear.com/app: every ?from= link since 2 Oct 2026, and the Tyne Tunnel billboard QR while it was up (1-8 Oct). Untagged is a click with no channel after that. Link previews are not counted.";
 
-/** Billboard QR scans. `summary` is the Overview tile; `full` is the
+/** App link clicks. `summary` is the Overview tile; `full` is the
  *  Acquisition page section with a daily chart. */
 export function QrScansPanel({ variant = "summary" }: { variant?: "summary" | "full" }) {
   const { data, error, loading, reload } = useAdminData<QrScans>("/admin/qr-scans");
 
   if (variant === "summary") {
     return (
-      <Panel title="Billboard QR scans" href="/dashboard/admin/acquisition" hrefLabel="Details">
+      <Panel title="App link clicks" href="/dashboard/admin/acquisition" hrefLabel="Details">
         <LoadState data={data} loading={loading} error={error} onRetry={reload} errorTitle="Couldn't load the scan count.">
           {(d) => {
             const week = [...d.byDay.slice(0, 7)].reverse();
@@ -63,7 +63,7 @@ export function QrScansPanel({ variant = "summary" }: { variant?: "summary" | "f
   }
 
   return (
-    <Panel title="Billboard QR scans" subtitle={NOTE}>
+    <Panel title="App link clicks" subtitle={NOTE}>
       <LoadState
         data={data}
         loading={loading}
@@ -86,7 +86,7 @@ export function QrScansPanel({ variant = "summary" }: { variant?: "summary" | "f
               {(d.bySource?.length ?? 0) > 0 && (
                 <div>
                   <p style={{ margin: "0 0 var(--adm-s2)", color: "var(--adm-text-2)", fontSize: "0.8125rem" }}>
-                    Clicks by channel. Share mileclear.com/app?from=NAME (letters, digits, dashes) in each place you post it; the billboard QR has no name and shows as billboard.
+                    Clicks by channel. Share mileclear.com/app?from=NAME (letters, digits, dashes) in each place you post it; a click with no name shows as untagged (or billboard, 1-8 Oct).
                   </p>
                   <DataTable
                     caption="Clicks on mileclear.com/app by channel"

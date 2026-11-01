@@ -11,8 +11,8 @@ export interface QrScanRollup {
   byDay: Array<{ date: string; total: number; ios: number; android: number; other: number }>;
   firstAt: string | null;
   lastAt: string | null;
-  /** Clicks per channel (?from=), most first. Scans from before 2 Oct 2026
-   *  carry no source and count as the billboard, which was the only link. */
+  /** Clicks per channel (?from=), most first. A click with no channel counts
+   *  as the billboard while it was up (1-8 Oct 2026) and as "untagged" after. */
   bySource: Array<{ source: string; total: number; ios: number; android: number; other: number; last7d: number }>;
 }
 
@@ -23,9 +23,17 @@ function ukDate(d: Date): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(d);
 }
 
-export function sourceOf(metadata: unknown): string {
+/** The Tyne Tunnel billboard ran 1-8 Oct 2026. Its QR was the only link with
+ *  no ?from, so until the website switched to "untagged" (1 Nov 2026) every
+ *  untagged click was stored as "billboard". After the billboard came down
+ *  those were the website's own links and people typing the address. */
+const BILLBOARD_ENDED = Date.parse("2026-10-09T00:00:00Z");
+
+export function sourceOf(metadata: unknown, createdAt?: Date): string {
   const f = (metadata as { from?: unknown } | null)?.from;
-  return typeof f === "string" && /^[a-z0-9-]{1,32}$/.test(f) ? f : "billboard";
+  const named = typeof f === "string" && /^[a-z0-9-]{1,32}$/.test(f) ? f : null;
+  if (named && named !== "billboard") return named;
+  return createdAt && createdAt.getTime() >= BILLBOARD_ENDED ? "untagged" : "billboard";
 }
 
 function storeOf(metadata: unknown): QrStore {
@@ -47,7 +55,7 @@ export function qrScanRollup(rows: Array<{ createdAt: Date; metadata: unknown }>
     const t = r.createdAt.getTime();
     const store = storeOf(r.metadata);
     byStore[store]++;
-    const src = sourceOf(r.metadata);
+    const src = sourceOf(r.metadata, r.createdAt);
     const agg = sources.get(src) ?? { total: 0, ios: 0, android: 0, other: 0, last7d: 0 };
     agg.total++;
     agg[store]++;

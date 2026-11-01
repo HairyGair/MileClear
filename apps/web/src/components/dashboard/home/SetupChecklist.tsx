@@ -21,7 +21,7 @@ export function SetupChecklist() {
   }
   const tripCount = trips.data?.total ?? trips.data?.data?.length ?? 0;
   if (tripCount === 0) {
-    todo.push({ icon: "phone-portrait-outline", label: "Install the app and record a first trip", hint: "Trips record by themselves on your phone.", href: "/app", external: true });
+    todo.push({ icon: "phone-portrait-outline", label: "Install the app and record a first trip", hint: "Trips record by themselves on your phone.", href: "/app?from=web-checklist", external: true });
   }
   if (!user?.workType) {
     todo.push({ icon: "briefcase-outline", label: "Tell us how you work", hint: "Gig, employee or both.", href: "/dashboard/settings/work-tax" });

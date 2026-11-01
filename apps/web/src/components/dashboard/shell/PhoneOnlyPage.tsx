@@ -33,7 +33,7 @@ export function PhoneOnlyPage({
             </span>
             <h2 className="mc-phoneonly__title">{title}</h2>
             <p className="mc-phoneonly__body">{body}</p>
-            <Button variant="secondary" href="/app" external icon="phone-portrait-outline">
+            <Button variant="secondary" href="/app?from=web-dashboard" external icon="phone-portrait-outline">
               Get the app
             </Button>
           </div>

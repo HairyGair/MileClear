@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { qrScanRollup } from "../../services/qrScans.js";
+import { qrScanRollup, sourceOf } from "../../services/qrScans.js";
 
 const NOW = new Date("2026-10-02T12:00:00Z");
 const at = (iso: string, store: string) => ({ createdAt: new Date(iso), metadata: { link: "app", store } });
@@ -51,5 +51,16 @@ describe("qrScanRollup", () => {
       { source: "press", total: 3, ios: 1, android: 1, other: 1, last7d: 2 },
       { source: "billboard", total: 2, ios: 2, android: 0, other: 0, last7d: 2 },
     ]);
+  });
+
+  it("files clicks with no channel after the billboard came down (8 Oct 2026) as untagged", () => {
+    const later = new Date("2026-10-20T12:00:00Z");
+    expect(sourceOf({ store: "ios" }, new Date("2026-10-05T12:00:00Z"))).toBe("billboard");
+    expect(sourceOf({ store: "ios" }, later)).toBe("untagged");
+    // Stored as "billboard" by the website before 1 Nov 2026.
+    expect(sourceOf({ store: "android", from: "billboard" }, new Date("2026-10-05T12:00:00Z"))).toBe("billboard");
+    expect(sourceOf({ store: "android", from: "billboard" }, later)).toBe("untagged");
+    expect(sourceOf({ store: "android", from: "untagged" }, later)).toBe("untagged");
+    expect(sourceOf({ from: "recap-share" }, later)).toBe("recap-share");
   });
 });

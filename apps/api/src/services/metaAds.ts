@@ -366,7 +366,7 @@ export function campaignFunnel(input: {
   if (w) {
     if (input.fromSource) {
       for (const s of input.scans) {
-        if (sourceOf(s.metadata) === input.fromSource && inWindow(s.createdAt, w)) scanIds.push(s.id);
+        if (sourceOf(s.metadata, s.createdAt) === input.fromSource && inWindow(s.createdAt, w)) scanIds.push(s.id);
       }
     }
     for (const u of input.signups) {

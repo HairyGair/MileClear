@@ -15,14 +15,16 @@ export function storeFor(userAgent: string): "ios" | "android" | "other" {
  *  post and the billboard share the bare link): Meta's in-app browsers name
  *  themselves in the user agent, and Meta adds ?fbclid= to links it sends
  *  out, so those count as "instagram", "facebook" or "meta". Anything else
- *  with no ?from is the billboard QR. */
+ *  with no ?from is "untagged": the billboard QR (1-8 Oct 2026) was the only
+ *  bare link, and the admin still files untagged clicks from its week under
+ *  billboard (services/qrScans.ts). */
 export function sourceFrom(raw: string | null, userAgent = "", fbclid: string | null = null): string {
   const v = (raw ?? "").trim().toLowerCase();
   if (/^[a-z0-9-]{1,32}$/.test(v)) return v;
   if (/Instagram/i.test(userAgent)) return "instagram";
   if (/FBAN|FBAV|FB_IAB|FBIOS|FB4A/i.test(userAgent)) return "facebook";
   if (fbclid) return "meta";
-  return "billboard";
+  return "untagged";
 }
 
 /** Google Play link carrying the channel as an install referrer, so the Play

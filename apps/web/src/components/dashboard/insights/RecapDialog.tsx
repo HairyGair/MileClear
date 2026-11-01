@@ -16,7 +16,7 @@ export const RECAP_BUTTONS: { period: RecapPeriod; label: string; title: string 
   { period: "monthly", label: "This month", title: "This month" },
 ];
 
-const SHARE_URL = "https://mileclear.com/app";
+const SHARE_URL = "https://mileclear.com/app?from=recap-share";
 
 /** The API's share text ends with a sign-off; swap it for the store chooser link. */
 export function shareTextWithLink(text: string): string {
