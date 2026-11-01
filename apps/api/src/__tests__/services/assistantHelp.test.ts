@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.mocked(prisma.orgMembership.findFirst).mockResolvedValue(null as never);
   vi.mocked(prisma.user.findUnique).mockResolvedValue({
     isPremium: true,
-    premiumExpiresAt: new Date("2026-11-01T10:00:00Z"),
+    premiumExpiresAt: new Date("2099-11-01T10:00:00Z"),
     referralProUntil: null,
     workType: "gig",
     dashboardMode: "work",
@@ -189,7 +189,7 @@ describe("account_status tool", () => {
     const r = await runAssistantTool(ME, "account_status", {}, NOW);
     expect(r.ok).toBe(true);
     const out = JSON.parse(r.content);
-    expect(out.pro).toMatchObject({ active: true, from: "their own subscription", until: "1 Nov 2026" });
+    expect(out.pro).toMatchObject({ active: true, from: "their own subscription", until: "1 Nov 2099" });
     expect(out.vehicles).toEqual({ count: 1, free_plan_limit: 1 });
     expect(out.saved_places).toEqual({ count: 2, free_plan_limit: 2 });
     expect(out.trips_not_sorted_yet).toBe(5);
