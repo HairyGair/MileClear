@@ -13,7 +13,7 @@ Accounts listed in `HMRC_SANDBOX_USER_IDS` use HMRC's test service (`test-api.se
 - "What you owe HMRC" works even while `HMRC_BALANCE` is off.
 - No deadline reminders are sent and no Discord error alerts fire for them.
 
-If the sandbox client id or secret is missing, listed accounts use the normal service and the server logs one warning.
+If the sandbox client id or secret is missing, listed accounts get no HMRC access at all (the screens answer not available) and the server logs one warning. They are never sent to the live service.
 
 ## Env vars to add on prod
 

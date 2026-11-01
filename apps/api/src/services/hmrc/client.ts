@@ -16,7 +16,7 @@ import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../appEvents.js";
 import { redactNinoInPath } from "../../lib/redactUrl.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
-import { getHmrcConfigForUser, type HmrcEnvironment } from "./config.js";
+import { getHmrcConfigForUser, isHmrcSandboxUser, type HmrcEnvironment } from "./config.js";
 import {
   refreshAccessToken,
   expiryFromExpiresIn,
@@ -112,6 +112,10 @@ async function loadActiveConnection(userId: string): Promise<ConnectionTokens> {
   // moved to the real one, or the reverse) can't work against this server's
   // HMRC address, so it counts as not connected and the driver connects again.
   const serverEnvironment = getHmrcConfigForUser(userId)?.environment;
+  // A listed account with no test client has no config: not connected, never live.
+  if (!serverEnvironment && isHmrcSandboxUser(userId)) {
+    throw new HmrcNotConnectedError(userId);
+  }
   if (serverEnvironment && conn.environment !== serverEnvironment) {
     throw new HmrcNotConnectedError(userId);
   }
@@ -154,6 +158,8 @@ async function refreshAndPersist(
 ): Promise<ConnectionTokens> {
   const config = getHmrcConfigForUser(conn.userId);
   if (!config) throw new Error("HMRC integration not configured");
+  // Defence in depth: tokens only ever go to the service they were issued by.
+  if (config.environment !== conn.environment) throw new HmrcNotConnectedError(conn.userId);
 
   let tokens;
   try {
@@ -222,6 +228,10 @@ async function performRequest(args: {
 }): Promise<Response> {
   const config = getHmrcConfigForUser(args.options.userId);
   if (!config) throw new Error("HMRC integration not configured");
+  // Defence in depth: tokens only ever go to the service they were issued by.
+  if (config.environment !== args.conn.environment) {
+    throw new HmrcNotConnectedError(args.options.userId);
+  }
 
   // Refuse callers we cannot describe truthfully in the fraud-prevention
   // headers. MileClear ships MTD from the mobile app only; a request
@@ -449,6 +459,7 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     });
   }
 
+  const vendor = getHmrcConfigForUser(opts.userId);
   logEvent("hmrc.api_call", opts.userId, {
     path: redactNinoInPath(opts.path),
     method: opts.method,
@@ -456,8 +467,8 @@ export async function hmrcCall<T = unknown>(opts: HmrcCallOptions): Promise<T> {
     correlationId,
     // What went out as the server half of Gov-Vendor-Version, and where it
     // came from ("release" = the deployed app.json, "env" = the fallback).
-    vendorVersion: getHmrcConfigForUser(opts.userId)?.vendorVersion ?? null,
-    vendorVersionSource: getHmrcConfigForUser(opts.userId)?.vendorVersionSource ?? null,
+    vendorVersion: vendor?.vendorVersion ?? null,
+    vendorVersionSource: vendor?.vendorVersionSource ?? null,
     httpStatus: response.status,
     apiVersion: opts.apiVersion,
     connectionMethod: opts.client.connectionMethod,

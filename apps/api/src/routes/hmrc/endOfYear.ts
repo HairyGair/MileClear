@@ -27,6 +27,7 @@ import { prisma } from "../../lib/prisma.js";
 import { logEvent } from "../../services/appEvents.js";
 import {
   getHmrcConfigForUser,
+  isHmrcSandboxUser,
   buildClientContext,
   buildServerContext,
   fetchObligations,
@@ -132,7 +133,10 @@ export const YEAR_END_NOT_LIVE_MESSAGE =
   "The end-of-year tax return isn't in MileClear yet. Send it with HMRC or other compatible software.";
 
 async function yearEndWritesOpen(request: FastifyRequest, reply: FastifyReply) {
-  if (getHmrcConfigForUser(request.userId)?.environment === "production") {
+  const environment = getHmrcConfigForUser(request.userId)?.environment;
+  // Open only on the test service. A listed account with no test client has no
+  // config and stays blocked rather than reaching the live service.
+  if (environment === "production" || (!environment && isHmrcSandboxUser(request.userId))) {
     return reply.status(403).send({ error: YEAR_END_NOT_LIVE_MESSAGE, code: "YEAR_END_NOT_LIVE" });
   }
 }

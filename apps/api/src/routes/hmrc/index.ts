@@ -17,6 +17,7 @@ import { prisma } from "../../lib/prisma.js";
 import { encrypt, decryptIfEncrypted } from "../../lib/encryption.js";
 import {
   getHmrcConfigForUser,
+  isHmrcSandboxUser,
   generateStateToken,
   buildAuthorizationUrl,
   exchangeCodeForTokens,
@@ -52,6 +53,15 @@ import { hmrcTaxReturnRoutes } from "./endOfYear.js";
 // UK NINO regex. AA prefixes excluded (BG, GB, KN, NK, NT, TN, ZZ are also
 // reserved/invalid but the standard regex catches the common errors).
 const NINO_REGEX = /^[A-CEGHJ-PR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}\d{6}[A-D ]?$/i;
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 function normaliseNino(raw: string): string {
   return raw.replace(/\s+/g, "").toUpperCase();
@@ -170,13 +180,16 @@ export async function hmrcRoutes(app: FastifyInstance) {
 
       if (error) {
         logEvent("hmrc.authorize_denied", null, { error, error_description });
+        // Query values are attacker-controlled: escape them, and let the page
+        // load nothing and run nothing (inline style only).
         return reply
           .status(400)
           .type("text/html")
+          .header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
           .send(
             `<!DOCTYPE html><html><body style="font-family:system-ui;padding:32px;">` +
               `<h1>HMRC connection cancelled</h1>` +
-              `<p>${error_description ? String(error_description) : String(error)}</p>` +
+              `<p>${escapeHtml(String(error_description ? error_description : error))}</p>` +
               `<p>Return to MileClear and try again, or contact support@mileclear.com.</p>` +
               `</body></html>`
           );
@@ -348,9 +361,12 @@ export async function hmrcRoutes(app: FastifyInstance) {
   // would be refused and alert #founder. Off reads as { available: false }
   // and the app hides the card.
   app.get("/balance", { preHandler: authMiddleware }, async (request, reply) => {
-    // The test service is already subscribed to that API, so it is open there.
-    const onTestService = getHmrcConfigForUser(request.userId)?.environment === "sandbox";
-    if (process.env.HMRC_BALANCE !== "on" && !onTestService) {
+    // The test service is already subscribed to that API, so it is open for
+    // the listed App Review accounts (and only while their test client works).
+    const reviewAccount =
+      isHmrcSandboxUser(request.userId) &&
+      getHmrcConfigForUser(request.userId)?.environment === "sandbox";
+    if (process.env.HMRC_BALANCE !== "on" && !reviewAccount) {
       return reply.send({ data: { available: false, balance: null } });
     }
     const ctx = await loadConnectionWithNino(request.userId!);

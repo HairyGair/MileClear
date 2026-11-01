@@ -165,7 +165,8 @@ export function hmrcSandboxUserIds(): string[] {
 /**
  * The test-service config for the listed accounts, or null when no account is
  * listed, the server already is on the test service, or the sandbox client is
- * missing (logged once; listed accounts then use the normal service).
+ * missing (logged once). A listed account never falls back to the live
+ * service: with no test client it gets no config at all.
  */
 export function getHmrcSandboxConfig(): HmrcConfig | null {
   if (hmrcSandboxUserIds().length === 0) return null;
@@ -178,7 +179,7 @@ export function getHmrcSandboxConfig(): HmrcConfig | null {
     if (!warnedSandboxMissing) {
       warnedSandboxMissing = true;
       console.warn(
-        "[hmrc] HMRC_SANDBOX_USER_IDS is set but HMRC_SANDBOX_CLIENT_ID / HMRC_SANDBOX_CLIENT_SECRET are missing; listed accounts use the normal HMRC service"
+        "[hmrc] HMRC_SANDBOX_USER_IDS is set but HMRC_SANDBOX_CLIENT_ID / HMRC_SANDBOX_CLIENT_SECRET are missing; listed accounts cannot use HMRC until they are set"
       );
     }
     return null;
@@ -187,11 +188,22 @@ export function getHmrcSandboxConfig(): HmrcConfig | null {
   return cachedSandbox;
 }
 
-/** The HMRC config for this driver: the test service for listed accounts, otherwise the server's own. */
+/** Whether this account is on the App Review list (HMRC_SANDBOX_USER_IDS). */
+export function isHmrcSandboxUser(userId: string | null | undefined): boolean {
+  return !!userId && hmrcSandboxUserIds().includes(userId);
+}
+
+/**
+ * The HMRC config for this driver: the test service for listed accounts,
+ * otherwise the server's own. Fails closed: a listed account whose test client
+ * is missing gets null (callers answer "not available"), never the live service.
+ */
 export function getHmrcConfigForUser(userId: string | null | undefined): HmrcConfig | null {
-  if (userId && hmrcSandboxUserIds().includes(userId)) {
-    const sandbox = getHmrcSandboxConfig();
-    if (sandbox) return sandbox;
+  if (isHmrcSandboxUser(userId)) {
+    const server = getHmrcConfig();
+    // The whole server is on the test service already: nothing to override.
+    if (server?.environment === "sandbox") return server;
+    return getHmrcSandboxConfig();
   }
   return getHmrcConfig();
 }

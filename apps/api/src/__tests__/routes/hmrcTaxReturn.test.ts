@@ -7,7 +7,7 @@
  *     finished, error-free, end-of-year calculation
  *   - the annual submission body only ever comes from MileClear's own rules
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
 import { TAX_RETURN_DECLARATION_VERSION } from "@mileclear/shared";
 import { buildApp } from "../helpers/build-app.js";
 import { makeAccessToken } from "../helpers/tokens.js";
@@ -380,5 +380,75 @@ describe("HMRC tax return routes", () => {
       process.env.HMRC_ENVIRONMENT = "sandbox";
       resetHmrcConfig();
     }
+  });
+});
+
+// The App Review demo account runs the year-end flow and sees the balance card
+// on HMRC's test service while the server itself is on the real one.
+describe("HMRC test-service account on a live server", () => {
+  let app: Awaited<ReturnType<typeof createTestApp>>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    process.env.HMRC_CLIENT_ID = "live-client-id";
+    process.env.HMRC_CLIENT_SECRET = "live-client-secret";
+    process.env.HMRC_ENVIRONMENT = "production";
+    process.env.HMRC_REDIRECT_URI = "https://api.example.com/hmrc/callback";
+    process.env.HMRC_SANDBOX_USER_IDS = USER_ID;
+    process.env.HMRC_SANDBOX_CLIENT_ID = "test-client";
+    process.env.HMRC_SANDBOX_CLIENT_SECRET = "test-secret";
+    delete process.env.HMRC_BALANCE;
+    resetHmrcConfig();
+    vi.mocked(prisma.hmrcConnection.findUnique).mockResolvedValue({
+      nino: NINO,
+      disconnectedAt: null,
+      businessId: BIZ,
+    } as never);
+    app = await createTestApp();
+  });
+
+  afterAll(() => {
+    process.env.HMRC_ENVIRONMENT = "sandbox";
+    delete process.env.HMRC_SANDBOX_USER_IDS;
+    delete process.env.HMRC_SANDBOX_CLIENT_ID;
+    delete process.env.HMRC_SANDBOX_CLIENT_SECRET;
+    resetHmrcConfig();
+  });
+
+  it("lets the year-end write through to HMRC and answers 200", async () => {
+    mockCall.mockResolvedValueOnce(undefined as never);
+    const res = await app.inject({
+      method: "PUT", url: "/hmrc/tax-return/2025-26/accounting-type", headers: auth,
+      payload: { accountingType: "CASH" },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data).toEqual({ accountingType: "CASH" });
+    expect(mockCall).toHaveBeenCalledTimes(1);
+    expect(mockCall.mock.calls[0][0]).toMatchObject({ userId: USER_ID, method: "PUT" });
+  });
+
+  it("shows the balance with the flag off", async () => {
+    mockCall.mockResolvedValueOnce({ balanceDetails: { payableAmount: 10, payableDueDate: "2027-01-31" } } as never);
+    const res = await app.inject({ method: "GET", url: "/hmrc/balance", headers: auth });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.available).toBe(true);
+    expect(res.json().data.balance.dueNowPence).toBe(1000);
+    expect(mockCall.mock.calls[0][0]).toMatchObject({ userId: USER_ID, apiVersion: "4.0" });
+  });
+
+  it("stays blocked for the same call when the test client is missing", async () => {
+    delete process.env.HMRC_SANDBOX_CLIENT_ID;
+    resetHmrcConfig();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const write = await app.inject({
+      method: "PUT", url: "/hmrc/tax-return/2025-26/accounting-type", headers: auth,
+      payload: { accountingType: "CASH" },
+    });
+    expect(write.statusCode).toBe(403);
+    expect(write.json().code).toBe("YEAR_END_NOT_LIVE");
+    const balance = await app.inject({ method: "GET", url: "/hmrc/balance", headers: auth });
+    expect(balance.json().data).toEqual({ available: false, balance: null });
+    expect(mockCall).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
