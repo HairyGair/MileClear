@@ -172,6 +172,18 @@ export function popLanded(state: StackStateLike | null | undefined, key: string)
 /** Two taps this close together are one: the second must not open a second screen. */
 export const OPEN_START_TRIP_DEBOUNCE_MS = 1500;
 
+/**
+ * Does the trip screen stand as "the open copy of this trip" for Home and for
+ * a second copy opening? While it records, and while it holds an arrived trip
+ * nobody has saved: not once a save has started or its review card is up, and
+ * not for an arrived trip with no stored record behind it (Home's card has
+ * nothing to show for that one either).
+ */
+export function registersAsRecording(mode: string, saving: boolean, reviewCardUp: boolean, hasPendingArrived: boolean): boolean {
+  if (mode === "driving") return true;
+  return mode === "arrived" && !saving && !reviewCardUp && hasPendingArrived;
+}
+
 export function openStartTripDue(lastOpenMs: number | null, nowMs: number): boolean {
   return lastOpenMs == null || nowMs - lastOpenMs < 0 || nowMs - lastOpenMs >= OPEN_START_TRIP_DEBOUNCE_MS;
 }

@@ -13,10 +13,47 @@
 
 import { distanceIn, distanceUnitLabel, type DistanceUnit } from "@mileclear/shared";
 import { durationText } from "./statusLine";
-import { pendingArrivedAction, type PendingArrivedFacts } from "../tracking/arrivedRecovery";
+import { PENDING_ARRIVED_MAX_AGE_MS, pendingArrivedAction, type PendingArrivedFacts } from "../tracking/arrivedRecovery";
 import type { StartTripCardModel } from "./startTripCard";
 
+/**
+ * The card stops this far short of the trip screen's 12-hour limit, and a tap
+ * is checked again with the time of the tap, so a card that has sat on screen
+ * can never lead to a trip the screen would then treat as expired.
+ */
+export const ARRIVED_CARD_MARGIN_MS = 10 * 60 * 1000;
+
+/** Offer the arrived trip on the card (and on a tap) at this moment? */
+export function arrivedCardOffered(facts: PendingArrivedFacts | null, nowMs: number): boolean {
+  if (!facts) return false;
+  return pendingArrivedAction(facts, nowMs, PENDING_ARRIVED_MAX_AGE_MS - ARRIVED_CARD_MARGIN_MS) === "offer";
+}
+
 export type TripCardKind = "start_trip" | "arrived_unsaved" | "automatic";
+
+export type CardTapPlan =
+  | { go: "none" }
+  | { go: "active_recording" }
+  | { go: "open_start_trip"; arrive: boolean; fromCardStartedAtMs?: number | null };
+
+/**
+ * What a tap on the card does, decided with the time of the tap. Save trip
+ * never asks the screen to run Arrived (the trip is already arrived).
+ * `button` is the big button; the row itself never arrives.
+ */
+export function cardTapPlan(i: {
+  kind: TripCardKind;
+  button: boolean;
+  facts: PendingArrivedFacts | null;
+  startTripStartedAtMs: number | null;
+  nowMs: number;
+}): CardTapPlan {
+  if (i.kind === "automatic") return { go: "active_recording" };
+  if (i.kind === "arrived_unsaved") {
+    return arrivedCardOffered(i.facts, i.nowMs) ? { go: "open_start_trip", arrive: false } : { go: "none" };
+  }
+  return { go: "open_start_trip", arrive: i.button, fromCardStartedAtMs: i.startTripStartedAtMs };
+}
 
 function distanceText(miles: number, unit: DistanceUnit): string {
   const d = Math.max(0, distanceIn(Number.isFinite(miles) ? miles : 0, unit));
@@ -35,7 +72,7 @@ export function arrivedUnsavedCardModel(i: {
   unit?: DistanceUnit;
 }): StartTripCardModel | null {
   if (!i.facts) return null;
-  if (pendingArrivedAction(i.facts, i.now) !== "offer") return null;
+  if (!arrivedCardOffered(i.facts, i.now)) return null;
   const start = new Date(i.facts.startedAt).getTime();
   const end = new Date(i.facts.endedAt).getTime();
   const distance = distanceText(i.facts.distanceMiles ?? 0, i.unit ?? "miles");

@@ -236,15 +236,24 @@ export function usePendingArrivedFacts(): PendingArrivedFacts | null {
     }
   }, []);
 
+  // Reads on every return to Home (so a save or discard on the trip screen
+  // shows at once) and polls only while Home is the screen in front.
+  useFocusEffect(
+    useCallback(() => {
+      mounted.current = true;
+      refresh();
+      const id = setInterval(refresh, 2000);
+      return () => {
+        clearInterval(id);
+      };
+    }, [refresh])
+  );
   useEffect(() => {
     mounted.current = true;
-    refresh();
-    const id = setInterval(refresh, 2000);
     return () => {
       mounted.current = false;
-      clearInterval(id);
     };
-  }, [refresh]);
+  }, []);
 
   return facts;
 }

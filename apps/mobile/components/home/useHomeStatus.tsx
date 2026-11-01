@@ -5,7 +5,7 @@
 // Render `element` where the status line goes; `status.red` tells the ask slot
 // to stand down.
 
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from "react";
 import { Linking, Platform, Text, View, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { StatusLine } from "./StatusLine";
@@ -14,7 +14,7 @@ import { HomeSheet } from "./HomeSheet";
 import { SetupChecklistCard, type SetupChecklistRow } from "../SetupChecklistCard";
 import { StartTripCard } from "./StartTripCard";
 import { useFailedSyncCount, usePendingArrivedFacts, useRecordingNow, useRunningStartTrip } from "./useHomeSignals";
-import { arrivedUnsavedCardModel, automaticCardModel, selectTripCard } from "../../lib/home/tripInProgress";
+import { arrivedUnsavedCardModel, automaticCardModel, cardTapPlan, selectTripCard } from "../../lib/home/tripInProgress";
 import { selectStatusLine, type StatusLine as StatusLineModel } from "../../lib/home/statusLine";
 import { startTripCardModel } from "../../lib/home/startTripCard";
 import { openStartTrip } from "../../lib/home/openStartTrip";
@@ -51,7 +51,7 @@ const TAP_TARGET = {
   automatic: "trip_card_automatic",
 } as const;
 
-type Sheet ="recording" | "setup" | "low_power" | null;
+type Sheet = "recording" | "setup" | "low_power" | null;
 
 export function useHomeStatus(a: Args): { status: StatusLineModel; element: ReactElement } {
   const router = useRouter();
@@ -85,6 +85,15 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
     [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.pausedForWorkHours, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
   );
 
+  // Re-renders every 30 s while a trip waits to be saved, so the card's 12-hour limit is met on time.
+  const [, setArrivedTick] = useState(0);
+  const arrivedWaiting = pendingArrived !== null;
+  useEffect(() => {
+    if (!arrivedWaiting) return;
+    const id = setInterval(() => setArrivedTick((n) => n + 1), 30000);
+    return () => clearInterval(id);
+  }, [arrivedWaiting]);
+
   // One card for whatever trip is not finished yet (rules in lib/home/tripInProgress.ts).
   // The Start Trip hook ticks every 15 s, so the card's time moves.
   const tripCard = selectTripCard({
@@ -104,11 +113,24 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
   // `arrive` is the card's button: I've Arrived for a running Start Trip. A
   // trip waiting to be saved goes back to its own screen (or a fresh one that
   // restores it); an automatic recording goes to its recording screen.
-  const openCard = (arrive: boolean) => {
+  const openCard = (button: boolean) => {
     if (!tripCard) return;
-    if (tripCard.kind === "automatic") router.push("/active-recording" as never);
-    else if (tripCard.kind === "arrived_unsaved") openStartTrip();
-    else openStartTrip({ arrive, fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
+    // Decided with the time of the tap, not the last render's.
+    const plan = cardTapPlan({
+      kind: tripCard.kind,
+      button,
+      facts: pendingArrived,
+      startTripStartedAtMs: startTrip?.startedAtMs ?? null,
+      nowMs: Date.now(),
+    });
+    if (plan.go === "active_recording") router.navigate("/active-recording" as never);
+    else if (plan.go === "open_start_trip") {
+      openStartTrip(
+        plan.fromCardStartedAtMs !== undefined
+          ? { arrive: plan.arrive, fromCardStartedAtMs: plan.fromCardStartedAtMs }
+          : { arrive: plan.arrive }
+      );
+    }
   };
 
   const onPress = useCallback(() => {
