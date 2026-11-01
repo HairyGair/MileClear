@@ -10,6 +10,7 @@ import { getDatabase } from "../../lib/db/index";
 import { isOnline } from "../../lib/network";
 import { fetchUnclassifiedCount, fetchMissedJourneys } from "../../lib/api/trips";
 import { tripEndLabel, type SavedPlace } from "../../lib/trips/placeLabel";
+import { PENDING_ARRIVED_KEY, parsePendingArrived, type PendingArrivedFacts } from "../../lib/tracking/arrivedRecovery";
 import type { LastTripData, SyncChip, TripChoice } from "../../lib/home/lastTrip";
 
 const QUICK_TRIP_SHIFT_ID = "__quick_trip__";
@@ -195,6 +196,66 @@ export function useRunningStartTrip(): RunningStartTrip | null {
   }, [active]);
 
   return raw ? { ...raw, now } : null;
+}
+
+// ── An arrived trip waiting to be saved (Home's card) ─────────────────
+
+/**
+ * The trip I've Arrived was tapped on and nobody has saved or discarded yet.
+ * Its facts are in SQLite (pending_arrived_trip) so it survives the screen
+ * closing and the app being killed. Read only; the trip screen owns it.
+ */
+export function usePendingArrivedFacts(): PendingArrivedFacts | null {
+  const [facts, setFacts] = useState<PendingArrivedFacts | null>(null);
+  const mounted = useRef(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const db = await getDatabase();
+      const row = await db.getFirstAsync<{ value: string }>(
+        "SELECT value FROM tracking_state WHERE key = ?",
+        [PENDING_ARRIVED_KEY]
+      );
+      const next = parsePendingArrived(row?.value ?? null);
+      if (!mounted.current) return;
+      setFacts((prev) => {
+        if (!next && !prev) return prev;
+        if (
+          next &&
+          prev &&
+          prev.arrivedAtMs === next.arrivedAtMs &&
+          prev.distanceMiles === next.distanceMiles &&
+          prev.startedAt === next.startedAt
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    } catch {
+      // best-effort
+    }
+  }, []);
+
+  // Reads on every return to Home (so a save or discard on the trip screen
+  // shows at once) and polls only while Home is the screen in front.
+  useFocusEffect(
+    useCallback(() => {
+      mounted.current = true;
+      refresh();
+      const id = setInterval(refresh, 2000);
+      return () => {
+        clearInterval(id);
+      };
+    }, [refresh])
+  );
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  return facts;
 }
 
 // ── Trips that failed to upload ───────────────────────────────────────

@@ -89,6 +89,7 @@ import {
 import {
   popLanded,
   popsAfterSelf,
+  registersAsRecording,
   resumeSecondCopyPlan,
   startTripWouldReplaceRunning,
   type StackStateLike,
@@ -1280,6 +1281,39 @@ export default function TripFormScreen() {
             await reportPendingArrivedDiscard(pending.facts).catch(() => {});
             await clearPendingArrivedTrip().catch(() => {});
           } else if (action === "offer") {
+            // Another screen in the stack already holds this unsaved trip: a
+            // second copy must not restore it too, or both could save it.
+            let arrivedCopy: ReturnType<typeof resumeSecondCopyPlan> = { kind: "resume" };
+            try {
+              arrivedCopy = resumeSecondCopyPlan(
+                navigationRef.current.getState() as unknown as StackStateLike,
+                recordingStartTripScreens().map((s) => s.key),
+                routeKeyRef.current,
+                modeParam === "manual"
+              );
+            } catch {
+              // the stack could not be read: restore as before
+            }
+            if (arrivedCopy.kind === "pop") {
+              try {
+                const nav = navigationRef.current;
+                if (popLanded(nav.getState() as unknown as StackStateLike, routeKeyRef.current)) {
+                  nav.goBack();
+                  const rest = popsAfterSelf(arrivedCopy.count);
+                  if (rest > 0) nav.dispatch(StackActions.pop(rest));
+                }
+              } catch {
+                // best-effort
+              }
+              return; // finally sets loading=false
+            }
+            if (arrivedCopy.kind === "stay_manual") {
+              // A past-trip form stays one; the unsaved trip stays on the other screen.
+              // Same setup as any new past trip (see the modeParam === "manual" branch below).
+              setMode("manual");
+              await fillWhereIAmIfLikely();
+              return; // finally sets loading=false
+            }
             const f = pending.facts;
             pendingArrivedRef.current = f;
             setStartLat(f.startLat);
@@ -2683,13 +2717,16 @@ export default function TripFormScreen() {
   // second copy, and the card's I've Arrived runs this screen's own Arrived
   // above: the one save path, with its own route and its own guards.
   useEffect(() => {
-    if (mode !== "driving") return;
+    // An arrived trip waiting to be saved counts too: Home's "Save trip" must
+    // go back to this very screen, not open a second copy that could save it again.
+    // Only while unsaved: not once a save has started or its review card is up.
+    if (!registersAsRecording(mode, saving, !!reviewCard, !!pendingArrivedRef.current)) return;
     return registerRecordingStartTripScreen({
       key: routeKey,
       getState: () => navigation.getState() as unknown as StackStateLike,
       pop: (count) => navigation.dispatch(StackActions.pop(count)),
     });
-  }, [mode, routeKey, navigation]);
+  }, [mode, saving, reviewCard, routeKey, navigation]);
 
   useFocusEffect(
     useCallback(() => {

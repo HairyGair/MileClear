@@ -38,11 +38,11 @@ export function StartTripCard({ model, onOpen, onArrived }: Props) {
         onPress={onArrived}
         style={({ pressed }) => [s.arrive, pressed && s.pressed]}
         accessibilityRole="button"
-        accessibilityLabel="I've Arrived"
-        accessibilityHint="Opens the trip to finish and save it"
+        accessibilityLabel={model.actionLabel ?? "I've Arrived"}
+        accessibilityHint={model.actionHint ?? "Opens the trip to finish and save it"}
       >
         <Text style={s.arriveText} maxFontSizeMultiplier={fontScaleCap.body}>
-          I've Arrived
+          {model.actionLabel ?? "I've Arrived"}
         </Text>
       </Pressable>
     </View>
