@@ -67,6 +67,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "How do I turn off automatic tracking?", area: "recording_trips", id: "turn-off-automatic", expect: [/automatic trips/i] },
   { q: "Is it going to kill my battery?", area: "recording_trips", id: "battery", expect: [/save battery when it's low|low power|battery saver/i] },
   { q: "What does save battery when it's low do?", area: "recording_trips", id: "battery", expect: [/low/i] },
+  { q: "How do I stop my OPPO phone closing MileClear in the background?", area: "recording_trips", id: "battery-phone-maker", expect: [/auto launch|background activity/i, /recording options|keep recording on|battery usage/i] },
   { q: "How long a stop before it starts a new trip?", area: "recording_trips", id: "journey-end", expect: [/end a trip after/i, /30 minutes/i] },
   { q: "How do I get rid of the lock screen thing?", area: "recording_trips", id: "live-activity", expect: [/show a trip on your lock screen/i, /notifications/i] },
   { q: "What permissions does it need?", area: "recording_trips", id: "permissions", expect: [/always|all the time/i, /motion|physical activity/i] },
