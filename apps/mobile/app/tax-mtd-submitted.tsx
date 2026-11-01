@@ -16,7 +16,7 @@ import {
 } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { BetaBanner } from "../components/BetaBanner";
-import { isMtdTest, isMtdLive } from "../lib/tax/mtdCopy";
+import { isMtdTest, isMtdLive, sentScreenTitle, estimateDisclaimer } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { MtdSignpost, GOVUK_PERSONAL_TAX_ACCOUNT } from "../components/MtdSignpost";
 import { colors, fonts } from "../lib/theme";
@@ -77,7 +77,7 @@ export default function TaxMtdSubmittedScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: BG }} contentContainerStyle={{ padding: 16, paddingBottom: 64 }}>
       <Stack.Screen
         options={{
-          title: "Test update done",
+          title: sentScreenTitle(env),
           headerStyle: { backgroundColor: BG },
           headerTintColor: TEXT_1,
           headerBackVisible: false,
@@ -179,15 +179,17 @@ function CalcSummary({ summary, test }: { summary: HmrcCalculationSummary; test:
 
       <View style={styles.breakdownGrid}>
         <BreakdownTile label="Income tax" value={fmt(summary.incomeTaxAmount)} />
-        <BreakdownTile label="Class 2 NI" value={fmt(summary.nic2)} />
-        <BreakdownTile label="Class 4 NI" value={fmt(summary.nic4)} />
+        <BreakdownTile
+          label="National Insurance"
+          value={fmt(summary.nic2 === undefined && summary.nic4 === undefined ? undefined : (summary.nic2 ?? 0) + (summary.nic4 ?? 0))}
+        />
       </View>
 
       {summary.totalIncomeReceived !== undefined && (
         <View style={styles.contextCard}>
           <ContextRow label="Total income" value={fmt(summary.totalIncomeReceived)} />
           {summary.totalAllowancesAndDeductions !== undefined && (
-            <ContextRow label="Allowances + deductions" value={fmt(summary.totalAllowancesAndDeductions)} />
+            <ContextRow label="Allowances and deductions" value={fmt(summary.totalAllowancesAndDeductions)} />
           )}
           {summary.totalTaxableIncome !== undefined && (
             <ContextRow label="Taxable income" value={fmt(summary.totalTaxableIncome)} highlight />
@@ -196,9 +198,7 @@ function CalcSummary({ summary, test }: { summary: HmrcCalculationSummary; test:
       )}
 
       <Text style={styles.disclaimerText}>
-        {test
-          ? "These are the test service's figures: what you'd owe at year-end if your earning pattern stays the same. They update each time you send a test update."
-          : "These are HMRC's figures: what you'd owe at year-end if your earning pattern stays the same. They update each time you send an update."}
+        {estimateDisclaimer(test ? "sandbox" : "production")}
       </Text>
     </View>
   );

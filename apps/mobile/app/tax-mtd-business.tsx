@@ -109,7 +109,6 @@ export default function TaxMtdBusinessScreen() {
       <View style={styles.card}>
         <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
         <Text style={styles.title}>{details.tradingName ?? "Self-Employment"}</Text>
-        <Text style={styles.subtitle}>{details.businessId}</Text>
 
         <View style={styles.divider} />
 

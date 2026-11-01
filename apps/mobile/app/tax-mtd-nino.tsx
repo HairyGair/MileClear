@@ -53,7 +53,7 @@ export default function TaxMtdNinoScreen() {
 
   const onSubmit = useCallback(async () => {
     if (!isValid) {
-      Alert.alert("Check your NINO", "That doesn't look like a valid UK National Insurance Number.");
+      Alert.alert("Check your National Insurance number", "That doesn't look like a valid UK National Insurance Number.");
       return;
     }
     setSubmitting(true);
@@ -61,7 +61,7 @@ export default function TaxMtdNinoScreen() {
       await setHmrcNino(normalised);
       router.back();
     } catch (err) {
-      const msg = isApiError(err) ? err.message : err instanceof Error ? err.message : "Couldn't save your NINO.";
+      const msg = isApiError(err) ? err.message : err instanceof Error ? err.message : "Couldn't save your National Insurance number.";
       Alert.alert("Couldn't save", msg);
     } finally {
       setSubmitting(false);
@@ -84,7 +84,7 @@ export default function TaxMtdNinoScreen() {
         )}
         <View style={styles.card}>
           <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-          <Text style={styles.title}>Your NINO</Text>
+          <Text style={styles.title}>Your National Insurance number</Text>
           <Text style={styles.body}>
             {test
               ? "HMRC uses your National Insurance Number to identify your tax record. It's stored encrypted on MileClear's server and only used for the test connection."
@@ -116,14 +116,14 @@ export default function TaxMtdNinoScreen() {
             onPress={onSubmit}
             disabled={!isValid || submitting}
             accessibilityRole="button"
-            accessibilityLabel="Save NINO"
+            accessibilityLabel="Save National Insurance number"
             accessibilityState={{ disabled: !isValid || submitting }}
           >
             {submitting ? (
               <ActivityIndicator color="#000" />
             ) : (
               <>
-                <Text style={styles.primaryButtonText}>Save NINO</Text>
+                <Text style={styles.primaryButtonText}>Save</Text>
                 <Ionicons name="checkmark" size={18} color="#000" />
               </>
             )}
