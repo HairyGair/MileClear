@@ -125,6 +125,17 @@ export function taxYearOfPeriodStart(ymd: string): string {
 }
 
 /**
+ * The from/to dates to ask HMRC for a tax year's obligations: 6 April to 5
+ * April. HMRC allows at most 366 days between them and matches obligations by
+ * their END date, and this window holds the end date of every quarter of both
+ * styles (calendar Q1 30 Jun, calendar Q4 31 Mar, standard Q4 5 Apr).
+ */
+export function obligationsWindow(taxYear: string): { from: string; to: string } {
+  const y = Number(taxYear.slice(0, 4));
+  return { from: `${y}-04-06`, to: `${y + 1}-04-05` };
+}
+
+/**
  * Build the summary. `taxYear` (YYYY-YY) limits the timeline to that year;
  * leave it out to use the tax year of the earliest unsent quarter, or today's.
  * An unsent quarter from an earlier year still counts as overdue and as `next`

@@ -8,6 +8,7 @@ import {
   formatDueShort,
   yearEndDeadline,
   taxYearOfPeriodStart,
+  obligationsWindow,
   type ObligationLike,
 } from "./mtdQuarters";
 
@@ -140,6 +141,19 @@ describe("summariseQuarters", () => {
     expect(nov.sentCount).toBe(1);
     expect(nov.next?.label).toBe("July to September");
     expect(nov.next?.state).toBe("overdue");
+  });
+
+  it("obligations window is at most 366 days and holds every quarter end", () => {
+    const day = (s: string) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) / 86_400_000;
+    for (const ty of ["2024-25", "2025-26", "2026-27", "2027-28", "2028-29", "2031-32"]) {
+      const w = obligationsWindow(ty);
+      expect(day(w.to) - day(w.from)).toBeLessThanOrEqual(366);
+      const y = Number(ty.slice(0, 4));
+      for (const end of [`${y}-06-30`, `${y}-07-05`, `${y + 1}-03-31`, `${y + 1}-04-05`]) {
+        expect(end >= w.from && end <= w.to).toBe(true);
+      }
+    }
+    expect(obligationsWindow("2027-28")).toEqual({ from: "2027-04-06", to: "2028-04-05" });
   });
 
   it("period start rule", () => {

@@ -22,7 +22,7 @@ import { MtdScopeCheck } from "../components/MtdScopeCheck";
 import { MtdSignUpCard } from "../components/MtdSignUpCard";
 import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
-import { summariseQuarters, taxYearOfPeriodStart, localToday } from "../lib/tax/mtdQuarters";
+import { summariseQuarters, taxYearOfPeriodStart, localToday, obligationsWindow } from "../lib/tax/mtdQuarters";
 import { hubConnectionLabel, FINISH_YEAR_COPY } from "../lib/tax/mtdHubCopy";
 import { useMtdHubFigures } from "../lib/tax/useMtdHubFigures";
 import { NextUpCard } from "../components/mtd/NextUpCard";
@@ -204,10 +204,9 @@ function TaxMtdContent() {
           // covers this tax year, from 1 April so calendar quarters are in, and
           // is split by status here (the server filters status locally anyway).
           // A failure of the dated read only hides the sent count.
-          const y = Number(taxYearOfPeriodStart(localToday()).slice(0, 4));
           const [openRes, yearRes] = await Promise.allSettled([
             fetchHmrcObligations({ status: "Open" }),
-            fetchHmrcObligations({ from: `${y}-04-01`, to: `${y + 1}-04-05` }),
+            fetchHmrcObligations(obligationsWindow(taxYearOfPeriodStart(localToday()))),
           ]);
           if (openRes.status === "rejected") throw openRes.reason;
           obligations = openRes.value.data.obligations;
