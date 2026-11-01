@@ -20,12 +20,16 @@ import { ReliefCard } from "../../components/tax/ReliefCard";
 import { CompanyCard } from "../../components/tax/CompanyCard";
 import { RecordsCard } from "../../components/tax/RecordsCard";
 import { taxCard } from "../../components/tax/cardStyles";
+import { QuarterlyCard } from "../../components/tax/QuarterlyCard";
 import { useTaxOverview } from "../../lib/tax/useTaxOverview";
+import { useQuarterlyCard } from "../../lib/tax/useQuarterlyCard";
+import { quarterlyCardModel } from "../../lib/tax/quarterlyCard";
 import { useMarRelief } from "../../lib/mileageRelief/useMarRelief";
 import { updateTaxPlannerSettings } from "../../lib/api/taxPlanner";
 import {
   differsLineApplies,
   overviewOutOfStep,
+  isSelfEmployedPersona,
   isWorkDriver,
   returnCardMode,
   rowGroups,
@@ -91,6 +95,27 @@ export default function TaxScreen() {
   useEffect(() => {
     if (outOfStep) void refresh({ fresh: true });
   }, [outOfStep, data?.workType, data?.isCompanyDriver, user?.workType, isCompanyDriver, refresh]);
+
+  // Quarterly updates: only for drivers who send as self-employed (SPEC 4.1).
+  const quarterly = useQuarterlyCard({
+    userId: user?.id,
+    enabled: !recordsView && isSelfEmployedPersona(persona),
+  });
+  const refreshQuarterly = quarterly.refresh;
+  useFocusEffect(
+    useCallback(() => {
+      void refreshQuarterly();
+    }, [refreshQuarterly]),
+  );
+  const quarterlyModel =
+    !recordsView && isSelfEmployedPersona(persona) && quarterly.settled
+      ? quarterlyCardModel({
+          summary: quarterly.summary,
+          scope: quarterly.scope?.answer ?? null,
+          scopeStartsLabel: quarterly.scope?.startsLabel,
+          todayIso: data?.today ?? new Date().toISOString().slice(0, 10),
+        })
+      : null;
 
   const failed = new Set(data?.failed ?? []);
   const reliefPence = totalReliefPence ?? 0;
@@ -251,6 +276,8 @@ export default function TaxScreen() {
         )}
 
         {cards}
+
+        {quarterlyModel && <QuarterlyCard model={quarterlyModel} />}
 
         {groups.map((g, gi) => (
           <SettingsGroup key={g.title ?? `g${gi}`} title={g.title}>

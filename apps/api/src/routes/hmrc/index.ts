@@ -49,6 +49,8 @@ import {
 } from "../../services/hmrc/index.js";
 import { logEvent } from "../../services/appEvents.js";
 import { hmrcTaxReturnRoutes } from "./endOfYear.js";
+import { loadMtdSummary } from "../../services/hmrc/summary.js";
+import { ukDateParts } from "@mileclear/shared";
 
 // UK NINO regex. AA prefixes excluded (BG, GB, KN, NK, NT, TN, ZZ are also
 // reserved/invalid but the standard regex catches the common errors).
@@ -128,6 +130,37 @@ export async function hmrcRoutes(app: FastifyInstance) {
         hasBusinessId: Boolean(connection.businessId),
         businessId: connection.businessId ?? null,
       },
+    });
+  });
+
+  // GET /hmrc/summary: the quarters for the Tax tab card. No call to HMRC
+  // (see services/hmrc/summary.ts). `connected` and `ready` mirror /status.
+  app.get("/summary", { preHandler: authMiddleware }, async (request, reply) => {
+    const config = getHmrcConfigForUser(request.userId);
+    if (!config) {
+      return reply.status(503).send({ error: "HMRC integration not configured" });
+    }
+    const connection = await prisma.hmrcConnection.findUnique({
+      where: { userId: request.userId! },
+      select: { environment: true, expiresAt: true, disconnectedAt: true, nino: true, businessId: true },
+    });
+    const connected =
+      !!connection &&
+      !connection.disconnectedAt &&
+      connection.environment === config.environment &&
+      connection.expiresAt.getTime() > 86_400_000;
+    if (!connected) {
+      return reply.send({ data: { connected: false, ready: false, taxYear: null, quarters: [] } });
+    }
+    const p = ukDateParts(new Date());
+    const todayIso = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+    const summary = await loadMtdSummary({
+      userId: request.userId!,
+      environment: config.environment,
+      todayIso,
+    });
+    return reply.send({
+      data: { connected: true, ready: Boolean(connection!.nino && connection!.businessId), ...summary },
     });
   });
 
