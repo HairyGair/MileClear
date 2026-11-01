@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { fetchTripSummary } from "../api/trips";
 import { previewPeriodSubmission } from "../api/hmrc";
 import type { NextUpFigures } from "../../components/mtd/NextUpCard";
-import { taxYearOfDate } from "./mtdQuarters";
+import { taxYearOfPeriodStart } from "./mtdQuarters";
 
 /**
  * Year-to-date figures for the quarter to send: earnings and business miles
@@ -25,8 +25,8 @@ export function useMtdHubFigures(
       return;
     }
     let cancelled = false;
-    const taxYear = taxYearOfDate(start);
-    const yearStart = `${taxYear.slice(0, 4)}-04-06`;
+    const taxYear = taxYearOfPeriodStart(start);
+    const yearStart = `${taxYear.slice(0, 4)}-04-01`;
 
     (async () => {
       const [preview, sort] = await Promise.allSettled([

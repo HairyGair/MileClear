@@ -11,7 +11,8 @@ import {
   type Quarter,
 } from "../../lib/tax/mtdQuarters";
 import {
-  LATE_BODY,
+  lateBody,
+  sendEarlyText,
   lateTitle,
   nextUpTitle,
   sendReassurance,
@@ -41,6 +42,9 @@ interface Props {
   onReview: () => void;
   onFixTrips: () => void;
   onMissedDeadline: () => void;
+  /** Next running quarter ending within 10 days, offered as "Send early". */
+  early?: { label: string } | null;
+  onSendEarly?: () => void;
   now?: Date;
 }
 
@@ -59,6 +63,8 @@ export function NextUpCard({
   onReview,
   onFixTrips,
   onMissedDeadline,
+  early,
+  onSendEarly,
   now = new Date(),
 }: Props) {
   if (!quarter) {
@@ -75,6 +81,21 @@ export function NextUpCard({
         <Text style={taxCard.body}>
           {upToDateBody(following ? { label: following.label, dueText } : null)}
         </Text>
+        {early && onSendEarly && (
+          <>
+            <Text style={taxCard.muted}>{sendEarlyText(early.label)}</Text>
+            <TouchableOpacity
+              style={[styles.button, styles.buttonQuiet]}
+              onPress={onSendEarly}
+              accessibilityRole="button"
+              accessibilityLabel={`Send your ${early.label} update early`}
+              accessibilityHint="Opens a preview. Nothing goes to HMRC until you tap Send there."
+            >
+              <Text style={styles.buttonQuietText}>Send early</Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.amber} />
+            </TouchableOpacity>
+          </>
+        )}
       </View>
     );
   }
@@ -106,7 +127,7 @@ export function NextUpCard({
         {title}
       </Text>
       {late ? (
-        <Text style={taxCard.body}>{LATE_BODY}</Text>
+        <Text style={taxCard.body}>{lateBody(taxYear)}</Text>
       ) : null}
       <Text style={styles.due}>
         {late ? "Was due " : "Due by "}
@@ -242,6 +263,8 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     marginTop: spacing.lg,
   },
+  buttonQuiet: { backgroundColor: colors.amberDim, marginTop: spacing.md },
+  buttonQuietText: { fontFamily: fonts.bold, fontSize: fontSizes.bodyLg, color: colors.amber },
   buttonText: { fontFamily: fonts.bold, fontSize: fontSizes.bodyLg + 1, color: "#000" },
   reassure: {
     fontFamily: fonts.regular,

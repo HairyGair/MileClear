@@ -22,9 +22,22 @@ export function lateTitle(label: string): string {
   return `Your ${label} update is late`;
 }
 
-/** Body of the late card. */
-export const LATE_BODY =
-  "Send it now. HMRC counts late updates, and only charges a penalty after several.";
+/** True for tax years where HMRC isn't giving penalty points for late quarterly updates (2026-27). */
+function noLatePenaltyPoints(taxYear: string): boolean {
+  return Number(taxYear.slice(0, 4)) <= 2026;
+}
+
+/** Body of the late card. Only 2026-27 says anything about penalties. */
+export function lateBody(taxYear: string): string {
+  return noLatePenaltyPoints(taxYear)
+    ? "For 2026-27, HMRC isn't giving penalty points for late quarterly updates. Send it as soon as you can."
+    : "Send it as soon as you can.";
+}
+
+/** The "Send early" row, when the next period ends within 10 days. */
+export function sendEarlyText(label: string): string {
+  return `Your ${label} period ends soon. You can send it early.`;
+}
 
 /** Small print under the send button. */
 export function sendReassurance(env: HmrcEnv): string {
@@ -55,11 +68,6 @@ export function sentProgressText(sent: number, total: number): string {
   return `${sent} of ${total} ${total === 1 ? "update" : "updates"} sent`;
 }
 
-/** Plain words for the late-deadline help, until it has its own screen. */
-export const MISSED_DEADLINE_COPY = {
-  title: "What if I miss a deadline?",
-  body: "HMRC counts a late update as a late update, and only charges a penalty after several. Sending it late is still better than not sending it. Send the one that's due, then carry on as normal.",
-} as const;
 
 /** Finishing the year isn't in the app yet. */
 export const FINISH_YEAR_COPY = {
@@ -77,5 +85,5 @@ export function finishYearSub(deadlineText: string | null, env: HmrcEnv): string
 
 /** Attention row: trips still to sort before sending. */
 export function tripsToMarkText(n: number): string {
-  return `${n} ${n === 1 ? "trip" : "trips"} to mark before you send`;
+  return `${n} ${n === 1 ? "trip" : "trips"} to mark since 6 April`;
 }

@@ -1,6 +1,6 @@
 import { NO_TRADE_COPY, isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,8 +22,8 @@ import { MtdScopeCheck } from "../components/MtdScopeCheck";
 import { MtdSignUpCard } from "../components/MtdSignUpCard";
 import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
-import { summariseQuarters } from "../lib/tax/mtdQuarters";
-import { hubConnectionLabel, MISSED_DEADLINE_COPY, FINISH_YEAR_COPY } from "../lib/tax/mtdHubCopy";
+import { summariseQuarters, taxYearOfPeriodStart, localToday } from "../lib/tax/mtdQuarters";
+import { hubConnectionLabel, FINISH_YEAR_COPY } from "../lib/tax/mtdHubCopy";
 import { useMtdHubFigures } from "../lib/tax/useMtdHubFigures";
 import { NextUpCard } from "../components/mtd/NextUpCard";
 import { YearTimeline } from "../components/mtd/YearTimeline";
@@ -114,6 +114,10 @@ const INITIAL_STATE: ScreenState = {
   error: null,
 };
 
+/** The hub's last good read, so coming back to the screen doesn't ask HMRC again within a minute. */
+const HUB_CACHE_MS = 60_000;
+let hubCache: { userId: string | null; at: number; state: ScreenState } | null = null;
+
 export default function TaxMtdScreen() {
   return (
     <View style={styles.root}>
@@ -140,7 +144,12 @@ function TaxMtdContent() {
   const { user } = useUser();
   const userId = user?.id ?? null;
 
-  const load = useCallback(async () => {
+  const returningFromSend = useRef(false);
+  const load = useCallback(async (force = true) => {
+    if (!force && hubCache && hubCache.userId === userId && Date.now() - hubCache.at < HUB_CACHE_MS) {
+      setState(hubCache.state);
+      return;
+    }
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
       const statusRes = await fetchHmrcStatus();
@@ -190,21 +199,25 @@ function TaxMtdContent() {
 
       if (status.hasNino && status.hasBusinessId) {
         try {
-          const oblig = await fetchHmrcObligations({ status: "Open" });
-          obligations = oblig.data.obligations;
-          // What HMRC already has this tax year, for the "Sent" rows. A failure
-          // here only hides the sent count; it never blocks the open updates.
-          try {
-            const y = Number(getTaxYear(new Date()).slice(0, 4));
-            const done = await fetchHmrcObligations({
-              status: "Fulfilled",
-              from: `${y}-04-06`,
-              to: `${y + 1}-04-05`,
-            });
-            fulfilled = done.data.obligations;
+          // Two reads, in parallel. The undated one finds anything still open,
+          // including a missed quarter from an earlier tax year. The dated one
+          // covers this tax year, from 1 April so calendar quarters are in, and
+          // is split by status here (the server filters status locally anyway).
+          // A failure of the dated read only hides the sent count.
+          const y = Number(taxYearOfPeriodStart(localToday()).slice(0, 4));
+          const [openRes, yearRes] = await Promise.allSettled([
+            fetchHmrcObligations({ status: "Open" }),
+            fetchHmrcObligations({ from: `${y}-04-01`, to: `${y + 1}-04-05` }),
+          ]);
+          if (openRes.status === "rejected") throw openRes.reason;
+          obligations = openRes.value.data.obligations;
+          if (yearRes.status === "fulfilled") {
+            const year = yearRes.value.data.obligations;
+            obligations = [...obligations, ...year.filter((o) => o.status === "Open")];
+            fulfilled = year.filter((o) => o.status === "Fulfilled");
             fulfilledKnown = true;
-          } catch (err) {
-            if (isApiError(err) && err.code === "HMRC_REAUTH_REQUIRED") throw err;
+          } else if (isApiError(yearRes.reason) && yearRes.reason.code === "HMRC_REAUTH_REQUIRED") {
+            throw yearRes.reason;
           }
         } catch (err) {
           // An expired HMRC connection has its own screen (outer catch).
@@ -239,7 +252,7 @@ function TaxMtdContent() {
         ? "business"
         : "ready";
 
-      setState({
+      const next: ScreenState = {
         step,
         status,
         hasNino: status.hasNino,
@@ -253,8 +266,11 @@ function TaxMtdContent() {
         notSignedUp,
         loading: false,
         error: null,
-      });
+      };
+      hubCache = step === "ready" && !obligationsUnavailable ? { userId, at: Date.now(), state: next } : null;
+      setState(next);
     } catch (err) {
+      hubCache = null;
       // HMRC tokens revoked on HMRC's end — drop into the connect step
       // instead of showing a generic error. Mobile API client throws this
       // before any access-token refresh attempt.
@@ -280,11 +296,15 @@ function TaxMtdContent() {
       const msg = canRetry ? `${message} Pull down to try again.` : message;
       setState((s) => ({ ...s, loading: false, error: msg }));
     }
-  }, []);
+  }, [userId]);
 
+  // Within a minute of the last good read, coming back reuses it. After a
+  // trip to Review (a send may have happened) it always asks again.
   useFocusEffect(
     useCallback(() => {
-      load();
+      const force = returningFromSend.current;
+      returningFromSend.current = false;
+      load(force);
     }, [load])
   );
 
@@ -417,6 +437,9 @@ function TaxMtdContent() {
           businessId={state.status?.businessId ?? null}
           env={env}
           refreshKey={balanceKey}
+          onLeaveForReview={() => {
+            returningFromSend.current = true;
+          }}
           unavailable={state.obligationsUnavailable}
           unavailableReason={state.obligationsError}
           expired={isConnectionExpired(state.status?.expiresAt)}
@@ -470,7 +493,8 @@ function TaxMtdContent() {
           destructive
           onPress={() => {
             setManageOpen(false);
-            onDisconnect();
+            // iOS drops an alert shown while the sheet is still closing.
+            setTimeout(onDisconnect, 450);
           }}
         />
       </MtdSheet>
@@ -706,6 +730,7 @@ function ReadyStep({
   businessId,
   env,
   refreshKey,
+  onLeaveForReview,
   unavailable,
   unavailableReason,
   expired,
@@ -718,6 +743,8 @@ function ReadyStep({
   businessId: string | null;
   env: HmrcEnv;
   refreshKey: number;
+  /** Called before opening Review, so the hub asks HMRC again when the driver comes back. */
+  onLeaveForReview: () => void;
   unavailable: boolean;
   unavailableReason: { message: string; canRetry: boolean } | null;
   expired: boolean;
@@ -725,8 +752,8 @@ function ReadyStep({
   onConnect: () => void;
 }) {
   const now = new Date();
-  const summary = summariseQuarters([...obligations, ...(fulfilled ?? [])], now, getTaxYear(now));
-  const taxYear = getTaxYear(now);
+  const taxYear = taxYearOfPeriodStart(localToday(now));
+  const summary = summariseQuarters([...obligations, ...(fulfilled ?? [])], now, taxYear);
   const figures = useMtdHubFigures(businessId, summary.next, refreshKey);
   const [finishOpen, setFinishOpen] = useState(false);
 
@@ -775,6 +802,10 @@ function ReadyStep({
   }
 
   const next = summary.next;
+  const openReview = (q: { start: string; end: string }) => {
+    onLeaveForReview();
+    router.push({ pathname: "/tax-mtd-preview" as never, params: { from: q.start, to: q.end } });
+  };
   const sentKnown = fulfilled !== null;
 
   return (
@@ -788,15 +819,11 @@ function ReadyStep({
         env={env}
         figures={figures}
         now={now}
-        onReview={() =>
-          next &&
-          router.push({
-            pathname: "/tax-mtd-preview" as never,
-            params: { from: next.start, to: next.end },
-          })
-        }
+        onReview={() => next && openReview(next)}
+        early={summary.early}
+        onSendEarly={summary.early ? () => openReview(summary.early!) : undefined}
         onFixTrips={() => router.push({ pathname: "/(tabs)/trips" as never, params: { filter: "unclassified" } })}
-        onMissedDeadline={() => Alert.alert(MISSED_DEADLINE_COPY.title, MISSED_DEADLINE_COPY.body)}
+        onMissedDeadline={() => router.push("/tax-mtd-late" as never)}
       />
 
       {sentKnown ? (

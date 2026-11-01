@@ -10,9 +10,9 @@ import {
   yearHeading,
   finishYearSub,
   tripsToMarkText,
-  MISSED_DEADLINE_COPY,
   FINISH_YEAR_COPY,
-  LATE_BODY,
+  lateBody,
+  sendEarlyText,
 } from "./mtdHubCopy";
 
 describe("hub copy", () => {
@@ -43,8 +43,12 @@ describe("hub copy", () => {
     expect(sentProgressText(1, 4)).toBe("1 of 4 updates sent");
     expect(sentProgressText(0, 1)).toBe("0 of 1 update sent");
     expect(yearHeading("2026-27")).toBe("Your 2026-27 year");
-    expect(tripsToMarkText(14)).toBe("14 trips to mark before you send");
-    expect(tripsToMarkText(1)).toBe("1 trip to mark before you send");
+    expect(tripsToMarkText(14)).toBe("14 trips to mark since 6 April");
+    expect(tripsToMarkText(1)).toBe("1 trip to mark since 6 April");
+  });
+  it("late wording is year-aware", () => {
+    expect(lateBody("2026-27")).toContain("isn't giving penalty points");
+    expect(lateBody("2027-28")).not.toMatch(/penalty/i);
   });
   it("finish the year never promises a button", () => {
     expect(finishYearSub("31 January 2028", "production")).toBe("By 31 January 2028");
@@ -53,7 +57,7 @@ describe("hub copy", () => {
   });
   it("no em dashes, no 'approved' or 'recognised'", () => {
     const all = [
-      LATE_BODY, MISSED_DEADLINE_COPY.title, MISSED_DEADLINE_COPY.body,
+      lateBody("2026-27"), lateBody("2027-28"), sendEarlyText("July to October"),
       FINISH_YEAR_COPY.title, FINISH_YEAR_COPY.body, FINISH_YEAR_COPY.pill,
       sendReassurance("production"), sendReassurance("sandbox"), upToDateBody(null),
     ].join(" ");

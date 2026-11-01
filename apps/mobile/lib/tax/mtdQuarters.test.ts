@@ -7,6 +7,7 @@ import {
   formatDueLong,
   formatDueShort,
   yearEndDeadline,
+  taxYearOfPeriodStart,
   type ObligationLike,
 } from "./mtdQuarters";
 
@@ -106,6 +107,57 @@ describe("summariseQuarters", () => {
     expect(s.next?.state).toBe("overdue");
     expect(s.total).toBe(4);
     expect(s.overdue).toHaveLength(1);
+  });
+
+  it("a due (not yet late) quarter from the last tax year is still next in April", () => {
+    const s = summariseQuarters(
+      [
+        ob("Fulfilled", "2026-10-06", "2027-01-05", "2027-02-07", "2027-02-01"),
+        ob("Open", "2027-01-06", "2027-04-05", "2027-05-07"),
+        ob("Open", "2027-04-06", "2027-07-05", "2027-08-07"),
+      ],
+      new Date(2027, 3, 20),
+      "2027-28",
+    );
+    expect(s.next?.label).toBe("January to April");
+    expect(s.next?.state).toBe("due");
+    expect(s.upToDate).toBe(false);
+    expect(s.total).toBe(1);
+  });
+
+  it("calendar quarters: 1 April belongs to the new tax year, with taxYear set", () => {
+    const cal = [
+      ob("Fulfilled", "2026-04-01", "2026-06-30", "2026-07-31", "2026-07-30"),
+      ob("Open", "2026-07-01", "2026-09-30", "2026-10-31"),
+      ob("Open", "2026-10-01", "2026-12-31", "2027-01-31"),
+      ob("Open", "2027-01-01", "2027-03-31", "2027-04-30"),
+    ];
+    const july = summariseQuarters(cal, new Date(2026, 6, 20), "2026-27");
+    expect(july.total).toBe(4);
+    expect(july.quarters[0].label).toBe("April to June");
+    const nov = summariseQuarters(cal, new Date(2026, 10, 5), "2026-27");
+    expect(nov.total).toBe(4);
+    expect(nov.sentCount).toBe(1);
+    expect(nov.next?.label).toBe("July to September");
+    expect(nov.next?.state).toBe("overdue");
+  });
+
+  it("period start rule", () => {
+    expect(taxYearOfPeriodStart("2026-04-01")).toBe("2026-27");
+    expect(taxYearOfPeriodStart("2026-04-06")).toBe("2026-27");
+    expect(taxYearOfPeriodStart("2027-01-06")).toBe("2026-27");
+    expect(taxYearOfPeriodStart("2026-01-01")).toBe("2025-26");
+  });
+
+  it("offers Send early only within 10 days of the period end", () => {
+    // 26 Sep: July to October ends 5 Oct, 9 days away.
+    expect(summariseQuarters(YEAR, new Date(2026, 8, 26)).early?.label).toBe("July to October");
+    // 20 Sep: 15 days away.
+    expect(summariseQuarters(YEAR, new Date(2026, 8, 20)).early).toBeNull();
+    // Once it has ended it is next, not early.
+    const after = summariseQuarters(YEAR, new Date(2026, 9, 6));
+    expect(after.next?.label).toBe("July to October");
+    expect(after.early).toBeNull();
   });
 
   it("reads calendar quarters", () => {

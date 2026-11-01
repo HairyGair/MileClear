@@ -45,6 +45,11 @@ export interface QuarterSummary {
   next: Quarter | null;
   /** The first quarter still to come (period not over). Null when none. */
   following: Quarter | null;
+  /**
+   * The next running quarter, when it ends within 10 days. GOV.UK lets an
+   * update go in up to 10 days before the period ends. Null otherwise.
+   */
+  early: Quarter | null;
   /** Unsent quarters past their due date. */
   overdue: Quarter[];
   sentCount: number;
@@ -56,6 +61,9 @@ export interface QuarterSummary {
   /** Standard quarters start on the 6th. Calendar quarters start on the 1st. */
   style: "standard" | "calendar";
 }
+
+/** HMRC accepts a quarterly update up to this many days before the period ends. */
+export const EARLY_SEND_DAYS = 10;
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -95,11 +103,25 @@ export function quarterStyle(obligations: Pick<ObligationLike, "start">[]): "sta
   return first && first.endsWith("-01") ? "calendar" : "standard";
 }
 
+function yearLabel(start: number): string {
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
 /** Tax year (YYYY-YY) a date falls in, using the 6 April boundary. */
 export function taxYearOfDate(ymd: string): string {
   const y = Number(ymd.slice(0, 4));
-  const start = ymd.slice(5) >= "04-06" ? y : y - 1;
-  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+  return yearLabel(ymd.slice(5) >= "04-06" ? y : y - 1);
+}
+
+/**
+ * Tax year a reporting period belongs to, from the period's START date.
+ * Standard quarters start on 6 April and calendar quarters on 1 April, and no
+ * quarter of the old year starts between 1 and 5 April, so for a period start
+ * the new year begins on 1 April. Use this (not taxYearOfDate) for periods.
+ */
+export function taxYearOfPeriodStart(ymd: string): string {
+  const y = Number(ymd.slice(0, 4));
+  return yearLabel(ymd.slice(5) >= "04-01" ? y : y - 1);
 }
 
 /**
@@ -160,15 +182,15 @@ export function summariseQuarters(
   const year =
     taxYear ??
     (unsentAll.length > 0
-      ? taxYearOfDate(unsentAll[0].start)
+      ? taxYearOfPeriodStart(unsentAll[0].start)
       : all.length > 0
-        ? taxYearOfDate(all[all.length - 1].start)
+        ? taxYearOfPeriodStart(all[all.length - 1].start)
         : taxYearOfDate(today));
 
   const inYear = all
-    .filter((q) => taxYearOfDate(q.start) === year)
+    .filter((q) => taxYearOfPeriodStart(q.start) === year)
     .map((q, i) => ({ ...q, position: i + 1 }));
-  const earlierOverdue = all.filter((q) => q.state === "overdue" && q.start < `${year.slice(0, 4)}-04-06`);
+  const earlierOverdue = all.filter((q) => (q.state === "overdue" || q.state === "due") && q.start < `${year.slice(0, 4)}-04-01`);
 
   const unsent = [...earlierOverdue, ...inYear.filter((q) => q.state !== "sent")];
   const next = unsent.find((q) => q.state === "overdue" || q.state === "due") ?? null;
@@ -180,6 +202,7 @@ export function summariseQuarters(
     unsent,
     next,
     following,
+    early: following && utcDay(following.end) - todayDay <= EARLY_SEND_DAYS ? following : null,
     overdue: unsent.filter((q) => q.state === "overdue"),
     sentCount,
     total: inYear.length,
