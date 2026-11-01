@@ -1,6 +1,6 @@
-import { UPDATES_THIS_YEAR_HEADING, NO_TRADE_COPY, isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
+import { NO_TRADE_COPY, isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,12 @@ import { MtdScopeCheck } from "../components/MtdScopeCheck";
 import { MtdSignUpCard } from "../components/MtdSignUpCard";
 import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
+import { summariseQuarters } from "../lib/tax/mtdQuarters";
+import { hubConnectionLabel, MISSED_DEADLINE_COPY, FINISH_YEAR_COPY } from "../lib/tax/mtdHubCopy";
+import { useMtdHubFigures } from "../lib/tax/useMtdHubFigures";
+import { NextUpCard } from "../components/mtd/NextUpCard";
+import { YearTimeline } from "../components/mtd/YearTimeline";
+import { MtdSheet, SheetRow, sheetText } from "../components/mtd/MtdSheet";
 import { useUser } from "../lib/user/context";
 import {
   fetchHmrcStatus,
@@ -68,6 +74,10 @@ interface ScreenState {
   /** From /user/profile — same as above for businessId. */
   hasBusinessId: boolean;
   obligations: HmrcObligation[];
+  /** Updates HMRC already has for this tax year (the Sent rows on the timeline). */
+  fulfilled: HmrcObligation[];
+  /** False when the fulfilled list couldn't be read, so "N of 4 sent" isn't shown as if it were known. */
+  fulfilledKnown: boolean;
   /**
    * True when the obligations call itself failed, as opposed to HMRC
    * legitimately returning none. Without this the screen showed the
@@ -94,6 +104,8 @@ const INITIAL_STATE: ScreenState = {
   hasNino: false,
   hasBusinessId: false,
   obligations: [],
+  fulfilled: [],
+  fulfilledKnown: false,
   obligationsUnavailable: false,
   obligationsError: null,
   businesses: [],
@@ -116,6 +128,7 @@ export default function TaxMtdScreen() {
 function TaxMtdContent() {
   const [state, setState] = useState<ScreenState>(INITIAL_STATE);
   const [refreshing, setRefreshing] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   // Bumped on pull-to-refresh so the "What you owe HMRC" card asks again.
   const [balanceKey, setBalanceKey] = useState(0);
   // Which HMRC service the server uses. The status this screen loads says;
@@ -141,6 +154,8 @@ function TaxMtdContent() {
           hasNino: false,
           hasBusinessId: false,
           obligations: [],
+          fulfilled: [],
+          fulfilledKnown: false,
           obligationsUnavailable: false,
           obligationsError: null,
           businesses: [],
@@ -155,6 +170,8 @@ function TaxMtdContent() {
       // Saves a round-trip when the user is mid-setup.
       let businesses: HmrcBusinessSummary[] = [];
       let obligations: HmrcObligation[] = [];
+      let fulfilled: HmrcObligation[] = [];
+      let fulfilledKnown = false;
       let obligationsUnavailable = false;
       let obligationsError: ScreenState["obligationsError"] = null;
       let notSignedUp = false;
@@ -175,6 +192,20 @@ function TaxMtdContent() {
         try {
           const oblig = await fetchHmrcObligations({ status: "Open" });
           obligations = oblig.data.obligations;
+          // What HMRC already has this tax year, for the "Sent" rows. A failure
+          // here only hides the sent count; it never blocks the open updates.
+          try {
+            const y = Number(getTaxYear(new Date()).slice(0, 4));
+            const done = await fetchHmrcObligations({
+              status: "Fulfilled",
+              from: `${y}-04-06`,
+              to: `${y + 1}-04-05`,
+            });
+            fulfilled = done.data.obligations;
+            fulfilledKnown = true;
+          } catch (err) {
+            if (isApiError(err) && err.code === "HMRC_REAUTH_REQUIRED") throw err;
+          }
         } catch (err) {
           // An expired HMRC connection has its own screen (outer catch).
           if (isApiError(err) && err.code === "HMRC_REAUTH_REQUIRED") throw err;
@@ -214,6 +245,8 @@ function TaxMtdContent() {
         hasNino: status.hasNino,
         hasBusinessId: status.hasBusinessId,
         obligations,
+        fulfilled,
+        fulfilledKnown,
         obligationsUnavailable,
         obligationsError,
         businesses,
@@ -232,6 +265,8 @@ function TaxMtdContent() {
           hasNino: false,
           hasBusinessId: false,
           obligations: [],
+          fulfilled: [],
+          fulfilledKnown: false,
           obligationsUnavailable: false,
           obligationsError: null,
           businesses: [],
@@ -342,7 +377,16 @@ function TaxMtdContent() {
         />
       )}
 
-      <Header status={state.status} test={test} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
+      {state.step === "ready" ? (
+        <ConnectionLine
+          status={state.status}
+          env={env}
+          onManage={() => setManageOpen(true)}
+          onConnect={onConnect}
+        />
+      ) : (
+        <Header status={state.status} test={test} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
+      )}
 
       {state.error && (
         <View style={styles.errorCard}>
@@ -369,6 +413,10 @@ function TaxMtdContent() {
       {state.step === "ready" && (
         <ReadyStep
           obligations={state.obligations}
+          fulfilled={state.fulfilledKnown ? state.fulfilled : null}
+          businessId={state.status?.businessId ?? null}
+          env={env}
+          refreshKey={balanceKey}
           unavailable={state.obligationsUnavailable}
           unavailableReason={state.obligationsError}
           expired={isConnectionExpired(state.status?.expiresAt)}
@@ -380,30 +428,52 @@ function TaxMtdContent() {
         <MtdBalanceCard refreshKey={balanceKey} />
       )}
 
-      {/* Scope signposts (in-year, self-employment-only product). On HMRC's
-          real service the end-of-year return is not offered: the final
-          declaration isn't built, so the card only shows on the test service. */}
+      {state.step === "ready" && (
+        <TouchableOpacity
+          style={styles.historyRow}
+          onPress={() => router.push("/tax-mtd-history" as never)}
+          accessibilityRole="button"
+          accessibilityLabel="Update history"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.obligationDates}>Update history</Text>
+            <Text style={styles.obligationDue}>What you've sent, and HMRC's estimates</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
+        </TouchableOpacity>
+      )}
+
+      {/* Signposts HMRC requires. They sit under our own explanation, not at the
+          top. On the real service the end-of-year return isn't offered (the
+          final declaration isn't built); on the test service it can be tried
+          from "Finish the year" on the timeline. */}
       {state.step === "ready" && !test && (
         <MtdSignpost text="MileClear sends your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return isn't in MileClear yet, so send it with HMRC or other compatible software." />
       )}
       {state.step === "ready" && test && (
-        <>
-          <MtdSignpost text="When it goes live, MileClear will send your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return below is a test version only, so for now send your real tax return with HMRC or other compatible software." />
-          <TouchableOpacity
-            style={[styles.obligationCard, { marginTop: 12 }]}
-            onPress={() => router.push("/tax-mtd-year-end" as never)}
-            accessibilityRole="button"
-            accessibilityLabel="End of year: try the tax return in the test version"
-          >
-            <Ionicons name="flag-outline" size={20} color={AMBER} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.obligationDates}>End of year</Text>
-              <Text style={styles.obligationDue}>Try the tax return in the test version</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
-          </TouchableOpacity>
-        </>
+        <MtdSignpost text="When it goes live, MileClear will send your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return in this test version is for trying only, so for now send your real tax return with HMRC or other compatible software." />
       )}
+
+      <MtdSheet visible={manageOpen} title="Manage connection" onClose={() => setManageOpen(false)}>
+        <Text style={sheetText.body}>
+          {connectionLine(state.status?.expiresAt, formatExpiry(state.status?.expiresAt), undefined, env)}
+        </Text>
+        <SheetRow
+          label="Change National Insurance number"
+          onPress={() => {
+            setManageOpen(false);
+            router.push("/tax-mtd-nino" as never);
+          }}
+        />
+        <SheetRow
+          label={test ? "Disconnect the test connection" : "Disconnect from HMRC"}
+          destructive
+          onPress={() => {
+            setManageOpen(false);
+            onDisconnect();
+          }}
+        />
+      </MtdSheet>
     </ScrollView>
   );
 }
@@ -449,6 +519,41 @@ function Header({
           {connectionLine(status.expiresAt, formatExpiry(status.expiresAt), undefined, status.environment)}
         </Text>
       )}
+    </View>
+  );
+}
+
+// ── Connection line (set up) ─────────────────────────────────────────
+
+function ConnectionLine({
+  status,
+  env,
+  onManage,
+  onConnect,
+}: {
+  status: HmrcStatus | null;
+  env: HmrcEnv;
+  onManage: () => void;
+  onConnect: () => void;
+}) {
+  const expired = isConnectionExpired(status?.expiresAt);
+  const label = hubConnectionLabel(env, expired, getTaxYear(new Date()));
+  const dot = expired ? AMBER : isMtdTest(env) ? AMBER : GREEN;
+  return (
+    <View style={styles.connLine}>
+      <View style={styles.headerLeft}>
+        <View style={[styles.statusDot, { backgroundColor: dot }]} />
+        <Text style={styles.connText} numberOfLines={1} accessibilityRole="text">{label}</Text>
+      </View>
+      <TouchableOpacity
+        onPress={expired ? onConnect : onManage}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        style={styles.connAction}
+        accessibilityRole="button"
+        accessibilityLabel={expired ? "Connect again" : "Manage connection"}
+      >
+        <Text style={[styles.connActionText, expired && { color: AMBER }]}>{expired ? "Connect again" : "Manage"}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -593,10 +698,14 @@ function BusinessStep({
   );
 }
 
-// ── Step: Ready (obligations list) ───────────────────────────────────
+// ── Step: Ready (the hub) ────────────────────────────────────────────
 
 function ReadyStep({
   obligations,
+  fulfilled,
+  businessId,
+  env,
+  refreshKey,
   unavailable,
   unavailableReason,
   expired,
@@ -604,23 +713,28 @@ function ReadyStep({
   onConnect,
 }: {
   obligations: HmrcObligation[];
+  /** Null when the sent list couldn't be read. */
+  fulfilled: HmrcObligation[] | null;
+  businessId: string | null;
+  env: HmrcEnv;
+  refreshKey: number;
   unavailable: boolean;
   unavailableReason: { message: string; canRetry: boolean } | null;
   expired: boolean;
   test: boolean;
   onConnect: () => void;
 }) {
-  const sorted = useMemo(
-    () => [...obligations].sort((a, b) => a.due.localeCompare(b.due)),
-    [obligations]
-  );
-  const taxYear = getTaxYear(new Date());
+  const now = new Date();
+  const summary = summariseQuarters([...obligations, ...(fulfilled ?? [])], now, getTaxYear(now));
+  const taxYear = getTaxYear(now);
+  const figures = useMtdHubFigures(businessId, summary.next, refreshKey);
+  const [finishOpen, setFinishOpen] = useState(false);
 
   // An empty list means one of two very different things. Saying "all
   // caught up" when the call actually failed tells someone they have
   // nothing to file when we simply could not ask, which in a tax app is
   // the one mistake worth going out of our way to avoid.
-  if (sorted.length === 0 && unavailable) {
+  if (summary.total === 0 && !summary.next && unavailable) {
     return (
       <View style={styles.stepCard}>
         <Ionicons name="alert-circle-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
@@ -647,77 +761,63 @@ function ReadyStep({
     );
   }
 
-  if (sorted.length === 0) {
+  if (summary.total === 0 && !summary.next) {
     return (
       <View style={styles.stepCard}>
         <Ionicons name="checkmark-circle-outline" size={48} color={GREEN} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>All caught up</Text>
+        <Text style={styles.stepTitle}>Nothing to send yet</Text>
         <Text style={styles.stepBody}>
-          No open quarterly updates right now. We'll show your next period here as
+          HMRC hasn't listed a quarterly update for you right now. We'll show your next period here as
           soon as it's available.
-        </Text>
-        <Text style={styles.helperLink} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="See update history">
-          See update history
         </Text>
       </View>
     );
   }
 
+  const next = summary.next;
+  const sentKnown = fulfilled !== null;
+
   return (
     <View>
-      <Text style={styles.sectionLabel}>{UPDATES_THIS_YEAR_HEADING} · {taxYear}</Text>
-      {sorted.map((o, idx) => (
-        <ObligationCard key={`${o.start}-${o.end}-${idx}`} obligation={o} />
-      ))}
-      <Text style={[styles.helperLink, { marginTop: 8, textAlign: "center" }]} onPress={() => router.push("/tax-mtd-history" as never)} accessibilityRole="button" accessibilityLabel="See update history">
-        See update history
-      </Text>
+      <NextUpCard
+        quarter={next}
+        following={summary.following ? { label: summary.following.label, due: summary.following.due } : null}
+        allSent={summary.allSent}
+        sentCount={summary.sentCount}
+        taxYear={taxYear}
+        env={env}
+        figures={figures}
+        now={now}
+        onReview={() =>
+          next &&
+          router.push({
+            pathname: "/tax-mtd-preview" as never,
+            params: { from: next.start, to: next.end },
+          })
+        }
+        onFixTrips={() => router.push({ pathname: "/(tabs)/trips" as never, params: { filter: "unclassified" } })}
+        onMissedDeadline={() => Alert.alert(MISSED_DEADLINE_COPY.title, MISSED_DEADLINE_COPY.body)}
+      />
+
+      {sentKnown ? (
+        <YearTimeline
+          quarters={summary.quarters}
+          sentCount={summary.sentCount}
+          taxYear={taxYear}
+          env={env}
+          now={now}
+          onFinishYear={() => (test ? router.push("/tax-mtd-year-end" as never) : setFinishOpen(true))}
+        />
+      ) : (
+        <Text style={styles.fineprintLeft}>
+          We couldn't check which updates HMRC already has. Pull down to try again.
+        </Text>
+      )}
+
+      <MtdSheet visible={finishOpen} title={FINISH_YEAR_COPY.title} onClose={() => setFinishOpen(false)}>
+        <Text style={sheetText.body}>{FINISH_YEAR_COPY.body}</Text>
+      </MtdSheet>
     </View>
-  );
-}
-
-function ObligationCard({ obligation }: { obligation: HmrcObligation }) {
-  const due = new Date(obligation.due);
-  const now = new Date();
-  const daysLeft = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  const overdue = daysLeft < 0;
-  const urgent = daysLeft >= 0 && daysLeft <= 14;
-
-  return (
-    <TouchableOpacity
-      style={styles.obligationCard}
-      onPress={() =>
-        router.push({
-          pathname: "/tax-mtd-preview" as never,
-          params: { from: obligation.start, to: obligation.end },
-        })
-      }
-      accessibilityRole="button"
-      accessibilityLabel={`Review quarter: ${formatPeriodLabel(obligation.start, obligation.end)}`}
-      accessibilityHint="Opens a preview of this quarterly update. Nothing goes to HMRC."
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={styles.obligationDates}>
-          {formatPeriodLabel(obligation.start, obligation.end)}
-        </Text>
-        <Text style={styles.obligationDue}>
-          Due {formatHumanDate(obligation.due)}
-        </Text>
-      </View>
-      <View
-        style={[
-          styles.daysBadge,
-          {
-            backgroundColor: overdue ? RED : urgent ? AMBER : GREEN,
-          },
-        ]}
-      >
-        <Text style={styles.daysBadgeText}>
-          {overdue ? `${Math.abs(daysLeft)}d late` : `${daysLeft}d left`}
-        </Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={TEXT_3} style={{ marginLeft: 4 }} />
-    </TouchableOpacity>
   );
 }
 
@@ -744,25 +844,6 @@ function formatExpiry(iso: string | undefined): string {
   // as missing data rather than rendering "1 Jan 1970 at 01:00".
   if (d.getFullYear() < 2000) return "Not set";
   return d.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" });
-}
-
-function formatHumanDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-}
-
-function formatPeriodLabel(startIso: string, endIso: string): string {
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  const startMonth = start.toLocaleDateString("en-GB", { month: "short" });
-  const endMonth = end.toLocaleDateString("en-GB", { month: "short" });
-  const startDay = start.getDate();
-  const endDay = end.getDate();
-  if (start.getFullYear() === end.getFullYear()) {
-    return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${end.getFullYear()}`;
-  }
-  return `${startDay} ${startMonth} ${start.getFullYear()} – ${endDay} ${endMonth} ${end.getFullYear()}`;
 }
 
 // ── Styles ───────────────────────────────────────────────────────────
@@ -801,6 +882,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.medium,
   },
+
+  connLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+    paddingBottom: 12,
+  },
+  connText: { flexShrink: 1, color: TEXT_2, fontSize: 14, fontFamily: fonts.medium },
+  connAction: { minHeight: 32, justifyContent: "center" },
+  connActionText: { color: TEXT_2, fontSize: 14, fontFamily: fonts.semibold },
+  historyRow: {
+    backgroundColor: CARD_BG,
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 16,
+  },
+  fineprintLeft: { color: TEXT_3, fontSize: 13, lineHeight: 19, fontFamily: fonts.regular, marginTop: 8 },
 
   errorCard: {
     backgroundColor: "rgba(239, 68, 68, 0.08)",
