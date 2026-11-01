@@ -18,6 +18,8 @@ export type HomeTapTarget =
   | "start_trip"
   | "start_trip_card"
   | "start_trip_card_arrived"
+  | "trip_card_arrived_unsaved"
+  | "trip_card_automatic"
   | "start_shift"
   | "mode_pill"
   | "door_road"

@@ -54,6 +54,10 @@ export interface StartTripCardModel {
   /** "12.4 mi · 24 min". */
   detail: string;
   a11yLabel: string;
+  /** The button's words. Omitted means "I've Arrived" (a running Start Trip). */
+  actionLabel?: string;
+  /** What a screen reader says the button does. Omitted means finish and save. */
+  actionHint?: string;
 }
 
 /**

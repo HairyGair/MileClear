@@ -2683,7 +2683,9 @@ export default function TripFormScreen() {
   // second copy, and the card's I've Arrived runs this screen's own Arrived
   // above: the one save path, with its own route and its own guards.
   useEffect(() => {
-    if (mode !== "driving") return;
+    // An arrived trip waiting to be saved counts too: Home's "Save trip" must
+    // go back to this very screen, not open a second copy that could save it again.
+    if (mode !== "driving" && mode !== "arrived") return;
     return registerRecordingStartTripScreen({
       key: routeKey,
       getState: () => navigation.getState() as unknown as StackStateLike,

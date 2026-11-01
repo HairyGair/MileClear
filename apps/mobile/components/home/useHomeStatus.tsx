@@ -13,7 +13,8 @@ import { RecordingSheet } from "./RecordingSheet";
 import { HomeSheet } from "./HomeSheet";
 import { SetupChecklistCard, type SetupChecklistRow } from "../SetupChecklistCard";
 import { StartTripCard } from "./StartTripCard";
-import { useFailedSyncCount, useRecordingNow, useRunningStartTrip } from "./useHomeSignals";
+import { useFailedSyncCount, usePendingArrivedFacts, useRecordingNow, useRunningStartTrip } from "./useHomeSignals";
+import { arrivedUnsavedCardModel, automaticCardModel, selectTripCard } from "../../lib/home/tripInProgress";
 import { selectStatusLine, type StatusLine as StatusLineModel } from "../../lib/home/statusLine";
 import { startTripCardModel } from "../../lib/home/startTripCard";
 import { openStartTrip } from "../../lib/home/openStartTrip";
@@ -45,12 +46,18 @@ interface Args {
   onRecoveredTap: () => void;
 }
 
-type Sheet = "recording" | "setup" | "low_power" | null;
+const TAP_TARGET = {
+  arrived_unsaved: "trip_card_arrived_unsaved",
+  automatic: "trip_card_automatic",
+} as const;
+
+type Sheet ="recording" | "setup" | "low_power" | null;
 
 export function useHomeStatus(a: Args): { status: StatusLineModel; element: ReactElement } {
   const router = useRouter();
   const recording = useRecordingNow();
   const startTrip = useRunningStartTrip();
+  const pendingArrived = usePendingArrivedFacts();
   const failed = useFailedSyncCount();
   const [sheet, setSheet] = useState<Sheet>(null);
   const { unit } = useDistanceUnit();
@@ -78,16 +85,31 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
     [recording, a.blocker, failed.count, failed.allTrips, a.pausedUntil, a.pausedForWorkHours, a.automaticOff, a.lowPowerMode, a.setup, a.recovered, unit, Math.floor(now / 60000)]
   );
 
-  // The hook ticks every 15 s while a Start Trip records, so the card's time moves.
-  const card = startTrip
-    ? startTripCardModel({
-        quickLockHeld: true,
-        startedAtMs: startTrip.startedAtMs,
-        miles: startTrip.miles,
-        now: startTrip.now,
-        unit,
-      })
-    : null;
+  // One card for whatever trip is not finished yet (rules in lib/home/tripInProgress.ts).
+  // The Start Trip hook ticks every 15 s, so the card's time moves.
+  const tripCard = selectTripCard({
+    arrived: arrivedUnsavedCardModel({ facts: pendingArrived, now: Date.now(), unit }),
+    startTrip: startTrip
+      ? startTripCardModel({
+          quickLockHeld: true,
+          startedAtMs: startTrip.startedAtMs,
+          miles: startTrip.miles,
+          now: startTrip.now,
+          unit,
+        })
+      : null,
+    automatic: automaticCardModel({ recording, unit }),
+  });
+
+  // `arrive` is the card's button: I've Arrived for a running Start Trip. A
+  // trip waiting to be saved goes back to its own screen (or a fresh one that
+  // restores it); an automatic recording goes to its recording screen.
+  const openCard = (arrive: boolean) => {
+    if (!tripCard) return;
+    if (tripCard.kind === "automatic") router.push("/active-recording" as never);
+    else if (tripCard.kind === "arrived_unsaved") openStartTrip();
+    else openStartTrip({ arrive, fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
+  };
 
   const onPress = useCallback(() => {
     trackHomeTap("status_line", a.mode, status.kind);
@@ -129,16 +151,16 @@ export function useHomeStatus(a: Args): { status: StatusLineModel; element: Reac
   const element = (
     <>
       <StatusLine model={status} onPress={onPress} onAction={onAction} />
-      {card ? (
+      {tripCard ? (
         <StartTripCard
-          model={card}
+          model={tripCard.model}
           onOpen={() => {
-            trackHomeTap("start_trip_card", a.mode, status.kind);
-            openStartTrip({ fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
+            trackHomeTap(tripCard.kind === "start_trip" ? "start_trip_card" : TAP_TARGET[tripCard.kind], a.mode, status.kind);
+            openCard(false);
           }}
           onArrived={() => {
-            trackHomeTap("start_trip_card_arrived", a.mode, status.kind);
-            openStartTrip({ arrive: true, fromCardStartedAtMs: startTrip?.startedAtMs ?? null });
+            trackHomeTap(tripCard.kind === "start_trip" ? "start_trip_card_arrived" : TAP_TARGET[tripCard.kind], a.mode, status.kind);
+            openCard(true);
           }}
         />
       ) : null}
