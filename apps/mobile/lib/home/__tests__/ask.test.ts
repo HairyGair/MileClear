@@ -14,7 +14,7 @@ describe("selectAsk", () => {
 
   it("follows the order from the spec", () => {
     expect(ASK_ORDER).toEqual([
-      "practice", "vehicle", "first_week", "acquisition", "odometer", "employer", "shift",
+      "practice", "vehicle", "first_week", "acquisition", "rate_notice", "odometer", "employer", "shift",
       "saved_places", "pro", "referral",
     ]);
   });

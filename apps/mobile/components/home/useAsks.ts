@@ -16,6 +16,7 @@ import { fetchShiftSuggestions, type ShiftSuggestion } from "../../lib/api/shift
 import { shouldShowOdometerPrompt } from "../../lib/odometer/logic";
 import { NOMINATE_PROMPT_STATE_KEY } from "../../lib/nominateManager";
 import { isQuietToday } from "../../lib/home/ask";
+import { ukMonth, shouldShowRateNotice } from "../../lib/home/rateNotice";
 import { createTtlCache } from "../../lib/home/ttlCache";
 import { fetchPracticeLinks } from "../../lib/api/practice";
 import { pickHomePracticeAsk, type HomePracticeAsk } from "../../lib/practice/logic";
@@ -60,6 +61,26 @@ export function useAskQuietDay(): { quietToday: boolean; markDismissedToday: () 
     writeKey(QUIET_KEY, String(now));
   }, []);
   return { quietToday: isQuietToday(at, Date.now()), markDismissedToday };
+}
+
+const RATE_NOTICE_KEY = "rate_notice_dismissed_month";
+
+/** Budget 2026 rate notice: dismissed for the calendar month (UK), back next month, gone from 6 April 2027. */
+export function useRateNotice(persona: string): { eligible: boolean; dismiss: () => void } {
+  // undefined = not read yet: stay quiet until we know.
+  const [month, setMonth] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    readKey(RATE_NOTICE_KEY).then((v) => setMonth(v ?? null));
+  }, []);
+  const dismiss = useCallback(() => {
+    const m = ukMonth(Date.now());
+    setMonth(m);
+    writeKey(RATE_NOTICE_KEY, m);
+  }, []);
+  return {
+    eligible: month !== undefined && shouldShowRateNotice({ persona, dismissedMonth: month, now: Date.now() }),
+    dismiss,
+  };
 }
 
 /** "Where did you hear about MileClear?" (first 30 days, once). */

@@ -12,6 +12,7 @@ export type AskId =
   | "first_week" // What your first trips add up to: sort one (lib/home/firstWeek.ts)
   | "acquisition" // Where did you hear about MileClear? (first 30 days)
   | "vehicle" // Add your vehicle
+  | "rate_notice" // Autumn Budget: 35p over 10,000 miles from 6 April 2027 (lib/home/rateNotice.ts)
   | "odometer" // Odometer readings for work
   | "employer" // Does your employer pay your mileage? Invite your manager
   | "shift" // Looks like a shift: grade it
@@ -32,6 +33,9 @@ export const ASK_ORDER: readonly AskId[] = [
   // the Last trip card, not the ask row.
   "first_week",
   "acquisition",
+  // Budget 2026 rate notice: a dismissal lasts to the end of the month, and it
+  // is gone for good from 6 April 2027.
+  "rate_notice",
   "odometer",
   "employer",
   "shift",

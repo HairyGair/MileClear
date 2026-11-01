@@ -50,6 +50,7 @@ import {
   useEmployerAsk,
   useFirstWeekLocal,
   useOdometerAsk,
+  useRateNotice,
   usePracticeAsk,
   useShiftAsk,
   useVehicleAskSnooze,
@@ -60,6 +61,8 @@ import { useUser } from "../../lib/user/context";
 import { useDistanceUnit } from "../../lib/units/distanceUnit";
 import { insightsCache } from "../../lib/insights/requestCache";
 import { stampInsightsLink } from "../../lib/insights/linkParams";
+import { RATE_NOTICE_TITLE, RATE_NOTICE_LINE, RATE_NOTICE_URL } from "../../lib/home/rateNotice";
+import * as WebBrowser from "expo-web-browser";
 import { selectAsk, proAskLine, type AskId } from "../../lib/home/ask";
 import { selectDoorRows } from "../../lib/home/doors";
 import { FIRST_WEEK_DAYS, selectFirstWeek } from "../../lib/home/firstWeek";
@@ -213,6 +216,7 @@ export function HomeIdle(p: Props) {
   const quiet = useAskQuietDay();
   const acq = useAcquisitionAsk(user?.createdAt);
   const vehicleSnooze = useVehicleAskSnooze();
+  const rateNotice = useRateNotice(persona);
   const hasBusinessMileage = (p.stats?.deductionPence ?? 0) > 0;
   const odo = useOdometerAsk(isWork, totalTrips);
   const employer = useEmployerAsk({
@@ -262,6 +266,7 @@ export function HomeIdle(p: Props) {
     first_week: firstWeekOnCard && !!firstWeek?.isAsk,
     acquisition: acq.eligible,
     vehicle: !p.hasVehicle && !vehicleSnooze.snoozed,
+    rate_notice: rateNotice.eligible,
     odometer: !!odo.vehicle,
     employer: employer.eligible,
     shift: shiftEligibleDriver && !!shiftAsk.suggestion,
@@ -324,6 +329,13 @@ export function HomeIdle(p: Props) {
           dismissLabel: "Dismiss, ask me later",
           onPress: press(() => router.push("/vehicle-form" as never)),
           onDismiss: dismiss(vehicleSnooze.snooze),
+        };
+      case "rate_notice":
+        return {
+          id: askId, icon: "trending-up-outline", title: RATE_NOTICE_TITLE,
+          line: RATE_NOTICE_LINE, dismissLabel: "Got it, remind me next month",
+          onPress: press(() => { WebBrowser.openBrowserAsync(RATE_NOTICE_URL).catch(() => {}); }),
+          onDismiss: dismiss(rateNotice.dismiss),
         };
       case "odometer":
         return {
@@ -391,7 +403,7 @@ export function HomeIdle(p: Props) {
           onDismiss: dismiss(p.androidBeta.dismiss),
         };
     }
-  }, [askId, mode, p, isWork, router, quiet, vehicleSnooze, odo, employer, shiftAsk, gradingShift, showPaywall, practice.ask]);
+  }, [askId, mode, p, isWork, router, quiet, vehicleSnooze, rateNotice, odo, employer, shiftAsk, gradingShift, showPaywall, practice.ask]);
 
   // ── Layout ──
   const narrow = width < 380 || fontScale > 1.3;
