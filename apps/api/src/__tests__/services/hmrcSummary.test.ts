@@ -65,6 +65,19 @@ describe("buildMtdSummary", () => {
     expect(r.quarters[0].status).toBe("Open");
   });
 
+  it("keeps a calendar quarter starting 1 April in the year it ends in", () => {
+    const r = buildMtdSummary({
+      snapshots: [{ obligations: [q("2026-04-01", "2026-06-30", "2026-08-07", "Open"), q("2026-07-01", "2026-09-30", "2026-11-07", "Open")] }],
+      okSubmissions: [{ taxYear: "2026-27", periodEnd: "2026-06-30" }],
+      todayIso: "2026-11-01",
+    });
+    expect(r.taxYear).toBe("2026-27");
+    expect(r.quarters.map((x) => [x.start, x.status])).toEqual([
+      ["2026-04-01", "Fulfilled"],
+      ["2026-07-01", "Open"],
+    ]);
+  });
+
   it("falls back to the newest year HMRC showed when the running one is missing", () => {
     const r = buildMtdSummary({
       snapshots: [{ obligations: [q("2025-04-06", "2025-07-05", "2025-08-07", "Fulfilled")] }],

@@ -1732,6 +1732,53 @@ ${SIGN_OFF}`;
   });
 }
 
+/**
+ * "Ready to send" for drivers who have connected HMRC
+ * (jobs/mtdDeadlineReminders.ts), the day after a quarter ends while it is
+ * still not sent. Same rules as the deadline reminder: no adjective about
+ * MileClear next to HMRC, no talk of penalties.
+ */
+export async function sendMtdQuarterReadyEmail(
+  email: string,
+  displayName: string | null | undefined,
+  data: {
+    quarterLabel: string; // e.g. "July to October"
+    periodLabel: string; // e.g. "6 July to 5 October 2026"
+    dueLabel: string; // e.g. "Saturday 7 November 2026"
+  },
+  userId: string
+): Promise<void> {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const bodyHtml = `
+${para(greeting)}
+${para(`The quarter from <strong>${escapeHtml(data.periodLabel)}</strong> has ended. Your figures are in MileClear, ready for you to check and send by <strong style="color:#b45309;">${escapeHtml(data.dueLabel)}</strong>.`)}
+${stepsCard([
+    "Open MileClear, go to the Tax tab and tap Quarterly updates.",
+    "Tap the quarter and check the figures against your records.",
+    "Send it. If something is wrong later, you can send a corrected one.",
+  ])}
+${para("Your figures come from the trips, earnings and expenses already in MileClear, so it's worth sorting any trips still waiting first. We'll remind you again 7 days and 1 day before the deadline if it's still not sent.")}
+${para("Questions? Just reply to this email.", 8)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: `Check your figures and send by ${data.dueLabel}.`,
+    eyebrow: "Quarterly update",
+    title: `Your ${escapeHtml(data.quarterLabel)} update is ready to send`,
+    bodyHtml,
+    footerHtml: unsubscribeFooterHtml(userId),
+  });
+  await deliver({
+    email,
+    subject: `Your ${data.quarterLabel} update is ready to send`,
+    html,
+    userId,
+    label: "MTD quarter ready",
+    // Same as the deadline reminder: part of the quarterly updates the driver
+    // set up by connecting HMRC, not marketing.
+    gated: false,
+  });
+}
+
 /** Self Assessment deadline reminder. Self-employed drivers only. The
  *  mileage claim lowers the profit tax is worked out on; it is not money
  *  off the bill, so the email never says so. */

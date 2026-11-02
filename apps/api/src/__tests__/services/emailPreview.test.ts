@@ -204,6 +204,14 @@ describe("email preview harness", () => {
         USER_ID
       )
     );
+    await capture("sendMtdQuarterReadyEmail", () =>
+      e.sendMtdQuarterReadyEmail(
+        EMAIL,
+        NAME,
+        { quarterLabel: "July to October", periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026" },
+        USER_ID
+      )
+    );
     await capture("sendSelfAssessmentDeadlineEmail", () =>
       e.sendSelfAssessmentDeadlineEmail(
         EMAIL,

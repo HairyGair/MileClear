@@ -1,8 +1,9 @@
 // Quarterly update deadline reminders (Making Tax Digital, Oct 2026).
 //
 // For drivers who have connected HMRC (an active connection with a NINO and
-// a business chosen): a push and an email 7 days and 1 day before each
-// quarterly deadline, while HMRC still shows that quarter open.
+// a business chosen): a push and an email the day after each quarter ends
+// ("ready to send", Nov 2026), then 7 days and 1 day before each quarterly
+// deadline, while the quarter is still not sent.
 //
 //   quarter 6 Apr - 5 Jul  -> due 7 Aug
 //   quarter 6 Jul - 5 Oct  -> due 7 Nov
@@ -21,6 +22,13 @@
 // year, period end on or after the quarter's end: updates are cumulative).
 // A driver who has never loaded their obligations gets no reminder.
 //
+// Only HMRC's dates from the current connection count: a snapshot taken
+// before the driver last connected, one tagged with HMRC's test service, or
+// one for a different business is ignored. The tax year of a quarter comes
+// from its END date, so a calendar quarter starting 1 April belongs to the
+// year it is sent in (from its start date it read as the year before, and an
+// update sent from MileClear did not count against it).
+//
 // Respect, in code:
 //   - HMRC_ENVIRONMENT must be "production" AND the connection must be a
 //     production one: sandbox drivers are never reminded about test deadlines;
@@ -31,6 +39,10 @@
 //     deduped on the sent events; logged before sending so a crash mid-send
 //     cannot send twice.
 //
+// When ("ready" is the day after the period ends, UK date):
+//   standard quarter ending 5 October    -> ready 6 October, due 7 November
+//   calendar quarter ending 30 September -> ready 1 October, due 7 November
+//
 // Runs on the 30-minute windowed tick and only does anything 10:00-10:59 UK.
 
 import type { Prisma } from "@prisma/client";
@@ -38,7 +50,7 @@ import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
 import { logEvent } from "../services/appEvents.js";
-import { sendMtdQuarterlyReminderEmail } from "../services/email.js";
+import { sendMtdQuarterlyReminderEmail, sendMtdQuarterReadyEmail } from "../services/email.js";
 import { HMRC_SUBMISSION_EVENT } from "../services/hmrc/audit.js";
 import { hmrcSandboxUserIds } from "../services/hmrc/config.js";
 import { MTD_OBLIGATIONS_SEEN_EVENT } from "../services/hmrc/obligations.js";
@@ -48,8 +60,9 @@ export const MTD_REMINDER_EVENT = "notification.mtd_deadline";
 export const MTD_REMINDER_ACTION = "open_mtd";
 export const MTD_REMINDER_HOUR = 10;
 
-export type MtdReminderStage = "7d" | "1d";
-const STAGE_DAYS: Record<MtdReminderStage, number> = { "7d": 7, "1d": 1 };
+export type MtdReminderStage = "ready" | "7d" | "1d";
+type DueStage = Exclude<MtdReminderStage, "ready">;
+const STAGE_DAYS: Record<DueStage, number> = { "7d": 7, "1d": 1 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Obligations older than this are ignored; HMRC returns the whole year at once. */
@@ -75,12 +88,29 @@ export function daysBetween(todayIso: string, dueIso: string): number {
   return Math.round((b - a) / DAY_MS);
 }
 
-/** Which reminder (if any) a due date gets today. */
-export function reminderStageFor(todayIso: string, dueIso: string): MtdReminderStage | null {
+/** Which deadline reminder (if any) a due date gets today. */
+export function reminderStageFor(todayIso: string, dueIso: string): DueStage | null {
   const d = daysBetween(todayIso, dueIso.slice(0, 10));
   if (d === STAGE_DAYS["7d"]) return "7d";
   if (d === STAGE_DAYS["1d"]) return "1d";
   return null;
+}
+
+/**
+ * True on the UK calendar day after the period ends (the 6th for HMRC's
+ * standard quarters, the 1st for calendar quarters), while the deadline is
+ * still ahead.
+ */
+export function isReadyDay(todayIso: string, o: Pick<SeenObligation, "end" | "due">): boolean {
+  return daysBetween(o.end.slice(0, 10), todayIso) === 1 && daysBetween(todayIso, o.due.slice(0, 10)) > 0;
+}
+
+/**
+ * The one reminder a quarter gets today, if any. A deadline reminder wins
+ * if both fall on the same day, so a driver never gets two in one morning.
+ */
+export function stageForToday(todayIso: string, o: Pick<SeenObligation, "end" | "due">): MtdReminderStage | null {
+  return reminderStageFor(todayIso, o.due) ?? (isReadyDay(todayIso, o) ? "ready" : null);
 }
 
 /** "2026-27" for a quarter starting 2026-07-06; the tax year starts 6 April. */
@@ -89,6 +119,15 @@ export function taxYearOfDate(iso: string): string {
   const md = iso.slice(5, 10);
   const start = md >= "04-06" ? y : y - 1;
   return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
+}
+
+/**
+ * The tax year a quarter belongs to, from its END date. Every quarter ends
+ * inside its tax year (5 July ... 5 April, or 30 June ... 31 March), but a
+ * calendar quarter STARTS on 1 April, five days before the year does.
+ */
+export function obligationTaxYear(o: Pick<SeenObligation, "end">): string {
+  return taxYearOfDate(o.end.slice(0, 10));
 }
 
 export function reminderKey(periodEnd: string, stage: MtdReminderStage, channel: "push" | "email"): string {
@@ -125,9 +164,34 @@ export interface OkSubmission {
 /** Open per HMRC's last word, and not since covered by an update sent from MileClear. */
 export function isStillOpen(o: SeenObligation, okSubmissions: OkSubmission[]): boolean {
   if (o.status !== "Open") return false;
-  const taxYear = taxYearOfDate(o.start.slice(0, 10));
+  const taxYear = obligationTaxYear(o);
   const end = o.end.slice(0, 10);
   return !okSubmissions.some((s) => s.taxYear === taxYear && s.periodEnd.slice(0, 10) >= end);
+}
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/** "July to October" (same rule as the app's quarterLabel in lib/tax/mtdQuarters.ts). */
+export function quarterLabel(startIso: string, endIso: string): string {
+  return `${MONTHS[+startIso.slice(5, 7) - 1]} to ${MONTHS[+endIso.slice(5, 7) - 1]}`;
+}
+
+/** "7 November" */
+function dayMonth(iso: string): string {
+  return `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`;
 }
 
 /** "6 July to 5 October 2026" */
@@ -160,12 +224,14 @@ export function buildMtdReminderPush(o: Pick<SeenObligation, "start" | "end" | "
   title: string;
   body: string;
 } {
+  const due = dayMonth(o.due.slice(0, 10));
+  if (stage === "ready") {
+    return {
+      title: `Your ${quarterLabel(o.start, o.end)} update is ready to send`,
+      body: `Your figures are in MileClear. Check them and send by ${due}.`,
+    };
+  }
   const title = stage === "1d" ? "Quarterly update due tomorrow" : "Quarterly update due in 7 days";
-  const due = new Date(`${o.due.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  });
   return {
     title,
     body: `Your update for ${periodLabel(o.start, o.end)} is due by ${due} and HMRC still shows it as not sent. Check your figures and send it from MileClear.`,
@@ -186,6 +252,27 @@ export function decideMtdReminder(c: MtdReminderCandidate): { push: boolean; ema
     push: c.hasPushToken && pushPrefEnabled(c.pushPrefs, "taxDeadline") && !c.pushSent,
     email: c.hasEmail && !c.emailSent,
   };
+}
+
+/** A snapshot with an environment tag must match; older ones have none and rely on the connection date. */
+export function snapshotMatches(metadata: unknown, environment: "sandbox" | "production"): boolean {
+  const env = (metadata as { environment?: unknown } | null)?.environment;
+  return env == null || env === environment;
+}
+
+/**
+ * Whether a snapshot of HMRC's dates belongs to the driver's current
+ * connection: taken since they last connected, from the same HMRC service,
+ * and (when it says) for the business they send for now.
+ */
+export function snapshotFromConnection(
+  snap: { metadata: unknown; createdAt: Date },
+  conn: { environment: "sandbox" | "production"; connectedAt: Date; businessId: string | null }
+): boolean {
+  if (snap.createdAt < conn.connectedAt) return false;
+  if (!snapshotMatches(snap.metadata, conn.environment)) return false;
+  const biz = (snap.metadata as { businessId?: unknown } | null)?.businessId;
+  return typeof biz !== "string" || !conn.businessId || biz === conn.businessId;
 }
 
 // ---------------------------------------------------------------------------
@@ -230,6 +317,8 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
     },
     select: {
       userId: true,
+      connectedAt: true,
+      businessId: true,
       user: { select: { email: true, displayName: true, pushToken: true, pushPrefs: true } },
     },
   });
@@ -255,9 +344,15 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
   // Newest first, in JS (sorting a JSON-selecting query in MySQL can run out
   // of sort memory on prod).
   snapshots.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const connByUser = new Map(connections.map((c) => [c.userId, c]));
   const snapshotsByUser = new Map<string, Array<{ obligations: SeenObligation[] }>>();
   for (const s of snapshots) {
     if (!s.userId) continue;
+    const conn = connByUser.get(s.userId);
+    if (!conn) continue;
+    if (!snapshotFromConnection(s, { environment: "production", connectedAt: conn.connectedAt, businessId: conn.businessId })) {
+      continue;
+    }
     const list = snapshotsByUser.get(s.userId) ?? [];
     list.push({ obligations: asObligations(s.metadata) });
     snapshotsByUser.set(s.userId, list);
@@ -284,7 +379,7 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
   for (const c of connections) {
     const obligations = latestObligations(snapshotsByUser.get(c.userId) ?? []);
     for (const o of obligations) {
-      const stage = reminderStageFor(today, o.due);
+      const stage = stageForToday(today, o);
       if (!stage) continue;
       if (!isStillOpen(o, okByUser.get(c.userId) ?? [])) continue;
       const decision = decideMtdReminder({
@@ -359,16 +454,29 @@ export async function runMtdDeadlineRemindersJob(now: Date = new Date()): Promis
       due: s.obligation.due,
     });
     try {
-      await sendMtdQuarterlyReminderEmail(
-        s.email.address,
-        s.email.displayName,
-        {
-          periodLabel: periodLabel(s.obligation.start, s.obligation.end),
-          dueLabel: dueLabel(s.obligation.due),
-          daysLeft: STAGE_DAYS[s.stage],
-        },
-        s.userId
-      );
+      if (s.stage === "ready") {
+        await sendMtdQuarterReadyEmail(
+          s.email.address,
+          s.email.displayName,
+          {
+            quarterLabel: quarterLabel(s.obligation.start, s.obligation.end),
+            periodLabel: periodLabel(s.obligation.start, s.obligation.end),
+            dueLabel: dueLabel(s.obligation.due),
+          },
+          s.userId
+        );
+      } else {
+        await sendMtdQuarterlyReminderEmail(
+          s.email.address,
+          s.email.displayName,
+          {
+            periodLabel: periodLabel(s.obligation.start, s.obligation.end),
+            dueLabel: dueLabel(s.obligation.due),
+            daysLeft: STAGE_DAYS[s.stage],
+          },
+          s.userId
+        );
+      }
       emails++;
       await sleep(SEND_DELAY_MS);
     } catch (err) {

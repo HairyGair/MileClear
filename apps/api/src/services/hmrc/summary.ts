@@ -17,6 +17,8 @@ import { prisma } from "../../lib/prisma.js";
 import {
   asObligations,
   latestObligations,
+  obligationTaxYear,
+  snapshotMatches,
   taxYearOfDate,
   type OkSubmission,
   type SeenObligation,
@@ -53,11 +55,12 @@ export function buildMtdSummary(args: {
 
   // The year that is running; if HMRC has shown nothing for it, the newest.
   const current = taxYearOfDate(args.todayIso);
-  const years = new Set(all.map((o) => taxYearOfDate(o.start.slice(0, 10))));
+  // By end date: a calendar quarter starting 1 April is in the year it ends in.
+  const years = new Set(all.map((o) => obligationTaxYear(o)));
   const taxYear = years.has(current) ? current : [...years].sort().at(-1)!;
 
   const quarters = all
-    .filter((o) => taxYearOfDate(o.start.slice(0, 10)) === taxYear)
+    .filter((o) => obligationTaxYear(o) === taxYear)
     .map((o): QuarterSummary => {
       const end = o.end.slice(0, 10);
       const covered = args.okSubmissions.some(
@@ -79,11 +82,7 @@ const LOOKBACK_MS = 400 * 24 * 60 * 60 * 1000;
 const MAX_SNAPSHOTS = 20;
 const MAX_SUBMISSIONS = 60;
 
-/** A snapshot with an environment tag must match; older ones have none and rely on the connection date. */
-export function snapshotMatches(metadata: unknown, environment: "sandbox" | "production"): boolean {
-  const env = (metadata as { environment?: unknown } | null)?.environment;
-  return env == null || env === environment;
-}
+export { snapshotMatches };
 
 export async function loadMtdSummary(args: {
   userId: string;
