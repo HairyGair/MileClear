@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AppState, Linking, View } from "react-native";
+import { Alert, AppState, Linking, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import type { Ionicons } from "@expo/vector-icons";
 import { SettingsScreen } from "../../components/settings/SettingsScreen";
@@ -12,6 +12,7 @@ import {
   DEFAULT_PREFERENCES,
   type NotificationPreferences,
 } from "../../lib/notifications/preferences";
+import { setTaxDeadlinePref } from "../../lib/notifications/taxDeadlinePref";
 import {
   getNotificationPermissionStatus,
   requestNotificationPermissions,
@@ -65,6 +66,15 @@ export default function NotificationsSettings() {
   const toggle = useCallback(
     (key: keyof NotificationPreferences, value: boolean) => {
       setPrefs((p: NotificationPreferences) => ({ ...p, [key]: value }));
+      if (key === "taxDeadline") {
+        // Same path as the Quarterly updates hub: waits for the server and
+        // cancels or schedules this phone's own tax reminder.
+        setTaxDeadlinePref(value).catch(() => {
+          setPrefs((p: NotificationPreferences) => ({ ...p, taxDeadline: !value }));
+          Alert.alert("Couldn't save", "Try again.");
+        });
+        return;
+      }
       setNotificationPreferences({ [key]: value }).catch(console.error);
     },
     []

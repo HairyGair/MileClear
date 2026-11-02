@@ -3,18 +3,23 @@ import type { HmrcCalculationListItem, HmrcCalculationSummary } from "../api/hmr
 import {
   inYearCalculationsNewestFirst,
   selfEmploymentProfit,
-  figuresUpToMonth,
+  figuresUpTo,
   poundsShort,
   taxSoFarView,
   remindersSub,
+  hubTaxYear,
   HUB_HELP_ROWS,
   TAX_SO_FAR_HEADING,
   SEE_HOW_WORKED_OUT,
+  NEWEST_PENDING_LINE,
+  NEWEST_PENDING_LINE_TEST,
+  REMINDERS_SAVE_FAILED,
 } from "./mtdTaxSoFar";
 import {
   readTaxSoFarCache,
   writeTaxSoFarCache,
   invalidateHubCache,
+  invalidateTaxSoFarCache,
   TAX_SO_FAR_CACHE_MS,
 } from "./mtdHubCache";
 
@@ -94,18 +99,18 @@ describe("month the figures run up to", () => {
   ];
 
   it("is the end month of the newest quarter HMRC had when it ran", () => {
-    expect(figuresUpToMonth(fulfilled, "2026-11-01T14:32:00.000Z")).toBe("October");
+    expect(figuresUpTo(fulfilled, "2026-11-01T14:32:00.000Z")).toBe("5 October");
   });
 
   it("ignores quarters received after the calculation", () => {
-    expect(figuresUpToMonth(fulfilled, "2026-08-01T10:00:00.000Z")).toBe("July");
+    expect(figuresUpTo(fulfilled, "2026-08-01T10:00:00.000Z")).toBe("5 July");
   });
 
   it("is null when it can't be told", () => {
-    expect(figuresUpToMonth(null, "2026-11-01T10:00:00.000Z")).toBeNull();
-    expect(figuresUpToMonth(fulfilled, undefined)).toBeNull();
-    expect(figuresUpToMonth([{ ...fulfilled[0], receivedDate: undefined }], "2026-11-01")).toBeNull();
-    expect(figuresUpToMonth(fulfilled, "2026-07-01T10:00:00.000Z")).toBeNull();
+    expect(figuresUpTo(null, "2026-11-01T10:00:00.000Z")).toBeNull();
+    expect(figuresUpTo(fulfilled, undefined)).toBeNull();
+    expect(figuresUpTo([{ ...fulfilled[0], receivedDate: undefined }], "2026-11-01")).toBeNull();
+    expect(figuresUpTo(fulfilled, "2026-07-01T10:00:00.000Z")).toBeNull();
   });
 });
 
@@ -117,12 +122,12 @@ describe("the sentence under the figure", () => {
         personalAllowance: 12570,
         raw: { calculation: { incomeSummaryTotals: { totalSelfEmploymentProfit: 8180 } } },
       }),
-      { env: "production", upToMonth: "July" },
+      { env: "production", upTo: "5 July" },
     );
     expect(v?.totalText).toBe("£0.00");
     expect(v?.pill).toBe("HMRC estimate");
     expect(v?.sentence).toBe(
-      "Your profit up to July (£8,180) is under the £12,570 you can earn tax-free in a year. HMRC updates this each time you send.",
+      "Your profit up to 5 July (£8,180) is under the £12,570 you can earn tax-free in a year. HMRC updates this each time you send.",
     );
     expect(v?.canExplain).toBe(false);
   });
@@ -189,20 +194,85 @@ describe("pounds", () => {
   });
 });
 
+describe("job tax and refunds", () => {
+  const profitRaw = { calculation: { incomeSummaryTotals: { totalSelfEmploymentProfit: 17948 } } };
+
+  it("a negative total with tax paid through a job gets its own sentence", () => {
+    const v = taxSoFarView(calc({ totalIncomeTaxAndNicsDue: -120, totalTaxDeducted: 900, raw: profitRaw }), { env: "production" });
+    expect(v?.sentence).toBe(
+      "You've paid more through your job than HMRC's estimate so far. HMRC sorts this out when you finish the year.",
+    );
+    expect(v?.sentence).not.toMatch(/refund/i);
+  });
+
+  it("above zero with job tax does not quote self-employed profit alone", () => {
+    const v = taxSoFarView(calc({ totalIncomeTaxAndNicsDue: 300, totalTaxDeducted: 900, raw: profitRaw }), { env: "production" });
+    expect(v?.sentence).toBe(
+      "Worked out from what you've sent so far and the tax you've paid through your job. HMRC updates this each time you send.",
+    );
+  });
+
+  it("£0 with job tax does not claim the profit is under the tax-free amount", () => {
+    const v = taxSoFarView(
+      calc({
+        totalIncomeTaxAndNicsDue: 0,
+        totalTaxDeducted: 500,
+        personalAllowance: 12570,
+        raw: { calculation: { incomeSummaryTotals: { totalSelfEmploymentProfit: 100 } } },
+      }),
+      { env: "production" },
+    );
+    expect(v?.sentence).not.toMatch(/tax-free/);
+  });
+
+  it("adds the still-working line for an older calculation", () => {
+    const v = taxSoFarView(calc({ totalIncomeTaxAndNicsDue: 300 }), { env: "production", newestPending: true });
+    expect(v?.pendingLine).toBe("HMRC is still working out your newest update.");
+    expect(taxSoFarView(calc({ totalIncomeTaxAndNicsDue: 300 }), { env: "production" })?.pendingLine).toBeNull();
+  });
+});
+
+describe("which tax year the hub shows", () => {
+  const q = (start: string, end: string, due: string, status: "Open" | "Fulfilled") => ({ start, end, due, status });
+
+  it("uses the newest quarter HMRC has, so the last quarter's estimate shows until 7 May", () => {
+    const fulfilled = [
+      q("2026-04-06", "2026-07-05", "2026-08-07", "Fulfilled"),
+      q("2027-01-06", "2027-04-05", "2027-05-07", "Fulfilled"),
+    ];
+    expect(hubTaxYear([], fulfilled, "2027-04-20")).toBe("2026-27");
+  });
+
+  it("else the year of the next quarter due", () => {
+    const open = [
+      q("2027-04-06", "2027-07-05", "2027-08-07", "Open"),
+      q("2027-01-06", "2027-04-05", "2027-05-07", "Open"),
+    ];
+    expect(hubTaxYear(open, null, "2027-04-20")).toBe("2026-27");
+  });
+
+  it("else today's tax year, on the 6 April boundary", () => {
+    expect(hubTaxYear([], null, "2027-04-03")).toBe("2026-27");
+    expect(hubTaxYear([], [], "2027-04-06")).toBe("2027-28");
+  });
+});
+
 describe("tax so far cache", () => {
-  beforeEach(() => invalidateHubCache());
+  beforeEach(() => invalidateTaxSoFarCache());
 
   it("is reused for the same driver and year until it expires", () => {
-    writeTaxSoFarCache("u1", "2026-27", "calc", 1000);
-    expect(readTaxSoFarCache("u1", "2026-27", 1000 + TAX_SO_FAR_CACHE_MS - 1)).toBe("calc");
+    writeTaxSoFarCache("u1", "2026-27", "calc", {}, 1000);
+    expect(readTaxSoFarCache("u1", "2026-27", 1000 + TAX_SO_FAR_CACHE_MS - 1)?.value).toBe("calc");
     expect(readTaxSoFarCache("u1", "2026-27", 1000 + TAX_SO_FAR_CACHE_MS)).toBeNull();
     expect(readTaxSoFarCache("u2", "2026-27", 1001)).toBeNull();
     expect(readTaxSoFarCache("u1", "2027-28", 1001)).toBeNull();
   });
 
-  it("is cleared after a send", () => {
-    writeTaxSoFarCache("u1", "2026-27", "calc", 1000);
+  it("is cleared by its own invalidate, not by the hub's", () => {
+    writeTaxSoFarCache("u1", "2026-27", "calc", {}, 1000);
     invalidateHubCache();
+    expect(readTaxSoFarCache("u1", "2026-27", 1001)?.value).toBe("calc");
+    invalidateTaxSoFarCache();
     expect(readTaxSoFarCache("u1", "2026-27", 1001)).toBeNull();
   });
 });
@@ -211,6 +281,9 @@ describe("copy", () => {
   const all = [
     TAX_SO_FAR_HEADING,
     SEE_HOW_WORKED_OUT,
+    NEWEST_PENDING_LINE,
+    NEWEST_PENDING_LINE_TEST,
+    REMINDERS_SAVE_FAILED,
     remindersSub(true),
     remindersSub(false),
     ...HUB_HELP_ROWS.flatMap((r) => [r.title, r.sub]),
@@ -221,7 +294,9 @@ describe("copy", () => {
     expect(all).not.toMatch(/approved|recognised|recognized|HMRC-ready/i);
   });
 
-  it("matches the spec for the reminders row", () => {
-    expect(remindersSub(true)).toBe("7 days and 1 day before each date");
+  it("says the switch covers every tax date, on and off", () => {
+    expect(remindersSub(true)).toBe("Quarterly updates: 7 days and 1 day before. Also covers your other tax date reminders.");
+    expect(remindersSub(false)).toBe("Push off for every tax date. Emails aren't affected.");
   });
 });
+

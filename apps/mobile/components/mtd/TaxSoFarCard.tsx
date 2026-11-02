@@ -5,7 +5,7 @@ import { colors, fonts, fontSizes, numberSizes, shared, spacing } from "../../li
 import type { HmrcEnv } from "../../lib/tax/mtdCopy";
 import type { HmrcObligation } from "../../lib/api/hmrc";
 import { useMtdTaxSoFar } from "../../lib/tax/useMtdTaxSoFar";
-import { figuresUpToMonth, taxSoFarView, TAX_SO_FAR_HEADING, SEE_HOW_WORKED_OUT } from "../../lib/tax/mtdTaxSoFar";
+import { figuresUpTo, taxSoFarView, TAX_SO_FAR_HEADING, SEE_HOW_WORKED_OUT } from "../../lib/tax/mtdTaxSoFar";
 import { EstimateExplained } from "./EstimateExplained";
 import { MtdSheet } from "./MtdSheet";
 
@@ -23,12 +23,13 @@ export function TaxSoFarCard({
   fulfilled,
 }: {
   userId: string | null;
-  taxYear: string;
+  /** Null while the hub doesn't know the year yet. */
+  taxYear: string | null;
   env: HmrcEnv;
   /** False when HMRC can't be asked (connection expired, not signed up). */
   enabled: boolean;
   refreshKey: number;
-  /** Quarters HMRC has, to say which month the figures run to. Null when unknown. */
+  /** Quarters HMRC has, to say which date the figures run to. Null when unknown. */
   fulfilled: HmrcObligation[] | null;
 }) {
   const result = useMtdTaxSoFar(userId, taxYear, enabled, refreshKey);
@@ -36,7 +37,8 @@ export function TaxSoFarCard({
   if (!result) return null;
   const view = taxSoFarView(result.summary, {
     env,
-    upToMonth: figuresUpToMonth(fulfilled, result.calculationTimestamp),
+    upTo: figuresUpTo(fulfilled, result.calculationTimestamp),
+    newestPending: result.newestPending,
   });
   if (!view) return null;
 
@@ -53,6 +55,7 @@ export function TaxSoFarCard({
           </View>
         </View>
         <Text style={styles.body}>{view.sentence}</Text>
+        {view.pendingLine && <Text style={styles.pending}>{view.pendingLine}</Text>}
         {view.canExplain && (
           <Text
             style={styles.link}
@@ -97,5 +100,6 @@ const styles = StyleSheet.create({
   pill: { backgroundColor: "rgba(148,163,184,0.16)", borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   pillText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.text3 },
   body: { fontFamily: fonts.regular, fontSize: fontSizes.body, lineHeight: 21, color: colors.text2, marginTop: spacing.sm },
+  pending: { fontFamily: fonts.regular, fontSize: fontSizes.caption + 1, lineHeight: 18, color: colors.text3, marginTop: spacing.sm },
   link: { fontFamily: fonts.semibold, fontSize: fontSizes.body, color: colors.amber, marginTop: spacing.md },
 });

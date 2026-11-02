@@ -3,13 +3,15 @@ import { View, Text, TouchableOpacity, Switch, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { colors, fonts, fontSizes, radii, shared, spacing } from "../../lib/theme";
-import { getNotificationPreferences, setNotificationPreferences } from "../../lib/notifications/preferences";
+import { getNotificationPreferences } from "../../lib/notifications/preferences";
+import { setTaxDeadlinePref } from "../../lib/notifications/taxDeadlinePref";
 import { MTD_EXPLAINER_ROUTE, MTD_LATE_ROUTE } from "../../lib/tax/mtdHelpCopy";
 import {
   HUB_HELP_HEADING,
   HUB_HELP_ROWS,
   MTD_HISTORY_ROUTE,
   REMINDERS_TITLE,
+  REMINDERS_SAVE_FAILED,
   remindersSub,
 } from "../../lib/tax/mtdTaxSoFar";
 
@@ -33,6 +35,8 @@ const ICONS: Record<(typeof HUB_HELP_ROWS)[number]["key"], keyof typeof Ionicons
  */
 export function HubHelpList() {
   const [on, setOn] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   // Re-read on focus: the same switch lives in Settings > Notifications.
   useFocusEffect(
@@ -49,7 +53,14 @@ export function HubHelpList() {
 
   const toggle = (value: boolean) => {
     setOn(value);
-    setNotificationPreferences({ taxDeadline: value }).catch(() => setOn(!value));
+    setSaveFailed(false);
+    setSaving(true);
+    setTaxDeadlinePref(value)
+      .catch(() => {
+        setOn(!value);
+        setSaveFailed(true);
+      })
+      .finally(() => setSaving(false));
   };
 
   return (
@@ -81,18 +92,24 @@ export function HubHelpList() {
           <View style={styles.texts}>
             <Text style={styles.title}>{REMINDERS_TITLE}</Text>
             {on !== null && <Text style={styles.sub}>{remindersSub(on)}</Text>}
+            {saveFailed && (
+              <Text style={styles.error} accessibilityLiveRegion="polite">
+                {REMINDERS_SAVE_FAILED}
+              </Text>
+            )}
           </View>
           {on !== null && (
             <Switch
               value={on}
               onValueChange={toggle}
+              disabled={saving}
               trackColor={{ false: "#374151", true: colors.green }}
               thumbColor="#fff"
               ios_backgroundColor="#374151"
               accessibilityRole="switch"
               accessibilityLabel={REMINDERS_TITLE}
               accessibilityHint={remindersSub(on)}
-              accessibilityState={{ checked: on }}
+              accessibilityState={{ checked: on, disabled: saving }}
             />
           )}
         </View>
@@ -125,4 +142,5 @@ const styles = StyleSheet.create({
   texts: { flex: 1 },
   title: { fontFamily: fonts.semibold, fontSize: fontSizes.bodyLg, color: colors.text1 },
   sub: { fontFamily: fonts.regular, fontSize: fontSizes.caption + 1, color: colors.text2, marginTop: 2 },
+  error: { fontFamily: fonts.semibold, fontSize: fontSizes.caption + 1, color: colors.red, marginTop: 4 },
 });

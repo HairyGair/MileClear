@@ -7,6 +7,7 @@
 import type { HmrcCalculationListItem, HmrcCalculationSummary, HmrcObligation } from "../api/hmrc";
 import { explainEstimate, formatPounds } from "./mtdEstimate";
 import { isMtdTest, type HmrcEnv } from "./mtdCopy";
+import { taxYearOfDate, taxYearOfPeriodStart, localToday } from "./mtdQuarters";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -66,11 +67,11 @@ export function selfEmploymentProfit(summary: Pick<HmrcCalculationSummary, "raw"
 }
 
 /**
- * Month the calculation's figures run up to: the end month of the newest
- * quarter HMRC had received by the time it ran the calculation. Null when
- * that can't be told (no sent quarters known, no received dates).
+ * Date the calculation's figures run up to, as "5 July": the end of the
+ * newest quarter HMRC had received by the time it ran the calculation. Null
+ * when that can't be told (no sent quarters known, no received dates).
  */
-export function figuresUpToMonth(
+export function figuresUpTo(
   fulfilled: Pick<HmrcObligation, "end" | "receivedDate" | "status">[] | null | undefined,
   calculationTimestamp: string | undefined,
 ): string | null {
@@ -84,7 +85,36 @@ export function figuresUpToMonth(
     if (!received || !end || received > ranOn) continue;
     if (!newestEnd || end > newestEnd) newestEnd = end;
   }
-  return newestEnd ? MONTHS[Number(newestEnd.slice(5, 7)) - 1] : null;
+  return newestEnd ? `${Number(newestEnd.slice(8, 10))} ${MONTHS[Number(newestEnd.slice(5, 7)) - 1]}` : null;
+}
+
+/**
+ * Which tax year "Your tax so far" is for. The year of the newest quarter
+ * HMRC has, so the January to April estimate still shows between 6 April and
+ * the 7 May deadline; else the year of the next quarter due; else today's.
+ */
+export function hubTaxYear(
+  obligations: Pick<HmrcObligation, "start" | "end" | "due" | "status">[],
+  fulfilled: Pick<HmrcObligation, "start" | "end" | "status">[] | null,
+  today: string = localToday(),
+): string {
+  let newestSent: { start: string; end: string } | null = null;
+  for (const o of fulfilled ?? []) {
+    const start = datePart(o.start);
+    const end = datePart(o.end);
+    if (o.status !== "Fulfilled" || !start || !end) continue;
+    if (!newestSent || end > newestSent.end) newestSent = { start, end };
+  }
+  if (newestSent) return taxYearOfPeriodStart(newestSent.start);
+  let nextDue: { start: string; due: string } | null = null;
+  for (const o of obligations) {
+    const start = datePart(o.start);
+    const due = datePart(o.due);
+    if (o.status !== "Open" || !start || !due) continue;
+    if (!nextDue || due < nextDue.due) nextDue = { start, due };
+  }
+  if (nextDue) return taxYearOfPeriodStart(nextDue.start);
+  return taxYearOfDate(today);
 }
 
 /** "£8,180" for whole pounds, "£8,180.50" otherwise. */
@@ -104,10 +134,14 @@ export interface TaxSoFarView {
   sentence: string;
   /** Offer "See how it's worked out" (only when there is tax to explain). */
   canExplain: boolean;
+  /** Shown when the figure is from an older calculation. Null otherwise. */
+  pendingLine: string | null;
 }
 
 export const TAX_SO_FAR_HEADING = "Your tax so far";
 export const SEE_HOW_WORKED_OUT = "See how it's worked out";
+export const NEWEST_PENDING_LINE = "HMRC is still working out your newest update.";
+export const NEWEST_PENDING_LINE_TEST = "The test service is still working out your newest update.";
 
 function updatesLine(env: HmrcEnv): string {
   return isMtdTest(env)
@@ -121,7 +155,7 @@ function updatesLine(env: HmrcEnv): string {
  */
 export function taxSoFarView(
   summary: HmrcCalculationSummary | null | undefined,
-  opts: { upToMonth?: string | null; env: HmrcEnv },
+  opts: { upTo?: string | null; env: HmrcEnv; newestPending?: boolean },
 ): TaxSoFarView | null {
   if (!summary || !summary.ready) return null;
   const { total } = explainEstimate(summary);
@@ -133,13 +167,21 @@ export function taxSoFarView(
   const after = updatesLine(opts.env);
   const isZero = Math.abs(total) < 0.005;
 
+  const jobTax = (summary.totalTaxDeducted ?? 0) > 0;
+
   let sentence: string;
-  if (isZero && profit !== undefined && allowance !== undefined && allowance > 0 && profit <= allowance) {
-    const upTo = opts.upToMonth ? `up to ${opts.upToMonth}` : "so far";
+  if (total < 0 && !isZero) {
+    sentence = jobTax
+      ? "You've paid more through your job than HMRC's estimate so far. HMRC sorts this out when you finish the year."
+      : `Worked out from what you've sent so far. ${after}`;
+  } else if (isZero && !jobTax && profit !== undefined && allowance !== undefined && allowance > 0 && profit <= allowance) {
+    const upTo = opts.upTo ? `up to ${opts.upTo}` : "so far";
     sentence = `Your profit ${upTo} (${poundsShort(profit)}) is under the ${poundsShort(allowance)} you can earn tax-free in a year. ${after}`;
   } else if (isZero) {
     sentence = `No tax worked out on what you've sent so far. ${after}`;
-  } else if (total > 0 && profit !== undefined) {
+  } else if (jobTax) {
+    sentence = `Worked out from what you've sent so far and the tax you've paid through your job. ${after}`;
+  } else if (profit !== undefined) {
     sentence = `On ${poundsShort(profit)} profit so far. ${after}`;
   } else {
     sentence = `Worked out from what you've sent so far. ${after}`;
@@ -151,6 +193,7 @@ export function taxSoFarView(
     pill,
     sentence,
     canExplain: !isZero,
+    pendingLine: opts.newestPending ? (isMtdTest(opts.env) ? NEWEST_PENDING_LINE_TEST : NEWEST_PENDING_LINE) : null,
   };
 }
 
@@ -167,12 +210,15 @@ export const HUB_HELP_ROWS = [
 ] as const;
 
 export const REMINDERS_TITLE = "Reminders";
+export const REMINDERS_SAVE_FAILED = "Couldn't save, try again.";
 
 /**
  * Line under "Reminders". The switch is the driver's "Tax deadlines" push
  * setting, which covers every tax date, and the quarterly reminder email is
- * not part of it, so the "off" line says both.
+ * not part of it, so both lines say so.
  */
 export function remindersSub(on: boolean): string {
-  return on ? "7 days and 1 day before each date" : "Push off for every tax date. Emails aren't affected.";
+  return on
+    ? "Quarterly updates: 7 days and 1 day before. Also covers your other tax date reminders."
+    : "Push off for every tax date. Emails aren't affected.";
 }

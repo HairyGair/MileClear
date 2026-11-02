@@ -34,28 +34,67 @@ export function writeHubCache<T>(userId: string | null, owner: number, value: T,
   entry = { userId, owner, at: now, value };
 }
 
-/** Forget the cached read. Call after a send, a connect or disconnect, or a National Insurance number change. */
+/**
+ * Forget the cached read. Call after a send, a connect or disconnect, a
+ * National Insurance number change, or a failed hub load. Leaves "Your tax so
+ * far" alone: see invalidateTaxSoFarCache.
+ */
 export function invalidateHubCache(): void {
   entry = null;
-  taxSoFar = null;
 }
+
+// ── "Your tax so far" ───────────────────────────────────────────────
 
 /**
- * "Your tax so far" keeps HMRC's calculation longer than the rest of the hub:
- * it only changes when an update is sent, and a send clears it (above). Any
- * hub screen may reuse it, for the same driver and tax year.
+ * HMRC's calculation only changes when an update is sent, so it is kept
+ * longer than the rest of the hub and shared by every hub screen, for the
+ * same driver and tax year. A send, a connect or disconnect and a National
+ * Insurance number change clear it (invalidateTaxSoFarCache).
  */
 export const TAX_SO_FAR_CACHE_MS = 15 * 60_000;
+/** A fallback (newest calculation not finished) or "none yet" is kept briefly. */
+export const TAX_SO_FAR_SHORT_CACHE_MS = 2 * 60_000;
 
-let taxSoFar: { userId: string | null; taxYear: string; at: number; value: unknown } | null = null;
-
-export function readTaxSoFarCache<T>(userId: string | null, taxYear: string, now: number = Date.now()): T | null {
-  if (!taxSoFar) return null;
-  if (taxSoFar.userId !== userId || taxSoFar.taxYear !== taxYear) return null;
-  if (now - taxSoFar.at >= TAX_SO_FAR_CACHE_MS) return null;
-  return taxSoFar.value as T;
+export interface TaxSoFarCacheEntry<T> {
+  userId: string | null;
+  taxYear: string;
+  at: number;
+  ttl: number;
+  value: T;
+  /** Newest calculation HMRC listed when this was read. */
+  newestId: string | null;
 }
 
-export function writeTaxSoFarCache<T>(userId: string | null, taxYear: string, value: T, now: number = Date.now()): void {
-  taxSoFar = { userId, taxYear, at: now, value };
+let taxSoFar: TaxSoFarCacheEntry<unknown> | null = null;
+
+/** The entry for this driver and year, fresh or not. Null for another driver or year. */
+export function peekTaxSoFarCache<T>(userId: string | null, taxYear: string): TaxSoFarCacheEntry<T> | null {
+  if (!taxSoFar || taxSoFar.userId !== userId || taxSoFar.taxYear !== taxYear) return null;
+  return taxSoFar as TaxSoFarCacheEntry<T>;
+}
+
+/** The entry if it is still fresh. */
+export function readTaxSoFarCache<T>(
+  userId: string | null,
+  taxYear: string,
+  now: number = Date.now(),
+): TaxSoFarCacheEntry<T> | null {
+  const e = peekTaxSoFarCache<T>(userId, taxYear);
+  if (!e || now - e.at >= e.ttl) return null;
+  return e;
+}
+
+export function writeTaxSoFarCache<T>(
+  userId: string | null,
+  taxYear: string,
+  value: T,
+  opts: { ttl?: number; newestId?: string | null } = {},
+  now: number = Date.now(),
+): void {
+  taxSoFar = { userId, taxYear, at: now, ttl: opts.ttl ?? TAX_SO_FAR_CACHE_MS, value, newestId: opts.newestId ?? null };
+}
+
+/** Forget HMRC's estimate. Call after a send, a connect or disconnect, or a National Insurance number change. */
+export function invalidateTaxSoFarCache(): void {
+  taxSoFar = null;
 }

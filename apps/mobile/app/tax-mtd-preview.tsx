@@ -38,7 +38,7 @@ import {
   type PeriodSubmissionPayload,
 } from "../lib/api/hmrc";
 import { taxYearOfPeriodStart } from "../lib/tax/mtdQuarters";
-import { invalidateHubCache } from "../lib/tax/mtdHubCache";
+import { invalidateHubCache, invalidateTaxSoFarCache } from "../lib/tax/mtdHubCache";
 import {
   buildFigureSources,
   buildPreSendChecks,
@@ -185,6 +185,7 @@ export default function TaxMtdPreviewScreen() {
               : costsPence(preview);
             // The hub must not show this quarter as still to send.
             invalidateHubCache();
+            invalidateTaxSoFarCache();
             router.replace({
               pathname: "/tax-mtd-submitted" as never,
               params: {

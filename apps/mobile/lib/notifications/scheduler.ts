@@ -79,6 +79,16 @@ export async function scheduleWeeklyMileageSummary(): Promise<void> {
 // ─── Tax year deadline reminder — 25 March 10:00 ────────────────────────────
 // Fires before the 5 April UK tax year end
 
+/** Cancel the tax deadline reminders already scheduled on this phone. */
+export async function cancelTaxDeadlineReminders(): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  for (const notif of scheduled) {
+    if (notif.identifier.startsWith("tax-deadline")) {
+      await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+    }
+  }
+}
+
 export async function scheduleTaxYearDeadlineReminder(): Promise<void> {
   const prefs = await getNotificationPreferences();
   if (!prefs.taxDeadline) return;
@@ -93,13 +103,7 @@ export async function scheduleTaxYearDeadlineReminder(): Promise<void> {
   // Don't schedule if the date is in the past
   if (fireDate <= now) return;
 
-  // Cancel existing tax deadline notifications
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  for (const notif of scheduled) {
-    if (notif.identifier.startsWith("tax-deadline")) {
-      await Notifications.cancelScheduledNotificationAsync(notif.identifier);
-    }
-  }
+  await cancelTaxDeadlineReminders();
 
   await Notifications.scheduleNotificationAsync({
     identifier: `tax-deadline-${year}`,
