@@ -10,13 +10,18 @@
 //
 // Only events from the current connection count, and a snapshot tagged with
 // the other HMRC service (test vs live) is ignored, so old test dates are not
-// read back as live ones. `seenAt` says how old HMRC's dates are.
+// read back as live ones. Dates and updates for another business are ignored
+// too (the same rules as the reminders). `seenAt` says how old HMRC's dates are.
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import {
   asObligations,
   latestObligations,
+  obligationTaxYear,
+  okSubmissionFrom,
+  snapshotFromConnection,
+  snapshotMatches,
   taxYearOfDate,
   type OkSubmission,
   type SeenObligation,
@@ -53,11 +58,12 @@ export function buildMtdSummary(args: {
 
   // The year that is running; if HMRC has shown nothing for it, the newest.
   const current = taxYearOfDate(args.todayIso);
-  const years = new Set(all.map((o) => taxYearOfDate(o.start.slice(0, 10))));
+  // By end date: a calendar quarter starting 1 April is in the year it ends in.
+  const years = new Set(all.map((o) => obligationTaxYear(o)));
   const taxYear = years.has(current) ? current : [...years].sort().at(-1)!;
 
   const quarters = all
-    .filter((o) => taxYearOfDate(o.start.slice(0, 10)) === taxYear)
+    .filter((o) => obligationTaxYear(o) === taxYear)
     .map((o): QuarterSummary => {
       const end = o.end.slice(0, 10);
       const covered = args.okSubmissions.some(
@@ -79,17 +85,15 @@ const LOOKBACK_MS = 400 * 24 * 60 * 60 * 1000;
 const MAX_SNAPSHOTS = 20;
 const MAX_SUBMISSIONS = 60;
 
-/** A snapshot with an environment tag must match; older ones have none and rely on the connection date. */
-export function snapshotMatches(metadata: unknown, environment: "sandbox" | "production"): boolean {
-  const env = (metadata as { environment?: unknown } | null)?.environment;
-  return env == null || env === environment;
-}
+export { snapshotMatches };
 
 export async function loadMtdSummary(args: {
   userId: string;
   environment: "sandbox" | "production";
   /** Only events from this connection onwards count (an older one may be another service). */
   connectedAt: Date;
+  /** The business the driver sends for now; dates and updates for another one are ignored. */
+  businessId?: string | null;
   todayIso: string;
   now?: Date;
 }): Promise<MtdSummary> {
@@ -123,15 +127,18 @@ export async function loadMtdSummary(args: {
   ]);
   // Newest first, in JS.
   const seen = seenRows
-    .filter((s) => snapshotMatches(s.metadata, args.environment))
+    .filter((s) =>
+      snapshotFromConnection(s, {
+        environment: args.environment,
+        connectedAt: args.connectedAt,
+        businessId: args.businessId ?? null,
+      })
+    )
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const okSubmissions: OkSubmission[] = [];
   for (const s of subRows) {
-    const m = s.metadata as Record<string, unknown> | null;
-    if (!m || m.ok !== true || m.environment !== args.environment) continue;
-    if (m.operation !== "period_submit" && m.operation !== "period_amend") continue;
-    if (typeof m.taxYear !== "string" || typeof m.periodEnd !== "string") continue;
-    okSubmissions.push({ taxYear: m.taxYear, periodEnd: m.periodEnd });
+    const ok = okSubmissionFrom(s.metadata, { environment: args.environment, businessId: args.businessId ?? null });
+    if (ok) okSubmissions.push(ok);
   }
   return buildMtdSummary({
     snapshots: seen.map((s) => ({ obligations: asObligations(s.metadata as Prisma.JsonValue) })),

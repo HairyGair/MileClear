@@ -160,6 +160,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
       userId: request.userId!,
       environment: config.environment,
       connectedAt: connection!.connectedAt,
+      businessId: connection!.businessId,
       todayIso,
     });
     return reply.send({
