@@ -95,7 +95,7 @@ const faqSchema = {
       name: "Does Amazon report Flex driver earnings to HMRC?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Amazon is required to report Flex driver payments to HMRC under UK tax rules. That makes accurate expense records - including a contemporaneous mileage log - essential for Flex drivers who want to maximise their deductions legitimately.",
+        text: "Platforms covered by the UK digital platform reporting rules report sellers' earnings to HMRC each January and send them a copy. If you get a copy of a report from Amazon Flex, check it against what you declare. Either way, accurate expense records, including a mileage log kept as you go, are what make sure you are taxed on profit, not on everything you were paid.",
       },
     },
     {
@@ -413,7 +413,7 @@ export default function AmazonFlexMileageTracker() {
                 {
                   title: "HMRC Reconciliation",
                   body:
-                    "Amazon Flex reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool lets you type in the figure your platform reported to HMRC and compares it with what MileClear tracked, so any mismatch is visible to you before HMRC raises it.",
+                    "Platforms covered by the digital platform reporting rules report sellers' earnings to HMRC each January and send you a copy. If you get one, the Reconciliation tool lets you type in its figure and compares it with what MileClear tracked. The report covers the calendar year with the platform's fees taken off, so expect some difference from your tax year turnover.",
                 },
                 {
                   title: "Tax Readiness Card",
@@ -692,7 +692,7 @@ export default function AmazonFlexMileageTracker() {
               },
               {
                 q: "Does Amazon report Flex earnings to HMRC?",
-                a: "Yes. Amazon is required to report Flex driver payments under UK tax rules. Accurate expense records including a contemporaneous mileage log are essential to ensure you are only taxed on net profit, not gross earnings.",
+                a: "Platforms covered by the UK digital platform reporting rules report sellers' earnings to HMRC each January and send them a copy. If you get a copy of a report from Amazon Flex, check it against what you declare. Either way, accurate expense records, including a mileage log kept as you go, are what make sure you are taxed on profit, not on everything you were paid.",
               },
               {
                 q: "What format should a mileage log be in for Amazon Flex?",

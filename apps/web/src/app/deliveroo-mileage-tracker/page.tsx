@@ -426,7 +426,7 @@ export default function DeliverooMileageTracker() {
                 {
                   title: "HMRC Reconciliation",
                   body:
-                    "Since January 2024, Deliveroo reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool lets you type in the figure your platform reported to HMRC and compares it with what MileClear tracked, so any discrepancy is visible to you before it is to them.",
+                    "Platforms covered by the digital platform reporting rules report sellers' earnings to HMRC each January and send you a copy. If you get one, the Reconciliation tool lets you type in its figure and compares it with what MileClear tracked. The report covers the calendar year with the platform's fees taken off, so expect some difference from your tax year turnover.",
                 },
                 {
                   title: "Tax Readiness Card",

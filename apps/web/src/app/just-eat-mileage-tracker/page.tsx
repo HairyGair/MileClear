@@ -71,7 +71,7 @@ const faqSchema = {
       name: "Does Just Eat report my earnings to HMRC?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, since 1 January 2024. The HMRC Digital Platform Reporting rules require platforms including Just Eat, Uber Eats, Deliveroo, and Stuart to report each courier's annual earnings directly to HMRC. The first reports were due by 31 January 2025, covering the 2024 calendar year. If you have not been declaring your Just Eat earnings, HMRC now has the data to compare against your Self Assessment.",
+        text: "Platforms covered by the UK digital platform reporting rules, which started on 1 January 2024, report sellers' earnings to HMRC each January, and GOV.UK names delivering food as an example of the work covered. The first reports were due by 31 January 2025, covering the 2024 calendar year. If you get a copy of a report from Just Eat, check it against what you declare. Either way, declare all your income.",
       },
     },
     {
@@ -161,8 +161,9 @@ export default function JustEatMileageTracker() {
               Just Eat Mileage Tracker - HMRC Sees Your Earnings Now
             </h1>
             <p style={{ fontSize: "1.125rem", color: "#94a3b8", lineHeight: 1.75, maxWidth: 680 }}>
-              Since January 2024 Just Eat has been required to report your annual earnings
-              directly to HMRC. The first reports were due on 31 January 2025. If you ride a
+              Since January 2024, platforms covered by the digital platform reporting rules
+              have had to report sellers&apos; earnings to HMRC. The first reports were due on
+              31 January 2025. If you ride a
               moped you claim 24p per mile, not 55p - and the difference between the two on a
               full-time year is several thousand pounds of overstated deduction. MileClear, a free Just Eat mileage tracker, records every
               run, applies the right rate for your vehicle, and produces a Self Assessment-ready
@@ -195,14 +196,18 @@ export default function JustEatMileageTracker() {
                 marginBottom: "1.125rem",
               }}
             >
-              The HMRC Digital Platform Rules - January 2026 Was the First Deadline
+              The Digital Platform Reporting Rules: First Reports Were Due by 31 January 2025
             </h2>
             <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               On 1 January 2024 the UK adopted the OECD&apos;s Model Reporting Rules for Digital
-              Platforms. From that date Just Eat, Uber Eats, Deliveroo, Stuart, Amazon Flex,
-              and every other gig platform operating in the UK has been logging your full
-              annual earnings - and reporting them directly to HMRC. The first batch of reports
-              were due by 31 January 2025, covering the 2024 calendar year.
+              Platforms. From that date, platforms covered by the rules collect what they pay
+              each seller and report it to HMRC each January, and they must give you a copy.
+              GOV.UK names delivering food as an example of the work covered. The first reports
+              were due by 31 January 2025, covering the 2024 calendar year.{" "}
+              <a href="/do-delivery-apps-report-earnings-to-hmrc" style={{ color: "var(--amber-400)" }}>
+                How the platform reporting rules work
+              </a>
+              .
             </p>
             <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7, marginBottom: "1rem" }}>
               The practical effect: if you have been delivering for Just Eat without filing
@@ -216,8 +221,8 @@ export default function JustEatMileageTracker() {
             </p>
             <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7 }}>
               MileClear includes an HMRC Reconciliation tool built for exactly this scenario:
-              enter what HMRC says Just Eat reported, and the app shows the gap against your
-              tracked earnings. Anonymous community benchmarks compare your per-mile and per-hour
+              if you get a copy of a platform report, enter its figure and the app shows the
+              gap against your tracked earnings. Anonymous community benchmarks compare your per-mile and per-hour
               numbers against other UK Just Eat couriers - so you know whether your zone, your
               vehicle, or your shift hours are working for you.
             </p>
@@ -407,8 +412,8 @@ export default function JustEatMileageTracker() {
             <p style={{ color: "#94a3b8", fontSize: "0.9375rem", lineHeight: 1.7 }}>
               Tag the shift as Just Eat. If you also pick up Stuart-branded Just Eat orders -
               McDonald&apos;s, KFC and Greggs deliveries are commonly fulfilled by Stuart
-              rather than direct Just Eat - those go on your Stuart contract, get reported to
-              HMRC separately, and benefit from the same automatic mileage capture.
+              rather than direct Just Eat - those go on your Stuart contract, are counted
+              separately, and benefit from the same automatic mileage capture.
             </p>
           </section>
 
@@ -597,8 +602,8 @@ export default function JustEatMileageTracker() {
               big-brand fast food orders.
             </p>
             <p style={{ color: "#94a3b8", lineHeight: 1.8, marginBottom: "1rem" }}>
-              For HMRC, all of it is one self-employment trade. Earnings from each platform
-              are reported to HMRC separately under the Digital Platform Reporting rules, but
+              For HMRC, all of it is one self-employment trade. Platforms covered by the
+              digital platform reporting rules each report separately, but
               they all go on the same SA103S/SA103F page of your Self Assessment, with one
               combined mileage figure. You do not need three trackers - you need one tracker
               that tags the platform of each shift and totals correctly.
@@ -676,7 +681,7 @@ export default function JustEatMileageTracker() {
               },
               {
                 q: "Does Just Eat report my earnings to HMRC?",
-                a: "Yes, since 1 January 2024 under the Digital Platform Reporting rules. The first reports were due by 31 January 2025 covering the 2024 calendar year. HMRC now has your earnings data; if you are not declaring, the discrepancy is visible to them.",
+                a: "Platforms covered by the UK digital platform reporting rules, which started on 1 January 2024, report sellers' earnings to HMRC each January, and GOV.UK names delivering food as an example of the work covered. The first reports were due by 31 January 2025, covering the 2024 calendar year. If you get a copy of a report from Just Eat, check it against what you declare. Either way, declare all your income.",
               },
               {
                 q: "What HMRC mileage rate can a moped courier claim?",
@@ -800,8 +805,8 @@ export default function JustEatMileageTracker() {
               }}
             >
               Download MileClear free. Automatic GPS tracking, the right HMRC rate for your
-              vehicle, and a Self Assessment-ready PDF that lines up exactly with the figures
-              Just Eat is reporting to HMRC.
+              vehicle, and a Self Assessment-ready PDF you can check against any platform
+              report you receive.
             </p>
             <div style={{ display: "flex", gap: "1rem", justifyContent: "center", flexWrap: "wrap" }}>
               <StoreButtons align="center" page="gig" />

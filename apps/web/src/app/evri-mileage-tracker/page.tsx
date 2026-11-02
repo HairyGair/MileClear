@@ -537,10 +537,15 @@ export default function EvriMileageTracker() {
               mileage records do not need to change. Everything else might, but not that.
             </p>
             <p style={{ color: "#cbd5e1", fontSize: "0.9375rem", lineHeight: 1.7 }}>
-              MileClear also includes an HMRC Reconciliation tool: enter what HMRC says
-              Evri reported under the Digital Platform Reporting rules, and the app shows
-              the gap against your tracked earnings. Spot the mismatch before HMRC raises
-              it. Anonymous community benchmarks let you compare your per-round earnings
+              MileClear also includes an HMRC Reconciliation tool: platforms covered by the
+              digital platform reporting rules send you a copy of what they report to HMRC,
+              and if you get one, enter its figure and the app shows the gap against your
+              tracked earnings. Whether a parcel company reports under these rules depends on
+              how it is set up, so check for a copy or ask the company.{" "}
+              <a href="/do-delivery-apps-report-earnings-to-hmrc" style={{ color: "var(--amber-400)" }}>
+                How the platform reporting rules work
+              </a>
+              . Anonymous community benchmarks let you compare your per-round earnings
               and weekly mileage against other UK Evri couriers without identifying you to
               anyone.
             </p>
