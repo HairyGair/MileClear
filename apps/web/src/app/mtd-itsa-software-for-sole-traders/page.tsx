@@ -8,14 +8,14 @@ import StoreButtons from "@/components/StoreButtons";
 export const metadata: Metadata = {
   title: "MTD for Income Tax: What Sole Traders & Self-Employed Drivers Need (2026-27)",
   description:
-    "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders with qualifying income over £50,000. The next quarterly update deadlines are 7 November 2026 and 7 February 2027. Here's what it requires, who has to comply, and how to send your quarterly updates from MileClear.",
+    "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders with qualifying income over £50,000. Quarterly updates are due 7 August, 7 November, 7 February and 7 May. Here's what it requires, who has to comply, and how to send your quarterly updates from MileClear.",
   alternates: {
     canonical: "https://mileclear.com/mtd-itsa-software-for-sole-traders",
   },
   openGraph: {
     title: "MTD ITSA Software for Sole Traders | MileClear",
     description:
-      "MTD for Income Tax is live for sole traders over £50,000. Next quarterly update deadlines: 7 November 2026 and 7 February 2027. What it means for self-employed drivers.",
+      "MTD for Income Tax is live for sole traders over £50,000. Quarterly updates are due 7 August, 7 November, 7 February and 7 May. What it means for self-employed drivers.",
     url: "https://mileclear.com/mtd-itsa-software-for-sole-traders",
     images: [{ url: "/branding/og-image.png", width: 1200, height: 628 }],
   },
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MTD ITSA Software for Sole Traders | MileClear",
     description:
-      "MTD for Income Tax is live. Next quarterly deadlines: 7 November 2026 and 7 February 2027. What self-employed drivers need to know.",
+      "MTD for Income Tax is live. Quarterly updates are due 7 August, 7 November, 7 February and 7 May. What self-employed drivers need to know.",
     images: ["/branding/og-image.png"],
   },
 };
@@ -55,7 +55,7 @@ const faqs = [
   },
   {
     q: "What if I miss a quarterly deadline?",
-    a: "HMRC uses a points-based late submission penalty for MTD, plus a separate late payment regime if you owe tax. How the penalties apply in the first year is set out on GOV.UK, so check the current guidance or ask your accountant. The simple answer is to send each update on time, and to set up your software well before the deadline.",
+    a: "HMRC uses a points-based late submission penalty for MTD, plus a separate late payment regime if you owe tax. For the 2026-27 tax year, HMRC has said there are no penalties for missing a quarterly update deadline. You still have to send every update before you can submit your tax return, and a late tax return does get a penalty point. From 2027-28, each missed quarterly update deadline earns a point, and 4 points brings a £200 penalty. Our page on MTD late submission penalties explains the details at mileclear.com/mtd-late-submission-penalties.",
   },
   {
     q: "Do I still need to do a Self Assessment return?",
@@ -104,7 +104,7 @@ export default function MtdItsaSoftwarePage() {
     "@type": "Article",
     headline: "MTD ITSA Software for Sole Traders & Self-Employed Drivers",
     description:
-      "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders over £50,000. The next quarterly update deadlines are 7 November 2026 and 7 February 2027. Here's what MTD ITSA requires and where MileClear's own build stands.",
+      "Making Tax Digital for Income Tax started on 6 April 2026 for sole traders over £50,000. Quarterly updates are due 7 August, 7 November, 7 February and 7 May. Here's what MTD ITSA requires and where MileClear's own build stands.",
     author: { "@type": "Person", name: "Anthony Gair" },
     publisher: {
       "@type": "Organization",
@@ -162,8 +162,8 @@ export default function MtdItsaSoftwarePage() {
               <p className="subtext" style={{ margin: "0 auto", maxWidth: 660 }}>
                 Making Tax Digital for Income Tax started on 6 April 2026 for
                 anyone whose self-employment plus property income exceeded
-                £50,000 in 2024-25. The next quarterly update deadlines are
-                7 November 2026 and 7 February 2027. A mileage app does not
+                £50,000 in 2024-25. Quarterly updates are due on 7 August,
+                7 November, 7 February and 7 May. A mileage app does not
                 replace MTD software on its own. MileClear tracks and totals
                 your mileage, and Pro drivers can send their quarterly updates
                 for self-employment income to HMRC from the app.
@@ -191,7 +191,7 @@ export default function MtdItsaSoftwarePage() {
                   marginBottom: "0.5rem",
                 }}
               >
-                Next quarterly deadline
+                Quarterly update deadlines
               </div>
               <div
                 style={{
@@ -203,7 +203,7 @@ export default function MtdItsaSoftwarePage() {
                   marginBottom: "0.5rem",
                 }}
               >
-                7 November 2026
+                7 Aug, 7 Nov, 7 Feb, 7 May
               </div>
               <p
                 style={{
@@ -212,10 +212,18 @@ export default function MtdItsaSoftwarePage() {
                   margin: 0,
                 }}
               >
-                This update covers 6 July to 5 October 2026 (Q2 of the
-                2026-27 tax year). The one after is due 7 February 2027, then
-                7 May 2027. If you are over the £50,000 threshold, these are
-                your MTD updates.
+                For 2026-27 that is 7 August 2026, 7 November 2026,
+                7 February 2027 and 7 May 2027. Each update gives your totals
+                for the tax year so far, so the 7 November update covers
+                6 April to 5 October 2026. If you are over the threshold,
+                these are your MTD updates.{" "}
+                <Link
+                  href="/mtd-quarterly-update-deadlines"
+                  style={{ color: "var(--amber-300)" }}
+                >
+                  See every quarterly update deadline
+                </Link>
+                .
               </p>
             </div>
           </div>
@@ -231,7 +239,14 @@ export default function MtdItsaSoftwarePage() {
               MTD ITSA is being phased in by income threshold. The threshold
               counts your <em>self-employment income plus property income</em>
               {" "}from the prior-but-one tax year (so the April 2026 launch
-              tests against your 2024-25 figures).
+              tests against your 2024-25 figures).{" "}
+              <Link
+                href="/do-i-need-making-tax-digital"
+                style={{ color: "var(--amber-400)" }}
+              >
+                Do I need Making Tax Digital? Worked examples for drivers
+              </Link>
+              .
             </p>
 
             <div
@@ -742,6 +757,33 @@ export default function MtdItsaSoftwarePage() {
                 margin: 0,
               }}
             >
+              <li>
+                <Link
+                  href="/mtd-quarterly-update-deadlines"
+                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                >
+                  MTD quarterly update deadlines 2026-27
+                </Link>
+                : every deadline, and what each update covers.
+              </li>
+              <li>
+                <Link
+                  href="/do-i-need-making-tax-digital"
+                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                >
+                  Do I need Making Tax Digital?
+                </Link>
+                : the thresholds, turnover not profit, and examples for drivers.
+              </li>
+              <li>
+                <Link
+                  href="/mtd-late-submission-penalties"
+                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                >
+                  MTD late submission penalties
+                </Link>
+                : penalty points, the £200 penalty and late payment.
+              </li>
               <li>
                 <Link
                   href="/hmrc-mileage-rates"

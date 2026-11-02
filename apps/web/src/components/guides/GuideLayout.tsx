@@ -24,6 +24,15 @@ export interface GuideSection {
   list?: string[];
   /** Optional closing paragraphs, after the list. */
   after?: string[];
+  /** Optional table, rendered after the list and before the closing paragraphs. */
+  table?: GuideTable;
+}
+
+export interface GuideTable {
+  caption: string;
+  head: string[];
+  /** The first cell of each row is its row header. */
+  rows: string[][];
 }
 
 export interface GuideFaq {
@@ -64,6 +73,75 @@ const PROSE: React.CSSProperties = {
   color: "var(--text-primary)",
   lineHeight: 1.75,
 };
+
+const CELL: React.CSSProperties = {
+  textAlign: "left",
+  padding: "0.7rem 0.9rem",
+  borderBottom: "1px solid var(--border-default)",
+  verticalAlign: "top",
+};
+
+function GuideTableView({ table }: { table: GuideTable }) {
+  return (
+    <div style={{ ...CARD, padding: 0, overflowX: "auto" }}>
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: "0.9375rem",
+          color: "var(--text-primary)",
+          lineHeight: 1.5,
+        }}
+      >
+        <caption
+          style={{
+            ...EYEBROW,
+            color: "var(--amber-400)",
+            textAlign: "left",
+            padding: "1rem 0.9rem 0",
+            marginBottom: "0.4rem",
+          }}
+        >
+          {table.caption}
+        </caption>
+        <thead>
+          <tr>
+            {table.head.map((h) => (
+              <th
+                key={h}
+                scope="col"
+                style={{ ...CELL, color: "var(--text-muted)", fontWeight: 600 }}
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, r) => (
+            <tr key={r}>
+              {row.map((cell, c) =>
+                c === 0 ? (
+                  <th
+                    key={c}
+                    scope="row"
+                    style={{ ...CELL, color: "var(--text-white)", fontWeight: 600 }}
+                  >
+                    {cell}
+                  </th>
+                ) : (
+                  <td key={c} style={CELL}>
+                    {cell}
+                  </td>
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function GuideLayout({
   eyebrow,
@@ -228,6 +306,7 @@ export default function GuideLayout({
                     ))}
                   </ul>
                 )}
+                {s.table && <GuideTableView table={s.table} />}
                 {s.after?.map((p, i) => (
                   <p key={`a${i}`} style={PROSE}>
                     {p}
