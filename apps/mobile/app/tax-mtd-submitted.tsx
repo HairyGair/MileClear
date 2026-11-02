@@ -109,7 +109,7 @@ export default function TaxMtdSubmittedScreen() {
     if (!taxYear) return;
     let cancelled = false;
     const startYear = Number(taxYear.slice(0, 4));
-    fetchHmrcObligations({ from: `${startYear}-04-01`, to: `${startYear + 1}-04-05` })
+    fetchHmrcObligations({ from: `${startYear}-04-06`, to: `${startYear + 1}-04-05` })
       .then((r) => !cancelled && setObligations(r.data.obligations))
       .catch(() => {});
     getNotificationPreferences()

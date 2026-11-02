@@ -125,7 +125,7 @@ export default function TaxMtdPreviewScreen() {
         // driver's self-employment obligations (it filters by the connected
         // business), so a property business never adds updates here.
         const startYear = Number(taxYear.slice(0, 4));
-        fetchHmrcObligations({ from: `${startYear}-04-01`, to: `${startYear + 1}-04-05` })
+        fetchHmrcObligations({ from: `${startYear}-04-06`, to: `${startYear + 1}-04-05` })
           .then((r) => !cancelled && setObligations(r.data.obligations))
           .catch(() => {});
 
