@@ -32,7 +32,7 @@ export const NOTIFICATION_GROUPS: NotificationGroup[] = [
   {
     title: "Tax and money",
     items: [
-      { key: "taxDeadline", icon: "receipt-outline", label: "Tax deadlines", hint: "Tax year end, 31 January and tax payment reminders" },
+      { key: "taxDeadline", icon: "receipt-outline", label: "Tax deadlines", hint: "Quarterly updates, tax year end, 31 January and tax payment reminders" },
     ],
   },
   {
