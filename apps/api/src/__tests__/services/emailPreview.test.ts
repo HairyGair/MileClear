@@ -200,7 +200,15 @@ describe("email preview harness", () => {
       e.sendMtdQuarterlyReminderEmail(
         EMAIL,
         NAME,
-        { periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026", daysLeft: 9 },
+        { periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026", daysLeft: 7, pro: true, selfEmployed: true },
+        USER_ID
+      )
+    );
+    await capture("sendMtdQuarterlyReminderEmail_notPro", () =>
+      e.sendMtdQuarterlyReminderEmail(
+        EMAIL,
+        NAME,
+        { periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026", daysLeft: 1, pro: false, selfEmployed: true },
         USER_ID
       )
     );
@@ -208,10 +216,36 @@ describe("email preview harness", () => {
       e.sendMtdQuarterReadyEmail(
         EMAIL,
         NAME,
-        { quarterLabel: "July to October", periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026" },
+        { quarterLabel: "July to October", periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026", dueShort: "7 November", pro: true, selfEmployed: false },
         USER_ID
       )
     );
+    await capture("sendMtdQuarterReadyEmail_notPro", () =>
+      e.sendMtdQuarterReadyEmail(
+        EMAIL,
+        NAME,
+        { quarterLabel: "July to October", periodLabel: "6 July to 5 October 2026", dueLabel: "Saturday 7 November 2026", dueShort: "7 November", pro: false, selfEmployed: true },
+        USER_ID
+      )
+    );
+    {
+      const mtd = (name: string) => rendered.find((r) => r.name === name)!;
+      const all = ["sendMtdQuarterlyReminderEmail", "sendMtdQuarterlyReminderEmail_notPro", "sendMtdQuarterReadyEmail", "sendMtdQuarterReadyEmail_notPro"];
+      for (const n of all) {
+        // The old path ("More, then Drive for work?") was wrong for most drivers.
+        expect(mtd(n).html).not.toMatch(/Drive for work\?/);
+        expect(mtd(n).html).not.toMatch(/—|–|penalt/i);
+        expect(mtd(n).html).toMatch(/Unsubscribe/);
+      }
+      expect(mtd("sendMtdQuarterlyReminderEmail").html).toContain("tap More, then Settings, then You drive for, then Quarterly updates.");
+      expect(mtd("sendMtdQuarterReadyEmail").subject).toBe("Your July to October update is ready to send");
+      expect(mtd("sendMtdQuarterReadyEmail").html).toContain("Choose Self-employed or gig work, or Self-employed and an employer.");
+      expect(mtd("sendMtdQuarterReadyEmail_notPro").subject).toBe("Your July to October update is due by 7 November");
+      for (const n of ["sendMtdQuarterlyReminderEmail_notPro", "sendMtdQuarterReadyEmail_notPro"]) {
+        expect(mtd(n).html).toContain("Sending it from MileClear needs Pro. You can also send it with other software.");
+        expect(mtd(n).html).not.toMatch(/ready to send|Send it\./);
+      }
+    }
     await capture("sendSelfAssessmentDeadlineEmail", () =>
       e.sendSelfAssessmentDeadlineEmail(
         EMAIL,

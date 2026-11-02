@@ -1684,10 +1684,48 @@ ${SIGN_OFF}`;
 }
 
 /**
+ * How a driver reaches Quarterly updates in the app, written for an email.
+ * Checked against the app (Nov 2026): the More tab and its Settings row are
+ * always there, Settings always has "You drive for", and that screen lists
+ * Quarterly updates under "If you work for yourself" only when the answer is
+ * one of the two self-employed ones. There is no web link that opens the
+ * screen, so the email gives the path in words.
+ */
+export function mtdAppSteps(selfEmployed: boolean): string[] {
+  return selfEmployed
+    ? [
+        "Open MileClear and tap More, then Settings, then You drive for, then Quarterly updates.",
+        "Tap the quarter and check the figures against your records.",
+        "Send it. If something is wrong later, you can send a corrected one.",
+      ]
+    : [
+        "Open MileClear and tap More, then Settings, then You drive for.",
+        "Choose Self-employed or gig work, or Self-employed and an employer. Quarterly updates then shows further down the same screen. Tap it.",
+        "Tap the quarter, check the figures against your records and send it.",
+      ];
+}
+
+/** For drivers without Pro: sending from MileClear is a Pro feature. */
+const MTD_NEEDS_PRO = "Sending it from MileClear needs Pro. You can also send it with other software.";
+
+/** What the quarterly update emails need to know about the driver. */
+export interface MtdEmailAudience {
+  /** Has Pro now (proEntitlement.ts), so can check and send from MileClear. */
+  pro: boolean;
+  /** "You drive for" is one of the self-employed answers (Quarterly updates shows in Settings). */
+  selfEmployed: boolean;
+}
+
+/**
  * Quarterly update reminder for drivers who have connected HMRC
  * (jobs/mtdDeadlineReminders.ts), 7 days and 1 day before the deadline while
- * HMRC still shows the quarter open. Wording rule (HMRC, 23 Sep 2026): never
- * an adjective about MileClear next to HMRC.
+ * the quarter is still not sent. Wording rule (HMRC, 23 Sep 2026): never an
+ * adjective about MileClear next to HMRC. No talk of penalties.
+ *
+ * Sent with the unsubscribe link and header, and skipped for a driver who
+ * has turned emails off (Unsubscribe or the settings switch, Nov 2026).
+ * marketingEmailsEnabled defaults to on, so a driver who never chose is
+ * still reminded; only an explicit "stop" stops it.
  */
 export async function sendMtdQuarterlyReminderEmail(
   email: string,
@@ -1696,20 +1734,19 @@ export async function sendMtdQuarterlyReminderEmail(
     periodLabel: string; // e.g. "6 July to 5 October 2026"
     dueLabel: string; // e.g. "Saturday 7 November 2026"
     daysLeft: number;
-  },
+  } & MtdEmailAudience,
   userId: string
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
   const when = data.daysLeft <= 1 ? "tomorrow" : `in ${data.daysLeft} days`;
+  const next = data.pro
+    ? `${stepsCard(mtdAppSteps(data.selfEmployed))}
+${para("Your figures come from the trips, earnings and expenses already in MileClear, so it's worth sorting any trips still waiting first.")}`
+    : para(MTD_NEEDS_PRO);
   const bodyHtml = `
 ${para(greeting)}
 ${warningCard(`Your quarterly update for <strong style="color:#b91c1c;">${escapeHtml(data.periodLabel)}</strong> is due by <strong style="color:#b91c1c;">${escapeHtml(data.dueLabel)}</strong>. HMRC still shows it as not sent.`)}
-${stepsCard([
-    "Open MileClear, tap More, then Drive for work?, then Quarterly updates.",
-    "Tap the quarter and check the figures against your records.",
-    "Send it. If something is wrong later, you can send a corrected one.",
-  ])}
-${para("Your figures come from the trips, earnings and expenses already in MileClear, so it's worth sorting any trips still waiting first.")}
+${next}
 ${para("Questions? Just reply to this email.", 8)}
 ${SIGN_OFF}`;
   const html = emailShell({
@@ -1725,18 +1762,15 @@ ${SIGN_OFF}`;
     html,
     userId,
     label: "MTD quarterly reminder",
-    // Not marketing: a reminder about a tax deadline the driver signed up for
-    // by connecting HMRC (Anthony, 11 Oct 2026), so it goes even when
-    // marketing emails are off.
-    gated: false,
+    gated: true,
   });
 }
 
 /**
  * "Ready to send" for drivers who have connected HMRC
  * (jobs/mtdDeadlineReminders.ts), the day after a quarter ends while it is
- * still not sent. Same rules as the deadline reminder: no adjective about
- * MileClear next to HMRC, no talk of penalties.
+ * still not sent. Drivers without Pro get the deadline only. Same rules and
+ * unsubscribe handling as the deadline reminder.
  */
 export async function sendMtdQuarterReadyEmail(
   email: string,
@@ -1745,37 +1779,42 @@ export async function sendMtdQuarterReadyEmail(
     quarterLabel: string; // e.g. "July to October"
     periodLabel: string; // e.g. "6 July to 5 October 2026"
     dueLabel: string; // e.g. "Saturday 7 November 2026"
-  },
+    dueShort: string; // e.g. "7 November"
+  } & MtdEmailAudience,
   userId: string
 ): Promise<void> {
   const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const heading = data.pro
+    ? `Your ${data.quarterLabel} update is ready to send`
+    : `Your ${data.quarterLabel} update is due by ${data.dueShort}`;
+  const lead = data.pro
+    ? `The quarter from <strong>${escapeHtml(data.periodLabel)}</strong> has ended. Your figures are in MileClear, ready for you to check and send by <strong style="color:#b45309;">${escapeHtml(data.dueLabel)}</strong>.`
+    : `The quarter from <strong>${escapeHtml(data.periodLabel)}</strong> has ended. Your update for it is due by <strong style="color:#b45309;">${escapeHtml(data.dueLabel)}</strong>.`;
+  const next = data.pro
+    ? `${stepsCard(mtdAppSteps(data.selfEmployed))}
+${para("Your figures come from the trips, earnings and expenses already in MileClear, so it's worth sorting any trips still waiting first.")}`
+    : para(MTD_NEEDS_PRO);
   const bodyHtml = `
 ${para(greeting)}
-${para(`The quarter from <strong>${escapeHtml(data.periodLabel)}</strong> has ended. Your figures are in MileClear, ready for you to check and send by <strong style="color:#b45309;">${escapeHtml(data.dueLabel)}</strong>.`)}
-${stepsCard([
-    "Open MileClear, go to the Tax tab and tap Quarterly updates.",
-    "Tap the quarter and check the figures against your records.",
-    "Send it. If something is wrong later, you can send a corrected one.",
-  ])}
-${para("Your figures come from the trips, earnings and expenses already in MileClear, so it's worth sorting any trips still waiting first. We'll remind you again 7 days and 1 day before the deadline if it's still not sent.")}
+${para(lead)}
+${next}
+${para("We'll remind you again 7 days and 1 day before the deadline if it's still not sent.")}
 ${para("Questions? Just reply to this email.", 8)}
 ${SIGN_OFF}`;
   const html = emailShell({
-    preheader: `Check your figures and send by ${data.dueLabel}.`,
+    preheader: data.pro ? `Check your figures and send by ${data.dueLabel}.` : `Due by ${data.dueLabel}.`,
     eyebrow: "Quarterly update",
-    title: `Your ${escapeHtml(data.quarterLabel)} update is ready to send`,
+    title: escapeHtml(heading),
     bodyHtml,
     footerHtml: unsubscribeFooterHtml(userId),
   });
   await deliver({
     email,
-    subject: `Your ${data.quarterLabel} update is ready to send`,
+    subject: heading,
     html,
     userId,
     label: "MTD quarter ready",
-    // Same as the deadline reminder: part of the quarterly updates the driver
-    // set up by connecting HMRC, not marketing.
-    gated: false,
+    gated: true,
   });
 }
 

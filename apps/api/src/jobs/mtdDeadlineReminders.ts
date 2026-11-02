@@ -33,11 +33,19 @@
 //   - HMRC_ENVIRONMENT must be "production" AND the connection must be a
 //     production one: sandbox drivers are never reminded about test deadlines;
 //   - the push honours the taxDeadline push preference;
-//   - the email is sent gated (marketing opt-out + unsubscribe footer), like
-//     the Self Assessment deadline email;
-//   - once per driver, per quarter, per reminder (7 days, 1 day), per channel,
-//     deduped on the sent events; logged before sending so a crash mid-send
-//     cannot send twice.
+//   - the email carries a working unsubscribe, and is skipped for a driver
+//     who turned emails off (marketingEmailsEnabled false: the Unsubscribe
+//     link, the inbox button or the settings switch). It defaults to on, so a
+//     driver who never chose is still reminded;
+//   - drivers without Pro (proEntitlement.ts, the rule the send route uses)
+//     are reminded of the deadline but not told to "send it" from MileClear;
+//   - once per driver, per quarter, per reminder (ready, 7 days, 1 day), per
+//     channel, deduped on the sent events; the row is written (and awaited)
+//     before sending, so a crash mid-send cannot send twice and a failed
+//     write sends nothing this tick;
+//   - only updates for the business the driver sends for now count as sent,
+//     and a driver who switched between standard and calendar quarters gets
+//     one message per deadline (the newest dates HMRC showed win).
 //
 // When ("ready" is the day after the period ends, UK date):
 //   standard quarter ending 5 October    -> ready 6 October, due 7 November
@@ -49,12 +57,12 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { sendPushNotifications, type ExpoPushMessage } from "../lib/push.js";
 import { pushPrefEnabled } from "../services/pushPrefs.js";
-import { logEvent } from "../services/appEvents.js";
+import { getProEntitlement } from "../services/proEntitlement.js";
 import { sendMtdQuarterlyReminderEmail, sendMtdQuarterReadyEmail } from "../services/email.js";
 import { HMRC_SUBMISSION_EVENT } from "../services/hmrc/audit.js";
 import { hmrcSandboxUserIds } from "../services/hmrc/config.js";
 import { MTD_OBLIGATIONS_SEEN_EVENT } from "../services/hmrc/obligations.js";
-import { ukDateParts, type UkDateParts } from "@mileclear/shared";
+import { driveForOf, ukDateParts, type UkDateParts } from "@mileclear/shared";
 
 export const MTD_REMINDER_EVENT = "notification.mtd_deadline";
 export const MTD_REMINDER_ACTION = "open_mtd";
@@ -147,11 +155,20 @@ export interface SeenObligation {
  */
 export function latestObligations(snapshots: Array<{ obligations: SeenObligation[] }>): SeenObligation[] {
   const byPeriod = new Map<string, SeenObligation>();
+  // One quarter per deadline: a driver who switched between standard and
+  // calendar quarters has both sets in older snapshots (6 July to 5 October
+  // and 1 July to 30 September are both due 7 November). The newest wins.
+  const dues = new Set<string>();
   for (const s of snapshots) {
+    const claimed: string[] = [];
     for (const o of s.obligations) {
       const key = `${o.start.slice(0, 10)}:${o.end.slice(0, 10)}`;
-      if (!byPeriod.has(key)) byPeriod.set(key, o);
+      const due = o.due.slice(0, 10);
+      if (byPeriod.has(key) || dues.has(due)) continue;
+      byPeriod.set(key, o);
+      claimed.push(due);
     }
+    for (const d of claimed) dues.add(d);
   }
   return [...byPeriod.values()];
 }
@@ -159,6 +176,23 @@ export function latestObligations(snapshots: Array<{ obligations: SeenObligation
 export interface OkSubmission {
   taxYear: string;
   periodEnd: string;
+}
+
+/**
+ * Successful quarterly updates from submission-trail metadata (hmrc.submission):
+ * ok, from the given HMRC service, a quarterly send or correction, and (when
+ * both sides say) for the business the driver sends for now.
+ */
+export function okSubmissionFrom(
+  metadata: unknown,
+  conn: { environment: "sandbox" | "production"; businessId: string | null }
+): OkSubmission | null {
+  const m = metadata as Record<string, unknown> | null;
+  if (!m || typeof m !== "object" || m.ok !== true || m.environment !== conn.environment) return null;
+  if (m.operation !== "period_submit" && m.operation !== "period_amend") return null;
+  if (typeof m.taxYear !== "string" || typeof m.periodEnd !== "string") return null;
+  if (typeof m.businessId === "string" && conn.businessId && m.businessId !== conn.businessId) return null;
+  return { taxYear: m.taxYear, periodEnd: m.periodEnd };
 }
 
 /** Open per HMRC's last word, and not since covered by an update sent from MileClear. */
@@ -190,7 +224,7 @@ export function quarterLabel(startIso: string, endIso: string): string {
 }
 
 /** "7 November" */
-function dayMonth(iso: string): string {
+export function dayMonth(iso: string): string {
   return `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]}`;
 }
 
@@ -220,21 +254,34 @@ export function dueLabel(dueIso: string): string {
     .replace(",", "");
 }
 
-export function buildMtdReminderPush(o: Pick<SeenObligation, "start" | "end" | "due">, stage: MtdReminderStage): {
+/** For drivers without Pro, who cannot check or send from MileClear. */
+export const MTD_PUSH_NEEDS_PRO = "Sending it from MileClear needs Pro. You can also send it another way.";
+
+export function buildMtdReminderPush(
+  o: Pick<SeenObligation, "start" | "end" | "due">,
+  stage: MtdReminderStage,
+  pro = true
+): {
   title: string;
   body: string;
 } {
   const due = dayMonth(o.due.slice(0, 10));
   if (stage === "ready") {
-    return {
-      title: `Your ${quarterLabel(o.start, o.end)} update is ready to send`,
-      body: `Your figures are in MileClear. Check them and send by ${due}.`,
-    };
+    return pro
+      ? {
+          title: `Your ${quarterLabel(o.start, o.end)} update is ready to send`,
+          body: `Your figures are in MileClear. Check them and send by ${due}.`,
+        }
+      : {
+          title: `Your ${quarterLabel(o.start, o.end)} update is due by ${due}`,
+          body: MTD_PUSH_NEEDS_PRO,
+        };
   }
   const title = stage === "1d" ? "Quarterly update due tomorrow" : "Quarterly update due in 7 days";
+  const lead = `Your update for ${periodLabel(o.start, o.end)} is due by ${due} and HMRC still shows it as not sent.`;
   return {
     title,
-    body: `Your update for ${periodLabel(o.start, o.end)} is due by ${due} and HMRC still shows it as not sent. Check your figures and send it from MileClear.`,
+    body: pro ? `${lead} Check your figures and send it from MileClear.` : `${lead} ${MTD_PUSH_NEEDS_PRO}`,
   };
 }
 
@@ -242,6 +289,8 @@ export interface MtdReminderCandidate {
   hasPushToken: boolean;
   pushPrefs: Prisma.JsonValue | null | undefined;
   hasEmail: boolean;
+  /** users.marketingEmailsEnabled: false only when the driver turned emails off. */
+  emailsEnabled?: boolean | null;
   pushSent: boolean;
   emailSent: boolean;
 }
@@ -250,7 +299,7 @@ export interface MtdReminderCandidate {
 export function decideMtdReminder(c: MtdReminderCandidate): { push: boolean; email: boolean } {
   return {
     push: c.hasPushToken && pushPrefEnabled(c.pushPrefs, "taxDeadline") && !c.pushSent,
-    email: c.hasEmail && !c.emailSent,
+    email: c.hasEmail && c.emailsEnabled !== false && !c.emailSent,
   };
 }
 
@@ -298,6 +347,10 @@ export interface MtdReminderSend {
   userId: string;
   obligation: SeenObligation;
   stage: MtdReminderStage;
+  /** Has Pro now, so can check and send from MileClear. */
+  pro: boolean;
+  /** "You drive for" is self-employed, so Quarterly updates shows in Settings. */
+  selfEmployed: boolean;
   push: string | null; // push token, when the push goes
   email: { address: string; displayName: string | null } | null;
 }
@@ -319,7 +372,20 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
       userId: true,
       connectedAt: true,
       businessId: true,
-      user: { select: { email: true, displayName: true, pushToken: true, pushPrefs: true } },
+      user: {
+        select: {
+          email: true,
+          displayName: true,
+          pushToken: true,
+          pushPrefs: true,
+          marketingEmailsEnabled: true,
+          workType: true,
+          dashboardMode: true,
+          isPremium: true,
+          premiumExpiresAt: true,
+          referralProUntil: true,
+        },
+      },
     },
   });
   if (connections.length === 0) return [];
@@ -360,12 +426,13 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
 
   const okByUser = new Map<string, OkSubmission[]>();
   for (const s of submissions) {
-    const m = s.metadata as Record<string, unknown> | null;
-    if (!s.userId || !m || m.ok !== true || m.environment !== "production") continue;
-    if (m.operation !== "period_submit" && m.operation !== "period_amend") continue;
-    if (typeof m.taxYear !== "string" || typeof m.periodEnd !== "string") continue;
+    if (!s.userId) continue;
+    const conn = connByUser.get(s.userId);
+    if (!conn) continue;
+    const ok = okSubmissionFrom(s.metadata, { environment: "production", businessId: conn.businessId });
+    if (!ok) continue;
     const list = okByUser.get(s.userId) ?? [];
-    list.push({ taxYear: m.taxYear, periodEnd: m.periodEnd });
+    list.push(ok);
     okByUser.set(s.userId, list);
   }
 
@@ -376,6 +443,7 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
   }
 
   const out: MtdReminderSend[] = [];
+  const proByUser = new Map<string, boolean>();
   for (const c of connections) {
     const obligations = latestObligations(snapshotsByUser.get(c.userId) ?? []);
     for (const o of obligations) {
@@ -386,14 +454,30 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
         hasPushToken: !!c.user.pushToken,
         pushPrefs: c.user.pushPrefs,
         hasEmail: !!c.user.email,
+        emailsEnabled: c.user.marketingEmailsEnabled,
         pushSent: sentKeys.has(`${c.userId}|${reminderKey(o.end, stage, "push")}`),
         emailSent: sentKeys.has(`${c.userId}|${reminderKey(o.end, stage, "email")}`),
       });
       if (!decision.push && !decision.email) continue;
+      // Only for drivers who are due something today: the team check is a query.
+      let pro = proByUser.get(c.userId);
+      if (pro === undefined) {
+        pro = (
+          await getProEntitlement(c.userId, {
+            isPremium: c.user.isPremium,
+            premiumExpiresAt: c.user.premiumExpiresAt,
+            referralProUntil: c.user.referralProUntil,
+          })
+        ).isPro;
+        proByUser.set(c.userId, pro);
+      }
+      const driveFor = driveForOf({ workType: c.user.workType, dashboardMode: c.user.dashboardMode });
       out.push({
         userId: c.userId,
         obligation: o,
         stage,
+        pro,
+        selfEmployed: driveFor === "gig" || driveFor === "both",
         push: decision.push ? c.user.pushToken : null,
         email: decision.email ? { address: c.user.email, displayName: c.user.displayName } : null,
       });
@@ -409,6 +493,33 @@ export async function planMtdReminders(now: Date = new Date()): Promise<MtdRemin
 const SEND_DELAY_MS = 300;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Write the dedupe row and wait for it. Returns false if it could not be
+ * written, in which case nothing is sent this tick (the next tick retries).
+ */
+async function recordSent(s: MtdReminderSend, channel: "push" | "email"): Promise<boolean> {
+  try {
+    await prisma.appEvent.create({
+      data: {
+        type: MTD_REMINDER_EVENT,
+        userId: s.userId,
+        metadata: {
+          key: reminderKey(s.obligation.end, s.stage, channel),
+          channel,
+          stage: s.stage,
+          periodEnd: s.obligation.end,
+          due: s.obligation.due,
+          pro: s.pro,
+        },
+      },
+    });
+    return true;
+  } catch (err) {
+    console.error(`[jobs/mtdDeadline] could not record ${channel} for ${s.userId}, not sending:`, err);
+    return false;
+  }
+}
+
 export async function runMtdDeadlineRemindersJob(now: Date = new Date()): Promise<void> {
   if (!mtdRemindersEnabled()) return;
   if (ukDateParts(now).hour !== MTD_REMINDER_HOUR) return;
@@ -419,15 +530,9 @@ export async function runMtdDeadlineRemindersJob(now: Date = new Date()): Promis
   const messages: ExpoPushMessage[] = [];
   for (const s of plan) {
     if (!s.push) continue;
-    const { title, body } = buildMtdReminderPush(s.obligation, s.stage);
-    // Logged before sending so a crash mid-send cannot push twice.
-    logEvent(MTD_REMINDER_EVENT, s.userId, {
-      key: reminderKey(s.obligation.end, s.stage, "push"),
-      channel: "push",
-      stage: s.stage,
-      periodEnd: s.obligation.end,
-      due: s.obligation.due,
-    });
+    // Recorded before sending so a crash mid-send cannot push twice.
+    if (!(await recordSent(s, "push"))) continue;
+    const { title, body } = buildMtdReminderPush(s.obligation, s.stage, s.pro);
     messages.push({
       to: s.push,
       title,
@@ -446,13 +551,8 @@ export async function runMtdDeadlineRemindersJob(now: Date = new Date()): Promis
   let emails = 0;
   for (const s of plan) {
     if (!s.email) continue;
-    logEvent(MTD_REMINDER_EVENT, s.userId, {
-      key: reminderKey(s.obligation.end, s.stage, "email"),
-      channel: "email",
-      stage: s.stage,
-      periodEnd: s.obligation.end,
-      due: s.obligation.due,
-    });
+    if (!(await recordSent(s, "email"))) continue;
+    const audience = { pro: s.pro, selfEmployed: s.selfEmployed };
     try {
       if (s.stage === "ready") {
         await sendMtdQuarterReadyEmail(
@@ -462,6 +562,8 @@ export async function runMtdDeadlineRemindersJob(now: Date = new Date()): Promis
             quarterLabel: quarterLabel(s.obligation.start, s.obligation.end),
             periodLabel: periodLabel(s.obligation.start, s.obligation.end),
             dueLabel: dueLabel(s.obligation.due),
+            dueShort: dayMonth(s.obligation.due.slice(0, 10)),
+            ...audience,
           },
           s.userId
         );
@@ -473,6 +575,7 @@ export async function runMtdDeadlineRemindersJob(now: Date = new Date()): Promis
             periodLabel: periodLabel(s.obligation.start, s.obligation.end),
             dueLabel: dueLabel(s.obligation.due),
             daysLeft: STAGE_DAYS[s.stage],
+            ...audience,
           },
           s.userId
         );

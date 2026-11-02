@@ -78,6 +78,18 @@ describe("buildMtdSummary", () => {
     ]);
   });
 
+  it("shows one quarter per deadline after a switch to calendar quarters (newest dates win)", () => {
+    const r = buildMtdSummary({
+      snapshots: [
+        { obligations: [q("2026-04-01", "2026-06-30", "2026-08-07", "Fulfilled"), q("2026-07-01", "2026-09-30", "2026-11-07", "Open")] },
+        { obligations: [Q1, Q2] },
+      ],
+      okSubmissions: [],
+      todayIso: "2026-11-01",
+    });
+    expect(r.quarters.map((x) => x.start)).toEqual(["2026-04-01", "2026-07-01"]);
+  });
+
   it("falls back to the newest year HMRC showed when the running one is missing", () => {
     const r = buildMtdSummary({
       snapshots: [{ obligations: [q("2025-04-06", "2025-07-05", "2025-08-07", "Fulfilled")] }],
