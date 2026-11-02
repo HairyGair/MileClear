@@ -87,12 +87,16 @@ export const LATE_SECTIONS: readonly HelpSection[] = [
     body: "You need to have sent your quarterly updates before you can send your tax return using software.",
   },
   {
+    heading: "Late tax returns",
+    body: "A late tax return gets a penalty point now, this year as well. Late quarterly updates only start to from 2027-28.",
+  },
+  {
     heading: "Paying late is separate",
-    body: "A late tax return still gets penalty points this year. Tax paid late costs interest from the first day it is late, and more charges if it stays late.",
+    body: "Tax paid late costs interest from the first day it is late, and more charges if it stays late.",
   },
   {
     heading: "Something wrong with MileClear?",
-    body: "If you couldn't send because of a problem with MileClear, tell us from More > Tell us about a problem and we'll help.",
+    body: "If you couldn't send because of a problem with MileClear, tell us from More > Tell us about a problem or idea and we'll help.",
   },
 ];
 

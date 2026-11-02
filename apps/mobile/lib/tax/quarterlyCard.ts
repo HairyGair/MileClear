@@ -27,6 +27,26 @@ export interface QuarterlySummary {
   ready: boolean;
   taxYear: string | null;
   quarters: CardQuarter[];
+  /** When HMRC's dates were last loaded (ISO). Older than 14 days is not trusted for "Late". */
+  seenAt?: string | null;
+}
+
+/** HMRC's dates older than this are shown as "Last checked", never as due or late. */
+export const STALE_AFTER_DAYS = 14;
+
+/**
+ * The scope answer the card can trust. "Not needed yet" rests on the income
+ * MileClear holds; when a finished tax year has none (the driver joined later,
+ * or earned elsewhere) it can't say that, so the card stays neutral.
+ */
+export function scopeForCard(r: {
+  answer: MtdScopeAnswer;
+  years: Array<{ taxYear: string; complete: boolean }>;
+  missingTaxYears: string[];
+}): MtdScopeAnswer | null {
+  if (r.answer !== "not_yet") return r.answer;
+  const finishedMissing = r.missingTaxYears.some((ty) => r.years.find((y) => y.taxYear === ty)?.complete);
+  return finishedMissing ? null : r.answer;
 }
 
 export type SegmentState = "sent" | "due" | "later";
@@ -106,11 +126,21 @@ export function quarterlyCardModel(args: {
     if (scope === "not_yet") {
       return {
         kind: "line",
-        text: "Quarterly updates to HMRC: not needed for you yet.",
+        text: "Going by your MileClear earnings, quarterly updates to HMRC aren't needed for you yet.",
         link: "See why",
       };
     }
-    if (scope == null) return neutral();
+    if (scope == null) {
+      return {
+        kind: "card",
+        title: "Quarterly updates",
+        sub: "Find out if HMRC needs these from you",
+        pill: null,
+        segments: [],
+        progress: null,
+        link: "Check",
+      };
+    }
     return {
       kind: "card",
       title: "Quarterly updates",
@@ -153,6 +183,22 @@ export function quarterlyCardModel(args: {
       segments: qs.map(() => "sent" as const),
       progress: null,
       link: "See your updates",
+    };
+  }
+
+  // HMRC's dates are only as fresh as the last time the quarterly updates screen
+  // loaded them. Past two weeks we say when we last checked, rather than show
+  // "Late" or "Up to date" on old information.
+  const seenDay = summary.seenAt ? summary.seenAt.slice(0, 10) : null;
+  if (!seenDay || daysUntil(seenDay, todayIso) > STALE_AFTER_DAYS) {
+    return {
+      kind: "card",
+      title: "Quarterly updates",
+      sub: seenDay ? `Last checked ${dueDay(seenDay)}. Open to see what's due` : "Open to see what's due",
+      pill: null,
+      segments: qs.map((q) => (q.status === "Fulfilled" ? ("sent" as const) : ("later" as const))),
+      progress,
+      link: "Open",
     };
   }
 

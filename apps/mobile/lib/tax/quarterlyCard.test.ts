@@ -5,6 +5,7 @@ import {
   pillFor,
   quarterLabel,
   quarterlyCardModel,
+  scopeForCard,
   type QuarterlySummary,
 } from "./quarterlyCard";
 
@@ -16,7 +17,8 @@ const quarters = (statuses: Array<"Open" | "Fulfilled">) =>
     { start: "2027-01-06", end: "2027-04-05", due: "2027-05-07" },
   ].map((q, i) => ({ ...q, status: statuses[i] }));
 
-const connected = (statuses: Array<"Open" | "Fulfilled">): QuarterlySummary => ({
+const connected = (statuses: Array<"Open" | "Fulfilled">, seenAt = "2026-10-30T10:00:00.000Z"): QuarterlySummary => ({
+  seenAt,
   connected: true,
   ready: true,
   taxYear: "2026-27",
@@ -59,7 +61,7 @@ describe("quarterlyCardModel", () => {
   });
 
   it("is up to date when the next quarter has not ended", () => {
-    const m = quarterlyCardModel({ summary: connected(["Fulfilled", "Fulfilled", "Open", "Open"]), scope: null, todayIso: "2026-11-20" });
+    const m = quarterlyCardModel({ summary: connected(["Fulfilled", "Fulfilled", "Open", "Open"], "2026-11-18T10:00:00.000Z"), scope: null, todayIso: "2026-11-20" });
     expect(m).toMatchObject({
       title: "Quarterly updates",
       sub: "Next: October to January, by 7 February",
@@ -87,7 +89,38 @@ describe("quarterlyCardModel", () => {
 
   it("hides the card for a driver who does not need updates yet and keeps one line", () => {
     const m = quarterlyCardModel({ summary: notConnected, scope: "not_yet", todayIso: "2026-11-01" });
-    expect(m).toEqual({ kind: "line", text: "Quarterly updates to HMRC: not needed for you yet.", link: "See why" });
+    expect(m).toEqual({ kind: "line", text: "Going by your MileClear earnings, quarterly updates to HMRC aren't needed for you yet.", link: "See why" });
+  });
+
+  it("does not call old HMRC dates late: it says when it last checked", () => {
+    const old = connected(["Fulfilled", "Open", "Open", "Open"], "2026-10-10T10:00:00.000Z");
+    const m = quarterlyCardModel({ summary: old, scope: null, todayIso: "2026-11-12" });
+    expect(m).toMatchObject({ kind: "card", sub: "Last checked 10 October. Open to see what's due", pill: null, link: "Open" });
+  });
+
+  it("treats a missing check date as old", () => {
+    const m = quarterlyCardModel({ summary: { ...connected(["Open", "Open", "Open", "Open"]), seenAt: null }, scope: null, todayIso: "2026-11-01" });
+    expect(m).toMatchObject({ pill: null, link: "Open" });
+  });
+
+  it("keeps the Late pill while the check is recent", () => {
+    const m = quarterlyCardModel({ summary: connected(["Fulfilled", "Open", "Open", "Open"], "2026-11-05T10:00:00.000Z"), scope: null, todayIso: "2026-11-12" });
+    expect(m.kind === "card" && m.pill?.text).toBe("Late");
+  });
+
+  it("stays neutral, not 'not needed', when a finished year has no income held", () => {
+    const years = [
+      { taxYear: "2024-25", complete: true },
+      { taxYear: "2025-26", complete: true },
+      { taxYear: "2026-27", complete: false },
+    ];
+    expect(scopeForCard({ answer: "not_yet", years, missingTaxYears: ["2024-25"] })).toBeNull();
+    // Only the running year missing: it can only go up, so "not yet" still stands.
+    expect(scopeForCard({ answer: "not_yet", years, missingTaxYears: ["2026-27"] })).toBe("not_yet");
+    // Income found over a limit stands whatever else is missing.
+    expect(scopeForCard({ answer: "later", years, missingTaxYears: ["2024-25"] })).toBe("later");
+    const m = quarterlyCardModel({ summary: notConnected, scope: null, todayIso: "2026-11-01" });
+    expect(m).toMatchObject({ kind: "card", sub: "Find out if HMRC needs these from you", link: "Check" });
   });
 
   it("never claims 'not needed' when it could not find out", () => {

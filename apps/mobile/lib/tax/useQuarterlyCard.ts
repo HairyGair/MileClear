@@ -17,10 +17,10 @@ import {
 } from "@mileclear/shared";
 import { fetchHmrcSummary } from "../api/hmrcSummary";
 import { fetchSelfAssessmentSummary } from "../api/selfAssessment";
-import type { QuarterlySummary } from "./quarterlyCard";
+import { scopeForCard, type QuarterlySummary } from "./quarterlyCard";
 
 interface Scope {
-  answer: MtdScopeAnswer;
+  answer: MtdScopeAnswer | null;
   startsLabel: string | null;
   at: number;
 }
@@ -50,7 +50,8 @@ async function loadScope(): Promise<Scope> {
   // Nothing logged for a year reads as "not held", not as £0 of income.
   for (const [ty, pence] of pairs) byYear[ty] = pence && pence > 0 ? pence : null;
   const r = checkMtdScope({ selfEmploymentPenceByTaxYear: byYear, today });
-  return { answer: r.answer, startsLabel: r.phase?.startsLabel ?? null, at: Date.now() };
+  // answer null = MileClear can't tell (no income held for a finished year).
+  return { answer: scopeForCard(r), startsLabel: r.phase?.startsLabel ?? null, at: Date.now() };
 }
 
 export function useQuarterlyCard(args: { userId: string | undefined; enabled: boolean }) {

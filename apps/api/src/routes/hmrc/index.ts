@@ -142,7 +142,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
     }
     const connection = await prisma.hmrcConnection.findUnique({
       where: { userId: request.userId! },
-      select: { environment: true, expiresAt: true, disconnectedAt: true, nino: true, businessId: true },
+      select: { environment: true, expiresAt: true, disconnectedAt: true, nino: true, businessId: true, connectedAt: true },
     });
     const connected =
       !!connection &&
@@ -150,13 +150,14 @@ export async function hmrcRoutes(app: FastifyInstance) {
       connection.environment === config.environment &&
       connection.expiresAt.getTime() > 86_400_000;
     if (!connected) {
-      return reply.send({ data: { connected: false, ready: false, taxYear: null, quarters: [] } });
+      return reply.send({ data: { connected: false, ready: false, taxYear: null, quarters: [], seenAt: null } });
     }
     const p = ukDateParts(new Date());
     const todayIso = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
     const summary = await loadMtdSummary({
       userId: request.userId!,
       environment: config.environment,
+      connectedAt: connection!.connectedAt,
       todayIso,
     });
     return reply.send({
