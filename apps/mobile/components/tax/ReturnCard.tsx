@@ -9,6 +9,8 @@ import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import type { TaxOverview } from "@mileclear/shared";
 import { Button } from "../Button";
+import { HmrcHandoffSheet } from "../HmrcHandoffSheet";
+import { fileHandoff, GOVUK_FILE_SELF_ASSESSMENT } from "../../lib/tax/mtdHandoffCopy";
 import { colors, fonts, fontScaleCap } from "../../lib/theme";
 import {
   daysText,
@@ -20,8 +22,6 @@ import {
   type ReturnCardMode,
 } from "../../lib/tax/persona";
 import { taxCard } from "./cardStyles";
-
-const GOV_UK_FILE_URL = "https://www.gov.uk/log-in-file-self-assessment-tax-return";
 
 const PILL = {
   calm: { bg: "rgba(255,255,255,0.04)", fg: colors.text2 },
@@ -47,6 +47,7 @@ export function ReturnCard({
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [fileSheet, setFileSheet] = useState(false);
   const year = deadlineYear(ret.deadline);
   const days = ret.daysToDeadline;
   const tone = PILL[daysTone(days)];
@@ -152,7 +153,7 @@ export function ReturnCard({
                 accessibilityRole="link"
                 accessibilityLabel="File at GOV.UK"
                 hitSlop={8}
-                onPress={() => WebBrowser.openBrowserAsync(GOV_UK_FILE_URL).catch(() => {})}
+                onPress={() => setFileSheet(true)}
               >
                 <Text style={taxCard.link}>File at GOV.UK</Text>
               </Pressable>
@@ -162,6 +163,14 @@ export function ReturnCard({
           <Button title="Sort my return" variant={lead ? "primary" : "secondary"} fullWidth onPress={openChecklist} />
         )}
       </View>
+
+      <HmrcHandoffSheet
+        visible={fileSheet}
+        copy={fileHandoff()}
+        onClose={() => setFileSheet(false)}
+        onPrimary={() => void WebBrowser.openBrowserAsync(GOVUK_FILE_SELF_ASSESSMENT).catch(() => {})}
+        onSecondary={() => router.push("/self-assessment" as never)}
+      />
     </View>
   );
 }
