@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { estimateDisclaimer, sentScreenTitle, updateFailedBody, updateFailedTitle, NO_TRADE_COPY, connectionLine, describeMtdLoadError, isConnectionExpired, isMtdLive, isMtdTest, isNothingSubmittedError, obligationsErrorText } from "./mtdCopy";
+import { estimateDisclaimer, sentScreenTitle, updateFailedBody, updateFailedTitle, connectionLine, describeMtdLoadError, isConnectionExpired, isMtdLive, isMtdTest, isNothingSubmittedError, obligationsErrorText } from "./mtdCopy";
 import { ApiError } from "../api/apiError";
 
 const now = new Date("2026-10-10T12:00:00Z");
@@ -88,9 +88,5 @@ describe("environment-dependent wording", () => {
   it("estimate is not described as a projection", () => {
     expect(estimateDisclaimer("production")).toContain("from what you've sent so far");
     expect(estimateDisclaimer("production")).not.toMatch(/year-end|pattern/i);
-  });
-  it("no-trade copy has no em dashes or raw ids and offers a way on", () => {
-    expect(JSON.stringify(NO_TRADE_COPY)).not.toMatch(/—|XAIS/);
-    expect(NO_TRADE_COPY.retryLabel).toBe("Check again");
   });
 });

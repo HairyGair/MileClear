@@ -1,4 +1,4 @@
-import { NO_TRADE_COPY, isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
+import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { useCallback, useRef, useState } from "react";
 import {
@@ -18,8 +18,7 @@ import { getTaxYear } from "@mileclear/shared";
 import { PremiumGate } from "../components/PremiumGate";
 import { BetaBanner } from "../components/BetaBanner";
 import { MtdSignpost } from "../components/MtdSignpost";
-import { MtdScopeCheck } from "../components/MtdScopeCheck";
-import { MtdSignUpCard } from "../components/MtdSignUpCard";
+import { MtdSetup } from "../components/mtd/MtdSetup";
 import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
 import { summariseQuarters, taxYearOfPeriodStart, localToday, obligationsWindow } from "../lib/tax/mtdQuarters";
@@ -410,6 +409,10 @@ function TaxMtdContent() {
     );
   }, [load, test]);
 
+  // The hub only once set up. A "ready" driver HMRC says isn't signed up
+  // goes back to setup, with step 1 reopened.
+  const showSetup = state.step !== "ready" || (live && state.notSignedUp);
+
   if (state.loading) {
     return (
       <View style={[styles.center, { flex: 1 }]}>
@@ -432,15 +435,13 @@ function TaxMtdContent() {
         />
       )}
 
-      {state.step === "ready" ? (
+      {!showSetup && (
         <ConnectionLine
           status={state.status}
           env={env}
           onManage={() => setManageOpen(true)}
           onConnect={onConnect}
         />
-      ) : (
-        <Header status={state.status} test={test} onDisconnect={state.status?.connected ? onDisconnect : undefined} />
       )}
 
       {state.error && (
@@ -456,16 +457,27 @@ function TaxMtdContent() {
         </View>
       )}
 
-      {/* Before connecting: does MTD apply to this driver yet? */}
-      {state.step === "connect" && <MtdScopeCheck />}
-      {/* Only the real service needs a GOV.UK sign-up; test logins don't. */}
-      {live && (state.step === "connect" || state.notSignedUp) && (
-        <MtdSignUpCard userId={userId} notSignedUp={state.notSignedUp} />
+      {/* Not set up yet, or HMRC says the driver isn't signed up: the 3-step
+          setup (spec 4.3). The test service needs no GOV.UK sign-up. */}
+      {showSetup && (
+        <MtdSetup
+          env={env}
+          live={live}
+          userId={userId}
+          step={state.step}
+          connected={state.status?.connected === true}
+          notSignedUp={state.notSignedUp}
+          businesses={state.businesses}
+          onConnect={onConnect}
+          onDisconnect={state.status?.connected ? onDisconnect : undefined}
+          onRetry={() => void load()}
+          onLeave={() => {
+            invalidateHubCache();
+            returningFromSend.current = true;
+          }}
+        />
       )}
-      {state.step === "connect" && <ConnectStep test={test} onConnect={onConnect} />}
-      {state.step === "nino" && <NinoStep test={test} onDone={load} />}
-      {state.step === "business" && <BusinessStep businesses={state.businesses} onDone={load} />}
-      {state.step === "ready" && (
+      {!showSetup && (
         <ReadyStep
           obligations={state.obligations}
           fulfilled={state.fulfilledKnown ? state.fulfilled : null}
@@ -482,11 +494,11 @@ function TaxMtdContent() {
           onConnect={onConnect}
         />
       )}
-      {state.step === "ready" && !state.notSignedUp && !isConnectionExpired(state.status?.expiresAt) && (
+      {!showSetup && !state.notSignedUp && !isConnectionExpired(state.status?.expiresAt) && (
         <MtdBalanceCard refreshKey={balanceKey} />
       )}
 
-      {state.step === "ready" && (
+      {!showSetup && (
         <TouchableOpacity
           style={styles.historyRow}
           onPress={() => router.push("/tax-mtd-history" as never)}
@@ -505,10 +517,10 @@ function TaxMtdContent() {
           top. On the real service the end-of-year return isn't offered (the
           final declaration isn't built); on the test service it can be tried
           from "Finish the year" on the timeline. */}
-      {state.step === "ready" && !test && (
+      {!showSetup && !test && (
         <MtdSignpost text="MileClear sends your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return isn't in MileClear yet, so send it with HMRC or other compatible software." />
       )}
-      {state.step === "ready" && test && (
+      {!showSetup && test && (
         <MtdSignpost text="When it goes live, MileClear will send your quarterly updates for self-employment income only. If you also have UK or foreign property, or other untaxed income, you'll need MTD-compatible software for those. The end-of-year tax return in this test version is for trying only, so for now send your real tax return with HMRC or other compatible software." />
       )}
 
@@ -536,51 +548,6 @@ function TaxMtdContent() {
         />
       </MtdSheet>
     </ScrollView>
-  );
-}
-
-// ── Header ───────────────────────────────────────────────────────────
-
-function Header({
-  status,
-  test,
-  onDisconnect,
-}: {
-  status: HmrcStatus | null;
-  test: boolean;
-  onDisconnect?: () => void;
-}) {
-  const isConnected = status?.connected === true;
-  const sandbox = status?.environment !== "production";
-  const expired = isConnected && isConnectionExpired(status?.expiresAt);
-  const title = expired
-    ? (test ? "Test connection expired" : "Connection expired")
-    : isConnected
-      ? (sandbox ? "Connected to HMRC's test service" : "Connected to HMRC")
-      : "Not connected";
-  return (
-    <View style={styles.header}>
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          <View
-            style={[styles.statusDot, { backgroundColor: expired ? TEXT_3 : isConnected ? (sandbox ? AMBER : GREEN) : TEXT_3 }]}
-            accessibilityLabel={title}
-            accessible={true}
-          />
-          <Text style={styles.headerTitle}>{title}</Text>
-        </View>
-        {onDisconnect && (
-          <TouchableOpacity onPress={onDisconnect} hitSlop={8} accessibilityRole="button" accessibilityLabel={test ? "Disconnect the test connection" : "Disconnect from HMRC"}>
-            <Text style={styles.disconnectLink}>Disconnect</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      {isConnected && status?.environment && (
-        <Text style={styles.headerSub}>
-          {connectionLine(status.expiresAt, formatExpiry(status.expiresAt), undefined, status.environment)}
-        </Text>
-      )}
-    </View>
   );
 }
 
@@ -615,146 +582,6 @@ function ConnectionLine({
       >
         <Text style={[styles.connActionText, expired && { color: AMBER }]}>{expired ? "Connect again" : "Manage"}</Text>
       </TouchableOpacity>
-    </View>
-  );
-}
-
-// ── Step: Connect ────────────────────────────────────────────────────
-
-function ConnectStep({ test, onConnect }: { test: boolean; onConnect: () => void }) {
-  if (!test) {
-    return (
-      <View style={styles.stepCard}>
-        <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>Connect to HMRC</Text>
-        <Text style={styles.stepBody}>
-          Sign in with your HMRC (Government Gateway) details and agree to let
-          MileClear send your quarterly updates.
-        </Text>
-        <Bullets
-          items={[
-            "MileClear works out the figures from your trips and earnings",
-            "Preview each quarter before you send it",
-            "HMRC shows you an estimate of your tax so far",
-          ]}
-        />
-        <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Continue to HMRC">
-          <Text style={styles.primaryButtonText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={18} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.fineprint}>
-          You'll be taken to HMRC's own sign-in page. The connection lasts a
-          limited time, so you may need to connect again. You can disconnect any time.
-        </Text>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.stepCard}>
-      <Ionicons name="shield-checkmark-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-      <Text style={styles.stepTitle}>Connect to the test service</Text>
-      <Text style={styles.stepBody}>
-        Sign in to HMRC's test service to try quarterly updates. Nothing reaches
-        your real tax account.
-      </Text>
-      <Bullets
-        items={[
-          "MileClear works out the figures from your trips and earnings",
-          "Preview each quarter before you go any further",
-          "Compare the result with your tax so far on the Tax tab",
-        ]}
-      />
-      <TouchableOpacity style={styles.primaryButton} onPress={onConnect} accessibilityRole="button" accessibilityLabel="Continue to the test service">
-        <Text style={styles.primaryButtonText}>Continue</Text>
-        <Ionicons name="arrow-forward" size={18} color="#000" />
-      </TouchableOpacity>
-      <Text style={styles.fineprint}>
-        You'll be taken to HMRC's sign-in page for the test service. The connection
-        lasts a limited time, so you may need to connect again. You can disconnect any time.
-      </Text>
-    </View>
-  );
-}
-
-// ── Step: NINO ───────────────────────────────────────────────────────
-
-function NinoStep({ test, onDone: _onDone }: { test: boolean; onDone: () => void }) {
-  return (
-    <View style={styles.stepCard}>
-      <Ionicons name="finger-print-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-      <Text style={styles.stepTitle}>Your National Insurance number</Text>
-      <Text style={styles.stepBody}>
-        {test
-          ? "We need your National Insurance Number to set up the test connection. It's stored encrypted and only used for quarterly updates."
-          : "HMRC needs your National Insurance Number to find your tax record. It's stored encrypted and only used for quarterly updates."}
-      </Text>
-      <TouchableOpacity
-        style={styles.primaryButton}
-        onPress={() => router.push("/tax-mtd-nino" as never)}
-        accessibilityRole="button"
-        accessibilityLabel="Enter your National Insurance number"
-      >
-        <Text style={styles.primaryButtonText}>Enter number</Text>
-        <Ionicons name="arrow-forward" size={18} color="#000" />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ── Step: Business picker ────────────────────────────────────────────
-
-function BusinessStep({
-  businesses,
-  onDone,
-}: {
-  businesses: HmrcBusinessSummary[];
-  onDone: () => void;
-}) {
-  const seBusinesses = businesses.filter((b) => b.typeOfBusiness === "self-employment");
-
-  if (seBusinesses.length === 0) {
-    return (
-      <View style={styles.stepCard}>
-        <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-        <Text style={styles.stepTitle}>{NO_TRADE_COPY.title}</Text>
-        <Text style={styles.stepBody}>{NO_TRADE_COPY.body}</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={onDone} accessibilityRole="button" accessibilityLabel={NO_TRADE_COPY.retryLabel}>
-          <Text style={styles.primaryButtonText}>{NO_TRADE_COPY.retryLabel}</Text>
-        </TouchableOpacity>
-        <Text style={[styles.helperLink, { marginTop: 12, textAlign: "center" }]} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={NO_TRADE_COPY.backLabel}>
-          {NO_TRADE_COPY.backLabel}
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.stepCard}>
-      <Ionicons name="briefcase-outline" size={48} color={AMBER} style={{ alignSelf: "center" }} />
-      <Text style={styles.stepTitle}>Choose your trade</Text>
-      <Text style={styles.stepBody}>
-        Pick the self-employment business to use for quarterly updates.
-      </Text>
-      {seBusinesses.map((b) => (
-        <TouchableOpacity
-          key={b.businessId}
-          style={styles.businessOption}
-          onPress={() =>
-            router.push({
-              pathname: "/tax-mtd-business" as never,
-              params: { businessId: b.businessId },
-            })
-          }
-          accessibilityRole="button"
-          accessibilityLabel={`Select trade: ${b.tradingName ?? "Self-Employment"}`}
-          accessibilityHint="Opens confirmation screen for this trade"
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.businessName}>{b.tradingName ?? "Self-Employment"}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
-        </TouchableOpacity>
-      ))}
     </View>
   );
 }
@@ -887,19 +714,6 @@ function ReadyStep({
 
 // ── Bits ─────────────────────────────────────────────────────────────
 
-function Bullets({ items }: { items: string[] }) {
-  return (
-    <View style={{ gap: 8, marginVertical: 12 }}>
-      {items.map((item, idx) => (
-        <View key={idx} style={styles.bulletRow}>
-          <Ionicons name="checkmark-circle" size={16} color={AMBER} />
-          <Text style={styles.bulletText}>{item}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function formatExpiry(iso: string | undefined): string {
   if (!iso) return "Not set";
   const d = new Date(iso);
@@ -916,36 +730,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
   center: { alignItems: "center", justifyContent: "center" },
 
-  header: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 16,
-    gap: 4,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1, marginRight: 12 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
-  headerTitle: {
-    flexShrink: 1,
-    color: TEXT_1,
-    fontSize: 16,
-    fontFamily: fonts.semibold,
-  },
-  headerSub: {
-    color: TEXT_3,
-    fontSize: 12,
-    fontFamily: fonts.regular,
-  },
-  disconnectLink: {
-    color: TEXT_3,
-    fontSize: 13,
-    fontFamily: fonts.medium,
-  },
 
   connLine: {
     flexDirection: "row",
@@ -1005,15 +791,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  bulletRow: { flexDirection: "row", gap: 8, alignItems: "flex-start" },
-  bulletText: {
-    color: TEXT_2,
-    fontSize: 14,
-    fontFamily: fonts.regular,
-    flex: 1,
-    lineHeight: 20,
-  },
-
   primaryButton: {
     backgroundColor: AMBER,
     flexDirection: "row",
@@ -1028,35 +805,6 @@ const styles = StyleSheet.create({
     color: "#000",
     fontFamily: fonts.semibold,
     fontSize: 16,
-  },
-  fineprint: {
-    color: TEXT_3,
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 12,
-    lineHeight: 18,
-    fontFamily: fonts.regular,
-  },
-
-  businessOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: BG,
-    borderRadius: 12,
-    padding: 14,
-    marginTop: 8,
-    gap: 8,
-  },
-  businessName: {
-    color: TEXT_1,
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-  },
-  businessId: {
-    color: TEXT_3,
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    marginTop: 2,
   },
 
   sectionLabel: {

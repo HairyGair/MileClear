@@ -127,13 +127,7 @@ export function estimateDisclaimer(env: HmrcEnv): string {
 /** Heading for the list of updates on the hub. */
 export const UPDATES_THIS_YEAR_HEADING = "Your updates this tax year";
 
-/** Shown when HMRC has no self-employment business for the driver. No raw IDs. */
-export const NO_TRADE_COPY = {
-  title: "HMRC doesn't have a self-employed business for you yet",
-  body: "Quarterly updates are sent against your self-employed business on your HMRC record. HMRC doesn't show one for the National Insurance number you gave us. This usually means you haven't registered as self-employed with HMRC yet, or it's still being set up. Once HMRC shows your business, tap Check again. If you're sure you're registered, check the National Insurance number is yours.",
-  retryLabel: "Check again",
-  backLabel: "Back",
-} as const;
+// The no-business explainer now lives in mtdSetupCopy.ts (BUSINESS_NOT_FOUND).
 
 // ── Check and send / sent screens (Nov 2026 redesign) ───────────────────
 // Environment-dependent words for the two screens an update goes through.

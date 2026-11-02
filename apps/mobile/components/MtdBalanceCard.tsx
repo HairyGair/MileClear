@@ -8,6 +8,8 @@ import { fetchHmrcBalance, type HmrcBalance } from "../lib/api/hmrc";
 import { isApiError } from "../lib/api";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
 import { balanceRows, GOVUK_PAY_SELF_ASSESSMENT } from "../lib/tax/mtdBalance";
+import { payFigures, payHandoff } from "../lib/tax/mtdHandoffCopy";
+import { HmrcHandoffSheet } from "./HmrcHandoffSheet";
 
 type Load =
   | { kind: "loading" }
@@ -23,6 +25,7 @@ type Load =
  */
 export function MtdBalanceCard({ refreshKey }: { refreshKey: number }) {
   const [load, setLoad] = useState<Load>({ kind: "loading" });
+  const [paySheet, setPaySheet] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -87,7 +90,7 @@ export function MtdBalanceCard({ refreshKey }: { refreshKey: number }) {
       {rows.length > 0 && (
         <TouchableOpacity
           style={styles.primary}
-          onPress={() => void WebBrowser.openBrowserAsync(GOVUK_PAY_SELF_ASSESSMENT)}
+          onPress={() => setPaySheet(true)}
           accessibilityRole="link"
           accessibilityLabel="Pay on GOV.UK"
         >
@@ -99,6 +102,13 @@ export function MtdBalanceCard({ refreshKey }: { refreshKey: number }) {
       <Text style={styles.small}>
         From HMRC, for tax years since you joined Making Tax Digital. Earlier years are in your HMRC online account.
       </Text>
+
+      <HmrcHandoffSheet
+        visible={paySheet}
+        copy={payHandoff(payFigures(b), formatPence)}
+        onClose={() => setPaySheet(false)}
+        onPrimary={() => void WebBrowser.openBrowserAsync(GOVUK_PAY_SELF_ASSESSMENT).catch(() => {})}
+      />
     </View>
   );
 }
