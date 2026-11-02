@@ -70,7 +70,7 @@ export default function MtdLateSubmissionPenaltiesPage() {
         {
           heading: "An example for a driver",
           body: [
-            "Say a courier is in Making Tax Digital from April 2026 and sends quarterly updates.",
+            "Say a courier is in Making Tax Digital from April 2026 and sends quarterly updates. This example assumes their 2026-27 tax return goes in on time, by 31 January 2028. A late tax return would add a point of its own.",
           ],
           table: {
             caption: "How points could build up",
@@ -81,7 +81,7 @@ export default function MtdLateSubmissionPenaltiesPage() {
               ["Misses the 7 November 2027 deadline", "2", "None yet"],
               ["Misses the 7 February 2028 deadline", "3", "None yet"],
               ["Misses the 7 May 2028 deadline", "4", "£200"],
-              ["Misses the next deadline too", "4", "Another £200"],
+              ["Misses the next deadline too", "Threshold already reached", "Another £200"],
             ],
           },
           after: [

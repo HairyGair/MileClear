@@ -39,7 +39,7 @@ export default function MtdQuarterlyUpdateDeadlinesPage() {
       updated="2 November 2026"
       shortAnswer={[
         "The quarterly update deadlines are the 7th of August, November, February and May. For 2026-27 that is 7 August 2026, 7 November 2026, 7 February 2027 and 7 May 2027.",
-        "The next one after this page was updated is 7 November 2026, which is a Saturday. It covers your income and costs from 6 April to 5 October 2026.",
+        "Each update gives your totals for the tax year so far. So the 7 November 2026 update, which falls on a Saturday, covers your income and costs from 6 April to 5 October 2026.",
         "A quarterly update is a summary of your income and costs so far. It is not a tax return and it is not a bill. Your tax return for 2026-27 is still due by 31 January 2028.",
       ]}
       sections={[
@@ -66,7 +66,8 @@ export default function MtdQuarterlyUpdateDeadlinesPage() {
         {
           heading: "If your accounts run from 1 April",
           body: [
-            "GOV.UK says that if your accounting period runs from 1 April to 31 March, you use calendar update periods instead. The quarters then start on the 1st of the month. The deadlines do not change.",
+            "GOV.UK says that if your accounting period runs from 1 April to 31 March, you should use calendar update periods. The quarters then start on the 1st of the month. The deadlines do not change.",
+            "This does not happen on its own. Software is set to the standard periods unless you change it, and you need to select calendar periods in your software before you send your first quarterly update. Once you have sent an update, you cannot change your update periods for the rest of the tax year.",
           ],
           table: {
             caption: "Calendar update periods, tax year 2026-27",
@@ -79,14 +80,14 @@ export default function MtdQuarterlyUpdateDeadlinesPage() {
             ],
           },
           after: [
-            "Most self-employed drivers keep their books to the tax year, 6 April to 5 April, so the standard quarters above are the ones they use. If you are not sure which applies to you, ask your accountant or check your HMRC online account.",
+            "Most self-employed drivers keep their books to the tax year, 6 April to 5 April, so the standard quarters above are the ones they use. If you are not sure which applies to you, ask your accountant before you send your first update.",
           ],
         },
         {
           heading: "Sending early",
           body: [
             "You do not have to wait for the quarter to end. GOV.UK says you can send an update up to 10 days before the end of the update period, if you do not expect to record anything else for it.",
-            "For the quarter ending 5 October, that means you could send from late September onwards. Sending early is fine, and if something comes in after you sent it, it goes into your next update because each one carries your totals for the year so far.",
+            "For the period ending 5 October, 10 days before is 25 September. Sending early is fine, and if something comes in after you sent it, it goes into your next update because each one carries your totals for the year so far.",
           ],
         },
         {

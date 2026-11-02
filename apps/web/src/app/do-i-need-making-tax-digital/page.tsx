@@ -123,9 +123,9 @@ export default function DoINeedMakingTaxDigitalPage() {
           list: [
             "Qualifying income of £20,000 or less.",
             "Not having a National Insurance number before the start of the tax year.",
-            "Partnerships, which do not need to use it for now.",
           ],
           after: [
+            "Partnerships are not included yet. If you are a partner, your share of the partnership profit does not count towards your qualifying income.",
             "You can also apply for an exemption if you are digitally excluded. GOV.UK gives examples: your age, a health condition or a disability stops you using a computer, tablet or smartphone, you cannot get internet access at home or at work because of where you are, or you belong to a religious society whose beliefs rule out digital communications.",
             "HMRC will not accept, on their own: that you filed on paper before, that you do not know accounting software, that you have only a few records, or that it takes extra time or money. You apply by calling or writing to HMRC Self Assessment general enquiries, and HMRC aims to reply within 28 days.",
             "If you are exempt, you still send a normal Self Assessment tax return.",
