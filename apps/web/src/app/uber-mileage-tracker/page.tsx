@@ -248,7 +248,7 @@ export default function UberMileageTracker() {
                 {
                   title: "HMRC Reconciliation",
                   body:
-                    "Since January 2024, Uber reports your annual earnings to HMRC under the Digital Platform Reporting rules. The Reconciliation tool lets you type in the figure your platform reported to HMRC and compares it with what MileClear tracked, so you spot any mismatch before they raise it.",
+                    "Platforms covered by the digital platform reporting rules report sellers' earnings to HMRC each January and send you a copy. If you get one, the Reconciliation tool lets you type in its figure and compares it with what MileClear tracked. The report covers the calendar year with the platform's fees taken off, so expect some difference from your tax year turnover.",
                 },
                 {
                   title: "Tax Readiness Card",
@@ -517,7 +517,7 @@ export default function UberMileageTracker() {
               },
               {
                 q: "Does Uber report my earnings to HMRC?",
-                a: "Uber is required to report driver earnings to HMRC under UK tax rules. That makes accurate expense records - including mileage - even more important. If your mileage deductions are not logged properly, you could end up paying tax on more income than you need to.",
+                a: "Platforms covered by the UK digital platform reporting rules report sellers' earnings to HMRC each January and send them a copy, and GOV.UK names driving a taxi as an example of the work covered. If you get a copy of a report from Uber, check it against what you declare. The report covers income, not mileage, so if your mileage is not logged properly you could end up paying tax on more income than you need to.",
               },
               {
                 q: "Can I use MileClear for my Uber accountant?",

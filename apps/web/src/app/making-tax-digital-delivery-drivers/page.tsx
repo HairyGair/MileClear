@@ -45,7 +45,7 @@ export default function MakingTaxDigitalDeliveryDriversPage() {
       shortAnswer={[
         "Making Tax Digital for Income Tax applies to sole traders and landlords whose qualifying income is over a set level. Qualifying income is your total turnover from self-employment and property, before costs come off.",
         "The level drops in stages: over £50,000 from 6 April 2026, over £30,000 from 6 April 2027, and over £20,000 from 6 April 2028. Each stage is based on the tax return for an earlier year.",
-        "Once you are in, you keep digital records, send a quarterly update every 3 months, and still send one tax return for the year by 31 January. Your mileage claim goes on the costs side, so it lowers your profit but does not change whether you have to join.",
+        "Once you are in, you keep digital records, send a quarterly update every 3 months, and still send one tax return for the year by 31 January. Your mileage claim counts as a cost, so it lowers your profit but does not change whether you have to join.",
       ]}
       sections={[
         {
@@ -75,17 +75,17 @@ export default function MakingTaxDigitalDeliveryDriversPage() {
         {
           heading: "What you have to do once you are in",
           body: [
-            "GOV.UK lists three things:",
+            "Once you are in, you need to:",
           ],
           list: [
             "Keep digital records of your self-employment income and costs. Each record needs the amount, the date and a category.",
             "Send a quarterly update every 3 months from software that works with Making Tax Digital.",
-            "Send one tax return for the year, and pay what you owe, by 31 January after the tax year ends.",
+            "Send one tax return for the year through software that works with Making Tax Digital, and pay what you owe, by 31 January after the tax year ends.",
           ],
           after: [
             "A quarterly update is a summary, not a tax return. It holds your totals for each income and cost category, using the same categories as Self Assessment. HMRC does not get your individual receipts. Each update runs from 6 April to the end of that quarter, so it adds up the year so far.",
             "For the 2026-27 tax year the updates are due by 7 August 2026, 7 November 2026, 7 February 2027 and 7 May 2027. Our page on quarterly update deadlines has the dates for later years.",
-            "HMRC says that from September 2026 it will start signing up people who need to use Making Tax Digital for 2026-27 but have not signed up yet, and will write to tell them what to do next.",
+            "HMRC says that from September 2026 it will start signing up people who need to use Making Tax Digital for 2026-27 but have not signed up yet. GOV.UK has a page on what to do next if that happens to you.",
           ],
         },
         {
@@ -98,7 +98,7 @@ export default function MakingTaxDigitalDeliveryDriversPage() {
             "Actual costs. You claim the business share of what you spend on the vehicle, such as fuel, insurance and repairs.",
           ],
           after: [
-            "Either way, the claim goes on the costs side of your records, in the car, van and travel category. It lowers your profit and so your tax. It does not lower your qualifying income, because that is measured before costs.",
+            "Either way, the claim counts as a cost in the car, van and travel category, which lowers your profit and so your tax. It does not lower your qualifying income, because that is measured before costs.",
             "Once you use the flat rate for a vehicle, you have to keep using it for as long as you use that vehicle for work. The rates also change from year to year, so check our page on HMRC mileage rates for the year you are claiming.",
             "HMRC's record-keeping guidance says that if you are sure you will use simplified expenses such as the flat mileage rate, you do not need digital records of the actual costs it replaces. You still need a log of your business miles to back up the claim: the date, where you went, the miles and why.",
           ],
@@ -114,7 +114,7 @@ export default function MakingTaxDigitalDeliveryDriversPage() {
           body: [
             "MileClear is a mileage tracking app for UK drivers. It records your drives in the background, you sort each one as business or personal, and it works out your mileage claim at the right rate for the year each trip was made. You can add your earnings from each app and your other costs too. Tracking is free.",
             "Pro drivers can send their quarterly updates for self-employment income to HMRC from the MileClear app. Your mileage claim goes into the car, van and travel costs line, and you check every figure before you send it. You need to be signed up for Making Tax Digital with HMRC first.",
-            "The end-of-year tax return is not sent from MileClear yet. You file that on GOV.UK, through other software, or through your accountant. Like any phone app, tracking depends on your settings and signal, so check your trips now and then.",
+            "The end-of-year tax return is not sent from MileClear yet. You send that through other software that works with Making Tax Digital, or through your accountant. Like any phone app, tracking depends on your settings and signal, so check your trips now and then.",
           ],
         },
       ]}
@@ -142,12 +142,12 @@ export default function MakingTaxDigitalDeliveryDriversPage() {
         {
           question: "Do I still send a tax return under Making Tax Digital?",
           answer:
-            "Yes. You send quarterly updates during the year and one tax return for the year, both from compatible software. The return and any tax owed are due by 31 January after the tax year ends.",
+            "Yes. You send quarterly updates during the year and one tax return for the year, both through software that works with Making Tax Digital. The return and any tax owed are due by 31 January after the tax year ends.",
         },
         {
           question: "Can MileClear send my quarterly updates?",
           answer:
-            "Yes, for self-employment income, if you have Pro and have signed up for Making Tax Digital with HMRC. The end-of-year tax return is not sent from MileClear yet, so you file that on GOV.UK, through other software or through your accountant.",
+            "Yes, for self-employment income, if you have Pro and have signed up for Making Tax Digital with HMRC. The end-of-year tax return is not sent from MileClear yet, so you send that through other software that works with Making Tax Digital, or through your accountant.",
         },
       ]}
       caution={{

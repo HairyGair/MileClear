@@ -55,7 +55,7 @@ export default function DoDeliveryAppsReportEarningsPage() {
           body: [
             "The UK's reporting rules for digital platforms started on 1 January 2024. A digital platform is a website or app that connects sellers with customers for goods or services. In these rules, a driver doing work through an app counts as a seller.",
             "GOV.UK gives examples of what is covered, including providing personal services \"like delivering food, driving a taxi, or freelancing\". So food delivery and ride apps are the kind of platform the rules were written for.",
-            "There is a small-seller exception, but it is for people who sell fewer than 30 items of goods a year for 2,000 euros or less. It does not apply to services, so there is no minimum for delivery or driving work.",
+            "There is a small-seller exception, but it is for people who make fewer than 30 sales of goods in a calendar year and get less than 2,000 euros (about £1,700) for those sales. It does not apply to services, so there is no minimum for delivery or driving work.",
           ],
         },
         {
@@ -64,6 +64,7 @@ export default function DoDeliveryAppsReportEarningsPage() {
             "For an individual, the platform asks for your full name, home address, date of birth and tax identification number. It reports these with what it paid you through the platform.",
             "Platforms work on calendar years, from 1 January to 31 December. Each year's report goes to HMRC by 31 January the following year. The first reports, covering 2024, were due by 31 January 2025. Reports covering 2025 were due by 31 January 2026.",
             "The platform must also give you a copy of the information it sent, by the same 31 January date. Keep it with your tax records.",
+            "The copy shows the total you earned on the platform for the calendar year, less any fees, commission or taxes the platform took off, split into the four quarters of the year. So it may not match the turnover on your tax return, which is your pay before costs, for the tax year.",
           ],
         },
         {
@@ -78,7 +79,7 @@ export default function DoDeliveryAppsReportEarningsPage() {
           heading: "Which apps does this cover?",
           body: [
             "Any app that connects you with customers for delivery or driving work is likely to be a platform under these rules. That is the model used by food delivery and ride apps such as Uber and Deliveroo.",
-            "Some parcel work is set up differently, with you contracted by the delivery company itself. Whether a particular company reports under these rules depends on how it is set up. The simplest check is whether you received a copy of a platform report by 31 January. Either way, your duty to declare your income is the same.",
+            "Some parcel work is set up differently, with you contracted by the delivery company itself. Whether a particular company reports under these rules depends on how it is set up. The simplest check is whether you received a copy of a platform report by 31 January, or ask the company. Either way, your duty to declare your income is the same.",
           ],
         },
         {
@@ -115,7 +116,7 @@ export default function DoDeliveryAppsReportEarningsPage() {
         {
           question: "Is there a minimum before I am reported?",
           answer:
-            "Not for delivery or driving work. The exception for fewer than 30 sales and 2,000 euros or less applies to selling goods, not to services.",
+            "Not for delivery or driving work. The exception for fewer than 30 sales of goods in a calendar year and less than 2,000 euros (about £1,700) applies to selling goods, not to services.",
         },
         {
           question: "Does being reported mean I owe tax?",
@@ -130,7 +131,7 @@ export default function DoDeliveryAppsReportEarningsPage() {
       ]}
       caution={{
         title: "Calendar year, not tax year",
-        body: "A platform's report covers 1 January to 31 December. Your tax return covers 6 April to 5 April. Do not copy the platform's total straight onto your return without working out the tax year figure.",
+        body: "A platform's report runs from January to December, not the tax year, and its total has the platform's fees, commission and any taxes it took already taken off. Your tax return covers 6 April to 5 April. Do not copy the platform's total straight onto your return. Work out the tax year figure from your own records and statements.",
       }}
       cta={{
         href: "/app?from=seo-platform-reporting&page=gig",

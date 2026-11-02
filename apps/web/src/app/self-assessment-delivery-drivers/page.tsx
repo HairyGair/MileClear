@@ -54,7 +54,7 @@ export default function SelfAssessmentDeliveryDriversPage() {
           heading: "Do you need to file?",
           body: [
             "GOV.UK says you must send a return if you were self-employed as a sole trader and earned more than £1,000 before taking off anything you can claim tax relief on. That means your pay before costs, added up across every app you worked for.",
-            "If this is your first return, you needed to tell HMRC by 5 October 2026 for the 2025-26 tax year. If you have not registered yet, do it now on GOV.UK so you can still file by 31 January 2027.",
+            "If this is your first return, you needed to tell HMRC by 5 October 2026 for the 2025-26 tax year. If you have not registered yet, do it now on GOV.UK. When you register after 5 October, HMRC sends you a letter or email with a filing deadline 3 months from its date, but you must still pay the tax you owe by 31 January 2027. If you register late and do not pay in full by then, you may get a penalty for not telling HMRC in time.",
           ],
         },
         {
@@ -163,7 +163,7 @@ export default function SelfAssessmentDeliveryDriversPage() {
         {
           question: "Should I use the SA103S or the SA103F?",
           answer:
-            "The short pages, SA103S, are for turnover below £90,000 with fairly simple affairs. If your turnover was £90,000 or more, use the full pages, SA103F.",
+            "The short pages, SA103S, are for turnover below £90,000. If your turnover was £90,000 or more, use the full pages, SA103F.",
         },
         {
           question: "Do I have to make payments on account?",
