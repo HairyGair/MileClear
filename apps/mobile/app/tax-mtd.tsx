@@ -119,12 +119,38 @@ const HUB_CACHE_MS = 60_000;
 let hubCache: { userId: string | null; at: number; state: ScreenState } | null = null;
 
 export default function TaxMtdScreen() {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const go = (path: string) => {
+    setHelpOpen(false);
+    router.push(path as never);
+  };
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: "Quarterly updates", headerStyle: { backgroundColor: BG }, headerTintColor: TEXT_1 }} />
+      <Stack.Screen
+        options={{
+          title: "Quarterly updates",
+          headerStyle: { backgroundColor: BG },
+          headerTintColor: TEXT_1,
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => setHelpOpen(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Help with quarterly updates"
+            >
+              <Ionicons name="help-circle-outline" size={24} color={TEXT_1} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
       <PremiumGate feature="Quarterly updates">
         <TaxMtdContent />
       </PremiumGate>
+      <MtdSheet visible={helpOpen} title="Help" onClose={() => setHelpOpen(false)}>
+        <SheetRow label="How quarterly updates work" onPress={() => go("/tax-mtd-explainer")} />
+        <SheetRow label="What if I miss a deadline?" onPress={() => go("/tax-mtd-late")} />
+        <SheetRow label="What MileClear sends, and what it doesn't" onPress={() => go("/tax-mtd-sends")} />
+      </MtdSheet>
     </View>
   );
 }
