@@ -273,6 +273,9 @@ export async function hmrcRoutes(app: FastifyInstance) {
           scope: tokens.scope,
           expiresAt: expiryFromExpiresIn(tokens.expires_in),
           environment: config.environment,
+          // Reconnecting reuses this row, so the connect date restarts here:
+          // /hmrc/summary only reads HMRC snapshots from this connection on.
+          connectedAt: new Date(),
           disconnectedAt: null,
           lastStateToken: null,
         },

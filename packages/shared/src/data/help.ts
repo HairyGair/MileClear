@@ -711,9 +711,9 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "mtd-no-business",
     area: "tax_and_claims",
     q: "HMRC says it hasn't got a self-employed business for me",
-    a: "HMRC looked up the National Insurance Number you entered and found no self-employed business. It's usually one of two things. You signed up for Making Tax Digital but didn't add your self-employment: add it in your HMRC online account (GOV.UK has the steps), then come back and try again. Or the National Insurance Number isn't yours: check it, and change it by disconnecting and connecting again. You haven't sent anything yet. If you've done both and it still says this, tell us from More > Tell us about a problem or idea.",
+    a: "HMRC looked up the National Insurance Number you entered and found no self-employed business. It's usually one of two things. You signed up for Making Tax Digital but didn't add your self-employment: add it in your HMRC online account (GOV.UK has the steps), then come back and try again. Or the National Insurance Number isn't yours: check it, and change it from Quarterly updates > Manage > Change National Insurance number. You haven't sent anything yet. If you've done both and it still says this, tell us from More > Tell us about a problem or idea.",
     goTo: "/tax-mtd",
-    keywords: ["no business", "business not found", "no self-employment", "no self employed", "hasn't got", "add self-employment", "sole trader"],
+    keywords: ["no business", "business not found", "no self-employment", "no self employed", "hasn't got", "add self-employment", "sole trader", "manage", "change national insurance"],
   },
   {
     id: "mtd-amend",
