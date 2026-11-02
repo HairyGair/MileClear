@@ -340,7 +340,7 @@ export function HomeIdle(p: Props) {
       case "odometer":
         return {
           id: askId, icon: "speedometer-outline", title: "Add an odometer reading",
-          line: "Once is enough. We add your trips to it.", dismissLabel: "Not now",
+          line: "Optional: for actual costs, or if your employer asks.", dismissLabel: "Not now",
           onPress: press(() => setOdoOpen(true)), onDismiss: dismiss(odo.dismiss),
         };
       case "employer":
