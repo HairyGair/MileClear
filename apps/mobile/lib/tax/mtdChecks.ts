@@ -3,16 +3,6 @@
 
 import type { PeriodSubmissionBreakdown, PeriodSubmissionPayload } from "../api/hmrc";
 
-export interface CheckTrip {
-  startedAt: string;
-  classification: string;
-}
-
-export interface CheckEarning {
-  periodStart: string;
-  periodEnd: string;
-}
-
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const LONG_MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -36,24 +26,6 @@ function parseDay(day: string): Date {
   return new Date(y, m - 1, d, 12, 0, 0);
 }
 
-function dayString(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** Monday of the week containing the day, as YYYY-MM-DD. */
-export function weekStartOf(day: string): string {
-  const d = parseDay(day);
-  const dow = d.getDay();
-  d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
-  return dayString(d);
-}
-
-function addDays(day: string, n: number): string {
-  const d = parseDay(day);
-  d.setDate(d.getDate() + n);
-  return dayString(d);
-}
-
 /** "6 Jul", "5 Oct". */
 export function shortDay(day: string): string {
   const d = parseDay(day);
@@ -72,46 +44,6 @@ export function periodSentence(startDay: string, endDay: string): string {
   const e = parseDay(endDay);
   if (s.getFullYear() === e.getFullYear()) return `${longDay(startDay)} to ${longDay(endDay, true)}`;
   return `${longDay(startDay, true)} to ${longDay(endDay, true)}`;
-}
-
-/** Trips in the period (inclusive of both days) that have not been marked Business or Personal. */
-export function countUnmarkedTrips(trips: CheckTrip[], fromDay: string, toDay: string): number {
-  let n = 0;
-  for (const t of trips) {
-    if (t.classification !== "unclassified") continue;
-    const day = localDay(t.startedAt);
-    if (day && day >= fromDay && day <= toDay) n++;
-  }
-  return n;
-}
-
-/**
- * Weeks (Monday dates, oldest first) in the period that have a Business trip
- * but no earnings covering any day of that week. An earning with a long
- * period (a monthly payout) covers every week it overlaps.
- */
-export function weeksMissingEarnings(
-  trips: CheckTrip[],
-  earnings: CheckEarning[],
-  fromDay: string,
-  toDay: string,
-): string[] {
-  const drivingWeeks = new Set<string>();
-  for (const t of trips) {
-    if (t.classification !== "business") continue;
-    const day = localDay(t.startedAt);
-    if (day && day >= fromDay && day <= toDay) drivingWeeks.add(weekStartOf(day));
-  }
-  const ranges = earnings
-    .map((e) => ({ s: localDay(e.periodStart), e: localDay(e.periodEnd) }))
-    .filter((r) => r.s && r.e);
-  const missing: string[] = [];
-  for (const wk of Array.from(drivingWeeks).sort()) {
-    const wkEnd = addDays(wk, 6);
-    const covered = ranges.some((r) => r.s <= wkEnd && r.e >= wk);
-    if (!covered) missing.push(wk);
-  }
-  return missing;
 }
 
 export type CheckKind = "warn" | "ok" | "info";
@@ -136,7 +68,8 @@ export function listWeeks(weeks: string[], max = 4): string {
 
 export function buildPreSendChecks(args: {
   unmarkedCount: number;
-  missingWeeks: string[];
+  /** Null when the check does not apply to this driver. */
+  missingWeeks: string[] | null;
   excludedMotorPence: number;
   serverWarnings: string[];
   fromDay: string;
@@ -157,7 +90,9 @@ export function buildPreSendChecks(args: {
     });
   }
 
-  if (args.missingWeeks.length > 0) {
+  if (args.missingWeeks === null) {
+    // Not a self-employed driver: no earnings-by-week check.
+  } else if (args.missingWeeks.length > 0) {
     const n = args.missingWeeks.length;
     out.push({
       id: "earnings",
@@ -371,6 +306,20 @@ export function nextUpdates(
 export function finishTheYearDeadline(taxYear: string): string {
   const startYear = Number(taxYear.slice(0, 4));
   return `31 January ${startYear + 2}`;
+}
+
+/**
+ * Profit of the last update HMRC holds, but only when it is an earlier one than
+ * the one being sent (its period ends before `toDay`). Null otherwise, so
+ * re-sending the same update never shows a made-up "since your last update".
+ */
+export function previousUpdateProfitPence(detail: unknown, toDay: string): number | null {
+  if (!detail || typeof detail !== "object") return null;
+  const end = (detail as { periodDates?: { periodEndDate?: unknown } }).periodDates?.periodEndDate;
+  if (typeof end !== "string") return null;
+  const endDay = localDay(end);
+  if (!endDay || endDay >= toDay) return null;
+  return profitPenceFromStoredPeriod(detail);
 }
 
 /** Position of the period among the year's updates, from the year's obligations. Null when it can't be told. */

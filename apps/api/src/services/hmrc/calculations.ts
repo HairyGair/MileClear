@@ -121,6 +121,10 @@ export interface HmrcCalculationSummary {
   nic4?: number;
   /** Total income tax + NIC due, in pounds. The headline figure. */
   totalIncomeTaxAndNicsDue?: number;
+  /** Tax already deducted at source (for example PAYE through a job), in pounds. Already netted off the headline. */
+  totalTaxDeducted?: number;
+  /** The personal allowance HMRC applied this year, in pounds. */
+  personalAllowance?: number;
   /**
    * HMRC's own income tax bands (name, rate %, income in the band, tax in
    * pounds). Only present when HMRC returned them. Never computed by us.
@@ -249,8 +253,9 @@ interface HmrcCalculationRaw {
     // v8.0 headline location: calculation.taxCalculation.*
     taxCalculation?: {
       totalIncomeTaxAndNicsDue?: number;
+      totalTaxDeducted?: number;
       incomeTax?: {
-        payPensionsProfit?: { taxBands?: unknown[]; incomeTaxBands?: unknown[] };
+        payPensionsProfit?: { taxBands?: unknown[] };
         totalIncomeReceivedFromAllSources?: number;
         totalAllowancesAndDeductions?: number;
         totalTaxableIncome?: number;
@@ -259,7 +264,8 @@ interface HmrcCalculationRaw {
       };
       nics?: {
         class2Nics?: { amount?: number };
-        class4Nics?: { totalClass4Charge?: number; class4NicBands?: unknown[]; class4NicsBands?: unknown[] };
+        // v8.0: class4Nics.totalAmount and class4Nics.nic4Bands[]
+        class4Nics?: { totalAmount?: number; nic4Bands?: unknown[] };
       };
     };
     endOfYearEstimate?: {
@@ -285,6 +291,7 @@ interface HmrcCalculationRaw {
     };
     allowancesAndDeductions?: {
       totalAllowancesAndDeductions?: number;
+      personalAllowance?: number;
     };
   };
   // HMRC sometimes shape-shifts; we keep the rest of the body for
@@ -351,10 +358,12 @@ export function summariseCalculation(
     itnic.incomeTax?.incomeTaxAmount ??
     undefined;
 
+  // Same basis as the headline: the "so far" taxCalculation first. The
+  // end-of-year estimate is a whole-year projection and only a fallback.
   const nic2 =
-    eoy.nic2 ?? tcn.class2Nics?.amount ?? itnic.nics?.nic2NetOfDeductions ?? undefined;
+    tcn.class2Nics?.amount ?? eoy.nic2 ?? itnic.nics?.nic2NetOfDeductions ?? undefined;
   const nic4 =
-    eoy.nic4 ?? tcn.class4Nics?.totalClass4Charge ?? itnic.nics?.nic4NetOfDeductions ?? undefined;
+    tcn.class4Nics?.totalAmount ?? eoy.nic4 ?? itnic.nics?.nic4NetOfDeductions ?? undefined;
 
   const totalIncomeReceived =
     tci.totalIncomeReceivedFromAllSources ??
@@ -380,9 +389,9 @@ export function summariseCalculation(
     totalIncomeReceived !== undefined;
 
   const ppp = tci.payPensionsProfit ?? {};
-  const incomeTaxBands = parseBands(ppp.taxBands ?? ppp.incomeTaxBands);
+  const incomeTaxBands = parseBands(ppp.taxBands);
   const c4 = tcn.class4Nics ?? {};
-  const class4Bands = parseBands(c4.class4NicBands ?? c4.class4NicsBands);
+  const class4Bands = parseBands(c4.nic4Bands);
 
   return {
     calculationId: meta.calculationId ?? fallbackCalcId,
@@ -394,6 +403,8 @@ export function summariseCalculation(
     nic2,
     nic4,
     totalIncomeTaxAndNicsDue,
+    totalTaxDeducted: num(tc.totalTaxDeducted),
+    personalAllowance: num(adr.personalAllowance),
     incomeTaxBands,
     class4Bands,
     ready,

@@ -1,53 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
-  countUnmarkedTrips,
-  weeksMissingEarnings,
   buildPreSendChecks,
   buildFigureSources,
   profitPenceFromStoredPeriod,
+  previousUpdateProfitPence,
   updateNumber,
   periodSentence,
-  weekStartOf,
   nextUpdates,
   finishTheYearDeadline,
 } from "./mtdChecks";
 import type { PeriodSubmissionPayload } from "../api/hmrc";
 
-const t = (day: string, classification: string) => ({ startedAt: `${day}T12:00:00`, classification });
-const e = (s: string, en: string) => ({ periodStart: s, periodEnd: en });
 const fmt = (p: number) => `£${(p / 100).toFixed(2)}`;
-
-describe("countUnmarkedTrips", () => {
-  it("counts only unclassified trips inside the period, both ends included", () => {
-    const trips = [
-      t("2026-07-06", "unclassified"),
-      t("2026-10-05", "unclassified"),
-      t("2026-07-05", "unclassified"),
-      t("2026-10-06", "unclassified"),
-      t("2026-08-01", "business"),
-    ];
-    expect(countUnmarkedTrips(trips, "2026-07-06", "2026-10-05")).toBe(2);
-  });
-});
-
-describe("weeksMissingEarnings", () => {
-  it("lists weeks with Business trips and no earnings", () => {
-    const trips = [t("2026-09-14", "business"), t("2026-09-22", "business"), t("2026-09-23", "personal")];
-    const weeks = weeksMissingEarnings(trips, [e("2026-09-14", "2026-09-20")], "2026-07-06", "2026-10-05");
-    expect(weeks).toEqual(["2026-09-21"]);
-  });
-  it("lets a monthly earning cover every week it overlaps", () => {
-    const trips = [t("2026-09-02", "business"), t("2026-09-24", "business")];
-    expect(weeksMissingEarnings(trips, [e("2026-09-01", "2026-09-30")], "2026-07-06", "2026-10-05")).toEqual([]);
-  });
-  it("ignores weeks with only personal trips", () => {
-    expect(weeksMissingEarnings([t("2026-09-02", "personal")], [], "2026-07-06", "2026-10-05")).toEqual([]);
-  });
-  it("finds the Monday", () => {
-    expect(weekStartOf("2026-09-20")).toBe("2026-09-14");
-    expect(weekStartOf("2026-09-21")).toBe("2026-09-21");
-  });
-});
 
 describe("buildPreSendChecks", () => {
   const base = { excludedMotorPence: 0, serverWarnings: [], fromDay: "2026-07-06", toDay: "2026-10-05", formatPence: fmt };
@@ -64,6 +28,10 @@ describe("buildPreSendChecks", () => {
     expect(c[0].title).toBe("1 trip isn't marked yet");
     expect(c[1].kind).toBe("ok");
     expect(c[2].detail).toContain("£1184.20");
+  });
+  it("skips the earnings row for drivers it doesn't apply to", () => {
+    const c = buildPreSendChecks({ ...base, unmarkedCount: 0, missingWeeks: null });
+    expect(c).toEqual([]);
   });
   it("hides the unmarked row at zero and carries server warnings", () => {
     const c = buildPreSendChecks({ ...base, unmarkedCount: 0, missingWeeks: [], serverWarnings: ["Something."] });
@@ -156,5 +124,21 @@ describe("updateNumber and periodSentence", () => {
   });
   it("writes the period", () => {
     expect(periodSentence("2026-04-06", "2026-10-05")).toBe("6 April to 5 October 2026");
+  });
+});
+
+describe("previousUpdateProfitPence", () => {
+  const stored = (end: string) => ({
+    periodDates: { periodStartDate: "2026-04-06", periodEndDate: end },
+    periodIncome: { turnover: 100 },
+    periodExpenses: { adminCosts: 20 },
+  });
+  it("uses an earlier update", () => {
+    expect(previousUpdateProfitPence(stored("2026-07-05"), "2026-10-05")).toBe(8000);
+  });
+  it("is null when the stored update is this one or later, or nothing is stored", () => {
+    expect(previousUpdateProfitPence(stored("2026-10-05"), "2026-10-05")).toBeNull();
+    expect(previousUpdateProfitPence(stored("2027-01-05"), "2026-10-05")).toBeNull();
+    expect(previousUpdateProfitPence(null, "2026-10-05")).toBeNull();
   });
 });

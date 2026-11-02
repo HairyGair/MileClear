@@ -109,7 +109,7 @@ export default function TaxMtdSubmittedScreen() {
     if (!taxYear) return;
     let cancelled = false;
     const startYear = Number(taxYear.slice(0, 4));
-    fetchHmrcObligations({ from: `${startYear}-04-06`, to: `${startYear + 1}-04-05` })
+    fetchHmrcObligations({ from: `${startYear}-04-01`, to: `${startYear + 1}-04-05` })
       .then((r) => !cancelled && setObligations(r.data.obligations))
       .catch(() => {});
     getNotificationPreferences()
@@ -226,7 +226,7 @@ export default function TaxMtdSubmittedScreen() {
                     n.last
                       ? `The last one for ${taxYear}.`
                       : remindersOn === false
-                        ? "Reminders are off. You can turn them on in Settings."
+                        ? "Reminders are off on this phone. You can turn them on in Settings."
                         : "We'll remind you 7 days and 1 day before."
                   }
                 />

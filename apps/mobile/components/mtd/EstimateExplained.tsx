@@ -1,12 +1,8 @@
 import { View, Text, StyleSheet } from "react-native";
 import { chart, colors, fonts, heroCard, numberSizes } from "../../lib/theme";
-import { explainEstimate, taxFreeShare } from "../../lib/tax/mtdEstimate";
+import { explainEstimate, taxFreeShare, formatPounds } from "../../lib/tax/mtdEstimate";
 import { estimateDisclaimer, estimateEyebrow, estimateSourcePill, type HmrcEnv } from "../../lib/tax/mtdCopy";
 import type { HmrcCalculationSummary } from "../../lib/api/hmrc";
-
-function gbp(v: number): string {
-  return `£${v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 /**
  * HMRC's estimate for the year, led by HMRC's figure and explained line by
@@ -27,20 +23,20 @@ export function EstimateExplained({ summary, env }: { summary: HmrcCalculationSu
         </View>
       </View>
 
-      <Text style={styles.big} accessibilityLabel={e.total === undefined ? "No figure yet" : `${gbp(e.total)} tax and National Insurance so far`}>
-        {e.total === undefined ? "Not set" : gbp(e.total)}
+      <Text style={styles.big} accessibilityLabel={e.total === undefined ? "No figure yet" : `${formatPounds(e.total)} tax and National Insurance so far`}>
+        {e.total === undefined ? "Not set" : formatPounds(e.total)}
       </Text>
       <Text style={styles.body}>{estimateDisclaimer(env)}</Text>
 
       {share !== null && e.taxFree !== undefined && e.taxed !== undefined && (
         <View style={{ marginTop: 14 }}>
-          <View style={styles.bar} accessibilityRole="image" accessibilityLabel={`${gbp(e.taxFree)} tax-free, ${gbp(e.taxed)} taxed`}>
+          <View style={styles.bar} accessibilityRole="image" accessibilityLabel={`${formatPounds(e.taxFree)} tax-free, ${formatPounds(e.taxed)} taxed`}>
             <View style={[styles.barFree, { flex: Math.max(share, 0.001) }]} />
             <View style={[styles.barTaxed, { flex: Math.max(1 - share, 0.001) }]} />
           </View>
           <View style={styles.barLabels}>
-            <Text style={styles.barFreeText}>{gbp(e.taxFree)} tax-free</Text>
-            <Text style={styles.barTaxedText}>{gbp(e.taxed)} taxed</Text>
+            <Text style={styles.barFreeText}>{formatPounds(e.taxFree)} tax-free</Text>
+            <Text style={styles.barTaxedText}>{formatPounds(e.taxed)} taxed</Text>
           </View>
         </View>
       )}
@@ -49,9 +45,9 @@ export function EstimateExplained({ summary, env }: { summary: HmrcCalculationSu
         <View style={{ marginTop: 6 }}>
           {e.lines.map((l, i) => (
             <View key={`${l.label}-${i}`} style={[styles.line, i > 0 && styles.lineBorder]}>
-              <View style={[styles.dot, l.kind === "free" ? styles.dotFree : styles.dotTaxed]} />
+              <View style={[styles.dot, l.kind === "free" ? styles.dotFree : l.kind === "paid" ? styles.dotPaid : styles.dotTaxed]} />
               <Text style={styles.lineLabel}>{l.label}</Text>
-              <Text style={styles.lineValue}>{gbp(l.amount)}</Text>
+              <Text style={styles.lineValue}>{formatPounds(l.amount)}</Text>
             </View>
           ))}
         </View>
@@ -91,6 +87,7 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 3, marginTop: 5 },
   dotFree: { backgroundColor: "#334155" },
   dotTaxed: { backgroundColor: colors.amber },
+  dotPaid: { backgroundColor: colors.green },
   lineLabel: { flex: 1, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.text2 },
   lineValue: { fontFamily: fonts.bold, fontSize: 15, color: colors.text1, fontVariant: ["tabular-nums"] },
 });

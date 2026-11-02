@@ -834,43 +834,76 @@ describe("isValidCalculationType", () => {
   });
 });
 
+// Fixtures follow HMRC's resolved OpenAPI for Individual Calculations v8.0, Retrieve a
+// Self Assessment Tax Calculation:
+// https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/individual-calculations-api/8.0/oas/resolved
+// calculation.taxCalculation.{incomeTax.payPensionsProfit.taxBands[], nics.class2Nics.amount,
+// nics.class4Nics.{totalAmount, nic4Bands[]}, totalTaxDeducted, totalIncomeTaxAndNicsDue}
+// and calculation.allowancesAndDeductions.personalAllowance.
 describe("summariseCalculation bands", () => {
-  it("passes HMRC's own income tax and Class 4 bands through", () => {
-    const result = summariseCalculation(
-      {
-        metadata: { calculationId: "c", taxYear: "2026-27" },
-        calculation: {
-          taxCalculation: {
-            totalIncomeTaxAndNicsDue: 1398.31,
-            incomeTax: {
-              totalTaxableIncome: 5378.1,
-              incomeTaxCharged: 1075.62,
-              payPensionsProfit: {
-                taxBands: [
-                  { name: "BRT", rate: 20, income: 5378.1, taxAmount: 1075.62, bandLimit: 37700 },
-                  { name: "bad", rate: "x" },
-                ],
-              },
-            },
-            nics: {
-              class4Nics: {
-                totalClass4Charge: 322.69,
-                class4NicBands: [{ name: "BRT", rate: 6, income: 5378.1, amount: 322.69 }],
-              },
-            },
+  const oas = {
+    metadata: { calculationId: "c", taxYear: "2026-27" },
+    calculation: {
+      allowancesAndDeductions: { personalAllowance: 12570 },
+      taxCalculation: {
+        totalIncomeTaxAndNicsDue: 1398.31,
+        totalTaxDeducted: 0,
+        incomeTax: {
+          totalTaxableIncome: 5378.1,
+          incomeTaxCharged: 1075.62,
+          payPensionsProfit: {
+            taxBands: [
+              { name: "BRT", rate: 20, bandLimit: 37700, apportionedBandLimit: 37700, income: 5378.1, taxAmount: 1075.62 },
+              { name: "bad", rate: "x" },
+            ],
+          },
+        },
+        nics: {
+          class2Nics: { amount: 0 },
+          class4Nics: {
+            totalAmount: 322.69,
+            nic4Bands: [
+              { name: "zero-rate", rate: 0, threshold: 12570, apportionedThreshold: 12570, income: 0, amount: 0 },
+              { name: "basic-rate", rate: 6, threshold: 50270, apportionedThreshold: 50270, income: 5378.1, amount: 322.69 },
+            ],
           },
         },
       },
+      // Whole-year projection: must NOT be used when taxCalculation has the figure.
+      endOfYearEstimate: { nic2: 179, nic4: 2300, incomeTaxNicAmount: 9999 },
+    },
+  };
+
+  it("passes HMRC's own income tax and Class 4 bands through", () => {
+    const result = summariseCalculation(oas, "c");
+    expect(result.incomeTaxBands).toEqual([{ name: "BRT", rate: 20, income: 5378.1, amount: 1075.62 }]);
+    expect(result.class4Bands).toEqual([
+      { name: "zero-rate", rate: 0, income: 0, amount: 0 },
+      { name: "basic-rate", rate: 6, income: 5378.1, amount: 322.69 },
+    ]);
+  });
+
+  it("takes NI from taxCalculation (so far), not the end-of-year projection", () => {
+    const result = summariseCalculation(oas, "c");
+    expect(result.nic4).toBe(322.69);
+    expect(result.nic2).toBe(0);
+    expect(result.totalIncomeTaxAndNicsDue).toBe(1398.31);
+  });
+
+  it("returns the personal allowance and tax already deducted", () => {
+    const result = summariseCalculation(
+      { calculation: { allowancesAndDeductions: { personalAllowance: 11000 }, taxCalculation: { totalTaxDeducted: 4200.5, totalIncomeTaxAndNicsDue: 100 } } },
       "c"
     );
-    expect(result.incomeTaxBands).toEqual([{ name: "BRT", rate: 20, income: 5378.1, amount: 1075.62 }]);
-    expect(result.class4Bands).toEqual([{ name: "BRT", rate: 6, income: 5378.1, amount: 322.69 }]);
+    expect(result.personalAllowance).toBe(11000);
+    expect(result.totalTaxDeducted).toBe(4200.5);
   });
 
   it("leaves bands undefined when HMRC sent none", () => {
     const result = summariseCalculation({ calculation: { taxCalculation: { totalIncomeTaxAndNicsDue: 5 } } }, "c");
     expect(result.incomeTaxBands).toBeUndefined();
     expect(result.class4Bands).toBeUndefined();
+    expect(result.personalAllowance).toBeUndefined();
   });
 });
 

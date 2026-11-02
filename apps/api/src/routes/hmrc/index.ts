@@ -49,6 +49,8 @@ import {
 } from "../../services/hmrc/index.js";
 import { logEvent } from "../../services/appEvents.js";
 import { hmrcTaxReturnRoutes } from "./endOfYear.js";
+import { cumulativeStartFor } from "../../services/hmrc/cumulativeStart.js";
+import { computePreSendChecks } from "../../services/hmrc/preSendChecks.js";
 
 // UK NINO regex. AA prefixes excluded (BG, GB, KN, NK, NT, TN, ZZ are also
 // reserved/invalid but the standard regex catches the common errors).
@@ -585,7 +587,8 @@ export async function hmrcRoutes(app: FastifyInstance) {
         // Cumulative model (2025-26+): the figures reported each quarter are
         // year-to-date, so the preview aggregates from the tax-year start (6
         // April) to the selected period end, regardless of the `from` passed.
-        const cumulativeStart = `${parsed.data.taxYear.slice(0, 4)}-04-06`;
+        // A calendar-quarter obligation starts on 1 April, so `from` decides it.
+        const cumulativeStart = cumulativeStartFor(parsed.data.taxYear, parsed.data.from);
         const submission = await buildPeriodSubmission({
           prisma,
           userId: request.userId!,
@@ -593,7 +596,15 @@ export async function hmrcRoutes(app: FastifyInstance) {
           periodStartDate: cumulativeStart,
           periodEndDate: parsed.data.to,
         });
-        return reply.send({ data: submission });
+        // Advice for the Check and send screen. Best effort and separate from
+        // the figures that get sent: failing here must not stop the preview.
+        const checks = await computePreSendChecks({
+          prisma,
+          userId: request.userId!,
+          from: parsed.data.from,
+          to: parsed.data.to,
+        }).catch(() => null);
+        return reply.send({ data: { ...submission, checks } });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to build period preview.";
         return reply.status(400).send({ error: msg });
@@ -621,7 +632,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
 
       // Cumulative model (2025-26+): aggregate year-to-date (tax-year start to
       // the selected period end), then submit via the idempotent cumulative PUT.
-      const cumulativeStart = `${parsed.data.taxYear.slice(0, 4)}-04-06`;
+      const cumulativeStart = cumulativeStartFor(parsed.data.taxYear, parsed.data.periodStartDate);
       let submission;
       try {
         submission = await buildPeriodSubmission({
@@ -696,7 +707,7 @@ export async function hmrcRoutes(app: FastifyInstance) {
       if ("error" in ctx) return reply.status(ctx.status).send({ error: ctx.error });
 
       // Cumulative model: amend = re-PUT the cumulative year-to-date summary.
-      const cumulativeStart = `${parsed.data.taxYear.slice(0, 4)}-04-06`;
+      const cumulativeStart = cumulativeStartFor(parsed.data.taxYear, parsed.data.periodStartDate);
       let submission;
       try {
         submission = await buildPeriodSubmission({

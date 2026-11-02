@@ -199,8 +199,8 @@ export const MISTAKE_LATER_TEXT =
   "Spot a mistake later? Your next update carries the corrected totals, or you can resend this one from Update history.";
 
 export const NOTHING_TO_PAY_COPY = {
-  title: "Nothing to pay now",
-  body: "Sending an update never charges you, and your payment dates stay the same.",
+  title: "Sending this doesn't charge you",
+  body: "Your payment dates stay the same.",
   link: "See what you pay and when",
 } as const;
 

@@ -31,25 +31,22 @@ import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcE
 import {
   fetchHmrcStatus,
   fetchHmrcObligations,
-  fetchHmrcPeriods,
   fetchHmrcPeriod,
   previewPeriodSubmission,
   submitPeriod,
   type HmrcObligation,
   type PeriodSubmissionPayload,
 } from "../lib/api/hmrc";
-import { getLocalTrips, getLocalEarnings } from "../lib/db/queries";
+import { taxYearOfPeriodStart } from "../lib/tax/mtdQuarters";
 import {
   buildFigureSources,
   buildPreSendChecks,
   costsPence,
-  countUnmarkedTrips,
   localDay,
   longDay,
   periodSentence,
-  profitPenceFromStoredPeriod,
+  previousUpdateProfitPence,
   updateNumber,
-  weeksMissingEarnings,
 } from "../lib/tax/mtdChecks";
 import { isApiError } from "../lib/api";
 import { chart, colors, fonts, heroCard } from "../lib/theme";
@@ -63,21 +60,14 @@ const RED = colors.red;
 
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// HMRC tax years run 6 April to 5 April. Convert from a calendar date
-// to the tax year string the API expects ("YYYY-YY").
+// The tax year an update period belongs to ("YYYY-YY"). A period starting on
+// or after 1 April is in the year starting that April (calendar quarters too).
 function deriveTaxYear(periodStartIso: string): string {
-  const d = new Date(periodStartIso);
-  if (Number.isNaN(d.getTime())) return getTaxYear(new Date());
-  return getTaxYear(d);
+  return taxYearOfPeriodStart(periodStartIso) || getTaxYear(new Date());
 }
 
 function pounds(pence: number): string {
   return formatPence(Math.abs(pence));
-}
-
-interface Checks {
-  unmarked: number;
-  missingWeeks: string[];
 }
 
 export default function TaxMtdPreviewScreen() {
@@ -86,8 +76,8 @@ export default function TaxMtdPreviewScreen() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   const [preview, setPreview] = useState<PeriodSubmissionPayload | null>(null);
   const [obligations, setObligations] = useState<HmrcObligation[] | null>(null);
-  const [lastProfitPence, setLastProfitPence] = useState<number | null>(null);
-  const [localChecks, setLocalChecks] = useState<Checks | null>(null);
+  // undefined while HMRC is being asked, null when there is no earlier update to compare with.
+  const [lastProfitPence, setLastProfitPence] = useState<number | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,33 +121,21 @@ export default function TaxMtdPreviewScreen() {
         setLoading(false);
 
         // Everything below is extra context. If any of it fails the screen
-        // still works, just without that line.
+        // still works, just without that line. The server only returns this
+        // driver's self-employment obligations (it filters by the connected
+        // business), so a property business never adds updates here.
         const startYear = Number(taxYear.slice(0, 4));
-        fetchHmrcObligations({ from: `${startYear}-04-06`, to: `${startYear + 1}-04-05` })
+        fetchHmrcObligations({ from: `${startYear}-04-01`, to: `${startYear + 1}-04-05` })
           .then((r) => !cancelled && setObligations(r.data.obligations))
           .catch(() => {});
 
-        fetchHmrcPeriods(bid, taxYear)
-          .then(async (r) => {
-            const earlier = r.data.periods
-              .filter((p) => localDay(p.periodEndDate) < localDay(to))
-              .sort((a, b) => b.periodEndDate.localeCompare(a.periodEndDate))[0];
-            if (!earlier) return;
-            const detail = await fetchHmrcPeriod(bid, earlier.periodId, taxYear);
-            const p = profitPenceFromStoredPeriod(detail.data);
-            if (!cancelled && p !== null) setLastProfitPence(p);
+        // The cumulative summary is stored under the tax year as its id: one
+        // call tells us what HMRC holds and how far it runs.
+        fetchHmrcPeriod(bid, taxYear, taxYear)
+          .then((detail) => {
+            if (!cancelled) setLastProfitPence(previousUpdateProfitPence(detail.data, localDay(to)));
           })
-          .catch(() => {});
-
-        Promise.all([getLocalTrips(), getLocalEarnings()])
-          .then(([trips, earnings]) => {
-            if (cancelled) return;
-            setLocalChecks({
-              unmarked: countUnmarkedTrips(trips, localDay(from), localDay(to)),
-              missingWeeks: weeksMissingEarnings(trips, earnings, localDay(from), localDay(to)),
-            });
-          })
-          .catch(() => {});
+          .catch(() => !cancelled && setLastProfitPence(null));
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -192,7 +170,19 @@ export default function TaxMtdPreviewScreen() {
               periodStartDate: preview.periodDates.periodStartDate,
               periodEndDate: preview.periodDates.periodEndDate,
             });
-            const earningsPence = Math.round((preview.periodIncome.turnover ?? 0) * 100);
+            // The server rebuilds the figures at send time, so the receipt comes
+            // from what it says it sent, not from the preview we looked at.
+            const sent = result.data.breakdown;
+            const sentEarnings = sent
+              ? sent.income.turnoverPence
+              : Math.round((preview.periodIncome.turnover ?? 0) * 100);
+            const sentCosts = sent
+              ? sent.expenses.carVanTravelPence +
+                (sent.expenses.professionalFeesPence ?? 0) +
+                sent.expenses.adminCostsPence +
+                sent.expenses.otherExpensesPence
+              : costsPence(preview);
+            // TODO(merge): call invalidateHubCache() here once the hub branch (mtd-hub) lands.
             router.replace({
               pathname: "/tax-mtd-submitted" as never,
               params: {
@@ -200,8 +190,8 @@ export default function TaxMtdPreviewScreen() {
                 taxYear,
                 periodStart: preview.periodDates.periodStartDate,
                 periodEnd: preview.periodDates.periodEndDate,
-                earningsPence: String(earningsPence),
-                costsPence: String(costsPence(preview)),
+                earningsPence: String(sentEarnings),
+                costsPence: String(sentCosts),
                 sentAt: new Date().toISOString(),
               },
             });
@@ -268,18 +258,19 @@ export default function TaxMtdPreviewScreen() {
   const earningsPence = Math.round((preview.periodIncome.turnover ?? 0) * 100);
   const costs = costsPence(preview);
   const profitPence = earningsPence - costs;
-  const delta = lastProfitPence === null ? null : profitPence - lastProfitPence;
+  const delta = typeof lastProfitPence === "number" ? profitPence - lastProfitPence : null;
 
+  const serverChecks = preview.checks ?? null;
   const checks = buildPreSendChecks({
-    unmarkedCount: localChecks?.unmarked ?? 0,
-    // Until the phone's own data has been read, don't claim every week is fine.
-    missingWeeks: localChecks?.missingWeeks ?? [],
+    unmarkedCount: serverChecks?.unmarkedTrips ?? 0,
+    // No server answer: no earnings row, rather than a guess from the phone.
+    missingWeeks: serverChecks ? serverChecks.weeksMissingEarnings : null,
     excludedMotorPence: b.expenses.excludedNonAmapPence,
     serverWarnings: b.warnings,
     fromDay,
     toDay,
     formatPence,
-  }).filter((c) => localChecks !== null || (c.id !== "earnings" && c.id !== "unmarked"));
+  });
 
   const segments = Math.max(4, obligations?.length ?? 0);
   const eyebrow = position
@@ -349,11 +340,14 @@ export default function TaxMtdPreviewScreen() {
               Costs <Text style={styles.eqStrong}>{formatPence(costs)}</Text>
             </Text>
           </View>
-          {delta !== null && (
+          {/* The line's height is reserved until HMRC answers, so nothing jumps. */}
+          {lastProfitPence === undefined ? (
+            <View style={styles.heroSmallReserve} />
+          ) : delta !== null && delta !== 0 ? (
             <Text style={styles.heroSmall}>
-              {delta >= 0 ? "Up" : "Down"} {pounds(delta)} since your last update.
+              {delta > 0 ? "Up" : "Down"} {pounds(delta)} since your last update.
             </Text>
-          )}
+          ) : null}
         </View>
 
         {checks.length > 0 && (
@@ -427,6 +421,7 @@ const styles = StyleSheet.create({
   eq: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 12 },
   eqText: { fontFamily: fonts.regular, fontSize: 13, color: TEXT_2 },
   eqStrong: { fontFamily: fonts.semibold, color: TEXT_1, fontVariant: ["tabular-nums"] },
+  heroSmallReserve: { height: 18, marginTop: 8 },
   heroSmall: { fontFamily: fonts.regular, fontSize: 13, color: TEXT_2, marginTop: 8 },
 
   section: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, color: TEXT_2, marginTop: 22, marginBottom: 8, marginLeft: 4 },
