@@ -37,4 +37,25 @@ export function writeHubCache<T>(userId: string | null, owner: number, value: T,
 /** Forget the cached read. Call after a send, a connect or disconnect, or a National Insurance number change. */
 export function invalidateHubCache(): void {
   entry = null;
+  taxSoFar = null;
+}
+
+/**
+ * "Your tax so far" keeps HMRC's calculation longer than the rest of the hub:
+ * it only changes when an update is sent, and a send clears it (above). Any
+ * hub screen may reuse it, for the same driver and tax year.
+ */
+export const TAX_SO_FAR_CACHE_MS = 15 * 60_000;
+
+let taxSoFar: { userId: string | null; taxYear: string; at: number; value: unknown } | null = null;
+
+export function readTaxSoFarCache<T>(userId: string | null, taxYear: string, now: number = Date.now()): T | null {
+  if (!taxSoFar) return null;
+  if (taxSoFar.userId !== userId || taxSoFar.taxYear !== taxYear) return null;
+  if (now - taxSoFar.at >= TAX_SO_FAR_CACHE_MS) return null;
+  return taxSoFar.value as T;
+}
+
+export function writeTaxSoFarCache<T>(userId: string | null, taxYear: string, value: T, now: number = Date.now()): void {
+  taxSoFar = { userId, taxYear, at: now, value };
 }
