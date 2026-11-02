@@ -54,6 +54,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/business-mileage-guide`, lastModified: new Date("2026-10-25") },
     { url: `${BASE_URL}/what-counts-as-business-mileage`, lastModified: new Date("2026-10-02") },
     { url: `${BASE_URL}/mtd-itsa-software-for-sole-traders`, lastModified: new Date("2026-10-25") },
+    // Delivery driver tax guides (2 Nov 2026).
+    { url: `${BASE_URL}/making-tax-digital-delivery-drivers`, lastModified: new Date("2026-11-02") },
+    { url: `${BASE_URL}/self-assessment-delivery-drivers`, lastModified: new Date("2026-11-02") },
+    { url: `${BASE_URL}/do-delivery-apps-report-earnings-to-hmrc`, lastModified: new Date("2026-11-02") },
     { url: `${BASE_URL}/updates`, lastModified: new Date("2026-04-26T20:30:00Z") },
     { url: `${BASE_URL}/releases`, lastModified: new Date("2026-06-29") },
     { url: `${BASE_URL}/android`, lastModified: new Date("2026-10-02") },
