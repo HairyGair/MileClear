@@ -238,7 +238,14 @@ export default function MtdItsaSoftwarePage() {
               MTD ITSA is being phased in by income threshold. The threshold
               counts your <em>self-employment income plus property income</em>
               {" "}from the prior-but-one tax year (so the April 2026 launch
-              tests against your 2024-25 figures).
+              tests against your 2024-25 figures).{" "}
+              <Link
+                href="/do-i-need-making-tax-digital"
+                style={{ color: "var(--amber-400)" }}
+              >
+                Do I need Making Tax Digital? Worked examples for drivers
+              </Link>
+              .
             </p>
 
             <div
@@ -757,6 +764,24 @@ export default function MtdItsaSoftwarePage() {
                   MTD quarterly update deadlines 2026-27
                 </Link>
                 {" "}- every deadline, and what each update covers.
+              </li>
+              <li>
+                <Link
+                  href="/do-i-need-making-tax-digital"
+                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                >
+                  Do I need Making Tax Digital?
+                </Link>
+                {" "}- the thresholds, turnover not profit, and examples for drivers.
+              </li>
+              <li>
+                <Link
+                  href="/mtd-late-submission-penalties"
+                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                >
+                  MTD late submission penalties
+                </Link>
+                {" "}- penalty points, the £200 penalty and late payment.
               </li>
               <li>
                 <Link

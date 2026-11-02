@@ -55,6 +55,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/what-counts-as-business-mileage`, lastModified: new Date("2026-10-02") },
     { url: `${BASE_URL}/mtd-itsa-software-for-sole-traders`, lastModified: new Date("2026-11-02") },
     { url: `${BASE_URL}/mtd-quarterly-update-deadlines`, lastModified: new Date("2026-11-02") },
+    { url: `${BASE_URL}/do-i-need-making-tax-digital`, lastModified: new Date("2026-11-02") },
+    { url: `${BASE_URL}/mtd-late-submission-penalties`, lastModified: new Date("2026-11-02") },
     { url: `${BASE_URL}/updates`, lastModified: new Date("2026-04-26T20:30:00Z") },
     { url: `${BASE_URL}/releases`, lastModified: new Date("2026-06-29") },
     { url: `${BASE_URL}/android`, lastModified: new Date("2026-10-02") },

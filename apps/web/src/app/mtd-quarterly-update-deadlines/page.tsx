@@ -108,7 +108,7 @@ export default function MtdQuarterlyUpdateDeadlinesPage() {
           heading: "What happens if you miss a quarterly deadline in 2026-27",
           body: [
             "HMRC has said there are no penalties for missing a quarterly update deadline for the 2026-27 tax year. You still need to send all of them before you can submit your tax return, so a missed one has to be sent in the end.",
-            "From the 2027-28 tax year, each missed quarterly update deadline earns a penalty point. Reach 4 points and you get a £200 penalty.",
+            "From the 2027-28 tax year, each missed quarterly update deadline earns a penalty point. Reach 4 points and you get a £200 penalty. Our page on late submission penalties explains how the points work and how they come off.",
           ],
         },
         {
@@ -170,7 +170,10 @@ export default function MtdQuarterlyUpdateDeadlinesPage() {
         note: "Free to start on iPhone and Android. Sending quarterly updates is part of Pro.",
       }}
       links={[
-        { href: "/mtd-itsa-software-for-sole-traders", label: "MTD software for sole traders", primary: true },
+        { href: "/do-i-need-making-tax-digital", label: "Do I need Making Tax Digital?", primary: true },
+        { href: "/mtd-late-submission-penalties", label: "MTD late submission penalties" },
+        { href: "/mtd-itsa-software-for-sole-traders", label: "MTD software for sole traders" },
+        { href: "/making-tax-digital-delivery-drivers", label: "Making Tax Digital for delivery drivers" },
         { href: "/updates/quarterly-updates-to-hmrc", label: "Sending quarterly updates from MileClear" },
         { href: "/updates/making-tax-digital-self-employed-drivers", label: "MTD for self-employed drivers" },
         { href: "/hmrc-mileage-rates", label: "HMRC mileage rates" },
