@@ -84,6 +84,6 @@ export function finishYearSub(deadlineText: string | null, env: HmrcEnv): string
 }
 
 /** Attention row: trips still to sort before sending. */
-export function tripsToMarkText(n: number): string {
-  return `${n} ${n === 1 ? "trip" : "trips"} to mark since 6 April`;
+export function tripsToMarkText(n: number, since: string = "6 April"): string {
+  return `${n} ${n === 1 ? "trip" : "trips"} to mark since ${since}`;
 }

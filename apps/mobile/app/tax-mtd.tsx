@@ -24,6 +24,7 @@ import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
 import { summariseQuarters, taxYearOfPeriodStart, localToday, obligationsWindow } from "../lib/tax/mtdQuarters";
 import { hubConnectionLabel, FINISH_YEAR_COPY } from "../lib/tax/mtdHubCopy";
+import { newHubOwner, readHubCache, writeHubCache, invalidateHubCache } from "../lib/tax/mtdHubCache";
 import { useMtdHubFigures } from "../lib/tax/useMtdHubFigures";
 import { NextUpCard } from "../components/mtd/NextUpCard";
 import { YearTimeline } from "../components/mtd/YearTimeline";
@@ -114,9 +115,10 @@ const INITIAL_STATE: ScreenState = {
   error: null,
 };
 
-/** The hub's last good read, so coming back to the screen doesn't ask HMRC again within a minute. */
-const HUB_CACHE_MS = 60_000;
-let hubCache: { userId: string | null; at: number; state: ScreenState } | null = null;
+// The hub's last good read is cached (lib/tax/mtdHubCache.ts) so refocusing
+// the SAME hub screen doesn't ask HMRC again within a minute. A newly opened
+// hub always fetches. Re-exported so the Review screen can clear it after a send.
+export { invalidateHubCache } from "../lib/tax/mtdHubCache";
 
 export default function TaxMtdScreen() {
   const [helpOpen, setHelpOpen] = useState(false);
@@ -171,10 +173,15 @@ function TaxMtdContent() {
   const userId = user?.id ?? null;
 
   const returningFromSend = useRef(false);
+  const hubOwner = useRef<number>(0);
+  if (hubOwner.current === 0) hubOwner.current = newHubOwner();
   const load = useCallback(async (force = true) => {
-    if (!force && hubCache && hubCache.userId === userId && Date.now() - hubCache.at < HUB_CACHE_MS) {
-      setState(hubCache.state);
-      return;
+    if (!force) {
+      const cached = readHubCache<ScreenState>(userId, hubOwner.current);
+      if (cached) {
+        setState(cached);
+        return;
+      }
     }
     setState((s) => ({ ...s, loading: true, error: null }));
     try {
@@ -292,10 +299,11 @@ function TaxMtdContent() {
         loading: false,
         error: null,
       };
-      hubCache = step === "ready" && !obligationsUnavailable ? { userId, at: Date.now(), state: next } : null;
+      if (step === "ready" && !obligationsUnavailable) writeHubCache(userId, hubOwner.current, next);
+      else invalidateHubCache();
       setState(next);
     } catch (err) {
-      hubCache = null;
+      invalidateHubCache();
       // HMRC tokens revoked on HMRC's end — drop into the connect step
       // instead of showing a generic error. Mobile API client throws this
       // before any access-token refresh attempt.
@@ -341,6 +349,7 @@ function TaxMtdContent() {
   }, [load]);
 
   const onConnect = useCallback(async () => {
+    invalidateHubCache();
     try {
       const res = await fetchAuthorizeUrl();
       const url = res.data.url;
@@ -387,6 +396,7 @@ function TaxMtdContent() {
           onPress: async () => {
             try {
               await disconnectHmrc();
+              invalidateHubCache();
               await load();
             } catch (err) {
               Alert.alert(
@@ -510,6 +520,8 @@ function TaxMtdContent() {
           label="Change National Insurance number"
           onPress={() => {
             setManageOpen(false);
+            invalidateHubCache();
+            returningFromSend.current = true;
             router.push("/tax-mtd-nino" as never);
           }}
         />

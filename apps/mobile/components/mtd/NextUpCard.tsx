@@ -27,6 +27,8 @@ export interface NextUpFigures {
   earningsPence: number | null;
   businessMiles: number | null;
   tripsToSort: number | null;
+  /** Where the trips count starts: "6 April" (standard quarters) or "1 April" (calendar). */
+  tripsSince: string;
 }
 
 interface Props {
@@ -160,11 +162,11 @@ export function NextUpCard({
           style={styles.attention}
           onPress={onFixTrips}
           accessibilityRole="button"
-          accessibilityLabel={tripsToMarkText(toSort)}
+          accessibilityLabel={tripsToMarkText(toSort, figures?.tripsSince)}
           accessibilityHint="Opens your trips waiting to be sorted"
         >
           <Ionicons name="alert-circle-outline" size={18} color={colors.amber} />
-          <Text style={styles.attentionText}>{tripsToMarkText(toSort)}</Text>
+          <Text style={styles.attentionText}>{tripsToMarkText(toSort, figures?.tripsSince)}</Text>
           <Ionicons name="chevron-forward" size={16} color={colors.amber} />
         </TouchableOpacity>
       )}

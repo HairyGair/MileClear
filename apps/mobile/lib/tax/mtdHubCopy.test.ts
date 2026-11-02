@@ -45,6 +45,7 @@ describe("hub copy", () => {
     expect(yearHeading("2026-27")).toBe("Your 2026-27 year");
     expect(tripsToMarkText(14)).toBe("14 trips to mark since 6 April");
     expect(tripsToMarkText(1)).toBe("1 trip to mark since 6 April");
+    expect(tripsToMarkText(3, "1 April")).toBe("3 trips to mark since 1 April");
   });
   it("late wording is year-aware", () => {
     expect(lateBody("2026-27")).toContain("isn't giving penalty points");

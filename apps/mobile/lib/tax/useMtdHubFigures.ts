@@ -26,7 +26,10 @@ export function useMtdHubFigures(
     }
     let cancelled = false;
     const taxYear = taxYearOfPeriodStart(start);
-    const yearStart = `${taxYear.slice(0, 4)}-04-01`;
+    // Calendar quarters start on the 1st, standard ones on the 6th.
+    const calendar = start.endsWith("-01");
+    const sinceDay = calendar ? "1 April" : "6 April";
+    const yearStart = `${taxYear.slice(0, 4)}-04-0${calendar ? "1" : "6"}`;
 
     (async () => {
       const [preview, sort] = await Promise.allSettled([
@@ -40,6 +43,7 @@ export function useMtdHubFigures(
         earningsPence: p ? p.breakdown.income.turnoverPence : null,
         businessMiles: p ? p.breakdown.mileage.businessMilesThisPeriod : null,
         tripsToSort: s ? s.totalTrips : null,
+        tripsSince: sinceDay,
       });
     })();
 
