@@ -192,7 +192,7 @@ export function decideMtdReminder(c: MtdReminderCandidate): { push: boolean; ema
 // Data
 // ---------------------------------------------------------------------------
 
-function asObligations(meta: Prisma.JsonValue | null): SeenObligation[] {
+export function asObligations(meta: Prisma.JsonValue | null): SeenObligation[] {
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) return [];
   const list = (meta as { obligations?: unknown }).obligations;
   if (!Array.isArray(list)) return [];

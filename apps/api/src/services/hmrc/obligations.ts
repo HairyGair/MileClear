@@ -17,6 +17,7 @@
 import type { ClientContext, ServerContext } from "./fraudPreventionHeaders.js";
 import { hmrcCall } from "./client.js";
 import { logEvent } from "../appEvents.js";
+import { getHmrcConfigForUser } from "./config.js";
 
 /** app_event written each time HMRC's obligations are fetched for a driver. */
 export const MTD_OBLIGATIONS_SEEN_EVENT = "hmrc.obligations_seen";
@@ -140,6 +141,9 @@ export async function fetchObligations(args: {
   // Dates and statuses only, never the NINO.
   logEvent(MTD_OBLIGATIONS_SEEN_EVENT, args.userId, {
     businessId: args.businessId ?? null,
+    // Which HMRC service these dates came from, so test-service dates are never
+    // read back as the live ones (earlier events carry no tag).
+    environment: getHmrcConfigForUser(args.userId)?.environment ?? null,
     obligations: flat.map((o) => ({ start: o.start, end: o.end, due: o.due, status: o.status })),
   });
 
