@@ -48,8 +48,9 @@ describe("cumulativeStartFor", () => {
     expect(cumulativeStartFor("2026-27", "2026-07-06")).toBe("2026-04-06");
     expect(cumulativeStartFor("2026-27")).toBe("2026-04-06");
   });
-  it("starts on 1 April for calendar quarters", () => {
-    expect(cumulativeStartFor("2026-27", "2026-04-01")).toBe("2026-04-01");
+  it("keeps 6 April for calendar quarters until HMRC's test service confirms a 1 April start", () => {
+    expect(cumulativeStartFor("2026-27", "2026-04-01")).toBe("2026-04-06");
+    expect(cumulativeStartFor("2026-27", "2026-07-01")).toBe("2026-04-06");
   });
   it("ignores a 1 April in a different year", () => {
     expect(cumulativeStartFor("2026-27", "2025-04-01")).toBe("2026-04-06");
