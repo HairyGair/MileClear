@@ -215,7 +215,14 @@ export default function MtdItsaSoftwarePage() {
                 This update covers 6 July to 5 October 2026 (Q2 of the
                 2026-27 tax year). The one after is due 7 February 2027, then
                 7 May 2027. If you are over the £50,000 threshold, these are
-                your MTD updates.
+                your MTD updates.{" "}
+                <Link
+                  href="/mtd-quarterly-update-deadlines"
+                  style={{ color: "var(--amber-300)" }}
+                >
+                  See every quarterly update deadline
+                </Link>
+                .
               </p>
             </div>
           </div>
@@ -742,6 +749,15 @@ export default function MtdItsaSoftwarePage() {
                 margin: 0,
               }}
             >
+              <li>
+                <Link
+                  href="/mtd-quarterly-update-deadlines"
+                  style={{ color: "var(--amber-400)", textDecoration: "none" }}
+                >
+                  MTD quarterly update deadlines 2026-27
+                </Link>
+                {" "}- every deadline, and what each update covers.
+              </li>
               <li>
                 <Link
                   href="/hmrc-mileage-rates"
