@@ -1,4 +1,4 @@
-import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv, isMtdLive } from "../lib/tax/mtdCopy";
+import { isConnectionExpired, connectionLine, describeMtdLoadError, obligationsErrorText, isMtdTest, type HmrcEnv } from "../lib/tax/mtdCopy";
 import { useHmrcEnvironment, rememberHmrcEnvironment } from "../lib/tax/useHmrcEnvironment";
 import { useCallback, useRef, useState } from "react";
 import {
@@ -18,7 +18,7 @@ import { getTaxYear } from "@mileclear/shared";
 import { PremiumGate } from "../components/PremiumGate";
 import { BetaBanner } from "../components/BetaBanner";
 import { MtdSignpost } from "../components/MtdSignpost";
-import { MtdSetup } from "../components/mtd/MtdSetup";
+import { MtdSetup, EMPTY_SETUP_MEMORY, type SetupMemory } from "../components/mtd/MtdSetup";
 import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
 import { summariseQuarters, taxYearOfPeriodStart, localToday, obligationsWindow } from "../lib/tax/mtdQuarters";
@@ -162,12 +162,14 @@ function TaxMtdContent() {
   const [manageOpen, setManageOpen] = useState(false);
   // Bumped on pull-to-refresh so the "What you owe HMRC" card asks again.
   const [balanceKey, setBalanceKey] = useState(0);
+  // Setup's scope answer and "Set up anyway", kept here because the load
+  // spinner below unmounts the setup on every reload.
+  const [setupMemory, setSetupMemory] = useState<SetupMemory>(EMPTY_SETUP_MEMORY);
   // Which HMRC service the server uses. The status this screen loads says;
   // the shared hook covers the moments it doesn't (an expired connection).
   const fallbackEnv = useHmrcEnvironment();
   const env: HmrcEnv = state.status?.environment ?? fallbackEnv;
   const test = isMtdTest(env);
-  const live = isMtdLive(env);
   const { user } = useUser();
   const userId = user?.id ?? null;
 
@@ -411,7 +413,11 @@ function TaxMtdContent() {
 
   // The hub only once set up. A "ready" driver HMRC says isn't signed up
   // goes back to setup, with step 1 reopened.
-  const showSetup = state.step !== "ready" || (live && state.notSignedUp);
+  const showSetup = state.step !== "ready" || (!test && state.notSignedUp);
+  // The first status read failed, so we don't know if they're connected or
+  // which HMRC service this is. Show the error and Try again, not steps that
+  // could be wrong (for example step 1 to someone already connected).
+  const statusUnknown = state.status === null && state.error !== null;
 
   if (state.loading) {
     return (
@@ -459,15 +465,32 @@ function TaxMtdContent() {
 
       {/* Not set up yet, or HMRC says the driver isn't signed up: the 3-step
           setup (spec 4.3). The test service needs no GOV.UK sign-up. */}
-      {showSetup && (
+      {statusUnknown && (
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => void load()}
+          accessibilityRole="button"
+          accessibilityLabel="Try again"
+        >
+          <Text style={styles.primaryButtonText}>Try again</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Not set up yet, or HMRC says the driver isn't signed up: the setup
+          steps (spec 4.3). Only the known test service drops the GOV.UK
+          sign-up step; an unknown service gets all 3. */}
+      {showSetup && !statusUnknown && (
         <MtdSetup
           env={env}
-          live={live}
+          live={!test}
           userId={userId}
           step={state.step}
           connected={state.status?.connected === true}
+          expired={state.error === "expired"}
           notSignedUp={state.notSignedUp}
           businesses={state.businesses}
+          memory={setupMemory}
+          onMemory={setSetupMemory}
           onConnect={onConnect}
           onDisconnect={state.status?.connected ? onDisconnect : undefined}
           onRetry={() => void load()}

@@ -11,17 +11,22 @@ import {
 import { fetchSelfAssessmentSummary } from "../lib/api/selfAssessment";
 import { colors, fonts } from "../lib/theme";
 import {
-  scopeLine,
+  scopeFromReads,
   scopeMissingYears,
   SCOPE_CHECKER_LINK,
-  SCOPE_FAILED,
   SCOPE_HOW_LINK,
   SCOPE_LIMITS_INTRO,
   SCOPE_RENT_NOTE,
-  type ScopeTone,
+  type ScopeLine,
 } from "../lib/tax/mtdSetupCopy";
 
 const GOVUK_MTD_WHO = "https://www.gov.uk/guidance/find-out-if-and-when-you-need-to-use-making-tax-digital-for-income-tax";
+
+/** The scope answer, kept by the screen so a reload doesn't ask again. */
+export interface ScopeState {
+  line: ScopeLine;
+  result: MtdScopeResult | null;
+}
 
 /** Tax years that have started (a year still to come has no income to look up). */
 function startedTaxYears(today: Date): string[] {
@@ -35,73 +40,87 @@ function startedTaxYears(today: Date): string[] {
  * "Do I need to send quarterly updates?" as one compact line at the top of
  * the setup screen. Uses the self-employment income already in MileClear for
  * each tax year HMRC looks at (packages/shared checkMtdScope has the rules).
- * "How we worked this out" opens the limits, the rent note, and a small link
- * to HMRC's own checker. `onResult` tells the screen the answer, so it can
- * fold the steps away for drivers who don't need this yet.
+ * When a year is missing it says it can't tell, never "you don't need to".
+ * "How we worked this out" opens the limits, the rent note, and HMRC's own
+ * checker (shown straight away when we can't tell).
+ *
+ * `value` / `onChange` hold the answer in the screen, so the screen's reload
+ * spinner doesn't make it ask again.
  */
-export function MtdScopeCheck({ onResult }: { onResult?: (tone: ScopeTone | null) => void }) {
-  const [result, setResult] = useState<MtdScopeResult | null>(null);
-  const [failed, setFailed] = useState(false);
+export function MtdScopeCheck({
+  value,
+  onChange,
+}: {
+  value: ScopeState | null;
+  onChange: (s: ScopeState) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (value) return;
     let cancelled = false;
     const today = new Date();
     const years = startedTaxYears(today);
     Promise.all(
       years.map((ty) =>
         fetchSelfAssessmentSummary(ty)
-          .then((r) => [ty, r.data.totalEarningsPence] as const)
+          .then((r) => [ty, r.data.totalEarningsPence ?? null] as const)
           // One year failing shouldn't hide the answer for the others.
-          .catch(() => [ty, null] as const)
+          .catch(() => [ty, "error"] as const)
       )
-    )
-      .then((pairs) => {
-        if (cancelled) return;
-        const byYear: Record<string, number | null> = {};
-        // Nothing logged for a year reads as "not held", not as £0 of income.
-        for (const [ty, pence] of pairs) byYear[ty] = pence && pence > 0 ? pence : null;
-        const r = checkMtdScope({ selfEmploymentPenceByTaxYear: byYear, today });
-        setResult(r);
-        onResult?.(scopeLine(r).tone);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setFailed(true);
-        onResult?.(null);
-      });
+    ).then((pairs) => {
+      if (cancelled) return;
+      const reads: Record<string, number | null | "error"> = {};
+      for (const [ty, v] of pairs) reads[ty] = v;
+      onChange(scopeFromReads(reads, (byYear) => checkMtdScope({ selfEmploymentPenceByTaxYear: byYear, today })));
+    });
     return () => {
       cancelled = true;
     };
-    // Runs once per screen; onResult is a setter from the parent.
+    // Asks once; the answer then lives in the screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const line = result ? scopeLine(result) : null;
-  const tone = line?.tone === "not_yet" ? colors.green : colors.amber;
+  const line = value?.line ?? null;
+  const result = value?.result ?? null;
+  const tone =
+    line?.tone === "not_yet" ? colors.green : line?.tone === "now" || line?.tone === "later" ? colors.amber : colors.text3;
   const missing = result ? scopeMissingYears(result.missingTaxYears) : null;
+
+  const checker = (
+    <TouchableOpacity
+      onPress={() => Linking.openURL(GOVUK_MTD_WHO)}
+      accessibilityRole="link"
+      accessibilityLabel={SCOPE_CHECKER_LINK}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      style={{ alignSelf: "flex-start" }}
+    >
+      <Text style={styles.smallLink}>{SCOPE_CHECKER_LINK} ›</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.card} accessibilityLabel="Do I need to send quarterly updates?">
-      {!line && !failed && <ActivityIndicator color={colors.amber} style={{ marginVertical: 8 }} />}
-      {(line || failed) && (
+      {!line && <ActivityIndicator color={colors.amber} style={{ marginVertical: 8 }} />}
+      {line && (
         <View style={styles.row}>
           <Ionicons
-            name={line?.tone === "not_yet" ? "checkmark-circle-outline" : "calendar-outline"}
+            name={
+              line.tone === "not_yet"
+                ? "checkmark-circle-outline"
+                : line.tone === "now" || line.tone === "later"
+                  ? "calendar-outline"
+                  : "help-circle-outline"
+            }
             size={22}
-            color={failed ? colors.text3 : tone}
+            color={tone}
             accessible={false}
             style={{ marginTop: 1 }}
           />
           <View style={{ flex: 1, gap: 2 }}>
-            {line ? (
-              <>
-                <Text style={styles.headline}>{line.headline}</Text>
-                <Text style={styles.body}>{line.detail}</Text>
-              </>
-            ) : (
-              <Text style={styles.body}>{SCOPE_FAILED}</Text>
-            )}
+            <Text style={styles.headline}>{line.headline}</Text>
+            <Text style={styles.body}>{line.detail}</Text>
+            {line.showChecker && checker}
             <TouchableOpacity
               onPress={() => setOpen((o) => !o)}
               accessibilityRole="button"
@@ -121,14 +140,7 @@ export function MtdScopeCheck({ onResult }: { onResult?: (tone: ScopeTone | null
                 ))}
                 <Text style={[styles.small, { marginTop: 4 }]}>{SCOPE_RENT_NOTE}</Text>
                 {missing && <Text style={[styles.small, { marginTop: 4 }]}>{missing}</Text>}
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(GOVUK_MTD_WHO)}
-                  accessibilityRole="link"
-                  accessibilityLabel={SCOPE_CHECKER_LINK}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={styles.smallLink}>{SCOPE_CHECKER_LINK} ›</Text>
-                </TouchableOpacity>
+                {!line.showChecker && checker}
               </View>
             )}
           </View>

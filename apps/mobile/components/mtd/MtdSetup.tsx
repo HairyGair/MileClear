@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +17,8 @@ import {
 import {
   BUSINESS_NOT_FOUND,
   CHOOSE_BUSINESS,
+  CONNECTION_EXPIRED,
+  FOUND_BUSINESS_SUB,
   HAVE_READY,
   HAVE_READY_HEADING,
   NOT_SIGNED_UP_COPY,
@@ -25,17 +27,15 @@ import {
   SETUP_FOOTER,
   SETUP_STEP_COPY,
   SETUP_TITLE,
-  USE_THIS_BUSINESS,
   collapseStepsForScope,
   foundBusinessLine,
   setupBody,
   setupSteps,
   stepsHeading,
-  type ScopeTone,
   type SetupStepKey,
   type SetupStepView,
 } from "../../lib/tax/mtdSetupCopy";
-import { MtdScopeCheck } from "../MtdScopeCheck";
+import { MtdScopeCheck, type ScopeState } from "../MtdScopeCheck";
 import { HmrcHandoffSheet } from "../HmrcHandoffSheet";
 
 const HAVE_READY_ICON: Record<(typeof HAVE_READY)[number]["key"], keyof typeof Ionicons.glyphMap> = {
@@ -50,18 +50,33 @@ const TAG_ICON: Record<SetupStepKey, keyof typeof Ionicons.glyphMap> = {
   details: "phone-portrait-outline",
 };
 
+/**
+ * What setup remembers across the screen's reloads (the load spinner unmounts
+ * this component): the scope answer, and a "Set up anyway" tap. Held by the screen.
+ */
+export interface SetupMemory {
+  scope: ScopeState | null;
+  setUpAnyway: boolean;
+}
+
+export const EMPTY_SETUP_MEMORY: SetupMemory = { scope: null, setUpAnyway: false };
+
 interface Props {
   env: HmrcEnv;
-  /** The real service. The test service needs no GOV.UK sign-up. */
+  /** The real service (or not known): 3 steps. Only the known test service drops the GOV.UK sign-up. */
   live: boolean;
   userId: string | null;
   /** The screen's setup step ("ready" only when HMRC says not signed up). */
   step: "connect" | "nino" | "business" | "ready";
   connected: boolean;
+  /** HMRC ended the connection (asked to sign in again). */
+  expired: boolean;
   notSignedUp: boolean;
   businesses: HmrcBusinessSummary[];
+  memory: SetupMemory;
+  onMemory: (m: SetupMemory) => void;
   /** Starts HMRC sign-in (the screen's existing OAuth flow, unchanged). */
-  onConnect: () => void;
+  onConnect: () => Promise<void> | void;
   onDisconnect?: () => void;
   /** Ask HMRC again (after signing up, or adding a business). */
   onRetry: () => void;
@@ -81,17 +96,23 @@ export function MtdSetup({
   userId,
   step,
   connected,
+  expired,
   notSignedUp,
   businesses,
+  memory,
+  onMemory,
   onConnect,
   onDisconnect,
   onRetry,
   onLeave,
 }: Props) {
   const [saidSignedUp, setSaidSignedUp] = useState<boolean | null>(null);
-  const [scope, setScope] = useState<ScopeTone | null>(null);
-  const [setUpAnyway, setSetUpAnyway] = useState(false);
-  const [sheet, setSheet] = useState<HandoffKind | null>(null);
+  // The sheet stays mounted while it closes; `sheetOpen` drives visibility.
+  const [sheetKind, setSheetKind] = useState<HandoffKind>("signUp");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // HMRC sign-in is under way (from the tap, through the sheet's close delay,
+  // until the browser returns): a second Connect does nothing.
+  const connecting = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -123,22 +144,44 @@ export function MtdSetup({
     router.push("/tax-mtd-nino" as never);
   };
 
+  const openSheet = (kind: HandoffKind) => {
+    if (kind === "connect" && connecting.current) return;
+    setSheetKind(kind);
+    setSheetOpen(true);
+  };
+
+  // Runs after the sheet's close delay; `connecting` was set when Continue was tapped.
+  const startConnect = () => {
+    connecting.current = true;
+    Promise.resolve()
+      .then(() => onConnect())
+      .finally(() => {
+        connecting.current = false;
+      });
+  };
+
   // Hold the steps until we know the "I've done this" answer, so the driver's
   // place doesn't flash back to step 1.
   if (saidSignedUp === null) return <Heading env={env} />;
 
-  const steps = setupSteps({ live, saidSignedUp, connected, notSignedUp, step });
+  const steps = setupSteps({ live, saidSignedUp, connected, expired, notSignedUp, step });
+  const recheck = steps.some((s) => s.key === "signUp" && s.state === "attention");
   const collapsed =
-    !setUpAnyway && collapseStepsForScope({ scope, saidSignedUp, connected, notSignedUp });
+    !memory.setUpAnyway &&
+    collapseStepsForScope({
+      live,
+      scope: memory.scope?.line.tone ?? null,
+      saidSignedUp,
+      connected: connected || expired,
+      notSignedUp,
+    });
 
-  const sheetCopy: HandoffCopy | null =
-    sheet === "signUp"
-      ? signUpHandoff()
-      : sheet === "connect"
-        ? connectHandoff(env)
-        : sheet === "addBusiness"
-          ? addBusinessHandoff()
-          : null;
+  const sheetCopy: HandoffCopy =
+    sheetKind === "connect"
+      ? connectHandoff(env)
+      : sheetKind === "addBusiness"
+        ? addBusinessHandoff()
+        : signUpHandoff({ recheck });
 
   const openWeb = (url: string | null) => {
     if (url) void WebBrowser.openBrowserAsync(url).catch(() => {});
@@ -148,12 +191,14 @@ export function MtdSetup({
     <View>
       <Heading env={env} />
 
-      {!connected && <MtdScopeCheck onResult={setScope} />}
+      {!connected && (
+        <MtdScopeCheck value={memory.scope} onChange={(scope) => onMemory({ ...memory, scope })} />
+      )}
 
       {collapsed ? (
         <TouchableOpacity
           style={[styles.secondaryBtn, { marginBottom: spacing.xl }]}
-          onPress={() => setSetUpAnyway(true)}
+          onPress={() => onMemory({ ...memory, setUpAnyway: true })}
           accessibilityRole="button"
           accessibilityLabel={SETUP_BUTTONS.setUpAnyway}
         >
@@ -161,7 +206,7 @@ export function MtdSetup({
         </TouchableOpacity>
       ) : (
         <>
-          {!connected && (
+          {!connected && !expired && (
             <>
               <Text style={styles.sectionLabel}>{HAVE_READY_HEADING}</Text>
               <View style={[styles.card, { gap: spacing.lg }]}>
@@ -186,20 +231,29 @@ export function MtdSetup({
               <StepRow key={s.key} view={s} last={i === steps.length - 1}>
                 {s.key === "signUp" && s.state === "current" && (
                   <View style={styles.btnRow}>
-                    <PrimaryBtn label={SETUP_BUTTONS.showMeHow} onPress={() => setSheet("signUp")} />
+                    <PrimaryBtn label={SETUP_BUTTONS.showMeHow} onPress={() => openSheet("signUp")} />
                     <SecondaryBtn label={SETUP_BUTTONS.done} onPress={markSignedUp} />
                   </View>
                 )}
                 {s.key === "signUp" && s.state === "attention" && (
                   <NotSignedUp
-                    onShowHow={() => setSheet("signUp")}
+                    onShowHow={() => openSheet("signUp")}
                     onChangeNumber={connected ? changeNumber : undefined}
                     onCheckAgain={connected ? onRetry : undefined}
                   />
                 )}
                 {s.key === "connect" && s.state === "current" && (
                   <View style={styles.btnRow}>
-                    <PrimaryBtn label={SETUP_BUTTONS.connect} onPress={() => setSheet("connect")} />
+                    <PrimaryBtn label={SETUP_BUTTONS.connect} onPress={() => openSheet("connect")} />
+                  </View>
+                )}
+                {s.key === "connect" && s.state === "attention" && (
+                  <View style={styles.warnBox}>
+                    <Text style={styles.warnTitle}>{CONNECTION_EXPIRED.title}</Text>
+                    <Text style={styles.stepBody}>{CONNECTION_EXPIRED.body}</Text>
+                    <View style={styles.btnRow}>
+                      <PrimaryBtn label={CONNECTION_EXPIRED.button} onPress={() => openSheet("connect")} />
+                    </View>
                   </View>
                 )}
                 {s.key === "connect" && s.state === "done" && onDisconnect && (
@@ -230,7 +284,7 @@ export function MtdSetup({
                   ) : (
                     <BusinessPart
                       businesses={businesses}
-                      onShowHow={() => setSheet("addBusiness")}
+                      onShowHow={() => openSheet("addBusiness")}
                       onChangeNumber={changeNumber}
                       onCheckAgain={onRetry}
                       onLeave={onLeave}
@@ -245,15 +299,16 @@ export function MtdSetup({
 
       <Text style={styles.footer}>{SETUP_FOOTER}</Text>
 
-      {sheetCopy && (
-        <HmrcHandoffSheet
-          visible={sheet !== null}
-          copy={sheetCopy}
-          onClose={() => setSheet(null)}
-          onPrimary={() => (sheetCopy.kind === "connect" ? onConnect() : openWeb(sheetCopy.url))}
-          onSecondary={sheetCopy.kind === "signUp" ? markSignedUp : undefined}
-        />
-      )}
+      <HmrcHandoffSheet
+        visible={sheetOpen}
+        copy={sheetCopy}
+        onClose={() => setSheetOpen(false)}
+        onPrimaryTap={() => {
+          if (sheetCopy.kind === "connect") connecting.current = true;
+        }}
+        onPrimary={() => (sheetCopy.kind === "connect" ? startConnect() : openWeb(sheetCopy.url))}
+        onSecondary={sheetCopy.kind === "signUp" ? (recheck ? onRetry : markSignedUp) : undefined}
+      />
     </View>
   );
 }
@@ -376,15 +431,24 @@ function BusinessPart({
     );
   }
 
+  // One business: name it, and one tap opens the existing Confirm trade
+  // screen, which shows HMRC's details and is the only confirmation.
   if (se.length === 1) {
     const b = se[0];
+    const line = foundBusinessLine(b.tradingName);
     return (
-      <View style={{ marginTop: spacing.md }}>
-        <Text style={styles.found}>{foundBusinessLine(b.tradingName)}</Text>
-        <View style={styles.btnRow}>
-          <PrimaryBtn label={USE_THIS_BUSINESS} onPress={() => choose(b.businessId)} />
+      <TouchableOpacity
+        style={[styles.businessOption, { marginTop: spacing.md }]}
+        onPress={() => choose(b.businessId)}
+        accessibilityRole="button"
+        accessibilityLabel={`${line}. ${FOUND_BUSINESS_SUB}`}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.businessName}>{line}</Text>
+          <Text style={styles.stepBody}>{FOUND_BUSINESS_SUB}</Text>
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.text3} />
+      </TouchableOpacity>
     );
   }
 

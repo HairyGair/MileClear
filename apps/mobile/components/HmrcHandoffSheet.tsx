@@ -16,6 +16,8 @@ interface Props {
   onClose: () => void;
   /** Runs after the sheet has closed: open the page, or start HMRC sign-in. */
   onPrimary: () => void;
+  /** Runs at once when the primary button is tapped, before the close delay (to block a second start). */
+  onPrimaryTap?: () => void;
   /** Runs after the sheet has closed. Shown only when the copy has a secondary label. */
   onSecondary?: () => void;
 }
@@ -25,7 +27,7 @@ interface Props {
  * sign-in (HMRC redesign spec 4.4): where they're going, what happens there,
  * and how to come back. One component for Sign up, Connect, Pay and File.
  */
-export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onSecondary }: Props) {
+export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onPrimaryTap, onSecondary }: Props) {
   // A second tap while the sheet is closing must not open the page twice.
   const busy = useRef(false);
   const runAfterClose = (fn: () => void) => {
@@ -112,7 +114,10 @@ export function HmrcHandoffSheet({ visible, copy, onClose, onPrimary, onSecondar
 
           <TouchableOpacity
             style={styles.primary}
-            onPress={() => runAfterClose(onPrimary)}
+            onPress={() => {
+              if (!busy.current) onPrimaryTap?.();
+              runAfterClose(onPrimary);
+            }}
             accessibilityRole={copy.primaryOpensWeb ? "link" : "button"}
             accessibilityLabel={copy.primary}
           >

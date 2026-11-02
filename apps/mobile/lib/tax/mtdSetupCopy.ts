@@ -104,13 +104,13 @@ export const BUSINESS_NOT_FOUND = {
   checkAgain: "Check again",
 } as const;
 
-/** One self-employed business found: confirm it rather than make them pick. */
+/** One self-employed business found: name it, and open the Confirm trade screen in one tap. */
 export function foundBusinessLine(tradingName: string | null | undefined): string {
   const name = tradingName && tradingName.trim() ? tradingName.trim() : "Self-employed";
   return `We found your business: ${name}`;
 }
 
-export const USE_THIS_BUSINESS = "Use this business";
+export const FOUND_BUSINESS_SUB = "Check its details and confirm it's the right one.";
 export const CHOOSE_BUSINESS = {
   title: "Choose your business",
   body: "HMRC has more than one self-employed business for you. Pick the one for your driving.",
@@ -118,24 +118,48 @@ export const CHOOSE_BUSINESS = {
 
 // ── Scope line (compact MtdScopeCheck) ───────────────────────────────
 
-export type ScopeTone = "now" | "later" | "not_yet";
+/**
+ * now / later / not_yet come from the shared check. "unknown" means MileClear
+ * has no earnings for a year HMRC looks at, so "not yet" can't be said as fact.
+ * "failed" means none of the earnings could be read.
+ */
+export type ScopeTone = "now" | "later" | "not_yet" | "unknown" | "failed";
 
 export interface ScopeLine {
   tone: ScopeTone;
   headline: string;
   detail: string;
+  /** Show HMRC's checker link straight away, not only under "How we worked this out". */
+  showChecker: boolean;
 }
+
+export const SCOPE_FAILED_LINE: ScopeLine = {
+  tone: "failed",
+  headline: "Couldn't check your earnings",
+  detail: "We couldn't read your earnings just now. Check with HMRC's checker if you're not sure.",
+  showChecker: true,
+};
 
 /**
  * The one-line answer at the top of setup. Built from the shared scope check
- * (packages/shared checkMtdScope), worded for this screen.
+ * (packages/shared checkMtdScope), worded for this screen. A "not yet" with a
+ * year MileClear holds nothing for is "can't tell", never "you don't need to".
  */
 export function scopeLine(result: MtdScopeResult): ScopeLine {
   if (result.answer === "not_yet" || !result.phase) {
+    if (result.missingTaxYears.length > 0) {
+      return {
+        tone: "unknown",
+        headline: "We can't tell from MileClear",
+        detail: `MileClear doesn't have your earnings for ${result.missingTaxYears.join(" or ")}, so we can't tell. Check with HMRC's checker if you're not sure.`,
+        showChecker: true,
+      };
+    }
     return {
       tone: "not_yet",
       headline: "You don't need to yet",
-      detail: "Your earnings are under HMRC's limits. You can still set up if you want to.",
+      detail: "Going by what's in MileClear, your earnings are under HMRC's limits. You can still set up if you want to.",
+      showChecker: false,
     };
   }
   const phase = result.phase;
@@ -148,18 +172,40 @@ export function scopeLine(result: MtdScopeResult): ScopeLine {
       : `You've earned ${earned} so far in ${phase.basedOnTaxYear}, over HMRC's ${limit} limit.`
     : `Your earnings in ${phase.basedOnTaxYear} are over HMRC's ${limit} limit.`;
   if (result.answer === "now") {
-    return { tone: "now", headline: "You need to do this now", detail: why };
+    return { tone: "now", headline: "You need to do this now", detail: why, showChecker: false };
   }
   return {
     tone: "later",
     headline: `You'll need to from 6 ${phase.startsLabel}`,
     detail: `${why} You can set up now and get used to it.`,
+    showChecker: false,
   };
 }
 
+/**
+ * The earnings reads behind the scope check, per tax year: pence, or null for
+ * "nothing held", or "error" when the read failed. All failed reads is
+ * "failed"; a failed year otherwise counts as not held (so "can't tell").
+ */
+export function scopeFromReads(
+  reads: Record<string, number | null | "error">,
+  check: (byYear: Record<string, number | null>) => MtdScopeResult,
+): { line: ScopeLine; result: MtdScopeResult | null } {
+  const years = Object.keys(reads);
+  if (years.length > 0 && years.every((y) => reads[y] === "error")) {
+    return { line: SCOPE_FAILED_LINE, result: null };
+  }
+  const byYear: Record<string, number | null> = {};
+  for (const y of years) {
+    const v = reads[y];
+    // Nothing logged for a year reads as "not held", not as £0 of income.
+    byYear[y] = typeof v === "number" && v > 0 ? v : null;
+  }
+  const result = check(byYear);
+  return { line: scopeLine(result), result };
+}
+
 export const SCOPE_HOW_LINK = "How we worked this out";
-export const SCOPE_CHECKING = "Checking your earnings...";
-export const SCOPE_FAILED = "We couldn't check your earnings just now. The limits are below.";
 export const SCOPE_LIMITS_INTRO =
   "HMRC looks at your income before expenses for an earlier tax year, from your Self Assessment:";
 export const SCOPE_RENT_NOTE =
@@ -181,8 +227,14 @@ export interface SetupStepsInput {
   live: boolean;
   /** The driver tapped "I've done this" (remembered on the phone). */
   saidSignedUp: boolean;
-  /** Connected to HMRC (an expired connection counts as not connected). */
+  /** Connected to HMRC now. A connection HMRC has ended is not connected; see `expired`. */
   connected: boolean;
+  /**
+   * HMRC ended the connection (it asked to sign in again). Step 2 shows
+   * "Connection expired" in amber with Connect again, not a tick, and step 1
+   * counts as done because they got past it before.
+   */
+  expired?: boolean;
   /** HMRC refused because the driver isn't signed up. */
   notSignedUp: boolean;
   /** The screen's own setup step. */
@@ -202,16 +254,20 @@ export interface SetupStepView {
  */
 export function setupSteps(input: SetupStepsInput): SetupStepView[] {
   const { live, saidSignedUp, connected, notSignedUp, step } = input;
-  const signUp: StepState = notSignedUp
+  const expired = !connected && input.expired === true;
+  // An ended connection comes first: HMRC can't say anything else until they reconnect.
+  const signUp: StepState = notSignedUp && !expired
     ? "attention"
-    : saidSignedUp || connected
+    : saidSignedUp || connected || expired
       ? "done"
       : "current";
   const connect: StepState = connected
     ? "done"
-    : !live || signUp === "done"
-      ? "current"
-      : "later";
+    : expired
+      ? "attention"
+      : !live || signUp === "done"
+        ? "current"
+        : "later";
   const details: StepState =
     !connected || (live && notSignedUp)
       ? "later"
@@ -232,16 +288,30 @@ export function setupSteps(input: SetupStepsInput): SetupStepView[] {
   return list.map((s, i) => ({ ...s, number: i + 1 }));
 }
 
+export const CONNECTION_EXPIRED = {
+  title: "Connection expired",
+  body: "HMRC has ended the connection. Connect again to carry on.",
+  button: "Connect again",
+} as const;
+
 /**
- * Hide the steps behind "Set up anyway" when the scope check says the driver
- * doesn't need this yet and they haven't started. Anyone part-way through
- * keeps their place.
+ * Hide the steps behind "Set up anyway" only when the scope check says, from
+ * earnings MileClear holds for every year, that the driver doesn't need this
+ * yet, they haven't started, and it's the real service. Never on the test
+ * service (App Review uses it), never when we can't tell.
  */
 export function collapseStepsForScope(args: {
+  live: boolean;
   scope: ScopeTone | null;
   saidSignedUp: boolean;
   connected: boolean;
   notSignedUp: boolean;
 }): boolean {
-  return args.scope === "not_yet" && !args.saidSignedUp && !args.connected && !args.notSignedUp;
+  return (
+    args.live &&
+    args.scope === "not_yet" &&
+    !args.saidSignedUp &&
+    !args.connected &&
+    !args.notSignedUp
+  );
 }

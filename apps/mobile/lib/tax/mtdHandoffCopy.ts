@@ -50,7 +50,11 @@ export interface HandoffCopy {
 export const COME_BACK_TITLE = "Then come back here";
 export const HAVE_READY_TITLE = "Have ready";
 
-export function signUpHandoff(): HandoffCopy {
+/**
+ * `recheck`: HMRC has said the driver isn't signed up, so coming back means
+ * asking HMRC again (Check again), not moving on to step 2.
+ */
+export function signUpHandoff(opts: { recheck?: boolean } = {}): HandoffCopy {
   return {
     kind: "signUp",
     pill: "Opens GOV.UK",
@@ -66,7 +70,9 @@ export function signUpHandoff(): HandoffCopy {
       },
     ],
     haveReady: null,
-    comeBack: "Tap \"I've done this\" and we'll take you to step 2. We'll keep your place.",
+    comeBack: opts.recheck
+      ? "When you've signed up, come back and tap Check again. It can take a little while to reach HMRC."
+      : "Tap \"I've done this\" and we'll take you to step 2. We'll keep your place.",
     primary: "Open GOV.UK",
     primaryOpensWeb: true,
     secondary: "I've done this already",
@@ -107,6 +113,8 @@ export interface PayFigures {
   dateLabel: "Pay by" | "Was due";
   /** True when the amount includes money already late. */
   late: boolean;
+  /** The late part, when only part of the amount is late (otherwise null). */
+  latePart: { pence: number; since: string | null } | null;
 }
 
 /** "31 January 2027" from "2027-01-31". */
@@ -135,9 +143,13 @@ export function payFigures(b: {
       payBy: b.dueNowPence > 0 ? b.dueNowDate : b.overdueSince,
       dateLabel: b.dueNowPence > 0 ? "Pay by" : "Was due",
       late: b.overduePence > 0,
+      latePart:
+        b.overduePence > 0 && b.dueNowPence > 0 ? { pence: b.overduePence, since: b.overdueSince } : null,
     };
   }
-  if (b.comingUpPence > 0) return { amountPence: b.comingUpPence, payBy: b.comingUpDate, dateLabel: "Pay by", late: false };
+  if (b.comingUpPence > 0) {
+    return { amountPence: b.comingUpPence, payBy: b.comingUpDate, dateLabel: "Pay by", late: false, latePart: null };
+  }
   return null;
 }
 
@@ -147,6 +159,14 @@ export function payHandoff(figures: PayFigures | null, formatAmount: (pence: num
     rows.push({ label: "Amount", value: formatAmount(figures.amountPence) });
     if (figures.payBy) {
       rows.push({ label: figures.dateLabel, value: longDate(figures.payBy) });
+    }
+    // Part of it is late: say so, so the sheet never reads as if nothing is.
+    if (figures.latePart) {
+      const late = formatAmount(figures.latePart.pence);
+      rows.push({
+        label: "Of which late",
+        value: figures.latePart.since ? `${late}, was due ${longDate(figures.latePart.since)}` : late,
+      });
     }
   }
   return {
