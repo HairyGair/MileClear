@@ -80,7 +80,11 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
 
 export async function setNotificationPreferences(
   partial: Partial<NotificationPreferences>,
-  opts: { awaitServer?: boolean } = {}
+  opts: {
+    awaitServer?: boolean;
+    /** With awaitServer: reject when the server save fails, so the caller can say so. */
+    throwOnServerError?: boolean;
+  } = {}
 ): Promise<void> {
   const current = await getNotificationPreferences();
   const updated: Partial<NotificationPreferences> = { ...current, ...partial };
@@ -108,11 +112,12 @@ export async function setNotificationPreferences(
   // sync self-heals on the next toggle. awaitServer waits for it, for a
   // screen that reads the server's answer straight after (Road alerts:
   // its reload beat the save and showed "Turn on" again, 3 Oct 2026).
-  const sync = syncPreferencesToServer(updated);
+  const rethrow = !!(opts.awaitServer && opts.throwOnServerError);
+  const sync = syncPreferencesToServer(updated, rethrow);
   if (opts.awaitServer) await sync;
 }
 
-function syncPreferencesToServer(prefs: Partial<NotificationPreferences>): Promise<void> {
+function syncPreferencesToServer(prefs: Partial<NotificationPreferences>, rethrow = false): Promise<void> {
   return import("../api/index")
     .then(({ apiRequest }) =>
       apiRequest("/notifications/preferences", {
@@ -121,7 +126,8 @@ function syncPreferencesToServer(prefs: Partial<NotificationPreferences>): Promi
       })
     )
     .then(() => undefined)
-    .catch(() => {
+    .catch((err: unknown) => {
+      if (rethrow) throw err;
       /* offline or transient — next toggle re-syncs */
     });
 }

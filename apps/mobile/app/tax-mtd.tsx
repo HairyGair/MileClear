@@ -24,10 +24,13 @@ import { MtdBalanceCard } from "../components/MtdBalanceCard";
 import { isNotSignedUpError } from "../lib/tax/mtdSignUp";
 import { summariseQuarters, taxYearOfPeriodStart, localToday, obligationsWindow } from "../lib/tax/mtdQuarters";
 import { hubConnectionLabel, FINISH_YEAR_COPY } from "../lib/tax/mtdHubCopy";
-import { newHubOwner, readHubCache, writeHubCache, invalidateHubCache } from "../lib/tax/mtdHubCache";
+import { newHubOwner, readHubCache, writeHubCache, invalidateHubCache, invalidateTaxSoFarCache } from "../lib/tax/mtdHubCache";
 import { useMtdHubFigures } from "../lib/tax/useMtdHubFigures";
 import { NextUpCard } from "../components/mtd/NextUpCard";
 import { YearTimeline } from "../components/mtd/YearTimeline";
+import { TaxSoFarCard } from "../components/mtd/TaxSoFarCard";
+import { hubTaxYear } from "../lib/tax/mtdTaxSoFar";
+import { HubHelpList } from "../components/mtd/HubHelpList";
 import { MtdSheet, SheetRow, sheetText } from "../components/mtd/MtdSheet";
 import { useUser } from "../lib/user/context";
 import {
@@ -350,6 +353,7 @@ function TaxMtdContent() {
 
   const onConnect = useCallback(async () => {
     invalidateHubCache();
+    invalidateTaxSoFarCache();
     try {
       const res = await fetchAuthorizeUrl();
       const url = res.data.url;
@@ -397,6 +401,7 @@ function TaxMtdContent() {
             try {
               await disconnectHmrc();
               invalidateHubCache();
+              invalidateTaxSoFarCache();
               await load();
             } catch (err) {
               Alert.alert(
@@ -482,24 +487,23 @@ function TaxMtdContent() {
           onConnect={onConnect}
         />
       )}
+      {state.step === "ready" && (
+        <TaxSoFarCard
+          userId={userId}
+          taxYear={hubTaxYear(state.obligations, state.fulfilledKnown ? state.fulfilled : null)}
+          env={env}
+          enabled={!state.notSignedUp && !isConnectionExpired(state.status?.expiresAt)}
+          refreshKey={balanceKey}
+          fulfilled={state.fulfilledKnown ? state.fulfilled : null}
+        />
+      )}
+      {/* "What you owe HMRC" slots in here, after "Your tax so far". It stays
+          switched off server-side (HMRC_BALANCE) until HMRC allows it. */}
       {state.step === "ready" && !state.notSignedUp && !isConnectionExpired(state.status?.expiresAt) && (
         <MtdBalanceCard refreshKey={balanceKey} />
       )}
 
-      {state.step === "ready" && (
-        <TouchableOpacity
-          style={styles.historyRow}
-          onPress={() => router.push("/tax-mtd-history" as never)}
-          accessibilityRole="button"
-          accessibilityLabel="Update history"
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.obligationDates}>Update history</Text>
-            <Text style={styles.obligationDue}>What you've sent, and HMRC's estimates</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={TEXT_3} />
-        </TouchableOpacity>
-      )}
+      {state.step === "ready" && <HubHelpList />}
 
       {/* Signposts HMRC requires. They sit under our own explanation, not at the
           top. On the real service the end-of-year return isn't offered (the
@@ -521,6 +525,7 @@ function TaxMtdContent() {
           onPress={() => {
             setManageOpen(false);
             invalidateHubCache();
+            invalidateTaxSoFarCache();
             returningFromSend.current = true;
             router.push("/tax-mtd-nino" as never);
           }}
@@ -957,15 +962,6 @@ const styles = StyleSheet.create({
   connText: { flexShrink: 1, color: TEXT_2, fontSize: 14, fontFamily: fonts.medium },
   connAction: { minHeight: 32, justifyContent: "center" },
   connActionText: { color: TEXT_2, fontSize: 14, fontFamily: fonts.semibold },
-  historyRow: {
-    backgroundColor: CARD_BG,
-    borderRadius: 14,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 16,
-  },
   fineprintLeft: { color: TEXT_3, fontSize: 13, lineHeight: 19, fontFamily: fonts.regular, marginTop: 8 },
 
   errorCard: {
@@ -1075,17 +1071,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     marginBottom: 10,
-  },
-  obligationDates: {
-    color: TEXT_1,
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-  },
-  obligationDue: {
-    color: TEXT_3,
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    marginTop: 2,
   },
   daysBadge: {
     paddingHorizontal: 10,
