@@ -102,6 +102,16 @@ export interface PeriodSubmissionPayload {
     [k: string]: number | undefined;
   };
   breakdown: PeriodSubmissionBreakdown;
+  /**
+   * Advice for the Check and send screen, worked out on the server. Absent or
+   * null on older API builds or when it couldn't be worked out; the screen
+   * then shows no checks rather than guessing from the phone.
+   */
+  checks?: {
+    unmarkedTrips: number;
+    /** Mondays (YYYY-MM-DD). Null when the check doesn't apply to this driver. */
+    weeksMissingEarnings: string[] | null;
+  } | null;
 }
 
 export interface HmrcCalculationListItem {
@@ -115,6 +125,14 @@ export interface HmrcCalculationListItem {
   crystallised?: boolean;
 }
 
+/** One band of HMRC's own tax or NI working. Pounds. */
+export interface HmrcCalculationBand {
+  name?: string;
+  rate: number;
+  income: number;
+  amount: number;
+}
+
 export interface HmrcCalculationSummary {
   calculationId: string;
   taxYear: string;
@@ -125,6 +143,13 @@ export interface HmrcCalculationSummary {
   nic2?: number;
   nic4?: number;
   totalIncomeTaxAndNicsDue?: number;
+  /** Tax already deducted at source, for example PAYE. Already netted off the headline. */
+  totalTaxDeducted?: number;
+  /** The personal allowance HMRC applied this year. */
+  personalAllowance?: number;
+  /** HMRC's own bands, when it returned them. Absent on older API builds. */
+  incomeTaxBands?: HmrcCalculationBand[];
+  class4Bands?: HmrcCalculationBand[];
   ready: boolean;
   raw: unknown;
 }

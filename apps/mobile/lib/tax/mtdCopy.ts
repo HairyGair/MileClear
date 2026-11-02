@@ -134,3 +134,77 @@ export const NO_TRADE_COPY = {
   retryLabel: "Check again",
   backLabel: "Back",
 } as const;
+
+// ── Check and send / sent screens (Nov 2026 redesign) ───────────────────
+// Environment-dependent words for the two screens an update goes through.
+// Unknown environment reads as the real-service wording, never "test".
+
+export const CHECK_AND_SEND_TITLE = "Check and send";
+
+/** Label on the main button of the Check and send screen. */
+export function sendButtonLabel(env: HmrcEnv): string {
+  return isMtdTest(env) ? "Send test update" : "Send to HMRC";
+}
+
+/** Title of the confirm alert before sending. */
+export function confirmSendTitle(env: HmrcEnv): string {
+  return isMtdTest(env) ? "Send test update?" : "Send to HMRC?";
+}
+
+/** Body of the confirm alert. `period` reads like "6 April to 5 October 2026". */
+export function confirmSendBody(env: HmrcEnv, period: string): string {
+  return isMtdTest(env)
+    ? `This sends ${period} to HMRC's test service. Nothing reaches HMRC and your tax account is not changed.`
+    : `This sends ${period}. You can correct it later if a figure is wrong.`;
+}
+
+/** Alert title when sending fails. */
+export function couldntSendTitle(env: HmrcEnv): string {
+  return isMtdTest(env) ? "Test update failed" : "Couldn't send";
+}
+
+/** Nav title of the sent screen. */
+export function sentNavTitle(env: HmrcEnv): string {
+  return isMtdTest(env) ? "Test update done" : "Sent";
+}
+
+/** Big heading on the sent screen. */
+export function sentHeading(env: HmrcEnv): string {
+  if (isMtdTest(env)) return "Test update complete";
+  return isMtdLive(env) ? "HMRC has your update" : "Update sent";
+}
+
+/** Eyebrow over HMRC's figure. The figure always comes from HMRC's service. */
+export function estimateEyebrow(taxYear: string, env: HmrcEnv): string {
+  return isMtdTest(env) ? `TEST ESTIMATE FOR ${taxYear}` : `HMRC'S ESTIMATE FOR ${taxYear}`;
+}
+
+/** Small pill beside the estimate. */
+export function estimateSourcePill(env: HmrcEnv): string {
+  return isMtdTest(env) ? "From test service" : "From HMRC";
+}
+
+/** Shown while HMRC is working out the estimate. */
+export function estimateWaitingText(env: HmrcEnv): string {
+  return isMtdTest(env)
+    ? "Asking the test service for your estimate... usually 10 to 30 seconds."
+    : "Asking HMRC for your estimate... usually 10 to 30 seconds.";
+}
+
+/** Shown when the estimate didn't arrive. The update itself is not affected. */
+export const ESTIMATE_FAILED_TEXT =
+  "HMRC hasn't sent the estimate yet. It'll be in Update history. Your update isn't affected.";
+
+export const MISTAKE_LATER_TEXT =
+  "Spot a mistake later? Your next update carries the corrected totals, or you can resend this one from Update history.";
+
+export const NOTHING_TO_PAY_COPY = {
+  title: "Sending this doesn't charge you",
+  body: "Your payment dates stay the same.",
+  link: "See what you pay and when",
+} as const;
+
+export const RUNNING_TOTAL_TEXT =
+  "Each update is a running total from 6 April, so this one includes the earlier months again. That's how HMRC wants it.";
+
+export const SENT_SIGNPOST_TEXT = "You can also see this in your HMRC online account.";
