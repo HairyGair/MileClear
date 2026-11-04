@@ -13,6 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useFocusEffect, router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import {
+  employerRateLabel,
   exportProjectChoices,
   exportProjectSlug,
   exportVehicleChoices,
@@ -69,11 +70,20 @@ export default function ExportsScreen() {
   // filters on ?classification=business. Self Assessment is business-only
   // by nature and ignores it.
   const [businessOnly, setBusinessOnly] = useState(true);
+  // The driver's own rate for the CSV and Trip Report (4 Nov 2026: a driver
+  // paid a flat rate on their contract, the downloads only showed HMRC's
+  // rates). Offered only when an employer rate is set; on by default so the
+  // downloads match Home. Self Assessment always uses HMRC's rates.
+  const [rateText, setRateText] = useState<string | null>(null);
+  const [ownRate, setOwnRate] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
       fetchProfile()
-        .then((res) => setIsPremium(res.data.isPremium))
+        .then((res) => {
+          setIsPremium(res.data.isPremium);
+          setRateText(employerRateLabel(res.data));
+        })
         .catch(() => setIsPremium(false));
     }, [])
   );
@@ -119,6 +129,7 @@ export default function ExportsScreen() {
         if (car && type !== "self-assessment") param += `&vehicleId=${encodeURIComponent(car.id)}`;
         // The Self Assessment report is always the whole business.
         if (client && type !== "self-assessment") param += `&projectLabel=${encodeURIComponent(client.label)}`;
+        if (rateText && ownRate && type !== "self-assessment") param += "&rate=employer";
 
         await downloadAndShareExport(
           `/exports/${type}?${param}`,
@@ -137,7 +148,7 @@ export default function ExportsScreen() {
         setLoadingKey(null);
       }
     },
-    [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly]
+    [selectedYear, rangeMode, fromDate, toDate, showPaywall, businessOnly, rateText, ownRate]
   );
 
   // "Which vehicle?" as a sheet, not Alert.alert: Android keeps only three
@@ -457,6 +468,25 @@ export default function ExportsScreen() {
             accessibilityLabel="Business trips only in the CSV and Trip Report"
           />
         </View>
+
+        {rateText && (
+          <View style={[styles.row, styles.switchRow]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Use my rate ({rateText})</Text>
+              <Text style={styles.rowDesc}>
+                {ownRate
+                  ? "The CSV and Trip Report price business trips at your rate. Trips tagged with a gig app stay at HMRC's rates. Self Assessment always uses HMRC's rates."
+                  : "The CSV and Trip Report use HMRC's mileage rates."}
+              </Text>
+            </View>
+            <Switch
+              value={ownRate}
+              onValueChange={setOwnRate}
+              trackColor={{ true: AMBER }}
+              accessibilityLabel="Use my own mileage rate in the CSV and Trip Report"
+            />
+          </View>
+        )}
 
         <TouchableOpacity
           style={styles.row}

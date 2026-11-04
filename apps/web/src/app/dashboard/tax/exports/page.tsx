@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  employerRateLabel,
   exportProjectChoices,
   exportProjectSlug,
   exportVehicleChoices,
@@ -107,7 +108,7 @@ function ExportRow({ row }: { row: RowDef }) {
 }
 
 function Exports() {
-  const { mode } = useMe();
+  const { mode, user } = useMe();
   const [periodMode, setPeriodMode] = useState<PeriodMode>("year");
   const [taxYear, setTaxYear] = useState(() => getTaxYear(new Date()));
   const [range, setRange] = useState(() => taxYearRange(getTaxYear(new Date())));
@@ -144,6 +145,11 @@ function Exports() {
   const label = periodMode === "year" ? taxYear : `${range.from}-to-${range.to}`;
   const stamp = todayStamp();
   const biz = businessOnly ? "&classification=business" : "";
+  // The driver's own rate for the trip report and trips CSV (4 Nov 2026):
+  // offered only when an employer rate is set, on by default to match Home.
+  const rateText = user ? employerRateLabel(user) : null;
+  const [ownRate, setOwnRate] = useState(true);
+  const rateParam = rateText && ownRate ? "&rate=employer" : "";
   const datesInvalid = periodMode === "dates" && (!range.from || !range.to || range.from > range.to);
   const invalid = datesInvalid ? "Choose a start date that is before the end date." : undefined;
 
@@ -162,7 +168,7 @@ function Exports() {
       title: "Trip report (PDF)",
       hint: "Every trip in the period, with a mileage summary.",
       button: "Download",
-      path: `/exports/pdf?${tripPeriod}${biz}${carParam}${clientParam}`,
+      path: `/exports/pdf?${tripPeriod}${biz}${carParam}${clientParam}${rateParam}`,
       filename: `mileclear-trips-${clientSlug}${carSlug}${label}-${stamp}.pdf`,
       disabledReason: invalid,
     },
@@ -171,7 +177,7 @@ function Exports() {
       title: "Trips (CSV)",
       hint: "One row per trip, for a spreadsheet or your accountant.",
       button: "Download",
-      path: `/exports/csv?${tripPeriod}${biz}${carParam}${clientParam}`,
+      path: `/exports/csv?${tripPeriod}${biz}${carParam}${clientParam}${rateParam}`,
       filename: `mileclear-trips-${clientSlug}${carSlug}${label}-${stamp}.csv`,
       disabledReason: invalid,
     },
@@ -219,6 +225,14 @@ function Exports() {
             value={businessOnly}
             onChange={setBusinessOnly}
           />
+          {rateText && (
+            <Toggle
+              label={`Use my rate (${rateText})`}
+              hint="Prices business trips in the trip report and trips CSV at your rate. Trips tagged with a gig app stay at HMRC's rates. The Self Assessment summary always uses HMRC's rates."
+              value={ownRate}
+              onChange={setOwnRate}
+            />
+          )}
           {clientChoices && (
             <SelectField
               label="Client for the trip report and trips CSV"
@@ -252,7 +266,7 @@ function Exports() {
       <Card padded={false}>
         {rows.map((r) => (
           // Remount when the period changes so an old error does not linger.
-          <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}-${tripCarId}-${client ?? ""}`} row={r} />
+          <ExportRow key={`${r.key}-${period}-${businessOnly}-${vehicleId}-${tripCarId}-${client ?? ""}-${ownRate}`} row={r} />
         ))}
       </Card>
 

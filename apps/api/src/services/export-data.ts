@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma.js";
 import { postcodesFor } from "./postcodeLookup.js";
 import { isClaimableTrip } from "../lib/claimableTrips.js";
 import { odometerForExportTrips } from "./odometer.js";
+import type { RateOpts } from "../lib/mileageRates.js";
 import {
   HMRC_THRESHOLD_MILES,
   getHmrcRatesForTaxYear,
@@ -46,6 +47,16 @@ interface FetchTripsOpts {
    * threshold is still the driver's whole year, not 10,000 per client.
    */
   projectKey?: string;
+  /**
+   * The driver's own employer rates (4 Nov 2026, a driver paid a flat rate on
+   * their contract asked to export that rather than HMRC's). Set only for the CSV and Trip Report
+   * when the driver asked for them and has an employer rate. Business trips
+   * with no gig platform tag are priced at these rates, with their own
+   * 10,000-mile band; gig-tagged trips stay at HMRC's rates, the same rule as
+   * the "to claim" figure on Home (lib/mileageRates.ts). The Self Assessment
+   * PDF never uses them.
+   */
+  employerRates?: RateOpts | null;
 }
 
 /**
@@ -153,8 +164,12 @@ export async function fetchExportTrips(
     const vehicle = trip.vehicle ?? primaryVehicle;
     const vType = (vehicle?.vehicleType || "car") as VehicleType;
     const tripTaxYear = getTaxYear(new Date(trip.startedAt));
-    const rateTable = getHmrcRatesForTaxYear(tripTaxYear);
-    const tallyKey = `${tripTaxYear}:${vType === "motorbike" ? "motorbike" : "car"}`;
+    const hmrcTable = getHmrcRatesForTaxYear(tripTaxYear);
+    const employer = opts.employerRates?.customRateFirst10kPence != null && !trip.platformTag
+      ? opts.employerRates
+      : null;
+    const rateTable = employer ? employerRateTable(employer) : hmrcTable;
+    const tallyKey = `${employer ? "employer:" : ""}${tripTaxYear}:${vType === "motorbike" ? "motorbike" : "car"}`;
     const prevBusinessMiles = businessMilesByType[tallyKey] || 0;
 
     let hmrcRatePence = 0;
@@ -220,6 +235,7 @@ export async function fetchExportTrips(
         : null,
       hmrcRatePence,
       deductionPence,
+      ...(employer && isClaimableTrip(trip) ? { atEmployerRate: true } : {}),
     };
   });
 
@@ -260,6 +276,16 @@ export async function fetchExportTrips(
     });
   }
   return rows;
+}
+
+/** An employer's rates in the shape of an HMRC rate table: the first-10k
+ *  rate everywhere, the after-10k rate when given (else flat), motorbikes
+ *  at the first-10k rate, as calculateMileageDeduction does. */
+function employerRateTable(r: RateOpts) {
+  const first = r.customRateFirst10kPence!;
+  const after = r.customRateAfter10kPence ?? first;
+  const tiers = { first10000: first, after10000: after };
+  return { car: tiers, van: tiers, motorbike: { flat: first } };
 }
 
 /** Marks a vehicle someone else pays for wherever an export names it. */

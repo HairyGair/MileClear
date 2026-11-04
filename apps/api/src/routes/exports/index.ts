@@ -18,7 +18,9 @@ import {
 } from "../../services/odometer.js";
 import { defaultVehicleIdForUser } from "../../services/vehicleDefaults.js";
 import { prisma } from "../../lib/prisma.js";
+import { employerRatesFor } from "../../lib/mileageRates.js";
 import {
+  employerRateLabel,
   exportProjectSlug,
   exportVehicleSlug,
   parseTaxYear,
@@ -44,6 +46,8 @@ interface DateRangeQuery {
   vehicleId?: string;
   /** One Project / client only (CSV and Trip Report). Left out: every client. */
   projectLabel?: string;
+  /** "employer": price at the driver's own rate (CSV and Trip Report). */
+  rate?: string;
 }
 
 /** One vehicleId string, or none. ?vehicleId=a&vehicleId=b arrives as an array. */
@@ -107,6 +111,21 @@ interface AccountingBody {
 function buildFilename(type: string, taxYear: string, ext: string): string {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   return `mileclear-${type}-${taxYear}-${date}.${ext}`;
+}
+
+/**
+ * The driver's employer rates for a CSV or Trip Report asked for with
+ * ?rate=employer (4 Nov 2026). Anything else, or a driver with no employer
+ * rate set, gets HMRC's rates as before.
+ */
+async function employerRatesForQuery(userId: string, rate: unknown) {
+  if (rate !== "employer") return { employerRates: null, employerRateText: null };
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { workType: true, employerMileageRatePence: true, employerMileageRatePenceAfter10k: true },
+  });
+  const employerRates = employerRatesFor(user);
+  return { employerRates, employerRateText: employerRates && user ? employerRateLabel(user) : null };
 }
 
 function parseQueryOpts(query: DateRangeQuery) {
@@ -213,10 +232,11 @@ export async function exportRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, emptyTripsWhat(vehicle, project)) });
     }
 
-    const csv = await generateTripsCsv(request.userId!, { ...opts, vehicle, project });
+    const rates = await employerRatesForQuery(request.userId!, request.query.rate);
+    const csv = await generateTripsCsv(request.userId!, { ...opts, vehicle, project, ...rates });
     const filename = buildFilename(tripsFileType(vehicle, project), opts.taxYear || "custom", "csv");
 
-    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project });
+    logEvent("export.csv", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project, ownRate: !!rates.employerRates });
 
     return reply
       .header("Content-Type", "text/csv")
@@ -301,10 +321,11 @@ export async function exportRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: emptyExportMessage(opts.taxYear, emptyTripsWhat(vehicle, project)) });
     }
 
-    const pdf = await generateTripsPdf(request.userId!, { ...opts, vehicle, project });
+    const rates = await employerRatesForQuery(request.userId!, request.query.rate);
+    const pdf = await generateTripsPdf(request.userId!, { ...opts, vehicle, project, ...rates });
     const filename = buildFilename(tripsFileType(vehicle, project), opts.taxYear || "custom", "pdf");
 
-    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project });
+    logEvent("export.pdf", request.userId!, { taxYear: opts.taxYear, oneCar: !!vehicle, oneClient: !!project, ownRate: !!rates.employerRates });
 
     return reply
       .header("Content-Type", "application/pdf")

@@ -23,6 +23,7 @@ function platformLabel(code: string | null | undefined): string {
   return p ? p.label.split(" / ")[0] : code;
 }
 import { fetchExportTrips, fetchExportSummary, type ExportVehicle } from "./export-data.js";
+import type { RateOpts } from "../lib/mileageRates.js";
 import { prisma } from "../lib/prisma.js";
 import { decryptIfEncrypted } from "../lib/encryption.js";
 import { ensureInvoiceNumber } from "./invoices.js";
@@ -36,6 +37,11 @@ interface ExportOpts {
   vehicle?: Pick<ExportVehicle, "id" | "make" | "model" | "registrationPlate" | "vehicleType">;
   /** One Project / client only: its projectLabelKey and the name to print. */
   project?: { key: string; label: string };
+  /** Price untagged business trips at the driver's employer rate (CSV and
+   *  Trip Report only, see FetchTripsOpts.employerRates). */
+  employerRates?: RateOpts | null;
+  /** That rate in words, printed on the Trip Report ("45p a mile"). */
+  employerRateText?: string | null;
 }
 
 /**
@@ -71,6 +77,12 @@ export const ONE_CLIENT_ALLOWANCE_NOTE =
 export const ONE_CLIENT_MOTORBIKE_NOTE =
   "Motorbike business miles are claimed at one flat rate. " +
   "Each trip here is priced as it is on your full report, so the deduction shown is this client's share of your claim. Claim the total from your full report (All clients).";
+
+/** A one-vehicle or one-client Trip Report at the driver's own rate: the
+ *  HMRC notes above talk about a higher rate and a deduction, which may not
+ *  apply to an employer's rate. */
+export const OWN_RATE_PART_NOTE =
+  "Each trip here is priced as it is on your full report, counting all your business miles in the tax year, so the amount shown is this part of your total.";
 
 /** vehicleType: the one vehicle the report is also narrowed to, if any. */
 export function oneClientNote(vehicleType: string | null | undefined): string {
@@ -478,7 +490,10 @@ function fitFontSize(doc: PDFKit.PDFDocument, text: string, maxWidth: number, si
   return s;
 }
 
-export function tripsToCsv(trips: ExportTripRow[]): string {
+export function tripsToCsv(trips: ExportTripRow[], atEmployerRate = false): string {
+  // At the driver's own rate the money columns are not HMRC's, so they are
+  // named for what they hold, and each row says which rate it used (a trip
+  // tagged with a gig app stays at HMRC's rates).
   const headers = [
     "Date",
     "Start Time",
@@ -497,8 +512,7 @@ export function tripsToCsv(trips: ExportTripRow[]): string {
     "Project / client",
     "Vehicle Type",
     "Vehicle",
-    "HMRC Rate (p/mi)",
-    "Deduction",
+    ...(atEmployerRate ? ["Rate used", "Rate (p/mi)", "Amount"] : ["HMRC Rate (p/mi)", "Deduction"]),
   ];
 
   const rows = trips.map((t) =>
@@ -520,6 +534,7 @@ export function tripsToCsv(trips: ExportTripRow[]): string {
       t.projectLabel,
       t.vehicleType,
       t.vehicleName,
+      ...(atEmployerRate ? [rateUsedLabel(t)] : []),
       t.hmrcRatePence,
       formatPence(t.deductionPence),
     ]
@@ -528,6 +543,12 @@ export function tripsToCsv(trips: ExportTripRow[]): string {
   );
 
   return [headers.join(","), ...rows].join("\r\n") + "\r\n";
+}
+
+/** The CSV's "Rate used" cell on an employer-rate export. */
+function rateUsedLabel(t: ExportTripRow): string {
+  if (t.atEmployerRate) return "Your rate";
+  return t.deductionPence > 0 ? "HMRC" : "";
 }
 
 /**
@@ -606,8 +627,9 @@ export async function generateTripsCsv(
     projectKey: opts.project?.key,
     withPostcodes: true,
     withOdometer: true,
+    employerRates: opts.employerRates,
   });
-  return tripsToCsv(trips);
+  return tripsToCsv(trips, !!opts.employerRates);
 }
 
 // === PDF Trip Report (Landscape A4 — Professional) ================
@@ -625,7 +647,14 @@ export async function generateTripsPdf(
     vehicleId: opts.vehicle?.id,
     projectKey: opts.project?.key,
     withOdometer: true,
+    employerRates: opts.employerRates,
   });
+  const atOwnRate = !!opts.employerRates;
+  const moneyWord = atOwnRate ? "Amount" : "Deduction";
+  // Which rates the rows actually used, so the report never names a rate no
+  // trip was priced at (a client whose trips are all gig-tagged stays at HMRC).
+  const anyAtOwnRate = trips.some((t) => t.atEmployerRate);
+  const anyAtHmrc = trips.some((t) => !t.atEmployerRate && t.deductionPence > 0);
 
   const pageWidth = 841.89; // A4 landscape
   const pageHeight = 595.28;
@@ -690,7 +719,7 @@ export async function generateTripsPdf(
     margin + (boxW + boxGap) * 3,
     boxY,
     boxW,
-    clientLabel ? "Deduction (this client)" : carLabel ? "Deduction (this vehicle)" : "HMRC Deduction",
+    clientLabel ? `${moneyWord} (this client)` : carLabel ? `${moneyWord} (this vehicle)` : atOwnRate ? (anyAtOwnRate && !anyAtHmrc ? "At your rate" : "Amount") : "HMRC Deduction",
     formatPence(totalDeduction),
     true
   );
@@ -710,6 +739,30 @@ export async function generateTripsPdf(
 
   doc.y += 14;
 
+  if (atOwnRate && (anyAtOwnRate || anyAtHmrc)) {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .fillColor(NAVY)
+      .text(
+        anyAtOwnRate
+          ? `Business trips priced at your rate${opts.employerRateText ? `: ${opts.employerRateText}` : ""}`
+          : "Business trips priced at HMRC's mileage rates",
+        margin,
+        doc.y,
+        { width: contentWidth }
+      );
+    if (anyAtHmrc) {
+      doc.moveDown(0.2);
+      doc
+        .font("Helvetica")
+        .fontSize(8)
+        .fillColor(GREY_600)
+        .text("Trips tagged with a gig app are self-employed, so they are priced at HMRC's mileage rates.", margin, doc.y, { width: contentWidth });
+    }
+    doc.y += 10;
+  }
+
   if (clientLabel || carLabel) {
     const covers = clientLabel
       ? carLabel
@@ -727,7 +780,9 @@ export async function generateTripsPdf(
       .fontSize(8)
       .fillColor(GREY_600)
       .text(
-        clientLabel ? oneClientNote(opts.vehicle?.vehicleType) : oneVehicleNote(opts.vehicle?.vehicleType),
+        atOwnRate
+          ? OWN_RATE_PART_NOTE
+          : clientLabel ? oneClientNote(opts.vehicle?.vehicleType) : oneVehicleNote(opts.vehicle?.vehicleType),
         margin,
         doc.y,
         { width: contentWidth, lineGap: 1 }
@@ -748,7 +803,7 @@ export async function generateTripsPdf(
     { header: "Purpose", width: 62 },
     { header: "Vehicle", width: 80 },
     { header: "Rate", width: 38 },
-    { header: "Deduction", width: 62 },
+    { header: moneyWord, width: 62 },
   ];
 
   const rowHeight = 16;
@@ -866,7 +921,7 @@ export async function generateTripsPdf(
       { header: "Project / client", width: 260, align: "left" as const },
       { header: "Trips", width: 70, align: "right" as const },
       { header: "Miles", width: 90, align: "right" as const },
-      { header: "Deduction", width: 100, align: "right" as const },
+      { header: moneyWord, width: 100, align: "right" as const },
     ];
     const pTableWidth = pCols.reduce((sum, c) => sum + c.width, 0);
     const needed = 22 + (projectRows.length + 1) * rowHeight + 4;

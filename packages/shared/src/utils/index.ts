@@ -153,6 +153,23 @@ export function resolveMileageRates(user: {
 }
 
 /**
+ * The driver's own mileage rate in words, e.g. "45p a mile" or "45p a mile
+ * for the first 10,000, then 25p". Null when no employer rate applies.
+ */
+export function employerRateLabel(user: {
+  workType: string;
+  employerMileageRatePence: number | null;
+  employerMileageRatePenceAfter10k: number | null;
+}): string | null {
+  const r = resolveMileageRates(user);
+  if (r.customRateFirst10kPence == null) return null;
+  const after = r.customRateAfter10kPence;
+  return after == null || after === r.customRateFirst10kPence
+    ? `${r.customRateFirst10kPence}p a mile`
+    : `${r.customRateFirst10kPence}p a mile for the first 10,000, then ${after}p`;
+}
+
+/**
  * Format pence as GBP string (e.g. 12345 → "£123.45").
  */
 export function formatPence(pence: number): string {

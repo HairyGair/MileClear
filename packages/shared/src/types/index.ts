@@ -1206,6 +1206,10 @@ export interface ExportTripRow {
   vehicleName: string | null;
   hmrcRatePence: number;
   deductionPence: number;
+  /** True when the row is priced at the driver's own employer rate (CSV and
+   *  Trip Report with ?rate=employer, 4 Nov 2026); hmrcRatePence then holds
+   *  that rate. Absent on HMRC-priced exports. */
+  atEmployerRate?: boolean;
   /** Running odometer at the start and end of the trip, whole miles. Null/absent before the first reading. */
   odometerStart?: number | null;
   odometerEnd?: number | null;

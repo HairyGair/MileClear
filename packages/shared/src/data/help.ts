@@ -520,7 +520,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "exports",
     area: "tax_and_claims",
     q: "How do I download my mileage for my accountant or employer?",
-    a: "Tax > Downloads (also More > Settings > Downloads). Choose a tax year or dates, then the Self Assessment PDF, Trip Report (PDF), Trip Data (CSV) or Odometer readings (CSV). Downloads are Pro (included for drivers on an employer's MileClear team). For your full data instead, use More > Settings > Your data, which is free.",
+    a: "Tax > Downloads (also More > Settings > Downloads). Choose a tax year or dates, then the Self Assessment PDF, Trip Report (PDF), Trip Data (CSV) or Odometer readings (CSV). If you've set an employer mileage rate, Use my rate prices the Trip Report and CSV at your rate instead of HMRC's (trips tagged with a gig app stay at HMRC's rates; the Self Assessment PDF always uses HMRC's). Downloads are Pro (included for drivers on an employer's MileClear team). For your full data instead, use More > Settings > Your data, which is free.",
     goTo: "/exports",
     keywords: ["download", "downloads", "export", "csv", "pdf", "spreadsheet", "report", "send", "mileage log"],
   },
