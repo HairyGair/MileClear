@@ -49,6 +49,8 @@ export interface MoreFacts {
   bank: BankFacts | null;
   week: { totalMiles: number; totalTrips: number } | null;
   badges: { earned: number; total: number; next: { label: string; progressText: string } | null } | null;
+  /** The Insurance miles limit on this phone; null when not set. */
+  insurance: { limitMiles: number } | null;
 }
 
 const EMPTY: MoreFacts = {
@@ -67,6 +69,7 @@ const EMPTY: MoreFacts = {
   bank: null,
   week: null,
   badges: null,
+  insurance: null,
 };
 
 // The last answers, for this driver only, so a return visit draws at once.
@@ -191,6 +194,13 @@ export function useMoreFacts(a: MoreFactsArgs): MoreFacts {
               },
             });
           })
+          .catch(() => {});
+      }
+
+      if (want.has("insurance")) {
+        import("../../lib/insurance/store")
+          .then((m) => m.getInsuranceMiles(userId))
+          .then((v) => put({ insurance: v ? { limitMiles: v.limitMiles } : null }))
           .catch(() => {});
       }
 

@@ -29,7 +29,7 @@ describe("More rows by driver", () => {
     expect(titles({})).toEqual(["Your car", "Your work", "Your money", "Your progress", "Tools", "Help and settings"]);
     expect(page({}).find((g) => g.title === "Your money")!.rows).toEqual(["earnings", "expenses", "invoices", "bank"]);
     expect(page({}).find((g) => g.title === "Your work")!.rows).toEqual(["shifts", "work_hours"]);
-    expect(rows({})).toHaveLength(19);
+    expect(rows({})).toHaveLength(20);
   });
 
   it("never has Log out, and one Bank row instead of two", () => {
@@ -42,7 +42,7 @@ describe("More rows by driver", () => {
 
   it("both: shifts, work hours and Invite your manager, with all four money rows", () => {
     expect(page({ driveFor: "both" }).find((g) => g.title === "Your work")!.rows).toEqual(["shifts", "work_hours", "manager"]);
-    expect(rows({ driveFor: "both" })).toHaveLength(20);
+    expect(rows({ driveFor: "both" })).toHaveLength(21);
   });
 
   it("employee: Expenses only, unless they have earnings, invoices or a bank", () => {
@@ -50,7 +50,7 @@ describe("More rows by driver", () => {
     expect(money({})).toEqual(["expenses"]);
     expect(money({ hasEarnings: true, hasInvoices: true, bankLinked: true })).toEqual(["earnings", "expenses", "invoices", "bank"]);
     expect(page({ driveFor: "employee" }).find((g) => g.title === "Your work")!.rows).toEqual(["work_hours", "manager"]);
-    expect(rows({ driveFor: "employee" })).toHaveLength(16);
+    expect(rows({ driveFor: "employee" })).toHaveLength(17);
   });
 
   it("Invite your manager is a Work mode row", () => {
@@ -62,7 +62,7 @@ describe("More rows by driver", () => {
     expect(p.map((g) => g.title)).toEqual(["Your car", "Your work", "Your progress", "Tools", "Help and settings"]);
     expect(p.find((g) => g.title === "Your work")!.rows).toEqual(["work_hours", "expenses"]);
     expect(p.find((g) => g.title === "Tools")!.rows).toEqual(["ticket"]);
-    expect(rows({ driveFor: "company", companyApp: true })).toHaveLength(14);
+    expect(rows({ driveFor: "company", companyApp: true })).toHaveLength(15);
   });
 
   it("a team driver whose answer says gig still gets the company page", () => {
@@ -81,7 +81,7 @@ describe("More rows by driver", () => {
     for (const gone of ["earnings", "invoices", "bank", "shifts", "work_hours", "expenses", "insights"]) {
       expect(r).not.toContain(gone);
     }
-    expect(r).toHaveLength(14);
+    expect(r).toHaveLength(15);
   });
 
   it("just me in Work mode: Records is on the Tax tab, Insights is a row", () => {
@@ -97,7 +97,7 @@ describe("More rows by driver", () => {
 
   it("Chargers near you only for electric cars", () => {
     expect(rows({})).not.toContain("chargers");
-    expect(page({ electric: true })[0].rows).toEqual(["cars", "fuel", "odometer", "places", "road", "chargers"]);
+    expect(page({ electric: true })[0].rows).toEqual(["cars", "fuel", "odometer", "insurance", "places", "road", "chargers"]);
   });
 
   it("Road alerts is a standing row for everyone", () => {

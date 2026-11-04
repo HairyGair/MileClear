@@ -237,6 +237,8 @@ export interface TripSummaryParams {
   noProjectLabel?: "true";
   from?: string;
   to?: string;
+  /** One vehicle's trips only (Insurance miles for one car). */
+  vehicleId?: string;
 }
 
 export interface TripSummary {

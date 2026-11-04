@@ -103,6 +103,7 @@ export const QUESTION_BANK: BankQuestion[] = [
   { q: "Can I see miles per client?", area: "managing_trips", id: "projects", expect: [/miles by project/i] },
   { q: "How do I filter my trips by client?", area: "managing_trips", id: "projects", expect: [/which client/i, FREE] },
   { q: "How do I keep odometer readings for my employer?", area: "managing_trips", id: "odometer", expect: [/More > Odometer/i, PRO] },
+  { q: "Can I track my miles against my insurance mileage limit?", area: "managing_trips", id: "insurance_miles", expect: [/More > Insurance miles/i, /free/i] },
   { q: "Can it mark my work trips automatically?", area: "managing_trips", id: "auto-classify", expect: [/sort trips automatically|3 times|automatic/i] },
   { q: "How do I undo an automatic sort on a trip?", area: "managing_trips", id: "auto-classify", expect: [/sorted for you/i, /undo/i] },
 

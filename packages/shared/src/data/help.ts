@@ -114,7 +114,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     id: "home-screen",
     area: "getting_started",
     q: "What's on the Home screen?",
-    a: "From the top: the Work | Personal switch, a status line that says whether MileClear is recording (tap it for Automatic trips and Pause), a Trip in progress card whenever a trip is being recorded or is waiting to be saved (it stays until you save, end or discard the trip, and its button takes you straight back to the trip), your headline figure, the Start Trip button (plus Start Shift in Work mode for gig drivers and anyone who has used shifts before), your last trip with Business and Personal buttons, your odometer once a vehicle has a reading, and up to three shortcuts (such as Tax, Insights, Earnings, Badges, Fuel, and Invoices if you have made an invoice in the last 90 days). Press and hold the odometer or a shortcut to hide it; bring it back in More > Settings > Home screen.",
+    a: "From the top: the Work | Personal switch, a status line that says whether MileClear is recording (tap it for Automatic trips and Pause), a Trip in progress card whenever a trip is being recorded or is waiting to be saved (it stays until you save, end or discard the trip, and its button takes you straight back to the trip), your headline figure, the Start Trip button (plus Start Shift in Work mode for gig drivers and anyone who has used shifts before), your last trip with Business and Personal buttons, your odometer once a vehicle has a reading, your insurance miles once you set a limit (More > Insurance miles), and up to three shortcuts (such as Tax, Insights, Earnings, Badges, Fuel, and Invoices if you have made an invoice in the last 90 days). Press and hold the odometer or a shortcut to hide it; bring it back in More > Settings > Home screen.",
     goTo: "/settings/home",
     keywords: ["home", "dashboard", "shortcut", "shortcuts", "hide", "status", "line"],
   },
@@ -475,6 +475,14 @@ export const HELP_ENTRIES: HelpEntry[] = [
     a: "Yes. In More > Odometer, tap Add reading and type what your dashboard shows; MileClear adds your recorded miles to it, giving a start and end reading for each day. You can also add readings to one trip (open it, then Odometer readings under Fix this trip). The Trips list shows each day's readings under the date, and Home (in the app and on the website) shows each vehicle's running reading, marked est. when it includes trips since your last reading; tap it to open the log. The log is free; downloading it as a CSV for your employer is Pro.",
     goTo: "/odometer-log",
     keywords: ["odometer", "mileometer", "reading", "clock", "dashboard reading"],
+  },
+  {
+    id: "insurance_miles",
+    area: "managing_trips",
+    q: "Can MileClear help me stay under my insurance mileage?",
+    a: "Yes, free, in the app. In More > Insurance miles, type the yearly limit you gave your insurer and the date your insurance year starts (and which car, if you have more than one). Home then shows a card with the miles you've used this insurance year, a bar with a mark where an even pace would be today, how many miles you are under or over that pace, and how many miles a day you have left to stay under the limit. Every trip counts, business or personal. It renews on the same date each year. Tap the card to change or remove it.",
+    goTo: "/insurance-miles",
+    keywords: ["insurance", "insurance mileage", "annual mileage", "mileage limit", "declared mileage", "yearly limit", "miles per year", "policy", "renewal"],
   },
 
   // ── Tax and claims ───────────────────────────────────────────────────────

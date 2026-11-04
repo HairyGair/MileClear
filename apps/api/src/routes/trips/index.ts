@@ -2309,6 +2309,8 @@ export async function tripRoutes(app: FastifyInstance) {
     ...clientFilterFields,
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
+    // Insurance miles for one car (Nov 2026).
+    vehicleId: z.string().uuid().optional(),
   });
 
   app.get("/summary", async (request, reply) => {
@@ -2319,9 +2321,10 @@ export async function tripRoutes(app: FastifyInstance) {
     if (bothClientFilters(parsed.data)) {
       return reply.status(400).send({ error: "Choose one client, or trips with no client, not both" });
     }
-    const { classification, platformTag, from, to } = parsed.data;
+    const { classification, platformTag, from, to, vehicleId } = parsed.data;
     const baseWhere: Record<string, unknown> = { userId: request.userId!, isPhantomTrip: false };
     if (platformTag) baseWhere.platformTag = platformTag;
+    if (vehicleId) baseWhere.vehicleId = vehicleId;
     const client = await clientFilterWhere(request.userId!, parsed.data);
     if (client) baseWhere.AND = [client];
     if (from || to) {

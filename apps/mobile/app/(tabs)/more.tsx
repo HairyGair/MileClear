@@ -112,6 +112,12 @@ export default function MoreScreen() {
       route: "/(tabs)/fuel",
     },
     odometer: { icon: "speedometer-outline", label: "Odometer", line: odometerLine(facts.cars), route: "/odometer-log" },
+    insurance: {
+      icon: "shield-checkmark-outline",
+      label: "Insurance miles",
+      line: { text: facts.insurance ? `${facts.insurance.limitMiles.toLocaleString("en-GB")} miles a year` : "Keep under your yearly limit" },
+      route: "/insurance-miles",
+    },
     places: { icon: "location-outline", label: "Saved places", line: { text: placesLine(facts.places) }, route: "/saved-locations" },
     road: { icon: "construct-outline", label: "Road alerts", line: { text: roadLine(facts.road) }, route: "/road-alerts" },
     chargers: { icon: "flash-outline", label: "Chargers near you", line: { text: "Charge points and prices nearby" }, route: "/charging-nearby" },

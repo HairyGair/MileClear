@@ -11,6 +11,7 @@ export type MoreRowId =
   | "cars"
   | "fuel"
   | "odometer"
+  | "insurance"
   | "places"
   | "road"
   | "chargers"
@@ -69,7 +70,7 @@ export function moreGroups(d: MoreDriver): MoreGroup[] {
   const gigLike = !company && !justMe && (d.driveFor === "gig" || d.driveFor === "both");
   const employeeLike = !company && !justMe && (d.driveFor === "employee" || d.driveFor === "both");
 
-  const car: MoreRowId[] = ["cars", "fuel", "odometer", "places", "road"];
+  const car: MoreRowId[] = ["cars", "fuel", "odometer", "insurance", "places", "road"];
   if (d.electric) car.push("chargers");
   groups.push({ title: "Your car", rows: car });
 

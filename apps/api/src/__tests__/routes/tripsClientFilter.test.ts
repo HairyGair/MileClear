@@ -162,4 +162,15 @@ describe("trips: client filter", () => {
     const both = await app.inject({ method: "GET", url: "/trips/summary?projectLabel=NHS&noProjectLabel=true", headers: auth });
     expect(both.statusCode).toBe(400);
   });
+
+  it("the summary can count one car only, still scoped to the driver (Insurance miles)", async () => {
+    const car = "11111111-2222-4333-8444-555555555555";
+    vi.mocked(prisma.trip.groupBy).mockClear();
+    const res = await app.inject({ method: "GET", url: `/trips/summary?vehicleId=${car}&from=2026-11-01T00:00:00.000Z`, headers: auth });
+    expect(res.statusCode).toBe(200);
+    expect(summaryWhere()).toMatchObject({ userId: USER_ID, vehicleId: car, isPhantomTrip: false });
+
+    const bad = await app.inject({ method: "GET", url: "/trips/summary?vehicleId=not-a-car", headers: auth });
+    expect(bad.statusCode).toBe(400);
+  });
 });

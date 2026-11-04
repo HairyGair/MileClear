@@ -31,6 +31,7 @@ export type HomeTapTarget =
   | "door_fuel"
   | "door_help"
   | "door_odometer"
+  | "insurance_miles"
   | "door_hide"
   | "first_trip_add_past"
   // ask_<id> and ask_dismiss_<id>, e.g. ask_pro, ask_dismiss_vehicle

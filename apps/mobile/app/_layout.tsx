@@ -812,6 +812,7 @@ function RootNavigator() {
         <Stack.Screen name="journey-map" options={{ headerShown: true, title: "Journey map" }} />
         <Stack.Screen name="nominate-manager" options={{ headerShown: true, title: "Invite your manager" }} />
         <Stack.Screen name="work-schedule" options={{ headerShown: true, title: "Work hours" }} />
+        <Stack.Screen name="insurance-miles" options={{ headerShown: true, title: "Insurance miles" }} />
         <Stack.Screen name="earning-form" options={{ headerShown: true, title: "Add earnings" }} />
         <Stack.Screen name="fuel-form" options={{ headerShown: true, title: "Log Fuel" }} />
         <Stack.Screen name="oem-battery-guide" options={{ headerShown: true, title: "Keep recording on" }} />

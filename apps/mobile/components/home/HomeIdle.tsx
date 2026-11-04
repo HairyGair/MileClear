@@ -39,6 +39,7 @@ import { HomeSheet } from "./HomeSheet";
 import { LastTripCard } from "./LastTripCard";
 import { ModePill } from "./ModePill";
 import { OdometerCard } from "./OdometerCard";
+import { InsuranceMilesCard } from "./InsuranceMilesCard";
 import { TripButtons } from "./TripButtons";
 import { DirectionsHomeRows } from "../directions/DirectionsEntry";
 import { useHomeData } from "./useHomeData";
@@ -524,6 +525,16 @@ export function HomeIdle(p: Props) {
             </View>
           </FadeInStagger>
         ) : null}
+
+        {/* Insurance miles: renders nothing until a limit is set. */}
+        <InsuranceMilesCard
+          mode={mode}
+          state={p.status.kind}
+          refreshKey={refreshKey}
+          tripKey={odoTripKey}
+          userId={user?.id}
+          style={s.group}
+        />
 
         {doorRows.length > 0 ? (
           <FadeInStagger index={stagger++} delayPer={40}>
