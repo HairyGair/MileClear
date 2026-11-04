@@ -3140,6 +3140,57 @@ export async function sendDrivingTimesNoticeEmail(
 }
 
 /**
+ * Milesheet trip places notice (Nov 2026). Employers who pay mileage are
+ * expected to keep where each business journey started and ended, so the
+ * manager's trip list now shows it, but only once the driver has had this
+ * email (TRIP_PLACES_NOTICE_EVENT, recorded by
+ * scripts/send-trip-places-notice.mjs after a confirmed send).
+ */
+export function renderTripPlacesNotice(
+  displayName: string | null | undefined,
+  orgName: string
+): { subject: string; html: string } {
+  const greeting = displayName ? `Hi ${escapeHtml(displayName)},` : "Hi there,";
+  const safeOrg = escapeHtml(orgName);
+  const bodyHtml = `
+${para(greeting)}
+${para(`A quick note about your account. Employers who pay mileage are expected to keep a record of each business journey, so the trip list your manager at <strong style="color:#111827;">${safeOrg}</strong> downloads will now show where each business trip started and ended, for every month they approve, including months already approved.`)}
+${para("Here's exactly what they'll see for each business trip in a month they've approved:")}
+${bulletList([
+    "The street name and postcode where it started and ended. Never a house number or house name.",
+    "The date, the miles and the type of vehicle, along with the start and finish times they can already see.",
+    "Any client or purpose you added to the trip.",
+  ])}
+${para("Your personal trips are never shown, and your manager never sees your route or where you are while you drive. Nothing changes in the app for you.")}
+${para("If you have any questions, just reply to this email.", 8)}
+${SIGN_OFF}`;
+  const html = emailShell({
+    preheader: "Where each business trip started and ended, street name and postcode only. Personal trips are never shown.",
+    eyebrow: "Milesheet",
+    title: "Your manager's trip list now shows where trips started and ended",
+    bodyHtml,
+    footerHtml: plainFooterHtml(),
+  });
+  return { subject: "Milesheet: your business trips will show where they started and ended", html };
+}
+
+/** Sends the places notice. True only when a mail provider accepted it. */
+export async function sendTripPlacesNoticeEmail(
+  email: string,
+  displayName: string | null | undefined,
+  orgName: string
+): Promise<boolean> {
+  if (process.env.NODE_ENV === "test") return false;
+  if (!transporter) {
+    console.log(`[EMAIL] Milesheet trip places notice for ${email} (no transport, not sent)`);
+    return false;
+  }
+  const { subject, html } = renderTripPlacesNotice(displayName, orgName);
+  await transporter.sendMail({ from: FROM_PERSONAL, to: email, replyTo: SUPPORT_INBOX, subject, html });
+  return true;
+}
+
+/**
  * Milesheet invite (P1 pilot). The link lands on the web accept page;
  * a driver without an account registers first and the token survives the
  * round trip. The raw token exists only in this email.

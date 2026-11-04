@@ -23,6 +23,7 @@ import {
   loadTeamDrivingTimesExport,
   buildTeamExportFilename,
   generateTeamTripsCsv,
+  TRIP_PLACES_NOTICE_EVENT,
 } from "../../services/teamExport.js";
 import { DRIVING_TIMES_NOTICE_EVENT, loadTeamDrivingDays } from "../../services/drivingTimes.js";
 
@@ -221,7 +222,13 @@ export async function teamRoutes(app: FastifyInstance) {
     { preHandler: [authMiddleware] },
     async (request, reply) => {
       const parsed = z
-        .object({ token: z.string().min(32).max(128), drivingTimesNoticeShown: z.boolean().optional() })
+        .object({
+          token: z.string().min(32).max(128),
+          drivingTimesNoticeShown: z.boolean().optional(),
+          // The invite page's consent line also says the manager sees where
+          // each business trip started and ended (Nov 2026).
+          tripPlacesNoticeShown: z.boolean().optional(),
+        })
         .safeParse(request.body);
       if (!parsed.success) return reply.status(400).send({ error: "token required" });
 
@@ -294,6 +301,17 @@ export async function teamRoutes(app: FastifyInstance) {
             },
           })
           .catch((err: Error) => request.log.error({ err }, "driving times notice event failed"));
+      }
+      if (acceptingRole === "driver" && parsed.data.tripPlacesNoticeShown === true) {
+        await prisma.appEvent
+          .create({
+            data: {
+              type: TRIP_PLACES_NOTICE_EVENT,
+              userId: request.userId!,
+              metadata: { orgId: membership.orgId, via: "invite_accept" },
+            },
+          })
+          .catch((err: Error) => request.log.error({ err }, "trip places notice event failed"));
       }
 
       void syncSeats(membership.orgId);

@@ -35,7 +35,7 @@ export default function MilesheetInvitePage() {
   const accept = () => {
     setState("accepting");
     api
-      .post<{ data: { orgName: string } }>("/team/invites/accept", { token, drivingTimesNoticeShown: true })
+      .post<{ data: { orgName: string } }>("/team/invites/accept", { token, drivingTimesNoticeShown: true, tripPlacesNoticeShown: true })
       .then((res) => { setDetail(res.data.orgName); setState("accepted"); })
       .catch((err: Error) => { setDetail(err.message); setState("error"); });
   };
@@ -44,7 +44,8 @@ export default function MilesheetInvitePage() {
     <p style={{ color: "var(--text-secondary)", marginTop: "1rem" }}>
       Once you join, your business journeys are shared with your company for mileage claims.
       Your personal journeys stay private to you. Your manager can also see when your business
-      drives start and finish each day.
+      drives start and finish each day and, for months they approve, where each business trip
+      started and ended (the street name and postcode only, never a house number).
     </p>
   );
 
@@ -89,7 +90,8 @@ export default function MilesheetInvitePage() {
                 Your business journeys will be recorded automatically, and whoever handles claims at{" "}
                 {detail} approves them at the end of each month. Your personal journeys stay private
                 to you and never appear in the company&rsquo;s figures. Your manager can also see when
-                your business drives start and finish each day.
+                your business drives start and finish each day, and where each business trip started
+                and ended.
               </p>
               <p style={{ color: "var(--text-secondary)", marginTop: "1rem" }}>
                 Milesheet is the company side of <strong>MileClear</strong>. Install the MileClear app

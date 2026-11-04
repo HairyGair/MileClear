@@ -9,6 +9,7 @@ import type { TeamApprovalStatus, TeamDrivingDay, TeamMonthDriver, TeamMonthSumm
 import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
 import { teamDriverMembershipWhere } from "./teamDrivers.js";
+import { postcodesFor } from "./postcodeLookup.js";
 import {
   DRIVING_TIMES_LABEL,
   DRIVING_TIMES_NOTICE_EVENT,
@@ -445,18 +446,85 @@ export interface TeamExportTrip {
   purpose: string | null;
   /** False for a vehicle someone else pays for: business miles, no amount. */
   claimable: boolean;
+  /** Street and postcode, no house number. Null until the driver has been
+   *  told about places (TRIP_PLACES_NOTICE_EVENT) or when there is none. */
+  from: string | null;
+  to: string | null;
+  /** "Car", "Van", "Motorbike"; "" when the trip has no vehicle. */
+  vehicleType: string;
 }
 
 export interface TeamExportDriverTrips {
   driverName: string;
   told: boolean;
+  /** Told their manager can see where trips started and ended. */
+  placesTold: boolean;
   /** The miles the manager approved, to show beside the trips' own total. */
   approvedMiles: number;
   trips: TeamExportTrip[];
 }
 
 export const TRIP_LIST_LABEL =
-  "Business trips in approved months. Journey places are not included.";
+  "Business trips in approved months. From and To give the street name and postcode only.";
+
+/**
+ * App event, one per driver per team, metadata { orgId }: the driver has been
+ * told their manager can see where each business trip started and ended
+ * (Nov 2026). Recorded when a driver accepts on the web invite page (whose
+ * consent line says so) or by scripts/send-trip-places-notice.mjs after the
+ * notice email has gone. Until then the trip list leaves From and To blank.
+ * Checked with isDriverToldAboutTimes, which only reads metadata.orgId.
+ */
+export const TRIP_PLACES_NOTICE_EVENT = "team.trip_places_notice";
+
+const UK_POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i;
+
+/** The last word of a UK street name. A part of an address only counts as
+ *  a street when it ends in one of these, so house names ("The Old Barn"),
+ *  saved-place names ("Home") and typed notes never reach a manager. */
+const STREET_WORDS =
+  "road|rd|street|st|lane|ln|avenue|ave|close|cl|drive|dr|way|crescent|cres|grove|gardens|gdns|place|pl|court|ct|terrace|ter|row|walk|hill|park|square|sq|mews|rise|view|parade|green|vale|wharf|broadway|boulevard|highway|bypass|approach|end|croft|meadow|meadows|fields|copse|chase|gate|yard|wynd|brow|bank|side|circus|grange|heights|lea|mead|path|ridge|wood|common|estate";
+const STREET_RE = new RegExp(`^[a-z][a-z' .-]*\\b(${STREET_WORDS})\\.?$`, "i");
+
+/** "53a", "1-3", "12/14", "5 & 7", "No. 5", "Flat 2B", "Unit 4", "Plot 23" and
+ *  the like, at the front of a part. */
+const LEADING_NUMBERS =
+  /^((no\.?|number|flat|unit|apartment|apt\.?|room|house|plot|suite|block)\s*)?\d+[a-z]?(\s[a-z](?=\s))?(\s*([-/&]|and)\s*\d+[a-z]?)*\s*,?\s*/i;
+
+/**
+ * A stored trip address, made fit for a manager: the street name and the
+ * postcode, nothing else ("53, Churchill Road, Chipping Norton, OX7 5HP" ->
+ * "Churchill Road, OX7 5HP"). The street is the first part of the address
+ * that, once any house or flat number is taken off, ends in a street word;
+ * anything else (house names, saved-place names, towns, typed text) is left
+ * out. The postcode is the one looked up from the trip's coordinates, else a
+ * full postcode in the address. Null when neither is found.
+ */
+export function placeForManager(address: string | null | undefined, postcode: string | null | undefined): string | null {
+  const parts = (address ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  let street: string | null = null;
+  for (const raw of parts) {
+    if (UK_POSTCODE.test(raw)) continue;
+    let x = raw;
+    // Strip number groups until none are left ("Flat 3 10 High St").
+    for (let i = 0; i < 3; i++) x = x.replace(LEADING_NUMBERS, "").trim();
+    if (/\d/.test(x)) continue;
+    if (STREET_RE.test(x)) {
+      street = x;
+      break;
+    }
+  }
+  const fromAddress = parts.map((x) => UK_POSTCODE.exec(x)?.[1]).find(Boolean) ?? null;
+  const pc = (postcode || fromAddress || "").toUpperCase().replace(/\s+/g, " ").trim() || null;
+  const out = [street, pc].filter(Boolean).join(", ");
+  return out || null;
+}
+
+const VEHICLE_TYPE_LABELS: Record<string, string> = { car: "Car", van: "Van", motorbike: "Motorbike" };
+export function vehicleTypeLabel(t: string | null | undefined): string {
+  if (!t) return "";
+  return VEHICLE_TYPE_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
+}
 
 /**
  * Loads only APPROVED drivers for the month, from the TeamApproval
@@ -563,8 +631,8 @@ export async function loadTeamTripLists(
 
   const [notices, trips] = await Promise.all([
     prisma.appEvent.findMany({
-      where: { type: DRIVING_TIMES_NOTICE_EVENT, userId: { in: ids } },
-      select: { userId: true, metadata: true },
+      where: { type: { in: [DRIVING_TIMES_NOTICE_EVENT, TRIP_PLACES_NOTICE_EVENT] }, userId: { in: ids } },
+      select: { userId: true, type: true, metadata: true },
     }),
     prisma.trip.findMany({
       where: { userId: { in: ids }, classification: "business", startedAt: { gte: start, lt: end } },
@@ -575,17 +643,48 @@ export async function loadTeamTripLists(
         distanceMiles: true,
         projectLabel: true,
         businessPurpose: true,
-        vehicle: { select: { providedByOthers: true } },
+        // Read here, and shown only for drivers told about places.
+        startAddress: true,
+        endAddress: true,
+        startLat: true,
+        startLng: true,
+        endLat: true,
+        endLng: true,
+        vehicle: { select: { providedByOthers: true, vehicleType: true } },
       },
       orderBy: { startedAt: "asc" },
     }),
   ]);
 
+  const placesToldIds = new Set(
+    drivers
+      .filter((d) =>
+        isDriverToldAboutTimes(
+          notices.filter((n) => n.userId === d.userId && n.type === TRIP_PLACES_NOTICE_EVENT),
+          orgId
+        )
+      )
+      .map((d) => d.userId)
+  );
+  // Postcodes only for the trips that will show places (best-effort: a
+  // failed lookup leaves the address as it is).
+  const placeTrips = trips.filter((t) => placesToldIds.has(t.userId));
+  const codes = placeTrips.length
+    ? await postcodesFor(
+        placeTrips.flatMap((t) => [
+          { lat: t.startLat, lng: t.startLng },
+          { lat: t.endLat, lng: t.endLng },
+        ])
+      ).catch(() => placeTrips.flatMap(() => [null, null]))
+    : [];
+  const codeByTrip = new Map(placeTrips.map((t, i) => [t, [codes[2 * i] ?? null, codes[2 * i + 1] ?? null] as const]));
+
   return drivers.map((d) => {
     const told = isDriverToldAboutTimes(
-      notices.filter((n) => n.userId === d.userId),
+      notices.filter((n) => n.userId === d.userId && n.type === DRIVING_TIMES_NOTICE_EVENT),
       orgId
     );
+    const placesTold = placesToldIds.has(d.userId);
     const list: TeamExportTrip[] = trips
       .filter((t) => t.userId === d.userId)
       .map((t) => {
@@ -602,9 +701,12 @@ export async function loadTeamTripLists(
           client: t.projectLabel?.trim() || null,
           purpose: purposeLabel(t.businessPurpose),
           claimable: !t.vehicle?.providedByOthers,
+          from: placesTold ? placeForManager(t.startAddress, codeByTrip.get(t)?.[0]) : null,
+          to: placesTold ? placeForManager(t.endAddress, codeByTrip.get(t)?.[1]) : null,
+          vehicleType: vehicleTypeLabel(t.vehicle?.vehicleType),
         };
       });
-    return { driverName: d.driverName, told, approvedMiles: d.approvedMiles, trips: list };
+    return { driverName: d.driverName, told, placesTold, approvedMiles: d.approvedMiles, trips: list };
   });
 }
 
@@ -732,7 +834,7 @@ export function generateTeamDrivingTimesCsv(drivers: TeamExportDriverDays[]): st
  */
 export function generateTeamTripsCsv(drivers: TeamExportDriverTrips[]): string {
   const lines: string[] = [escapeCsvField(TRIP_LIST_LABEL)];
-  lines.push(["Driver", "Date", "Start", "Finish", "Miles", "Client", "Purpose", "Note"].join(","));
+  lines.push(["Driver", "Date", "Start", "Finish", "From", "To", "Miles", "Vehicle", "Client", "Purpose", "Note"].join(","));
   for (const d of drivers) {
     for (const t of d.trips) {
       lines.push(
@@ -741,7 +843,10 @@ export function generateTeamTripsCsv(drivers: TeamExportDriverTrips[]): string {
           csvDate(t.date),
           t.startLocal ?? "",
           t.endLocal ? (t.endsNextDay ? `${t.endLocal} (next day)` : t.endLocal) : "",
+          t.from ?? "",
+          t.to ?? "",
           t.miles.toFixed(1),
+          t.vehicleType,
           t.client ?? "",
           t.purpose ?? "",
           t.claimable ? "" : NOT_CLAIMABLE_NOTE,
@@ -755,10 +860,13 @@ export function generateTeamTripsCsv(drivers: TeamExportDriverTrips[]): string {
       Math.abs(total - d.approvedMiles) >= 0.05
         ? `Approved ${d.approvedMiles.toFixed(1)} mi; trips changed since`
         : "";
-    lines.push([`${d.driverName} total`, "", "", "", total.toFixed(1), "", "", note].map(escapeCsvField).join(","));
+    lines.push(
+      [`${d.driverName} total`, "", "", "", "", "", total.toFixed(1), "", "", "", note].map(escapeCsvField).join(",")
+    );
   }
   for (const d of drivers) {
     if (!d.told) lines.push(escapeCsvField(`Start and finish times appear once ${d.driverName} has been told`));
+    if (!d.placesTold) lines.push(escapeCsvField(`From and To appear once ${d.driverName} has been told`));
   }
   return lines.join("\r\n") + "\r\n";
 }
@@ -976,15 +1084,16 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
     }
   }
 
-  // ── Business trips, one table per driver (no places) ──────────────────
+  // ── Business trips, one table per driver ─────────────────────────────
   const lists = data.tripLists ?? [];
   if (lists.length > 0) {
     const tripCols = [
-      { header: "Date", width: 110 },
-      { header: "Start", width: 50 },
-      { header: "Finish", width: 80 },
-      { header: "Miles", width: 50 },
-      { header: "Client / purpose", width: 225 },
+      { header: "Date", width: 100 },
+      { header: "Start", width: 45 },
+      { header: "Finish", width: 75 },
+      { header: "Miles", width: 45 },
+      { header: "Vehicle", width: 55 },
+      { header: "Client / purpose", width: 195 },
     ];
     const tripTableWidth = tripCols.reduce((s, c) => s + c.width, 0);
     const bottom = pageHeight - 70;
@@ -1022,6 +1131,11 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
           .text(`Start and finish times appear once ${d.driverName} has been told.`, startX, y, { width: contentWidth });
         y += 14;
       }
+      if (!d.placesTold) {
+        doc.font("Helvetica").fontSize(8).fillColor(GREY_600)
+          .text(`From and To appear once ${d.driverName} has been told.`, startX, y, { width: contentWidth });
+        y += 14;
+      }
       if (d.trips.length === 0) {
         doc.font("Helvetica").fontSize(8).fillColor(GREY_600)
           .text(`No business trips in ${monthLabel(data.month)}.`, startX, y, { width: contentWidth });
@@ -1030,12 +1144,14 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
       }
       y = drawTripHeader(y);
       for (let i = 0; i < d.trips.length; i++) {
-        if (y > bottom) {
+        const t = d.trips[i];
+        const placeLine = t.from || t.to ? `${t.from ?? "-"}  to  ${t.to ?? "-"}` : null;
+        const h = placeLine ? rowHeight + 11 : rowHeight;
+        if (y + h > bottom + rowHeight) {
           doc.addPage();
           y = drawTripHeader(margin);
         }
-        const t = d.trips[i];
-        if (i % 2 === 0) doc.rect(startX, y - 1, tripTableWidth, rowHeight).fill(GREY_100);
+        if (i % 2 === 0) doc.rect(startX, y - 1, tripTableWidth, h).fill(GREY_100);
         doc.font("Helvetica").fontSize(8).fillColor(NAVY);
         const detail = [t.client, t.purpose].filter(Boolean).join(": ");
         const values = [
@@ -1043,6 +1159,7 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
           t.startLocal ?? "-",
           t.endLocal ? (t.endsNextDay ? `${t.endLocal} (next day)` : t.endLocal) : "-",
           t.miles.toFixed(1),
+          t.vehicleType || "-",
           t.claimable ? detail : ["No mileage due (vehicle paid for by someone else)", detail].filter(Boolean).join(". "),
         ];
         let x = startX;
@@ -1052,7 +1169,11 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
           doc.text(values[j], x + 4, y + 2, { width: tripCols[j].width - 8, height: 10, ellipsis: true });
           x += tripCols[j].width;
         }
-        y += rowHeight;
+        if (placeLine) {
+          doc.font("Helvetica").fontSize(7.5).fillColor(GREY_600)
+            .text(placeLine, startX + 4, y + 13, { width: tripTableWidth - 8, height: 10, ellipsis: true });
+        }
+        y += h;
       }
       if (y > bottom) {
         doc.addPage();
@@ -1066,7 +1187,7 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
       doc.text(total.toFixed(1), milesX + 4, y + 2, { width: tripCols[3].width - 8, lineBreak: false });
       if (Math.abs(total - d.approvedMiles) >= 0.05) {
         doc.text(`Approved ${d.approvedMiles.toFixed(1)} mi; trips changed since`, milesX + tripCols[3].width + 4, y + 2, {
-          width: tripCols[4].width - 8,
+          width: tripCols[4].width + tripCols[5].width - 8,
           lineBreak: false,
         });
       }

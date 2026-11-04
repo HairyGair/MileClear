@@ -157,6 +157,19 @@ describe("POST /team/invites/accept and the notice", () => {
     expect(ev[0][0].data).toMatchObject({ userId: DRIVER_ID, metadata: { orgId: "org-1" } });
   });
 
+  it("records the places notice too when the page's line included places", async () => {
+    const res = await (await app()).inject({
+      method: "POST",
+      url: "/team/invites/accept",
+      headers: driverAuth,
+      payload: { token: TOKEN, drivingTimesNoticeShown: true, tripPlacesNoticeShown: true },
+    });
+    expect(res.statusCode).toBe(200);
+    const places = p.appEvent.create.mock.calls.filter((c: any[]) => c[0]?.data?.type === "team.trip_places_notice");
+    expect(places).toHaveLength(1);
+    expect(places[0][0].data).toMatchObject({ userId: DRIVER_ID, metadata: { orgId: "org-1" } });
+  });
+
   it("records nothing when the accepting surface did not show the line", async () => {
     const res = await (await app()).inject({
       method: "POST",
