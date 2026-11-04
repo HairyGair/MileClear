@@ -37,7 +37,7 @@ export default function PrivacyPolicy() {
           {/* Header */}
           <div className="legal__header">
             <h1 className="heading">Privacy Policy</h1>
-            <p className="legal__date">Last updated: 30 October 2026</p>
+            <p className="legal__date">Last updated: 4 November 2026</p>
           </div>
 
           {/* Table of Contents */}
@@ -500,6 +500,9 @@ export default function PrivacyPolicy() {
                 </p>
                 <p className="legal__card-text">
                   Your manager can also see when your business drives start and finish each day: the start of your first business drive and the end of your last one, and how many business drives you made that day. If you recorded a shift on a day with business drives, the day runs from whichever started first to whichever finished last. Times are shown from the day you joined the team. These are driving times, not hours worked, and they are labelled that way.
+                </p>
+                <p className="legal__card-text">
+                  Once your manager has approved a month, they can download a list of that month&apos;s business trips: the date, the miles, and any client or purpose you added to a trip, with each trip&apos;s start and finish time if you have been told they can see your driving times. The list never includes a trip&apos;s start or end address, its route or its location, though a client name or note you typed appears as you typed it.
                 </p>
                 <p className="legal__card-text">
                   Your personal trips, your routes and your location are never shown to your manager. If you leave the team, or your employer removes you from it, they can no longer see your driving times or mileage, apart from the monthly totals they had already approved.

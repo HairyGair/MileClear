@@ -22,6 +22,7 @@ import {
   generateTeamDrivingTimesCsv,
   loadTeamDrivingTimesExport,
   buildTeamExportFilename,
+  generateTeamTripsCsv,
 } from "../../services/teamExport.js";
 import { DRIVING_TIMES_NOTICE_EVENT, loadTeamDrivingDays } from "../../services/drivingTimes.js";
 
@@ -526,7 +527,7 @@ export async function teamRoutes(app: FastifyInstance) {
     const parsed = z
       .object({
         month: z.string().regex(MONTH_RE, "month must be in YYYY-MM format"),
-        format: z.enum(["csv", "pdf", "times-csv"]),
+        format: z.enum(["csv", "pdf", "times-csv", "trips-csv"]),
       })
       .safeParse(request.query);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues[0].message });
@@ -559,6 +560,13 @@ export async function teamRoutes(app: FastifyInstance) {
 
     logEvent("team.export", request.userId!, { orgId: admin.orgId, month, format, driverCount: data.rows.length });
     const filename = buildTeamExportFilename(data.orgName, month);
+
+    if (format === "trips-csv") {
+      return reply
+        .header("Content-Type", "text/csv")
+        .header("Content-Disposition", `attachment; filename="${filename}-trips.csv"`)
+        .send(generateTeamTripsCsv(data.tripLists ?? []));
+    }
 
     if (format === "csv") {
       return reply

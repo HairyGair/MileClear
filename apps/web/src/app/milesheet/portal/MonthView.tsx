@@ -82,6 +82,7 @@ export function MonthView() {
   const [csvState, setCsvState] = useState<DownloadState>("idle");
   const [pdfState, setPdfState] = useState<DownloadState>("idle");
   const [timesCsvState, setTimesCsvState] = useState<DownloadState>("idle");
+  const [tripsCsvState, setTripsCsvState] = useState<DownloadState>("idle");
 
   // Driving times: loaded once per month, the first time a manager opens
   // a driver's times, so the main table does not wait on it.
@@ -228,8 +229,15 @@ export function MonthView() {
     }
   };
 
-  const handleDownload = async (format: "csv" | "pdf" | "times-csv") => {
-    const setState = format === "csv" ? setCsvState : format === "pdf" ? setPdfState : setTimesCsvState;
+  const handleDownload = async (format: "csv" | "pdf" | "times-csv" | "trips-csv") => {
+    const setState =
+      format === "csv"
+        ? setCsvState
+        : format === "pdf"
+          ? setPdfState
+          : format === "trips-csv"
+            ? setTripsCsvState
+            : setTimesCsvState;
     setState("loading");
     try {
       const res = await fetchWithAuth(`/team/export?month=${month}&format=${format}`);
@@ -250,7 +258,9 @@ export function MonthView() {
         ? decodeURIComponent(named)
         : format === "times-csv"
           ? `mileclear-team-${month}-driving-times.csv`
-          : `mileclear-team-${month}.${format}`;
+          : format === "trips-csv"
+            ? `mileclear-team-${month}-trips.csv`
+            : `mileclear-team-${month}.${format}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -510,6 +520,19 @@ export function MonthView() {
               title={nothingApproved ? "Approve at least one driver's month before downloading" : undefined}
             >
               {pdfState === "loading" ? "Downloading..." : "Download PDF"}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleDownload("trips-csv")}
+              disabled={nothingApproved || tripsCsvState === "loading"}
+              title={
+                nothingApproved
+                  ? "Approve at least one driver's month before downloading"
+                  : "Each business trip: date, start and finish time, miles, client and purpose. No journey places."
+              }
+            >
+              {tripsCsvState === "loading" ? "Downloading..." : "Trips (CSV)"}
             </Button>
             <Button
               variant="secondary"

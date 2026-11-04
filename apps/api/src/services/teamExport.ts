@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import {
+  BUSINESS_PURPOSES,
   calculateMileageDeduction,
   resolveMileageRates,
   getTaxYear,
@@ -8,7 +9,14 @@ import type { TeamApprovalStatus, TeamDrivingDay, TeamMonthDriver, TeamMonthSumm
 import { prisma } from "../lib/prisma.js";
 import { claimableWhere } from "../lib/claimableTrips.js";
 import { teamDriverMembershipWhere } from "./teamDrivers.js";
-import { DRIVING_TIMES_LABEL, formatSpan, loadTeamDrivingDays } from "./drivingTimes.js";
+import {
+  DRIVING_TIMES_LABEL,
+  DRIVING_TIMES_NOTICE_EVENT,
+  formatSpan,
+  isDriverToldAboutTimes,
+  loadTeamDrivingDays,
+  londonParts,
+} from "./drivingTimes.js";
 
 // Milesheet Phase 2 (24 Aug 2026).
 //
@@ -417,7 +425,38 @@ export interface TeamExportData {
   /** Daily driving times per approved driver, in the same order as rows.
    *  Optional so an export without it renders exactly as before. */
   drivingTimes?: TeamExportDriverDays[];
+  /** Each approved driver's business trips, in the same order as rows. */
+  tripLists?: TeamExportDriverTrips[];
 }
+
+/** One business trip in the trip list. Never a place: no addresses, no
+ *  coordinates (Anthony, 4 Nov 2026: the trip list leaves places out). */
+export interface TeamExportTrip {
+  /** UK date, "YYYY-MM-DD". */
+  date: string;
+  /** UK "HH:MM". Null when the driver has not been told their manager can
+   *  see driving times (the same notice gate as the times file). */
+  startLocal: string | null;
+  endLocal: string | null;
+  endsNextDay: boolean;
+  /** Unrounded; round only when shown. */
+  miles: number;
+  client: string | null;
+  purpose: string | null;
+  /** False for a vehicle someone else pays for: business miles, no amount. */
+  claimable: boolean;
+}
+
+export interface TeamExportDriverTrips {
+  driverName: string;
+  told: boolean;
+  /** The miles the manager approved, to show beside the trips' own total. */
+  approvedMiles: number;
+  trips: TeamExportTrip[];
+}
+
+export const TRIP_LIST_LABEL =
+  "Business trips in approved months. Journey places are not included.";
 
 /**
  * Loads only APPROVED drivers for the month, from the TeamApproval
@@ -483,8 +522,106 @@ export async function loadTeamMonthExportData(orgId: string, month: string): Pro
     return [{ driverName: a.user.displayName ?? a.user.email, told: d.told, days: d.days }];
   });
 
-  return { orgName: org.name, month, rows, totalMiles, totalAmountPence, drivingTimes };
+  const tripLists = await loadTeamTripLists(
+    orgId,
+    month,
+    approvals.map((a) => ({
+      userId: a.userId,
+      driverName: a.user.displayName ?? a.user.email,
+      approvedMiles: a.milesAtApproval ?? 0,
+    }))
+  );
+
+  return { orgName: org.name, month, rows, totalMiles, totalAmountPence, drivingTimes, tripLists };
 }
+
+/**
+ * Trip-by-trip list for approved drivers (Nov 2026: a manager who pays
+ * mileage was told to keep the details of each journey). The same trips as
+ * the approved miles: every business trip in the UK month, read live, so a
+ * total can differ from the approved figure after an edit and the file
+ * shows both. Only drivers still active on the team (a driver who has left
+ * keeps only the approved total, as the privacy policy says). Start and
+ * finish times only for drivers who were told about driving times.
+ */
+export async function loadTeamTripLists(
+  orgId: string,
+  month: string,
+  approved: Array<{ userId: string; driverName: string; approvedMiles: number }>
+): Promise<TeamExportDriverTrips[]> {
+  if (approved.length === 0) return [];
+  const { start, end } = londonMonthBounds(month);
+
+  const active = await prisma.orgMembership.findMany({
+    where: { orgId, role: "driver", status: "active", userId: { in: approved.map((a) => a.userId) } },
+    select: { userId: true },
+  });
+  const activeIds = new Set(active.map((m) => m.userId).filter((x): x is string => !!x));
+  const drivers = approved.filter((a) => activeIds.has(a.userId));
+  if (drivers.length === 0) return [];
+  const ids = drivers.map((d) => d.userId);
+
+  const [notices, trips] = await Promise.all([
+    prisma.appEvent.findMany({
+      where: { type: DRIVING_TIMES_NOTICE_EVENT, userId: { in: ids } },
+      select: { userId: true, metadata: true },
+    }),
+    prisma.trip.findMany({
+      where: { userId: { in: ids }, classification: "business", startedAt: { gte: start, lt: end } },
+      select: {
+        userId: true,
+        startedAt: true,
+        endedAt: true,
+        distanceMiles: true,
+        projectLabel: true,
+        businessPurpose: true,
+        vehicle: { select: { providedByOthers: true } },
+      },
+      orderBy: { startedAt: "asc" },
+    }),
+  ]);
+
+  return drivers.map((d) => {
+    const told = isDriverToldAboutTimes(
+      notices.filter((n) => n.userId === d.userId),
+      orgId
+    );
+    const list: TeamExportTrip[] = trips
+      .filter((t) => t.userId === d.userId)
+      .map((t) => {
+        const s = londonParts(t.startedAt);
+        const e = t.endedAt ? londonParts(t.endedAt) : null;
+        return {
+          date: s.date,
+          startLocal: told ? s.time : null,
+          endLocal: told && e ? e.time : null,
+          endsNextDay: told && !!e && e.date !== s.date,
+          // Unrounded, so the total matches the approved figure (which
+          // rounds the month's sum once); rows round only for display.
+          miles: t.distanceMiles,
+          client: t.projectLabel?.trim() || null,
+          purpose: purposeLabel(t.businessPurpose),
+          claimable: !t.vehicle?.providedByOthers,
+        };
+      });
+    return { driverName: d.driverName, told, approvedMiles: d.approvedMiles, trips: list };
+  });
+}
+
+/** Sum of a trip list's miles, to one decimal place. */
+export function tripListMiles(trips: TeamExportTrip[]): number {
+  return Math.round(trips.reduce((s, t) => s + t.miles, 0) * 10) / 10;
+}
+
+/** The app stores a purpose as a code ("site_visit"); a CSV import can store
+ *  free text. Show the app's label for a code, the text as typed otherwise. */
+function purposeLabel(raw: string | null): string | null {
+  const v = raw?.trim();
+  if (!v) return null;
+  return BUSINESS_PURPOSES.find((p) => p.value === v)?.label ?? v;
+}
+
+const NOT_CLAIMABLE_NOTE = "Vehicle paid for by someone else: no mileage due";
 
 /**
  * Every active driver's daily driving times for the times CSV. Not limited
@@ -534,7 +671,7 @@ function escapeCsvField(value: string | number | null | undefined): string {
   if (/^[=+\-@\t\r]/.test(str)) {
     str = "'" + str;
   }
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
@@ -585,6 +722,43 @@ export function generateTeamDrivingTimesCsv(drivers: TeamExportDriverDays[]): st
   }
   for (const d of drivers) {
     if (!d.told) lines.push(escapeCsvField(`Times appear once ${d.driverName} has been told`));
+  }
+  return lines.join("\r\n") + "\r\n";
+}
+
+/**
+ * The trip list as its own CSV (format=trips-csv), so the payroll CSV keeps
+ * its exact shape. One row per business trip, then a total per driver.
+ */
+export function generateTeamTripsCsv(drivers: TeamExportDriverTrips[]): string {
+  const lines: string[] = [escapeCsvField(TRIP_LIST_LABEL)];
+  lines.push(["Driver", "Date", "Start", "Finish", "Miles", "Client", "Purpose", "Note"].join(","));
+  for (const d of drivers) {
+    for (const t of d.trips) {
+      lines.push(
+        [
+          d.driverName,
+          csvDate(t.date),
+          t.startLocal ?? "",
+          t.endLocal ? (t.endsNextDay ? `${t.endLocal} (next day)` : t.endLocal) : "",
+          t.miles.toFixed(1),
+          t.client ?? "",
+          t.purpose ?? "",
+          t.claimable ? "" : NOT_CLAIMABLE_NOTE,
+        ]
+          .map(escapeCsvField)
+          .join(",")
+      );
+    }
+    const total = tripListMiles(d.trips);
+    const note =
+      Math.abs(total - d.approvedMiles) >= 0.05
+        ? `Approved ${d.approvedMiles.toFixed(1)} mi; trips changed since`
+        : "";
+    lines.push([`${d.driverName} total`, "", "", "", total.toFixed(1), "", "", note].map(escapeCsvField).join(","));
+  }
+  for (const d of drivers) {
+    if (!d.told) lines.push(escapeCsvField(`Start and finish times appear once ${d.driverName} has been told`));
   }
   return lines.join("\r\n") + "\r\n";
 }
@@ -799,6 +973,104 @@ export async function generateTeamMonthPdf(data: TeamExportData): Promise<Buffer
         y += rowHeight;
       }
       y += 14;
+    }
+  }
+
+  // ── Business trips, one table per driver (no places) ──────────────────
+  const lists = data.tripLists ?? [];
+  if (lists.length > 0) {
+    const tripCols = [
+      { header: "Date", width: 110 },
+      { header: "Start", width: 50 },
+      { header: "Finish", width: 80 },
+      { header: "Miles", width: 50 },
+      { header: "Client / purpose", width: 225 },
+    ];
+    const tripTableWidth = tripCols.reduce((s, c) => s + c.width, 0);
+    const bottom = pageHeight - 70;
+
+    const drawTripHeader = (atY: number): number => {
+      doc.rect(startX, atY - 2, tripTableWidth, rowHeight + 2).fill(NAVY);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(WHITE);
+      let x = startX;
+      for (const col of tripCols) {
+        doc.text(col.header, x + 4, atY + 2, { width: col.width - 8, lineBreak: false });
+        x += col.width;
+      }
+      return atY + rowHeight + 2;
+    };
+
+    y += 24;
+    if (y > bottom - 60) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.font("Helvetica-Bold").fontSize(11).fillColor(NAVY).text("Business trips", startX, y, { width: contentWidth });
+    y += 16;
+    doc.font("Helvetica").fontSize(8).fillColor(GREY_600).text(TRIP_LIST_LABEL, startX, y, { width: contentWidth });
+    y += 18;
+
+    for (const d of lists) {
+      if (y > bottom - rowHeight * 3) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(NAVY).text(d.driverName, startX, y, { width: contentWidth, lineBreak: false });
+      y += 14;
+      if (!d.told) {
+        doc.font("Helvetica").fontSize(8).fillColor(GREY_600)
+          .text(`Start and finish times appear once ${d.driverName} has been told.`, startX, y, { width: contentWidth });
+        y += 14;
+      }
+      if (d.trips.length === 0) {
+        doc.font("Helvetica").fontSize(8).fillColor(GREY_600)
+          .text(`No business trips in ${monthLabel(data.month)}.`, startX, y, { width: contentWidth });
+        y += 20;
+        continue;
+      }
+      y = drawTripHeader(y);
+      for (let i = 0; i < d.trips.length; i++) {
+        if (y > bottom) {
+          doc.addPage();
+          y = drawTripHeader(margin);
+        }
+        const t = d.trips[i];
+        if (i % 2 === 0) doc.rect(startX, y - 1, tripTableWidth, rowHeight).fill(GREY_100);
+        doc.font("Helvetica").fontSize(8).fillColor(NAVY);
+        const detail = [t.client, t.purpose].filter(Boolean).join(": ");
+        const values = [
+          pdfDayLabel(t.date),
+          t.startLocal ?? "-",
+          t.endLocal ? (t.endsNextDay ? `${t.endLocal} (next day)` : t.endLocal) : "-",
+          t.miles.toFixed(1),
+          t.claimable ? detail : ["No mileage due (vehicle paid for by someone else)", detail].filter(Boolean).join(". "),
+        ];
+        let x = startX;
+        for (let j = 0; j < tripCols.length; j++) {
+          // One line per row: a long client name is cut short with an ellipsis
+          // (a height plus ellipsis clips; lineBreak false alone still wraps).
+          doc.text(values[j], x + 4, y + 2, { width: tripCols[j].width - 8, height: 10, ellipsis: true });
+          x += tripCols[j].width;
+        }
+        y += rowHeight;
+      }
+      if (y > bottom) {
+        doc.addPage();
+        y = margin;
+      }
+      const total = tripListMiles(d.trips);
+      doc.rect(startX, y - 1, tripTableWidth, rowHeight).fill(NAVY);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor(WHITE);
+      doc.text("TOTAL", startX + 4, y + 2, { width: 100, lineBreak: false });
+      const milesX = startX + tripCols[0].width + tripCols[1].width + tripCols[2].width;
+      doc.text(total.toFixed(1), milesX + 4, y + 2, { width: tripCols[3].width - 8, lineBreak: false });
+      if (Math.abs(total - d.approvedMiles) >= 0.05) {
+        doc.text(`Approved ${d.approvedMiles.toFixed(1)} mi; trips changed since`, milesX + tripCols[3].width + 4, y + 2, {
+          width: tripCols[4].width - 8,
+          lineBreak: false,
+        });
+      }
+      y += rowHeight + 14;
     }
   }
 

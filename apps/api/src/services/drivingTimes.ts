@@ -57,7 +57,7 @@ const LONDON_PARTS = new Intl.DateTimeFormat("en-GB", {
   minute: "2-digit",
 });
 
-function londonParts(d: Date): { date: string; time: string } {
+export function londonParts(d: Date): { date: string; time: string } {
   const parts = LONDON_PARTS.formatToParts(d);
   const p = (t: string) => parts.find((x) => x.type === t)?.value ?? "00";
   return { date: `${p("year")}-${p("month")}-${p("day")}`, time: `${p("hour")}:${p("minute")}` };
