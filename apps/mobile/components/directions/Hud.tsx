@@ -6,6 +6,7 @@
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NavigationStep } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, nav, radii, spacing } from "../../lib/theme";
 import {
@@ -201,11 +202,12 @@ export function BottomBar(props: {
   onOverview: () => void;
   onEnd: () => void;
 }) {
+  const ins = useSafeAreaInsets();
   const clock = arrivalClock(new Date(props.arrivalMs));
   const mins = durationWords(props.remainingSeconds);
   const miles = milesShort(props.remainingMeters);
   return (
-    <View style={[s.bar, { paddingBottom: props.bottomInset + spacing.md }]}>
+    <View style={[s.bar, { paddingBottom: props.bottomInset + spacing.md, paddingLeft: spacing.lg + ins.left, paddingRight: spacing.lg + ins.right }]}>
       <Pressable
         style={s.barLeft}
         onPress={props.onOverview}

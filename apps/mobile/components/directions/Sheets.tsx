@@ -5,6 +5,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NavigationRoute } from "@mileclear/shared";
 import { colors, fonts, fontScaleCap, nav, radii, spacing } from "../../lib/theme";
 import { arrivalClock, dataDateWords, durationWords, milesShort } from "../../lib/navigation/phrases";
@@ -12,6 +13,17 @@ import { previewErrorCopy, type ErrorAction } from "../../lib/navigation/errorCo
 import type { PreviewError } from "../../lib/navigation/useGuidanceTypes";
 
 export const MAPS_NAME: "Apple Maps" | "Google Maps" = Platform.OS === "ios" ? "Apple Maps" : "Google Maps";
+
+/** Sheet padding that also clears the notch and rounded corners when held sideways (left/right are 0 in portrait). */
+function useSheetPad(bottomInset: number) {
+  const ins = useSafeAreaInsets();
+  return { paddingBottom: bottomInset + spacing.lg, paddingLeft: spacing.xl + ins.left, paddingRight: spacing.xl + ins.right };
+}
+
+/** Held sideways the route preview is a side panel, so the map keeps its height. */
+export function previewPanelWidth(winW: number): number {
+  return Math.min(400, Math.round(winW * 0.45));
+}
 
 function Primary({ title, onPress, disabled }: { title: string; onPress: () => void; disabled?: boolean }) {
   return (
@@ -67,8 +79,11 @@ export function PreviewSheet(props: {
   onHeight?: (h: number) => void;
 }) {
   const [about, setAbout] = useState(false);
-  // Held sideways the screen is ~375pt tall: cap the sheet and let it scroll.
-  const { height: winH } = useWindowDimensions();
+  // Held sideways the screen is ~375pt tall: a side panel whose content scrolls.
+  const { height: winH, width: winW } = useWindowDimensions();
+  const landscape = winW > winH;
+  const pad = useSheetPad(props.bottomInset);
+  const insets = useSafeAreaInsets();
   const [retryReady, setRetryReady] = useState(true);
   useEffect(() => {
     if (props.error !== "TOO_MANY_REQUESTS") return;
@@ -148,10 +163,24 @@ export function PreviewSheet(props: {
 
   return (
     <View
-      style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg, maxHeight: Math.round(winH * 0.9) }]}
+      style={[
+        s.sheet,
+        pad,
+        landscape
+          ? {
+              top: 0,
+              right: undefined,
+              width: previewPanelWidth(winW),
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: radii.sheet,
+              borderRightWidth: 1,
+              paddingTop: spacing.xl + insets.top,
+            }
+          : { maxHeight: Math.round(winH * 0.9) },
+      ]}
       onLayout={(e) => props.onHeight?.(Math.round(e.nativeEvent.layout.height))}
     >
-      <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ gap: spacing.md }} bounces={false} showsVerticalScrollIndicator={false}>
+      <ScrollView style={landscape ? { flex: 1 } : { flexGrow: 0 }} contentContainerStyle={{ gap: spacing.md }} bounces={false} showsVerticalScrollIndicator={false}>
         {props.destinationLabel && (
           <Text style={s.dest} numberOfLines={2} maxFontSizeMultiplier={fontScaleCap.heading}>
             {props.destinationLabel}
@@ -162,7 +191,7 @@ export function PreviewSheet(props: {
       </ScrollView>
       <Modal supportedOrientations={["portrait", "landscape"]} visible={about} transparent animationType="fade" onRequestClose={() => setAbout(false)}>
         <View style={s.dim}>
-          <View style={[s.sheet, s.modalSheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
+          <View style={[s.sheet, s.modalSheet, pad]}>
             <Text style={s.title}>About these directions</Text>
             <Text style={s.body}>
               Directions use OpenStreetMap road data from {r ? dataDateWords(r.dataDate) : "recently"}. They don't know about
@@ -178,6 +207,7 @@ export function PreviewSheet(props: {
 
 /** "End directions?" Dismisses itself as "Keep going" after 8 s. */
 export function EndSheet({ visible, bottomInset, onEnd, onKeep }: { visible: boolean; bottomInset: number; onEnd: () => void; onKeep: () => void }) {
+  const pad = useSheetPad(bottomInset);
   useEffect(() => {
     if (!visible) return;
     const t = setTimeout(onKeep, 8_000);
@@ -186,7 +216,7 @@ export function EndSheet({ visible, bottomInset, onEnd, onKeep }: { visible: boo
   if (!visible) return null;
   return (
     <View style={s.dimFill}>
-      <View style={[s.sheet, { paddingBottom: bottomInset + spacing.lg }]}>
+      <View style={[s.sheet, pad]}>
         <Text style={s.title}>End directions?</Text>
         <Text style={s.body}>Your trip keeps recording.</Text>
         <Pressable onPress={onEnd} style={s.secondary} accessibilityRole="button" accessibilityLabel="End directions">
@@ -200,10 +230,11 @@ export function EndSheet({ visible, bottomInset, onEnd, onKeep }: { visible: boo
 
 /** Three failed reroutes while stopped (DESIGN 2.4). */
 export function StuckSheet(props: { visible: boolean; bottomInset: number; onOpenMaps: () => void; onKeepTrying: () => void; onEnd: () => void }) {
+  const pad = useSheetPad(props.bottomInset);
   if (!props.visible) return null;
   return (
     <View style={s.dimFill}>
-      <View style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
+      <View style={[s.sheet, pad]}>
         <Text style={s.title}>Directions can't find a new route</Text>
         <Primary title={`Open in ${MAPS_NAME}`} onPress={props.onOpenMaps} />
         <TextButton title="Keep trying" onPress={props.onKeepTrying} />
@@ -214,8 +245,9 @@ export function StuckSheet(props: { visible: boolean; bottomInset: number; onOpe
 }
 
 export function ArrivedSheet(props: { bottomInset: number; summary: string | null; onDone: () => void; onReport: () => void }) {
+  const pad = useSheetPad(props.bottomInset);
   return (
-    <View style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
+    <View style={[s.sheet, pad]}>
       {props.summary && <Text style={s.fig}>{props.summary}</Text>}
       <Text style={s.body}>MileClear saves your trip when you stop, as usual.</Text>
       <Primary title="Done" onPress={props.onDone} />
@@ -226,10 +258,11 @@ export function ArrivedSheet(props: { bottomInset: number; summary: string | nul
 
 /** Before the first use: Directions are a test, and the road comes first. */
 export function FirstUseNote({ visible, bottomInset, onOk }: { visible: boolean; bottomInset: number; onOk: () => void }) {
+  const pad = useSheetPad(bottomInset);
   if (!visible) return null;
   return (
     <View style={s.dimFill}>
-      <View style={[s.sheet, { paddingBottom: bottomInset + spacing.lg }]}>
+      <View style={[s.sheet, pad]}>
         <Text style={s.title}>Before you start</Text>
         <Text style={s.body}>
           Directions is new and still being tested. Follow road signs, and tell us anything that goes wrong.
@@ -243,9 +276,10 @@ export function FirstUseNote({ visible, bottomInset, onOk }: { visible: boolean;
 
 /** The crash fallback (DESIGN 2.9). */
 export function StoppedSheet(props: { bottomInset: number; onOpenMaps: () => void; onEnd: () => void }) {
+  const pad = useSheetPad(props.bottomInset);
   return (
     <View style={s.dimFill}>
-      <View style={[s.sheet, { paddingBottom: props.bottomInset + spacing.lg }]}>
+      <View style={[s.sheet, pad]}>
         <Text style={s.title}>Directions stopped</Text>
         <Text style={s.body}>Something went wrong. Your trip still records.</Text>
         <Primary title={`Open in ${MAPS_NAME}`} onPress={props.onOpenMaps} />

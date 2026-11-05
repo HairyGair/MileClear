@@ -31,7 +31,7 @@ import * as store from "../lib/navigation/store";
 import { trackDirections } from "../lib/navigation/telemetry";
 import { DestinationPicker } from "../components/directions/DestinationPicker";
 import { Banner, BottomBar, MuteButton, RecentreButton, SpeedSign, StatusStrips, hud } from "../components/directions/Hud";
-import { ArrivedSheet, EndSheet, FirstUseNote, PreviewSheet, StoppedSheet, StuckSheet } from "../components/directions/Sheets";
+import { ArrivedSheet, EndSheet, FirstUseNote, PreviewSheet, previewPanelWidth, StoppedSheet, StuckSheet } from "../components/directions/Sheets";
 import { DestinationPin, Puck } from "../components/directions/Glyph";
 
 // ── Lazy native map import (Expo Go safe), as LiveMapTracker ─────────
@@ -229,7 +229,11 @@ export default function DirectionsScreen() {
       try {
         // The whole route above the sheet (DESIGN 2.2: bottom = sheet height + 24).
         mapRef.current?.fitToCoordinates(fullLine, {
-          edgePadding: { top: 80 + insets.top, right: 48, bottom: sheetH + 24, left: 48 },
+          // Portrait: the sheet covers the bottom. Sideways it is a panel down the left.
+          edgePadding:
+            screenW > screenH
+              ? { top: 64 + insets.top, right: 72 + insets.right, bottom: 48, left: previewPanelWidth(screenW) + insets.left + 24 }
+              : { top: 80 + insets.top, right: 48, bottom: sheetH + 24, left: 48 },
           animated: true,
         });
       } catch {
@@ -237,7 +241,7 @@ export default function DirectionsScreen() {
       }
     }, 300);
     return () => clearTimeout(t);
-  }, [g.phase, fullLine, sheetH, insets.top]);
+  }, [g.phase, fullLine, sheetH, insets.top, insets.left, insets.right, screenW, screenH]);
 
   const following =
     guiding &&
@@ -270,11 +274,17 @@ export default function DirectionsScreen() {
   useEffect(() => {
     if (overviewAt == null || fullLine.length < 2) return;
     try {
-      mapRef.current?.fitToCoordinates(fullLine, { edgePadding: { top: 220, right: 48, bottom: 200, left: 48 }, animated: true });
+      mapRef.current?.fitToCoordinates(fullLine, {
+        edgePadding:
+          screenW > screenH
+            ? { top: 96 + insets.top, right: 48 + insets.right, bottom: 88 + insets.bottom, left: 48 + insets.left }
+            : { top: 220, right: 48, bottom: 200, left: 48 },
+        animated: true,
+      });
     } catch {
       // best effort
     }
-  }, [overviewAt, fullLine]);
+  }, [overviewAt, fullLine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Not switched on (old link, old binary, or the flag went off): never
   // mid-guidance. Before the profile has loaded nothing is shown either, so
@@ -406,7 +416,7 @@ export default function DirectionsScreen() {
       )}
 
       {!guiding && g.phase !== "arrived" && (
-        <TouchableOpacity style={[s.closeOver, { top: insets.top + spacing.sm }]} onPress={close} accessibilityRole="button" accessibilityLabel="Close">
+        <TouchableOpacity style={[s.closeOver, { top: insets.top + spacing.sm, right: spacing.md + insets.right }]} onPress={close} accessibilityRole="button" accessibilityLabel="Close">
           <Ionicons name="close" size={26} color={colors.text1} />
         </TouchableOpacity>
       )}
@@ -434,7 +444,7 @@ export default function DirectionsScreen() {
 
       {guiding && (
         <GuidanceBoundary fallback={stoppedFallback}>
-          <View style={{ paddingTop: insets.top + 8 }} pointerEvents="box-none">
+          <View style={{ paddingTop: insets.top + 8, paddingLeft: insets.left, paddingRight: insets.right }} pointerEvents="box-none">
             <Banner
               next={view?.next ?? null}
               distance={view?.distanceToNext ?? 0}
@@ -454,7 +464,7 @@ export default function DirectionsScreen() {
               }}
             />
           </View>
-          <View style={[hud.controlsRow, { bottom: 110 + insets.bottom + 12 }]} pointerEvents="box-none">
+          <View style={[hud.controlsRow, { bottom: 110 + insets.bottom + 12, left: spacing.lg + insets.left, right: spacing.lg + insets.right }]} pointerEvents="box-none">
             <SpeedSign mph={view?.speedLimitMph ?? null} />
             {!following && <RecentreButton onPress={() => { setFollowPausedAt(null); setOverviewAt(null); }} />}
             <View style={{ alignItems: "flex-end", gap: 6 }}>
@@ -498,7 +508,7 @@ export default function DirectionsScreen() {
 
       {g.phase === "arrived" && (
         <>
-          <View style={[s.arrivedBanner, { marginTop: insets.top + 8 }]} accessibilityRole="header">
+          <View style={[s.arrivedBanner, { marginTop: insets.top + 8, marginLeft: 12 + insets.left, marginRight: 12 + insets.right }]} accessibilityRole="header">
             <View style={s.arrivedTile}>
               <Ionicons name="checkmark" size={44} color={colors.green} />
             </View>

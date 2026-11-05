@@ -37,6 +37,7 @@ export default function LoginScreen() {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
   const insets = useSafeAreaInsets();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const [heroWidth, setHeroWidth] = useState<number | null>(null);
   const [mode, setMode] = useState<"choose" | "email">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -116,8 +117,8 @@ export default function LoginScreen() {
         bounces={false}
       >
         {/* Map with a recorded drive, fading into the page */}
-        <View style={[s.hero, { height: heroHeight }]}>
-          <RouteHero width={screenWidth} height={heroHeight} topInset={insets.top} />
+        <View style={[s.hero, { height: heroHeight }]} onLayout={(e) => setHeroWidth(Math.round(e.nativeEvent.layout.width))}>
+          <RouteHero width={heroWidth ?? screenWidth} height={heroHeight} topInset={insets.top} />
           <View style={[s.brandWrap, { top: insets.top + 20 }]}>
             <Image
               source={require("../../assets/branding/logo-original.png")}

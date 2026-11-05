@@ -20,6 +20,7 @@ import { haptic } from "../../lib/haptics";
 import { colors, fonts } from "../../lib/theme";
 import CarBluetoothArt from "./CarBluetoothArt";
 import { useLargeText } from "../../lib/accessibility";
+import { useSheetMaxHeight } from "../../lib/useSheetMaxHeight";
 
 interface WhichCarSheetProps {
   /** The question to ask; null keeps the sheet closed. */
@@ -31,6 +32,8 @@ interface WhichCarSheetProps {
 
 export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
   const largeText = useLargeText();
+  // Live window height: a phone held sideways is only ~375pt tall. The list scrolls.
+  const sheetMax = useSheetMaxHeight(0.97);
   const [failed, setFailed] = useState(false);
   // A ref, not state: two quick taps both see the same render's state.
   const busy = useRef(false);
@@ -110,11 +113,13 @@ export function WhichCarSheet({ question, cars, onDone }: WhichCarSheetProps) {
   return (
     <AppModal visible={!!question} animationType="slide" onRequestClose={snooze}>
       <View style={styles.overlay}>
-        <View style={styles.sheet} accessibilityViewIsModal>
+        <View style={[styles.sheet, { maxHeight: Math.min(640, sheetMax.maxHeight) }]} accessibilityViewIsModal>
           <View style={styles.grabber} />
-          <View style={styles.artWrap}>
-            <CarBluetoothArt size={84} />
-          </View>
+          {sheetMax.maxHeight > 420 && (
+            <View style={styles.artWrap}>
+              <CarBluetoothArt size={84} />
+            </View>
+          )}
           <Text style={styles.title} accessibilityRole="header">
             Which car is {name}?
           </Text>

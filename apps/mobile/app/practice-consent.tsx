@@ -211,7 +211,7 @@ export default function PracticeConsentScreen() {
   const firm = view.kind === "ask" || view.kind === "info" ? view.practice.name : "";
 
   return (
-    <View style={[s.root, { paddingBottom: 0 }]}>
+    <View style={[s.root, { paddingBottom: 0, paddingLeft: insets.left, paddingRight: insets.right }]}>
       <View style={s.header}>
         <View style={s.grabber} />
         <Pressable
