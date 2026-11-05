@@ -2741,7 +2741,7 @@ const styles = StyleSheet.create({
   },
   segmentCount: {
     minWidth: 20,
-    height: 20,
+    minHeight: 20,
     borderRadius: 10,
     paddingHorizontal: 5,
     backgroundColor: AMBER,
