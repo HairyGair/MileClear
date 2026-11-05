@@ -807,8 +807,9 @@ table.adm-sr { display: block; }
 .adm-dtable__sort-icon--on { opacity: 1; color: var(--adm-accent); }
 
 .adm-dtable__row--click { cursor: pointer; }
-.adm-dtable__row--click:focus-visible td { background: var(--adm-accent-soft); }
-.adm-dtable__row--click:focus-visible { box-shadow: none; }
+.adm-dtable__row--click:focus-within td { background: var(--adm-accent-soft); }
+.adm-dtable__rowbtn { appearance: none; background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+.adm-dtable__rowbtn:focus-visible { outline: 2px solid var(--adm-accent); outline-offset: 2px; border-radius: 4px; }
 .adm-dtable__row--good td:first-child { box-shadow: inset 3px 0 0 var(--adm-good); }
 .adm-dtable__row--warn td:first-child { box-shadow: inset 3px 0 0 var(--adm-warn); }
 .adm-dtable__row--bad td:first-child { box-shadow: inset 3px 0 0 var(--adm-bad); }

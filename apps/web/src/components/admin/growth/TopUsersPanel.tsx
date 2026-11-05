@@ -126,6 +126,7 @@ export function TopUsersTab() {
               rows={rows(d, view)}
               rowKey={(r) => r.id}
               onRowClick={(r) => setDetailUserId(r.id)}
+              rowButtonColumn="label"
               emptyTitle="Nobody in this list yet"
             />
           )}

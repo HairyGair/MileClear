@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { AdminIcon } from "./icons";
 import { EmptyState } from "./States";
 
@@ -28,6 +28,9 @@ interface DataTableProps<T> {
   /** Names the table for screen readers. */
   caption: string;
   onRowClick?: (row: T) => void;
+  /** With onRowClick: the column whose cell holds the button that opens the
+   *  row for keyboard and screen reader users. Defaults to the first column. */
+  rowButtonColumn?: string;
   /** Starting sort. */
   initialSort?: { key: string; dir: "asc" | "desc" };
   /** Caps the height and keeps the header in view while the body scrolls. */
@@ -48,6 +51,7 @@ export function DataTable<T>({
   rowKey,
   caption,
   onRowClick,
+  rowButtonColumn,
   initialSort,
   maxHeight,
   emptyTitle = "Nothing to show",
@@ -88,12 +92,7 @@ export function DataTable<T>({
     });
   };
 
-  const onRowKey = (e: KeyboardEvent<HTMLTableRowElement>, row: T) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onRowClick?.(row);
-    }
-  };
+  const buttonKey = rowButtonColumn ?? columns[0]?.key;
 
   return (
     <div className={`adm-table-scroll${dense ? " adm-table-scroll--dense" : ""}`} style={maxHeight ? { maxHeight } : undefined}>
@@ -139,9 +138,6 @@ export function DataTable<T>({
                 key={rowKey(row, i)}
                 className={`${onRowClick ? "adm-dtable__row--click " : ""}${tone ? `adm-dtable__row--${tone}` : ""}`.trim() || undefined}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
-                onKeyDown={onRowClick ? (e) => onRowKey(e, row) : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
-                role={onRowClick ? "button" : undefined}
               >
                 {columns.map((c) => {
                   const align = c.align ?? (c.numeric ? "right" : "left");
@@ -150,7 +146,18 @@ export function DataTable<T>({
                       key={c.key}
                       className={`adm-dtable__td--${align}${c.numeric ? " adm-num" : ""}${c.hideOnMobile ? " adm-hide-sm" : ""}`}
                     >
-                      {c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? "")}
+                      {onRowClick && c.key === buttonKey ? (
+                        // A real button so keyboard and screen reader users can open
+                        // the row, while buttons in other cells stay reachable. Its
+                        // click bubbles to the row handler.
+                        <button type="button" className="adm-dtable__rowbtn">
+                          {c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? "")}
+                        </button>
+                      ) : c.render ? (
+                        c.render(row)
+                      ) : (
+                        String((row as Record<string, unknown>)[c.key] ?? "")
+                      )}
                     </td>
                   );
                 })}

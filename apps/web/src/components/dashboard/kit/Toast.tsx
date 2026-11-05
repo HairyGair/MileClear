@@ -19,7 +19,9 @@ const LIFETIME = { ok: 5000, error: 10000 } as const;
 
 /** One toast. Its dismiss timer pauses while the pointer is over it or focus is inside it. */
 function ToastView({ item, onDone }: { item: ToastItem; onDone: (id: number) => void }) {
-  const [paused, setPaused] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const paused = hovered || focused;
   const left = useRef<number>(LIFETIME[item.tone]);
   useEffect(() => {
     if (paused) return;
@@ -33,10 +35,10 @@ function ToastView({ item, onDone }: { item: ToastItem; onDone: (id: number) => 
   return (
     <div
       className="mc-toast"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
     >
       <Icon
         name={item.tone === "error" ? "alert-circle" : "checkmark-circle"}

@@ -495,7 +495,6 @@ export default function HeroDemo() {
         <button
           type="button"
           className="md__pause"
-          aria-pressed={paused}
           onClick={() => setPaused((p) => !p)}
         >
           {paused ? "Play demo animation" : "Pause demo animation"}

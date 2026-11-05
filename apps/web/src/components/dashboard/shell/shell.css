@@ -93,3 +93,10 @@
 
 /* Links in the frame are never underlined (beats the global a:hover rule). */
 .mc-app .mc-rail__item, .mc-app .mc-tabbar__item, .mc-app .mc-wordmark, .mc-app .mc-topbar__back, .mc-app .mc-row, .mc-app .mc-btn, .mc-app .mc-menu__item { text-decoration: none; }
+
+/* Windows high contrast / forced colours: the current page shows by its tint,
+   which is removed, so mark it with an outline instead. */
+@media (forced-colors: active) {
+  .mc-rail__item.is-active,
+  .mc-tabbar__item.is-active { outline: 2px solid Highlight; outline-offset: -2px; }
+}
