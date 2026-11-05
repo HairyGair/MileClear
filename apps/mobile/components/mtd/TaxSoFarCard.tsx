@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Text, ScrollView, StyleSheet } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontSizes, numberSizes, shared, spacing } from "../../lib/theme";
 import type { HmrcEnv } from "../../lib/tax/mtdCopy";
@@ -36,7 +37,7 @@ export function TaxSoFarCard({
   const [open, setOpen] = useState(false);
   // 460 on a tall phone; shorter when held sideways so the sheet still fits.
   // Portrait keeps 460 exactly (a small Android phone would otherwise lose some).
-  const { width: winW, height: winH } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowSize();
   const explainMax = winW > winH ? Math.min(460, Math.round(winH * 0.7)) : 460;
   if (!result) return null;
   const view = taxSoFarView(result.summary, {

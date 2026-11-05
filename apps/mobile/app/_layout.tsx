@@ -156,6 +156,7 @@ import { SyncProvider } from "../lib/sync/context";
 import { HydrationOverlay } from "../components/HydrationOverlay";
 import { Skeleton } from "../components/Skeleton";
 import { radii, spacing } from "../lib/theme";
+import { reportWindowSize } from "../lib/useWindowSize";
 import "../lib/tracking/detection";
 import {
   setupNotificationResponseHandler,
@@ -1000,7 +1001,10 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView
+      style={{ flex: 1 }}
+      onLayout={(e) => reportWindowSize(e.nativeEvent.layout.width, e.nativeEvent.layout.height)}
+    >
       <ErrorBoundary>
         <AuthProvider>
           <UserProvider>

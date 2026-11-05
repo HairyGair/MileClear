@@ -3,7 +3,8 @@
 // before the first use. Solid panels, 56 pt buttons.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
+import { ActivityIndicator, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NavigationRoute } from "@mileclear/shared";
@@ -80,7 +81,7 @@ export function PreviewSheet(props: {
 }) {
   const [about, setAbout] = useState(false);
   // Held sideways the screen is ~375pt tall: a side panel whose content scrolls.
-  const { height: winH, width: winW } = useWindowDimensions();
+  const { height: winH, width: winW } = useWindowSize();
   const landscape = winW > winH;
   const pad = useSheetPad(props.bottomInset);
   const insets = useSafeAreaInsets();

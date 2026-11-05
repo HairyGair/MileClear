@@ -8,7 +8,8 @@
 // splits or sorts a trip, and nothing writes the recorder's state.
 
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppState, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View, useWindowDimensions } from "react-native";
+import { useWindowSize } from "../lib/useWindowSize";
+import { AppState, BackHandler, Platform, StyleSheet, Text, TouchableOpacity, UIManager, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -71,7 +72,7 @@ class GuidanceBoundary extends Component<{ fallback: ReactNode; children: ReactN
 export default function DirectionsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { height: screenH, width: screenW } = useWindowDimensions();
+  const { height: screenH, width: screenW } = useWindowSize();
   const [sheetH, setSheetH] = useState(320);
   const focused = useIsFocused();
   const reduceMotion = useReducedMotion();

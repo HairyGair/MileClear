@@ -3,7 +3,8 @@
 // "Save a place" and "New trip from here" rows. One row per choice, 52 pt
 // high, a tick on the one that is set. Choosing closes the sheet.
 
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import { AppModal } from "../AppModal";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
@@ -33,7 +34,7 @@ interface Props {
 
 export function PickerSheet({ visible, title, options, selectedKey, onPick, onClose, onDismiss }: Props) {
   const largeText = useLargeText();
-  const { height } = useWindowDimensions();
+  const { height } = useWindowSize();
   return (
     <AppModal
       visible={visible}

@@ -4,6 +4,7 @@
 // below that size the labels shrink a little rather than cut to "Start Sh...".
 
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, fonts, fontScaleCap, radii } from "../../lib/theme";
 import { useLargeText } from "../../lib/accessibility";
@@ -17,7 +18,8 @@ interface Props {
 
 export function TripButtons({ showShift, starting, onStartTrip, onStartShift }: Props) {
   const largeText = useLargeText();
-  const { width, fontScale } = useWindowDimensions();
+  const { width } = useWindowSize();
+  const { fontScale } = useWindowDimensions();
   const stacked = showShift && (fontScale > 1.3 || width < 380);
 
   const trip = (

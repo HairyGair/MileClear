@@ -10,8 +10,8 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
-  useWindowDimensions,
-} from "react-native";
+  } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
@@ -36,7 +36,7 @@ const HERO_HEIGHT_EMAIL = 190;
 export default function LoginScreen() {
   const { login, loginWithApple, loginWithGoogle } = useAuth();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowSize();
   const [heroWidth, setHeroWidth] = useState<number | null>(null);
   // The size of the screen as laid out. The window size above can stay on the
   // old orientation after the phone is turned, so this decides portrait or sideways.

@@ -5,12 +5,12 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  useWindowDimensions,
   Alert,
   ActivityIndicator,
   Linking,
   Platform,
 } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { AppModal } from "../AppModal";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -66,7 +66,7 @@ export function PaywallModal({ visible, onClose, source }: PaywallModalProps) {
   const scrollRef = useRef<ScrollView>(null);
   // Live width, so the pager re-fits when the phone rotates. AppModal pads the
   // notch sides in landscape (0 in portrait), so a page is the window minus those.
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useWindowSize();
   const sideInsets = useSafeAreaInsets();
   const SCREEN_WIDTH = windowWidth - sideInsets.left - sideInsets.right;
   const router = useRouter();

@@ -1,5 +1,4 @@
 import {
-  useWindowDimensions,
   View,
   Text,
   Pressable,
@@ -8,6 +7,7 @@ import {
   Dimensions,
 } from "react-native";
 import { AppModal } from "./AppModal";
+import { useWindowSize } from "../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import type { NumberDerivation } from "@mileclear/shared";
 import { colors, fonts } from "../lib/theme";
@@ -46,7 +46,7 @@ export function DerivationPanel({
   derivation,
   onClose,
 }: DerivationPanelProps) {
-  const { height: winH } = useWindowDimensions();
+  const { height: winH } = useWindowSize();
   const sheetMax = useSheetMaxHeight(0.85);
   return (
     <AppModal

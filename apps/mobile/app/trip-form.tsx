@@ -13,8 +13,8 @@ import {
   LayoutAnimation,
   UIManager,
   AppState,
-  useWindowDimensions,
-} from "react-native";
+  } from "react-native";
+import { useWindowSize } from "../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect, Stack } from "expo-router";
 import { StackActions, usePreventRemove, useRoute } from "@react-navigation/native";
@@ -723,7 +723,7 @@ const CLASSIFICATIONS: { value: TripClassification; label: string }[] = [
 
 export default function TripFormScreen() {
   const largeText = useLargeText();
-  const { width: winW, height: winH } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowSize();
   const landscape = winW > winH;
   const router = useRouter();
   // Miles or kilometres on screen. distanceMiles and everything saved stay

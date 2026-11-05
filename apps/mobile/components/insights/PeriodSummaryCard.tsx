@@ -5,6 +5,7 @@
 // figures and one quiet line that opens the paywall.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { AccessibilityInfo, Modal, Platform, Switch, Text, TouchableOpacity, useWindowDimensions, View, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { formatPence } from "@mileclear/shared";
@@ -61,7 +62,8 @@ interface PeriodSummaryCardProps {
 
 export function PeriodSummaryCard(props: PeriodSummaryCardProps) {
   const { mode, period, offset, range, summary, bars, tripsEver, isPro, reducedMotion } = props;
-  const { width, fontScale } = useWindowDimensions();
+  const { width } = useWindowSize();
+  const { fontScale } = useWindowDimensions();
   const { unit } = useDistanceUnit();
   const stacked = width < 380 || fontScale > 1.3;
   const shareRef = useRef<View>(null);

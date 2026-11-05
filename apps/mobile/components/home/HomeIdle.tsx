@@ -16,6 +16,7 @@
 // the shift, the dismissals of its older asks) comes in as props.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
+import { useWindowSize } from "../../lib/useWindowSize";
 import {
   Linking,
   RefreshControl,
@@ -113,7 +114,8 @@ export function HomeIdle(p: Props) {
   const { user, isCompanyDriver, seesCompanyDriverApp } = useUser();
   const isPremium = useIsPremium();
   const { showPaywall } = usePaywall();
-  const { width, fontScale } = useWindowDimensions();
+  const { width } = useWindowSize();
+  const { fontScale } = useWindowDimensions();
   const { unit } = useDistanceUnit();
 
   const isWork = mode === "work";

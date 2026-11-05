@@ -8,8 +8,8 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
-  useWindowDimensions,
-} from "react-native";
+  } from "react-native";
+import { useWindowSize } from "../../lib/useWindowSize";
 import { Ionicons } from "@expo/vector-icons";
 import { GIG_PLATFORMS, BUSINESS_PURPOSES, TRIP_CATEGORY_META, formatPence } from "@mileclear/shared";
 import type {
@@ -188,7 +188,7 @@ function useAnimatedToggle() {
 function MapBlock(
   props: Pick<TripSummaryViewProps, "routeCoords" | "routeMatched" | "isManual" | "startLat" | "startLng" | "endLat" | "endLng">
 ) {
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight } = useWindowSize();
   // 180 on a small phone (SE), 200 otherwise.
   const height = windowHeight < 700 ? 180 : 200;
   // A trip added by hand has no breadcrumbs, but the server may have its road

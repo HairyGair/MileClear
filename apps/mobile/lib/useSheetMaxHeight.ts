@@ -1,4 +1,4 @@
-import { useWindowDimensions } from "react-native";
+import { useWindowSize } from "./useWindowSize";
 
 /**
  * Max height for a bottom sheet or card as a fraction of the CURRENT window
@@ -7,6 +7,6 @@ import { useWindowDimensions } from "react-native";
  * Spread the result into the sheet's style: style={[styles.sheet, sheetMax]}.
  */
 export function useSheetMaxHeight(fraction: number): { maxHeight: number } {
-  const { height } = useWindowDimensions();
+  const { height } = useWindowSize();
   return { maxHeight: Math.round(height * fraction) };
 }
